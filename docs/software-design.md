@@ -18,8 +18,8 @@
 |---|---|---|
 | `Design Maps/` vault | Complete | 21 canvases; the long-term target architecture |
 | This document | Complete | |
-| **Step 0 — Scaffold** | **Complete** | Django 5.2 on Python 3.13; boots, migrates, admin reachable; 9 tests pass, lint clean |
-| Step 1 — Engine contract + MockEngine | Not started | |
+| **Step 0 — Scaffold** | **Complete** | Django 5.2 on Python 3.13; boots, migrates, admin reachable |
+| **Step 1 — Engine contract + MockEngine** | **Complete** | Contract, MockEngine, gate/scoring layers, boundary test; 116 tests pass. No Django code touched. |
 | Step 2 — Domain model | Not started | |
 | Step 3 — API + orchestration | Not started | |
 | Step 4 — Frontend integration | Not started | |
@@ -33,6 +33,18 @@ Update this table as steps complete. It is the fastest way for a new agent to or
 - **`./do` replaces the `Makefile`** (§4, §13 Step 0). `make` is not present on a default
   WSL Ubuntu image and installing it needs root. A dependency-free shell script keeps
   "clone and run" true. ADR not required — this removes a dependency rather than adding one.
+- **`load_engine(dotted_path)` replaces `get_engine()`** (§13 Step 1). §13 described it as
+  "resolving `CERNAL_ENGINE`", but reading Django settings from inside `engine/` would
+  violate §3 outright. The function takes the path as an argument; the Platform passes
+  `settings.CERNAL_ENGINE` in.
+- **`engine/pipeline/stages.py` holds all thirteen stage signatures**, rather than one module
+  per stage (§13 Step 1). Thirteen near-empty modules is noise for a rotating team (rule 12);
+  the stage ordering is just as visible in one file.
+- **`engine/scoring/` is implemented, not stubbed** (§13 Step 1). Normalization, weighting,
+  hard filters and ranking are ~150 lines of generic, science-free machinery that `MockEngine`
+  needs in order to produce meaningful score decompositions. Implementing it now makes the
+  mock genuinely representative and shrinks Step 5. The *metric set* in `default-v1` remains
+  provisional and is owned by the scientific team.
 
 ---
 
@@ -213,9 +225,9 @@ cernal/
 │   │   ├── contract.py           JobRequest, JobResult, CandidateResult, MetricValue, ArtifactRef
 │   │   ├── client.py             EngineClient Protocol · MockEngine · LocalEngine
 │   │   ├── errors.py             EngineError hierarchy
-│   │   ├── pipeline/             Scientific stages (stubs in v1)
-│   │   ├── gates/                base.py (GateFamily ABC) + toehold.py (stub)
-│   │   ├── scoring/              profiles.py, normalize.py (stubs)
+│   │   ├── pipeline/             stages.py — 13 stage signatures (stubs until Step 5)
+│   │   ├── gates/                base.py (GateFamily ABC) · toehold.py (stub) · registry.py
+│   │   ├── scoring/              profiles.py, normalize.py — implemented
 │   │   └── artifacts.py          Writes result files to a given output dir
 │   │
 │   └── static/
@@ -779,10 +791,12 @@ Each step is independently reviewable and leaves the repository in a working sta
 
 - `engine/contract.py` — the dataclasses from §10, complete.
 - `engine/client.py` — `EngineClient` Protocol, `MockEngine`, `LocalEngine` skeleton,
-  `get_engine()` resolving `CERNAL_ENGINE` by dotted path.
+  `load_engine(dotted_path)` resolving a client by dotted path. It takes the path as an
+  argument: reading `settings` here would violate §3.
 - `engine/errors.py`; `engine/artifacts.py` (write file + checksum).
-- Stubs: `gates/base.py`, `gates/toehold.py`, `gates/registry.py`, `scoring/profiles.py`,
-  `scoring/normalize.py`, `pipeline/` stage signatures.
+- Complete: `gates/base.py` (`GateFamily` ABC and its types), `gates/registry.py`,
+  `scoring/profiles.py`, `scoring/normalize.py`.
+- Stubs: `gates/toehold.py`, `pipeline/stages.py` (13 stage signatures).
 - `tests/test_boundary.py` and `tests/engine/` determinism + cancellation tests.
 - `docs/engine-contract.md`, including the field-for-field mapping to the future
   `POST /v1/jobs` payload.
