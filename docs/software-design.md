@@ -19,8 +19,8 @@
 | `Design Maps/` vault | Complete | 21 canvases; the long-term target architecture |
 | This document | Complete | |
 | **Step 0 — Scaffold** | **Complete** | Django 5.2 on Python 3.13; boots, migrates, admin reachable |
-| **Step 1 — Engine contract + MockEngine** | **Complete** | Contract, MockEngine, gate/scoring layers, boundary test; 116 tests pass. No Django code touched. |
-| Step 2 — Domain model | Not started | |
+| **Step 1 — Engine contract + MockEngine** | **Complete** | Contract, MockEngine, gate/scoring layers, boundary test. No Django code touched. |
+| **Step 2 — Domain model** | **Complete** | 8 models, migrations, admin back-office, `seed_demo`; result import pulled forward. 193 tests pass. |
 | Step 3 — API + orchestration | Not started | |
 | Step 4 — Frontend integration | Not started | |
 | Step 5 — Real science | Not started | |
@@ -40,6 +40,13 @@ Update this table as steps complete. It is the fastest way for a new agent to or
 - **`engine/pipeline/stages.py` holds all thirteen stage signatures**, rather than one module
   per stage (§13 Step 1). Thirteen near-empty modules is noise for a rotating team (rule 12);
   the stage ordering is just as visible in one file.
+- **`Candidate.engine_ref` added to §5.** The engine's local candidate id is stored so a
+  database row can be traced back to the result manifest that produced it, and so a
+  manifest cannot be imported twice into one run (`unique_engine_ref_per_run`).
+- **`apps/results/services.py::import_job_result` pulled forward from Step 3** (§13 Step 2).
+  Step 2's "Done when" requires `seed_demo` to produce a browsable run, which needs result
+  persistence. Writing it once in the right place beats writing it twice. Step 3 still owns
+  the run *lifecycle* — this function deliberately does not touch `run.status` (rule 5).
 - **`engine/scoring/` is implemented, not stubbed** (§13 Step 1). Normalization, weighting,
   hard filters and ranking are ~150 lines of generic, science-free machinery that `MockEngine`
   needs in order to produce meaningful score decompositions. Implementing it now makes the
@@ -355,6 +362,7 @@ The centre of the product. Immutable once submitted.
 |---|---|---|
 | `id` | UUID, pk | |
 | `run` | FK → AnalysisRun | `CASCADE` |
+| `engine_ref` | CharField(50) | Engine-local id; unique per run. Traceability back to the manifest |
 | `rank` | Integer, null | Null for rejected candidates |
 | `overall_score` | Float, null | |
 | `gate_family` | CharField(50) | |
@@ -365,6 +373,10 @@ The centre of the product. Immutable once submitted.
 | `warnings` | JSONField (list[str]) | |
 | `is_rejected` | Boolean | |
 | `rejection_reason` | TextField, blank | **Never leave blank when rejected** |
+
+Rule 8 is enforced by a database `CheckConstraint`, not by a code path: a rejected
+candidate without a reason cannot be written at all. Two further constraints hold the
+line — rejected candidates cannot carry a rank, and `engine_ref` is unique per run.
 
 ### `results.CandidateMetric`
 
