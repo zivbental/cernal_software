@@ -1,0 +1,27 @@
+{
+  "vault_name": "CERNAL_Architecture_Vault",
+  "root_canvas": "CERNAL Architecture.canvas",
+  "canvas_count": 21,
+  "maps": {
+    "boundary": "Maps/01 System Boundary.canvas",
+    "workflow": "Maps/02 Researcher Workflow.canvas",
+    "frontend": "Maps/03 Frontend Architecture.canvas",
+    "backend": "Maps/04 Backend Architecture.canvas",
+    "domain": "Maps/05 Platform Domain and Database.canvas",
+    "workers": "Maps/06 Platform Async Orchestration.canvas",
+    "platform_state": "Maps/07 Platform Run State Machine.canvas",
+    "api": "Maps/08 Platform-Engine API Contract.canvas",
+    "sequence": "Maps/09 End-to-End Analysis Sequence.canvas",
+    "engine": "Maps/10 Engine Architecture.canvas",
+    "pipeline": "Maps/11 Scientific Pipeline.canvas",
+    "gates": "Maps/12 Gate and Scoring Architecture.canvas",
+    "engine_state": "Maps/13 Engine Job State Machine.canvas",
+    "compute": "Maps/14 Compute Provider and Slurm.canvas",
+    "storage": "Maps/15 Storage and Artifact Flow.canvas",
+    "security": "Maps/16 Security and Trust Boundaries.canvas",
+    "deployment": "Maps/17 Deployment Topologies.canvas",
+    "reliability": "Maps/18 Reliability Reproducibility Observability.canvas",
+    "repos": "Maps/19 Repository and Team Ownership.canvas",
+    "roadmap": "Maps/20 Implementation Roadmap.canvas"
+  }
+}

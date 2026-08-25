@@ -1,0 +1,21 @@
+{
+	"nodes":[
+		{"id":"355e849e5c084d57","type":"group","label":"NAVIGATION","x":-1050,"y":-380,"width":2600,"height":210,"color":"3"},
+		{"id":"8ba63fad1e8a4003","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"e9f4027ee166487d","type":"file","file":"Maps/08 Platform-Engine API Contract.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"5f702db456454206","type":"file","file":"Maps/17 Deployment Topologies.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"8c1655a8db104500","type":"file","file":"Maps/19 Repository and Team Ownership.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"7060448cf08b4201","type":"file","file":"Maps/16 Security and Trust Boundaries.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"6f8065471bea4f96","type":"group","label":"PLATFORM RESPONSIBILITY","x":-1000,"y":-50,"width":1300,"height":1250,"color":"5"},
+		{"id":"6c41a42bcb434eb2","type":"group","label":"ENGINE RESPONSIBILITY","x":500,"y":-50,"width":1300,"height":1250,"color":"4"},
+		{"id":"8bba6afd252742cd","type":"group","label":"HARD CONTRACT BOUNDARY","x":120,"y":120,"width":520,"height":850,"color":"3"},
+		{"id":"b4523beb380e471c","type":"text","text":"# CERNAL Platform\nThe **software product** researchers use.\n\n### Owns\n- Users, workspaces, permissions\n- Projects and biological objectives\n- Dataset upload and validation UX\n- Analysis configuration\n- Durable AnalysisRun records\n- Progress presentation\n- Candidate exploration\n- Annotations and decisions\n- Exports and reports\n- Product audit history\n\n### Must not own\nScientific ranking, RNA folding logic, gate design algorithms,\nSlurm scripts, scheduler IDs or engine implementation details.","x":-850,"y":80,"width":950,"height":770,"color":"5"},
+		{"id":"37cbaebfc5e646d2","type":"text","text":"# Versioned API Contract\n\nThe only supported integration surface.\n\n**Platform → Engine**\n- immutable input references\n- normalized parameters\n- idempotency key\n- requested schema / model profile\n\n**Engine → Platform**\n- engine job identifier\n- technical status\n- progress metadata\n- result manifest\n- artifact references\n- reproducibility metadata\n\nThe contract is provider-independent.","x":180,"y":220,"width":400,"height":650,"color":"3"},
+		{"id":"d2aa5d486f464098","type":"text","text":"# CERNAL Engine\nAn **independently deployed scientific computation service**.\n\n### Owns\n- Scientific input validation\n- Immutable run manifests\n- Trigger generation\n- RNA gate generation\n- Thermodynamic / sequence evaluation\n- Candidate scoring and ranking\n- Scientific tool integration\n- Compute-provider selection\n- Slurm / worker execution\n- Engine logs and checkpoints\n- Result manifest production\n\n### Must not own\nUser login, workspace permissions, Django models,\nReact types, product annotations or UI state.","x":650,"y":80,"width":950,"height":770,"color":"4"},
+		{"id":"3bcc4c7a90e44367","type":"text","text":"## Why the boundary matters\nIt allows the product and science to evolve independently. A new gate algorithm, folding tool, Slurm cluster, or cloud provider can be introduced without redesigning the researcher interface. Likewise, the Platform can gain collaboration, visualization or project-management features without contaminating the scientific execution layer.","x":-430,"y":930,"width":1300,"height":240}
+	],
+	"edges":[
+		{"id":"8b8a216993304d7f","fromNode":"b4523beb380e471c","toNode":"37cbaebfc5e646d2","toEnd":"arrow","fromSide":"right","toSide":"left","fromEnd":"arrow","label":"versioned service request"},
+		{"id":"e0bf9e07ea9047d7","fromNode":"37cbaebfc5e646d2","toNode":"d2aa5d486f464098","toEnd":"arrow","fromSide":"right","toSide":"left","fromEnd":"arrow","label":"provider-independent API"}
+	]
+}

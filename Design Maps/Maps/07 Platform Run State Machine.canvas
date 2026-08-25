@@ -1,0 +1,42 @@
+{
+	"nodes":[
+		{"id":"290afb29b17a4b87","type":"group","label":"NAVIGATION","x":-1050,"y":-380,"width":2600,"height":210,"color":"3"},
+		{"id":"8534a074bab54ddc","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"4ce5a8415a704475","type":"file","file":"Maps/02 Researcher Workflow.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"bf429baf7f1f4c57","type":"file","file":"Maps/06 Platform Async Orchestration.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"5a4f09116c8b4d57","type":"file","file":"Maps/13 Engine Job State Machine.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"a4fba3eabbe44c0c","type":"file","file":"Maps/09 End-to-End Analysis Sequence.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"eafc61824345489d","type":"group","label":"PRODUCT-FACING ANALYSIS RUN STATE MACHINE","x":-1000,"y":-20,"width":2600,"height":1380,"color":"5"},
+		{"id":"5975ce16f00e4f3f","type":"text","text":"# DRAFT\nProject/config still editable","x":-820,"y":100,"width":360,"height":170,"color":"5"},
+		{"id":"44f2c9a13d984472","type":"text","text":"# UPLOADING\nInput transfer in progress","x":-380,"y":100,"width":360,"height":170,"color":"5"},
+		{"id":"3aa3153cec844cde","type":"text","text":"# VALIDATING\nProduct-side checks","x":-380,"y":400,"width":360,"height":170,"color":"5"},
+		{"id":"fb6fe29cd2b74835","type":"text","text":"# READY\nValid inputs + config","x":-820,"y":400,"width":360,"height":170,"color":"5"},
+		{"id":"28855243e3634f6d","type":"text","text":"# SUBMITTING\nAsync handoff initiated","x":-820,"y":700,"width":360,"height":170,"color":"5"},
+		{"id":"0fdc76252c504458","type":"text","text":"# QUEUED\nEngine accepted job","x":-320,"y":700,"width":360,"height":170,"color":"5"},
+		{"id":"09580c54caef497a","type":"text","text":"# RUNNING\nEngine is computing","x":180,"y":700,"width":360,"height":170,"color":"5"},
+		{"id":"f723917e9be147e5","type":"text","text":"# IMPORTING RESULTS\nEngine terminal success; Platform importing","x":680,"y":700,"width":360,"height":170,"color":"5"},
+		{"id":"dc2cf48fd4f8425a","type":"text","text":"# COMPLETED\nResults available","x":1180,"y":700,"width":360,"height":170,"color":"5"},
+		{"id":"0e2f2de503a54c4b","type":"text","text":"# VALIDATION FAILED\nUser can fix inputs/config and validate again.","x":180,"y":100,"width":420,"height":190,"color":"1"},
+		{"id":"8214e524e97a4868","type":"text","text":"# SUBMISSION FAILED\nNo accepted Engine job.\nRetry safely with same idempotency key.","x":680,"y":100,"width":440,"height":210,"color":"1"},
+		{"id":"527b3c1437994bd3","type":"text","text":"# ENGINE FAILED / TIMED OUT\nDurable Platform record retained.\nShow useful summary; new run may be created.","x":1180,"y":100,"width":440,"height":230,"color":"1"},
+		{"id":"187362fdaa7340c3","type":"text","text":"# CANCELLATION REQUESTED → CANCELLED\nPlatform records intent, Engine coordinates actual compute-provider cancellation.","x":180,"y":400,"width":950,"height":200,"color":"1"},
+		{"id":"19572854126d4da1","type":"text","text":"# IMPORT FAILED\nDo **not** rerun science automatically.\nRetry manifest/artifact import.","x":1180,"y":430,"width":420,"height":190,"color":"1"},
+		{"id":"793adc14f446420c","type":"text","text":"## Mapping principle\nThe Platform exposes **stable, comprehensible stages**. The Engine can have many more technical states such as `STAGING_INPUTS`, `SUBMITTED_TO_SLURM`, `RUNNING_FOLDING` or `PUBLISHING_ARTIFACTS`. Those details are mapped, not copied wholesale into the product model.","x":-820,"y":1050,"width":2000,"height":230,"color":"2"}
+	],
+	"edges":[
+		{"id":"bab678971dca45ba","fromNode":"5975ce16f00e4f3f","toNode":"44f2c9a13d984472","toEnd":"arrow","label":"upload","fromSide":"right","toSide":"left"},
+		{"id":"a447ef4191784677","fromNode":"44f2c9a13d984472","toNode":"3aa3153cec844cde","toEnd":"arrow","label":"complete","fromSide":"bottom","toSide":"top"},
+		{"id":"0e4593d32e1d48b2","fromNode":"3aa3153cec844cde","toNode":"fb6fe29cd2b74835","toEnd":"arrow","label":"valid","fromSide":"left","toSide":"right"},
+		{"id":"1c377c07a4844133","fromNode":"fb6fe29cd2b74835","toNode":"28855243e3634f6d","toEnd":"arrow","label":"submit","fromSide":"bottom","toSide":"top"},
+		{"id":"4d85674c5dee4126","fromNode":"28855243e3634f6d","toNode":"0fdc76252c504458","toEnd":"arrow","label":"202 + engine_job_id","fromSide":"right","toSide":"left"},
+		{"id":"ff0ce041e3754535","fromNode":"0fdc76252c504458","toNode":"09580c54caef497a","toEnd":"arrow","label":"engine starts","fromSide":"right","toSide":"left"},
+		{"id":"3664df1fbfa841f9","fromNode":"09580c54caef497a","toNode":"f723917e9be147e5","toEnd":"arrow","label":"engine succeeded","fromSide":"right","toSide":"left"},
+		{"id":"d3035dce0ad845da","fromNode":"f723917e9be147e5","toNode":"dc2cf48fd4f8425a","toEnd":"arrow","label":"import valid","fromSide":"right","toSide":"left"},
+		{"id":"59dee8e0a34143a6","fromNode":"3aa3153cec844cde","toNode":"0e2f2de503a54c4b","toEnd":"arrow","label":"invalid","fromSide":"top","toSide":"bottom"},
+		{"id":"d07107c72be24917","fromNode":"28855243e3634f6d","toNode":"8214e524e97a4868","toEnd":"arrow","label":"request rejected / exhausted","fromSide":"right","toSide":"left"},
+		{"id":"9b19205ef3d94cf5","fromNode":"0fdc76252c504458","toNode":"187362fdaa7340c3","toEnd":"arrow","label":"user cancels","fromSide":"right","toSide":"bottom"},
+		{"id":"dde715e94a684f0b","fromNode":"09580c54caef497a","toNode":"187362fdaa7340c3","toEnd":"arrow","label":"user cancels","fromSide":"top","toSide":"bottom"},
+		{"id":"0af274e89cff4c50","fromNode":"09580c54caef497a","toNode":"527b3c1437994bd3","toEnd":"arrow","label":"terminal failure","fromSide":"top","toSide":"bottom"},
+		{"id":"ce84134ddac0410b","fromNode":"f723917e9be147e5","toNode":"19572854126d4da1","toEnd":"arrow","label":"schema/storage/import error","fromSide":"top","toSide":"bottom"}
+	]
+}

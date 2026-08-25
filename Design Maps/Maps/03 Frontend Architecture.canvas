@@ -1,0 +1,34 @@
+{
+	"nodes":[
+		{"id":"91eced4c9f2f4d47","type":"group","x":-1000,"y":-30,"width":2500,"height":1400,"color":"5","label":"FRONTEND — REACT / LOVABLE-ORIGIN PRODUCT UI"},
+		{"id":"bf02a7975ba84022","type":"group","x":-1050,"y":-380,"width":2600,"height":210,"color":"3","label":"NAVIGATION"},
+		{"id":"2440fad1e84f4d71","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"ab61a9077dd242cf","type":"file","file":"Maps/02 Researcher Workflow.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"543820bd2bcc4bac","type":"file","file":"Maps/04 Backend Architecture.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"e563400c96494b5b","type":"text","text":"# Dataset Upload UI\n- file selection / drag-drop\n- upload progress\n- validation feedback\n- checksum / version display\n- replacement creates a new dataset version","x":300,"y":80,"width":440,"height":280,"color":"5"},
+		{"id":"2072428521d849dd","type":"file","file":"Maps/08 Platform-Engine API Contract.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"99963e3879a942be","type":"file","file":"Maps/05 Platform Domain and Database.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"2cddeb1bd1724400","type":"text","text":"# Run Progress UI\nProduct-facing stages only:\nDraft → Validating → Queued → Running → Importing → Completed\n\nDetailed Engine/Slurm status may be available in an advanced diagnostics view.","x":850,"y":80,"width":480,"height":300,"color":"5"},
+		{"id":"7aaa7c1096d94226","type":"text","text":"# Comparison & Annotation\n- pin candidates\n- compare metric columns\n- user comments\n- status / selection tags\n- preserve decisions independently from Engine output","x":-210,"y":715,"width":460,"height":290,"color":"5"},
+		{"id":"df61ce23f9ef4ab5","type":"text","text":"# Export UI\nRequests authorized Platform exports:\n- CSV / tables\n- sequences\n- figures\n- reports\n- reproducibility manifest\n\nBrowser never receives raw storage credentials.","x":-210,"y":1040,"width":460,"height":300,"color":"5"},
+		{"id":"c2dab68120ea4fb7","type":"text","text":"# Results Explorer\n- ranked candidates\n- trigger details\n- logic graph\n- gate design / sequence\n- scores and metric breakdown\n- warnings\n- scientific artifacts","x":-1000,"y":470,"width":500,"height":310,"color":"5"},
+		{"id":"9b6e758b5d444e64","type":"text","text":"# Application Shell\n- Routing and navigation\n- Workspace / project context\n- Session awareness\n- Global notifications\n- Loading / error surfaces","x":-965,"y":80,"width":430,"height":250,"color":"5"},
+		{"id":"85895f8ee86e4b15","type":"text","text":"# Experiment / Analysis Setup\nScreens for:\n- biological objective\n- organism / conditions\n- dataset selection\n- gate constraints\n- scoring preferences\n- reproducibility settings","x":-280,"y":70,"width":470,"height":290,"color":"5"},
+		{"id":"4e6901dcbbcb4cc2","type":"text","text":"# Central Typed API Client\n**Single integration point for the browser**\n\nHandles:\n- relative `/api/` base\n- auth/session headers\n- JSON serialization\n- uploads / downloads\n- timeouts and cancellation\n- standardized error mapping\n- generated or maintained types\n\nThe browser does **not** call the CERNAL Engine directly.","x":840,"y":715,"width":500,"height":390,"color":"3"},
+		{"id":"88efc0c0c10a4100","type":"text","text":"## Frontend architectural rules\n1. Keep scientific calculations out of React components.\n2. Never expose Engine credentials, database credentials, storage secrets or internal paths.\n3. Model asynchronous states explicitly.\n4. Treat the existing product workflow and terminology as authoritative unless intentionally redesigned.\n5. Keep views resilient to partial data, retries and long-running jobs.","x":-780,"y":1400,"width":2160,"height":320,"color":"2"}
+	],
+	"edges":[
+		{"id":"90026d0891834aec","fromNode":"9b6e758b5d444e64","fromSide":"right","toNode":"85895f8ee86e4b15","toSide":"left","label":"routes"},
+		{"id":"d721e4bbc37c4f80","fromNode":"9b6e758b5d444e64","fromSide":"right","toNode":"e563400c96494b5b","toSide":"left","label":"routes"},
+		{"id":"e9b8a4ef54d84591","fromNode":"9b6e758b5d444e64","fromSide":"right","toNode":"2cddeb1bd1724400","toSide":"left","label":"routes"},
+		{"id":"2d7de367ca704394","fromNode":"9b6e758b5d444e64","fromSide":"bottom","toNode":"c2dab68120ea4fb7","toSide":"top","label":"routes"},
+		{"id":"54d04c587eee42ce","fromNode":"c2dab68120ea4fb7","fromSide":"right","toNode":"7aaa7c1096d94226","toSide":"left","label":"candidate data"},
+		{"id":"684f25c510ba415f","fromNode":"c2dab68120ea4fb7","fromSide":"right","toNode":"df61ce23f9ef4ab5","toSide":"left","label":"selected results"},
+		{"id":"e0a8e650ce284eb9","fromNode":"85895f8ee86e4b15","fromSide":"right","toNode":"4e6901dcbbcb4cc2","toSide":"left","label":"Platform API"},
+		{"id":"c0de295305b14070","fromNode":"e563400c96494b5b","fromSide":"bottom","toNode":"4e6901dcbbcb4cc2","toSide":"left","label":"Platform API"},
+		{"id":"0fb7fb9ea61c4420","fromNode":"2cddeb1bd1724400","fromSide":"bottom","toNode":"4e6901dcbbcb4cc2","toSide":"top","label":"poll / subscribe"},
+		{"id":"4a143ef1c38e4812","fromNode":"c2dab68120ea4fb7","fromSide":"right","toNode":"4e6901dcbbcb4cc2","toSide":"left","label":"fetch results"},
+		{"id":"0b020323fe924877","fromNode":"7aaa7c1096d94226","fromSide":"right","toNode":"4e6901dcbbcb4cc2","toSide":"left","label":"persist annotations"},
+		{"id":"f98f602562894582","fromNode":"df61ce23f9ef4ab5","fromSide":"right","toNode":"4e6901dcbbcb4cc2","toSide":"left","label":"request export"}
+	]
+}

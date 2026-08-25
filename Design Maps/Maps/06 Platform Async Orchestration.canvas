@@ -1,0 +1,35 @@
+{
+	"nodes":[
+		{"id":"0f5fef6730154145","type":"group","x":-1000,"y":-30,"width":2600,"height":2070,"color":"5","label":"PLATFORM ASYNC ORCHESTRATION"},
+		{"id":"fba61d90432e42b1","type":"group","x":-1050,"y":-380,"width":2600,"height":210,"color":"3","label":"NAVIGATION"},
+		{"id":"21a4158c59a64392","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"5e3778df555a4593","type":"file","file":"Maps/04 Backend Architecture.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"a199f1c6bc344b64","type":"file","file":"Maps/08 Platform-Engine API Contract.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"efa18592fc2a4070","type":"text","text":"# Platform API\nCreates durable intent first.\nNever makes a user request wait for scientific computation.","x":-820,"y":80,"width":430,"height":250,"color":"5"},
+		{"id":"81c487ee796b41bc","type":"file","file":"Maps/07 Platform Run State Machine.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"e6e079af34f74e83","type":"file","file":"Maps/18 Reliability Reproducibility Observability.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"e076df4157524e47","type":"text","text":"# Status Polling Task\n- query Engine status\n- map technical → product stage\n- persist timestamps / progress\n- reschedule while terminal state absent","x":900,"y":80,"width":450,"height":300,"color":"5"},
+		{"id":"290e3b6741ca48dc","type":"text","text":"# Result Import Task\n- fetch / receive result manifest\n- validate schema + checksum\n- import candidates / summaries\n- register artifacts\n- mark run completed","x":-820,"y":520,"width":450,"height":320,"color":"5"},
+		{"id":"96b02ed25a3d4ebe","type":"text","text":"# Export Generation Task\nBuild report/archive from authorized Platform records and registered artifacts.","x":-240,"y":520,"width":420,"height":240,"color":"5"},
+		{"id":"3a5ec1c5862d4724","type":"text","text":"# Notification Task\nSurface completed / failed / cancelled state to the researcher or collaboration UI.","x":340,"y":520,"width":420,"height":240,"color":"5"},
+		{"id":"7c851a005ff1483e","type":"text","text":"# Cleanup / Retention Task\nExpire temporary uploads, orphaned staging files and product-side caches according to policy.","x":900,"y":520,"width":450,"height":250,"color":"5"},
+		{"id":"47a242030a434144","type":"text","text":"## Critical rule\nCelery/Redis exists because the **Platform itself** has asynchronous product work. It is not a substitute for the CERNAL Engine, and workers must never become a second copy of the scientific pipeline.","x":-960,"y":1320,"width":850,"height":170,"color":"2"},
+		{"id":"8895083f28d242f5","type":"text","text":"# Engine Submission Task\n- load immutable run\n- finalize input bundle\n- call `POST /v1/jobs`\n- use idempotency key\n- persist `engine_job_id`","x":340,"y":55,"width":430,"height":300,"color":"5"},
+		{"id":"cf52afec26b24e8c","type":"text","text":"# Redis / Queue\nTransient task delivery, locks and short-lived cache.\n**Never the only durable source of run truth.**","x":-235,"y":80,"width":430,"height":250,"color":"2"},
+		{"id":"cd5d2a378ca84f7f","type":"text","text":"# CERNAL Engine API\nIndependent service. Scientific execution occurs behind this boundary.","x":920,"y":1370,"width":480,"height":240,"color":"4"},
+		{"id":"066d2f69a8f94b3c","type":"text","text":"# PostgreSQL\nDurable AnalysisRun, job reference, status and imported result records.","x":-20,"y":1610,"width":450,"height":240,"color":"2"}
+	],
+	"edges":[
+		{"id":"4305735afab1481a","fromNode":"efa18592fc2a4070","fromSide":"right","toNode":"cf52afec26b24e8c","toSide":"left","label":"enqueue"},
+		{"id":"1fd2206150044eba","fromNode":"cf52afec26b24e8c","fromSide":"right","toNode":"8895083f28d242f5","toSide":"left","label":"deliver"},
+		{"id":"931809182d1545ab","fromNode":"8895083f28d242f5","fromSide":"bottom","toNode":"cd5d2a378ca84f7f","toSide":"top","label":"POST job"},
+		{"id":"887c4450debd46e7","fromNode":"8895083f28d242f5","fromSide":"bottom","toNode":"066d2f69a8f94b3c","toSide":"top","fromEnd":"arrow","label":"persist engine id"},
+		{"id":"fe59bf9b663c4827","fromNode":"e076df4157524e47","fromSide":"bottom","toNode":"cd5d2a378ca84f7f","toSide":"top","label":"GET status"},
+		{"id":"fd4c44d64e884c26","fromNode":"e076df4157524e47","fromSide":"bottom","toNode":"066d2f69a8f94b3c","toSide":"top","fromEnd":"arrow","label":"persist mapped state"},
+		{"id":"edb4a2d2ee3b4e1c","fromNode":"290e3b6741ca48dc","fromSide":"right","toNode":"cd5d2a378ca84f7f","toSide":"left","label":"GET result manifest"},
+		{"id":"5767de1dbf6d43b0","fromNode":"290e3b6741ca48dc","fromSide":"right","toNode":"066d2f69a8f94b3c","toSide":"top","fromEnd":"arrow","label":"import result"},
+		{"id":"7d3efb7301e8424e","fromNode":"96b02ed25a3d4ebe","fromSide":"bottom","toNode":"066d2f69a8f94b3c","toSide":"top","fromEnd":"arrow","label":"read product data"},
+		{"id":"366c91eff7f04e8e","fromNode":"3a5ec1c5862d4724","fromSide":"bottom","toNode":"066d2f69a8f94b3c","toSide":"top","fromEnd":"arrow","label":"read terminal events"},
+		{"id":"f0b1addf728a466a","fromNode":"7c851a005ff1483e","fromSide":"left","toNode":"066d2f69a8f94b3c","toSide":"right","fromEnd":"arrow","label":"retention metadata"}
+	]
+}

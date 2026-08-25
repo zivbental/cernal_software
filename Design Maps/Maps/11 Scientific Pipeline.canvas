@@ -1,0 +1,39 @@
+{
+	"nodes":[
+		{"id":"48717cca3fc04a39","type":"group","x":-1050,"y":-20,"width":2850,"height":1750,"color":"4","label":"SCIENTIFIC PIPELINE — CONCEPTUAL STAGES"},
+		{"id":"cdf7775c4ce14a9c","type":"group","x":-1050,"y":-380,"width":2600,"height":210,"color":"3","label":"NAVIGATION"},
+		{"id":"21fea55b6aa24988","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"27e1aa5bc2fd405c","type":"file","file":"Maps/10 Engine Architecture.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"ba26b5f0af0a4b38","type":"file","file":"Maps/12 Gate and Scoring Architecture.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"1026b41e798844b8","type":"text","text":"# 1. Validate scientific inputs\nCheck required metadata, expression matrix semantics, organism support and scientific constraints.","x":-900,"y":90,"width":480,"height":280,"color":"4"},
+		{"id":"ddba1da3004045c9","type":"text","text":"# 2. Load + preprocess\nRead immutable data; normalize/transform according to a versioned preprocessing profile.","x":-350,"y":90,"width":480,"height":280,"color":"4"},
+		{"id":"070593a522644bbc","type":"text","text":"# 3. Candidate feature discovery\nIdentify genes/features that discriminate base vs target condition.\n\n\nDGE is given by the user, and will not be done by us. \nAllow the user to have selection whether he wants to also reference to other databases (optional feature, not critical and not important for 1st implementation.)","x":200,"y":90,"width":480,"height":280,"color":"4"},
+		{"id":"0803b09957954ec4","type":"text","text":"# 13. Publish reproducible result\nBuild checksummed Result Manifest with all versions, parameters, candidate outputs and artifact references.","x":-350,"y":1280,"width":480,"height":280,"color":"4"},
+		{"id":"b78c9a91e59d417d","type":"text","text":"## Branching behavior\nThe pipeline should be modular rather than one monolithic function. Different gate families can implement distinct evaluators, and the candidate generator may branch by trigger count or logic family. Rejected candidates should carry explicit reasons instead of silently disappearing.","x":300,"y":1280,"width":920,"height":280,"color":"2"},
+		{"id":"6738db03f70841d0","type":"file","file":"Maps/13 Engine Job State Machine.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"611ea6e898eb4a5a","type":"file","file":"Maps/18 Reliability Reproducibility Observability.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"1e38512bbd684d4c","type":"text","text":"# 4. Trigger generation\nGenerate allowed 1-trigger, 2-trigger or higher-order combinations under configured constraints.","x":750,"y":90,"width":480,"height":280,"color":"4"},
+		{"id":"6b0d67d2d41f4a4f","type":"text","text":"# 5. Trigger evaluation\nDGE/separation quality, expression constraints, accessibility/self-folding and other trigger metrics.","x":-900,"y":480,"width":480,"height":280,"color":"4"},
+		{"id":"ecf5567e439d4f80","type":"text","text":"# 6. Gate generation\nFor each valid trigger set, generate compatible gate realizations: toehold, AND-toehold, CRISPR-derived, etc.","x":-350,"y":480,"width":480,"height":280,"color":"2"},
+		{"id":"7b91964f16fb4192","type":"text","text":"# 7. Gate-specific evaluation\nAssess gate sequence properties, predicted structure, compatibility, leakage/activation proxies and model-specific metrics.","x":200,"y":480,"width":480,"height":280,"color":"2"},
+		{"id":"8f5b0daa75794864","type":"text","text":"# 8. Circuit construction\nCombine triggers and gates into complete candidate circuits / logic graphs.","x":750,"y":480,"width":480,"height":280,"color":"2"},
+		{"id":"9c316ff8089246c0","type":"text","text":"# 9. Normalize metrics\nConvert heterogeneous metric outputs into comparable normalized values using versioned rules\n\nBased on free-energy.\nCould use penalty for complicated circuits.\nריכוזיות","x":-900,"y":870,"width":480,"height":280,"color":"4"},
+		{"id":"682566b934164f94","type":"text","text":"# 10. Weighted scoring\nApply declared scoring profile and weights. Preserve raw and normalized metric values.","x":-350,"y":870,"width":480,"height":280,"color":"4"},
+		{"id":"a94afe3a34f24c15","type":"text","text":"# 11. Rank + filter\nRank alternatives; keep rejection reasons and warnings for interpretability.","x":200,"y":870,"width":480,"height":280,"color":"4"},
+		{"id":"540e930a7b1a4657","type":"text","text":"# 12. Generate artifacts\nSequences, design tables, logic graph data, diagnostic plots, warnings and machine-readable candidate records.","x":750,"y":870,"width":480,"height":280,"color":"4"}
+	],
+	"edges":[
+		{"id":"6fd97fe6735240c5","fromNode":"1026b41e798844b8","fromSide":"right","toNode":"ddba1da3004045c9","toSide":"left","label":"next scientific stage"},
+		{"id":"7b9207dbda5d44e9","fromNode":"ddba1da3004045c9","fromSide":"right","toNode":"070593a522644bbc","toSide":"left","label":"next scientific stage"},
+		{"id":"f1450d5c591748f8","fromNode":"070593a522644bbc","fromSide":"right","toNode":"1e38512bbd684d4c","toSide":"left","label":"next scientific stage"},
+		{"id":"0f27d79c84db494d","fromNode":"1e38512bbd684d4c","fromSide":"left","toNode":"6b0d67d2d41f4a4f","toSide":"right","label":"next scientific stage"},
+		{"id":"e23c94c88c094dfe","fromNode":"6b0d67d2d41f4a4f","fromSide":"right","toNode":"ecf5567e439d4f80","toSide":"left","label":"next scientific stage"},
+		{"id":"18ca61e66fee4555","fromNode":"ecf5567e439d4f80","fromSide":"right","toNode":"7b91964f16fb4192","toSide":"left","label":"next scientific stage"},
+		{"id":"6fad8de406334d55","fromNode":"7b91964f16fb4192","fromSide":"right","toNode":"8f5b0daa75794864","toSide":"left","label":"next scientific stage"},
+		{"id":"38357cdbecbd4fa5","fromNode":"8f5b0daa75794864","fromSide":"left","toNode":"9c316ff8089246c0","toSide":"right","label":"next scientific stage"},
+		{"id":"030c51d3bb8341a9","fromNode":"9c316ff8089246c0","fromSide":"right","toNode":"682566b934164f94","toSide":"left","label":"next scientific stage"},
+		{"id":"09253378ba5342cc","fromNode":"682566b934164f94","fromSide":"right","toNode":"a94afe3a34f24c15","toSide":"left","label":"next scientific stage"},
+		{"id":"5e86c00aa0834086","fromNode":"a94afe3a34f24c15","fromSide":"right","toNode":"540e930a7b1a4657","toSide":"left","label":"next scientific stage"},
+		{"id":"067d2240f5af4bca","fromNode":"540e930a7b1a4657","fromSide":"left","toNode":"0803b09957954ec4","toSide":"right","label":"next scientific stage"}
+	]
+}

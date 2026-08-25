@@ -1,0 +1,43 @@
+[project]
+name = "cernal"
+version = "0.1.0"
+description = "CERNAL — RNA logic circuit design platform (iGEM)"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "django>=5.2,<6.0",
+    "django-ninja>=1.3",
+    "django-q2>=1.7",
+    "django-environ>=0.11",
+    "whitenoise>=6.7",
+    "gunicorn>=23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "ruff>=0.8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+extend-exclude = ["**/migrations/*", "frontend", "var"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "DJ", "RUF"]
+ignore = [
+    "RUF012",  # Django class attrs (Meta, list_display) are not ClassVar-annotated by convention
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "apps", "api", "engine"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
+pythonpath = ["src"]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra --strict-markers"

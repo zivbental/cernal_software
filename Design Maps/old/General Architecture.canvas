@@ -1,0 +1,13 @@
+{
+	"nodes":[
+		{"id":"10b4f341a5d9a41e","type":"text","text":"Backend","x":-520,"y":0,"width":250,"height":60},
+		{"id":"7a7b2b40a7f1e1a6","type":"text","text":"Frontend","x":-520,"y":-160,"width":250,"height":60},
+		{"id":"78de213ff886ed8c","type":"text","text":"Database","x":-320,"y":180,"width":250,"height":60},
+		{"id":"de12afb0ddf1a94f","type":"text","text":"[[Cernal Architecture.canvas]]","x":-120,"y":0,"width":240,"height":60}
+	],
+	"edges":[
+		{"id":"abf58adfe3a63ea7","fromNode":"7a7b2b40a7f1e1a6","fromSide":"bottom","toNode":"10b4f341a5d9a41e","toSide":"top"},
+		{"id":"5110ef877ddbd068","fromNode":"10b4f341a5d9a41e","fromSide":"right","toNode":"de12afb0ddf1a94f","toSide":"left"},
+		{"id":"4b900c0542983ebd","fromNode":"de12afb0ddf1a94f","fromSide":"left","toNode":"10b4f341a5d9a41e","toSide":"right"}
+	]
+}

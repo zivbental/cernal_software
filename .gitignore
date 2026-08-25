@@ -1,0 +1,37 @@
+# --- Mutable state (see docs/software-design.md §4.1: all runtime state lives in var/) ---
+var/
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# --- Frontend ---
+node_modules/
+src/static/app/*
+!src/static/app/.gitkeep
+frontend/dist/
+
+# --- Django ---
+staticfiles/
+*.log
+
+# --- Obsidian (per-user UI state in the Design Maps vault) ---
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+desktop.ini
+*:Zone.Identifier

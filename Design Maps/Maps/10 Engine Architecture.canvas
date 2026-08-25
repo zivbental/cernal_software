@@ -1,0 +1,40 @@
+{
+	"nodes":[
+		{"id":"9db3c8c7dd124dd3","type":"group","x":-1050,"y":-20,"width":2850,"height":1650,"color":"4","label":"CERNAL ENGINE — INDEPENDENT DEPLOYMENT"},
+		{"id":"4fa6e1caa0914807","type":"group","x":-1050,"y":-380,"width":2600,"height":210,"color":"3","label":"NAVIGATION"},
+		{"id":"356a815ea65b4115","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"9309518d760747b2","type":"file","file":"Maps/01 System Boundary.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"9292b713c2f34fb3","type":"file","file":"Maps/08 Platform-Engine API Contract.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"1246bee6f6884b3c","type":"file","file":"Maps/11 Scientific Pipeline.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"b17fe9e556bc4140","type":"file","file":"Maps/14 Compute Provider and Slurm.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"471f1315bc904d2c","type":"text","text":"# Scientific Pipeline\nComposable scientific stages:\npreprocess → trigger generation → gate generation →\nevaluation → scoring/ranking → artifact generation.\n\nThe exact scientific algorithm may evolve while the service contract remains stable.","x":-900,"y":550,"width":560,"height":350,"color":"4"},
+		{"id":"4cb46fb3e6b1421a","type":"text","text":"# Scientific Tool Adapters\nWrappers around external executables/libraries:\nRNA folding, sequence analysis, databases/indexes,\nfuture predictors and gate-specific evaluators.\n\nVersions are captured for reproducibility.","x":-220,"y":550,"width":520,"height":330,"color":"4"},
+		{"id":"7da20de1b5bf4d97","type":"text","text":"# Compute Provider Adapter\nEngine-owned abstraction over Slurm, local worker,\ndedicated VM or future cloud-batch execution.","x":-550,"y":1030,"width":500,"height":270,"color":"6"},
+		{"id":"6c9c76fbe89f4199","type":"text","text":"# Result Publisher\nValidates outputs, calculates checksums, builds the\nversioned Result Manifest and exposes approved artifacts.","x":100,"y":1030,"width":500,"height":270,"color":"4"},
+		{"id":"bf9d70530e55423d","type":"text","text":"# Engine Metadata Store\nMinimal operational job metadata:\njob state, idempotency record, provider job ID,\ntimestamps, manifest/version info and retention status.\n\nIt is **not** the product database.","x":750,"y":1030,"width":520,"height":320,"color":"4"},
+		{"id":"f62df0998a094521","type":"text","text":"## Independence requirements\nSeparate release/deployment; no Platform framework imports; no Platform secrets; provider-specific scheduler details remain internal; same inputs + parameters + seed + tool/model versions should yield reproducible behavior to the extent supported by the scientific tools.","x":-900,"y":1400,"width":2390,"height":170,"color":"2"},
+		{"id":"339b416743a14afb","type":"text","text":"# Engine API Facade\n- service authentication\n- API version negotiation\n- strict request schema validation\n- accepted-job response\n- status/result/cancel endpoints\n- safe error surface","x":-970,"y":80,"width":470,"height":330,"color":"4"},
+		{"id":"8e7803eb505b4fcf","type":"text","text":"# Idempotency / Request Registry\nMaps one immutable submission key to one Engine job.\nPrevents duplicate expensive execution after retries.","x":-340,"y":120,"width":450,"height":250,"color":"4"},
+		{"id":"d8694aa33a4443e9","type":"text","text":"# Typed Schemas & Versioning\nRequest models, result models, capability declarations,\ngate definitions and reproducibility schema.\nNo imports from Django/React code.","x":1155,"y":80,"width":480,"height":280,"color":"4"},
+		{"id":"5167b5470c8a4b18","type":"text","text":"# Job Manager\n- creates immutable run manifest\n- allocates isolated workspace\n- records internal state\n- chooses compute provider\n- coordinates cancellation\n- retention and cleanup","x":470,"y":55,"width":470,"height":330,"color":"4"},
+		{"id":"f2d372e9c8634655","type":"text","text":"# Execution Workspace\nPer-job isolated directory / object prefix:\ninputs, generated scripts, logs, checkpoints,\nintermediate data and outputs.\n\nNever expose internal filesystem paths to the browser.","x":1120,"y":560,"width":500,"height":320,"color":"2"},
+		{"id":"6d55729eae2f4115","type":"text","text":"# Gate / Scoring Libraries\nVersioned gate families, constraints, metric definitions,\nnormalization logic and scoring profiles.","x":510,"y":580,"width":480,"height":280,"color":"4"}
+	],
+	"edges":[
+		{"id":"420e57059ae2408e","fromNode":"339b416743a14afb","fromSide":"right","toNode":"8e7803eb505b4fcf","toSide":"left","label":"submission"},
+		{"id":"ce2769b4f4754b0e","fromNode":"8e7803eb505b4fcf","fromSide":"right","toNode":"5167b5470c8a4b18","toSide":"left","label":"new/existing job"},
+		{"id":"f5db9006c69040d8","fromNode":"5167b5470c8a4b18","fromSide":"left","toNode":"471f1315bc904d2c","toSide":"right","label":"orchestrate"},
+		{"id":"be11efeda7834bd5","fromNode":"471f1315bc904d2c","fromSide":"right","toNode":"4cb46fb3e6b1421a","toSide":"left","label":"scientific calls"},
+		{"id":"cca03e2f3b3b4b7a","fromNode":"471f1315bc904d2c","fromSide":"right","toNode":"6d55729eae2f4115","toSide":"left","label":"models/metrics"},
+		{"id":"1f54ed8989a640bd","fromNode":"5167b5470c8a4b18","fromSide":"right","toNode":"f2d372e9c8634655","toSide":"left","label":"stage job"},
+		{"id":"379e364f5ce74c19","fromNode":"471f1315bc904d2c","fromSide":"right","toNode":"f2d372e9c8634655","toSide":"left","label":"intermediate/output"},
+		{"id":"1ad948cea2814c01","fromNode":"5167b5470c8a4b18","fromSide":"bottom","toNode":"7da20de1b5bf4d97","toSide":"top","label":"execute"},
+		{"id":"67a9d89f579d4fc5","fromNode":"471f1315bc904d2c","fromSide":"right","toNode":"6c9c76fbe89f4199","toSide":"left","label":"candidate outputs"},
+		{"id":"90860f0325274759","fromNode":"6c9c76fbe89f4199","fromSide":"right","toNode":"f2d372e9c8634655","toSide":"left","label":"read approved outputs"},
+		{"id":"a00e0731c5e74702","fromNode":"6c9c76fbe89f4199","fromSide":"right","toNode":"bf9d70530e55423d","toSide":"left","label":"terminal metadata"},
+		{"id":"c1627940f4e445d5","fromNode":"5167b5470c8a4b18","fromSide":"bottom","toNode":"bf9d70530e55423d","toSide":"top","label":"state updates"},
+		{"id":"9180d0b33b9e402c","fromNode":"d8694aa33a4443e9","fromSide":"left","toNode":"339b416743a14afb","toSide":"right","fromEnd":"arrow","label":"validates"},
+		{"id":"d955c05a7faa4eda","fromNode":"d8694aa33a4443e9","fromSide":"left","toNode":"471f1315bc904d2c","toSide":"right","fromEnd":"arrow","label":"typed internal contracts"},
+		{"id":"77339102958846ed","fromNode":"d8694aa33a4443e9","fromSide":"bottom","toNode":"6c9c76fbe89f4199","toSide":"top","fromEnd":"arrow","label":"result schema"}
+	]
+}

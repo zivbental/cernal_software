@@ -1,0 +1,37 @@
+{
+	"nodes":[
+		{"id":"65793a89006c41b8","type":"group","label":"NAVIGATION","x":-1050,"y":-380,"width":2600,"height":210,"color":"3"},
+		{"id":"3e2ff31a54ca4b06","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"f0421b59501c47ca","type":"file","file":"Maps/03 Frontend Architecture.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"0efbd5bcb0b34c34","type":"file","file":"Maps/04 Backend Architecture.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"74887ff0366d4ded","type":"file","file":"Maps/07 Platform Run State Machine.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"b261cbf65ca54fcb","type":"file","file":"Maps/09 End-to-End Analysis Sequence.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"30bdd0da64e3449f","type":"group","label":"RESEARCHER PRODUCT WORKFLOW","x":-950,"y":-40,"width":2400,"height":1500,"color":"5"},
+		{"id":"53c4851133374a28","type":"text","text":"# 1. Enter workspace\nAuthenticate and select a workspace or create a new project.","x":-760,"y":80,"width":430,"height":210,"color":"5"},
+		{"id":"1f8507c6851a4f68","type":"text","text":"# 2. Define biological objective\nOrganism, base state, target state, desired logic / behavior.","x":-250,"y":80,"width":430,"height":210,"color":"5"},
+		{"id":"24db1f46aced49f0","type":"text","text":"# 3. Upload dataset\nTranscriptomic or related data is uploaded to Platform storage.","x":260,"y":80,"width":430,"height":210,"color":"5"},
+		{"id":"becec51c7a28489e","type":"text","text":"# 4. Validate inputs\nFormat, schema, metadata, checksum and lightweight product-side checks.","x":770,"y":80,"width":430,"height":210,"color":"5"},
+		{"id":"115fc92297aa4d03","type":"text","text":"# 5. Configure analysis\nGate families, input count, biological constraints, scoring preferences, seed / reproducibility options.","x":-760,"y":380,"width":430,"height":210,"color":"5"},
+		{"id":"4bee2b306b6640c6","type":"text","text":"# 6. Submit immutable run\nPlatform snapshots configuration and input references into an AnalysisRun.","x":-250,"y":380,"width":430,"height":210,"color":"5"},
+		{"id":"40da90a4f26844ea","type":"text","text":"# 7. Engine computation\nPlatform asynchronously submits the job; researcher does not wait on an open request.","x":260,"y":380,"width":430,"height":210,"color":"5"},
+		{"id":"d0b34675a7384a7e","type":"text","text":"# 8. Follow progress\nStable product stages are shown while technical Engine/Slurm states remain hidden.","x":770,"y":380,"width":430,"height":210,"color":"5"},
+		{"id":"1e408d21b6b44730","type":"text","text":"# 9. Explore ranked candidates\nTriggers, logic graphs, gate designs, scores, warnings and artifacts.","x":-760,"y":700,"width":430,"height":210,"color":"5"},
+		{"id":"fbab658b73d347b9","type":"text","text":"# 10. Compare and annotate\nResearcher records comments, selections and candidate decisions.","x":-250,"y":700,"width":430,"height":210,"color":"5"},
+		{"id":"16890dd6918e4f25","type":"text","text":"# 11. Export\nSequences, tables, graphs, reports and reproducibility metadata.","x":260,"y":700,"width":430,"height":210,"color":"5"},
+		{"id":"09f29594a2e04aa3","type":"text","text":"# 12. Revisit / reproduce\nDurable project history allows later review or exact reruns where versions remain available.","x":770,"y":700,"width":430,"height":210,"color":"5"},
+		{"id":"480323b96ace4752","type":"text","text":"## Important alternate paths\n- Invalid upload → fix data and validate again.\n- Submission timeout → retry with the **same idempotency key**, avoiding duplicate computation.\n- Engine failure → retain durable Platform run + diagnostic summary; optionally create a new retry run.\n- Cancellation → Platform requests cancellation, Engine coordinates provider cancellation.\n- Results import failure → retry import without rerunning scientific computation.\n- Project edits after submission → affect future runs only; submitted runs remain immutable.","x":-760,"y":1030,"width":1960,"height":320,"color":"2"}
+	],
+	"edges":[
+		{"id":"50a211ba84c84fc5","fromNode":"53c4851133374a28","toNode":"1f8507c6851a4f68","toEnd":"arrow","label":"next","fromSide":"right","toSide":"left"},
+		{"id":"ab9a93da41cd43b3","fromNode":"1f8507c6851a4f68","toNode":"24db1f46aced49f0","toEnd":"arrow","label":"next","fromSide":"right","toSide":"left"},
+		{"id":"aa8fdb26cf484afa","fromNode":"24db1f46aced49f0","toNode":"becec51c7a28489e","toEnd":"arrow","label":"next","fromSide":"right","toSide":"left"},
+		{"id":"fe5c17d34c524429","fromNode":"becec51c7a28489e","toNode":"115fc92297aa4d03","toEnd":"arrow","label":"next","fromSide":"left","toSide":"right"},
+		{"id":"b9f2998224bd40bf","fromNode":"115fc92297aa4d03","toNode":"4bee2b306b6640c6","toEnd":"arrow","label":"next","fromSide":"right","toSide":"left"},
+		{"id":"4def62e5bc61483d","fromNode":"4bee2b306b6640c6","toNode":"40da90a4f26844ea","toEnd":"arrow","label":"next","fromSide":"right","toSide":"left"},
+		{"id":"3c59f27b8cb54170","fromNode":"40da90a4f26844ea","toNode":"d0b34675a7384a7e","toEnd":"arrow","label":"next","fromSide":"right","toSide":"left"},
+		{"id":"a033647b1bef4346","fromNode":"d0b34675a7384a7e","toNode":"1e408d21b6b44730","toEnd":"arrow","label":"next","fromSide":"left","toSide":"right"},
+		{"id":"202e22a9f0964ce8","fromNode":"1e408d21b6b44730","toNode":"fbab658b73d347b9","toEnd":"arrow","label":"next","fromSide":"right","toSide":"left"},
+		{"id":"692479cb99f74c42","fromNode":"fbab658b73d347b9","toNode":"16890dd6918e4f25","toEnd":"arrow","label":"next","fromSide":"right","toSide":"left"},
+		{"id":"a3db68f18c224a08","fromNode":"16890dd6918e4f25","toNode":"09f29594a2e04aa3","toEnd":"arrow","label":"next","fromSide":"right","toSide":"left"}
+	]
+}

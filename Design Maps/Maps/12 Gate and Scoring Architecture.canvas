@@ -1,0 +1,32 @@
+{
+	"nodes":[
+		{"id":"6e84f4c1c7f242ae","type":"group","x":-1050,"y":-20,"width":2850,"height":1650,"color":"4","label":"GATE & SCORING ARCHITECTURE"},
+		{"id":"7481ea591b6646f1","type":"group","x":-1050,"y":-380,"width":2600,"height":210,"color":"3","label":"NAVIGATION"},
+		{"id":"12ecada6b1fa4cd2","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"996c468247634fe1","type":"file","file":"Maps/11 Scientific Pipeline.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"39b5ee4c06444aa0","type":"file","file":"Maps/10 Engine Architecture.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"4dfba916cdc24522","type":"text","text":"# TriggerCandidate\nFeature/gene or combination proposed as an input signal.\nStores expression evidence and trigger-level metrics.","x":-900,"y":80,"width":480,"height":260,"color":"4"},
+		{"id":"35cae29979694fd3","type":"text","text":"# Metric Definition\nEach metric declares:\n- name / semantic meaning\n- direction (higher/lower better)\n- raw units\n- valid range\n- normalization rule\n- missing-value behavior\n- applicable gate families\n- provenance / model version","x":-900,"y":610,"width":520,"height":390,"color":"4"},
+		{"id":"c585b85f79654125","type":"text","text":"## Example metric families\n- Differential expression / state separation\n- Trigger self-folding / accessibility\n- Sequence constraints\n- Gate structural quality\n- Predicted activation/leakage proxies\n- Orthogonality / compatibility\n- Complexity / manufacturability\n- Confidence / evidence tier\n\nThe final validated set should be owned by the scientific team and versioned independently from the Platform.","x":-900,"y":1210,"width":1840,"height":310,"color":"2"},
+		{"id":"170339f0955741e5","type":"file","file":"Maps/18 Reliability Reproducibility Observability.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"7faf95c8d2e84e2c","type":"file","file":"Maps/08 Platform-Engine API Contract.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"663fcbd58da24cae","type":"text","text":"# `GateFamily` interface\nConceptual responsibilities:\n- `is_compatible(trigger_set, constraints)`\n- `generate_designs(...)`\n- `evaluate_design(...)`\n- `emit_sequence(...)`\n- `emit_artifacts(...)`\n- declare required tools + version\n\nConcrete families implement their own scientific rules.","x":-250,"y":80,"width":560,"height":420,"color":"3"},
+		{"id":"1ee55081aef54683","type":"text","text":"# AND-Toehold Gate\nMulti-input logic family with its own generation and evaluation rules.","x":980,"y":80,"width":430,"height":240,"color":"4"},
+		{"id":"37594ba7940b4ddf","type":"text","text":"# CRISPR-derived RNA Logic\nOptional/future gate family behind the same interface.\nIts metrics need not match toehold metrics one-for-one.","x":980,"y":390,"width":430,"height":260,"color":"4"},
+		{"id":"7af44ca89aed4feb","type":"text","text":"# Scoring Profile\nVersioned configuration:\n- included metrics\n- weights\n- normalization versions\n- hard filters\n- tie-breaking\n- family-comparison policy\n\nThe Engine records the exact profile used.","x":-250,"y":650,"width":530,"height":350,"color":"4"},
+		{"id":"892665cba0d84c66","type":"text","text":"# Toehold Gate\nSingle-input or family-specific implementation.\nOwns toehold sequence/design metrics.","x":460,"y":50,"width":430,"height":240,"color":"4"},
+		{"id":"dbca5f4167464fcc","type":"text","text":"# CircuitCandidate\nCombines:\n- trigger set\n- gate design(s)\n- logic graph\n- raw metrics\n- normalized metrics\n- final score\n- rank\n- warnings\n- rejection/exclusion reasons\n- artifacts","x":480,"y":635,"width":500,"height":380,"color":"4"},
+		{"id":"f3305818f8cd4fa9","type":"text","text":"# Comparing unlike gate families\nA central design problem is how to rank candidates whose internal metrics differ.\n\nRecommended pattern:\n1. preserve gate-specific raw metrics;\n2. map only scientifically justified dimensions into shared normalized axes;\n3. use versioned family-aware scoring;\n4. report the decomposition, not only a single opaque score;\n5. allow filtering by gate family before global ranking.","x":1080,"y":740,"width":570,"height":430,"color":"2"}
+	],
+	"edges":[
+		{"id":"9700c5173e1742d5","fromNode":"4dfba916cdc24522","fromSide":"right","toNode":"663fcbd58da24cae","toSide":"left","label":"input"},
+		{"id":"b86ba761ff19444d","fromNode":"663fcbd58da24cae","fromSide":"right","toNode":"892665cba0d84c66","toSide":"left","label":"implements"},
+		{"id":"2a0a6b65e7f74d65","fromNode":"663fcbd58da24cae","fromSide":"right","toNode":"1ee55081aef54683","toSide":"left","label":"implements"},
+		{"id":"23e1fc66e3424a24","fromNode":"663fcbd58da24cae","fromSide":"right","toNode":"37594ba7940b4ddf","toSide":"left","label":"implements"},
+		{"id":"70de0eb959c44f09","fromNode":"35cae29979694fd3","fromSide":"right","toNode":"7af44ca89aed4feb","toSide":"left","label":"normalized metric definitions"},
+		{"id":"cca0c57429234ea9","fromNode":"7af44ca89aed4feb","fromSide":"right","toNode":"dbca5f4167464fcc","toSide":"left","label":"weighted evaluation"},
+		{"id":"3b684c469f95442c","fromNode":"892665cba0d84c66","fromSide":"bottom","toNode":"dbca5f4167464fcc","toSide":"top","label":"design"},
+		{"id":"6ac0f8e99b2e4208","fromNode":"1ee55081aef54683","fromSide":"bottom","toNode":"dbca5f4167464fcc","toSide":"top","label":"design"},
+		{"id":"f30913b57e23401b","fromNode":"37594ba7940b4ddf","fromSide":"bottom","toNode":"dbca5f4167464fcc","toSide":"right","label":"design"}
+	]
+}

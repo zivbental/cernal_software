@@ -1,0 +1,23 @@
+{
+	"nodes":[
+		{"id":"26438ef9ef7f29ec","type":"text","text":"Logic Gates Selection","x":240,"y":140,"width":240,"height":60},
+		{"id":"2d950a7356e003ff","type":"text","text":"Trigger Selection\n","x":-117,"y":20,"width":155,"height":60},
+		{"id":"01e2e566091a625b","type":"text","text":"Database","x":180,"y":20,"width":120,"height":60},
+		{"id":"11fae89ac954ebcb","type":"text","text":"Logic Circuit Orchestrator","x":-165,"y":140,"width":250,"height":60},
+		{"id":"bb130df43297a36b","type":"text","text":"Off-target effect analysis","x":-165,"y":-100,"width":250,"height":60},
+		{"id":"cb54b26c9ba1e1ef","type":"text","text":"Input\n- Organism type\n- DGE Results\n- Output gene\n","x":-220,"y":-380,"width":360,"height":180},
+		{"id":"bb519d1b9caa242b","type":"text","text":"Output\n","x":-165,"y":400,"width":250,"height":60},
+		{"id":"3f512c6087725c49","x":-165,"y":260,"width":250,"height":60,"type":"text","text":"Plasmid Compilation"}
+	],
+	"edges":[
+		{"id":"620d0c370dc2e8bd","fromNode":"2d950a7356e003ff","fromSide":"right","toNode":"01e2e566091a625b","toSide":"left"},
+		{"id":"971e38ad4763d5d3","fromNode":"01e2e566091a625b","fromSide":"left","toNode":"2d950a7356e003ff","toSide":"right"},
+		{"id":"267b25b3436ee58f","fromNode":"11fae89ac954ebcb","fromSide":"right","toNode":"26438ef9ef7f29ec","toSide":"left"},
+		{"id":"f6cf6e5c5e4acc36","fromNode":"26438ef9ef7f29ec","fromSide":"left","toNode":"11fae89ac954ebcb","toSide":"right"},
+		{"id":"2ca112ce308973a3","fromNode":"bb130df43297a36b","fromSide":"bottom","toNode":"2d950a7356e003ff","toSide":"top"},
+		{"id":"f37f7e38ebb41332","fromNode":"2d950a7356e003ff","fromSide":"bottom","toNode":"11fae89ac954ebcb","toSide":"top"},
+		{"id":"fc96519d07696270","fromNode":"cb54b26c9ba1e1ef","fromSide":"bottom","toNode":"bb130df43297a36b","toSide":"top"},
+		{"id":"d2c112689183c991","fromNode":"11fae89ac954ebcb","fromSide":"bottom","toNode":"3f512c6087725c49","toSide":"top"},
+		{"id":"85298374f24a2131","fromNode":"3f512c6087725c49","fromSide":"bottom","toNode":"bb519d1b9caa242b","toSide":"top"}
+	]
+}

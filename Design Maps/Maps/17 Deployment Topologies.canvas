@@ -1,0 +1,29 @@
+{
+	"nodes":[
+		{"id":"612725eaaa584b9e","type":"group","x":470,"y":-20,"width":1500,"height":1500,"color":"3","label":"FUTURE PRODUCTION TOPOLOGY"},
+		{"id":"17f40ca4223f4397","type":"group","x":-1050,"y":-20,"width":1350,"height":1640,"color":"6","label":"CURRENT TAU / iGEM TOPOLOGY"},
+		{"id":"94a806a100384204","type":"group","x":-1050,"y":-380,"width":2600,"height":210,"color":"3","label":"NAVIGATION"},
+		{"id":"92812c0b71d64e4f","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"a9cbc75acc8243f5","type":"file","file":"Maps/14 Compute Provider and Slurm.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"ac31482d05c64246","type":"file","file":"Maps/16 Security and Trust Boundaries.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"07fe44093ccd4e15","type":"file","file":"Maps/19 Repository and Team Ownership.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"1db486dcd85942f9","type":"file","file":"Maps/20 Implementation Roadmap.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"47d689e8f77b408b","type":"text","text":"# Researchers / Internet","x":-900,"y":80,"width":420,"height":160,"color":"5"},
+		{"id":"53801cd4d44e42b8","type":"text","text":"# Approved Web-Facing Host\n**Candidate: PowerWeb**\n\nRuns CERNAL Platform:\n- frontend\n- Django API\n- PostgreSQL\n- Redis\n- Platform worker\n- gateway / TLS\n\nExact component separation depends on service constraints.","x":-900,"y":350,"width":700,"height":430,"color":"5"},
+		{"id":"63ee2e5b6f49408f","type":"text","text":"# Approved Engine Service Host\nMachine/service allowed to:\n- receive authenticated Platform requests\n- access approved staging storage\n- submit jobs to PowerSlurm\n- poll/cancel scheduler jobs\n\nCould potentially be part of the approved PowerWeb service path if permitted.","x":-900,"y":860,"width":700,"height":430,"color":"4"},
+		{"id":"24debca55baf4cd2","type":"text","text":"# PowerSlurm\nScientific jobs only.\nNo public long-running API on login node.","x":-900,"y":1340,"width":700,"height":190,"color":"6"},
+		{"id":"2a7bb894feae4f6e","type":"text","text":"# Platform VPS / Managed Web Service\nDocker Compose is enough at early scale:\n- gateway\n- frontend\n- backend\n- worker\n- PostgreSQL\n- Redis\n- persistent volumes / backups\n\nKubernetes is not required for current load.","x":620,"y":80,"width":620,"height":430,"color":"5"},
+		{"id":"d576fd95ad6f4a9f","type":"text","text":"# Independent Engine Deployment\nContainer/service exposing the same versioned Engine API.\nCan scale separately from the product.","x":620,"y":620,"width":620,"height":250,"color":"4"},
+		{"id":"68ffea6564fe444c","type":"text","text":"# Replaceable Compute Providers\n- dedicated CPU workers\n- dedicated VM\n- cloud batch\n- another HPC cluster\n- hybrid providers\n\nAll hidden behind `ComputeProvider`.","x":620,"y":980,"width":620,"height":330,"color":"6"},
+		{"id":"745004df04e144e4","type":"text","text":"# Managed Object Storage / Persistent Volumes\nDurable inputs, artifacts, backups and retention policies.","x":1480,"y":80,"width":470,"height":250,"color":"2"},
+		{"id":"6264ca0a35e549f9","type":"text","text":"## What must remain stable across migration\n- Platform user workflow\n- Platform public API semantics\n- Engine API major version / result semantics\n- external identifiers\n- checksum and reproducibility rules\n- safe retry / cancellation behavior\n- authorization expectations\n\nInfrastructure can change underneath these contracts.","x":1380,"y":510,"width":540,"height":520,"color":"3"}
+	],
+	"edges":[
+		{"id":"48f6afdb1ee249cb","fromNode":"47d689e8f77b408b","fromSide":"bottom","toNode":"53801cd4d44e42b8","toSide":"top","label":"HTTPS"},
+		{"id":"b8392195627b4177","fromNode":"53801cd4d44e42b8","fromSide":"bottom","toNode":"63ee2e5b6f49408f","toSide":"top","label":"Engine API"},
+		{"id":"ae61a08847314f85","fromNode":"63ee2e5b6f49408f","fromSide":"bottom","toNode":"24debca55baf4cd2","toSide":"top","label":"sbatch/status/cancel"},
+		{"id":"2373dc078c9b4ef3","fromNode":"2a7bb894feae4f6e","fromSide":"bottom","toNode":"d576fd95ad6f4a9f","toSide":"top","label":"Engine API"},
+		{"id":"e732364752d341a5","fromNode":"2a7bb894feae4f6e","fromSide":"right","toNode":"745004df04e144e4","toSide":"left","fromEnd":"arrow","label":"product data"},
+		{"id":"3c2bd3999dde4e88","fromNode":"d576fd95ad6f4a9f","fromSide":"bottom","toNode":"68ffea6564fe444c","toSide":"top","label":"compute adapter"}
+	]
+}

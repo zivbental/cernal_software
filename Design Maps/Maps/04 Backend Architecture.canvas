@@ -1,0 +1,38 @@
+{
+	"nodes":[
+		{"id":"286694fe652044e5","type":"group","x":-1050,"y":-30,"width":3370,"height":1790,"color":"5","label":"PLATFORM BACKEND — MODULAR MONOLITH RECOMMENDED"},
+		{"id":"d68ba41c38c94ad7","type":"group","x":-1050,"y":-380,"width":2600,"height":210,"color":"3","label":"NAVIGATION"},
+		{"id":"5e98d3156d0442c0","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"ce89167a8a9f4c0a","type":"file","file":"Maps/03 Frontend Architecture.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"a9fd055cb84f474a","type":"file","file":"Maps/05 Platform Domain and Database.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"17c5b877716e4908","type":"file","file":"Maps/06 Platform Async Orchestration.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"313ba3e704b0443e","type":"file","file":"Maps/08 Platform-Engine API Contract.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"3ea599421e2c43de","type":"text","text":"# HTTP / API Layer\nDjango REST or equivalent.\nValidates request shape, session and permissions.\nRoutes into application services.","x":-850,"y":80,"width":430,"height":270,"color":"5"},
+		{"id":"91eb03c9053746ea","type":"text","text":"## Deliberate omissions\nThe backend **does not implement** RNA folding, trigger ranking, gate generation, scoring models or Slurm scheduling. Lightweight file-format checks are fine; duplicating scientific truth is not.","x":-1010,"y":1320,"width":1880,"height":190,"color":"2"},
+		{"id":"3e6866749bec475a","type":"text","text":"# Analysis Configuration Service\nNormalizes user settings into a complete,\nversioned configuration snapshot.","x":-850,"y":865,"width":430,"height":260,"color":"5"},
+		{"id":"3ae7687650015394","type":"text","text":"","x":1907,"y":264,"width":250,"height":60},
+		{"id":"b41b253783d74e28","type":"text","text":"# Audit / Notification Service\nRecords important user/system events and\nsurfaces completion/failure notifications.","x":1820,"y":630,"width":450,"height":260,"color":"5"},
+		{"id":"82a5b11ccceb411a","type":"text","text":"# Identity & Authorization Service\nUsers, sessions, workspace membership,\nrole checks and object-level permissions.","x":90,"y":0,"width":430,"height":250,"color":"5"},
+		{"id":"03096cce2b6944b4","type":"text","text":"# Run Orchestration Service\nCreates immutable AnalysisRun records,\nqueues submission and maps Engine states\ninto product-facing status.","x":645,"y":845,"width":450,"height":300,"color":"5"},
+		{"id":"6b0746d6bfe249bd","type":"text","text":"# Engine API Client\nThe only Platform module that knows the\nEngine service contract, credentials,\ntimeouts, idempotency and retry semantics.","x":1020,"y":1360,"width":480,"height":300,"color":"3"},
+		{"id":"79e3c31297954d2c","type":"text","text":"# Export Service\nBuilds authorized user-facing packages and\nreports from Platform-owned records/artifacts.","x":645,"y":435,"width":440,"height":250,"color":"5"},
+		{"id":"f82767bc880a485f","type":"text","text":"# Result Import Service\nValidates Engine result manifests,\nimports summaries and candidate records,\nregisters artifacts and checksums.","x":1040,"y":70,"width":440,"height":300,"color":"5"},
+		{"id":"c955bee3872b4bb7","type":"text","text":"# Candidate / Annotation Service\nProduct-owned comments, pinning, comparisons,\nselection status and review metadata.","x":1820,"y":145,"width":440,"height":290,"color":"5"},
+		{"id":"60e0586a79a64802","type":"text","text":"# Workspace / Project Service\nProject lifecycle, biological objective,\nmetadata and collaboration context.","x":90,"y":640,"width":430,"height":250,"color":"5"},
+		{"id":"a50b472a613647c2","type":"text","text":"# Dataset Service\nDataset versions, checksums, validation records,\nstorage references and retention.","x":90,"y":305,"width":430,"height":260,"color":"5"}
+	],
+	"edges":[
+		{"id":"44dc9f0f7e39466f","fromNode":"3ea599421e2c43de","fromSide":"right","toNode":"82a5b11ccceb411a","toSide":"left","label":"authorize"},
+		{"id":"45bcf8e4a7194d88","fromNode":"3ea599421e2c43de","fromSide":"right","toNode":"60e0586a79a64802","toSide":"left","label":"application request"},
+		{"id":"5824bde32ec64f23","fromNode":"3ea599421e2c43de","fromSide":"right","toNode":"a50b472a613647c2","toSide":"left","label":"uploads / metadata"},
+		{"id":"69b2987308084ad6","fromNode":"3ea599421e2c43de","fromSide":"bottom","toNode":"3e6866749bec475a","toSide":"top","label":"configuration"},
+		{"id":"d07ee436efc74d93","fromNode":"3e6866749bec475a","fromSide":"right","toNode":"03096cce2b6944b4","toSide":"left","label":"submit snapshot"},
+		{"id":"ec275a3b6ae545e6","fromNode":"03096cce2b6944b4","fromSide":"bottom","toNode":"6b0746d6bfe249bd","toSide":"top","label":"async submit/status/cancel"},
+		{"id":"ee613cd2943d47ea","fromNode":"6b0746d6bfe249bd","fromSide":"top","toNode":"f82767bc880a485f","toSide":"bottom","label":"result manifest"},
+		{"id":"2911657c65bf4a9c","fromNode":"f82767bc880a485f","fromSide":"right","toNode":"c955bee3872b4bb7","toSide":"left","label":"creates product views"},
+		{"id":"324f69dbc6774038","fromNode":"c955bee3872b4bb7","fromSide":"left","toNode":"79e3c31297954d2c","toSide":"right","label":"selected data"},
+		{"id":"bb62de3d66d34cb0","fromNode":"03096cce2b6944b4","fromSide":"right","toNode":"b41b253783d74e28","toSide":"left","label":"status events"},
+		{"id":"c520a5331af848bb","fromNode":"f82767bc880a485f","fromSide":"bottom","toNode":"b41b253783d74e28","toSide":"top","label":"import events"},
+		{"id":"28ced09104ec4ea5","fromNode":"79e3c31297954d2c","fromSide":"right","toNode":"b41b253783d74e28","toSide":"left","label":"download/export event"}
+	]
+}

@@ -1,0 +1,29 @@
+{
+	"nodes":[
+		{"id":"c1e2a6b622424dfc","type":"group","label":"NAVIGATION","x":-1050,"y":-380,"width":2600,"height":210,"color":"3"},
+		{"id":"73a34bc874104cdd","type":"file","file":"CERNAL Architecture.canvas","x":-950,"y":-330,"width":360,"height":100,"color":"3"},
+		{"id":"77117290f47743ff","type":"file","file":"Maps/10 Engine Architecture.canvas","x":-500,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"107cedef06b14ecb","type":"file","file":"Maps/13 Engine Job State Machine.canvas","x":-20,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"dc39d4c8bc194f9b","type":"file","file":"Maps/17 Deployment Topologies.canvas","x":460,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"3ebffaa86ce74f66","type":"file","file":"Maps/16 Security and Trust Boundaries.canvas","x":940,"y":-330,"width":430,"height":100,"color":"3"},
+		{"id":"8448f36a29f14520","type":"group","label":"COMPUTE PROVIDER ABSTRACTION & CURRENT SLURM PATH","x":-1050,"y":-20,"width":2850,"height":1650,"color":"6"},
+		{"id":"2914b161a6a04e8f","type":"text","text":"# Engine Job Manager\nBuilds provider-independent execution request.","x":-900,"y":80,"width":450,"height":220,"color":"4"},
+		{"id":"b42e3c33301445e2","type":"text","text":"# `ComputeProvider` interface\nConceptual methods:\n- `submit(execution_manifest) -> provider_job_id`\n- `get_status(provider_job_id)`\n- `cancel(provider_job_id)`\n- `collect_outputs(provider_job_id)`\n- `get_execution_metadata(provider_job_id)`\n\nProvider-specific scheduler details never leak into the Platform API.","x":-250,"y":80,"width":590,"height":430,"color":"3"},
+		{"id":"b5df14d9a9604057","type":"text","text":"# `SlurmComputeProvider`\nCurrent TAU implementation.\n\nResponsibilities:\n- create approved job script\n- submit with `sbatch`\n- persist Slurm job ID internally\n- query scheduler with approved commands\n- map Slurm state → Engine state\n- cancel with approved scheduler mechanism\n- locate outputs / exit information","x":500,"y":80,"width":560,"height":430,"color":"6"},
+		{"id":"424db16e0e3c4a05","type":"text","text":"# PowerSlurm Cluster\nCompute nodes execute the scientific command inside scheduler-assigned resources.","x":1180,"y":80,"width":500,"height":250,"color":"6"},
+		{"id":"e419f70608e04951","type":"text","text":"# Engine Job Workspace\nExample conceptual layout:\n`jobs/<engine_job_id>/`\n- `manifest.json`\n- `inputs/` or scoped references\n- `scripts/`\n- `logs/`\n- `checkpoints/`\n- `outputs/`\n- `result_manifest.json`\n\nActual paths remain internal.","x":-850,"y":620,"width":560,"height":440,"color":"2"},
+		{"id":"b00ef7cb2cea4008","type":"text","text":"# Resource policy\nPer job:\n- CPU\n- RAM\n- wall time\n- temporary storage\n- concurrency\n- optional GPU\n- maximum artifact size\n\nLimits should be explicit and provider-enforced where possible.","x":-150,"y":620,"width":500,"height":340,"color":"6"},
+		{"id":"c61119e636364636","type":"text","text":"# `LocalWorkerProvider`\nUseful for development/tests and very small jobs.\nSame interface, different execution backend.","x":500,"y":650,"width":480,"height":250,"color":"6"},
+		{"id":"c779f218cee1460f","type":"text","text":"# Future `CloudBatchProvider`\nCould target AWS Batch, Azure Batch or another compute service without changing Platform behavior.","x":1080,"y":650,"width":520,"height":260,"color":"6"},
+		{"id":"315105cccd524f9d","type":"text","text":"# TAU deployment constraint\nA web/API service should live on approved web-facing infrastructure such as PowerWeb or another approved service host. **Do not run a public long-lived API listener on a Slurm login node.** The Engine service submits scheduled jobs to PowerSlurm.","x":-850,"y":1160,"width":2450,"height":270,"color":"1"}
+	],
+	"edges":[
+		{"id":"bde671b4bd5d416b","fromNode":"2914b161a6a04e8f","toNode":"b42e3c33301445e2","toEnd":"arrow","label":"execution manifest","fromSide":"right","toSide":"left"},
+		{"id":"63574dac3bcf473f","fromNode":"b42e3c33301445e2","toNode":"b5df14d9a9604057","toEnd":"arrow","label":"current implementation","fromSide":"right","toSide":"left"},
+		{"id":"b0ccc5f2d3004acc","fromNode":"b5df14d9a9604057","toNode":"424db16e0e3c4a05","toEnd":"arrow","label":"scheduler commands","fromSide":"right","toSide":"left"},
+		{"id":"d7601474a990452e","fromNode":"b5df14d9a9604057","toNode":"e419f70608e04951","toEnd":"arrow","label":"scripts/logs/outputs","fromSide":"left","toSide":"right"},
+		{"id":"1fe21bd1f9604ab5","fromNode":"b42e3c33301445e2","toNode":"c61119e636364636","toEnd":"arrow","label":"alternative","fromSide":"right","toSide":"top"},
+		{"id":"c08c28d9cb9e4dcf","fromNode":"b42e3c33301445e2","toNode":"c779f218cee1460f","toEnd":"arrow","label":"future alternative","fromSide":"right","toSide":"left"},
+		{"id":"e3c6ff458796419c","fromNode":"b5df14d9a9604057","toNode":"b00ef7cb2cea4008","toEnd":"arrow","label":"requests/enforces","fromSide":"left","toSide":"top"}
+	]
+}
