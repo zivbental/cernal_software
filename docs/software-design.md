@@ -20,8 +20,8 @@
 | This document | Complete | |
 | **Step 0 — Scaffold** | **Complete** | Django 5.2 on Python 3.13; boots, migrates, admin reachable |
 | **Step 1 — Engine contract + MockEngine** | **Complete** | Contract, MockEngine, gate/scoring layers, boundary test. No Django code touched. |
-| **Step 2 — Domain model** | **Complete** | 8 models, migrations, admin back-office, `seed_demo`; result import pulled forward. 193 tests pass. |
-| Step 3 — API + orchestration | Not started | |
+| **Step 2 — Domain model** | **Complete** | 8 models, migrations, admin back-office, `seed_demo`. |
+| **Step 3 — API + orchestration** | **Complete** | 24 endpoints, run state machine, django-q2 worker. Verified live: full workflow + cancellation over HTTP. 291 tests pass. |
 | Step 4 — Frontend integration | Not started | |
 | Step 5 — Real science | Not started | |
 | Step 6 — VPS deployment | Not started | |
@@ -40,6 +40,17 @@ Update this table as steps complete. It is the fastest way for a new agent to or
 - **`engine/pipeline/stages.py` holds all thirteen stage signatures**, rather than one module
   per stage (§13 Step 1). Thirteen near-empty modules is noise for a rotating team (rule 12);
   the stage ordering is just as visible in one file.
+- **`EngineCapabilities` added to the engine contract** (§10). The Platform must validate
+  a submission's gate families and scoring profile, but §3 forbids it importing
+  `engine.gates.registry` or `engine.scoring.profiles`. So `EngineClient` grew a
+  `capabilities()` method and the engine advertises them — the in-process form of design
+  map 08's `GET /version` capability document. Surfaced at `GET /api/version`.
+- **`GET /api/auth/csrf` added to §7.** Session auth means writes are CSRF-protected, and
+  an SPA has no server-rendered form to carry the token. Django's test client bypasses CSRF,
+  so this gap only appeared when driving the API over real HTTP.
+- **`Annotation` now has a UUID primary key.** It was the one API-exposed model left with a
+  sequential integer id, which both broke its `DELETE` route and leaked how many decisions
+  had been recorded.
 - **`Candidate.engine_ref` added to §5.** The engine's local candidate id is stored so a
   database row can be traced back to the result manifest that produced it, and so a
   manifest cannot be imported twice into one run (`unique_engine_ref_per_run`).

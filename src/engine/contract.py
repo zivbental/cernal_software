@@ -52,6 +52,22 @@ class JobRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class EngineCapabilities:
+    """What this engine build can do.
+
+    The Platform needs to validate a submission's gate families and scoring profile, but
+    §3 forbids it importing ``engine.gates`` or ``engine.scoring``. So the engine
+    advertises its capabilities instead — the in-process form of the ``GET /version``
+    capability document in design map 08.
+    """
+
+    engine_version: str
+    schema_version: str
+    gate_families: list[str]
+    scoring_profiles: list[str]
+
+
+@dataclass(frozen=True, slots=True)
 class MetricValue:
     """One measured property of a candidate, with its scoring metadata preserved.
 

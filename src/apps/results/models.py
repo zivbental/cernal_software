@@ -160,8 +160,11 @@ class Artifact(UUIDModel, CreatedAtModel):
         return f"{self.kind}: {self.file.name}"
 
 
-class Annotation(CreatedAtModel):
+class Annotation(UUIDModel, CreatedAtModel):
     """A researcher's note or decision about a candidate.
+
+    UUID primary key like every other API-exposed model: annotation ids appear in URLs,
+    and a sequential integer would leak how many decisions have been recorded.
 
     Product-owned and entirely independent of engine output, so decisions survive
     re-runs and re-imports (design map 03).

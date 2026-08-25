@@ -104,5 +104,9 @@ signal to move to Postgres (ADR 0002).
 
 **Submitted runs never leave `QUEUED`** — the worker is not running. `./do worker`.
 
+**`403` on every API write** — the request is missing the `X-CSRFToken` header. Call
+`GET /api/auth/csrf` first, then send the `csrftoken` cookie's value in that header. See
+[api.md](api.md).
+
 **Migrations conflict after a rebase** — never edit an applied migration. Roll back,
 delete the conflicting file, regenerate.

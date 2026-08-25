@@ -262,3 +262,25 @@ def test_mock_and_local_engines_both_satisfy_the_protocol():
 def test_local_engine_is_not_implemented_until_step_5(make_request, progress):
     with pytest.raises(NotImplementedError, match="Step 5"):
         LocalEngine().run(make_request(), progress)
+
+
+# --- Capabilities -----------------------------------------------------------------
+
+
+def test_capabilities_advertise_what_the_engine_supports(engine):
+    """The Platform validates submissions against this instead of importing the
+    registries directly, which §3 forbids."""
+    caps = engine.capabilities()
+
+    assert caps.engine_version == MockEngine.ENGINE_VERSION
+    assert "toehold" in caps.gate_families
+    assert "default" in caps.scoring_profiles
+
+
+def test_local_engine_reports_the_same_installed_families():
+    assert LocalEngine().capabilities().gate_families == MockEngine().capabilities().gate_families
+
+
+def test_capabilities_do_not_require_a_job(engine):
+    """Cheap enough to call on every request."""
+    assert engine.capabilities().schema_version

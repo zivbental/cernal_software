@@ -26,6 +26,7 @@ from engine.contract import (
     SUCCEEDED,
     ArtifactRef,
     CandidateResult,
+    EngineCapabilities,
     JobRequest,
     JobResult,
 )
@@ -43,6 +44,10 @@ class EngineClient(Protocol):
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Execute one job to completion, reporting progress as it goes."""
+        ...
+
+    def capabilities(self) -> EngineCapabilities:
+        """What this engine supports. Cheap enough to call on every request."""
         ...
 
 
@@ -68,13 +73,28 @@ def load_engine(dotted_path: str) -> EngineClient:
 
     # Checked before instantiating: a misconfigured CERNAL_ENGINE should produce a clear
     # message, not a side effect and an obscure TypeError.
-    if not isinstance(engine_class, type) or not callable(getattr(engine_class, "run", None)):
-        raise TypeError(f"{dotted_path} does not implement EngineClient.run().")
+    if not isinstance(engine_class, type) or not all(
+        callable(getattr(engine_class, name, None)) for name in ("run", "capabilities")
+    ):
+        raise TypeError(f"{dotted_path} does not implement EngineClient.")
 
     instance = engine_class()
     if not isinstance(instance, EngineClient):
         raise TypeError(f"{dotted_path} does not implement EngineClient.run().")
     return instance
+
+
+def _installed_capabilities(engine_version: str) -> EngineCapabilities:
+    """Read the registries. Engine-internal, so importing them here is fine."""
+    from engine.gates.registry import available_families
+    from engine.scoring.profiles import available_profiles
+
+    return EngineCapabilities(
+        engine_version=engine_version,
+        schema_version=SCHEMA_VERSION,
+        gate_families=available_families(),
+        scoring_profiles=available_profiles(),
+    )
 
 
 class LocalEngine:
@@ -86,6 +106,9 @@ class LocalEngine:
         from engine.pipeline import run_pipeline
 
         return run_pipeline(request, on_progress)
+
+    def capabilities(self) -> EngineCapabilities:
+        return _installed_capabilities(self.ENGINE_VERSION)
 
 
 # --- Mock engine ------------------------------------------------------------------
@@ -148,6 +171,9 @@ class MockEngine:
     """
 
     ENGINE_VERSION = "mock-1.0.0"
+
+    def capabilities(self) -> EngineCapabilities:
+        return _installed_capabilities(self.ENGINE_VERSION)
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         try:

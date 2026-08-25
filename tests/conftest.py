@@ -120,3 +120,53 @@ def job_result(run, dataset, tmp_path):
         output_dir=str(output_dir),
     )
     return MockEngine().run(request, lambda pct, stage: True), output_dir
+
+
+@pytest.fixture
+def auth_client(client, user):
+    """A client logged in as ``user``."""
+    client.force_login(user)
+    return client
+
+
+@pytest.fixture
+def other_client(other_user):
+    """A client logged in as somebody who owns nothing.
+
+    Its own Client instance, not the shared ``client`` fixture: a test that uses both
+    this and ``auth_client`` would otherwise have one force_login silently override the
+    other, and the authorization assertion would pass for the wrong reason.
+    """
+    from django.test import Client
+
+    instance = Client()
+    instance.force_login(other_user)
+    return instance
+
+
+@pytest.fixture
+def completed_run(run, job_result):
+    """A run with results already imported."""
+    from apps.analyses.models import RunStatus
+    from apps.results.services import import_job_result
+
+    result, output_dir = job_result
+    import_job_result(run, result, output_dir)
+
+    run.status = RunStatus.COMPLETED
+    run.progress_pct = 100
+    run.stage = "Completed"
+    run.engine_version = result.engine_version
+    run.save()
+    return run
+
+
+@pytest.fixture
+def csv_upload():
+    """Factory for in-memory CSV uploads."""
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    def _make(content: str = DATASET_CSV, name: str = "expression.csv"):
+        return SimpleUploadedFile(name, content.encode(), content_type="text/csv")
+
+    return _make

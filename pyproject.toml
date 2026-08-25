@@ -32,6 +32,12 @@ ignore = [
     "RUF012",  # Django class attrs (Meta, list_display) are not ClassVar-annotated by convention
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# django-ninja declares request parsing via callables in argument defaults
+# (File(...), Form(...), Query(...)) — the same dependency-injection idiom FastAPI uses.
+# B008 exists to catch mutable defaults, which these are not.
+"src/api/routers/*.py" = ["B008"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["config", "apps", "api", "engine"]
 
