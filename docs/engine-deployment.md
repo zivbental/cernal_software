@@ -42,7 +42,7 @@ The rest of this document assumes the answer is "expensive enough to be worth it
 
 All three keep the engine behind `EngineClient`, so the Platform is unchanged in each.
 
-### Shape A — Auto-waking HTTP service ⭐ *recommended*
+### Shape A — Auto-waking HTTP service
 
 The engine is a container that the platform provider **starts on an incoming request and
 stops after an idle period**. Fly.io Machines do this natively; Cloud Run and Container
@@ -82,7 +82,7 @@ specific.
 — the part people underestimate — **a reaper that stops machines nobody is using**, because
 a crashed worker that never issues the stop call bills you until someone notices.
 
-### Shape C — Batch job, no service at all
+### Shape C — Batch job, no service at all ⭐ *recommended on a major cloud*
 
 The Platform submits a **job**, not a request. A container starts, reads its input,
 computes, writes its result, and exits. Nothing listens; nothing idles.
@@ -107,14 +107,20 @@ cooperative flag.
 
 | If… | Shape |
 |---|---|
-| You want the least new code and can pick the host | **A** |
+| You are on AWS, GCP or Azure | **C** — see §2d |
+| You want the least new code and can freely pick the host | **A** — see §2b |
 | You must use a specific provider, or need an exact machine type | **B** |
 | Runs are long, infrequent, and coarse progress is acceptable | **C** |
 | Runs are short (< 2 min) | none — cold start dominates; stay in-process |
 
-**Recommendation: Shape A.** It achieves the goal with roughly a day of work, and it is
-the only one that does not put infrastructure credentials or lifecycle state into the
-Platform.
+**Recommendation depends on where you host** — the two are one decision:
+
+- **On AWS, GCP or Azure: Shape C.** Batch jobs are what these platforms are best at,
+  our contract is already job-shaped, and IAM roles remove the shared secret entirely.
+  See [§2d](#2d-on-aws-or-gcp--azure).
+- **On a platform with native scale-to-zero (Fly): Shape A.** Least code of all, but
+  only available where the platform provides it. See [§2b](#2b-where-shape-a-can-actually-run).
+- **On a plain VPS provider: Shape B.** No auto-wake exists, so you write the lifecycle.
 
 ---
 
@@ -241,6 +247,8 @@ it is strictly more to get right.
 | 2 | Small VM on GCP/AWS | Cloud Run Jobs / AWS Batch | **Yes** | Shape C. Zero idle by construction, coarser progress |
 | 3 | Hetzner VPS | Fly app (auto-stop) | No | Cheapest web hosting, but a public engine endpoint and a token to manage |
 | 4 | Hetzner VPS | Hetzner sibling, stopped when idle | **Yes** | No auto-wake, so you write the lifecycle. Simple, cheap, entirely in your control |
+| **5** | **EC2 / Lightsail** | **AWS Batch on Fargate** | **Yes (VPC)** | Shape C. Zero idle, IAM instead of tokens, standard tooling. **See §2d** |
+| 6 | Compute Engine | Cloud Run Jobs | **Yes** | Same as 5 with less setup — the lightest of the cloud options |
 
 **Recommendation:** if nothing constrains you, **combination 1** — put both on Fly. The
 Django app and worker run there perfectly well, the engine becomes a second app that
@@ -322,6 +330,125 @@ is precisely why it is the half worth putting there.
 somewhere boring where backups are a file copy, and the expensive half lives where
 sleeping is free. The cost is a public engine endpoint and a service token, which
 [§7](#7-security) already requires you to build.
+
+---
+
+## 2d. On AWS (or GCP / Azure)
+
+If you would rather stay on a major cloud, the recommendation changes shape — genuinely,
+not cosmetically.
+
+**AWS has no good auto-waking HTTP service for this workload.** App Runner keeps a
+minimum instance running; Lambda caps at 15 minutes, which is uncomfortably close to a
+10-minute run that might grow. So **Shape A is off the table**.
+
+What AWS is *excellent* at is **Shape C — batch jobs**. And our contract is already
+job-shaped: `JobRequest` in, `JobResult` out, poll for status. A batch service matches it
+better than an HTTP service ever did.
+
+### The architecture
+
+```
+┌─ EC2 t4g.small · always on · ~$12/month ───────────────┐
+│   Django + gunicorn + Caddy                            │
+│   django-q2 worker                                     │
+│   EBS volume:  var/cernal.db  +  var/media/            │
+└──────────┬─────────────────────────────────────────────┘
+           │ 1. presign PUT/GET             ┌──────────┐
+           ├───────────────────────────────▶│    S3    │
+           │ 2. submit_job(JobRequest)      │  input/  │
+           ▼                                │ artifacts│
+┌─ AWS Batch on Fargate ─────────────┐      │ progress │
+│   engine container, 4–16 vCPU      │◀─────┤          │
+│   · starts on submit               │      └──────────┘
+│   · reads input by presigned URL   │            ▲
+│   · writes artifacts + progress ───┼────────────┘
+│   · exits                          │
+│   · ZERO cost when idle            │
+└────────────────────────────────────┘
+```
+
+### Component choices
+
+| Layer | Options | Take |
+|---|---|---|
+| **Web + worker** | EC2, Lightsail, Fargate service | **EC2** (or Lightsail). It is a VPS: `var/` is a directory on EBS, backups are a file copy. Everything ADR 0002 assumes still holds |
+| **Engine compute** | **AWS Batch**, ECS Fargate `RunTask`, Lambda, EC2 start/stop | **Batch on Fargate** — queueing, retries and sizing are handled for you. `RunTask` is simpler if you want less machinery |
+| **Transfer** | S3 presigned URLs | Exactly design map 15. Input in, artifacts out |
+| **Credentials** | IAM instance role | See below — this is AWS's real advantage here |
+
+**Not Lambda.** The 15-minute ceiling is a cliff you would eventually fall off, and
+discovering that mid-competition is not a good day.
+
+### How it maps onto the contract
+
+Nothing in `JobRequest` or `JobResult` changes.
+
+| Contract | AWS |
+|---|---|
+| `POST /v1/jobs` | `batch.submit_job()`, `JobRequest` as job parameters |
+| `GET /v1/jobs/{id}` | `batch.describe_jobs()` + a progress file in S3 |
+| `GET /v1/jobs/{id}/result` | `s3.get_object()` — the engine wrote `result.json` |
+| `POST /v1/jobs/{id}/cancel` | `batch.terminate_job()` |
+| `input_path` | Presigned S3 GET URL |
+| `ArtifactRef.path` | S3 key, fetched with a presigned GET |
+| Idempotency | Batch job name derived from `idempotency_key`; refuse duplicates |
+
+`HttpEngineClient` becomes `BatchEngineClient` — the same Protocol, boto3 instead of
+HTTP. **The Platform is still untouched.**
+
+### The one wrinkle: progress
+
+Batch reports job *states* (`RUNNABLE`, `STARTING`, `RUNNING`, `SUCCEEDED`), not the stage
+labels our progress screen displays. Two options:
+
+1. **Progress file in S3** — the engine writes `{"pct": 60, "stage": "Generating gate
+   designs"}` after each stage; the Platform reads it while polling. No new endpoint, no
+   inbound authentication, no new attack surface. **Recommended.**
+2. **Callback to the Platform** — the engine POSTs progress to an authenticated internal
+   endpoint. Lower latency, but it means the engine must reach the Platform and hold a
+   credential to do so.
+
+Option 1 keeps the data flowing one way, which is worth more than the latency.
+
+### IAM instead of shared secrets
+
+This is where AWS genuinely beats the alternatives for us. [§7](#7-security) asks for a
+service token that has to be generated, stored, rotated and kept out of logs. On AWS you
+can skip it:
+
+- The **EC2 instance role** grants exactly "submit Batch jobs, presign these S3 keys".
+- The **Batch job role** grants exactly "read this input prefix, write this artifact
+  prefix".
+- **No static credentials exist**, so none can leak. Nothing to rotate.
+
+Presigned URLs are short-lived by construction, which also satisfies the "short-lived
+signed references" line in §7 without extra work.
+
+### Cost shape
+
+- **EC2 t4g.small**: roughly $12/month, always on. Possibly free-tier eligible early on.
+- **Fargate**: billed per vCPU-second and GB-second. A 10-minute run on 4 vCPU is cents.
+- **S3**: negligible at this volume.
+- **Batch**: free — you pay only for the compute it starts.
+
+So the shape is **a small fixed monthly cost plus a few cents per analysis**, which is
+what you were asking for.
+
+### GCP and Azure
+
+The same architecture, with less setup on GCP:
+
+| | AWS | GCP | Azure |
+|---|---|---|---|
+| Web + worker | EC2 / Lightsail | Compute Engine | Virtual Machine |
+| Engine jobs | AWS Batch / Fargate | **Cloud Run Jobs** | Container Apps Jobs |
+| Object storage | S3 | Cloud Storage | Blob Storage |
+| Credentials | IAM role | Service account | Managed identity |
+
+**Cloud Run Jobs is meaningfully simpler than AWS Batch** — no compute environment, no
+job queue, just "run this container with these arguments". If nothing ties you to AWS, it
+is the lighter path to the same result.
 
 ---
 
@@ -509,7 +636,8 @@ day, and nothing else.**
 
 Before D1:
 
-1. **What does the machine need?** From D0. Cores, RAM, wall time.
+1. **What does the machine need?** From D0. Cores, RAM, wall time. On Fargate this is
+   literally the task size you request.
 2. **Is on-demand worth it at that size?** Compare against one larger always-on VPS (§1).
 3. **Which provider?** Determines Shape A vs B. Auto-start support is the deciding feature.
 4. **Object storage or inline transfer?** (§3). Object storage if datasets approach the
