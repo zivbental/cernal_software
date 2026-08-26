@@ -115,7 +115,7 @@ run analyses concurrently. Raising `Q_CLUSTER["workers"]` to 2–3 is a one-line
 solves most of this — but note SQLite write contention ([ADR 0002](decisions/0002-sqlite-and-orm-task-queue.md)),
 which is the point at which Postgres earns its place.
 
-### C. Separate compute server
+### C. Separate compute server — *planned in [engine-deployment.md](engine-deployment.md)*
 
 A dedicated VM running `engine/service.py` over HTTP, called by `HttpEngineClient`.
 
