@@ -182,6 +182,80 @@ Resizing is for load that grows and stays grown. Yours is spiky and short — th
 In all three the Platform is unchanged — `CERNAL_ENGINE` points at `HttpEngineClient` and
 everything above the boundary carries on as it is.
 
+## 2b. Where Shape A can actually run
+
+Shape A is not something you install — **scale-to-zero is a property of the platform**.
+On a plain VPS provider there is no auto-wake, and Shape A is simply unavailable; you
+build Shape B instead. So the hosting choice and the shape choice are the same decision.
+
+### What this workload demands of a platform
+
+| Requirement | Why it rules things out |
+|---|---|
+| **~10 minute jobs** | Function platforms with short ceilings (AWS Lambda caps at 15 min) are marginal at best |
+| **4–16 vCPU, several GB** | Folding is CPU-bound. Small function tiers will not do |
+| **Scale to zero** | The entire point. "Minimum one instance" plans defeat it |
+| **Per-second or per-minute billing** | Hourly granularity wastes most of a 10-minute run |
+| **Background work stays alive** | See the trap below |
+
+### The trap: idle is measured in *requests*, not CPU
+
+Auto-wake platforms usually decide a machine is idle because **no requests have
+arrived** — not because it is doing nothing. A background computation with no inbound
+traffic can be stopped mid-run.
+
+Our contract happens to sidestep this. The Platform polls `GET /v1/jobs/{id}` every ~3
+seconds for the whole run, so the machine sees continuous traffic and stays up; when the
+run reaches a terminal status the client stops polling, and the machine goes to sleep on
+its own. The polling that exists for the progress bar doubles as the keep-alive.
+
+> Verify this against whatever platform you pick, and set the idle timeout comfortably
+> above the poll interval. If you ever move to a callback instead of polling, this
+> protection disappears with it.
+
+### Candidate platforms
+
+Capabilities move quickly — treat this as where to look, and check current limits and
+prices yourself.
+
+| Platform | Scale to zero | Notes |
+|---|---|---|
+| **Fly.io Machines** | Yes, native start/stop | Per-second billing, private networking between your own apps. The closest fit |
+| **Google Cloud Run** | Yes | Long request timeouts; **Cloud Run Jobs** suits Shape C even better |
+| **Azure Container Apps** | Yes | Scale-to-zero supported; check per-job CPU ceilings |
+| **AWS** | Not directly | Lambda's 15 min ceiling is tight. Fargate needs orchestration; **AWS Batch** is Shape C |
+| **Hetzner / DigitalOcean** | **No** | No auto-wake. Excellent value for Shape B stop/start |
+
+### The cross-provider consequence
+
+**If the web VPS and the engine are on different providers, there is no private network
+between them.** The engine then needs a public endpoint protected by a service token
+([§7](#7-security)) rather than being unreachable by construction. That is workable, and
+it is strictly more to get right.
+
+### Four combinations that make sense
+
+| # | Web app | Engine | Private net | Trade |
+|---|---|---|---|---|
+| 1 | Fly | Fly Machines | **Yes** | One platform, one bill, auto-wake, no lifecycle code. **Recommended if you are not already committed elsewhere** |
+| 2 | Small VM on GCP/AWS | Cloud Run Jobs / AWS Batch | **Yes** | Shape C. Zero idle by construction, coarser progress |
+| 3 | Hetzner VPS | Fly Machines | No | Cheapest web hosting, but a public engine endpoint and a token to manage |
+| 4 | Hetzner VPS | Hetzner sibling, stopped when idle | **Yes** | No auto-wake, so you write the lifecycle. Simple, cheap, entirely in your control |
+
+**Recommendation:** if nothing constrains you, **combination 1** — put both on Fly. The
+Django app and worker run there perfectly well, the engine becomes a second app that
+sleeps between runs, and they talk over private networking with no public engine endpoint
+and no cloud credentials in the Platform.
+
+**If you would rather keep the web app on a cheap VPS**, take **combination 4** and accept
+Shape B. Stop/start of a pre-provisioned sibling is perhaps a hundred lines behind the
+`EngineClient` interface, and it keeps everything on one provider with a private network.
+
+Either way the Platform is untouched: `CERNAL_ENGINE` names the client, and the boundary
+test keeps the rest honest.
+
+---
+
 ## 3. What splitting actually forces you to build
 
 This is the honest cost. Today the engine reads a local file and writes to a local
