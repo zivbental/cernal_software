@@ -247,8 +247,8 @@ it is strictly more to get right.
 | 2 | Small VM on GCP/AWS | Cloud Run Jobs / AWS Batch | **Yes** | Shape C. Zero idle by construction, coarser progress |
 | 3 | Hetzner VPS | Fly app (auto-stop) | No | Cheapest web hosting, but a public engine endpoint and a token to manage |
 | 4 | Hetzner VPS | Hetzner sibling, stopped when idle | **Yes** | No auto-wake, so you write the lifecycle. Simple, cheap, entirely in your control |
-| **5** | **EC2 / Lightsail** | **AWS Batch on Fargate** | **Yes (VPC)** | Shape C. Zero idle, IAM instead of tokens, standard tooling. **See §2d** |
-| 6 | Compute Engine | Cloud Run Jobs | **Yes** | Same as 5 with less setup — the lightest of the cloud options |
+| **5** | **AWS EC2 / Lightsail** | **AWS Batch on Fargate** | **Yes (VPC)** | Shape C. Zero idle, IAM instead of tokens, standard tooling. **See §2d** |
+| 6 | Google Compute Engine | Google Cloud Run Jobs | **Yes** | Same as 5 with less setup — the lightest of the cloud options |
 
 **Recommendation:** if nothing constrains you, **combination 1** — put both on Fly. The
 Django app and worker run there perfectly well, the engine becomes a second app that
@@ -333,10 +333,16 @@ sleeping is free. The cost is a public engine endpoint and a service token, whic
 
 ---
 
-## 2d. On AWS (or GCP / Azure)
+## 2d. On AWS (or Google Cloud / Azure)
 
 If you would rather stay on a major cloud, the recommendation changes shape — genuinely,
 not cosmetically.
+
+> The three large providers are **AWS** (Amazon Web Services), **GCP** (Google Cloud
+> Platform) and **Azure** (Microsoft). They offer the same building blocks under
+> different names: a virtual machine, an object store, a way to run a container on
+> demand, and a way to grant permissions without passwords. The table at the end of this
+> section lines the names up.
 
 **AWS has no good auto-waking HTTP service for this workload.** App Runner keeps a
 minimum instance running; Lambda caps at 15 minutes, which is uncomfortably close to a
@@ -435,11 +441,11 @@ signed references" line in §7 without extra work.
 So the shape is **a small fixed monthly cost plus a few cents per analysis**, which is
 what you were asking for.
 
-### GCP and Azure
+### Google Cloud and Azure
 
-The same architecture, with less setup on GCP:
+The same architecture, with less setup on Google Cloud:
 
-| | AWS | GCP | Azure |
+| | AWS | Google Cloud (GCP) | Azure |
 |---|---|---|---|
 | Web + worker | EC2 / Lightsail | Compute Engine | Virtual Machine |
 | Engine jobs | AWS Batch / Fargate | **Cloud Run Jobs** | Container Apps Jobs |
@@ -449,6 +455,10 @@ The same architecture, with less setup on GCP:
 **Cloud Run Jobs is meaningfully simpler than AWS Batch** — no compute environment, no
 job queue, just "run this container with these arguments". If nothing ties you to AWS, it
 is the lighter path to the same result.
+
+> **Worth checking before you choose:** all three run student and research credit
+> programmes, and iGEM teams are often eligible. A year of free credit is a bigger factor
+> in this decision than any of the technical differences above.
 
 ---
 
