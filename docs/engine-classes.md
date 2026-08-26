@@ -334,6 +334,104 @@ class OffTargetScanner:
 
 ---
 
+## 4a. What makes something a "tool"
+
+A fair question, since the term is doing a lot of work above.
+
+> **A tool is a scientific primitive that is expensive to implement correctly and has
+> no opinion about why you are calling it.**
+
+`FoldEngine` does not know what a toehold is. `OffTargetScanner` does not know what a
+trigger is. They take sequences and return facts, the way `sha256()` takes bytes and
+returns a digest.
+
+**The test:** does it need to know which stage called it? If yes, it is not a tool — it
+is stage logic that leaked into the wrong place.
+
+### The worked example: `OffTargetScanner` in three places
+
+The reasonable objection is that off-target analysis surely means *different code* for a
+trigger than for a circuit. That is half right, and the half that differs is the important
+part.
+
+**What is genuinely shared** is one hard problem: *given a sequence, find near-matches in
+the transcriptome, tolerating mismatches.* That needs an index, a mismatch model, and a
+consistent penalty scale. It is fiddly, slow to get right, and identical in all three
+places.
+
+**What differs** is which sequence you hand it and what the hits mean — and that lives in
+the stage, not the tool.
+
+```python
+class OffTargetScanner:
+    """S5 — the transcriptome search. No opinion about why you are asking."""
+
+    def __init__(self, transcriptome: SequenceLibrary, max_mismatch: int): ...
+
+    def find_similar(self, sequence: str) -> list[Hit]:
+        """The primitive. Everything below is interpretation of these hits."""
+
+    def scan_trigger(self, trigger: str) -> OffTargetReport:
+        """Direction (b): is this trigger sponged by non-cognate RNA?
+        Consequence: weak ON, false negative."""
+
+    def scan_switch(self, binding_site: str) -> OffTargetReport:
+        """Direction (a): can non-cognate RNA cross-activate this switch?
+        Consequence: leak, false positive."""
+```
+
+Both directions are in the pipeline map's S5 spec, and they are two questions about the
+same search — not two searches.
+
+| Caller | Asks | Passes | Does with the answer |
+|---|---|---|---|
+| `TriggerScorer` | Will this segment be sponged? | The candidate trigger | Feeds `off_target_penalty` on `TriggerCandidate`; drops the worst before switches are designed |
+| `SwitchValidator` | Can the wrong RNA open this switch? | The switch's **binding site**, not the whole switch | Feeds `binding_site_off_target` on `SwitchDesign` |
+| `CircuitDesigner` | Do this circuit's own parts interfere? | Each trigger against the circuit's *other* switches | Cross-talk penalty; feeds the confusion matrix's false-positive count |
+
+Three different questions, three different interpretations, three different fields on
+three different records — over **one** transcriptome index.
+
+> **A correction to the diagram in [engine-map.md](engine-map.md):** `CircuitDesigner`
+> should not re-scan the transcriptome. Per-trigger and per-switch penalties are already
+> computed and stored upstream; the only genuinely new search is cross-talk *within* the
+> circuit's own components. Re-scanning would be both slow and inconsistent with the
+> numbers already recorded.
+
+### What happens if you do not share it
+
+This is the failure the pipeline map is guarding against when it says Aviv's code should
+be *"refactored into S1–S9 rather than copied per gate"*:
+
+- **Three transcriptome indexes**, built three times, in memory at once.
+- **Three mismatch conventions.** Does "2 mismatches" include indels? Each copy answers
+  differently, and nobody notices.
+- **Three penalty scales.** Now a trigger's off-target number and a switch's off-target
+  number are not comparable — and `scoring` normalises both onto one axis as though they
+  were. The ranking becomes quietly wrong.
+- **A bug fixed once, in one of three places.**
+
+The same argument holds for `FoldEngine`: every generator and every validator folds
+sequences, and if each carries its own ViennaRNA parameters, two designs scored on
+different days are not comparable.
+
+### Which of the fifteen are really tools
+
+Applying the test — *does it need to know its caller?*
+
+| Genuinely tools | Not tools |
+|---|---|
+| S1 `FoldProfiler`, S2 `FoldEngine`, S3 `hybridization_energy`, S4 `structure_match`, S5 `OffTargetScanner`, S6 `sequences`, S7 `MotifScreener`, S8 `CodonOptimizer`, S9 `TranslationScorer` | S10 `scoring` — a **layer**, applied once at the end of each stage |
+| | S11 `CandidateStore` — **infrastructure**, not science |
+| | S12/S13 filters — **policy**, configured per stage |
+| | S14 `ReportBuilder` — a **stage** |
+| | S15 QC — a **stage** |
+
+Calling all fifteen "shared functions" flattens a real distinction. Only the first row
+belongs in `engine/tools/`.
+
+---
+
 ## 5. What already exists
 
 Four of the map's items are built and tested. Worth knowing before anyone writes them

@@ -141,7 +141,7 @@ flowchart LR
     TS --> S1 & S5 & S6 & S7
     GEN --> S2 & S3 & S6 & S8
     VAL --> S2 & S4 & S5 & S6 & S7 & S9
-    CD --> S5
+    CD -->|"cross-talk only"| S5
     PB --> S7 & S8
     TS --> SC
     VAL --> SC
@@ -158,6 +158,12 @@ flowchart LR
 `FoldEngine` (S2) and `sequences` (S6) are used by nearly everything — build them first
 and well. `scoring` (S10) is already done, and every stage that ranks anything goes
 through it.
+
+A tool takes sequences and returns facts; it never knows which stage called it. What
+differs between callers is the *question* and the *interpretation*, and both live in the
+stage — see [engine-classes §4a](engine-classes.md). `CircuitDesigner` is the one
+qualified arrow: it reuses the off-target penalties already stored upstream and only
+searches for cross-talk between a circuit's own components.
 
 ---
 
