@@ -3,6 +3,7 @@
 > **Planning document. Nothing here is implemented yet.**
 > Read [`software-design.md`](software-design.md) §3 for the boundary this depends on,
 > and [`engine-contract.md`](engine-contract.md) for the contract it fills in.
+> [`engine-design.md`](engine-design.md) covers how the engine is structured internally.
 
 You asked: should the engine run on the same server or a different one, and how should
 they talk? This answers that, then sets out how to build the science behind it.
