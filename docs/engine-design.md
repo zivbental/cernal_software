@@ -3,6 +3,8 @@
 > **Planning document.** The stubs exist; the science does not.
 > [`engine-contract.md`](engine-contract.md) covers what crosses the boundary.
 > This covers how the engine is built **inside** it.
+> [`engine-classes.md`](engine-classes.md) is the concrete inventory, derived from the
+> team's *Computational Pipeline Map*.
 
 You proposed classes for `Job`, `Plasmid`, `Gate`, `GateType`. That instinct is right in
 one place and a trap in another, and the difference is worth being precise about.
