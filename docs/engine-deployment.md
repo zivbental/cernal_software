@@ -514,6 +514,7 @@ class HttpEngineClient:
     Reads its configuration from the environment rather than Django settings, so §3
     still holds: engine/ may read os.environ, it may not import django.conf.
     """
+
     def __init__(self) -> None:
         self.base_url = os.environ["CERNAL_ENGINE_URL"]
         self.token = os.environ["CERNAL_ENGINE_TOKEN"]

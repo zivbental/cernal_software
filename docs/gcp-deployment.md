@@ -58,8 +58,8 @@ engine is inside it: same project, its own service account. So the Platform pass
 `gs://` paths, and the job's service account reads and writes them directly.
 
 ```python
-JobRequest.input_path  = "gs://cernal-data/datasets/<uuid>/expression.csv"
-JobRequest.output_dir  = "gs://cernal-data/runs/<run-id>/artifacts"
+JobRequest.input_path = "gs://cernal-data/datasets/<uuid>/expression.csv"
+JobRequest.output_dir = "gs://cernal-data/runs/<run-id>/artifacts"
 ```
 
 No signing, no expiry to tune, no `signBlob` permission, no clock skew. `input_path` and
@@ -91,15 +91,15 @@ def main() -> None:
     request = JobRequest(**json.loads(os.environ["CERNAL_JOB_REQUEST"]))
 
     with tempfile.TemporaryDirectory() as work:
-        local_input = download(request.input_path, work)      # gs:// -> /tmp
+        local_input = download(request.input_path, work)  # gs:// -> /tmp
         local_out = Path(work) / "out"
 
         result = LocalEngine().run(
             replace(request, input_path=local_input, output_dir=str(local_out)),
-            on_progress=publish_progress(request),            # writes progress.json
+            on_progress=publish_progress(request),  # writes progress.json
         )
 
-        upload_tree(local_out, request.output_dir)            # /tmp -> gs://
+        upload_tree(local_out, request.output_dir)  # /tmp -> gs://
         write_json(f"{request.output_dir}/../result.json", asdict(result))
 ```
 
@@ -133,15 +133,15 @@ class CloudRunEngineClient:
         self.bucket = os.environ["CERNAL_BUCKET"]
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
-        execution = self._start(request)          # jobs.run with env overrides
+        execution = self._start(request)  # jobs.run with env overrides
         while True:
-            state = self._poll(execution)          # executions.get
+            state = self._poll(execution)  # executions.get
             progress = self._read_progress(request)  # progress.json from GCS
             if progress and not on_progress(progress.pct, progress.stage):
-                self._request_cancel(request)      # cooperative, see §6
+                self._request_cancel(request)  # cooperative, see §6
             if state.finished:
                 break
-        return self._read_result(request)          # result.json from GCS
+        return self._read_result(request)  # result.json from GCS
 
     def capabilities(self) -> EngineCapabilities: ...
 ```

@@ -185,7 +185,7 @@ def test_local_and_container_engines_agree(job_request, tmp_path):
     non-deterministic has crept in and that is the actual bug.
     """
     local = LocalEngine().run(job_request, noop_progress)
-    containered = run_in_container(job_request)     # docker run, local paths
+    containered = run_in_container(job_request)  # docker run, local paths
 
     assert [c.ref for c in local.candidates] == [c.ref for c in containered.candidates]
     assert [c.overall_score for c in local.accepted] == [

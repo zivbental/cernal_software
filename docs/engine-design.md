@@ -64,11 +64,20 @@ The `Job` class. It is the natural first design and it goes wrong the same way e
 # Don't.
 class Job:
     def __init__(self, request): ...
-    def load_data(self):        self.data = ...
-    def find_triggers(self):    self.triggers = ...
-    def generate_gates(self):   self.designs = ...
-    def evaluate(self):         self.metrics = ...
-    def score(self):            self.candidates = ...
+    def load_data(self):
+        self.data = ...
+
+    def find_triggers(self):
+        self.triggers = ...
+
+    def generate_gates(self):
+        self.designs = ...
+
+    def evaluate(self):
+        self.metrics = ...
+
+    def score(self):
+        self.candidates = ...
 ```
 
 Four problems, all of which arrive late:
@@ -85,15 +94,15 @@ Four problems, all of which arrive late:
 
 ```python
 def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
-    profile   = get_profile(request.scoring_profile)
-    table     = load_expression_table(request.input_path)     # 1-2
-    triggers  = discover_features(table, constraints)         # 3
-    sets      = generate_trigger_sets(triggers, constraints)  # 4-5, generator
-    designs   = generate_gates(sets, families, constraints)   # 6,   generator
-    scored    = evaluate_and_score(designs, profile)          # 7-10, generator
-    ranked    = rank_and_filter(scored, profile)              # 11,  materialised
-    artifacts = generate_artifacts(ranked, request.output_dir)# 12
-    return publish_result(request, ranked, artifacts)         # 13
+    profile = get_profile(request.scoring_profile)
+    table = load_expression_table(request.input_path)  # 1-2
+    triggers = discover_features(table, constraints)  # 3
+    sets = generate_trigger_sets(triggers, constraints)  # 4-5, generator
+    designs = generate_gates(sets, families, constraints)  # 6,   generator
+    scored = evaluate_and_score(designs, profile)  # 7-10, generator
+    ranked = rank_and_filter(scored, profile)  # 11,  materialised
+    artifacts = generate_artifacts(ranked, request.output_dir)  # 12
+    return publish_result(request, ranked, artifacts)  # 13
 ```
 
 The data flow is the code. Every step is independently testable, and the generators mean
@@ -316,6 +325,7 @@ class Gate:
     def mfe(self, seq: str) -> float:
         return RNA.fold(seq)[1]
 
+
 class ToeholdGate(Gate):
     def evaluate_design(self, d):
         return {"mfe_on": self.mfe(d.sequence)}
@@ -381,8 +391,10 @@ the signal that two things are wearing one class, and at that point the subclass
 itself:
 
 ```python
-class ProkaryoticToehold(ToeholdGate): ...   # RBS in loop
-class EukaryoticToehold(ToeholdGate): ...    # Kozak, scanning
+class ProkaryoticToehold(ToeholdGate): ...  # RBS in loop
+
+
+class EukaryoticToehold(ToeholdGate): ...  # Kozak, scanning
 ```
 
 Designing the hierarchy before the bodies exist means guessing at where the seam is, and
@@ -408,14 +420,17 @@ the engine after the contract itself.
 ```python
 # engine/tools/rna.py — the ONLY module that imports RNA
 
+
 @lru_cache(maxsize=100_000)
 def mfe(sequence: str) -> tuple[str, float]:
     """Structure and minimum free energy. Cached: the same subsequence recurs
     constantly across designs, and folding it twice is pure waste."""
     return RNA.fold(sequence)
 
+
 def hybridisation_energy(switch: str, trigger: str) -> float: ...
 def accessibility(sequence: str, start: int, end: int) -> float: ...
+
 
 def tool_versions() -> dict[str, str]:
     """Recorded on every run. Without this, a result from six months ago is
@@ -443,8 +458,8 @@ def evaluate_and_score(
 ) -> Iterator[ScoredCandidate]:
     """Stages 7-10. The expensive part, and the parallel one."""
     for design in designs:
-        raw = evaluate_gates(design)                  # folding happens here
-        if breach := failed_filter(raw, profile):     # prune in the stream
+        raw = evaluate_gates(design)  # folding happens here
+        if breach := failed_filter(raw, profile):  # prune in the stream
             yield rejected(design, breach.reason)
             continue
         metrics = build_metrics(raw, profile)

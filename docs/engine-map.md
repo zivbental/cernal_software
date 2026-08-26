@@ -354,9 +354,9 @@ sets of ViennaRNA parameters, and scores that are not comparable.
 ```python
 # engine/pipeline.py — wire the tools once, hand them down
 def run_pipeline(request, on_progress):
-    folder   = FoldEngine()
+    folder = FoldEngine()
     profiler = FoldProfiler(window=80, max_span=40, unpaired=10)
-    off      = OffTargetScanner(transcriptome, max_mismatch=2)
+    off = OffTargetScanner(transcriptome, max_mismatch=2)
     screener = MotifScreener(standard=AssemblyStandard.RFC10)
 
     triggers = TriggerScorer(profiler, off, screener).score(genes, sequences)

@@ -49,6 +49,7 @@ class GeneSelector:
     absolute range in both states: too low gives false negatives, too high gives
     false positives.
     """
+
     def __init__(self, thresholds: GeneThresholds, atlas: CellAtlas | None = None): ...
     def select(self, counts: CountMatrix, dge: DgeTable) -> list[SelectedGene]: ...
 
@@ -59,10 +60,17 @@ class TriggerScorer:
     GC and forbidden motifs. Per length-class, because each gate family needs a
     different footprint.
     """
-    def __init__(self, folder: FoldProfiler, off_target: OffTargetScanner,
-                 screener: MotifScreener, length_classes: tuple[int, ...]): ...
-    def score(self, genes: list[SelectedGene],
-              sequences: SequenceLibrary) -> Iterator[TriggerCandidate]: ...
+
+    def __init__(
+        self,
+        folder: FoldProfiler,
+        off_target: OffTargetScanner,
+        screener: MotifScreener,
+        length_classes: tuple[int, ...],
+    ): ...
+    def score(
+        self, genes: list[SelectedGene], sequences: SequenceLibrary
+    ) -> Iterator[TriggerCandidate]: ...
 
 
 class SwitchDesigner:
@@ -71,10 +79,11 @@ class SwitchDesigner:
 
     Dispatches to a GateFamily; owns none of the chemistry itself.
     """
-    def __init__(self, registry: GateRegistry, validator: SwitchValidator,
-                 host: Host): ...
-    def design(self, triggers: Iterable[TriggerCandidate],
-               constraints: Constraints) -> Iterator[SwitchDesign]: ...
+
+    def __init__(self, registry: GateRegistry, validator: SwitchValidator, host: Host): ...
+    def design(
+        self, triggers: Iterable[TriggerCandidate], constraints: Constraints
+    ) -> Iterator[SwitchDesign]: ...
 
 
 class CircuitDesigner:
@@ -82,9 +91,11 @@ class CircuitDesigner:
     expressions reproducing it, keep only those buildable from switches actually
     designed upstream, and rank by separation versus complexity.
     """
+
     def __init__(self, evaluator: ConfusionEvaluator, max_terms: int): ...
-    def design(self, genes: list[SelectedGene], switches: list[SwitchDesign],
-               counts: CountMatrix) -> Iterator[CircuitCandidate]: ...
+    def design(
+        self, genes: list[SelectedGene], switches: list[SwitchDesign], counts: CountMatrix
+    ) -> Iterator[CircuitCandidate]: ...
 
 
 class PlasmidBuilder:
@@ -92,18 +103,21 @@ class PlasmidBuilder:
     terminators, effector domains and the output gene; check assembly-standard
     compliance; export an orderable sequence.
     """
-    def __init__(self, backbone: BackboneSpec, standard: AssemblyStandard,
-                 screener: MotifScreener): ...
-    def build(self, circuit: CircuitCandidate,
-              outcome: DesiredOutcome) -> PlasmidDesign: ...
+
+    def __init__(
+        self, backbone: BackboneSpec, standard: AssemblyStandard, screener: MotifScreener
+    ): ...
+    def build(self, circuit: CircuitCandidate, outcome: DesiredOutcome) -> PlasmidDesign: ...
 
 
 class ReportBuilder:
     """Stage 6 — assemble the evidence a user needs in order to decide whether to order
     a plasmid: designs, structures, confusion tables, separation margins, flags, caveats.
     """
-    def build(self, run: RunContext, circuits: list[CircuitCandidate],
-              plasmids: list[PlasmidDesign]) -> list[ArtifactRef]: ...
+
+    def build(
+        self, run: RunContext, circuits: list[CircuitCandidate], plasmids: list[PlasmidDesign]
+    ) -> list[ArtifactRef]: ...
 ```
 
 Plus one that the map calls a footnote and flags as having no home:
@@ -117,6 +131,7 @@ class InputQualityCheck:
     front of GeneSelector, because everything downstream is wasted if the input is
     unusable.
     """
+
     def check(self, counts: CountMatrix, metadata: SampleMetadata) -> QcReport: ...
 ```
 
@@ -131,9 +146,10 @@ of these, not the interface between stages ([§6](#6-one-decision-to-settle-cand
 @dataclass(frozen=True, slots=True)
 class SelectedGene:
     """Stage 1 output. Map: 'Selected genes .csv list'."""
+
     gene_id: str
     symbol: str
-    regulation: Regulation                  # UP | DOWN
+    regulation: Regulation  # UP | DOWN
     control_percentile: float
     condition_percentile: float
     condition_specificity: float
@@ -145,15 +161,16 @@ class SelectedGene:
 @dataclass(frozen=True, slots=True)
 class TriggerCandidate:
     """Stage 2 output. Map: 'Global Trigger Scoring .csv list'."""
+
     trigger_id: str
     gene_id: str
     symbol: str
     start_index: int
     length: int
     sequence: str
-    openness: float                         # mean unpaired probability (S1)
+    openness: float  # mean unpaired probability (S1)
     mfe: float
-    accessibility: float                    # local context
+    accessibility: float  # local context
     off_target_penalty: float
     segment_specificity: float
     ribosome_occupancy: float | None
@@ -167,21 +184,22 @@ class TriggerCandidate:
 class SwitchDesign:
     """Stage 3 output. Map: 'Switch .csv list' + 'Switch Meta data .csv', merged —
     they describe one thing and splitting them only creates a join."""
+
     switch_id: str
-    trigger_ids: tuple[str, ...]            # 1 or 2 — AND gates take two
+    trigger_ids: tuple[str, ...]  # 1 or 2 — AND gates take two
     gene_ids: tuple[str, ...]
     gate_kind: GateKind
     host: Host
     sequence: str
     dot_bracket: str
-    structure_deviation: float              # ensemble defect vs desired (S4)
+    structure_deviation: float  # ensemble defect vs desired (S4)
     mfe_on: float
     mfe_off: float
     mfe_trigger: float
     binding_site_accessibility: float
     binding_site_off_target: float
-    translation_score: float                # codon usage (S8)
-    architecture: dict                      # stem/loop lengths etc. — family-specific
+    translation_score: float  # codon usage (S8)
+    architecture: dict  # stem/loop lengths etc. — family-specific
     score: float
 
 
@@ -191,6 +209,7 @@ class ConfusionMatrix:
 
     Circuit ON/OFF against condition/control samples — the basis of circuit scoring.
     """
+
     true_positive: int
     false_positive: int
     false_negative: int
@@ -207,25 +226,27 @@ class ConfusionMatrix:
 @dataclass(frozen=True, slots=True)
 class CircuitCandidate:
     """Stage 4 output. Map: 'Circuits scored .csv list'."""
+
     circuit_id: str
     expression: BooleanExpression
     gene_ids: tuple[str, ...]
     trigger_ids: tuple[str, ...]
     switch_ids: tuple[str, ...]
     confusion: ConfusionMatrix
-    complexity: int                         # component count — the other Pareto axis
+    complexity: int  # component count — the other Pareto axis
     score: float
 
 
 @dataclass(frozen=True, slots=True)
 class PlasmidDesign:
     """Stage 5 output. Map: appended to the circuits list."""
+
     plasmid_id: str
     circuit_id: str
     segments: tuple[Segment, ...]
     sequence: str
     standard: AssemblyStandard
-    violations: tuple[str, ...]             # empty when compliant
+    violations: tuple[str, ...]  # empty when compliant
 
     @property
     def length_bp(self) -> int: ...
@@ -241,17 +262,19 @@ class BooleanExpression:
     A parsed form is needed anyway to evaluate it against samples, enumerate
     equivalents, and count complexity — and it renders to the caption the UI shows.
     """
-    operator: LogicOperator                 # AND | OR | NOT | IDENTITY
+
+    operator: LogicOperator  # AND | OR | NOT | IDENTITY
     operands: tuple["BooleanExpression | str", ...]
 
     def evaluate(self, active: frozenset[str]) -> bool: ...
     def complexity(self) -> int: ...
-    def render(self) -> str: ...            # "A AND (B OR C) AND NOT D"
+    def render(self) -> str: ...  # "A AND (B OR C) AND NOT D"
 
 
 @dataclass(frozen=True, slots=True)
 class CountMatrix:
     """Map input 2 — RNA-seq counts, with the metadata naming control vs condition."""
+
     gene_ids: tuple[str, ...]
     samples: tuple[str, ...]
     counts: "np.ndarray"
@@ -261,6 +284,7 @@ class CountMatrix:
 @dataclass(frozen=True, slots=True)
 class DgeTable:
     """Map input 3 — DESeq2-style results."""
+
     rows: tuple[DgeRow, ...]
 
 
@@ -279,13 +303,32 @@ class DgeRow:
 ### Enums
 
 ```python
-class Host(StrEnum):          HUMAN, ECOLI, YEAST
-class Track(StrEnum):         PROKARYOTIC, EUKARYOTIC     # derived from Host
-class GateKind(StrEnum):      TOEHOLD, TOEHOLD_AND, ANTISENSE_NOT, CRISPR
-class Regulation(StrEnum):    UP, DOWN
-class LogicOperator(StrEnum): AND, OR, NOT, IDENTITY
-class AssemblyStandard(StrEnum): RFC10, RFC1000
-class DesiredOutcome(StrEnum):   GFP, ANTIBIOTIC, CUSTOM
+class Host(StrEnum):
+    HUMAN, ECOLI, YEAST
+
+
+class Track(StrEnum):
+    PROKARYOTIC, EUKARYOTIC  # derived from Host
+
+
+class GateKind(StrEnum):
+    TOEHOLD, TOEHOLD_AND, ANTISENSE_NOT, CRISPR
+
+
+class Regulation(StrEnum):
+    UP, DOWN
+
+
+class LogicOperator(StrEnum):
+    AND, OR, NOT, IDENTITY
+
+
+class AssemblyStandard(StrEnum):
+    RFC10, RFC1000
+
+
+class DesiredOutcome(StrEnum):
+    GFP, ANTIBIOTIC, CUSTOM
 ```
 
 ---
@@ -314,12 +357,13 @@ class FoldEngine:
     Every result is cached: the same subsequence recurs constantly across designs,
     and folding it twice is pure waste.
     """
+
     def mfe(self, seq: str) -> FoldResult: ...
     def partition(self, seq: str) -> PartitionResult: ...
     def ensemble_defect(self, seq: str, target: str) -> float: ...
     def base_pair_probabilities(self, seq: str) -> "np.ndarray": ...
     def suboptimal(self, seq: str, delta: float) -> list[FoldResult]: ...
-    def versions(self) -> dict[str, str]: ...   # recorded on every run
+    def versions(self) -> dict[str, str]: ...  # recorded on every run
 
 
 class OffTargetScanner:
@@ -328,6 +372,7 @@ class OffTargetScanner:
     (a) switch cross-activated by non-cognate RNA  -> leak, false positive
     (b) trigger sponged by non-cognate RNA         -> weak ON, false negative
     """
+
     def scan_switch(self, switch: str) -> OffTargetReport: ...
     def scan_trigger(self, trigger: str) -> OffTargetReport: ...
 ```
@@ -486,9 +531,10 @@ class CandidateStore:
     writes what passed through, so a run stays auditable without forcing every stage
     to serialise.
     """
+
     def mint_id(self, kind: str) -> str: ...
     def snapshot(self, stage: str, records: Sequence[Any]) -> ArtifactRef: ...
-    def load_snapshot(self, stage: str) -> list[dict]: ...   # for re-running a stage
+    def load_snapshot(self, stage: str) -> list[dict]: ...  # for re-running a stage
 ```
 
 You keep debuggability, provenance and re-runnability; you lose nothing except the
@@ -510,8 +556,8 @@ So availability is a function of `(gate kind, host)` — not a single `available
 ```python
 class GateFamily(ABC):
     name: ClassVar[str]
-    supported_hosts: ClassVar[frozenset[Host]]      # NEW
-    max_inputs: ClassVar[int]                       # NEW — 1 for CRISPR, 2 for AND
+    supported_hosts: ClassVar[frozenset[Host]]  # NEW
+    max_inputs: ClassVar[int]  # NEW — 1 for CRISPR, 2 for AND
 ```
 
 That flows all the way out: `EngineCapabilities` should report families **per host**, so
