@@ -1,6 +1,6 @@
 """The HTTP API.
 
-The only HTTP surface in the system (docs/software-design.md §4). Built with
+The only HTTP surface in the system (docs/architecture.md §4). Built with
 django-ninja: Pydantic schemas in, OpenAPI out at ``/api/openapi.json``, which the SPA
 uses to generate a typed client (ADR 0004).
 
@@ -78,7 +78,7 @@ def handle_unexpected(request, exc):
     """Never leak internals to a client.
 
     The traceback goes to the log; the client gets a generic message
-    (docs/software-design.md §7.2).
+    (docs/architecture.md §7.2).
     """
     logger.exception("Unhandled API error at %s", request.path)
     return api.create_response(

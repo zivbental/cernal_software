@@ -136,7 +136,7 @@ class RunCounts(Schema):
 
 
 class RunStatusOut(Schema):
-    """The polling response (docs/software-design.md §7.1). Deliberately cheap."""
+    """The polling response (docs/architecture.md §7.1). Deliberately cheap."""
 
     id: UUID
     status: str
@@ -278,7 +278,7 @@ class GateFamilyOut(Schema):
     """A selectable switch mechanism, described by the engine.
 
     ``available`` is what the UI greys out — the frontend must not keep its own list of
-    which mechanisms are ready (docs/software-design.md §3).
+    which mechanisms are ready (docs/architecture.md §3).
     """
 
     name: str

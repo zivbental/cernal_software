@@ -10,7 +10,7 @@ class Project(UUIDModel, TimestampedModel):
     """A biological objective plus the datasets and runs pursuing it.
 
     Editing a project never rewrites a submitted run: runs snapshot their configuration
-    at submission time (docs/software-design.md §5, rule 7).
+    at submission time (docs/architecture.md §5, rule 7).
     """
 
     owner = models.ForeignKey(

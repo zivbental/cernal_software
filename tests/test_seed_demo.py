@@ -1,4 +1,4 @@
-"""The seed_demo command (docs/software-design.md §13 Step 2, "Done when").
+"""The seed_demo command (docs/architecture.md §13 Step 2, "Done when").
 
 It drives MockEngine through the real import path, so it doubles as an end-to-end check
 that the model layer can hold a complete engine result.

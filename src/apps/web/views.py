@@ -2,7 +2,7 @@
 
 The React build is a static asset like any other; this view exists only so that
 client-side routes survive a hard refresh or a shared link. Everything the SPA needs at
-runtime comes from ``/api/`` (docs/software-design.md §8, ADR 0003).
+runtime comes from ``/api/`` (docs/architecture.md §8, ADR 0003).
 """
 
 from pathlib import Path

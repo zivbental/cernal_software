@@ -1,4 +1,4 @@
-"""The Step 3 milestone (docs/software-design.md §13).
+"""The Step 3 milestone (docs/architecture.md §13).
 
 One researcher completes the whole workflow through the HTTP API alone: log in, create a
 project, upload a dataset, submit a run, watch it progress, read back ranked candidates

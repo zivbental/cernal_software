@@ -1,7 +1,7 @@
 """The Platform-facing engine interface.
 
 This module and ``engine.contract`` are the *only* things Platform code may import from
-the engine (docs/software-design.md §3).
+the engine (docs/architecture.md §3).
 
 Failure convention
 ------------------

@@ -3,7 +3,7 @@
  *
  * Deliberately not a server round-trip: a run returns a few hundred candidates, so
  * filtering in memory is instant and keeps scores comparable across runs
- * (docs/step-4-frontend-plan.md §3, decision 7).
+ * (docs/architecture.md §8).
  */
 
 import { ChevronDown, Sparkles } from "lucide-react";

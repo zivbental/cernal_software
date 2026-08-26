@@ -1,7 +1,7 @@
 """Database connection tuning.
 
 SQLite needs WAL mode and a busy timeout to tolerate the web process and the qcluster
-worker writing concurrently. See docs/software-design.md §12.
+worker writing concurrently. See docs/architecture.md §12.
 """
 
 from django.db.backends.signals import connection_created

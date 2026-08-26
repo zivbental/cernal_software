@@ -1,7 +1,7 @@
 """Checksum helpers for Platform-side files.
 
 Deliberately duplicates ``engine.artifacts.sha256_file``. Platform code may import only
-``engine.contract`` and ``engine.client`` (docs/software-design.md §3), so reaching into
+``engine.contract`` and ``engine.client`` (docs/architecture.md §3), so reaching into
 ``engine.artifacts`` to save six lines would break the boundary that lets the engine be
 extracted into its own service later. ``tests/test_boundary.py`` enforces this — if you
 are here to remove the duplication, read §3 first.

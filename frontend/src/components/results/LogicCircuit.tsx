@@ -3,7 +3,7 @@
  *
  * Rendering only. Every value comes from `CandidateDetail.design.logic_graph`, which the
  * engine produces — the frontend performs no scientific computation
- * (docs/software-design.md §3).
+ * (docs/architecture.md §3).
  */
 
 import { useEffect, useRef, useState } from "react";

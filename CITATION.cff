@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: "CERNAL — Compiler-like Engine for RNA Logic"
+message: "If you use CERNAL in your research, please cite it as below."
+type: software
+# TODO before the GitLab freeze: replace the collective author with the individual
+# team members who should receive citation credit (given-names / family-names pairs),
+# and add the repository-code URL once the iGEM GitLab repo exists.
+authors:
+  - name: "iGEM TAU 2026 Team, Tel Aviv University"
+    city: "Tel Aviv"
+    country: IL
+    website: "https://2026.igem.wiki/tau-israel"
+abstract: >-
+  CERNAL is a design platform for RNA logic circuits. It takes transcriptomic
+  differential-expression data and a biological objective, discovers candidate trigger
+  RNAs, designs logic gates over them, and returns ranked circuit candidates with
+  scores, metrics, sequences and reproducible artifacts.
+keywords:
+  - synthetic biology
+  - RNA logic circuits
+  - toehold switch
+  - transcriptomics
+  - iGEM
+license: Apache-2.0
+version: "0.1.0"

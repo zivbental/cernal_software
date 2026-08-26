@@ -10,7 +10,7 @@ from apps.common.db import configure_sqlite
 
 
 def test_custom_user_model_is_active():
-    """AUTH_USER_MODEL must be ours from the first migration (docs/software-design.md §5)."""
+    """AUTH_USER_MODEL must be ours from the first migration (docs/architecture.md §5)."""
     from django.contrib.auth import get_user_model
 
     assert settings.AUTH_USER_MODEL == "accounts.User"

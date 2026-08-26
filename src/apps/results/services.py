@@ -38,7 +38,7 @@ def import_job_result(run, result: JobResult, output_dir: str | Path) -> ImportS
     """Write one engine result into the database, atomically.
 
     Either the whole result lands or none of it does — a half-imported run must be
-    impossible (docs/software-design.md §6.2).
+    impossible (docs/architecture.md §6.2).
 
     Artifact *files* are written outside the database's control, so a rollback can leave
     orphan bytes under ``var/media/artifacts/``. That is harmless: nothing references

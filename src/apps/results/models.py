@@ -15,7 +15,7 @@ def artifact_upload_path(instance: "Artifact", filename: str) -> str:
     Subdirectories in the engine's artifact path are preserved (``sequences/x.fasta``)
     so that two artifacts with the same basename cannot collide. Path traversal and
     absolute paths are stripped: the engine is trusted today, but this becomes a network
-    boundary later (docs/software-design.md §16).
+    boundary later (docs/architecture.md §16).
     """
     parts = [
         cleaned
@@ -127,7 +127,7 @@ class Artifact(UUIDModel, CreatedAtModel):
     """A file produced by a run.
 
     Served only through an authorized download view, never by a static file handler
-    (docs/software-design.md §7.2).
+    (docs/architecture.md §7.2).
     """
 
     run = models.ForeignKey(

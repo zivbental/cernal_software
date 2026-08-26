@@ -5,7 +5,7 @@ classes. That gives four things:
 
 1. **A shared cache.** The same subsequence is folded hundreds of times across a run —
    every toehold length variant re-folds most of the same stem. Caching is the single
-   largest speed win available (see docs/step-5-engine-plan.md §3: folding is ~15 ms per
+   largest speed win available (see docs/ROADMAP.md §3: folding is ~15 ms per
    design, and it dominates total runtime).
 2. **One recorded version.** A result computed under ViennaRNA 2.7 is not comparable
    with one from 2.6. ``FoldEngine.versions()`` is written into every ``JobResult``.
@@ -18,7 +18,7 @@ Background: a toehold switch works because its OFF state is a hairpin that seque
 the ribosome binding site, and the trigger opens it by strand displacement. Everything
 this module computes is in service of predicting whether that actually happens.
 
-Bodies land in Step 5 (docs/step-5-engine-plan.md 5a).
+Bodies land in Step 5 (docs/ROADMAP.md E1).
 """
 
 from functools import cache

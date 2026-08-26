@@ -1,7 +1,7 @@
 """Authorization helpers.
 
 v1 has one rule: an object is yours, or you are staff. There is no other permission
-logic — but there is no endpoint without this check either (docs/software-design.md
+logic — but there is no endpoint without this check either (docs/architecture.md
 §7.2).
 
 Missing and forbidden both return **404**. Returning 403 for an object that exists but

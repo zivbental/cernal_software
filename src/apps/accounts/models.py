@@ -6,5 +6,5 @@ class User(AbstractUser):
 
     Intentionally empty. Defined at Step 0, before the first migration, because
     swapping AUTH_USER_MODEL after migrations exist is a painful Django migration.
-    See docs/software-design.md §5.
+    See docs/architecture.md §5.
     """

@@ -1,4 +1,4 @@
-"""Session auth and the shared error envelope (docs/software-design.md §7.2)."""
+"""Session auth and the shared error envelope (docs/architecture.md §7.2)."""
 
 import pytest
 

@@ -19,7 +19,7 @@ export const Route = createFileRoute("/use-cases")({
  * Placeholder content.
  *
  * The Lovable export listed "Use Cases" in the navigation but shipped no content for it,
- * so these are illustrative rather than authored (docs/step-4-frontend-plan.md §8).
+ * so these are illustrative rather than authored (docs/architecture.md §8).
  */
 const CASES = [
   {

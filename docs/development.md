@@ -1,12 +1,12 @@
 # Development guide
 
-Architecture and build order live in [`software-design.md`](software-design.md).
-This document covers running the project day to day.
+Architecture lives in [`architecture.md`](architecture.md) and future work in
+[`ROADMAP.md`](ROADMAP.md). This document covers running the project day to day.
 
 ## First-time setup (WSL)
 
 Two environment issues matter here, both explained in
-[software-design.md §15](software-design.md).
+[architecture.md §15](architecture.md).
 
 **1. Use Python 3.13, not 3.14.** Scientific wheels — ViennaRNA especially — lag new
 CPython releases by months. The project pins 3.13 in `pyproject.toml` and
@@ -44,6 +44,9 @@ Then:
 | `./do format` | Auto-fix formatting and lint rules |
 | `./do migrate` | Apply migrations |
 | `./do makemigrations` | Generate migrations after model changes |
+| `./do make-admin <user>` | Promote an existing account to administrator |
+| `./do pending` | List accounts waiting for approval |
+| `./do approve <user>` | Approve a pending account |
 | `./do manage <cmd>` | Any `manage.py` command, e.g. `./do manage shell` |
 | `./do check` | Django system checks |
 | `./do reset-db` | Wipe `var/` and rebuild — destructive, asks first |
@@ -110,13 +113,26 @@ RUN_ID=<completed-run-id> ./do smoke
 ```
 
 `tests/test_boundary.py` enforces the engine boundary
-([§3](software-design.md)). If it fails, do not add an exception to it — the failure
-means Platform code has leaked into `src/engine/`, and that is the one thing this
+([architecture.md §3](architecture.md)). If it fails, do not add an exception to it — the
+failure means Platform code has leaked into `src/engine/`, and that is the one thing this
 architecture is protecting.
+
+Testing *scientific* code is a different problem — golden tests, property tests,
+determinism tests. See [engine.md §8](engine.md).
+
+## Continuous integration
+
+`.gitlab-ci.yml` runs the same things you run locally — `ruff check`, `ruff format --check`,
+`manage.py check` and `pytest` for the backend, and `npm run check` plus `npm run build` for
+the frontend — on every push. It uses `MockEngine`, so it needs no scientific dependencies
+and no secrets.
+
+**If `./do lint && ./do test` passes locally, CI passes.** That is deliberate: a pipeline
+that checks something different from the local command is a pipeline people learn to ignore.
 
 ## Conventions
 
-Full list at [software-design.md §14](software-design.md). The ones that come up most:
+Full list at [architecture.md §14](architecture.md). The ones that come up most:
 
 - Business logic lives in `services.py`, not in views, tasks, models or admin.
 - Run state transitions happen only in `apps/analyses/services.py`.
@@ -126,6 +142,7 @@ Full list at [software-design.md §14](software-design.md). The ones that come u
   system.
 - Adding a service (Redis, Postgres, Docker, S3) requires an ADR in `docs/decisions/`
   first.
+- Future work is recorded in [`ROADMAP.md`](ROADMAP.md), not in a new planning document.
 
 ## Troubleshooting
 

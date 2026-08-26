@@ -1,7 +1,7 @@
 """Enforces the Platform ⇄ Engine boundary.
 
 **This is the most important test in the repository.** It is what turns
-docs/software-design.md §3 from a convention into a fact, and it is what makes the
+docs/architecture.md §3 from a convention into a fact, and it is what makes the
 engine extractable into its own service later without a rewrite.
 
 If it fails, do not add an exception. The failure means the two halves of the system
@@ -71,7 +71,7 @@ def test_engine_imports_no_platform_code(path: Path):
         "The engine imported Platform code:\n  "
         + "\n  ".join(violations)
         + "\n\nThe engine must receive plain paths and dataclasses, never models, "
-        "settings or requests. See docs/software-design.md §3."
+        "settings or requests. See docs/architecture.md §3."
     )
 
 
@@ -95,7 +95,7 @@ def test_platform_imports_only_the_engine_contract(path: Path):
         "Platform code reached into the engine's internals:\n  "
         + "\n  ".join(violations)
         + f"\n\nAllowed engine imports: {', '.join(ALLOWED_ENGINE_MODULES)}. "
-        "See docs/software-design.md §3."
+        "See docs/architecture.md §3."
     )
 
 

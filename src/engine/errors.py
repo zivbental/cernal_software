@@ -3,7 +3,7 @@
 Every exception raised across the boundary derives from :class:`EngineError`. The
 Platform catches it, records ``str(exc)`` as the run's user-facing ``error_summary``,
 and logs the traceback separately — so error messages here must be safe to show a
-researcher: no paths, no credentials, no internals (docs/software-design.md §6.2).
+researcher: no paths, no credentials, no internals (docs/architecture.md §6.2).
 """
 
 

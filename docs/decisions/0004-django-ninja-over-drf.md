@@ -4,7 +4,7 @@
 
 ## Context
 
-The API surface is roughly two dozen endpoints (docs/software-design.md §7). The maps
+The API surface is roughly two dozen endpoints (docs/architecture.md §7). The maps
 call for a "Central Typed API Client" in the frontend, generated from a published
 schema.
 

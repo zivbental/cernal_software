@@ -132,7 +132,7 @@ class ConfusionEvaluator:
         off_target: Shared scanner, used **only** for cross-talk between a circuit's own
             components. Per-trigger and per-switch penalties are already computed and
             stored upstream; re-scanning here would be slow and would disagree with the
-            numbers already recorded (docs/engine-classes.md §4a).
+            numbers already recorded (docs/engine.md §3.4).
     """
 
     def __init__(self, off_target: OffTargetScanner) -> None:

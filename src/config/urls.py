@@ -2,7 +2,7 @@
 
 Route order matters: /admin/, /api/, /static/ and /media/ are claimed first, then a
 catch-all hands every remaining path to the SPA so client-side routing works on a hard
-refresh or a shared link (docs/software-design.md §8).
+refresh or a shared link (docs/architecture.md §8).
 """
 
 from django.conf import settings

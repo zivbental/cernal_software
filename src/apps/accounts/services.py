@@ -3,7 +3,7 @@
 New accounts are created **inactive** and stay that way until a staff member approves
 them in Django admin. No email is involved anywhere: at a few dozen users, a person on
 the team is always reachable, and SMTP credentials would be one more thing to hold
-correctly on the VPS (docs/software-design.md §2, rule 10).
+correctly on the VPS (docs/architecture.md §2, rule 10).
 """
 
 import logging

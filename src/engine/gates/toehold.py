@@ -53,7 +53,7 @@ class ToeholdGate(GateFamily):
     Args:
         host: Decides RBS-in-loop (prokaryotic) versus Kozak (eukaryotic). Held as a
             parameter rather than a subclass until the method bodies actually diverge
-            (docs/engine-design.md §5a).
+            (docs/engine.md §2.4).
         folder: Shared ``FoldEngine``. Never constructed here — the cache only helps if
             everyone shares one instance.
         translation: Shared ``TranslationScorer``, for initiation strength.
@@ -83,7 +83,7 @@ class ToeholdGate(GateFamily):
         codons: CodonOptimizer,
     ) -> None:
         # Tools are handed in, never constructed here: FoldEngine's cache only helps if
-        # every caller shares one instance (docs/engine-design.md §5a).
+        # every caller shares one instance (docs/engine.md §2.4).
         self.host = host
         self.folder = folder
         self.translation = translation

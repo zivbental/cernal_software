@@ -4,9 +4,9 @@ Every type the pipeline passes between stages. **Fully implemented** — these a
 and arithmetic, not science, so there is nothing here to fill in later.
 
 Frozen throughout, because the pipeline parallelises by pickling and must be
-deterministic (docs/engine-design.md §2). Nothing here imports Django, and nothing
+deterministic (docs/engine.md §2.2). Nothing here imports Django, and nothing
 here imports anything else from the engine: `domain` is the bottom of the import
-graph (docs/engine-map.md §3b).
+graph (docs/engine.md §4).
 """
 
 from dataclasses import dataclass, field
@@ -294,7 +294,7 @@ class Constraints:
     Attributes:
         max_triggers: Circuit arity ceiling. 2 is the practical limit — pairs grow as the
             square of the trigger count, and triples make the search space intractable
-            without a cluster (docs/step-5-engine-plan.md §3).
+            without a cluster (docs/ROADMAP.md §3).
         min_separation: Minimum absolute log2 fold change for a gene to be usable. A gene
             that barely moves cannot drive a switch however well it folds.
         max_p_adj: Significance threshold, conventionally 0.05.

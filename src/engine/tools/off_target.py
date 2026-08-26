@@ -6,7 +6,7 @@ transcriptome looks like this sequence?"*, and it answers it **once**, so every 
 uses the same definition of "similar" and the same penalty scale.
 
 Two biologically distinct failures, both found by the same search
-(docs/engine-classes.md §4a):
+(docs/engine.md §3.4):
 
 * **Direction (a) — cross-activation.** Some non-cognate RNA resembles the trigger
   closely enough to open the switch. Consequence: the circuit fires when it should not.

@@ -10,7 +10,7 @@ window along each transcript and ranks every position.
 
 **This is the pruning point of the whole pipeline.** Everything downstream scales with
 how many candidates survive here, so this filter sets the compute budget far more than
-any hardware choice does (docs/step-5-engine-plan.md §3). Keeping the top few hundred
+any hardware choice does (docs/ROADMAP.md §3). Keeping the top few hundred
 across all genes keeps a run in minutes; keeping everything makes it hours.
 """
 
@@ -36,7 +36,7 @@ class TriggerScorer:
             construct unbuildable.
 
     All three are handed in rather than constructed, so their caches and settings are
-    shared with the stages downstream (docs/engine-design.md §5a).
+    shared with the stages downstream (docs/engine.md §2.4).
     """
 
     def __init__(
@@ -61,7 +61,7 @@ class TriggerScorer:
             genes: Stage 1's shortlist.
             sequences: Gene ID to full transcript sequence. **Where this comes from is
                 still an open question** — the DGE table carries identifiers, not
-                sequences (docs/step-5-engine-plan.md §10, question 1). A reference
+                sequences (docs/ROADMAP.md §2, Q1). A reference
                 transcriptome per organism is the likely answer, and it must be the same
                 build the ``OffTargetScanner`` indexes, or the two disagree.
             constraints: Supplies ``trigger_lengths`` — the length classes to scan.

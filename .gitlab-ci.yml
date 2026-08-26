@@ -1,0 +1,57 @@
+# CI for the CERNAL software deliverable — iGEM 2026, Tel Aviv University.
+#
+# iGEM lists three things as the Project Software submission: source code hosted on
+# iGEM GitLab, a README with build instructions, and a CI/CD pipeline configuration.
+# This file is the third. See https://competition.igem.org/deliverables/project-software
+#
+# Both jobs must pass. Together they run exactly what `./do lint` and `./do test` run
+# locally, so a green pipeline means a reviewer can reproduce the build from a clean
+# checkout — which is what "reproducible" in the deliverable means in practice.
+#
+# Note: if gitlab.igem.org's shared runners require an explicit tag, add a `tags:` key
+# to each job. Nothing else here is iGEM-specific.
+
+stages: [check]
+
+default:
+  interruptible: true
+
+variables:
+  UV_CACHE_DIR: .uv-cache
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+# Backend: lint, format, Django system checks and the full pytest suite.
+# Runs against MockEngine (the default), so no scientific dependencies are needed.
+backend:
+  stage: check
+  image: python:3.13-slim
+  cache:
+    key: uv-$CI_COMMIT_REF_SLUG
+    paths: [.uv-cache]
+  before_script:
+    - pip install --quiet uv
+    - uv sync --extra dev
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+    - uv run python manage.py check
+    - uv run pytest -q
+
+# Frontend: type-check, lint, the server-render regression test, and a real build.
+# `npm run check` includes e2e/render-logic.mjs, which renders the results views
+# headlessly via esbuild + react-dom/server — no browser download required.
+frontend:
+  stage: check
+  image: node:22-slim
+  cache:
+    key: npm-$CI_COMMIT_REF_SLUG
+    paths: [frontend/node_modules]
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm run check
+    - npm run build
+  artifacts:
+    paths: [src/static/app/]
+    expire_in: 1 week

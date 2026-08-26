@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "CERNAL — RNA logic circuit design platform (iGEM)"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "iGEM TAU 2026 Team, Tel Aviv University" }]
+keywords = ["synthetic-biology", "rna", "logic-circuits", "transcriptomics", "igem"]
 dependencies = [
     "django>=5.2,<6.0",
     "django-ninja>=1.3",

@@ -20,7 +20,7 @@ class InputMode(models.TextChoices):
 
 
 class RunStatus(models.TextChoices):
-    """Six product-facing states (docs/software-design.md §6).
+    """Six product-facing states (docs/architecture.md §6).
 
     The engine has many more internal stages; those are *mapped* into ``stage``, never
     copied into this vocabulary.

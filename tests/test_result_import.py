@@ -1,7 +1,7 @@
 """Importing an engine result into the durable model.
 
 The load-bearing guarantee is atomicity: a half-imported run must be impossible
-(docs/software-design.md §6.2).
+(docs/architecture.md §6.2).
 """
 
 import dataclasses

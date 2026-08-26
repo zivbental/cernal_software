@@ -1,10 +1,12 @@
 # HTTP API reference
 
-The only HTTP surface in the system. Built with [django-ninja](https://django-ninja.dev)
-(ADR 0004); the machine-readable schema is generated at **`/api/openapi.json`** and the
-interactive docs at **`/api/docs`**.
+The only HTTP surface in the system — **32 endpoints**. Built with
+[django-ninja](https://django-ninja.dev) (ADR 0004); the machine-readable schema is
+generated at **`/api/openapi.json`** and the interactive docs at **`/api/docs`**.
 
-Design rules for this layer are in [software-design.md §7](software-design.md).
+Design rules for this layer are in [architecture.md §7](architecture.md). The vocabularies
+a submission carries — input modes, organisms, gate families, payloads — are explained in
+[modalities.md](modalities.md).
 
 ---
 
@@ -92,7 +94,8 @@ Every failure has one shape:
 | 500 | `internal_error` | Generic message; the traceback goes to the log |
 
 > **404, never 403, for objects you do not own.** Returning 403 for an object that
-> exists would confirm its existence to someone who should not know ([§7.2](software-design.md)).
+> exists would confirm its existence to someone who should not know
+> ([architecture.md §7.2](architecture.md)).
 
 Responses never contain filesystem paths, storage internals, engine tracebacks or
 settings.
@@ -115,6 +118,8 @@ settings.
 |---|---|
 | `GET /api/projects/{id}/datasets` | |
 | `POST /api/projects/{id}/datasets` | `multipart/form-data`, field `file`. 201 |
+| `GET /api/example-datasets` | The bundled examples, so the wizard is usable with no data of your own |
+| `POST /api/projects/{id}/datasets/example` | Copy one of them into the project. 201 |
 | `GET /api/datasets/{id}` | |
 | `DELETE /api/datasets/{id}` | 204. **409** if any run used it |
 
@@ -139,6 +144,7 @@ row count, parseable numerics. Scientific validation belongs to the engine.
 
 | Endpoint | Notes |
 |---|---|
+| `GET /api/runs` | Every run you own, newest first |
 | `GET /api/projects/{id}/runs` | |
 | `POST /api/projects/{id}/runs` | **202 Accepted** |
 | `GET /api/runs/{id}` | **The polling endpoint** |
@@ -149,16 +155,33 @@ row count, parseable numerics. Scientific validation belongs to the engine.
 
 ```json
 {
+  "input_mode": "de",
   "dataset_id": "…",
   "gate_families": ["toehold"],
   "scoring_profile": "default",
   "seed": 42,
-  "params": {"max_triggers": 2},
+  "params": {"organism": "ecoli", "payload": {"outputs": ["gfp"]}},
   "idempotency_key": "any-unique-string"
 }
 ```
 
 **202, not 201** — the work is accepted, not completed. Poll `GET /api/runs/{id}`.
+
+**Exactly one input source.** `input_mode` is `de` or `direct`
+([modalities.md §1](modalities.md)):
+
+| `input_mode` | Send | Must not send |
+|---|---|---|
+| `de` | `dataset_id` — a `VALID` dataset in this project | `trigger_sequence` |
+| `direct` | `trigger_sequence` — the mRNA, pasted | `dataset_id` |
+
+A mismatch returns **422**. The rule is also a database constraint, so it cannot be
+bypassed by any other write path.
+
+**`params` is free-form by contract.** It is frozen verbatim into `params_snapshot`, and
+the engine reads what it recognises and ignores the rest — which is what lets the wizard
+add a field without an engine release. Its v1 shape is in
+[modalities.md §7](modalities.md).
 
 `gate_families` and `scoring_profile` are validated against what the engine advertises at
 `GET /api/version`; an unknown value returns 422 listing the available ones.
@@ -263,13 +286,27 @@ else → 422 with the allowed set. Annotations are product-owned and survive re-
   "app_version": "0.1.0", "api_schema_version": "1",
   "engine": "MockEngine", "engine_version": "mock-1.0.0",
   "engine_schema_version": "1",
-  "gate_families": ["toehold"], "scoring_profiles": ["default"]
+  "gate_families": [
+    {"name": "toehold", "label": "Toehold Riboswitch",
+     "description": "Translational control · pre-mRNA", "available": true},
+    {"name": "crispr", "label": "CRISPR-Cas sgRNA Gate",
+     "description": "Transcriptional control · iSBH", "available": false}
+  ],
+  "scoring_profiles": ["default"]
 }
 ```
 
 The frontend reads `gate_families` and `scoring_profiles` from here to populate its
 configuration form. The Platform cannot import the engine's registries directly
-([§3](software-design.md)), so the engine advertises them instead.
+([architecture.md §3](architecture.md)), so the engine advertises them instead.
+
+**Planned families are listed with `available: false`**, so the wizard renders them greyed
+out with their real label — flipping the flag on the class changes the UI with no frontend
+release.
+
+> **Not yet host-aware.** CRISPR is eukaryotic only, but this endpoint reports
+> availability without an organism, so the wizard cannot grey it out for *E. coli*
+> specifically. Task **P2** in [ROADMAP.md](ROADMAP.md).
 
 ---
 

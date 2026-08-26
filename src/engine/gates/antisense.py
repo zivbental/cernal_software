@@ -126,7 +126,7 @@ class AntisenseNotGate(GateFamily):
         """Measure a silencing design.
 
         Returns raw values on the same metric names as every other family, so the two can
-        be ranked together (docs/engine-classes.md §4a).
+        be ranked together (docs/engine.md §3.4).
 
         Step 5:
             * ``gate_folding_energy`` — the antisense element's own structure. A

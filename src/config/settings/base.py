@@ -1,6 +1,6 @@
 """Settings shared by every environment.
 
-Rule (docs/software-design.md §12): no `if DEBUG:` branching in this file.
+Rule (docs/architecture.md §12): no `if DEBUG:` branching in this file.
 Environment-specific behaviour belongs in dev.py / prod.py.
 """
 
@@ -30,7 +30,7 @@ THIRD_PARTY_APPS = [
     "django_q",
 ]
 
-# Dotted paths, per docs/software-design.md §4.1.
+# Dotted paths, per docs/architecture.md §4.1.
 LOCAL_APPS = [
     "apps.accounts",
     "apps.common",
@@ -116,7 +116,7 @@ MAX_DATASET_MB = env.int("MAX_DATASET_MB", default=100)
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_DATASET_MB * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
-# --- Background work (docs/software-design.md §9) --------------------------------
+# --- Background work (docs/architecture.md §9) --------------------------------
 
 Q_CLUSTER = {
     "name": "cernal",
@@ -129,7 +129,7 @@ Q_CLUSTER = {
     "catch_up": False,
 }
 
-# --- Engine (docs/software-design.md §3, §10) ------------------------------------
+# --- Engine (docs/architecture.md §3, §10) ------------------------------------
 
 # Dotted path to an engine.client.EngineClient implementation.
 CERNAL_ENGINE = env.str("CERNAL_ENGINE", default="engine.client.MockEngine")

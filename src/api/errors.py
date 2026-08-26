@@ -5,7 +5,7 @@ Every failure the client sees looks like::
     {"error": {"code": "not_found", "message": "...", "detail": {...}}}
 
 Responses never carry filesystem paths, storage internals, engine tracebacks or settings
-(docs/software-design.md §7.2). Detail goes to the log, keyed by the object id.
+(docs/architecture.md §7.2). Detail goes to the log, keyed by the object id.
 """
 
 from typing import Any

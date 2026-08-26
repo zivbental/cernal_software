@@ -1,4 +1,4 @@
-"""Domain model invariants (docs/software-design.md §5, §6).
+"""Domain model invariants (docs/architecture.md §5, §6).
 
 Focused on the guarantees that would be expensive to lose: immutability of submitted
 runs, rejected candidates keeping their reasons, and the state machine's shape.

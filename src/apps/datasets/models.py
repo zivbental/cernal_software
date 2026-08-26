@@ -26,7 +26,7 @@ class Dataset(UUIDModel, CreatedAtModel):
 
     **Immutable.** Re-uploading creates a new row — the Dataset *is* the version, which
     is why the design maps' separate ``DatasetVersion`` table is not needed here
-    (docs/software-design.md §5). A run holds a PROTECT reference, so a dataset that has
+    (docs/architecture.md §5). A run holds a PROTECT reference, so a dataset that has
     been analysed can never be deleted out from under its results.
     """
 

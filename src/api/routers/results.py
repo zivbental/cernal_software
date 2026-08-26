@@ -78,7 +78,7 @@ def download_artifact(request, artifact_id: UUID):
     """Serve an artifact after checking ownership.
 
     Artifacts are never handed to a static file handler: that would make every artifact
-    world-readable to anyone who guessed the path (docs/software-design.md §7.2).
+    world-readable to anyone who guessed the path (docs/architecture.md §7.2).
     """
     artifact = get_owned(Artifact, artifact_id, request.user, select_related=("run",))
 

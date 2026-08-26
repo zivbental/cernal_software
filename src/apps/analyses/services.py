@@ -287,7 +287,7 @@ def cancel_run(run: AnalysisRun) -> str:
     """Request cancellation. Returns what actually happened.
 
     Cancellation is cooperative: a RUNNING run is flagged, and the engine notices
-    between stages. Nothing is killed (docs/software-design.md §6.2).
+    between stages. Nothing is killed (docs/architecture.md §6.2).
     """
     if run.is_terminal:
         return "already_terminal"

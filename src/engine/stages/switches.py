@@ -108,7 +108,7 @@ class SwitchDesigner:
         Cost:
             Pairs grow as the square of the input. 50 triggers gives 1,225 pairs; 200
             gives 19,900, and each is multiplied by the number of designs per family.
-            This is exactly why stage 2 prunes hard — see docs/step-5-engine-plan.md §3.
+            This is exactly why stage 2 prunes hard — see docs/ROADMAP.md §3.
         """
         raise NotImplementedError("Step 5")
 

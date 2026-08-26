@@ -3,7 +3,7 @@
 `CandidateStore` is a **recorder, not a bus**. Stages pass typed records to each other
 directly; the store writes an inspectable snapshot of what passed through, so a run stays
 auditable and re-runnable without forcing every stage to serialise
-(docs/engine-classes.md §6).
+(docs/ROADMAP.md E10).
 """
 
 from collections.abc import Sequence

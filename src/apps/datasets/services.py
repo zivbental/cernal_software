@@ -2,7 +2,7 @@
 
 Validation here is **shallow and synchronous**: readable file, expected columns, sane
 row count, parseable numerics. Deep scientific validation belongs to the engine and
-happens at run time (docs/software-design.md §5). Duplicating scientific truth on the
+happens at run time (docs/architecture.md §5). Duplicating scientific truth on the
 Platform side is exactly what design map 04 warns against.
 """
 

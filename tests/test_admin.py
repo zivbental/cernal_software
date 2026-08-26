@@ -1,4 +1,4 @@
-"""Django admin is the v1 back-office (docs/software-design.md §13 Step 2).
+"""Django admin is the v1 back-office (docs/architecture.md §13 Step 2).
 
 Two things are being checked: every model is genuinely manageable, and admin cannot be
 used to sidestep the run state machine (rule 5) or edit a submitted run (rule 7).

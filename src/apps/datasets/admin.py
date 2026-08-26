@@ -11,7 +11,7 @@ class DatasetAdmin(admin.ModelAdmin):
     list_select_related = ("project",)
     date_hierarchy = "created_at"
 
-    # A dataset is immutable once uploaded (docs/software-design.md §5).
+    # A dataset is immutable once uploaded (docs/architecture.md §5).
     readonly_fields = (
         "id",
         "checksum_sha256",

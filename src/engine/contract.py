@@ -1,12 +1,12 @@
 """The Platform ⇄ Engine contract.
 
 These dataclasses are the *only* types that cross the boundary described in
-docs/software-design.md §3. Their fields deliberately mirror the payloads the design
+docs/architecture.md §3. Their fields deliberately mirror the payloads the design
 maps specify for ``POST /v1/jobs`` and the result manifest, so that promoting the engine
 to a standalone HTTP service later is a serialisation exercise and nothing more.
 
 Nothing in this module may import Django, Pydantic, or anything from ``apps``/``api``.
-See docs/engine-contract.md for the field-for-field HTTP mapping.
+See docs/engine.md §1 for the field-for-field HTTP mapping.
 """
 
 from dataclasses import dataclass, field

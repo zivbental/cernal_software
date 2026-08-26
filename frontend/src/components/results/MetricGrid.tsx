@@ -3,7 +3,7 @@
  *
  * Driven entirely by the metric array the API returns, never a hardcoded list. When the
  * scientific team changes the scoring profile in Step 5, this keeps working — a metric
- * with no entry in DISPLAY below simply shows its raw name (docs/step-4-frontend-plan.md §2.5).
+ * with no entry in DISPLAY below simply shows its raw name (docs/architecture.md §8).
  */
 
 import type { Metric } from "@/api/types";

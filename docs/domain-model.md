@@ -1,8 +1,10 @@
 # Domain model reference
 
 Eight models, down from the fifteen entities in design map 05. The architectural
-reasoning for the cuts is in [software-design.md §5](software-design.md); this document
-is the field-level reference for what actually exists.
+reasoning for the cuts is in [architecture.md §5](architecture.md); this document is the
+field-level reference for what actually exists. The *values* these fields carry — input
+modes, organisms, gate families, payloads — are explained in
+[modalities.md](modalities.md).
 
 UUID primary keys throughout — identifiers appear in URLs and are handed to the engine,
 so they must not leak row counts or be guessable by increment.
@@ -75,7 +77,10 @@ The centre of the product. **Immutable once submitted.**
 | Field | Type | Notes |
 |---|---|---|
 | `id` | UUID pk | Also the external run identifier |
-| `project` / `dataset` | FK, **PROTECT** | Results never outlive their inputs |
+| `project` | FK → Project, **PROTECT** | Results never outlive their inputs |
+| `input_mode` | `de` · `direct` | How the trigger was supplied ([modalities.md §1](modalities.md)) |
+| `dataset` | FK → Dataset, **PROTECT**, null | **Null when `input_mode` is `direct`** — there is no uploaded table |
+| `trigger_sequence` | Text, blank | The pasted mRNA when `input_mode` is `direct` |
 | `created_by` | FK → User, PROTECT | |
 | `idempotency_key` | Char(64), **unique** | A retry must not launch a second computation |
 | `params_snapshot` | JSON | Full normalized configuration, frozen at submission |
@@ -90,6 +95,13 @@ The centre of the product. **Immutable once submitted.**
 | `error_summary` | Text | Safe to show a researcher |
 | `warnings` | JSON list | |
 | `submitted_at` / `started_at` / `finished_at` | DateTime, null | |
+
+### Database-enforced invariants
+
+| Constraint | Guarantees |
+|---|---|
+| `run_has_exactly_one_input_source` | A `de` run has a dataset; a `direct` run does not. Neither can be written with the wrong one |
+| `progress_pct_within_bounds` | 0–100, in the schema rather than only in the validator |
 
 **Collapsed from map 05:** `AnalysisConfiguration` → `params_snapshot`;
 `EngineJobReference` → `engine_version` + `status` + `stage`; `ResultManifestRecord` →
@@ -112,6 +124,10 @@ Helpers: `is_terminal`, `is_active`, `can_transition_to(status)`.
 > Transitions happen **only** in `apps/analyses/services.py` (rule 5). Django admin
 > renders `status` read-only and refuses to create runs, so admin cannot be used to
 > sidestep this.
+
+`params_snapshot` is the immutable record of everything the wizard asked for, including
+the two axes that have no column of their own — host organism and output payload. See
+[modalities.md §7](modalities.md).
 
 ## `results.Candidate`
 
@@ -173,7 +189,7 @@ Subdirectories from the engine's artifact paths are preserved, so `sequences/x.f
 and `plots/x.fasta` cannot collide. Path traversal and absolute paths are stripped.
 
 > Artifacts are **never** served by a static file handler. They go through an authorized
-> download view that checks run ownership (§7.2).
+> download view that checks run ownership ([architecture.md §7.2](architecture.md)).
 
 ## `results.Annotation`
 

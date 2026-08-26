@@ -1,7 +1,7 @@
 """Production settings for the VPS.
 
 Required secrets are read from the environment and raise at import time if missing.
-A silently-insecure production default is not acceptable (docs/software-design.md §12).
+A silently-insecure production default is not acceptable (docs/architecture.md §12).
 """
 
 from .base import *  # noqa: F403
