@@ -237,9 +237,9 @@ it is strictly more to get right.
 
 | # | Web app | Engine | Private net | Trade |
 |---|---|---|---|---|
-| 1 | Fly | Fly Machines | **Yes** | One platform, one bill, auto-wake, no lifecycle code. **Recommended if you are not already committed elsewhere** |
+| 1 | Fly app (always on) | Fly app (auto-stop) | **Yes** | One platform, one bill, auto-wake, no lifecycle code. See the volume caveat in §2c |
 | 2 | Small VM on GCP/AWS | Cloud Run Jobs / AWS Batch | **Yes** | Shape C. Zero idle by construction, coarser progress |
-| 3 | Hetzner VPS | Fly Machines | No | Cheapest web hosting, but a public engine endpoint and a token to manage |
+| 3 | Hetzner VPS | Fly app (auto-stop) | No | Cheapest web hosting, but a public engine endpoint and a token to manage |
 | 4 | Hetzner VPS | Hetzner sibling, stopped when idle | **Yes** | No auto-wake, so you write the lifecycle. Simple, cheap, entirely in your control |
 
 **Recommendation:** if nothing constrains you, **combination 1** — put both on Fly. The
@@ -253,6 +253,75 @@ Shape B. Stop/start of a pre-provisioned sibling is perhaps a hundred lines behi
 
 Either way the Platform is untouched: `CERNAL_ENGINE` names the client, and the boundary
 test keeps the rest honest.
+
+---
+
+## 2c. Fly terminology, and the caveat that follows
+
+The table above said "Fly" and "Fly Machines" as though they were two products. They are
+not, and the distinction matters less than it sounds:
+
+| Term | What it is |
+|---|---|
+| **App** | A named unit of deployment. Gets `yourname.fly.dev` and a private `.internal` address. A container image plus configuration |
+| **Machine** | The microVM that actually runs your container. An app is made of one or more machines |
+| **`fly.toml`** | The app's configuration: image, CPU and RAM, region, and whether machines may stop when idle |
+| **Volume** | A persistent disk, attached to **one** machine in **one** region |
+
+So a "Fly web app" and "Fly Machines" are both **apps made of machines**. The only
+difference is configuration:
+
+```toml
+# cernal-web — stays up, because a web server that sleeps is a web server that 503s
+[http_service]
+  min_machines_running = 1
+  auto_stop_machines = false
+
+# cernal-engine — sleeps between runs; this is the whole point
+[http_service]
+  min_machines_running = 0
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+```
+
+Two apps in one organisation reach each other over Fly's private network — the engine
+would be `cernal-engine.internal`, with **no public address at all**.
+
+### The caveat: our web app is stateful
+
+This is the part that should influence the decision, and it is easy to miss.
+
+CERNAL currently keeps **SQLite at `var/cernal.db`** and **uploaded datasets and artifacts
+under `var/media/`** — both on local disk ([ADR 0002](decisions/0002-sqlite-and-orm-task-queue.md)).
+On Fly that means a **volume**, and volumes attach to a single machine in a single region.
+Consequences:
+
+- The web app is pinned to one machine. Fine at this scale, but it is no longer
+  "just scale it out".
+- **Deploys replace machines.** Fly reattaches volumes, but this is the step where a
+  misconfiguration loses your database. It has to be right the first time.
+- Backups must run against the volume, not a local path you can `scp` from.
+
+None of this is disqualifying — it is a normal Fly deployment — but it is real work that a
+plain VPS does not ask of you, where `var/` is just a directory and backup is `sqlite3
+.backup` plus a `tar`.
+
+**The engine has none of these problems.** It is stateless: input arrives by URL, output
+leaves by URL, nothing persists between runs. It is close to an ideal Fly workload, which
+is precisely why it is the half worth putting there.
+
+### Which way this points
+
+| If… | Do |
+|---|---|
+| You are comfortable managing a Fly volume, and want one platform and one bill | Combination 1 — both on Fly |
+| You want the simplest possible web hosting and are happy with a token-protected engine | **Combination 3** — web on a VPS where `var/` is a directory, engine on Fly where it sleeps |
+| You want one provider and a private network, and will write ~100 lines of lifecycle | Combination 4 — both on Hetzner, engine stopped when idle |
+
+**Combination 3 is the pragmatic middle** for this project: the stateful half stays
+somewhere boring where backups are a file copy, and the expensive half lives where
+sleeping is free. The cost is a public engine endpoint and a service token, which
+[§7](#7-security) already requires you to build.
 
 ---
 
