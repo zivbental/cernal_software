@@ -3,6 +3,7 @@
 > **Planning document. Nothing here is implemented yet.**
 > [`engine-deployment.md`](engine-deployment.md) argues *why* the engine runs elsewhere.
 > This is *how*, on Google Cloud specifically.
+> [`engine-development.md`](engine-development.md) covers how the engine gets written.
 
 The shape: a small always-on VM runs the product; a container runs the science on demand
 and stops. Idle compute cost is zero.
