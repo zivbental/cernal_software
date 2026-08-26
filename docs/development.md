@@ -63,6 +63,43 @@ Analysis runs execute in the worker, not the web process. Two terminals:
 Without the worker, submitted runs sit in `QUEUED` forever. Queued and failed tasks are
 visible in Django admin under **Django Q**.
 
+## Frontend
+
+The React app lives in `frontend/` and is built into `src/static/app/`, which Django
+serves same-origin (ADR 0003, ADR 0005).
+
+```bash
+./do install-frontend    # once
+./do build-frontend      # production build, served by ./do dev
+./do frontend            # Vite dev server on :5173 with hot reload
+```
+
+For day-to-day frontend work run three terminals: `./do dev`, `./do worker`, and
+`./do frontend`, then use **http://localhost:5173**. Vite proxies `/api`, `/media` and
+`/admin` to Django, so the browser still sees one origin and session cookies behave
+exactly as they will in production.
+
+`./do dev` alone serves the last build at :8000 — enough for backend work, and it does
+not need Node.
+
+### Browser smoke test
+
+`./do smoke` drives the real app through login, the wizard and the results screen, and
+fails on any console or page error. It needs Chromium's system libraries, which are a
+one-time root install:
+
+```bash
+sudo npx playwright install-deps chromium
+# or: sudo apt install libnspr4 libnss3 libasound2t64
+```
+
+Then, with `./do dev` and `./do worker` running:
+
+```bash
+./do smoke                       # screenshots into frontend/e2e/shots/
+RUN_ID=<completed-run-id> ./do smoke
+```
+
 ## Testing
 
 ```bash

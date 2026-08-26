@@ -22,6 +22,7 @@ src/static/app/*
 !src/static/app/.gitkeep
 frontend/dist/
 frontend/src/routeTree.gen.ts
+frontend/e2e/shots/
 
 # --- Django ---
 staticfiles/

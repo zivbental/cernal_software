@@ -58,6 +58,14 @@ case "${1:-help}" in
     (cd frontend && npm install)
     ;;
 
+  smoke)          # Browser smoke test (needs ./do dev + ./do worker running)
+    require_node
+    if [ -z "${RUN_ID:-}" ]; then
+      echo "note: set RUN_ID=<a completed run id> to also check the results screen" >&2
+    fi
+    (cd frontend && node e2e/smoke.mjs "${2:-e2e/shots}")
+    ;;
+
   worker)         # Run the background task worker (needed for analysis runs)
     uv run python manage.py qcluster
     ;;
@@ -123,6 +131,7 @@ Usage: ./do <command>
   frontend         Vite dev server on :5173, proxying /api to :8000
   build-frontend   Build the React app into src/static/app/
   install-frontend Install frontend dependencies
+  smoke            Browser smoke test against a running dev server
   worker           Run the background task worker (needed for analysis runs)
   test [args...]   Run the test suite
   lint             Check formatting and lint rules
