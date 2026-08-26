@@ -4,6 +4,7 @@
 > in `Design Maps/`, reconciled with what is already built.
 > Design principles are in [`engine-design.md`](engine-design.md); this is the concrete
 > inventory of stages, records and tools.
+> [`engine-map.md`](engine-map.md) shows the same thing as diagrams.
 
 The pipeline map specifies six stages and fifteen shared functions (S1–S15). This names
 them conventionally, sorts them into classes, records and functions, and marks what
