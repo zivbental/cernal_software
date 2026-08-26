@@ -8,7 +8,9 @@
     "build:fast": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:render": "node e2e/render-logic.mjs",
+    "check": "tsc --noEmit && eslint . && node e2e/render-logic.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -79,7 +79,9 @@ case "${1:-help}" in
     uv run ruff check .
     uv run ruff format --check .
     if [ -d frontend/node_modules ]; then
-      (cd frontend && npm run typecheck && npm run lint)
+      # Includes a server-render of the result views: TypeScript cannot catch a
+      # component that indexes past the end of its data.
+      (cd frontend && npm run check)
     else
       echo "note: frontend deps not installed; skipping TS checks (./do install-frontend)"
     fi
@@ -101,6 +103,11 @@ case "${1:-help}" in
 
   superuser)      # Create an admin user
     uv run python manage.py createsuperuser
+    ;;
+
+  make-admin)     # Promote an existing account: ./do make-admin <username>
+    shift || true
+    uv run python manage.py make_admin "$@"
     ;;
 
   pending)        # List accounts waiting for approval
@@ -147,7 +154,8 @@ Usage: ./do <command>
   format           Auto-fix formatting and lint rules
   migrate          Apply database migrations
   makemigrations   Generate migrations for model changes
-  superuser        Create an admin user
+  superuser        Create an admin user (interactive, new account)
+  make-admin <user> Promote an existing account to administrator
   pending          List accounts waiting for approval
   approve <user>   Approve a pending account
   check            Run Django's system checks

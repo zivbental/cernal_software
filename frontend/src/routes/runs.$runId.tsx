@@ -459,7 +459,12 @@ function CandidateRow({
 function toDesignLogic(graph: import("@/api/types").LogicGraph | undefined) {
   const genes = graph?.genes ?? [];
   return {
-    genes: genes.map((g) => ({ n: g.name, role: g.role, state: g.state, dir: g.direction })),
+    genes: genes.map((g) => ({
+      name: g.name,
+      role: g.role,
+      state: g.state,
+      dir: g.direction,
+    })),
     midGate: graph?.mid_gate ?? "AND",
     outerGate: graph?.outer_gate ?? "AND",
     invert: graph?.invert ?? false,

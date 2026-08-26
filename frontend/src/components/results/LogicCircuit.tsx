@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 
 /** The shape LogicCircuitView draws. Mirrors engine `design.logic_graph`. */
 export type CandidateLogic = {
-  genes: { n: string; role: string; state: "ON" | "OFF"; dir: "up" | "down" }[];
+  genes: { name: string; role: string; state: "ON" | "OFF"; dir: "up" | "down" }[];
   midGate: "OR" | "AND";
   outerGate: "AND" | "OR";
   invert: boolean;
@@ -28,22 +28,56 @@ export function LogicCircuitView({
   activeGate?: "mid" | "outer";
   onGateClick?: (g: "mid" | "outer") => void;
 }) {
-  const genes = logic.genes.map((g, i) => ({ ...g, y: 50 + i * 80 }));
+  const all = logic.genes ?? [];
 
-  const W = 720;
-  const H = 460;
+  // The circuit's shape follows the engine's output, not a fixed four-gene template.
+  // Activators must be present; repressors must be absent and are inverted.
+  const activators = all.filter((g) => g.state === "ON");
+  const repressors = all.filter((g) => g.state === "OFF");
+
+  if (all.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted-foreground">
+        This candidate has no logic graph to draw.
+      </div>
+    );
+  }
+
+  const hasMidGate = activators.length > 1;
+  const hasNot = repressors.length > 0;
+  // Only needed when two branches have to be combined.
+  const hasOuterGate = hasNot && activators.length > 0;
+
+  const rowH = 80;
+  const topPad = 50;
   const geneX = 20;
   const geneW = 150;
+  const boxH = 36;
+  const gateH = 64;
+
   const midGateX = 280;
   const invGateX = 280;
   const outerGateX = 460;
-  const gateH = 64;
-  const outX = 610;
+  const outX = hasOuterGate || hasMidGate ? 610 : 330;
+  const W = outX + 110;
+  const H = Math.max(260, topPad + all.length * rowH + 40);
 
-  const midY = (genes[1].y + genes[2].y) / 2 + 18;
-  const invY = genes[3].y + 18;
-  const outerY = 200;
-  const aLineY = genes[0].y + 18;
+  const laid = all.map((g, i) => ({ ...g, y: topPad + i * rowH, cy: topPad + i * rowH + boxH / 2 }));
+  const byName = new Map(laid.map((g) => [g.name, g]));
+  const centre = (list: typeof all) => {
+    const ys = list.map((g) => byName.get(g.name)?.cy ?? 0);
+    return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : H / 2;
+  };
+
+  const midY = centre(activators);
+  const invY = centre(repressors);
+  const outerY = hasOuterGate ? (midY + invY) / 2 : midY;
+  // Where the activator branch leaves for the next stage.
+  const activatorOutX = hasMidGate ? midGateX + 72 : geneX + geneW;
+  const activatorOutY = hasMidGate ? midY : centre(activators);
+  const outputY = hasOuterGate ? outerY : activatorOutY;
+
+  const wire = "var(--muted-foreground)";
 
   return (
     <div className="w-full">
@@ -64,22 +98,22 @@ export function LogicCircuitView({
         </defs>
 
         {/* Gene boxes */}
-        {genes.map((g) => (
-          <g key={g.n}>
+        {laid.map((g) => (
+          <g key={g.name}>
             <rect
               x={geneX}
               y={g.y}
               width={geneW}
-              height={36}
+              height={boxH}
               rx={8}
               fill={g.dir === "up" ? "url(#upGrad)" : "url(#downGrad)"}
               stroke={g.dir === "up" ? "var(--mint)" : "var(--deep-blue)"}
               strokeWidth="1.25"
             />
             <text x={geneX + 12} y={g.y + 23} fontSize="14" fontWeight="700" className="fill-foreground" fontFamily="ui-monospace, monospace">
-              {g.n}
+              {g.name}
             </text>
-            <text x={geneX + 78} y={g.y + 23} fontSize="11" className="fill-muted-foreground" fontFamily="ui-monospace, monospace">
+            <text x={geneX + 40} y={g.y + 23} fontSize="11" className="fill-muted-foreground" fontFamily="ui-monospace, monospace">
               {g.role}
             </text>
             <rect x={geneX + geneW - 36} y={g.y + 8} width={28} height={20} rx={4}
@@ -92,124 +126,157 @@ export function LogicCircuitView({
           </g>
         ))}
 
-        {/* Wires from genes */}
-        <path d={`M ${geneX + geneW} ${aLineY} H ${outerGateX - 30} V ${outerY - 22} H ${outerGateX - 8}`} stroke="var(--muted-foreground)" strokeWidth="1.75" fill="none" opacity="0.85" />
-        <path d={`M ${geneX + geneW} ${genes[1].y + 18} H ${midGateX - 8}`} stroke="var(--muted-foreground)" strokeWidth="1.75" fill="none" opacity="0.85" />
-        <path d={`M ${geneX + geneW} ${genes[2].y + 18} H ${midGateX - 8}`} stroke="var(--muted-foreground)" strokeWidth="1.75" fill="none" opacity="0.85" />
-        <path d={`M ${geneX + geneW} ${genes[3].y + 18} H ${invGateX - 8}`} stroke="var(--muted-foreground)" strokeWidth="1.75" fill="none" opacity="0.85" />
+        {/* Activator wires */}
+        {activators.map((g) => {
+          const node = byName.get(g.name)!;
+          const targetX = hasMidGate ? midGateX - 8 : hasOuterGate ? outerGateX - 8 : outX - 6;
+          const targetY = hasMidGate ? node.cy : hasOuterGate ? outerY - 22 : outputY;
+          return (
+            <path
+              key={`w-${g.name}`}
+              d={`M ${geneX + geneW} ${node.cy} H ${targetX - 24} V ${targetY} H ${targetX}`}
+              stroke={wire}
+              strokeWidth="1.75"
+              fill="none"
+              opacity="0.85"
+            />
+          );
+        })}
 
-        {/* Mid gate (OR or AND) — between B and C */}
-        <g
-          onClick={() => onGateClick?.("mid")}
-          style={{ cursor: onGateClick ? "pointer" : "default" }}
-        >
-          {activeGate === "mid" && (
-            <rect
-              x={midGateX - 10} y={midY - gateH / 2 - 10}
-              width={92} height={gateH + 20} rx={10}
-              fill="var(--mint)" fillOpacity="0.08"
-              stroke="var(--mint)" strokeOpacity="0.6" strokeDasharray="4 3"
-            />
-          )}
-          {logic.midGate === "OR" ? (
+        {/* Repressor wires into the inverter */}
+        {repressors.map((g) => {
+          const node = byName.get(g.name)!;
+          return (
             <path
-              d={`M ${midGateX} ${midY - gateH / 2}
-                  Q ${midGateX + 28} ${midY - gateH / 2 + 8} ${midGateX + 72} ${midY}
-                  Q ${midGateX + 28} ${midY + gateH / 2 - 8} ${midGateX} ${midY + gateH / 2}
-                  Q ${midGateX + 20} ${midY} ${midGateX} ${midY - gateH / 2} Z`}
-              fill="var(--mint)" fillOpacity="0.14" stroke="var(--mint)" strokeWidth="1.75"
+              key={`w-${g.name}`}
+              d={`M ${geneX + geneW} ${node.cy} H ${invGateX - 24} V ${invY} H ${invGateX - 8}`}
+              stroke={wire}
+              strokeWidth="1.75"
+              fill="none"
+              opacity="0.85"
             />
-          ) : (
-            <path
-              d={`M ${midGateX} ${midY - gateH / 2}
-                  H ${midGateX + 32}
-                  A ${gateH / 2} ${gateH / 2} 0 0 1 ${midGateX + 32} ${midY + gateH / 2}
-                  H ${midGateX} Z`}
-              fill="var(--foreground)" fillOpacity="0.08" stroke="var(--foreground)" strokeWidth="1.75"
-            />
-          )}
-          <text x={midGateX + 18} y={midY + 5} fontSize="14" fontWeight="800"
-            className={logic.midGate === "OR" ? "fill-mint" : "fill-foreground"} fontFamily="ui-monospace, monospace">
-            {logic.midGate}
-          </text>
-        </g>
+          );
+        })}
 
-        {/* NOT gate (if invert) */}
-        {logic.invert && (
-          <g>
-            <path
-              d={`M ${invGateX} ${invY - gateH / 2} L ${invGateX + 56} ${invY} L ${invGateX} ${invY + gateH / 2} Z`}
-              fill="var(--primary)" fillOpacity="0.14" stroke="var(--primary)" strokeWidth="1.75"
-            />
-            <circle cx={invGateX + 62} cy={invY} r="5" fill="var(--background)" stroke="var(--primary)" strokeWidth="1.75" />
-            <text x={invGateX + 10} y={invY + 5} fontSize="13" fontWeight="800" className="fill-primary" fontFamily="ui-monospace, monospace">NOT</text>
+        {/* Mid gate — only when more than one activator has to be combined */}
+        {hasMidGate && (
+          <g onClick={() => onGateClick?.("mid")} style={{ cursor: onGateClick ? "pointer" : "default" }}>
+            {activeGate === "mid" && (
+              <rect x={midGateX - 10} y={midY - gateH / 2 - 10} width={92} height={gateH + 20} rx={10}
+                fill="var(--mint)" fillOpacity="0.08" stroke="var(--mint)" strokeOpacity="0.6" strokeDasharray="4 3" />
+            )}
+            {logic.midGate === "OR" ? (
+              <path
+                d={`M ${midGateX} ${midY - gateH / 2}
+                    Q ${midGateX + 28} ${midY - gateH / 2 + 8} ${midGateX + 72} ${midY}
+                    Q ${midGateX + 28} ${midY + gateH / 2 - 8} ${midGateX} ${midY + gateH / 2}
+                    Q ${midGateX + 20} ${midY} ${midGateX} ${midY - gateH / 2} Z`}
+                fill="var(--mint)" fillOpacity="0.14" stroke="var(--mint)" strokeWidth="1.75"
+              />
+            ) : (
+              <path
+                d={`M ${midGateX} ${midY - gateH / 2}
+                    H ${midGateX + 32}
+                    A ${gateH / 2} ${gateH / 2} 0 0 1 ${midGateX + 32} ${midY + gateH / 2}
+                    H ${midGateX} Z`}
+                fill="var(--foreground)" fillOpacity="0.08" stroke="var(--foreground)" strokeWidth="1.75"
+              />
+            )}
+            <text x={midGateX + 14} y={midY + 5} fontSize="14" fontWeight="800"
+              className={logic.midGate === "OR" ? "fill-mint" : "fill-foreground"} fontFamily="ui-monospace, monospace">
+              {logic.midGate}
+            </text>
           </g>
         )}
 
-        {/* mid out → outer gate */}
-        <path d={`M ${midGateX + 72} ${midY} H ${outerGateX - 18} V ${outerY + 22} H ${outerGateX - 8}`}
-          stroke="var(--muted-foreground)" strokeWidth="1.75" fill="none" opacity="0.85" />
-        {logic.invert && (
-          <path d={`M ${invGateX + 67} ${invY} H ${outerGateX - 10} V ${outerY + 44} H ${outerGateX - 8}`}
-            stroke="var(--primary)" strokeWidth="1.75" fill="none" opacity="0.85" />
+        {/* NOT gate */}
+        {hasNot && (
+          <g>
+            <path d={`M ${invGateX} ${invY - gateH / 2} L ${invGateX + 56} ${invY} L ${invGateX} ${invY + gateH / 2} Z`}
+              fill="var(--primary)" fillOpacity="0.14" stroke="var(--primary)" strokeWidth="1.75" />
+            <circle cx={invGateX + 62} cy={invY} r="5" fill="var(--background)" stroke="var(--primary)" strokeWidth="1.75" />
+            <text x={invGateX + 8} y={invY + 5} fontSize="12" fontWeight="800" className="fill-primary" fontFamily="ui-monospace, monospace">
+              {repressors.length > 1 ? "NOR" : "NOT"}
+            </text>
+          </g>
         )}
 
-        {/* Outer gate (AND or OR) */}
-        <g
-          onClick={() => onGateClick?.("outer")}
-          style={{ cursor: onGateClick ? "pointer" : "default" }}
-        >
-          {activeGate === "outer" && (
-            <rect
-              x={outerGateX - 10} y={outerY - 70}
-              width={112} height={140} rx={10}
-              fill="var(--mint)" fillOpacity="0.08"
-              stroke="var(--mint)" strokeOpacity="0.6" strokeDasharray="4 3"
-            />
-          )}
-          {logic.outerGate === "AND" ? (
-            <path
-              d={`M ${outerGateX} ${outerY - 56}
-                  H ${outerGateX + 34}
-                  A 56 56 0 0 1 ${outerGateX + 34} ${outerY + 56}
-                  H ${outerGateX} Z`}
-              fill="var(--foreground)" fillOpacity="0.08" stroke="var(--foreground)" strokeWidth="1.75"
-            />
-          ) : (
-            <path
-              d={`M ${outerGateX} ${outerY - 56}
-                  Q ${outerGateX + 36} ${outerY - 48} ${outerGateX + 90} ${outerY}
-                  Q ${outerGateX + 36} ${outerY + 48} ${outerGateX} ${outerY + 56}
-                  Q ${outerGateX + 26} ${outerY} ${outerGateX} ${outerY - 56} Z`}
-              fill="var(--mint)" fillOpacity="0.14" stroke="var(--mint)" strokeWidth="1.75"
-            />
-          )}
-          <text x={outerGateX + 14} y={outerY + 6} fontSize="16" fontWeight="800"
-            className={logic.outerGate === "AND" ? "fill-foreground" : "fill-mint"} fontFamily="ui-monospace, monospace">
-            {logic.outerGate}
-          </text>
-        </g>
+        {/* Branches into the outer gate */}
+        {hasOuterGate && (
+          <>
+            <path d={`M ${activatorOutX} ${hasMidGate ? midY : outerY - 22} H ${outerGateX - 18} V ${outerY - 22} H ${outerGateX - 8}`}
+              stroke={wire} strokeWidth="1.75" fill="none" opacity="0.85" />
+            <path d={`M ${invGateX + 67} ${invY} H ${outerGateX - 10} V ${outerY + 22} H ${outerGateX - 8}`}
+              stroke="var(--primary)" strokeWidth="1.75" fill="none" opacity="0.85" />
+          </>
+        )}
 
-        {/* Outer gate → output */}
-        <path d={`M ${outerGateX + 90} ${outerY} H ${outX - 6}`}
-          stroke="url(#outGrad)" strokeWidth="3" fill="none" />
+        {/* Outer gate */}
+        {hasOuterGate && (
+          <g onClick={() => onGateClick?.("outer")} style={{ cursor: onGateClick ? "pointer" : "default" }}>
+            {activeGate === "outer" && (
+              <rect x={outerGateX - 10} y={outerY - 70} width={112} height={140} rx={10}
+                fill="var(--mint)" fillOpacity="0.08" stroke="var(--mint)" strokeOpacity="0.6" strokeDasharray="4 3" />
+            )}
+            {logic.outerGate === "AND" ? (
+              <path
+                d={`M ${outerGateX} ${outerY - 56} H ${outerGateX + 34}
+                    A 56 56 0 0 1 ${outerGateX + 34} ${outerY + 56} H ${outerGateX} Z`}
+                fill="var(--foreground)" fillOpacity="0.08" stroke="var(--foreground)" strokeWidth="1.75"
+              />
+            ) : (
+              <path
+                d={`M ${outerGateX} ${outerY - 56}
+                    Q ${outerGateX + 36} ${outerY - 48} ${outerGateX + 90} ${outerY}
+                    Q ${outerGateX + 36} ${outerY + 48} ${outerGateX} ${outerY + 56}
+                    Q ${outerGateX + 26} ${outerY} ${outerGateX} ${outerY - 56} Z`}
+                fill="var(--mint)" fillOpacity="0.14" stroke="var(--mint)" strokeWidth="1.75"
+              />
+            )}
+            <text x={outerGateX + 12} y={outerY + 6} fontSize="16" fontWeight="800"
+              className={logic.outerGate === "AND" ? "fill-foreground" : "fill-mint"} fontFamily="ui-monospace, monospace">
+              {logic.outerGate}
+            </text>
+          </g>
+        )}
+
+        {/* Final wire into the payload */}
+        <path
+          d={
+            hasOuterGate
+              ? `M ${outerGateX + 90} ${outerY} H ${outX - 6}`
+              : `M ${activatorOutX} ${activatorOutY} H ${outX - 6}`
+          }
+          stroke="url(#outGrad)"
+          strokeWidth="3"
+          fill="none"
+        />
 
         {/* Output payload */}
         <g>
-          <rect x={outX} y={outerY - 28} width={90} height={56} rx={12}
+          <rect x={outX} y={outputY - 28} width={90} height={56} rx={12}
             fill="url(#outGrad)" stroke="var(--mint)" strokeWidth="1.25" />
-          <text x={outX + 45} y={outerY - 4} textAnchor="middle" fontSize="11" fontWeight="800"
+          <text x={outX + 45} y={outputY - 4} textAnchor="middle" fontSize="11" fontWeight="800"
             fill="var(--mint-foreground)" fontFamily="ui-monospace, monospace">EXPRESS</text>
-          <text x={outX + 45} y={outerY + 18} textAnchor="middle" fontSize="20" fontWeight="900"
-            fill="var(--mint-foreground)" fontFamily="ui-monospace, monospace">{logic.output}</text>
+          <text
+            x={outX + 45}
+            y={outputY + 18}
+            textAnchor="middle"
+            fontSize={logic.output.length > 8 ? 12 : 20}
+            fontWeight="900"
+            fill="var(--mint-foreground)"
+            fontFamily="ui-monospace, monospace"
+          >
+            {logic.output}
+          </text>
         </g>
 
-        {/* Caption */}
-        <text x={20} y={H - 16} fontSize="13" fontWeight="600" className="fill-foreground" fontFamily="ui-monospace, monospace">
+        <text x={20} y={H - 14} fontSize="13" fontWeight="600" className="fill-foreground" fontFamily="ui-monospace, monospace">
           {logic.caption}
         </text>
       </svg>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground sm:grid-cols-4">
+
+      <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-[10px] text-muted-foreground sm:grid-cols-4">
         <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-mint" /> Over-expressed</div>
         <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-primary" /> Under-expressed</div>
         <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full border border-mint" /> Activating gate</div>
@@ -219,13 +286,13 @@ export function LogicCircuitView({
   );
 }
 
-
 const OUTPUT_COLORS: Record<string, string> = {
-  GFP: "oklch(0.72 0.18 145)",
-  mCherry: "oklch(0.6 0.22 25)",
-  RFP: "oklch(0.6 0.22 25)",
-  YFP: "oklch(0.82 0.16 95)",
-  BFP: "oklch(0.55 0.18 260)",
+  GFP: "oklch(0.82 0.18 145)",
+  mCherry: "oklch(0.65 0.22 25)",
+  Luciferase: "oklch(0.85 0.16 90)",
+  AmpR: "oklch(0.62 0.18 265)",
+  "Apoptosis inducer": "oklch(0.45 0.14 300)",
+  Custom: "oklch(0.68 0.03 250)",
 };
 
 export function RNAKey({
