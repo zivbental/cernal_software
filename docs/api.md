@@ -31,12 +31,46 @@ Every subsequent write must send the `X-CSRFToken` header. Omitting it returns *
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/auth/csrf` | 204; sets the `csrftoken` cookie |
+| `POST /api/auth/register` | Request an account → 201, **pending approval** |
 | `POST /api/auth/login` | `{username, password}` → the user |
 | `POST /api/auth/logout` | 204 |
 | `GET /api/auth/me` | The current user, or 401 |
 
 Login returns the same message for an unknown username and a wrong password, so the
 endpoint cannot be used to enumerate accounts.
+
+### Registration and approval
+
+Accounts are created **inactive**. A staff member approves them; no email is sent
+anywhere.
+
+```jsonc
+// POST /api/auth/register
+{"username": "maya", "email": "maya@example.org",
+ "password": "…", "full_name": "Maya Cohen"}
+
+// 201 — note there is no session: the account is not usable yet
+{"username": "maya", "email": "maya@example.org", "pending_approval": true,
+ "message": "Your account has been created and is waiting for…"}
+```
+
+Signing in before approval returns **403 `pending_approval`**, distinct from 401
+`invalid_credentials`, so the applicant is told to wait rather than assuming their
+password is wrong. That distinction is only made when the password is *correct*, so it
+is not a way to discover which accounts exist.
+
+Approve accounts either in Django admin (**Accounts → Users → Approval → Waiting for
+approval**, then the *Approve selected accounts* action — the changelist also warns when
+anyone is waiting) or from a terminal:
+
+```bash
+./do pending              # who is waiting
+./do approve maya bob     # approve them
+```
+
+**Forgotten passwords** are reset by a staff member in Django admin. There is no
+email-based reset flow, and therefore no SMTP configuration to hold correctly on the
+VPS.
 
 ---
 

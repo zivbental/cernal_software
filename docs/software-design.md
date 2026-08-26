@@ -301,6 +301,12 @@ Defined at scaffold time with `AUTH_USER_MODEL = "accounts.User"` **before the f
 migration**. Swapping the user model after migrations exist is a painful, well-documented
 Django trap. This is free insurance.
 
+Accounts are **self-service but admin-approved**: anyone can request one at
+`/register`, and it stays `is_active=False` until a staff member approves it in Django
+admin or with `./do approve <username>`. No email is involved — at this scale a person on
+the team is always reachable, and SMTP credentials would be one more secret to hold
+correctly on the VPS (rule 10). Forgotten passwords are reset by staff in admin.
+
 *Dropped from the maps:* `Workspace`, `WorkspaceMembership`. An iGEM team is one trusted
 group; authorization is "is this object mine, or am I staff". Re-add when external
 collaborators need scoped access.

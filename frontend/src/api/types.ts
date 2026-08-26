@@ -21,6 +21,13 @@ export interface User {
   is_staff: boolean;
 }
 
+export interface Registration {
+  username: string;
+  email: string;
+  pending_approval: boolean;
+  message: string;
+}
+
 export interface GateFamily {
   name: string;
   label: string;

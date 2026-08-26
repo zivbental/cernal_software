@@ -24,6 +24,7 @@ import {
   type ExampleDataset,
   type Paginated,
   type Project,
+  type Registration,
   type Run,
   type RunParams,
   type RunStatusResponse,
@@ -68,6 +69,17 @@ export function useLogin() {
     onSuccess: (user) => {
       queryClient.setQueryData(keys.me, user);
     },
+  });
+}
+
+export function useRegister() {
+  return useMutation({
+    mutationFn: (body: {
+      username: string;
+      email: string;
+      password: string;
+      full_name: string;
+    }) => api.post<Registration>("/auth/register", body),
   });
 }
 

@@ -22,6 +22,25 @@ class LoginIn(Schema):
     password: str
 
 
+class RegisterIn(Schema):
+    # Length and strength rules live in apps.accounts.services, not here: Django's
+    # password validators and the service produce messages an applicant can act on,
+    # where a schema violation only yields a generic "request body is invalid".
+    username: str = Field(max_length=150)
+    email: str = Field(max_length=254)
+    password: str
+    full_name: str = ""
+
+
+class RegistrationOut(Schema):
+    """Deliberately not a session — the account is not usable yet."""
+
+    username: str
+    email: str
+    pending_approval: bool
+    message: str
+
+
 class UserOut(Schema):
     id: int
     username: str

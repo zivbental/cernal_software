@@ -103,6 +103,15 @@ case "${1:-help}" in
     uv run python manage.py createsuperuser
     ;;
 
+  pending)        # List accounts waiting for approval
+    uv run python manage.py pending_accounts
+    ;;
+
+  approve)        # Approve an account: ./do approve <username>
+    shift || true
+    uv run python manage.py pending_accounts --approve "$@"
+    ;;
+
   check)          # Run Django's system checks
     uv run python manage.py check
     ;;
@@ -139,6 +148,8 @@ Usage: ./do <command>
   migrate          Apply database migrations
   makemigrations   Generate migrations for model changes
   superuser        Create an admin user
+  pending          List accounts waiting for approval
+  approve <user>   Approve a pending account
   check            Run Django's system checks
   manage <cmd>     Run any manage.py command, e.g. ./do manage shell
   reset-db         Delete all local state and rebuild (DESTRUCTIVE)

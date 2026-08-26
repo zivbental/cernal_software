@@ -1,6 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Loader2, LogIn } from "lucide-react";
+import { Clock, Loader2, LogIn } from "lucide-react";
 
 import cernalLogo from "@/assets/cernal-logo-animated.svg";
 import { ApiError } from "@/api/client";
@@ -21,8 +21,14 @@ function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const message =
-    login.error instanceof ApiError
+  const pending =
+    login.error instanceof ApiError && login.error.code === "pending_approval"
+      ? login.error.message
+      : null;
+
+  const message = pending
+    ? null
+    : login.error instanceof ApiError
       ? login.error.message
       : login.error
         ? "Could not reach the server."
@@ -81,6 +87,19 @@ function LoginPage() {
             />
           </label>
 
+          {pending && (
+            <div
+              role="status"
+              className="mt-4 flex items-start gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2.5"
+            >
+              <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <div className="text-sm">
+                <div className="font-medium text-foreground">Awaiting approval</div>
+                <p className="mt-0.5 text-muted-foreground">{pending}</p>
+              </div>
+            </div>
+          )}
+
           {message && (
             <p
               role="alert"
@@ -102,6 +121,13 @@ function LoginPage() {
             )}
             Sign in
           </button>
+
+          <p className="mt-5 text-center text-sm text-muted-foreground">
+            No account yet?{" "}
+            <Link to="/register" className="text-foreground underline underline-offset-2">
+              Request one
+            </Link>
+          </p>
         </form>
 
         <p className="mt-6 text-center font-mono text-[11px] text-muted-foreground">
