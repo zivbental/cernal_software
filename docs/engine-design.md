@@ -288,6 +288,118 @@ Adding CRISPR later is then: one module, one `register()` call, nothing else.
 
 ---
 
+## 5a. "Why not put the shared methods on a base class?"
+
+A fair question, and the honest answer is that the difference is smaller than the word
+"tool" made it sound. **A tool is just a class.** `FoldEngine` has methods like anything
+else. The only question is *where the method lives*: on the thing that uses it, or on a
+separate thing it calls.
+
+### Where we already agree
+
+Stages are classes with methods. `GeneSelector`, `TriggerScorer`, `SwitchDesigner` — each
+one a class holding its configuration, with a public method that does the work. That is
+exactly the "each step has a class with its own methods" instinct, and it is what
+[engine-classes §2](engine-classes.md) specifies.
+
+Gate families are a class hierarchy with shared behaviour on the base. Also agreed —
+`GateFamily` is an ABC precisely so subclasses can share.
+
+So the disagreement is narrow: **one scientific primitive, needed by several unrelated
+things.**
+
+### The two versions, side by side
+
+```python
+# A — shared method on the base class
+class Gate:
+    def mfe(self, seq: str) -> float:
+        return RNA.fold(seq)[1]
+
+class ToeholdGate(Gate):
+    def evaluate_design(self, d):
+        return {"mfe_on": self.mfe(d.sequence)}
+```
+
+```python
+# B — the folding lives in its own class, and gates use it
+class ToeholdGate(GateFamily):
+    def __init__(self, folder: FoldEngine):
+        self.folder = folder
+
+    def evaluate_design(self, d):
+        return {"mfe_on": self.folder.mfe(d.sequence)}
+```
+
+The difference is one line: `self.mfe(...)` versus `self.folder.mfe(...)`. B is not more
+advanced; it is the same code with an extra dot.
+
+### The one concrete reason to prefer B
+
+**`TriggerScorer` needs MFE too, and it is not a gate.**
+
+The pipeline map is explicit: trigger candidates carry `Trigger MFE` and
+`Trigger Accessibility`, computed before any switch exists. So with version A:
+
+| Option | Result |
+|---|---|
+| `TriggerScorer(Gate)` | A trigger scorer that inherits from Gate. It is not a gate |
+| A `FoldingMixin` both inherit | That *is* version B, with extra ceremony |
+| A base class above both | A god base class every scientific object inherits from |
+| Copy `mfe()` into `TriggerScorer` | Two implementations of the same thing |
+
+The last one is what actually happens under deadline, and it is the one that hurts: two
+folding paths with different ViennaRNA parameters, producing numbers that
+`engine.scoring` then normalises onto one axis as though they were comparable.
+
+The rule of thumb: **inherit when the subclass IS the base ("a toehold IS a gate");
+compose when the class merely USES the thing ("a gate USES folding").** `ToeholdGate` is
+not a kind of folding.
+
+### About `AndProkaryotic` / `AndEukaryotic`
+
+A real question, and the answer is genuinely "not yet".
+
+The design rules do differ by host — a prokaryotic toehold puts an RBS in the loop, a
+eukaryotic one needs a Kozak sequence and cap-dependent scanning. So a split is
+defensible. But whether that is a **subclass** or a **parameter** depends on how much of
+the method body actually differs, and nobody knows until the science is written.
+
+**Start with one class per gate type, taking host as a parameter:**
+
+```python
+class ToeholdGate(GateFamily):
+    supported_hosts = frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})
+
+    def __init__(self, host: Host, folder: FoldEngine, tir: TranslationScorer):
+        self.host = host
+        ...
+```
+
+**Split into subclasses when a method body becomes a long `if self.host` branch.** That is
+the signal that two things are wearing one class, and at that point the subclass writes
+itself:
+
+```python
+class ProkaryoticToehold(ToeholdGate): ...   # RBS in loop
+class EukaryoticToehold(ToeholdGate): ...    # Kozak, scanning
+```
+
+Designing the hierarchy before the bodies exist means guessing at where the seam is, and
+a wrong guess is more expensive to undo than a late split. **Let it emerge.**
+
+### The short version
+
+| Question | Answer |
+|---|---|
+| Should stages be classes with methods? | **Yes** — that is the design |
+| Should gates be a class hierarchy? | **Yes** — `GateFamily` ABC |
+| Should shared gate behaviour sit on the base? | **Yes**, when only gates need it |
+| Should `mfe()` sit on the base? | **No** — `TriggerScorer` needs it and is not a gate |
+| Prokaryotic / eukaryotic subclasses? | **Later, if the bodies diverge.** Parameter first |
+
+---
+
 ## 6. The tool adapter
 
 Every ViennaRNA call goes through one module. This is the highest-leverage boundary inside

@@ -338,8 +338,9 @@ class OffTargetScanner:
 
 A fair question, since the term is doing a lot of work above.
 
-> **A tool is a scientific primitive that is expensive to implement correctly and has
-> no opinion about why you are calling it.**
+> **A tool is an ordinary class.** What makes it a *tool* is only that it is a
+> scientific primitive with no opinion about why you are calling it — so stages and
+> gates **use** one rather than inheriting from it.
 
 `FoldEngine` does not know what a toehold is. `OffTargetScanner` does not know what a
 trigger is. They take sequences and return facts, the way `sha256()` takes bytes and
