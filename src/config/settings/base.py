@@ -112,7 +112,7 @@ MEDIA_ROOT = env.path("MEDIA_ROOT", default=VAR_DIR / "media")
 
 # --- Uploads --------------------------------------------------------------------
 
-MAX_DATASET_MB = env.int("MAX_DATASET_MB", default=50)
+MAX_DATASET_MB = env.int("MAX_DATASET_MB", default=100)
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_DATASET_MB * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 

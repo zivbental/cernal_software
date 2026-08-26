@@ -132,6 +132,27 @@ DEFAULT_V1 = ScoringProfile(
             description="Predicted independence from other gates in the same circuit.",
         ),
         MetricSpec(
+            name="gc_content",
+            direction=HIGHER_BETTER,
+            weight=0.5,
+            valid_range=(30.0, 70.0),
+            description="Percent GC of the assembled construct. Extremes hurt synthesis.",
+        ),
+        MetricSpec(
+            name="dynamic_range",
+            direction=HIGHER_BETTER,
+            weight=2.0,
+            valid_range=(1.0, 500.0),
+            description="Predicted ON/OFF fold change.",
+        ),
+        MetricSpec(
+            name="predicted_success_rate",
+            direction=HIGHER_BETTER,
+            weight=1.0,
+            valid_range=(0.0, 1.0),
+            description="Model confidence that the construct behaves as designed in vivo.",
+        ),
+        MetricSpec(
             name="circuit_complexity",
             direction=LOWER_BETTER,
             weight=1.0,

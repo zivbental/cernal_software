@@ -273,12 +273,23 @@ def test_capabilities_advertise_what_the_engine_supports(engine):
     caps = engine.capabilities()
 
     assert caps.engine_version == MockEngine.ENGINE_VERSION
-    assert "toehold" in caps.gate_families
+    assert "toehold" in caps.available_families
     assert "default" in caps.scoring_profiles
+
+    by_name = {family.name: family for family in caps.gate_families}
+    assert by_name["toehold"].available
+    assert by_name["toehold"].label == "Toehold Riboswitch"
+    # Planned families are advertised but not selectable, so the UI can show them
+    # greyed out instead of hardcoding a "coming soon" list.
+    assert not by_name["crispr"].available
+    assert by_name["crispr"].description
 
 
 def test_local_engine_reports_the_same_installed_families():
-    assert LocalEngine().capabilities().gate_families == MockEngine().capabilities().gate_families
+    assert (
+        LocalEngine().capabilities().available_families
+        == MockEngine().capabilities().available_families
+    )
 
 
 def test_capabilities_do_not_require_a_job(engine):

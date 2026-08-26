@@ -24,7 +24,7 @@ from apps.projects.models import Project
 from apps.results.models import Annotation, DecisionTag
 from apps.results.services import import_job_result
 from engine.client import load_engine
-from engine.contract import SCHEMA_VERSION, JobRequest
+from engine.contract import INPUT_DE, SCHEMA_VERSION, JobRequest
 
 DEMO_USERNAME = "demo"
 DEMO_PASSWORD = "demo-password-123"
@@ -165,6 +165,8 @@ class Command(BaseCommand):
                 schema_version=SCHEMA_VERSION,
                 run_id=str(run.id),
                 idempotency_key=run.idempotency_key,
+                input_mode=INPUT_DE,
+                trigger_sequence="",
                 input_path=dataset.file.path,
                 input_checksum=dataset.checksum_sha256,
                 organism=project.organism,

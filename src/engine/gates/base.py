@@ -104,6 +104,14 @@ class GateFamily(ABC):
     name: ClassVar[str] = ""
     version: ClassVar[str] = ""
 
+    #: How the family presents itself. Surfaced through EngineCapabilities so the UI
+    #: renders what the engine says rather than a hardcoded list (§3).
+    label: ClassVar[str] = ""
+    description: ClassVar[str] = ""
+
+    #: False while a family is planned but not selectable. Step 5 flips these.
+    available: ClassVar[bool] = False
+
     @abstractmethod
     def required_tools(self) -> list[ToolRequirement]:
         """External tools this family needs. Checked before a run starts."""

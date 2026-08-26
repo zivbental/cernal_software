@@ -25,6 +25,9 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     version = "0.1.0-stub"
+    label = "Toehold Riboswitch"
+    description = "Translational control · pre-mRNA"
+    available = True
 
     def required_tools(self) -> list[ToolRequirement]:
         # Step 5: ViennaRNA (or equivalent) for MFE and accessibility prediction.

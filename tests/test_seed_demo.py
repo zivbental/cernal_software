@@ -13,6 +13,7 @@ from apps.analyses.models import AnalysisRun, RunStatus
 from apps.datasets.models import Dataset, ValidationStatus
 from apps.projects.models import Project
 from apps.results.models import Annotation, Artifact, Candidate, CandidateMetric
+from engine.scoring.profiles import DEFAULT_V1
 
 
 @pytest.fixture
@@ -35,7 +36,8 @@ def test_seed_demo_creates_the_whole_object_graph(seeded):
     assert Project.objects.count() == 1
     assert Dataset.objects.get().validation_status == ValidationStatus.VALID
     assert Candidate.objects.count() == 12
-    assert CandidateMetric.objects.count() == 12 * 6
+    # One row per metric the scoring profile declares.
+    assert CandidateMetric.objects.count() == 12 * len(DEFAULT_V1.metrics)
     assert Artifact.objects.exists()
     assert Annotation.objects.exists()
 

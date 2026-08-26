@@ -98,7 +98,14 @@ def import_job_result(run, result: JobResult, output_dir: str | Path) -> ImportS
 
 
 def _verify_manifest(run, result: JobResult) -> None:
-    """Confirm the engine computed against what we actually submitted."""
+    """Confirm the engine computed against what we actually submitted.
+
+    A direct-trigger run has no dataset and therefore no checksum to compare — the
+    sequence travelled inside the immutable submission itself.
+    """
+    if run.dataset is None:
+        return
+
     expected = run.dataset.checksum_sha256
     if expected and result.input_checksum and result.input_checksum != expected:
         raise ResultImportError(

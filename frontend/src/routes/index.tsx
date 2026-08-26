@@ -10,7 +10,6 @@ import {
   Layers,
   LayoutDashboard,
   Library,
-  Microscope,
   Settings,
   ShoppingCart,
   Sparkles,
@@ -18,7 +17,6 @@ import {
   User,
   Dna,
   CheckCircle2,
-  PlayCircle,
   ChevronDown,
 } from "lucide-react";
 import cernalLogo from "@/assets/cernal-logo-animated.svg";
@@ -2078,8 +2076,10 @@ function Index() {
       {/* Main content */}
       <main className="mx-auto max-w-[1400px] space-y-6 px-8 py-10">
         <Step1 />
+        <Step2 />
         <Step3 />
         <Step4 />
+        <CircuitExplanation />
 
         <footer className="flex items-center justify-between border-t border-border pt-6 font-mono text-[11px] text-muted-foreground">
           <div>CERNAL · Synthetic Biology Compiler · © 2026</div>

@@ -49,7 +49,8 @@ def test_a_researcher_completes_the_whole_workflow(
 
     # 2. Discover what the engine supports.
     capabilities = client.get("/api/version").json()
-    assert "toehold" in capabilities["gate_families"]
+    available = [f["name"] for f in capabilities["gate_families"] if f["available"]]
+    assert "toehold" in available
 
     # 3. Create a project.
     project = client.post(
@@ -79,7 +80,7 @@ def test_a_researcher_completes_the_whole_workflow(
             data=json.dumps(
                 {
                     "dataset_id": dataset["id"],
-                    "gate_families": capabilities["gate_families"][:1],
+                    "gate_families": available[:1],
                     "scoring_profile": capabilities["scoring_profiles"][0],
                     "seed": 42,
                     "params": {"max_triggers": 2, "mock": {"candidate_count": 24}},

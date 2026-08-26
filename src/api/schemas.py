@@ -83,7 +83,11 @@ class DatasetOut(ModelSchema):
 
 
 class RunIn(Schema):
-    dataset_id: UUID
+    input_mode: str = Field(
+        default="de", description="de = upload a table · direct = paste a trigger mRNA"
+    )
+    dataset_id: UUID | None = Field(default=None, description="Required when input_mode is de.")
+    trigger_sequence: str = Field(default="", description="Required when input_mode is direct.")
     params: dict = Field(default_factory=dict)
     gate_families: list[str] = Field(default_factory=lambda: ["toehold"])
     scoring_profile: str = "default"
@@ -117,7 +121,7 @@ class RunStatusOut(Schema):
 
 class RunOut(ModelSchema):
     project_id: UUID
-    dataset_id: UUID
+    dataset_id: UUID | None
 
     class Meta:
         model = AnalysisRun
@@ -126,6 +130,8 @@ class RunOut(ModelSchema):
             "status",
             "stage",
             "progress_pct",
+            "input_mode",
+            "trigger_sequence",
             "gate_families",
             "scoring_profile",
             "seed",
@@ -225,11 +231,24 @@ class AnnotationOut(ModelSchema):
 # --- Meta -------------------------------------------------------------------------
 
 
+class GateFamilyOut(Schema):
+    """A selectable switch mechanism, described by the engine.
+
+    ``available`` is what the UI greys out — the frontend must not keep its own list of
+    which mechanisms are ready (docs/software-design.md §3).
+    """
+
+    name: str
+    label: str
+    description: str
+    available: bool
+
+
 class VersionOut(Schema):
     app_version: str
     api_schema_version: str
     engine: str
     engine_version: str
     engine_schema_version: str
-    gate_families: list[str]
+    gate_families: list[GateFamilyOut]
     scoring_profiles: list[str]

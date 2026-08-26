@@ -15,7 +15,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from apps.analyses.models import AnalysisRun, RunStatus
+from apps.analyses.models import AnalysisRun, InputMode, RunStatus
 from apps.results.services import ResultImportError, import_job_result
 from engine.client import load_engine
 from engine.contract import CANCELLED, SCHEMA_VERSION, SUCCEEDED, JobRequest
@@ -41,8 +41,10 @@ class InvalidTransition(RunError):
 def submit_run(
     *,
     project,
-    dataset,
     user,
+    dataset=None,
+    input_mode: str = InputMode.DE,
+    trigger_sequence: str = "",
     params: dict | None = None,
     gate_families: list[str] | None = None,
     scoring_profile: str = "default",
@@ -55,10 +57,19 @@ def submit_run(
     returned for a repeated idempotency key — a retried submission must never launch a
     second expensive computation.
     """
-    if dataset.project_id != project.id:
-        raise RunError("That dataset belongs to a different project.")
-    if not dataset.is_usable:
-        raise RunError("This dataset did not pass validation and cannot be analysed.")
+    trigger_sequence = _clean_trigger(trigger_sequence) if input_mode == InputMode.DIRECT else ""
+
+    if input_mode == InputMode.DE:
+        if dataset is None:
+            raise RunError("A dataset is required for a differential-expression run.")
+        if dataset.project_id != project.id:
+            raise RunError("That dataset belongs to a different project.")
+        if not dataset.is_usable:
+            raise RunError("This dataset did not pass validation and cannot be analysed.")
+    elif input_mode == InputMode.DIRECT:
+        dataset = None
+    else:
+        raise RunError(f"Unknown input mode '{input_mode}'.")
 
     key = idempotency_key or uuid.uuid4().hex
     existing = AnalysisRun.objects.filter(idempotency_key=key).first()
@@ -72,7 +83,9 @@ def submit_run(
 
     run = AnalysisRun.objects.create(
         project=project,
+        input_mode=input_mode,
         dataset=dataset,
+        trigger_sequence=trigger_sequence,
         created_by=user,
         idempotency_key=key,
         # The snapshot is what makes a run immutable: later edits to the project or its
@@ -94,12 +107,30 @@ def submit_run(
     return run, True
 
 
+#: Minimum length the Platform will accept before bothering the engine.
+MIN_TRIGGER_NT = 20
+
+
+def _clean_trigger(sequence: str) -> str:
+    """Normalize a pasted mRNA. Rejects anything that is not plainly a sequence."""
+    cleaned = "".join(sequence.split()).upper().replace("T", "U")
+    if not cleaned:
+        raise RunError("Paste the trigger mRNA sequence, or switch to dataset upload.")
+    if set(cleaned) - set("ACGU"):
+        raise RunError("The trigger sequence may contain only A, C, G, U (or T).")
+    if len(cleaned) < MIN_TRIGGER_NT:
+        raise RunError(
+            f"The trigger sequence is too short — at least {MIN_TRIGGER_NT} nucleotides."
+        )
+    return cleaned
+
+
 def _validate_against_capabilities(families, scoring_profile, capabilities) -> None:
-    unknown = sorted(set(families) - set(capabilities.gate_families))
+    available = capabilities.available_families
+    unknown = sorted(set(families) - set(available))
     if unknown:
         raise RunError(
-            f"Unknown gate family: {', '.join(unknown)}. "
-            f"Available: {', '.join(capabilities.gate_families)}."
+            f"Unavailable gate family: {', '.join(unknown)}. Available: {', '.join(available)}."
         )
     if scoring_profile not in capabilities.scoring_profiles:
         raise RunError(
@@ -168,8 +199,10 @@ def _execute(run: AnalysisRun) -> None:
             schema_version=SCHEMA_VERSION,
             run_id=str(run.id),
             idempotency_key=run.idempotency_key,
-            input_path=run.dataset.file.path,
-            input_checksum=run.dataset.checksum_sha256,
+            input_mode=run.input_mode,
+            trigger_sequence=run.trigger_sequence,
+            input_path=run.dataset.file.path if run.dataset else "",
+            input_checksum=run.dataset.checksum_sha256 if run.dataset else "",
             organism=run.project.organism,
             params=run.params_snapshot,
             gate_families=run.gate_families,

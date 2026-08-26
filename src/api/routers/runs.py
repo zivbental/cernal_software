@@ -7,12 +7,22 @@ from ninja import Router, Status
 from api.auth import get_owned, owned_queryset
 from api.errors import ValidationFailed
 from api.schemas import CancelOut, RunCounts, RunIn, RunOut, RunStatusOut
-from apps.analyses.models import AnalysisRun
+from apps.analyses.models import AnalysisRun, InputMode
 from apps.analyses.services import RunError, cancel_run, submit_run
 from apps.datasets.models import Dataset
 from apps.projects.models import Project
 
 router = Router()
+
+
+@router.get("/runs", response=list[RunOut])
+def list_all_runs(request, limit: int = 20):
+    """Recent runs across every project — what "My Circuits" shows first."""
+    return (
+        owned_queryset(AnalysisRun, request.user)
+        .select_related("project")
+        .order_by("-created_at")[: max(1, min(limit, 100))]
+    )
 
 
 @router.get("/projects/{project_id}/runs", response=list[RunOut])
@@ -30,13 +40,20 @@ def create_run(request, project_id: UUID, payload: RunIn):
     second computation.
     """
     project = get_owned(Project, project_id, request.user)
-    dataset = get_owned(Dataset, payload.dataset_id, request.user)
+
+    dataset = None
+    if payload.input_mode == InputMode.DE:
+        if payload.dataset_id is None:
+            raise ValidationFailed("A dataset is required for a differential-expression run.")
+        dataset = get_owned(Dataset, payload.dataset_id, request.user)
 
     try:
         run, _created = submit_run(
             project=project,
-            dataset=dataset,
             user=request.user,
+            dataset=dataset,
+            input_mode=payload.input_mode,
+            trigger_sequence=payload.trigger_sequence,
             params=payload.params,
             gate_families=payload.gate_families,
             scoring_profile=payload.scoring_profile,

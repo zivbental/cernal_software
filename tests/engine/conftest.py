@@ -8,7 +8,7 @@ import hashlib
 
 import pytest
 
-from engine.contract import SCHEMA_VERSION, JobRequest
+from engine.contract import INPUT_DE, SCHEMA_VERSION, JobRequest
 
 DATASET_CONTENT = (
     "gene_id,base_expression,target_expression,log2fc,padj\n"
@@ -40,6 +40,8 @@ def make_request(tmp_path, dataset):
             "schema_version": SCHEMA_VERSION,
             "run_id": "11111111-1111-1111-1111-111111111111",
             "idempotency_key": "key-alpha",
+            "input_mode": INPUT_DE,
+            "trigger_sequence": "",
             "input_path": str(dataset),
             "input_checksum": hashlib.sha256(DATASET_CONTENT.encode()).hexdigest(),
             "organism": "E. coli",

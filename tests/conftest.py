@@ -103,13 +103,15 @@ def run(project, dataset, user):
 def job_result(run, dataset, tmp_path):
     """A real MockEngine result plus the directory its artifacts were written to."""
     from engine.client import MockEngine
-    from engine.contract import SCHEMA_VERSION, JobRequest
+    from engine.contract import INPUT_DE, SCHEMA_VERSION, JobRequest
 
     output_dir = tmp_path / "engine-out"
     request = JobRequest(
         schema_version=SCHEMA_VERSION,
         run_id=str(run.id),
         idempotency_key=run.idempotency_key,
+        input_mode=INPUT_DE,
+        trigger_sequence="",
         input_path=dataset.file.path,
         input_checksum=dataset.checksum_sha256,
         organism="E. coli",

@@ -18,6 +18,10 @@ SCHEMA_VERSION = "1"
 HIGHER_BETTER = "HIGHER_BETTER"
 LOWER_BETTER = "LOWER_BETTER"
 
+#: How the researcher supplied the trigger.
+INPUT_DE = "de"  # differential-expression table
+INPUT_DIRECT = "direct"  # an mRNA sequence pasted straight in
+
 #: Terminal job outcomes.
 SUCCEEDED = "succeeded"
 FAILED = "failed"
@@ -36,8 +40,10 @@ class JobRequest:
     schema_version: str
     run_id: str
     idempotency_key: str
+    input_mode: str
     input_path: str
     input_checksum: str
+    trigger_sequence: str
     organism: str
     params: dict
     gate_families: list[str]
@@ -45,10 +51,29 @@ class JobRequest:
     seed: int | None
     output_dir: str
 
+    @property
+    def is_direct_trigger(self) -> bool:
+        """True when the researcher pasted a sequence instead of uploading a table."""
+        return self.input_mode == INPUT_DIRECT
+
     def mock_options(self) -> dict:
         """Options consumed by MockEngine. Ignored by every real implementation."""
         options = self.params.get("mock", {})
         return options if isinstance(options, dict) else {}
+
+
+@dataclass(frozen=True, slots=True)
+class GateFamilyInfo:
+    """One selectable switch mechanism, as the engine describes itself.
+
+    ``available`` is what the UI greys out. Keeping it here rather than in React means
+    Step 5 can enable CRISPR by flipping one class attribute, with no frontend change.
+    """
+
+    name: str
+    label: str
+    description: str
+    available: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,8 +88,13 @@ class EngineCapabilities:
 
     engine_version: str
     schema_version: str
-    gate_families: list[str]
+    gate_families: list[GateFamilyInfo]
     scoring_profiles: list[str]
+
+    @property
+    def available_families(self) -> list[str]:
+        """Names the Platform will accept on a submission."""
+        return [family.name for family in self.gate_families if family.available]
 
 
 @dataclass(frozen=True, slots=True)

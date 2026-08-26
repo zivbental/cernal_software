@@ -96,8 +96,13 @@ def test_version_advertises_engine_capabilities(client, db):
     body = client.get("/api/version").json()
 
     assert body["engine"] == "MockEngine"
-    assert "toehold" in body["gate_families"]
     assert "default" in body["scoring_profiles"]
+
+    families = {f["name"]: f for f in body["gate_families"]}
+    assert families["toehold"]["available"]
+    assert families["toehold"]["label"] == "Toehold Riboswitch"
+    # Planned mechanisms are advertised so the UI can grey them out honestly.
+    assert not families["crispr"]["available"]
 
 
 def test_version_exposes_no_secrets(client, db, settings):

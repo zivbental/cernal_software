@@ -86,13 +86,13 @@ def load_engine(dotted_path: str) -> EngineClient:
 
 def _installed_capabilities(engine_version: str) -> EngineCapabilities:
     """Read the registries. Engine-internal, so importing them here is fine."""
-    from engine.gates.registry import available_families
+    from engine.gates.registry import describe_families
     from engine.scoring.profiles import available_profiles
 
     return EngineCapabilities(
         engine_version=engine_version,
         schema_version=SCHEMA_VERSION,
-        gate_families=available_families(),
+        gate_families=describe_families(),
         scoring_profiles=available_profiles(),
     )
 
@@ -239,7 +239,20 @@ class MockEngine:
 
     @staticmethod
     def _verify_input(request: JobRequest) -> None:
-        """Exercise the same checksum path a real engine would."""
+        """Exercise the same input checks a real engine would."""
+        if request.is_direct_trigger:
+            sequence = request.trigger_sequence.strip().upper()
+            if len(sequence) < 20:
+                raise InputValidationError(
+                    "The trigger sequence is too short to design a switch against "
+                    "(at least 20 nucleotides are needed)."
+                )
+            if set(sequence) - set("ACGU"):
+                raise InputValidationError(
+                    "The trigger sequence contains characters other than A, C, G and U."
+                )
+            return
+
         path = Path(request.input_path)
         if not path.is_file():
             raise InputValidationError("The submitted dataset could not be read.")
@@ -258,8 +271,13 @@ class MockEngine:
         for index in range(count):
             ref = f"cand-{index + 1:03d}"
             arity = rng.choice([1] * 3 + [2] * 2) if max_triggers > 1 else 1
-            features = rng.sample(_FEATURE_POOL, arity)
+            pool = rng.sample(_FEATURE_POOL, arity + 1)
+            features, repressor = pool[:arity], pool[arity]
+            # Roughly half the circuits gate on a transcript that must be absent.
+            if rng.random() < 0.5:
+                repressor = None
             family = rng.choice(families)
+            marker_name = self._marker_name(request)
 
             triggers = {
                 "features": [
@@ -272,15 +290,15 @@ class MockEngine:
                     for name in features
                 ]
             }
+            payload_name = self._payload_name(request)
+            segments = self._plasmid_segments(rng, payload_name, marker_name)
             design = {
                 "switch_sequence": self._sequence(rng, 92),
                 "structure": self._structure(rng, 92),
                 "toehold_length": rng.randint(12, 18),
-                "logic_graph": {
-                    "inputs": features,
-                    "operator": "AND" if arity > 1 else "IDENTITY",
-                    "output": "GFP",
-                },
+                "sequence_length_bp": sum(seg["length_bp"] for seg in segments),
+                "plasmid_segments": segments,
+                "logic_graph": self._logic_graph(features, repressor, payload_name),
             }
 
             raw = {
@@ -289,6 +307,9 @@ class MockEngine:
                 "gate_folding_energy": round(rng.uniform(-52.0, -8.0), 2),
                 "predicted_leakage": round(rng.uniform(0.02, 0.95), 3),
                 "orthogonality": round(rng.uniform(0.3, 0.99), 3),
+                "gc_content": round(rng.uniform(38.0, 62.0), 1),
+                "dynamic_range": round(rng.uniform(8.0, 460.0), 1),
+                "predicted_success_rate": round(rng.uniform(0.45, 0.97), 3),
                 "circuit_complexity": float(arity * 2 + rng.randint(0, 3)),
             }
 
@@ -376,6 +397,87 @@ class MockEngine:
             )
 
         return artifacts
+
+    @staticmethod
+    def _payload_name(request: JobRequest) -> str:
+        """What the circuit expresses when it fires, from the run configuration."""
+        payload = request.params.get("payload") or {}
+        reporters = payload.get("reporters") or []
+        if reporters:
+            return {"gfp": "GFP", "mcherry": "mCherry", "luciferase": "Luciferase"}.get(
+                reporters[0], str(reporters[0])
+            )
+        return "Custom" if payload.get("custom_sequence") else "GFP"
+
+    @staticmethod
+    def _marker_name(request: JobRequest) -> str:
+        payload = request.params.get("payload") or {}
+        markers = payload.get("markers") or []
+        if markers:
+            return {"ampr": "AmpR", "kanr": "KanR", "apoptosis": "Apoptosis"}.get(
+                markers[0], str(markers[0])
+            )
+        return "AmpR"
+
+    @staticmethod
+    def _plasmid_segments(rng: random.Random, payload: str, marker: str) -> list[dict]:
+        """The construct laid out end to end. Drives the plasmid map.
+
+        ``kind`` is a stable vocabulary; colours belong to the frontend, not here.
+        """
+        return [
+            {"kind": "promoter", "name": "J23119", "length_bp": rng.randint(30, 60)},
+            {"kind": "switch", "name": "toehold_switch", "length_bp": rng.randint(90, 160)},
+            {"kind": "payload", "name": payload, "length_bp": rng.randint(600, 1800)},
+            {"kind": "marker", "name": marker, "length_bp": rng.randint(700, 1100)},
+            {"kind": "terminator", "name": "B0015", "length_bp": rng.randint(100, 160)},
+            {"kind": "backbone", "name": "pUC ori", "length_bp": rng.randint(900, 1500)},
+        ]
+
+    @staticmethod
+    def _logic_graph(features: list[str], repressor: str | None, payload: str) -> dict:
+        """The Boolean circuit, as the researcher reads it.
+
+        Letters (A, B, C...) label the genes in the caption so it stays readable
+        regardless of how long the real feature names are.
+        """
+        letters = "ABCDEF"
+        genes = [
+            {
+                "name": letters[index],
+                "role": feature,
+                "state": "ON",
+                "direction": "up",
+            }
+            for index, feature in enumerate(features)
+        ]
+        if repressor is not None:
+            genes.append(
+                {
+                    "name": letters[len(features)],
+                    "role": repressor,
+                    "state": "OFF",
+                    "direction": "down",
+                }
+            )
+
+        activators = [gene["name"] for gene in genes if gene["state"] == "ON"]
+        mid_gate = "AND"
+        outer_gate = "AND"
+        expression = (
+            activators[0] if len(activators) == 1 else f"({f' {mid_gate} '.join(activators)})"
+        )
+        if repressor is not None:
+            expression = f"{expression} {outer_gate} NOT {genes[-1]['name']}"
+
+        return {
+            "genes": genes,
+            "mid_gate": mid_gate,
+            "outer_gate": outer_gate,
+            "invert": repressor is not None,
+            "output": payload,
+            "caption": f"IF {expression} → EXPRESS {payload}",
+        }
 
     @staticmethod
     def _sequence(rng: random.Random, length: int) -> str:

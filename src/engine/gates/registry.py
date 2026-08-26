@@ -5,8 +5,10 @@ requested (``JobRequest.gate_families``) into classes, so adding a chemistry mea
 adding a module and one ``register()`` call — nothing else changes.
 """
 
+from engine.contract import GateFamilyInfo
 from engine.errors import UnsupportedGateFamilyError
 from engine.gates.base import GateFamily
+from engine.gates.planned import AntisenseGate, CrisprGate
 from engine.gates.toehold import ToeholdGate
 
 _REGISTRY: dict[str, type[GateFamily]] = {}
@@ -33,7 +35,23 @@ def get_family(name: str) -> type[GateFamily]:
 
 
 def available_families() -> list[str]:
-    return sorted(_REGISTRY)
+    """Names that can actually be selected for a run."""
+    return sorted(name for name, family in _REGISTRY.items() if family.available)
+
+
+def describe_families() -> list[GateFamilyInfo]:
+    """Every registered family, including the ones that are only planned."""
+    return [
+        GateFamilyInfo(
+            name=family.name,
+            label=family.label or family.name,
+            description=family.description,
+            available=family.available,
+        )
+        for _name, family in sorted(_REGISTRY.items())
+    ]
 
 
 register(ToeholdGate)
+register(CrisprGate)
+register(AntisenseGate)

@@ -7,6 +7,18 @@ from django.db import models
 from apps.common.models import TimestampedModel, UUIDModel
 
 
+class InputMode(models.TextChoices):
+    """How the researcher supplied the trigger.
+
+    DE is the discovery path: upload a differential-expression table and let the engine
+    find candidate triggers. DIRECT skips discovery entirely — the researcher already
+    knows the transcript and pastes it in, so there is no dataset at all.
+    """
+
+    DE = "de", "Differential expression"
+    DIRECT = "direct", "Direct trigger mRNA"
+
+
 class RunStatus(models.TextChoices):
     """Six product-facing states (docs/software-design.md §6).
 
@@ -46,7 +58,19 @@ class AnalysisRun(UUIDModel, TimestampedModel):
     """
 
     project = models.ForeignKey("projects.Project", on_delete=models.PROTECT, related_name="runs")
-    dataset = models.ForeignKey("datasets.Dataset", on_delete=models.PROTECT, related_name="runs")
+
+    input_mode = models.CharField(max_length=10, choices=InputMode, default=InputMode.DE)
+    dataset = models.ForeignKey(
+        "datasets.Dataset",
+        on_delete=models.PROTECT,
+        related_name="runs",
+        null=True,
+        blank=True,
+        help_text="Null when input_mode is DIRECT — there is no uploaded table.",
+    )
+    trigger_sequence = models.TextField(
+        blank=True, help_text="The pasted mRNA when input_mode is DIRECT."
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="runs"
     )
@@ -100,7 +124,16 @@ class AnalysisRun(UUIDModel, TimestampedModel):
             models.CheckConstraint(
                 condition=models.Q(progress_pct__gte=0) & models.Q(progress_pct__lte=100),
                 name="progress_pct_within_bounds",
-            )
+            ),
+            # Exactly one input. A DE run without a dataset has nothing to analyse; a
+            # DIRECT run without a sequence likewise.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(input_mode="de", dataset__isnull=False)
+                    | models.Q(input_mode="direct", dataset__isnull=True)
+                ),
+                name="run_has_exactly_one_input_source",
+            ),
         ]
 
     def __str__(self) -> str:
