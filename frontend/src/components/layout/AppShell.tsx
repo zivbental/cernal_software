@@ -13,6 +13,8 @@ import cernalLogo from "@/assets/cernal-logo-animated.svg";
 import { useLogout, useMe, useVersion } from "@/api/queries";
 
 const NAV = [
+  // The compiler is the product's front door, so it leads.
+  { to: "/compile", label: "New Circuit" },
   { to: "/projects", label: "Dashboard" },
   { to: "/guide", label: "Quick Guide" },
   { to: "/use-cases", label: "Use Cases" },

@@ -22,6 +22,7 @@ import {
   type CompileConfig,
 } from "@/components/compile/Steps";
 import { Loading } from "@/components/layout/Loading";
+import { ProjectPicker } from "@/components/compile/ProjectPicker";
 
 export const Route = createFileRoute("/compile")({
   validateSearch: (search: Record<string, unknown>): { projectId?: string } =>
@@ -113,19 +114,22 @@ function CompilePage() {
   }
 
   if (!projectId) {
+    // Not a dead end: pick or create a project here and carry straight on.
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
-        <h3 className="text-base font-semibold text-foreground">Pick a project first</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Circuits are compiled inside a project, alongside their data and history.
-        </p>
-        <button
-          onClick={() => navigate({ to: "/projects" })}
-          className="mt-5 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background"
-        >
-          Go to projects
-        </button>
-      </div>
+      <>
+        <PageHeader
+          kicker={
+            <>
+              <LayoutDashboard className="h-3 w-3" /> New Circuit
+            </>
+          }
+          title="Biological Compiler"
+          description="Translate transcriptomic signals into manufacturable genetic circuits."
+        />
+        <ProjectPicker
+          onPick={(id) => navigate({ to: "/compile", search: { projectId: id } })}
+        />
+      </>
     );
   }
 

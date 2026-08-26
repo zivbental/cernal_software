@@ -35,12 +35,20 @@ function ProjectsPage() {
         title="Projects"
         description="Each project holds a biological objective, its datasets, and every analysis run against them."
         actions={
-          <button
-            onClick={() => setCreating(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90"
-          >
-            <FolderPlus className="h-4 w-4" /> New project
-          </button>
+          <>
+            <button
+              onClick={() => setCreating(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"
+            >
+              <FolderPlus className="h-4 w-4" /> New project
+            </button>
+            <Link
+              to="/compile"
+              className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90"
+            >
+              <CircuitBoard className="h-4 w-4" /> New circuit
+            </Link>
+          </>
         }
       />
 
