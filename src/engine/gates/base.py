@@ -51,6 +51,11 @@ class GateFamily(ABC):
     available: ClassVar[bool] = False
 
     def supports(self, host: Host) -> bool:
+        """Whether this family can be used for this organism.
+
+        Both conditions matter: a family may be implemented but wrong for the host
+        (CRISPR in E. coli), or right for the host but not yet implemented.
+        """
         return self.available and host in self.supported_hosts
 
     @abstractmethod

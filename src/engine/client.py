@@ -43,11 +43,26 @@ class EngineClient(Protocol):
     """What the Platform depends on. Implementations must be safe to call from a worker."""
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
-        """Execute one job to completion, reporting progress as it goes."""
+        """Execute one job to completion, reporting progress as it goes.
+
+        Args:
+            request: The immutable submission.
+            on_progress: Called between stages with ``(percent, stage_label)``. Returning
+                ``False`` cancels — cooperatively, never by killing anything.
+
+        Returns:
+            A ``JobResult``. An expected scientific failure is **data**, returned with
+            ``status="failed"``; a programming error is an **exception** and propagates,
+            so the Platform logs a traceback and the bug is visible.
+        """
         ...
 
     def capabilities(self) -> EngineCapabilities:
-        """What this engine supports. Cheap enough to call on every request."""
+        """What this engine supports.
+
+        Called on every ``GET /api/version``, so it must not fold anything or read a
+        transcriptome — it reads the registries and returns.
+        """
         ...
 
 
@@ -103,11 +118,17 @@ class LocalEngine:
     ENGINE_VERSION = "local-0.1.0-stub"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
+        """Delegate to the real pipeline.
+
+        Imported lazily so that constructing a ``LocalEngine`` — which the Platform does
+        just to read capabilities — does not import numpy, pandas and ViennaRNA.
+        """
         from engine.pipeline import run_pipeline
 
         return run_pipeline(request, on_progress)
 
     def capabilities(self) -> EngineCapabilities:
+        """The families and profiles actually installed in this build."""
         return _installed_capabilities(self.ENGINE_VERSION)
 
 
@@ -182,9 +203,17 @@ class MockEngine:
     ENGINE_VERSION = "mock-1.0.0"
 
     def capabilities(self) -> EngineCapabilities:
+        """The same registries the real engine reports, so a mock run configures
+        identically to a real one."""
         return _installed_capabilities(self.ENGINE_VERSION)
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
+        """Run a fake job, deterministically.
+
+        Converts ``JobCancelled`` and ``EngineError`` into terminal results exactly as a
+        real engine must — so the Platform's failure and cancellation paths are exercised
+        long before any science exists.
+        """
         try:
             return self._execute(request, on_progress)
         except JobCancelled:
@@ -195,6 +224,7 @@ class MockEngine:
     # -- internals --
 
     def _terminal(self, request: JobRequest, status: str, error: str | None) -> JobResult:
+        """Build a result carrying no candidates: cancelled, or failed."""
         return JobResult(
             schema_version=SCHEMA_VERSION,
             engine_version=self.ENGINE_VERSION,
@@ -205,6 +235,11 @@ class MockEngine:
         )
 
     def _execute(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
+        """Walk the fake stages, honouring cancellation and injected failure.
+
+        Verifies the input checksum on the first stage exactly as a real engine would, so
+        the Platform's checksum handling is exercised too.
+        """
         options = request.mock_options()
         delay = float(options.get("step_delay", 0.0))
         fail_at = options.get("fail_at_stage", len(_STAGES) - 1)
@@ -271,6 +306,13 @@ class MockEngine:
             )
 
     def _build_candidates(self, request, profile, rng, options) -> list[CandidateResult]:
+        """Generate candidates from the seeded RNG, scored through the **real** scoring
+        layer.
+
+        Using ``engine.scoring`` rather than inventing numbers is what makes the mock
+        representative: the metric decomposition, hard filters and ranking are the same
+        code a real run uses.
+        """
         count = int(options.get("candidate_count", 12))
         families = request.gate_families or ["toehold"]
         outputs = self._requested_outputs(request)
@@ -361,6 +403,11 @@ class MockEngine:
     def _write_artifacts(
         self, request: JobRequest, candidates: list[CandidateResult]
     ) -> list[ArtifactRef]:
+        """Write real files: a design table, and a FASTA per accepted candidate.
+
+        Real files rather than stubs, so the Platform's artifact import, checksum
+        verification and download paths are exercised end to end.
+        """
         output_dir = request.output_dir
         artifacts: list[ArtifactRef] = []
 
@@ -487,10 +534,12 @@ class MockEngine:
 
     @staticmethod
     def _sequence(rng: random.Random, length: int) -> str:
+        """A plausible-looking RNA sequence. Deterministic for a given RNG state."""
         return "".join(rng.choice(_BASES) for _ in range(length))
 
     @staticmethod
     def _structure(rng: random.Random, length: int) -> str:
+        """A hairpin in dot-bracket notation, so structure-rendering code has real input."""
         stem = min(length // 4, 20)
         loop = length - 2 * stem
         return "(" * stem + "." * loop + ")" * stem

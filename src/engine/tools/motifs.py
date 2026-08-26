@@ -93,4 +93,5 @@ class MotifScreener:
         return tuple(sorted(found, key=lambda v: v.start))
 
     def is_compliant(self, sequence: str) -> bool:
+        """True when nothing prohibited is present. A yes/no wrapper over ``violations``."""
         return not self.violations(sequence)

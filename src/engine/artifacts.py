@@ -22,6 +22,7 @@ def sha256_file(path: str | Path) -> str:
 
 
 def sha256_bytes(data: bytes) -> str:
+    """SHA-256 of an in-memory payload, for content already held as bytes."""
     return hashlib.sha256(data).hexdigest()
 
 

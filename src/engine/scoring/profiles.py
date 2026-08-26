@@ -44,6 +44,20 @@ class HardFilter:
 
 @dataclass(frozen=True, slots=True)
 class ScoringProfile:
+    """A versioned, complete description of how candidates are compared.
+
+    Recorded on every run, so a score stays interpretable after the profile changes.
+    Metrics declare their own direction and range, which is what lets heterogeneous
+    measurements be normalised onto one axis (design map 12).
+
+    Attributes:
+        name: Profile family, e.g. ``default``.
+        version: Bumped whenever a change alters output.
+        metrics: Every metric that counts, with its weight and normalization rule.
+        hard_filters: Disqualifying thresholds, applied before ranking.
+        tie_breakers: Metric names, in order, for candidates that score equally.
+    """
+
     name: str
     version: str
     metrics: list[MetricSpec]
@@ -52,9 +66,15 @@ class ScoringProfile:
 
     @property
     def label(self) -> str:
+        """``default-v1``. What gets recorded on a run and shown in the report."""
         return f"{self.name}-{self.version}"
 
     def spec(self, metric_name: str) -> MetricSpec | None:
+        """The declaration for one metric, or ``None`` if this profile ignores it.
+
+        Returning ``None`` rather than raising is deliberate: a gate family emitting an
+        extra metric the profile does not score must not break scoring.
+        """
         for spec in self.metrics:
             if spec.name == metric_name:
                 return spec
@@ -192,4 +212,5 @@ def get_profile(name: str) -> ScoringProfile:
 
 
 def available_profiles() -> list[str]:
+    """Profile names a submission may request. Surfaced at ``GET /api/version``."""
     return sorted(PROFILES)

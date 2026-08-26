@@ -174,4 +174,5 @@ class JobResult:
 
     @property
     def rejected(self) -> list[CandidateResult]:
+        """Excluded candidates, each carrying its reason. Never silently dropped."""
         return [c for c in self.candidates if c.is_rejected]

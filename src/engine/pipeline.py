@@ -30,11 +30,32 @@ STAGE_WEIGHTS: dict[str, int] = {
 
 
 def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
-    """Construct every tool **once** per run.
+    """Construct every tool **once** per run, and hand them back for wiring.
 
-    FoldEngine's cache only helps if every stage and every gate family shares one
-    instance; four instances means four caches and four sets of parameters, and scores
-    that are not comparable (docs/engine-design.md §5a).
+    Args:
+        request: The immutable submission. Supplies the parameters each tool is
+            configured from, so that configuration is recorded rather than hardcoded.
+        host: The organism. Selects the codon table and the translation mechanism.
+
+    Returns:
+        The constructed tools, keyed by name, ready to pass into stages and gate
+        families.
+
+    Why this is a function and not a per-class concern:
+        ``FoldEngine``'s cache lives on the instance. Four instances means four cold
+        caches — and, worse, four chances for someone to construct one at a different
+        temperature. Two designs folded at different temperatures produce numbers that
+        ``engine.scoring`` will normalise onto the same axis as though they were
+        comparable, and the resulting ranking is wrong in a way nothing detects.
+
+        Constructing them here also means the whole configuration of a run is visible in
+        one place, which is what makes it recordable.
+
+    Note:
+        The transcriptome that ``OffTargetScanner`` indexes **must be the same build**
+        the trigger sequences came from. Loading them separately is how two references
+        drift apart, and the symptom is off-target penalties that look plausible and mean
+        nothing.
     """
     raise NotImplementedError("Step 5 — see the sketch in run_pipeline")
 

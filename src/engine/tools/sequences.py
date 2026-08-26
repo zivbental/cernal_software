@@ -90,10 +90,12 @@ def to_rna(sequence: str) -> str:
 
 
 def to_dna(sequence: str) -> str:
+    """Uppercase and convert U to T. Assembly standards and vendors speak DNA."""
     return sequence.strip().upper().replace("U", "T")
 
 
 def is_valid_rna(sequence: str) -> bool:
+    """True for a non-empty sequence of A, C, G, U only. Empty is not valid."""
     return bool(sequence) and set(sequence.upper()) <= RNA_BASES
 
 
