@@ -167,6 +167,285 @@ searches for cross-talk between a circuit's own components.
 
 ---
 
+## 3a. Classes and methods
+
+Two kinds of arrow, and the difference between them is the whole answer to "why not put
+shared methods on the base class":
+
+- **`<|--` inheritance** — *"a toehold **is** a gate"*. Points up to the base.
+- **`o--` composition** — *"a toehold **uses** folding"*. Points sideways to a tool.
+
+### Gate families
+
+```mermaid
+classDiagram
+    class GateFamily {
+        <<abstract>>
+        +str name
+        +str version
+        +frozenset supported_hosts
+        +int max_inputs
+        +is_compatible(trigger_set, constraints) Compatibility
+        +generate_designs(trigger_set, constraints) Iterator
+        +evaluate_design(design) dict
+        +emit_sequence(design) str
+        +describe(design, metrics) str
+    }
+
+    class ToeholdGate {
+        +Host host
+        +generate_designs() Iterator
+        +evaluate_design() dict
+        -_build_switch(trigger, toehold_len) str
+    }
+
+    class ToeholdAndGate {
+        +generate_designs() Iterator
+        -_interleave(trigger_a, trigger_b) str
+    }
+
+    class AntisenseNotGate {
+        +generate_designs() Iterator
+        +evaluate_design() dict
+    }
+
+    class CrisprGate {
+        +frozenset supported_hosts
+        +generate_designs() Iterator
+    }
+
+    class FoldEngine {
+        +mfe(seq) FoldResult
+        +partition(seq) PartitionResult
+        +ensemble_defect(seq, target) float
+        +versions() dict
+    }
+
+    class TranslationScorer {
+        +Host host
+        +score(seq) float
+    }
+
+    class CodonOptimizer {
+        +CodonUsageTable table
+        +variants(cds) list
+        +translation_score(cds) float
+    }
+
+    GateFamily <|-- ToeholdGate
+    ToeholdGate <|-- ToeholdAndGate
+    GateFamily <|-- AntisenseNotGate
+    GateFamily <|-- CrisprGate
+
+    ToeholdGate o-- FoldEngine
+    ToeholdGate o-- TranslationScorer
+    ToeholdGate o-- CodonOptimizer
+    AntisenseNotGate o-- FoldEngine
+    CrisprGate o-- FoldEngine
+```
+
+`FoldEngine` sits to the side because `TriggerScorer` needs it too, and a trigger scorer
+is not a gate. Everything gate-specific — `describe`, the ABC's contract — lives on
+`GateFamily`, exactly as expected.
+
+### A stage in detail
+
+The same pattern one level up. `SwitchDesigner` **is** nothing; it **uses** everything.
+
+```mermaid
+classDiagram
+    class SwitchDesigner {
+        +GateRegistry registry
+        +Host host
+        +design(triggers, constraints) Iterator
+        -_dispatch(trigger_set) GateFamily
+    }
+
+    class SwitchValidator {
+        +validate(design) ValidationResult
+        -_check_structure(design) float
+        -_check_sequence_rules(design) list
+    }
+
+    class GateRegistry {
+        +register(family) type
+        +get_family(name) type
+        +available_families(host) list
+        +describe_families() list
+    }
+
+    class FoldEngine {
+        +mfe(seq) FoldResult
+        +ensemble_defect(seq, target) float
+    }
+
+    class OffTargetScanner {
+        +SequenceLibrary transcriptome
+        +int max_mismatch
+        +find_similar(seq) list
+        +scan_trigger(trigger) OffTargetReport
+        +scan_switch(binding_site) OffTargetReport
+    }
+
+    class MotifScreener {
+        +violations(seq) list
+    }
+
+    SwitchDesigner o-- GateRegistry
+    SwitchDesigner o-- SwitchValidator
+    SwitchValidator o-- FoldEngine
+    SwitchValidator o-- OffTargetScanner
+    SwitchValidator o-- MotifScreener
+```
+
+### Who holds which tool
+
+The whole composition picture. Every arrow is "holds an instance of", and each tool is
+constructed **once** per run and passed in.
+
+```mermaid
+flowchart LR
+    subgraph stages["Stages"]
+        GS["GeneSelector"]
+        TS["TriggerScorer"]
+        SD["SwitchDesigner"]
+        SV["SwitchValidator"]
+        CD["CircuitDesigner"]
+        PB["PlasmidBuilder"]
+    end
+
+    subgraph fams["Gate families"]
+        TG["ToeholdGate"]
+        AG["AntisenseNotGate"]
+        CG["CrisprGate"]
+    end
+
+    subgraph tools["Tools — constructed once, shared"]
+        FE["FoldEngine"]
+        FP["FoldProfiler"]
+        OT["OffTargetScanner"]
+        MS["MotifScreener"]
+        CO["CodonOptimizer"]
+        TR["TranslationScorer"]
+        SQ["sequences<br/><i>module, no state</i>"]
+    end
+
+    TS --> FP & OT & MS & SQ
+    SD --> TG & AG & CG
+    SV --> FE & OT & MS & TR
+    TG & AG & CG --> FE
+    TG --> CO & TR
+    CD --> OT
+    PB --> MS & CO
+    GS --> SQ
+
+    classDef s fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b
+    classDef f fill:#fef3c7,stroke:#b45309,color:#78350f
+    classDef t fill:#f4f4f5,stroke:#71717a,color:#27272a
+    class GS,TS,SD,SV,CD,PB s
+    class TG,AG,CG f
+    class FE,FP,OT,MS,CO,TR,SQ t
+```
+
+**`FoldEngine` is constructed once per run**, so its cache is shared across every stage
+and every family. Construct it inside each class instead and you get four caches, four
+sets of ViennaRNA parameters, and scores that are not comparable.
+
+```python
+# engine/pipeline.py — wire the tools once, hand them down
+def run_pipeline(request, on_progress):
+    folder   = FoldEngine()
+    profiler = FoldProfiler(window=80, max_span=40, unpaired=10)
+    off      = OffTargetScanner(transcriptome, max_mismatch=2)
+    screener = MotifScreener(standard=AssemblyStandard.RFC10)
+
+    triggers = TriggerScorer(profiler, off, screener).score(genes, sequences)
+    switches = SwitchDesigner(registry, SwitchValidator(folder, off, screener)).design(...)
+```
+
+That function is the only place that knows how the pieces fit together. Everything else
+receives what it needs.
+
+---
+
+## 3b. Where the code lives
+
+Yes — **everything under `src/engine/`**. Not one file, and not one file per class either.
+
+> **A module is a topic, not a class.** Related classes live together: `ToeholdGate` and
+> `ToeholdAndGate` share `toehold.py`; `SwitchDesigner` and `SwitchValidator` share
+> `switches.py`.
+
+```
+src/engine/
+├── contract.py        crosses the boundary          ~200 lines   ✅ built
+├── client.py          MockEngine · LocalEngine      ~350         ✅ built
+├── errors.py          the exception hierarchy       ~40          ✅ built
+├── domain.py          ALL records + enums           ~300         ★ start here
+├── pipeline.py        run_pipeline — wiring only    ~80          ★
+├── store.py           CandidateStore · ParetoFilter ~150         ★
+│
+├── tools/
+│   ├── folding.py     FoldEngine · FoldProfiler · structure_match   S1 S2 S4
+│   ├── binding.py     hybridization_energy                          S3
+│   ├── off_target.py  OffTargetScanner                              S5
+│   ├── sequences.py   pure functions, no class                      S6
+│   ├── motifs.py      MotifScreener                                 S7
+│   ├── codons.py      CodonOptimizer                                S8
+│   └── translation.py TranslationScorer                             S9
+│
+├── gates/
+│   ├── base.py        GateFamily ABC                ✅ built
+│   ├── registry.py    GateRegistry                  ✅ built
+│   ├── toehold.py     ToeholdGate + ToeholdAndGate  ★
+│   ├── antisense.py   AntisenseNotGate              ★
+│   └── crispr.py      CrisprGate                    ★
+│
+├── scoring/           ✅ built and tested — S10
+│   ├── profiles.py    MetricSpec · HardFilter · ScoringProfile
+│   └── normalize.py   normalize · weighted_score · rank
+│
+├── stages/
+│   ├── quality.py     InputQualityCheck             S15
+│   ├── genes.py       GeneSelector
+│   ├── triggers.py    TriggerScorer
+│   ├── switches.py    SwitchDesigner + SwitchValidator
+│   ├── circuits.py    CircuitDesigner + ConfusionEvaluator
+│   ├── plasmids.py    PlasmidBuilder
+│   └── reporting.py   ReportBuilder + StructureRenderer   S14
+│
+└── runner/
+    └── gcs_entry.py   container entrypoint
+```
+
+### Why these groupings
+
+| Choice | Reason |
+|---|---|
+| **`domain.py` as one file** | Records reference each other constantly. Splitting them early invites circular imports. Split into a `domain/` package when it passes ~400 lines, not before |
+| **`tools/` by scientific topic** | `folding.py` holds S1, S2 and S4 because they all wrap ViennaRNA and share its cache. Splitting them would mean three modules importing `RNA` |
+| **One module per gate chemistry** | A new family is a new file plus one `register()` call. Nothing else changes |
+| **`stages/` mirrors the pipeline map** | Someone reading the map can find the code by name |
+| **`pipeline.py` is one flat file** | It only wires things together. If it grows past ~150 lines, logic has leaked into it |
+
+### The import rule
+
+Dependencies point **downward only**, which is what keeps any of it testable in isolation:
+
+```
+runner  →  pipeline  →  stages  →  gates  →  tools  →  domain
+                            ↘  scoring  ↗
+```
+
+`tools/` imports nothing but `domain` and its scientific library. `domain` imports
+nothing at all. So a tool can be tested with no pipeline, and a stage tested with fake
+tools.
+
+**Nothing imports upward.** A tool that needs to know which stage called it is the
+signal something is in the wrong place.
+
+---
+
 ## 4. Gate families
 
 The one real class hierarchy, and the host constraint the pipeline map specifies.
