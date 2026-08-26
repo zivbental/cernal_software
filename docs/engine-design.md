@@ -100,128 +100,152 @@ everything at once, and by then pruning has cut the volume.
 
 ---
 
-## 4. The domain model
+## 4. The complete type inventory
 
-Concretely, and where each type belongs.
+Thirty types exist today; Step 5 adds about fourteen. ★ marks what is new.
 
-### Move the shared types out of `gates/base.py`
+### Contract — crosses the boundary (`contract.py`)
 
-They live there today because `GateFamily` was the first thing that needed them. As the
-engine grows, an ABC and every shared type in one module gets crowded.
+Change these deliberately: the Platform and the API schemas depend on them.
+
+| Type | Kind | Purpose |
+|---|---|---|
+| `JobRequest` | frozen dataclass | One immutable submission |
+| `JobResult` | frozen dataclass | The versioned result manifest |
+| `CandidateResult` | frozen dataclass | One proposed circuit, as the Platform stores it |
+| `MetricValue` | frozen dataclass | One measurement, raw and normalized |
+| `ArtifactRef` | frozen dataclass | A produced file, by relative path and checksum |
+| `EngineCapabilities` | frozen dataclass | What this build supports |
+| `GateFamilyInfo` | frozen dataclass | One selectable mechanism, as the UI renders it |
+
+### Entry points (`client.py`)
+
+| Type | Kind | Purpose |
+|---|---|---|
+| `EngineClient` | **Protocol** | What the Platform depends on |
+| `MockEngine` | class | Deterministic fake science. CI and frontend work |
+| `LocalEngine` | class | The real pipeline, in-process |
+| `CloudRunEngineClient` ★ | class | The same pipeline, as a Cloud Run Job |
+| `ProgressFn` | type alias | `(pct, stage) -> keep_going` |
+
+### Errors (`errors.py`)
+
+| Type | Raised when |
+|---|---|
+| `EngineError` | Base. The Platform catches this and nothing narrower |
+| `InputValidationError` | The data is unusable |
+| `ChecksumMismatchError` | The input is not what was submitted |
+| `UnsupportedGateFamilyError` | An unregistered mechanism was requested |
+| `ScoringProfileError` | An unknown or inconsistent profile |
+| `JobCancelled` | A progress callback said stop. Control flow, not failure |
+
+### Domain — the scientific vocabulary (`domain.py` ★)
+
+The heart of it. Six of these exist in `gates/base.py` today and should move here.
+
+| Type | Kind | Purpose |
+|---|---|---|
+| `FeatureExpression` ★ | frozen dataclass | One row of the DE table: gene, fold change, base mean, adjusted p |
+| `ExpressionTable` ★ | frozen dataclass | The parsed input, plus which columns were detected |
+| `Trigger` | frozen dataclass | A transcript usable as an input signal, with its sequence |
+| `TriggerSet` | frozen dataclass | The inputs to one circuit — activators, and repressors that must be absent |
+| `Constraints` | frozen dataclass | The researcher's limits: max triggers, thresholds, forbidden motifs |
+| `Compatibility` | frozen dataclass | Whether a family can realise a trigger set, and why not |
+| `GateDesign` | frozen dataclass | One concrete switch: sequence, structure, family-specific properties |
+| `Segment` ★ | frozen dataclass | One stretch of the construct: kind, name, sequence, length |
+| `Plasmid` ★ | frozen dataclass | The assembled construct. Computed length and GC |
+| `LogicGraph` ★ | frozen dataclass | The Boolean structure: genes, gates, inversion, output, caption |
+| `Circuit` ★ | frozen dataclass | A full candidate: trigger set + design + plasmid + logic |
+| `Rejection` ★ | frozen dataclass | Why a candidate was excluded, and which filter did it |
+| `ScoredCandidate` ★ | frozen dataclass | A circuit with its metrics and score, before ranking |
+| `ToolRequirement` | frozen dataclass | An external tool a family needs, and its validated version |
+| `RunContext` ★ | frozen dataclass | Read-only per-run configuration. See the warning below |
+| `SegmentKind` ★ | **StrEnum** | promoter · switch · payload · terminator · backbone |
+| `GeneState` ★ | **StrEnum** | ON · OFF |
+| `Direction` ★ | **StrEnum** | HIGHER_BETTER · LOWER_BETTER |
+
+> **`RunContext` is not the `Job` class from [§3](#3-the-one-thing-not-to-build).** The
+> difference is the one that matters: it is **frozen**, set once before the pipeline
+> starts, and **accumulates nothing**. It carries the profile, constraints, families, seed
+> and output directory so thirteen stages do not each take six arguments. If anyone ever
+> adds a mutable field to it, it has become the god object and the benefit is gone.
+
+### Gate families (`gates/`)
+
+| Type | Kind | Purpose |
+|---|---|---|
+| `GateFamily` | **ABC** | The one real hierarchy. Every mechanism implements it |
+| `ToeholdGate` | class | Toehold switches — the implementation Step 5 writes |
+| `_PlannedFamily` | class | Shared body for designed-but-unimplemented families |
+| `CrisprGate`, `AntisenseGate` | class | Advertised as unavailable until implemented |
+
+### Scoring (`scoring/`) — already implemented and tested
+
+| Type | Kind | Purpose |
+|---|---|---|
+| `MetricSpec` | frozen dataclass | One metric: direction, weight, valid range, missing behaviour |
+| `HardFilter` | frozen dataclass | A disqualifying threshold |
+| `ScoringProfile` | frozen dataclass | The versioned comparison rules |
+
+### Tools (`tools/` ★)
+
+| Type | Kind | Purpose |
+|---|---|---|
+| `FoldResult` ★ | frozen dataclass | Structure and free energy from one fold. Cached |
+
+---
+
+### How they flow
 
 ```
-src/engine/
-├── domain.py        ★ NEW — the vocabulary: Trigger, TriggerSet, GateDesign,
-│                            Circuit, Plasmid, Constraints
-├── gates/
-│   └── base.py        GateFamily ABC only — imports from domain
+ExpressionTable          load_and_preprocess
+      │
+      ▼
+  [Trigger]              discover_features        ← needs sequences (open question 1)
+      │
+      ▼
+ [TriggerSet]            generate_trigger_sets    ← prune here; sets the compute budget
+      │
+      │  GateFamily.generate_designs
+      ▼
+ [GateDesign]            generate_gates           ← generator, never a list
+      │
+      │  GateFamily.evaluate_design → dict[str, float]
+      │  scoring.build_metrics      → [MetricValue]
+      ▼
+[ScoredCandidate]        evaluate_and_score       ← Rejection yielded, not dropped
+      │
+      │  + Plasmid + LogicGraph
+      ▼
+   [Circuit]             construct_circuits
+      │
+      ▼
+[CandidateResult]        publish_result           ← crosses the boundary
 ```
 
-One module, not a package. Split it when it exceeds a few hundred lines, not before
-(rule 12).
+**Everything left of `publish_result` is internal.** `Circuit`, `Plasmid` and
+`ScoredCandidate` never leave the engine — which is what lets the science churn without
+touching the contract, the API schemas or the frontend.
 
-### The types
+---
 
-```python
-# engine/domain.py
+### What deliberately is *not* a class
 
-@dataclass(frozen=True, slots=True)
-class Trigger:
-    """One input signal: a transcript whose presence drives the switch."""
-    feature_id: str
-    sequence: str
-    base_expression: float
-    target_expression: float
+As informative as the list above. Each of these is a dict, a primitive, or a function,
+and should stay that way:
 
-    @property
-    def separation(self) -> float:
-        return self.target_expression - self.base_expression
+| Thing | Why not a class |
+|---|---|
+| Raw metrics from `evaluate_design` | `dict[str, float \| None]`. A class would fix the metric set, which is exactly what must stay open |
+| `GateDesign.properties` | Family-specific and opaque to everything else. A dict is honest about that |
+| Warnings | Lists of strings. They are shown to a human, not reasoned about |
+| A sequence | `str`. Hashable, sliceable, `lru_cache`-able. A `Sequence` wrapper buys nothing |
+| The pipeline itself | Functions. See [§3](#3-the-one-thing-not-to-build) |
+| Tool versions | `dict[str, str]`, recorded and never inspected |
+| `params_snapshot` | A dict by contract. The engine reads what it recognises and ignores the rest, which is what lets the wizard add fields without an engine release |
 
-
-@dataclass(frozen=True, slots=True)
-class TriggerSet:
-    """The inputs to one circuit. Size determines the logic arity."""
-    triggers: tuple[Trigger, ...]          # tuple, not list — hashable and frozen
-    repressors: tuple[Trigger, ...] = ()   # must be ABSENT for the circuit to fire
-
-    @property
-    def arity(self) -> int:
-        return len(self.triggers)
-
-
-@dataclass(frozen=True, slots=True)
-class GateDesign:
-    """One concrete realisation of a trigger set in a particular chemistry."""
-    ref: str
-    family: str
-    trigger_set: TriggerSet
-    switch_sequence: str
-    structure: str = ""
-    toehold_length: int = 0
-    properties: dict = field(default_factory=dict)   # family-specific, opaque
-
-
-@dataclass(frozen=True, slots=True)
-class Segment:
-    """One stretch of the construct. `kind` is a closed vocabulary."""
-    kind: SegmentKind
-    name: str
-    sequence: str
-    length_bp: int
-
-
-@dataclass(frozen=True, slots=True)
-class Plasmid:
-    """The assembled construct. Data plus arithmetic, no behaviour."""
-    segments: tuple[Segment, ...]
-
-    @property
-    def length_bp(self) -> int:
-        return sum(s.length_bp for s in self.segments)
-
-    @property
-    def gc_content(self) -> float: ...
-
-    def sequence(self) -> str:
-        return "".join(s.sequence for s in self.segments)
-
-
-@dataclass(frozen=True, slots=True)
-class Circuit:
-    """A complete candidate: inputs, gate, construct, and the logic they express."""
-    ref: str
-    trigger_set: TriggerSet
-    design: GateDesign
-    plasmid: Plasmid
-    output: str
-```
-
-### Closed vocabularies get enums
-
-Strings work until someone types `"promotor"`. These are small, fixed, and appear in
-output:
-
-```python
-class SegmentKind(StrEnum):
-    PROMOTER = "promoter"
-    SWITCH = "switch"
-    PAYLOAD = "payload"
-    TERMINATOR = "terminator"
-    BACKBONE = "backbone"
-
-class Direction(StrEnum):
-    HIGHER_BETTER = "HIGHER_BETTER"
-    LOWER_BETTER = "LOWER_BETTER"
-```
-
-`StrEnum` members *are* strings, so they serialise into `JobResult` unchanged and the
-contract does not need to know.
-
-### Domain types stay inside the engine
-
-`Circuit` and `Plasmid` never cross the boundary. `publish_result` converts them into
-`CandidateResult` — plain dicts and floats. That is what keeps the contract stable while
-the science churns underneath it.
+The test: **does anything dispatch on its type, or enforce an invariant over it?** If not,
+a dict is lighter and does not need maintaining.
 
 ---
 
