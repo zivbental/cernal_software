@@ -248,7 +248,7 @@ it is strictly more to get right.
 | 3 | Hetzner VPS | Fly app (auto-stop) | No | Cheapest web hosting, but a public engine endpoint and a token to manage |
 | 4 | Hetzner VPS | Hetzner sibling, stopped when idle | **Yes** | No auto-wake, so you write the lifecycle. Simple, cheap, entirely in your control |
 | **5** | **AWS EC2 / Lightsail** | **AWS Batch on Fargate** | **Yes (VPC)** | Shape C. Zero idle, IAM instead of tokens, standard tooling. **See §2d** |
-| 6 | Google Compute Engine | Google Cloud Run Jobs | **Yes** | Same as 5 with less setup — the lightest of the cloud options |
+| **6** | **Google Compute Engine** | **Google Cloud Run Jobs** | **Yes** | Same as 5 with less setup — the lightest of the cloud options. **Designed in [gcp-deployment.md](gcp-deployment.md)** |
 
 **Recommendation:** if nothing constrains you, **combination 1** — put both on Fly. The
 Django app and worker run there perfectly well, the engine becomes a second app that

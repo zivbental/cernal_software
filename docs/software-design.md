@@ -24,7 +24,7 @@
 | **Step 3 — API + orchestration** | **Complete** | 24 endpoints, run state machine, django-q2 worker. Verified live: full workflow + cancellation over HTTP. 291 tests pass. |
 | **Step 4 — Frontend integration** | **Complete (4a–4g)** | React SPA served same-origin; login, wizard, progress, results, static pages. Plan: [step-4-frontend-plan.md](step-4-frontend-plan.md) |
 | Step 5 — Real science | Not started | Planned in [step-5-engine-plan.md](step-5-engine-plan.md) |
-| Step 6 — VPS deployment | Not started | |
+| Step 6 — Deployment | Not started | [gcp-deployment.md](gcp-deployment.md) · rationale in [engine-deployment.md](engine-deployment.md) |
 
 Update this table as steps complete. It is the fastest way for a new agent to orient.
 
