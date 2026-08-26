@@ -13,6 +13,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
 
 from apps.common.checksums import sha256_upload
@@ -55,8 +56,55 @@ MAX_ROWS = 200_000
 SAMPLE_ROWS = 5_000
 
 
+#: Bundled datasets a researcher can try the product with, so evaluating CERNAL does
+#: not require having your own differential-expression results to hand.
+EXAMPLES: dict[str, dict[str, str]] = {
+    "ecoli-oxidative-stress": {
+        "filename": "ecoli_oxidative_stress.csv",
+        "label": "E. coli — lactose metabolism to oxidative stress",
+        "description": (
+            "50 genes from a differential-expression analysis comparing standard growth "
+            "with oxidative stress. Twenty stress-response genes are up-regulated, "
+            "fifteen metabolic and motility genes down, and fifteen housekeeping genes "
+            "are unchanged."
+        ),
+    },
+}
+
+EXAMPLES_DIR = Path(__file__).resolve().parent / "examples"
+
+
 class DatasetValidationError(Exception):
     """The upload could not be accepted at all (as opposed to failing validation)."""
+
+
+@transaction.atomic
+def create_example_dataset(*, project, user, key: str = "ecoli-oxidative-stress"):
+    """Attach a bundled example dataset to a project.
+
+    Goes through exactly the same checksum and validation path as an upload, so an
+    example run is indistinguishable from a real one downstream.
+    """
+    try:
+        example = EXAMPLES[key]
+    except KeyError:
+        known = ", ".join(sorted(EXAMPLES))
+        raise DatasetValidationError(
+            f"Unknown example dataset '{key}'. Available: {known}."
+        ) from None
+
+    source = EXAMPLES_DIR / example["filename"]
+    if not source.is_file():
+        raise DatasetValidationError("That example dataset is missing from this install.")
+
+    return create_dataset(
+        project=project,
+        uploaded_file=SimpleUploadedFile(
+            example["filename"], source.read_bytes(), content_type="text/csv"
+        ),
+        user=user,
+        name=example["filename"],
+    )
 
 
 @transaction.atomic

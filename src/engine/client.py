@@ -151,6 +151,15 @@ _FEATURE_POOL = [
 
 _BASES = "ACGU"
 
+#: Downstream outputs, all equivalent. A run produces candidates for each one selected.
+_OUTPUT_NAMES = {
+    "gfp": "GFP",
+    "mcherry": "mCherry",
+    "luciferase": "Luciferase",
+    "ampr": "AmpR",
+    "apoptosis": "Apoptosis inducer",
+}
+
 
 class MockEngine:
     """Deterministic fake science.
@@ -264,6 +273,7 @@ class MockEngine:
     def _build_candidates(self, request, profile, rng, options) -> list[CandidateResult]:
         count = int(options.get("candidate_count", 12))
         families = request.gate_families or ["toehold"]
+        outputs = self._requested_outputs(request)
         max_triggers = int(request.params.get("max_triggers", 2))
 
         drafts: list[tuple[CandidateResult, dict]] = []
@@ -277,7 +287,6 @@ class MockEngine:
             if rng.random() < 0.5:
                 repressor = None
             family = rng.choice(families)
-            marker_name = self._marker_name(request)
 
             triggers = {
                 "features": [
@@ -290,8 +299,10 @@ class MockEngine:
                     for name in features
                 ]
             }
-            payload_name = self._payload_name(request)
-            segments = self._plasmid_segments(rng, payload_name, marker_name)
+            # Round-robin, so every selected output gets a comparable share of the
+            # candidate budget rather than one output dominating by chance.
+            payload_name = outputs[index % len(outputs)]
+            segments = self._plasmid_segments(rng, payload_name)
             design = {
                 "switch_sequence": self._sequence(rng, 92),
                 "structure": self._structure(rng, 92),
@@ -399,28 +410,24 @@ class MockEngine:
         return artifacts
 
     @staticmethod
-    def _payload_name(request: JobRequest) -> str:
-        """What the circuit expresses when it fires, from the run configuration."""
+    def _requested_outputs(request: JobRequest) -> list[str]:
+        """Every downstream output the researcher selected, in display form.
+
+        All outputs are equivalent: each one gets its own set of candidate plasmids,
+        because a construct expressing GFP is a different construct from one expressing
+        an antibiotic resistance marker.
+        """
         payload = request.params.get("payload") or {}
-        reporters = payload.get("reporters") or []
-        if reporters:
-            return {"gfp": "GFP", "mcherry": "mCherry", "luciferase": "Luciferase"}.get(
-                reporters[0], str(reporters[0])
-            )
-        return "Custom" if payload.get("custom_sequence") else "GFP"
+        selected = payload.get("outputs") or []
+
+        names = [_OUTPUT_NAMES.get(key, str(key)) for key in selected if key != "other"]
+        if "other" in selected and payload.get("custom_sequence"):
+            names.append("Custom")
+
+        return names or ["GFP"]
 
     @staticmethod
-    def _marker_name(request: JobRequest) -> str:
-        payload = request.params.get("payload") or {}
-        markers = payload.get("markers") or []
-        if markers:
-            return {"ampr": "AmpR", "kanr": "KanR", "apoptosis": "Apoptosis"}.get(
-                markers[0], str(markers[0])
-            )
-        return "AmpR"
-
-    @staticmethod
-    def _plasmid_segments(rng: random.Random, payload: str, marker: str) -> list[dict]:
+    def _plasmid_segments(rng: random.Random, payload: str) -> list[dict]:
         """The construct laid out end to end. Drives the plasmid map.
 
         ``kind`` is a stable vocabulary; colours belong to the frontend, not here.
@@ -429,7 +436,6 @@ class MockEngine:
             {"kind": "promoter", "name": "J23119", "length_bp": rng.randint(30, 60)},
             {"kind": "switch", "name": "toehold_switch", "length_bp": rng.randint(90, 160)},
             {"kind": "payload", "name": payload, "length_bp": rng.randint(600, 1800)},
-            {"kind": "marker", "name": marker, "length_bp": rng.randint(700, 1100)},
             {"kind": "terminator", "name": "B0015", "length_bp": rng.randint(100, 160)},
             {"kind": "backbone", "name": "pUC ori", "length_bp": rng.randint(900, 1500)},
         ]

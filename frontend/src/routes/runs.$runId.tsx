@@ -187,6 +187,7 @@ function Results({ runId }: { runId: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<"plasmid" | "logic">("plasmid");
 
+  const [outputFilter, setOutputFilter] = useState<string | null>(null);
   const candidates = useCandidates(runId, {
     includeRejected: filters.includeRejected,
     sort: filters.sort,
@@ -195,7 +196,11 @@ function Results({ runId }: { runId: string }) {
   const artifacts = useArtifacts(runId);
 
   const items = candidates.data?.items ?? [];
-  const visible = items.filter((c) => passesFilters(c, filters));
+  // A run can target several equivalent outputs, each compiled into its own plasmids.
+  const outputs = [...new Set(items.map(outputOf).filter(Boolean))] as string[];
+  const visible = items.filter(
+    (c) => passesFilters(c, filters) && (!outputFilter || outputOf(c) === outputFilter),
+  );
 
   useEffect(() => {
     if (!selectedId && visible.length > 0) setSelectedId(visible[0].id);
@@ -215,6 +220,32 @@ function Results({ runId }: { runId: string }) {
             title="Ranked Candidates"
             desc={`${items.length} candidates returned. ${visible.length} shown after filters.`}
           />
+
+          {outputs.length > 1 && (
+            <div className="mb-6 flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                Output
+              </span>
+              {[null, ...outputs].map((output) => (
+                <button
+                  key={output ?? "all"}
+                  onClick={() => setOutputFilter(output)}
+                  className={`rounded-md border px-3 py-1 text-xs transition ${
+                    outputFilter === output
+                      ? "border-mint bg-mint/10 text-mint"
+                      : "border-border bg-surface text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {output ?? `All (${items.length})`}
+                  {output && (
+                    <span className="ml-1.5 opacity-60">
+                      {items.filter((c) => outputOf(c) === output).length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
             <div className="rounded-2xl border border-border bg-gradient-to-br from-surface to-card p-6">
@@ -296,6 +327,7 @@ function Results({ runId }: { runId: string }) {
                   <CandidateRow
                     key={candidate.id}
                     candidate={candidate}
+                    output={outputs.length > 1 ? outputOf(candidate) : null}
                     selected={candidate.id === selectedId}
                     onSelect={() => setSelectedId(candidate.id)}
                   />
@@ -363,10 +395,12 @@ function Results({ runId }: { runId: string }) {
 
 function CandidateRow({
   candidate,
+  output,
   selected,
   onSelect,
 }: {
   candidate: Candidate;
+  output: string | null;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -386,6 +420,11 @@ function CandidateRow({
           <span className="truncate font-mono text-xs text-muted-foreground">
             {candidate.engine_ref}
           </span>
+          {output && (
+            <span className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              {output}
+            </span>
+          )}
           {candidate.is_rejected && (
             <span
               title={candidate.rejection_reason}
@@ -428,6 +467,9 @@ function toDesignLogic(graph: import("@/api/types").LogicGraph | undefined) {
     caption: graph?.caption ?? "",
   };
 }
+
+/** What a candidate expresses. Resolved by the API from design.logic_graph.output. */
+const outputOf = (candidate: Candidate) => candidate.output;
 
 function passesFilters(candidate: Candidate, filters: Filters) {
   if (!filters.includeRejected && candidate.is_rejected) return false;

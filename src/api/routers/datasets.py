@@ -11,9 +11,15 @@ from ninja.files import UploadedFile
 
 from api.auth import get_owned, owned_queryset
 from api.errors import Conflict, ValidationFailed
-from api.schemas import DatasetOut
+from api.schemas import DatasetOut, ExampleDatasetOut, UseExampleIn
 from apps.datasets.models import Dataset
-from apps.datasets.services import DatasetValidationError, create_dataset, delete_dataset
+from apps.datasets.services import (
+    EXAMPLES,
+    DatasetValidationError,
+    create_dataset,
+    create_example_dataset,
+    delete_dataset,
+)
 from apps.projects.models import Project
 
 router = Router()
@@ -38,6 +44,28 @@ def upload_dataset(
         dataset = create_dataset(
             project=project, uploaded_file=file, user=request.user, name=name or None
         )
+    except DatasetValidationError as exc:
+        raise ValidationFailed(str(exc)) from None
+
+    return Status(201, dataset)
+
+
+@router.get("/example-datasets", response=list[ExampleDatasetOut], auth=None)
+def list_examples(request):
+    """Datasets bundled with the app, so the product can be tried without your own data."""
+    return [
+        ExampleDatasetOut(key=key, label=example["label"], description=example["description"])
+        for key, example in sorted(EXAMPLES.items())
+    ]
+
+
+@router.post("/projects/{project_id}/datasets/example", response={201: DatasetOut})
+def use_example_dataset(request, project_id: UUID, payload: UseExampleIn):
+    """Copy a bundled example into this project as a real, validated dataset."""
+    project = get_owned(Project, project_id, request.user)
+
+    try:
+        dataset = create_example_dataset(project=project, user=request.user, key=payload.key)
     except DatasetValidationError as exc:
         raise ValidationFailed(str(exc)) from None
 

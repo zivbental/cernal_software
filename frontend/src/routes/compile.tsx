@@ -5,9 +5,11 @@ import { CircuitBoard, LayoutDashboard, Loader2 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import {
   useDatasets,
+  useExampleDatasets,
   useProject,
   useSubmitRun,
   useUploadDataset,
+  useUseExampleDataset,
   useVersion,
 } from "@/api/queries";
 import type { RunParams } from "@/api/types";
@@ -49,6 +51,8 @@ function CompilePage() {
   const datasets = useDatasets(projectId ?? "");
   const version = useVersion();
   const upload = useUploadDataset(projectId ?? "");
+  const examples = useExampleDatasets();
+  const useExample = useUseExampleDataset(projectId ?? "");
   const submit = useSubmitRun(projectId ?? "");
 
   const [config, setConfig] = useState<CompileConfig>(DEFAULT_CONFIG);
@@ -70,11 +74,15 @@ function CompilePage() {
     }
     if (!families.some((f) => f.name === config.mechanism && f.available))
       return "Choose an available switch mechanism.";
+    if (config.outputs.length === 0) return "Choose at least one downstream output.";
+    if (config.outputs.includes("other") && config.customPayload.length < 3)
+      return "Paste a sequence for your custom output, or deselect it.";
     return null;
   }, [projectId, config, datasets.data, families]);
 
+  const failed = upload.error ?? useExample.error;
   const uploadError =
-    upload.error instanceof ApiError ? upload.error.message : upload.error ? "Upload failed." : null;
+    failed instanceof ApiError ? failed.message : failed ? "Could not load that dataset." : null;
   const submitError = submit.error instanceof ApiError ? submit.error.message : null;
 
   async function onSubmit() {
@@ -91,8 +99,7 @@ function CompilePage() {
       },
       mechanism: config.mechanism,
       payload: {
-        reporters: config.reporters,
-        markers: config.markers,
+        outputs: config.outputs,
         custom_sequence: config.customPayload || null,
       },
       constraints: config.constraints,
@@ -161,6 +168,12 @@ function CompilePage() {
           onUpload={async (file) => {
             const dataset = await upload.mutateAsync(file);
             patch({ datasetId: dataset.validation_status === "VALID" ? dataset.id : null });
+          }}
+          examples={examples.data ?? []}
+          loadingExample={useExample.isPending}
+          onUseExample={async (key) => {
+            const dataset = await useExample.mutateAsync(key);
+            patch({ datasetId: dataset.id });
           }}
         />
 

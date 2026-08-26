@@ -50,6 +50,12 @@ export interface Project {
   updated_at: string;
 }
 
+export interface ExampleDataset {
+  key: string;
+  label: string;
+  description: string;
+}
+
 export interface ValidationReport {
   rows: number;
   columns: string[];
@@ -155,6 +161,8 @@ export interface CandidateDesign {
 export interface Candidate {
   id: string;
   run_id: string;
+  /** What this candidate expresses. Runs may target several equivalent outputs. */
+  output: string | null;
   engine_ref: string;
   rank: number | null;
   overall_score: number | null;
@@ -205,7 +213,8 @@ export interface RunParams {
   input_mode?: InputMode;
   logic?: { set_a: string[]; set_b: string[]; expression: string };
   mechanism?: string;
-  payload?: { reporters: string[]; markers: string[]; custom_sequence: string | null };
+  /** All outputs are equivalent; each selected one gets its own plasmid candidates. */
+  payload?: { outputs: string[]; custom_sequence: string | null };
   constraints?: {
     max_leakage: number;
     min_mfe: number;

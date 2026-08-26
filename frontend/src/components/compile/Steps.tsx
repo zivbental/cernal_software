@@ -5,10 +5,10 @@
  * These are controlled components over the shared `CompileConfig`.
  */
 
-import { Activity, Dna, FileUp, Sparkles, UploadCloud } from "lucide-react";
+import { Activity, Dna, FileUp, Loader2, Sparkles, UploadCloud } from "lucide-react";
 import { useRef } from "react";
 
-import type { Dataset, GateFamily } from "@/api/types";
+import type { Dataset, ExampleDataset, GateFamily } from "@/api/types";
 import { BacteriaIcon, HumanIcon, YeastIcon } from "@/components/icons/BioIcons";
 import { Panel, SectionHeading, AdvancedOptions } from "@/components/layout/Primitives";
 import { Check, SliderRow, Token } from "@/components/compile/Bits";
@@ -26,8 +26,8 @@ export interface CompileConfig {
   setA: string;
   setB: string;
   mechanism: string;
-  reporters: string[];
-  markers: string[];
+  /** Downstream outputs, all equivalent. Each selected one gets its own plasmids. */
+  outputs: string[];
   customPayload: string;
   constraints: {
     max_leakage: number;
@@ -46,8 +46,7 @@ export const DEFAULT_CONFIG: CompileConfig = {
   setA: "",
   setB: "",
   mechanism: "toehold",
-  reporters: ["gfp"],
-  markers: ["ampr"],
+  outputs: ["gfp"],
   customPayload: "",
   constraints: {
     max_leakage: 0.08,
@@ -77,6 +76,9 @@ export function StepInputs({
   uploading,
   uploadError,
   onUpload,
+  examples,
+  loadingExample,
+  onUseExample,
 }: {
   config: CompileConfig;
   patch: Patch;
@@ -84,6 +86,9 @@ export function StepInputs({
   uploading: boolean;
   uploadError: string | null;
   onUpload: (file: File) => void;
+  examples: ExampleDataset[];
+  loadingExample: boolean;
+  onUseExample: (key: string) => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const selected = datasets.find((d) => d.id === config.datasetId) ?? null;
@@ -204,6 +209,51 @@ export function StepInputs({
                 <p role="alert" className="mt-3 text-sm text-destructive">
                   {uploadError}
                 </p>
+              )}
+
+              {examples.length > 0 && (
+                <div className="mt-5 rounded-lg border border-border bg-card p-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-3.5 w-3.5 text-mint" />
+                    <span className="font-mono text-[11px] uppercase tracking-wider text-foreground">
+                      No data to hand?
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Load an example dataset to see how CERNAL works. It runs through
+                    exactly the same pipeline as your own data.
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {examples.map((example) => (
+                      <div
+                        key={example.key}
+                        className="flex items-start justify-between gap-3 rounded-md border border-border bg-surface p-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-foreground">
+                            {example.label}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-muted-foreground">
+                            {example.description}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={loadingExample}
+                          onClick={() => onUseExample(example.key)}
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:border-mint disabled:opacity-60"
+                        >
+                          {loadingExample ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-3.5 w-3.5" />
+                          )}
+                          Use example
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
 
               {datasets.length > 0 && (
@@ -457,115 +507,144 @@ export function StepLogic({
 
 /* ---------- Step 3 · Payload ---------- */
 
-const REPORTERS = [
-  { key: "gfp", name: "GFP", sub: "Green Fluorescent Protein", color: "oklch(0.82 0.18 145)" },
-  { key: "mcherry", name: "mCherry", sub: "Red Fluorescent Protein", color: "oklch(0.65 0.22 25)" },
-  { key: "luciferase", name: "Luciferase", sub: "Bioluminescent readout", color: "oklch(0.85 0.16 90)" },
-];
-
-const MARKERS = [
-  { key: "ampr", name: "Antibiotic Resistance", sub: "AmpR · KanR positive selection", kind: "Positive" },
-  { key: "apoptosis", name: "Apoptosis Inducer", sub: "Programmed cell death kill-switch", kind: "Negative" },
-];
+/**
+ * Every downstream output, presented as equivalent choices.
+ *
+ * The Lovable design split these into "reporting genes" and "selective markers", which
+ * implied a hierarchy that does not exist — a circuit expressing GFP and one expressing
+ * AmpR are the same kind of construct with a different payload. They are one list.
+ */
+const OUTPUTS = [
+  {
+    key: "gfp",
+    name: "GFP",
+    sub: "Green fluorescent protein",
+    note: "Visual readout",
+    color: "oklch(0.82 0.18 145)",
+  },
+  {
+    key: "mcherry",
+    name: "mCherry",
+    sub: "Red fluorescent protein",
+    note: "Visual readout",
+    color: "oklch(0.65 0.22 25)",
+  },
+  {
+    key: "luciferase",
+    name: "Luciferase",
+    sub: "Bioluminescent readout",
+    note: "Visual readout",
+    color: "oklch(0.85 0.16 90)",
+  },
+  {
+    key: "ampr",
+    name: "Antibiotic resistance",
+    sub: "AmpR · KanR",
+    note: "Positive selection",
+    color: "oklch(0.62 0.18 265)",
+  },
+  {
+    key: "apoptosis",
+    name: "Apoptosis inducer",
+    sub: "Programmed cell death kill-switch",
+    note: "Negative selection",
+    color: "oklch(0.45 0.14 300)",
+  },
+  {
+    key: "other",
+    name: "Other",
+    sub: "Your own coding sequence",
+    note: "Custom",
+    color: "oklch(0.68 0.03 250)",
+  },
+] as const;
 
 export function StepPayload({ config, patch }: { config: CompileConfig; patch: Patch }) {
-  const toggle = (list: string[], key: string) =>
-    list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
+  const toggle = (key: string) =>
+    patch({
+      outputs: config.outputs.includes(key)
+        ? config.outputs.filter((k) => k !== key)
+        : [...config.outputs, key],
+    });
+
+  const customOn = config.outputs.includes("other");
+  const count = config.outputs.length;
 
   return (
     <Panel>
       <SectionHeading
         kicker="Step 03 · Payload"
         title="Choose Downstream Output"
-        desc="Select the downstream output module — visual reporters for validation, functional selective markers for phenotype gating, or your own mRNA sequence."
+        desc="What the circuit expresses when it fires. Pick as many as you like — each one is compiled into its own set of plasmid candidates."
       />
 
-      <div className="space-y-8">
-        <div>
-          <div className="mb-3 flex items-center gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-mint" />
-            <div className="font-mono text-[11px] uppercase tracking-wider text-foreground">
-              Reporting Genes · Visual Validation
-            </div>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {REPORTERS.map((r) => {
-              const on = config.reporters.includes(r.key);
-              return (
-                <button
-                  key={r.key}
-                  type="button"
-                  onClick={() => patch({ reporters: toggle(config.reporters, r.key) })}
-                  className={`group relative overflow-hidden rounded-xl border p-5 text-left transition ${
-                    on ? "border-mint bg-mint/5" : "border-border bg-surface hover:border-mint/40"
-                  }`}
-                >
-                  <div
-                    className="absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-30 blur-xl"
-                    style={{ backgroundColor: r.color }}
-                  />
-                  <div className="relative flex items-start justify-between">
-                    <div
-                      className="h-10 w-10 rounded-full border-2 border-card shadow-clinical"
-                      style={{ backgroundColor: r.color }}
-                    />
-                    <Check on={on} />
-                  </div>
-                  <div className="relative mt-4">
-                    <div className="font-mono text-sm font-semibold text-foreground">{r.name}</div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{r.sub}</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {OUTPUTS.map((output) => {
+          const on = config.outputs.includes(output.key);
+          return (
+            <button
+              key={output.key}
+              type="button"
+              onClick={() => toggle(output.key)}
+              aria-pressed={on}
+              className={`group relative overflow-hidden rounded-xl border p-5 text-left transition ${
+                on ? "border-mint bg-mint/5 shadow-mint" : "border-border bg-surface hover:border-mint/40"
+              }`}
+            >
+              <div
+                className="absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-30 blur-xl"
+                style={{ backgroundColor: output.color }}
+              />
+              <div className="relative flex items-start justify-between">
+                <div
+                  className="h-10 w-10 rounded-full border-2 border-card shadow-clinical"
+                  style={{ backgroundColor: output.color }}
+                />
+                <Check on={on} />
+              </div>
+              <div className="relative mt-4">
+                <div className="font-mono text-sm font-semibold text-foreground">
+                  {output.name}
+                </div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{output.sub}</div>
+                <div className="mt-2 inline-block rounded-md bg-secondary px-2 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground">
+                  {output.note}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
-        <div>
-          <div className="mb-3 font-mono text-[11px] uppercase tracking-wider text-foreground">
-            Selective Markers · Phenotype Gating
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {MARKERS.map((m) => {
-              const on = config.markers.includes(m.key);
-              return (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => patch({ markers: toggle(config.markers, m.key) })}
-                  className={`flex items-start justify-between gap-4 rounded-xl border p-5 text-left transition ${
-                    on ? "border-mint bg-mint/5" : "border-border bg-surface hover:border-mint/40"
-                  }`}
-                >
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">{m.name}</div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{m.sub}</div>
-                    <div className="mt-2 inline-block rounded-md bg-secondary px-2 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground">
-                      {m.kind} selection
-                    </div>
-                  </div>
-                  <Check on={on} />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-3 font-mono text-[11px] uppercase tracking-wider text-foreground">
-            Custom Output · Your Own mRNA
-          </div>
+      {customOn && (
+        <div className="mt-6">
+          <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+            Custom output sequence
+          </label>
           <textarea
             value={config.customPayload}
             onChange={(e) =>
-              patch({ customPayload: e.target.value.toUpperCase().replace(/[^ACGU]/g, "") })
+              patch({
+                customPayload: e.target.value.toUpperCase().replace(/[^ACGUT]/g, "").replace(/T/g, "U"),
+              })
             }
-            placeholder="Optional — paste a coding sequence to express instead of a reporter"
+            placeholder="Paste the coding sequence to express"
             rows={3}
             className="w-full rounded-md border border-border bg-surface p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-mint focus:outline-none"
           />
+          <div className="mt-1 text-right font-mono text-[11px] text-muted-foreground">
+            {config.customPayload.length} nt
+          </div>
         </div>
-      </div>
+      )}
+
+      <p className="mt-6 rounded-lg border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground">
+        {count === 0
+          ? "Select at least one output."
+          : count === 1
+            ? "One output selected — candidates will all express it."
+            : `${count} outputs selected — candidates are compiled separately for each, and ranked together.`}
+      </p>
     </Panel>
   );
 }

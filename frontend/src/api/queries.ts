@@ -21,6 +21,7 @@ import {
   type CandidateDetail,
   type Dataset,
   type DecisionTag,
+  type ExampleDataset,
   type Paginated,
   type Project,
   type Run,
@@ -36,6 +37,7 @@ export const keys = {
   projects: ["projects"] as const,
   project: (id: string) => ["project", id] as const,
   datasets: (projectId: string) => ["datasets", projectId] as const,
+  exampleDatasets: ["example-datasets"] as const,
   runs: (projectId: string) => ["runs", projectId] as const,
   recentRuns: ["runs", "recent"] as const,
   run: (id: string) => ["run", id] as const,
@@ -126,6 +128,24 @@ export function useDatasets(projectId: string) {
     queryKey: keys.datasets(projectId),
     queryFn: () => api.get<Dataset[]>(`/projects/${projectId}/datasets`),
     enabled: Boolean(projectId),
+  });
+}
+
+/** Datasets bundled with the app, for trying it without your own data. */
+export function useExampleDatasets() {
+  return useQuery({
+    queryKey: keys.exampleDatasets,
+    queryFn: () => api.get<ExampleDataset[]>("/example-datasets"),
+    staleTime: Infinity,
+  });
+}
+
+export function useUseExampleDataset(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) =>
+      api.post<Dataset>(`/projects/${projectId}/datasets/example`, { key }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.datasets(projectId) }),
   });
 }
 

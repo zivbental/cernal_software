@@ -295,3 +295,88 @@ def test_local_engine_reports_the_same_installed_families():
 def test_capabilities_do_not_require_a_job(engine):
     """Cheap enough to call on every request."""
     assert engine.capabilities().schema_version
+
+
+# --- Downstream outputs -----------------------------------------------------------
+
+
+def _outputs(result):
+    return {c.design["logic_graph"]["output"] for c in result.candidates}
+
+
+def test_a_single_output_is_used_for_every_candidate(engine, make_request, progress):
+    result = engine.run(
+        make_request(params={"payload": {"outputs": ["mcherry"]}, "mock": {"candidate_count": 8}}),
+        progress,
+    )
+    assert _outputs(result) == {"mCherry"}
+
+
+def test_each_selected_output_gets_its_own_candidates(engine, make_request, progress):
+    """Outputs are equivalent: selecting three means three sets of plasmids, not one."""
+    result = engine.run(
+        make_request(
+            params={
+                "payload": {"outputs": ["gfp", "ampr", "apoptosis"]},
+                "mock": {"candidate_count": 12},
+            }
+        ),
+        progress,
+    )
+    assert _outputs(result) == {"GFP", "AmpR", "Apoptosis inducer"}
+
+
+def test_the_candidate_budget_is_shared_evenly_across_outputs(engine, make_request, progress):
+    result = engine.run(
+        make_request(
+            params={"payload": {"outputs": ["gfp", "mcherry"]}, "mock": {"candidate_count": 12}}
+        ),
+        progress,
+    )
+    counts = {}
+    for candidate in result.candidates:
+        name = candidate.design["logic_graph"]["output"]
+        counts[name] = counts.get(name, 0) + 1
+
+    assert counts == {"GFP": 6, "mCherry": 6}
+
+
+def test_a_marker_is_just_another_output_not_a_second_segment(engine, make_request, progress):
+    """Selecting AmpR means the construct expresses AmpR — it is the payload."""
+    result = engine.run(
+        make_request(params={"payload": {"outputs": ["ampr"]}, "mock": {"candidate_count": 4}}),
+        progress,
+    )
+    candidate = result.candidates[0]
+    payloads = [s for s in candidate.design["plasmid_segments"] if s["kind"] == "payload"]
+
+    assert [s["name"] for s in payloads] == ["AmpR"]
+    assert not [s for s in candidate.design["plasmid_segments"] if s["kind"] == "marker"]
+
+
+def test_a_custom_output_is_honoured_when_a_sequence_is_supplied(engine, make_request, progress):
+    result = engine.run(
+        make_request(
+            params={
+                "payload": {"outputs": ["other"], "custom_sequence": "AUGGCU"},
+                "mock": {"candidate_count": 4},
+            }
+        ),
+        progress,
+    )
+    assert _outputs(result) == {"Custom"}
+
+
+def test_other_without_a_sequence_falls_back_rather_than_producing_nothing(
+    engine, make_request, progress
+):
+    result = engine.run(
+        make_request(params={"payload": {"outputs": ["other"]}, "mock": {"candidate_count": 4}}),
+        progress,
+    )
+    assert _outputs(result) == {"GFP"}
+
+
+def test_no_payload_configuration_still_produces_candidates(engine, make_request, progress):
+    result = engine.run(make_request(params={"mock": {"candidate_count": 4}}), progress)
+    assert _outputs(result) == {"GFP"}

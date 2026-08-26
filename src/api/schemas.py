@@ -56,6 +56,18 @@ class ProjectOut(ModelSchema):
 # --- Datasets ---------------------------------------------------------------------
 
 
+class ExampleDatasetOut(Schema):
+    """A bundled dataset a researcher can try the product with."""
+
+    key: str
+    label: str
+    description: str
+
+
+class UseExampleIn(Schema):
+    key: str = "ecoli-oxidative-stress"
+
+
 class DatasetOut(ModelSchema):
     project_id: UUID
     filename: str
@@ -168,6 +180,18 @@ class MetricOut(Schema):
 
 class CandidateOut(ModelSchema):
     run_id: UUID
+    output: str | None
+
+    @staticmethod
+    def resolve_output(obj) -> str | None:
+        """What this candidate expresses.
+
+        A run can target several equivalent outputs, each compiled into its own
+        plasmids, so the list view needs to distinguish them without fetching every
+        candidate's full design.
+        """
+        graph = (obj.design or {}).get("logic_graph") or {}
+        return graph.get("output")
 
     class Meta:
         model = Candidate
