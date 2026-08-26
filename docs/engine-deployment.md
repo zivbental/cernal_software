@@ -118,6 +118,70 @@ Platform.
 
 ---
 
+## 2a. "Can one instance launch a bigger sub-instance?"
+
+A common and reasonable question, and the answer clears up which of the shapes above is
+actually available to you.
+
+**No — there is no parent/child relationship between compute instances.** You cannot nest
+a machine with more resources inside a smaller one. Nested virtualisation exists on some
+providers, but a guest is always bounded by its host: a 2 vCPU VPS can never contain an
+8 vCPU anything. Resources come from the provider's hardware, not from your instance.
+
+**But the thing you want works.** Your small always-on VPS can, through the provider's
+API, create a **sibling** instance of any size — same account, same project, same private
+network, one bill. That is Shape B, and "same private network" is what makes it *feel*
+like it lives under the web server:
+
+```
+        ┌─ your cloud project ────────────────────────┐
+        │                                             │
+        │  web VPS (2 vCPU, always on)                │
+        │      │  provider API: create / delete       │
+        │      ▼                                      │
+        │  engine host (16 vCPU, minutes per day)     │
+        │                                             │
+        │  ── private network, no public IP ──        │
+        └─────────────────────────────────────────────┘
+```
+
+The engine host needs **no public address at all**: the web VPS reaches it on an internal
+IP, which resolves most of [§7](#7-security) by construction rather than by firewall rules.
+
+### The three mechanisms, concretely
+
+| Mechanism | How it works | Idle cost | Verdict |
+|---|---|---|---|
+| **Create / destroy a sibling** | Web VPS calls the provider API to create an instance per run, then deletes it | **Zero** — the machine does not exist | Shape B. Most control, most code |
+| **Stop / start a sibling** | The instance persists but is powered off between runs | Usually **disk only** — a few € a month | Shape B, simpler. Faster boot, no re-provisioning |
+| **Resize one instance** | Scale a single machine up before a run, down after | Full price until you scale down | **Avoid** — see below |
+| **Managed jobs / auto-wake** | No instance you own; the provider runs a container on demand | Zero | Shapes A and C. Least code |
+
+### Why not just resize?
+
+It looks like the simplest option and it is the worst fit here:
+
+- **It needs a reboot.** If that is your web VPS, the app goes down during every run.
+- **Scale-down is a step that can silently fail**, and you keep paying the large rate
+  until somebody notices. Creating and destroying leaves no such trap.
+- **It does not compose.** Two concurrent runs still contend on one machine, where
+  siblings just means two of them.
+
+Resizing is for load that grows and stays grown. Yours is spiky and short — the opposite.
+
+### What to reach for
+
+- **Auto-wake or managed jobs** (Shapes A / C) if your provider offers them. Nothing to
+  create, nothing to remember to destroy.
+- **Stop / start a sibling** (Shape B) if not. Keep a pre-provisioned engine host powered
+  off; boot it on submit, power it down when idle. Faster than re-creating, and the disk
+  cost is small enough to ignore.
+- **Create / destroy** only if you want the machine type to vary per run, or you refuse
+  to pay for an idle disk.
+
+In all three the Platform is unchanged — `CERNAL_ENGINE` points at `HttpEngineClient` and
+everything above the boundary carries on as it is.
+
 ## 3. What splitting actually forces you to build
 
 This is the honest cost. Today the engine reads a local file and writes to a local
