@@ -22,7 +22,7 @@
 | **Step 1 — Engine contract + MockEngine** | **Complete** | Contract, MockEngine, gate/scoring layers, boundary test. No Django code touched. |
 | **Step 2 — Domain model** | **Complete** | 8 models, migrations, admin back-office, `seed_demo`. |
 | **Step 3 — API + orchestration** | **Complete** | 24 endpoints, run state machine, django-q2 worker. Verified live: full workflow + cancellation over HTTP. 291 tests pass. |
-| Step 4 — Frontend integration | Not started | |
+| Step 4 — Frontend integration | Not started | Planned in [step-4-frontend-plan.md](step-4-frontend-plan.md) |
 | Step 5 — Real science | Not started | |
 | Step 6 — VPS deployment | Not started | |
 

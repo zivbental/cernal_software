@@ -1,0 +1,250 @@
+{% extends "layout.html" %}
+{% block title %}Description | iGEM Wiki{% endblock %}
+{% block page_content %}
+<div style="margin-top: 4rem;">
+    <h1>Description</h1>
+    <section class="glass-card">
+        {% if md_content %}
+        <div class="md-content">{{ md_content | safe }}</div>
+        {% else %}
+        <p>Content for Description coming soon.</p>
+        {% endif %}
+    </section>
+</div>
+
+<!-- ── Register info-dropdown content for this page ──────
+     Keys must be lowercase. The engine in app.js scans for
+     ((info: key)) markers in the rendered markdown and
+     replaces them with interactive trigger pills + bars.
+     To add more dropdowns:
+       1. Add a new entry below (key → { title, body })
+       2. Put ((info: your key)) anywhere in the markdown
+     ─────────────────────────────────────────────────────── -->
+<script>
+    window.DROPDOWN_CONTENT = {
+        // Entry 1
+        'tet-on/off or iptg inducible promoters': {
+            title: 'IPTG & Tet Inducible Systems',
+            body: `
+                AI description (change later): <p><strong>IPTG inducible promoters</strong> use the <em>lac</em> operon mechanism.
+                IPTG (Isopropyl β-D-1-thiogalactopyranoside) is a molecular mimic of allolactose
+                that binds the LacI repressor, releasing it from the operator sequence and allowing
+                transcription of downstream genes. The system provides a simple ON/OFF switch
+                controlled entirely by adding or removing IPTG from the growth medium.</p>
+                <p><strong>Tet-ON/OFF systems</strong> are based on the tetracycline resistance operon.
+                In the <em>Tet-OFF</em> configuration, the tetracycline transactivator (tTA) drives
+                transcription in the absence of tetracycline or doxycycline; adding the inducer
+                prevents tTA from binding DNA, silencing expression. The <em>Tet-ON</em> variant uses
+                a reverse tTA (rtTA) that requires doxycycline to bind DNA and activate
+                transcription.</p>
+                <p>Both systems are widely used as foundational tools in synthetic biology for
+                controlling gene expression. However, they are limited by their reliance on
+                external chemical inducers, their host-specific characterisation requirements,
+                and their inability to respond to the cell's own internal state — the exact
+                limitations CERNAL aims to overcome.</p>
+            `
+        },
+
+        // Entry 2
+        'transcriptomic': {
+            title: 'Transcriptom',
+            body: `
+                The transcriptom helps us define the cells' identity and state. It is like the fingerprint of a cell.
+            `
+        }
+    };
+</script>
+
+<style>
+    /* ── Carousel selector (case studies) ─────────────── */
+    .carousel-selector {
+        display: flex;
+        gap: 1.5rem;
+        overflow-x: auto;
+        padding: 1rem 0 2rem 0;
+        margin: 2rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+    }
+
+    .carousel-selector::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .carousel-selector::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 10px;
+    }
+
+    .carousel-btn {
+        flex: 0 0 auto;
+        padding: 1.25rem;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.02);
+        color: inherit;
+        cursor: pointer;
+        min-width: 250px;
+        max-width: 300px;
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        backdrop-filter: blur(10px);
+    }
+
+    .carousel-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-2px);
+    }
+
+    .carousel-btn.active {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.4);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .carousel-btn .poc-num {
+        font-size: 0.85rem;
+        opacity: 0.7;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .carousel-btn .poc-title {
+        font-weight: 600;
+        font-size: 1.15rem;
+        line-height: 1.4;
+    }
+
+    .study-content {
+        animation: fadeIn 0.4s ease-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const contentDiv = document.querySelector('.md-content');
+        if (!contentDiv) return;
+
+        // ═══════════════════════════════════════════════════════
+        // CASE STUDY CAROUSEL — [§Selector element for case study]
+        // ═══════════════════════════════════════════════════════
+
+        // 1. Find the placeholder node
+        let placeholderNode = null;
+        const walker = document.createTreeWalker(contentDiv, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        while (node = walker.nextNode()) {
+            if (node.nodeValue.includes('[§Selector element for case study]')) {
+                placeholderNode = node.parentNode;
+                break;
+            }
+        }
+
+        if (!placeholderNode) return;
+
+        // 2. Parse the case studies
+        const caseStudies = [];
+        let currentStudy = null;
+        const children = Array.from(contentDiv.children);
+        let isParsingStudy = false;
+
+        for (let i = 0; i < children.length; i++) {
+            const child = children[i];
+
+            // Detect start of a new case study
+            if (child.tagName === 'H3' && child.textContent.includes('Proof of Concept')) {
+                isParsingStudy = true;
+
+                const rawTitle = child.textContent.replace('Proof of Concept ', '').trim();
+                const splitIndex = rawTitle.indexOf(':');
+                let pocNumber = 'Case Study';
+                let shortTitle = rawTitle;
+
+                if (splitIndex !== -1) {
+                    pocNumber = rawTitle.substring(0, splitIndex).trim();
+                    shortTitle = rawTitle.substring(splitIndex + 1).trim();
+                }
+
+                currentStudy = {
+                    header: child,
+                    pocNumber: pocNumber,
+                    shortTitle: shortTitle,
+                    elements: []
+                };
+                caseStudies.push(currentStudy);
+            }
+            // Stop parsing if we hit another H3 that isn't a POC
+            else if (child.tagName === 'H3' && !child.textContent.includes('Proof of Concept')) {
+                isParsingStudy = false;
+            }
+            // Add elements to the current study
+            else if (isParsingStudy) {
+                currentStudy.elements.push(child);
+            }
+        }
+
+        if (caseStudies.length === 0) return;
+
+        // 3. Create the Carousel UI
+        const carouselContainer = document.createElement('div');
+        carouselContainer.className = 'carousel-selector';
+
+        caseStudies.forEach((study, index) => {
+            // Wrap study content
+            const studyContainer = document.createElement('div');
+            studyContainer.className = `study-content study-content-${index}`;
+            studyContainer.style.display = 'none';
+
+            contentDiv.insertBefore(studyContainer, study.header);
+            studyContainer.appendChild(study.header);
+            study.elements.forEach(el => studyContainer.appendChild(el));
+
+            study.container = studyContainer;
+
+            // Create Button
+            const btn = document.createElement('button');
+            btn.className = 'carousel-btn';
+
+            btn.innerHTML = `
+            <span class="poc-num">Proof of Concept ${study.pocNumber}</span>
+            <span class="poc-title">${study.shortTitle}</span>
+        `;
+
+            btn.addEventListener('click', () => {
+                const wasActive = btn.classList.contains('active');
+
+                // Hide all
+                caseStudies.forEach(s => s.container.style.display = 'none');
+                document.querySelectorAll('.carousel-btn').forEach(b => b.classList.remove('active'));
+
+                // Toggle on if it wasn't already active
+                if (!wasActive) {
+                    study.container.style.display = 'block';
+                    btn.classList.add('active');
+                }
+            });
+
+            carouselContainer.appendChild(btn);
+        });
+
+        // 4. Replace placeholder
+        placeholderNode.parentNode.replaceChild(carouselContainer, placeholderNode);
+    });
+</script>
+{% endblock %}

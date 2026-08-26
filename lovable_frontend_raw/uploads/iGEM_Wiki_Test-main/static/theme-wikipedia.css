@@ -1,0 +1,160 @@
+/* ═══════════════════════════════════════════════════════
+   THEME: Wikipedia / Flat Encyclopedia
+   Load this stylesheet to override the default glassmorphism.
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f6f6;
+  --bg-accent: rgba(0, 0, 0, 0.04);
+  --text-primary: #202122;
+  --text-secondary: #54595d;
+  --accent-color: #3366cc;
+  --accent-glow: rgba(51, 102, 204, 0.15);
+  --gradient-main: none;
+  --glass-bg: #ffffff;
+  --glass-border: #a2a9b1;
+  --glass-blur: none;
+  --font-heading: 'Linux Libertine', 'Georgia', 'Times', 'Source Serif Pro', serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Remove animated background */
+.bg-animation {
+  display: none;
+}
+
+/* Flatten the nav */
+nav {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid #a2a9b1;
+  box-shadow: none;
+}
+
+/* Headings: plain dark text, no gradient */
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: unset;
+  background-clip: unset;
+  color: #000000;
+}
+h1 {
+  font-size: 1.8rem;
+  font-weight: 400;
+  border-bottom: 1px solid #a2a9b1;
+  padding-bottom: 0.25rem;
+  display: block;
+}
+h2 {
+  font-size: 1.5rem;
+  font-weight: 400;
+  border-bottom: 1px solid #a2a9b1;
+  padding-bottom: 0.2rem;
+}
+h3 {
+  font-size: 1.17rem;
+  font-weight: 700;
+  display: block;
+}
+
+/* Paragraphs & links */
+p {
+  color: #202122;
+  font-size: 0.935rem;
+  line-height: 1.65;
+}
+a {
+  color: #3366cc;
+}
+a:hover {
+  text-decoration: underline;
+  color: #3366cc;
+}
+
+/* Flatten glass cards */
+.glass-card {
+  background: #ffffff;
+  border: 1px solid #a2a9b1;
+  border-radius: 2px;
+  box-shadow: none;
+}
+.glass-card::before {
+  display: none;
+}
+.glass-card:hover {
+  transform: none;
+  background: #ffffff;
+  border-color: #a2a9b1;
+  box-shadow: none;
+}
+
+/* Flatten sidebar */
+.wiki-sidebar {
+  background: #f6f6f6;
+  border: 1px solid #a2a9b1;
+  border-radius: 2px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.wiki-sidebar__link--active {
+  color: #3366cc;
+  background: rgba(51,102,204,0.08);
+  border-left-color: #3366cc;
+}
+
+/* Flatten footer */
+footer {
+  background: #f6f6f6;
+  border-top: 1px solid #a2a9b1;
+  color: #54595d;
+}
+
+/* Flatten references dropdown */
+.wiki-ref-dropdown {
+  border: 1px solid #a2a9b1;
+  border-radius: 2px;
+  background: #f6f6f6;
+  backdrop-filter: none;
+}
+.wiki-ref-dropdown summary {
+  color: #202122;
+  font-family: var(--font-heading);
+}
+.wiki-ref-dropdown .wiki-ref-body {
+  border-top: 1px solid #a2a9b1;
+}
+
+/* Tables */
+table {
+  border: 1px solid #a2a9b1;
+}
+th {
+  background: #eaecf0;
+  border: 1px solid #a2a9b1;
+  color: #202122;
+}
+td {
+  border: 1px solid #a2a9b1;
+}
+
+/* Buttons */
+.btn-primary {
+  background: #3366cc;
+  box-shadow: none;
+  border-radius: 2px;
+}
+.btn-primary:hover {
+  background: #2a4b8d;
+  transform: none;
+  box-shadow: none;
+}

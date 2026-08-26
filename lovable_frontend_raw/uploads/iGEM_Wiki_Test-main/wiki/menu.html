@@ -1,0 +1,63 @@
+<nav>
+    <div class="nav-container">
+        <a href="{{ url_for('home') }}" class="nav-logo">
+            <span>&gt;_</span>CERNAL
+        </a>
+        <button class="mobile-toggle" aria-label="Toggle Menu">☰</button>
+        <ul class="nav-links">
+            <li class="nav-item"><a href="{{ url_for('home') }}" class="nav-link">Home</a></li>
+            <li class="nav-item dropdown">
+                <a href="{{ url_for('render_page', page_name='Project') }}" class="nav-link">
+                    Project <span class="dropdown-arrow">▾</span>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="{{ url_for('render_page', page_name='description') }}" class="dropdown-link">Description</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='engineering') }}" class="dropdown-link">Engineering</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='notebook') }}" class="dropdown-link">Notebook</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='judging') }}" class="dropdown-link">Judging</a></li>
+                </ul>
+            </li>
+            <li class="nav-item dropdown">
+                <a href="{{ url_for('render_page', page_name='wet-lab') }}" class="nav-link">
+                    Wet Lab <span class="dropdown-arrow">▾</span>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="{{ url_for('render_page', page_name='overview') }}" class="dropdown-link">Overview</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='experiments') }}" class="dropdown-link">Experiments</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='results') }}" class="dropdown-link">Results</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='safety') }}" class="dropdown-link">Safety</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='parts') }}" class="dropdown-link">Parts</a></li>
+                </ul>
+            </li>
+            <li class="nav-item dropdown">
+                <a href="{{ url_for('render_page', page_name='dry-lab') }}" class="nav-link">
+                    Dry Lab <span class="dropdown-arrow">▾</span>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="{{ url_for('render_page', page_name='model') }}" class="dropdown-link">Model</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='software') }}" class="dropdown-link">Software</a></li>
+                </ul>
+            </li>
+            <li class="nav-item dropdown">
+                <a href="{{ url_for('render_page', page_name='engagement') }}" class="nav-link">
+                    Engagement <span class="dropdown-arrow">▾</span>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="{{ url_for('render_page', page_name='human-practices') }}" class="dropdown-link">Human Practices</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='entrepreneurship') }}" class="dropdown-link">Entrepreneurship</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='contributions') }}" class="dropdown-link">Contributions</a></li>
+                </ul>
+            </li>
+            <li class="nav-item dropdown">
+                <a href="{{ url_for('render_page', page_name='Team') }}" class="nav-link">
+                    Team <span class="dropdown-arrow">▾</span>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="{{ url_for('render_page', page_name='members') }}" class="dropdown-link">Members</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='partners') }}" class="dropdown-link">Partners</a></li>
+                    <li><a href="{{ url_for('render_page', page_name='attributions') }}" class="dropdown-link">Attributions</a></li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+</nav>

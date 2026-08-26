@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+:root{
+  --background:oklch(0.99 0.003 220);
+  --foreground:oklch(0.22 0.03 250);
+  --card:oklch(1 0 0);
+  --primary:oklch(0.18 0.02 25);
+  --primary-foreground:oklch(0.99 0 0);
+  --secondary:oklch(0.96 0.006 25);
+  --muted-foreground:oklch(0.48 0.02 25);
+  --border:oklch(0.91 0.008 25);
+  --mint:oklch(0.48 0.19 26);
+  --mint-foreground:oklch(0.99 0 0);
+  --deep-blue:oklch(0.16 0.02 25);
+  --accent:oklch(0.48 0.19 26);
+  --accent-foreground:oklch(0.99 0 0);
+  --surface:oklch(0.985 0.003 25);
+  --surface-2:oklch(0.97 0.005 25);
+  --gradient-mint:linear-gradient(135deg,oklch(0.55 0.2 28),oklch(0.42 0.2 26));
+  --gradient-deep:linear-gradient(135deg,oklch(0.2 0.02 25),oklch(0.1 0.01 25));
+  --shadow-clinical:0 1px 2px oklch(0.18 0.02 25 / 0.06),0 8px 24px -12px oklch(0.48 0.19 26 / 0.18);
+  --shadow-mint:0 8px 28px -10px oklch(0.48 0.19 26 / 0.5);
+  --font-display:"Space Grotesk",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--background);color:var(--foreground);font-family:var(--font-display);-webkit-font-smoothing:antialiased}
+button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+a{text-decoration:none;color:inherit}
+a:hover{color:var(--mint)}
+p{margin:0}
+@keyframes cernal-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes gq-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}
+@keyframes gq-ripple-go{0%{transform:translate(-50%,-50%) scale(.15);opacity:.5}100%{transform:translate(-50%,-50%) scale(2.6);opacity:0}}
+.gq-ripple{position:absolute;left:0;top:0;height:26px;width:26px;border-radius:999px;background:var(--mint);transform:translate(-50%,-50%) scale(0);opacity:0}
+.gq-ripple.gq-go{animation:gq-ripple-go .5s ease-out forwards}
+.gq-screen-grid{background-image:linear-gradient(to right,oklch(0.32 0.11 255 / 0.05) 1px,transparent 1px),linear-gradient(to bottom,oklch(0.32 0.11 255 / 0.05) 1px,transparent 1px);background-size:28px 28px}
+.qg-tip{opacity:0;transform:translate(-50%,4px);transition:opacity .15s ease,transform .15s ease;pointer-events:none}
+.qg-tick:hover .qg-tip{opacity:1;transform:translate(-50%,0)}
+.qg-tick:hover .qg-bar{background:var(--mint) !important}
+</style>
+</helmet>
+
+<div style="height:100vh;background:var(--background);display:flex;flex-direction:column;overflow:hidden">
+
+  <!-- NAV -->
+  <header style="flex-shrink:0;z-index:40;border-bottom:1px solid var(--border);background:color-mix(in oklab,var(--background) 80%,transparent);backdrop-filter:blur(20px)">
+    <div style="margin:0 auto;display:flex;height:66px;max-width:1400px;align-items:center;justify-content:space-between;padding:0 32px;gap:16px">
+      <div style="display:flex;align-items:center;gap:40px;min-width:0">
+        <a href="./CERNAL Compiler.dc.html"><img src="uploads/cernal-logo-loop (2).gif" alt="CERNAL" style="height:40px;width:auto;display:block;mix-blend-mode:multiply"></a>
+        <nav style="display:flex;align-items:center;gap:4px">
+          <a href="./CERNAL Compiler.dc.html" style="border-radius:6px;padding:6px 12px;font-size:14px;color:var(--muted-foreground);transition:all .15s">Dashboard</a>
+          <a href="#" style="border-radius:6px;padding:6px 12px;font-size:14px;background:var(--secondary);color:var(--foreground);font-weight:500;transition:all .15s">Quick Guide</a>
+          <a href="#" style="border-radius:6px;padding:6px 12px;font-size:14px;color:var(--muted-foreground);transition:all .15s">Use Cases</a>
+          <a href="./About Us.dc.html" style="border-radius:6px;padding:6px 12px;font-size:14px;color:var(--muted-foreground);transition:all .15s">About Us</a>
+        </nav>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);padding:6px 12px;font-size:12px">
+          <span style="height:6px;width:6px;border-radius:999px;background:var(--mint);animation:cernal-pulse 2s cubic-bezier(.4,0,.6,1) infinite"></span>
+          <span style="font-family:var(--font-mono);color:var(--muted-foreground)">TAU iGEM Lab</span>
+        </div>
+        <div style="display:grid;height:36px;width:36px;place-items:center;border-radius:999px;background-image:var(--gradient-mint);color:var(--mint-foreground)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- PAGE HEADER -->
+  <div style="flex-shrink:0;border-bottom:1px solid var(--border);background:color-mix(in oklab,var(--surface) 60%,transparent)">
+    <div style="margin:0 auto;max-width:1400px;padding:9px 32px;display:flex;align-items:center;gap:24px">
+      <button onClick="{{ onBack }}" style="{{ backStyle }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg>
+        Back
+      </button>
+
+      <!-- PROGRESS RAIL -->
+      <div style="flex:1;display:flex;justify-content:center;align-items:flex-end;gap:26px;flex-wrap:wrap">
+        <sc-for list="{{ groupsView }}" as="g" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <span style="{{ g.labelStyle }}">{{ g.name }}</span>
+            <div style="display:flex;align-items:flex-end;gap:13px;border-bottom:1px solid var(--border);padding-bottom:0">
+              <sc-for list="{{ g.ticks }}" as="t" hint-placeholder-count="3">
+                <button class="qg-tick" onClick="{{ t.onClick }}" style="position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;border:none;background:none;padding:0 0 8px;cursor:pointer" aria-label="Jump to step">
+                  <span class="qg-tip" style="position:absolute;bottom:calc(100% + 6px);left:50%;white-space:nowrap;border-radius:7px;background:var(--primary);color:var(--primary-foreground);padding:5px 10px;font-family:var(--font-mono);font-size:10px;letter-spacing:0.02em;box-shadow:var(--shadow-clinical);z-index:6">{{ t.title }}</span>
+                  <span class="qg-bar" style="{{ t.barStyle }}"></span>
+                  <span style="{{ t.numStyle }}">{{ t.num }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <button onClick="{{ onNext }}" style="{{ nextStyle }}">
+        {{ nextLabel }}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <main style="flex:1;min-height:0;margin:0 auto;width:100%;max-width:1400px;padding:18px 32px 22px;display:flex;flex-direction:column">
+    <div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(340px,400px) minmax(0,1fr);gap:32px;align-items:stretch">
+
+      <!-- LEFT · EXPLAINER -->
+      <div style="display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0;overflow-y:auto;padding-right:4px">
+        <div>
+          <div style="font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:var(--mint)">{{ groupLabel }} · Step {{ numLabel }}</div>
+          <h2 style="margin:5px 0 0;font-size:23px;font-weight:600;letter-spacing:-0.02em;color:var(--foreground);text-wrap:balance">{{ title }}</h2>
+        </div>
+
+        <!-- What it does -->
+        <div style="border-radius:12px;border:1px solid var(--border);background:var(--card);padding:13px 16px;box-shadow:var(--shadow-clinical);border-left:3px solid var(--mint)">
+          <div style="font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.14em;color:var(--mint);margin-bottom:6px">What this does</div>
+          <p style="font-size:13.5px;line-height:1.5;color:var(--foreground)">{{ whatText }}</p>
+        </div>
+
+        <!-- Why it matters -->
+        <div style="border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:13px 16px;border-left:3px solid var(--primary)">
+          <div style="font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.14em;color:var(--muted-foreground);margin-bottom:6px">Why it matters</div>
+          <p style="font-size:13px;line-height:1.5;color:var(--muted-foreground)">{{ whyText }}</p>
+        </div>
+
+        <!-- Expandables -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <!-- Tips -->
+          <div style="border-radius:12px;border:1px solid var(--border);background:var(--card);overflow:hidden">
+            <button onClick="{{ toggleTips }}" style="display:flex;width:100%;align-items:center;justify-content:space-between;padding:10px 16px;text-align:left" style-hover="background:var(--surface)">
+              <span style="display:flex;align-items:center;gap:10px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--mint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path><path d="M9 18h6"></path><path d="M10 22h4"></path></svg>
+                <span style="font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--foreground);font-weight:600">Tips &amp; how to choose</span>
+              </span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="{{ tipsChevStyle }}"><path d="m6 9 6 6 6-6"></path></svg>
+            </button>
+            <sc-if value="{{ tipsOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="border-top:1px solid var(--border);padding:16px 18px">
+                <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px">
+                  <sc-for list="{{ tips }}" as="t" hint-placeholder-count="3">
+                    <li style="display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:var(--muted-foreground)">
+                      <span style="margin-top:7px;height:5px;width:5px;border-radius:999px;background:var(--mint);flex-shrink:0"></span>
+                      <span>{{ t }}</span>
+                    </li>
+                  </sc-for>
+                </ul>
+              </div>
+            </sc-if>
+          </div>
+
+          <!-- Biology -->
+          <div style="border-radius:12px;border:1px solid var(--border);background:var(--card);overflow:hidden">
+            <button onClick="{{ toggleBio }}" style="display:flex;width:100%;align-items:center;justify-content:space-between;padding:10px 16px;text-align:left" style-hover="background:var(--surface)">
+              <span style="display:flex;align-items:center;gap:10px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--mint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M5 2c0 5 14 7 14 10S5 17 5 22"></path><path d="M19 2c0 5-14 7-14 10s14 7 14 10"></path><path d="M7 5h10M9 9h6M9 15h6M7 19h10"></path></svg>
+                <span style="font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--foreground);font-weight:600">The biology behind it</span>
+              </span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="{{ bioChevStyle }}"><path d="m6 9 6 6 6-6"></path></svg>
+            </button>
+            <sc-if value="{{ bioOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="border-top:1px solid var(--border);padding:16px 18px;font-size:13.5px;line-height:1.6;color:var(--muted-foreground)">{{ bioText }}</div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT · SCREEN -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0;justify-content:center">
+        <div style="border-radius:14px;border:1px solid var(--border);background:var(--card);box-shadow:var(--shadow-clinical);overflow:hidden">
+          <!-- window chrome -->
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
+            <div style="display:flex;gap:7px">
+              <span style="height:11px;width:11px;border-radius:999px;background:oklch(0.72 0.17 25)"></span>
+              <span style="height:11px;width:11px;border-radius:999px;background:oklch(0.82 0.14 90)"></span>
+              <span style="height:11px;width:11px;border-radius:999px;background:oklch(0.75 0.15 145)"></span>
+            </div>
+            <div style="flex:1;display:flex;justify-content:center">
+              <div style="display:inline-flex;align-items:center;gap:8px;border-radius:7px;border:1px solid var(--border);background:var(--card);padding:5px 14px;font-family:var(--font-mono);font-size:11px;color:var(--muted-foreground);max-width:100%">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;flex-shrink:0"><rect width="18" height="11" x="3" y="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                {{ route }}
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;border-radius:999px;background:color-mix(in oklab,var(--mint) 10%,transparent);padding:3px 10px;font-family:var(--font-mono);font-size:10px;letter-spacing:0.05em;color:var(--mint)">
+              <span style="height:6px;width:6px;border-radius:999px;background:var(--mint);animation:cernal-pulse 2s cubic-bezier(.4,0,.6,1) infinite"></span>LIVE
+            </div>
+          </div>
+          <!-- screen -->
+          <div class="gq-screen-grid" style="position:relative;width:100%;aspect-ratio:909 / 540;overflow:hidden;background:var(--background)">
+
+            <!-- NORMAL STEPS · screenshot + cursor -->
+            <sc-if value="{{ isShotStep }}" hint-placeholder-val="{{ true }}">
+              <div style="position:absolute;inset:0">
+                {{ screenImg }}
+                <div style="{{ cursorStyle }}">
+                  <span class="{{ rippleClass }}"></span>
+                  <svg width="27" height="27" viewBox="0 0 24 24" style="position:absolute;left:-3px;top:-2px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))"><path d="M5.5 2.4 L5.5 19.2 L9.8 15.1 L12.7 21.9 L15.3 20.7 L12.4 14.1 L18.2 13.9 Z" fill="#ffffff" stroke="#141414" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- STEP 3.2 · live logic circuit that scrolls down to the toehold sim -->
+            <sc-if value="{{ isScrollStep }}" hint-placeholder-val="{{ false }}">
+              <div class="gq-scroll-outer" style="position:absolute;inset:0;overflow:hidden;background:var(--card)">
+                <div class="gq-scroll-inner" style="padding:18px 20px 26px;will-change:transform">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+                    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.06em;color:var(--muted-foreground)">CANDIDATE&nbsp;#1 · PCERNAL_V1 / LOGIC CIRCUIT</div>
+                    <span style="display:inline-flex;align-items:center;gap:6px;border-radius:999px;background:color-mix(in oklab,var(--mint) 10%,transparent);padding:3px 10px;font-family:var(--font-mono);font-size:10px;letter-spacing:0.04em;color:var(--mint)"><span style="height:6px;width:6px;border-radius:999px;background:var(--mint)"></span>COMPILED</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:4px;border-radius:9px;border:1px solid var(--border);background:var(--surface);padding:4px;width:fit-content;margin-bottom:14px">
+                    <span style="display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:6px 14px;font-family:var(--font-mono);font-size:12px;color:var(--muted-foreground)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><circle cx="12" cy="12" r="9"></circle></svg>Plasmid Map
+                    </span>
+                    <span style="display:inline-flex;align-items:center;gap:6px;border-radius:6px;background:var(--card);padding:6px 14px;font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--foreground);box-shadow:var(--shadow-clinical)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 10h18"></path></svg>View Logic Circuit
+                    </span>
+                  </div>
+
+                  <x-import component="LogicCircuitView" from="./diagrams.jsx" dc-props="{{ logicProps }}" hint-size="100%,300px"></x-import>
+
+                  <div style="margin:14px 0 4px;font-family:var(--font-mono);font-size:11px;letter-spacing:0.04em;color:var(--muted-foreground)">IF A AND (B OR C) AND NOT D → EXPRESS GFP</div>
+
+                  <div style="margin:18px 0 14px;display:flex;align-items:center;gap:12px">
+                    <span style="height:1px;flex:1;background:var(--border)"></span>
+                    <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.14em;color:var(--mint)">TOEHOLD SWITCH · SIMULATION</span>
+                    <span style="height:1px;flex:1;background:var(--border)"></span>
+                  </div>
+
+                  <x-import component="ToeholdSimulation" from="./diagrams.jsx" dc-props="{{ simProps }}" hint-size="100%,420px"></x-import>
+                </div>
+              </div>
+              <div style="{{ scrollCueStyle }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="m6 9 6 6 6-6"></path></svg>
+                scroll
+              </div>
+            </sc-if>
+          </div>
+        </div>
+        <!-- live caption -->
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:12px;color:var(--foreground)">
+            <span style="color:var(--mint)">▸</span>
+            <span>{{ currentLabel }}</span>
+          </div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted-foreground)">{{ captionHint }}</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { cur: 0, shot: 0, cx: 121, cy: 224, clicking: false, tipsOpen: false, bioOpen: false, atBottom: false };
+  scrollRef = React.createRef();
+  scrollInnerRef = React.createRef();
+
+  STEPS = [
+    { group: "Inputs", num: "1.1", title: "Choose your organism", route: "cernal.app / dashboard \u00b7 inputs",
+      shots: [
+        { img: "guide-shots/01-organism.png", label: "E. coli \u2014 bacteria", tx: 121, ty: 224 },
+        { img: "guide-shots/02-organism.png", label: "Yeast", tx: 223, ty: 224 },
+        { img: "guide-shots/03-organism.png", label: "Human / mammalian cells", tx: 330, ty: 224 },
+      ],
+      what: "Tell CERNAL which host cell your circuit will run in \u2014 E. coli (bacteria), yeast, or human/mammalian cells.",
+      why: "The host sets the ground rules: which genetic parts are available, how codons are read, and how the RNA switch folds at that cell's temperature. Choosing the right chassis up front keeps every later step compatible.",
+      tips: [
+        "E. coli \u2014 fastest, cheapest, best for prototyping and high yield.",
+        "Yeast \u2014 when you need a eukaryote that's still simple to grow.",
+        "Human \u2014 for therapeutic or disease-model work in mammalian cells.",
+        "You can re-run the same design in another organism later \u2014 CERNAL's RNA switches are organism-agnostic.",
+      ],
+      bio: "CERNAL's switches are built from RNA base-pairing (toehold switches, guide RNAs). Because base-pairing thermodynamics follow the same physics in any cell, the core logic transfers across hosts \u2014 the organism setting mainly tunes folding temperature and codon usage." },
+
+    { group: "Inputs", num: "1.2", title: "Pick an input mode", route: "cernal.app / dashboard \u00b7 inputs",
+      shots: [
+        { img: "guide-shots/01-mode.png", label: "Differential Expression (discover the trigger)", tx: 176, ty: 316 },
+        { img: "guide-shots/02-mode.png", label: "Custom mRNA Trigger (I already know it)", tx: 381, ty: 316 },
+      ],
+      what: "Decide how you'll tell CERNAL what to detect: upload a differential-expression (DE) analysis, or paste an exact trigger mRNA sequence.",
+      why: "This sets whether CERNAL discovers the trigger for you from your data, or designs directly against a sequence you already have. Match it to what you're starting with.",
+      tips: [
+        "Differential Expression \u2014 start here if you have RNA-seq / expression data and want CERNAL to find the signal.",
+        "Custom mRNA Trigger \u2014 start here if you already know the exact transcript you want to sense.",
+        "Not sure? DE mode is the usual entry point for discovery work.",
+      ],
+      bio: "A 'trigger' mRNA is the transcript whose presence should switch your circuit ON. In DE mode, CERNAL reads which genes are up- or down-regulated between conditions and derives the trigger from the strongest, most specific signal." },
+
+    { group: "Inputs", num: "1.3", title: "Provide your data", route: "cernal.app / dashboard \u00b7 inputs",
+      shots: [
+        { img: "guide-shots/01-upload.png", label: "Upload your DE results file", tx: 138, ty: 304 },
+        { img: "guide-shots/02-upload.png", label: "\u2026or paste the trigger sequence", tx: 454, ty: 300 },
+      ],
+      what: "Hand CERNAL the actual data \u2014 drop in your DE results file, or paste the trigger sequence directly.",
+      why: "This is the raw material the compiler works from. Clean, correctly-formatted input is what lets it design a switch that fires on the right signal and stays quiet otherwise.",
+      tips: [
+        "DE file must include a fold-change column (target \u00f7 control). p-value / padj columns are used if present.",
+        "Accepts .csv, .tsv, or .xlsx up to 100 MB.",
+        "Pasting a trigger: use A \u00b7 C \u00b7 G \u00b7 U only, ~30 nt or longer.",
+        "Double-check your fold-change direction (target / control) so 'up' really means up.",
+      ],
+      bio: "Fold change is the ratio of a gene's expression between your target state and a control. CERNAL uses its sign and magnitude to decide which genes count as ON (up) or OFF (down) inputs to the circuit logic." },
+
+    { group: "Payload", num: "2.1", title: "Add a visual reporter", route: "cernal.app / dashboard \u00b7 payload",
+      shots: [
+        { img: "guide-shots/01-reporters.png", label: "GFP \u2014 green fluorescence", tx: 189, ty: 270 },
+        { img: "guide-shots/02-reporters.png", label: "mCherry \u2014 red fluorescence", tx: 454, ty: 270 },
+        { img: "guide-shots/03-reporters.png", label: "Luciferase \u2014 bioluminescence", tx: 719, ty: 270 },
+      ],
+      what: "Pick a visual reporter \u2014 GFP, mCherry, or Luciferase \u2014 as the circuit's readout.",
+      why: "Reporters let you SEE whether the circuit fired. They're how you validate a design in the lab before committing to a functional payload.",
+      tips: [
+        "GFP \u2014 bright green fluorescence, the workhorse default.",
+        "mCherry \u2014 red; good when the green channel is taken, or for dual-colour experiments.",
+        "Luciferase \u2014 light from a reaction; extremely sensitive, needs no excitation light.",
+        "You can select more than one to read out on separate channels.",
+      ],
+      bio: "A reporter gene sits downstream of the switch, so it's only translated when the switch is ON. Fluorescence or luminescence then scales with circuit activity \u2014 an easy proxy for 'did it work'." },
+
+    { group: "Payload", num: "2.2", title: "Or use a selective marker", route: "cernal.app / dashboard \u00b7 payload",
+      shots: [
+        { img: "guide-shots/01-markers.png", label: "Antibiotic resistance \u2014 AmpR", tx: 256, ty: 165 },
+        { img: "guide-shots/02-markers.png", label: "Antibiotic resistance \u2014 KanR", tx: 271, ty: 234 },
+        { img: "guide-shots/03-markers.png", label: "Apoptosis inducer \u2014 kill-switch", tx: 653, ty: 165 },
+      ],
+      what: "Instead of just seeing the result, make the cell's fate depend on the circuit \u2014 antibiotic resistance (keep the ON cells) or an apoptosis kill-switch (remove them).",
+      why: "Markers turn a readout into an action. Positive selection enriches cells where the circuit fired; negative selection (kill-switch) is a safety and containment tool.",
+      tips: [
+        "Antibiotic Resistance (POSITIVE) \u2014 cells survive the antibiotic only if the circuit is ON. Pick AmpR or KanR to match your plasmid and lab stock.",
+        "Apoptosis Inducer (NEGATIVE) \u2014 the circuit triggers programmed cell death; used as a kill-switch.",
+        "AmpR vs KanR is just which drug you'll select with \u2014 it has no effect on the logic.",
+      ],
+      bio: "Positive selection: the resistance gene sits downstream of the switch, so only ON cells make the protein and survive. Negative selection wires the switch to a death gene, so ON cells self-destruct \u2014 useful for biocontainment." },
+
+    { group: "Payload", num: "2.3", title: "Or bring your own payload", route: "cernal.app / dashboard \u00b7 payload",
+      shots: [
+        { img: "guide-shots/custom.png", label: "Paste a custom output mRNA sequence", tx: 300, ty: 95 },
+      ],
+      what: "Provide your own mRNA coding sequence as the payload \u2014 any protein you want the circuit to express when it fires.",
+      why: "This is the escape hatch beyond reporters and markers: drive a therapeutic, an enzyme, or any bespoke output on the same conditional trigger.",
+      tips: [
+        "Use A \u00b7 C \u00b7 G \u00b7 U only.",
+        "Keep the length a multiple of 3 so it stays in-frame \u2014 CERNAL flags this with 'IN-FRAME \u2713'.",
+        "You can upload a .fasta file instead of pasting.",
+      ],
+      bio: "Whatever you paste is treated as the coding sequence placed after the toehold switch. When the trigger opens the switch, the ribosome reads your sequence and makes your protein \u2014 nothing is expressed while the switch is closed." },
+
+    { group: "Fulfillment", num: "3.1", title: "Compile & optimize", route: "cernal.app / dashboard",
+      shots: [
+        { img: "guide-shots/compile.png", label: "Run the design engine", tx: 124, ty: 149 },
+      ],
+      what: "With inputs and payload set, hit Compile & Optimize to run the design engine.",
+      why: "This is where CERNAL does the heavy lifting \u2014 turning your constraints into concrete, ranked plasmid candidates.",
+      tips: [
+        "Make sure Steps 1 and 2 are filled in before compiling.",
+        "Compiling explores hundreds of candidate sequences \u2014 give it a moment.",
+        "The step rail at the top (Inputs \u2192 Payload \u2192 Fulfillment) tracks where you are.",
+      ],
+      bio: "Under the hood CERNAL models RNA folding, predicts off-state leakage, and screens for off-target binding across the genome \u2014 scoring each candidate on how cleanly it switches." },
+
+    { group: "Fulfillment", num: "3.2", title: "Read the compiled design", route: "cernal.app / dashboard \u00b7 fulfillment",
+      shots: [
+        { img: "guide-shots/01-views.png", label: "Plasmid Map \u2014 the physical construct", tx: 160, ty: 107 },
+        { img: "guide-shots/02-views.png", label: "Logic Circuit \u2014 the gate rules", tx: 308, ty: 107 },
+      ],
+      what: "Inspect the result two ways: the Plasmid Map (the physical construct) and the Logic Circuit (the AND/OR/NOT rules on your genes), with a live toehold simulation.",
+      why: "The map tells you what you'll actually order and where each part sits; the logic view confirms the circuit fires under exactly the conditions you intended.",
+      tips: [
+        "Plasmid Map \u2014 hover the ring to see promoter, switch, payload, marker and terminator.",
+        "View Logic Circuit \u2014 read the gate logic, e.g. IF A AND (B OR C) AND NOT D.",
+        "Click a gate in the logic view to focus its toehold simulation.",
+      ],
+      bio: "A toehold switch is a folded RNA hairpin that hides the ribosome binding site until the trigger binds a single-stranded 'toehold' and unzips it. Chaining switches with gate logic lets the circuit require specific combinations of signals." },
+
+    { group: "Fulfillment", num: "3.3", title: "Filter the candidates", route: "cernal.app / dashboard \u00b7 fulfillment",
+      shots: [
+        { img: "guide-shots/01-filters.png", label: "Open Advanced Filters", tx: 815, ty: 157 },
+        { img: "guide-shots/02-filters.png", label: "Tune leakage, on/off ratio, length", tx: 454, ty: 216 },
+      ],
+      what: "Open Advanced Plasmid Features Filters to constrain the list \u2014 cap off-state leakage, set a minimum on/off ratio, or limit total length.",
+      why: "Not every top-scoring candidate fits your constraints. Filters let you trade raw score for the properties that matter for your experiment \u2014 a tight OFF state, size limits, and so on.",
+      tips: [
+        "Off-State Leakage Limit \u2014 lower means less expression when the circuit should be OFF.",
+        "On-Off Ratio \u2014 higher means a crisper switch between states.",
+        "Basepair Length (max) \u2014 keep it within what your assembly or synthesis can handle.",
+        "Filters re-rank the list instantly \u2014 no need to recompile.",
+      ],
+      bio: "Leakage is the small amount of payload made while the switch is 'closed'. Dynamic range (on/off ratio) is how many-fold expression jumps when it opens. Together they define how trustworthy the switch is." },
+
+    { group: "Fulfillment", num: "3.4", title: "Choose a candidate", route: "cernal.app / dashboard \u00b7 fulfillment",
+      shots: [
+        { img: "guide-shots/01-candidates.png", label: "Candidate #1 \u2014 CERNAL's top pick", tx: 672, ty: 90 },
+        { img: "guide-shots/02-candidates.png", label: "Compare another candidate", tx: 672, ty: 253 },
+      ],
+      what: "Browse the ranked candidates and click any one to expand its feature scores \u2014 leakage, on/off ratio, predicted success rate, and length.",
+      why: "The #1 candidate is CERNAL's best overall pick, but the right choice depends on your priorities. The feature breakdown lets you compare trade-offs before committing.",
+      tips: [
+        "The TOP badge marks the highest overall score.",
+        "Click a row to expand its Feature Scores; selecting it also updates the map and logic view on the left.",
+        "Compare leakage and on/off ratio across the top few \u2014 not just the headline score.",
+      ],
+      bio: "Each score blends several models: structural folding stability (MFE), predicted leakage, off-target specificity across the genome, and GC content \u2014 proxies for how well the design will behave in a real cell." },
+
+    { group: "Fulfillment", num: "3.5", title: "Export or order your plasmid", route: "cernal.app / dashboard \u00b7 fulfillment",
+      shots: [
+        { img: "guide-shots/export.png", label: "Export GenBank / FASTA sequences", tx: 229, ty: 254 },
+        { img: "guide-shots/export.png", label: "Order the physical plasmid (ships ~7d)", tx: 625, ty: 254 },
+      ],
+      what: "Take the design out of CERNAL: export the sequences as GenBank / FASTA, or order the physical plasmid through a synthesis partner.",
+      why: "This is the finish line \u2014 either hand the files to your own cloning workflow, or skip straight to a lab-ready plasmid in the mail.",
+      tips: [
+        "Export GenBank / FASTA \u2014 annotated files you can open in any sequence editor (SnapGene, Benchling, etc.).",
+        "Order Plasmid with Our Trusted Partner \u2014 synthesis + assembly, ships in about 7 days.",
+        "Exported files reflect whichever candidate is currently selected above.",
+      ],
+      bio: "GenBank files carry both the sequence and its feature annotations (promoter, switch, payload\u2026), so downstream tools know what each region does. FASTA is the plain sequence only." },
+  ];
+
+  GROUPS = [
+    { name: "Inputs", start: 0, count: 3 },
+    { name: "Payload", start: 3, count: 3 },
+    { name: "Fulfillment", start: 6, count: 5 },
+  ];
+
+  componentDidMount() {
+    this.STEPS.forEach((s) => s.shots.forEach((sh) => { const im = new Image(); im.src = sh.img; }));
+    this._onKey = (e) => { if (e.key === "ArrowRight") this.go(1); else if (e.key === "ArrowLeft") this.go(-1); };
+    window.addEventListener("keydown", this._onKey);
+    this.enterStep(0);
+  }
+  componentWillUnmount() { this.clearTimers(); window.removeEventListener("keydown", this._onKey); }
+  clearTimers() { [this._ck, this._ck2, this._nx].forEach((t) => t && clearTimeout(t)); if (this._raf) cancelAnimationFrame(this._raf); }
+
+  enterStep(i) {
+    this.clearTimers();
+    const step = this.STEPS[i];
+    const first = step.shots[0];
+    this.setState({ cur: i, shot: 0, cx: first.tx, cy: first.ty, clicking: false, tipsOpen: false, bioOpen: false, atBottom: false });
+    if (step.num === "3.2") this._nx = setTimeout(() => this.startScrollDemo(), 900);
+    else this._nx = setTimeout(() => this.loop(), 1200);
+  }
+
+  // ---- scroll demonstration for step 3.2 ----
+  scrollAmt = 0;
+  outerEl() { const r = this.baseEl && this.baseEl(); return (r || document).querySelector(".gq-scroll-outer"); }
+  innerEl() { const r = this.baseEl && this.baseEl(); return (r || document).querySelector(".gq-scroll-inner"); }
+  setOffset(v) { const inner = this.innerEl(); if (inner) inner.style.transform = "translateY(" + (-v) + "px)"; this.scrollAmt = v; }
+  startScrollDemo() {
+    const el = this.outerEl();
+    if (!el) { this._nx = setTimeout(() => this.startScrollDemo(), 220); return; }
+    this.setOffset(0);
+    this.setState({ atBottom: false });
+    this._nx = setTimeout(() => this.scrollSeq(), 1700);
+  }
+  scrollSeq() {
+    const el = this.outerEl();
+    if (!el) return;
+    const max = el.scrollHeight - el.clientHeight;
+    if (max < 20) { this._nx = setTimeout(() => this.scrollSeq(), 300); return; } // wait for live components to size
+    this.tween(this.scrollAmt, max, 1500, () => {
+      this.setState({ atBottom: true });
+      this._nx = setTimeout(() => {
+        this.tween(this.scrollAmt, 0, 1200, () => {
+          this.setState({ atBottom: false });
+          this._nx = setTimeout(() => this.scrollSeq(), 1500);
+        });
+      }, 6000);
+    });
+  }
+  tween(from, to, dur, done) {
+    if (this._raf) cancelAnimationFrame(this._raf);
+    const t0 = performance.now();
+    const ease = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / dur);
+      this.setOffset(from + (to - from) * ease(p));
+      if (p < 1) this._raf = requestAnimationFrame(step);
+      else if (done) done();
+    };
+    this._raf = requestAnimationFrame(step);
+  }
+  loop() {
+    this.clearTimers();
+    const shots = this.STEPS[this.state.cur].shots;
+    const next = (this.state.shot + 1) % shots.length;
+    this.setState({ cx: shots[next].tx, cy: shots[next].ty, clicking: false });
+    this._ck = setTimeout(() => {
+      this.setState({ clicking: true, shot: next });
+      this._ck2 = setTimeout(() => this.setState({ clicking: false }), 480);
+      this._nx = setTimeout(() => this.loop(), 1650);
+    }, 780);
+  }
+  go(dir) {
+    const i = this.state.cur + dir;
+    if (i < 0) return;
+    if (i >= this.STEPS.length) { window.location.href = "./CERNAL Compiler.dc.html"; return; }
+    this.enterStep(i);
+  }
+  jump = (i) => { if (i !== this.state.cur) this.enterStep(i); };
+  onBack = () => this.go(-1);
+  onNext = () => this.go(1);
+  toggleTips = () => this.setState((s) => ({ tipsOpen: !s.tipsOpen }));
+  toggleBio = () => this.setState((s) => ({ bioOpen: !s.bioOpen }));
+
+  renderVals() {
+    const s = this.state;
+    const step = this.STEPS[s.cur];
+    const shot = step.shots[s.shot] || step.shots[0];
+    const isLast = s.cur === this.STEPS.length - 1;
+    const isScrollStep = step.num === "3.2";
+    const isShotStep = !isScrollStep;
+    const simLogic = { genes: [ { n: "Gene A", role: "IL-6", state: "ON", dir: "up" }, { n: "Gene B", role: "TNF-\u03b1", state: "ON", dir: "up" }, { n: "Gene C", role: "HIF-1\u03b1", state: "ON", dir: "up" }, { n: "Gene D", role: "FOXP3", state: "OFF", dir: "down" } ], midGate: "OR", outerGate: "AND", invert: true, output: "GFP", caption: "IF A AND (B OR C) AND NOT D \u2192 EXPRESS GFP" };
+
+    const groupsView = this.GROUPS.map((g) => {
+      const active = s.cur >= g.start && s.cur < g.start + g.count;
+      const ticks = [];
+      for (let k = 0; k < g.count; k++) {
+        const idx = g.start + k;
+        const st = this.STEPS[idx];
+        const isCur = idx === s.cur;
+        const done = idx < s.cur;
+        ticks.push({
+          num: st.num, title: st.title, onClick: () => this.jump(idx),
+          barStyle: {
+            width: isCur ? 4 : 2, height: isCur ? 24 : done ? 16 : 11, borderRadius: 999,
+            background: isCur ? "var(--mint)" : done ? "color-mix(in oklab,var(--mint) 55%,transparent)" : "var(--border)",
+            transition: "all .25s ease",
+          },
+          numStyle: {
+            fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.02em", transition: "color .2s",
+            fontWeight: isCur ? 700 : 500,
+            color: isCur ? "var(--mint)" : done ? "var(--muted-foreground)" : "color-mix(in oklab,var(--muted-foreground) 55%,transparent)",
+          },
+        });
+      }
+      return {
+        name: g.name, ticks,
+        labelStyle: {
+          fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em",
+          fontWeight: active ? 700 : 500, color: active ? "var(--mint)" : "var(--muted-foreground)", transition: "color .2s",
+        },
+      };
+    });
+
+    const chev = (open) => ({ width: 16, height: 16, color: "var(--muted-foreground)", transition: "transform .2s", transform: open ? "rotate(180deg)" : "none" });
+
+    const navBtn = (primary, disabled) => {
+      const base = { display: "inline-flex", alignItems: "center", gap: 8, borderRadius: 10, padding: "9px 20px", fontSize: 14, fontWeight: 600, transition: "all .15s", border: "1px solid var(--border)", cursor: disabled ? "default" : "pointer" };
+      if (disabled) return { ...base, color: "color-mix(in oklab,var(--muted-foreground) 45%,transparent)", background: "var(--surface)", cursor: "not-allowed" };
+      if (primary) return { ...base, border: "none", backgroundImage: "var(--gradient-deep)", color: "var(--primary-foreground)", boxShadow: "var(--shadow-clinical)" };
+      return { ...base, background: "var(--card)", color: "var(--foreground)" };
+    };
+
+    return {
+      stepNum: s.cur + 1, total: this.STEPS.length,
+      numLabel: step.num, groupLabel: step.group, title: step.title,
+      whatText: step.what, whyText: step.why, tips: step.tips, bioText: step.bio,
+      groupsView,
+      tipsOpen: s.tipsOpen, bioOpen: s.bioOpen, toggleTips: this.toggleTips, toggleBio: this.toggleBio,
+      tipsChevStyle: chev(s.tipsOpen), bioChevStyle: chev(s.bioOpen),
+      route: step.route,
+      currentLabel: isScrollStep ? (s.atBottom ? "Toehold switch simulating below the logic circuit" : "Logic circuit \u2014 scrolling down to the toehold simulation") : shot.label,
+      isScrollStep, isShotStep,
+      captionHint: isScrollStep ? "the view scrolls down \u2014 same as the dashboard" : "watch the cursor demonstrate each option",
+      logicProps: { logic: simLogic, activeGate: "mid", onGateClick: () => {} },
+      scrollCueStyle: {
+        position: "absolute", right: 14, bottom: 12, display: "inline-flex", alignItems: "center", gap: 6,
+        borderRadius: 999, border: "1px solid var(--border)", background: "color-mix(in oklab,var(--card) 88%,transparent)",
+        backdropFilter: "blur(6px)", padding: "5px 12px", fontFamily: "var(--font-mono)", fontSize: 10.5,
+        letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--mint)", pointerEvents: "none",
+        boxShadow: "var(--shadow-clinical)", opacity: s.atBottom ? 0 : 1, transition: "opacity .4s ease",
+        animation: "gq-bob 1.3s ease-in-out infinite",
+      },
+      screenImg: React.createElement("img", { src: shot.img, alt: "Dashboard step", style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" } }),
+      cursorStyle: {
+        position: "absolute", left: (s.cx / 909 * 100) + "%", top: (s.cy / 540 * 100) + "%",
+        transition: "left .62s cubic-bezier(.33,.9,.3,1), top .62s cubic-bezier(.33,.9,.3,1)",
+        zIndex: 6, pointerEvents: "none",
+      },
+      rippleClass: s.clicking ? "gq-ripple gq-go" : "gq-ripple",
+      simProps: { logic: simLogic, gate: "mid", simKey: "guide-toehold" },
+      onBack: this.onBack, onNext: this.onNext, nextLabel: isLast ? "Open the dashboard" : "Next",
+      backStyle: navBtn(false, s.cur === 0), nextStyle: navBtn(true, false),
+    };
+  }
+}
+</script>
+</body>
+</html>

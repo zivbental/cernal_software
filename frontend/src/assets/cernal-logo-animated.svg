@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<svg data-dc-tpl="9" id="cernal-logo-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 320" width="100%" data-om-id="480ea089:15" style="display: block; overflow: visible;" xmlns:xlink="http://www.w3.org/1999/xlink">
+      <title data-dc-tpl="10">CERNAL — Compiler-like Engine for RNA Logic</title>
+      
+
+      
+      <g data-dc-tpl="12" class="mol" data-om-id="480ea089:16" style="offset-path: path(&#34;M 40 -90 C 120 -70 150 44 190 44&#34;); offset-rotate: auto; animation: 7s ease-in-out 0s infinite normal none running molDock;">
+        <g data-dc-tpl="13" class="molwave" data-om-id="480ea089:17">
+          <path data-dc-tpl="14" class="molbb" d="M -75.0 0.0 L -71.7 1.1 L -68.5 2.2 L -65.2 3.3 L -62.0 4.2 L -58.7 4.9 L -55.4 5.5 L -52.2 5.8 L -48.9 6.0 L -45.7 5.9 L -42.4 5.7 L -39.1 5.2 L -35.9 4.5 L -32.6 3.7 L -29.3 2.7 L -26.1 1.6 L -22.8 0.5 L -19.6 -0.7 L -16.3 -1.8 L -13.0 -2.8 L -9.8 -3.8 L -6.5 -4.6 L -3.3 -5.2 L 0.0 -5.7 L 3.3 -6.0 L 6.5 -6.0 L 9.8 -5.8 L 13.0 -5.4 L 16.3 -4.8 L 19.6 -4.0 L 22.8 -3.1 L 26.1 -2.1 L 29.3 -1.0 L 32.6 0.2 L 35.9 1.3 L 39.1 2.4 L 42.4 3.4 L 45.7 4.3 L 48.9 5.0 L 52.2 5.5 L 55.4 5.9 L 58.7 6.0 L 62.0 5.9 L 65.2 5.6 L 68.5 5.1 L 71.7 4.4 L 75.0 3.5" data-om-id="480ea089:18"></path>
+          <g data-dc-tpl="15" class="moltk" data-om-id="480ea089:19"><line data-dc-tpl="16" x1="-67.9" y1="10.8" x2="-63.3" y2="-4.5" data-om-id="480ea089:20"></line><line data-dc-tpl="17" x1="-46.7" y1="14.0" x2="-47.1" y2="-2.0" data-om-id="480ea089:21"></line><line data-dc-tpl="18" x1="-25.7" y1="9.9" x2="-30.6" y2="-5.3" data-om-id="480ea089:22"></line><line data-dc-tpl="19" x1="-7.3" y1="3.8" x2="-11.4" y2="-11.6" data-om-id="480ea089:23"></line><line data-dc-tpl="20" x1="8.7" y1="2.1" x2="10.0" y2="-13.8" data-om-id="480ea089:24"></line><line data-dc-tpl="21" x1="25.5" y1="6.2" x2="30.7" y2="-9.0" data-om-id="480ea089:25"></line><line data-dc-tpl="22" x1="45.1" y1="12.4" x2="48.7" y2="-3.2" data-om-id="480ea089:26"></line><line data-dc-tpl="23" x1="66.7" y1="13.5" x2="64.6" y2="-2.4" data-om-id="480ea089:27"></line></g>
+        </g>
+      </g>
+      <g data-dc-tpl="24" class="mol" data-om-id="480ea089:28" style="offset-path: path(&#34;M 340 360 C 260 320 230 276 190 276&#34;); offset-rotate: auto; animation: 7s ease-in-out -0.5s infinite normal none running molDock;">
+        <g data-dc-tpl="25" class="molwave" data-om-id="480ea089:29">
+          <path data-dc-tpl="26" class="molbb" d="M -75.0 5.3 L -71.7 5.8 L -68.5 6.0 L -65.2 6.0 L -62.0 5.7 L -58.7 5.3 L -55.4 4.7 L -52.2 3.9 L -48.9 2.9 L -45.7 1.9 L -42.4 0.8 L -39.1 -0.4 L -35.9 -1.5 L -32.6 -2.6 L -29.3 -3.6 L -26.1 -4.4 L -22.8 -5.1 L -19.6 -5.6 L -16.3 -5.9 L -13.0 -6.0 L -9.8 -5.9 L -6.5 -5.5 L -3.3 -5.0 L 0.0 -4.2 L 3.3 -3.4 L 6.5 -2.4 L 9.8 -1.3 L 13.0 -0.1 L 16.3 1.0 L 19.6 2.1 L 22.8 3.2 L 26.1 4.1 L 29.3 4.8 L 32.6 5.4 L 35.9 5.8 L 39.1 6.0 L 42.4 5.9 L 45.7 5.7 L 48.9 5.2 L 52.2 4.6 L 55.4 3.8 L 58.7 2.8 L 62.0 1.7 L 65.2 0.6 L 68.5 -0.5 L 71.7 -1.7 L 75.0 -2.7" data-om-id="480ea089:30"></path>
+          <g data-dc-tpl="27" class="moltk" data-om-id="480ea089:31"><line data-dc-tpl="28" x1="-65.4" y1="14.0" x2="-65.8" y2="-2.0" data-om-id="480ea089:32"></line><line data-dc-tpl="29" x1="-44.4" y1="9.9" x2="-49.3" y2="-5.3" data-om-id="480ea089:33"></line><line data-dc-tpl="30" x1="-26.1" y1="3.8" x2="-30.2" y2="-11.6" data-om-id="480ea089:34"></line><line data-dc-tpl="31" x1="-10.0" y1="2.1" x2="-8.7" y2="-13.8" data-om-id="480ea089:35"></line><line data-dc-tpl="32" x1="6.8" y1="6.2" x2="12.0" y2="-9.0" data-om-id="480ea089:36"></line><line data-dc-tpl="33" x1="26.3" y1="12.4" x2="29.9" y2="-3.2" data-om-id="480ea089:37"></line><line data-dc-tpl="34" x1="47.9" y1="13.5" x2="45.8" y2="-2.4" data-om-id="480ea089:38"></line><line data-dc-tpl="35" x1="68.3" y1="8.0" x2="63.0" y2="-7.1" data-om-id="480ea089:39"></line></g>
+        </g>
+      </g>
+      <g data-dc-tpl="36" class="mol" data-om-id="480ea089:40" style="offset-path: path(&#34;M -120 260 C -40 230 74 230 74 160&#34;); offset-rotate: auto; animation: 7s ease-in-out -0.25s infinite normal none running molDock;">
+        <g data-dc-tpl="37" class="molwave" data-om-id="480ea089:41">
+          <path data-dc-tpl="38" class="molbb" d="M -75.0 2.9 L -71.7 3.8 L -68.5 4.6 L -65.2 5.3 L -62.0 5.7 L -58.7 6.0 L -55.4 6.0 L -52.2 5.8 L -48.9 5.4 L -45.7 4.8 L -42.4 4.0 L -39.1 3.1 L -35.9 2.0 L -32.6 0.9 L -29.3 -0.2 L -26.1 -1.3 L -22.8 -2.4 L -19.6 -3.4 L -16.3 -4.3 L -13.0 -5.0 L -9.8 -5.6 L -6.5 -5.9 L -3.3 -6.0 L 0.0 -5.9 L 3.3 -5.6 L 6.5 -5.1 L 9.8 -4.4 L 13.0 -3.5 L 16.3 -2.5 L 19.6 -1.4 L 22.8 -0.3 L 26.1 0.9 L 29.3 2.0 L 32.6 3.0 L 35.9 3.9 L 39.1 4.7 L 42.4 5.3 L 45.7 5.8 L 48.9 6.0 L 52.2 6.0 L 55.4 5.7 L 58.7 5.3 L 62.0 4.7 L 65.2 3.9 L 68.5 2.9 L 71.7 1.9 L 75.0 0.8" data-om-id="480ea089:42"></path>
+          <g data-dc-tpl="39" class="moltk" data-om-id="480ea089:43"><line data-dc-tpl="40" x1="-67.0" y1="13.1" x2="-64.2" y2="-2.7" data-om-id="480ea089:44"></line><line data-dc-tpl="41" x1="-45.4" y1="12.9" x2="-48.4" y2="-2.8" data-om-id="480ea089:45"></line><line data-dc-tpl="42" x1="-25.5" y1="6.9" x2="-30.8" y2="-8.2" data-om-id="480ea089:46"></line><line data-dc-tpl="43" x1="-8.4" y1="2.3" x2="-10.4" y2="-13.5" data-om-id="480ea089:47"></line><line data-dc-tpl="44" x1="7.5" y1="3.3" x2="11.2" y2="-12.2" data-om-id="480ea089:48"></line><line data-dc-tpl="45" x1="25.6" y1="9.1" x2="30.7" y2="-6.0" data-om-id="480ea089:49"></line><line data-dc-tpl="46" x1="46.3" y1="13.9" x2="47.5" y2="-2.1" data-om-id="480ea089:50"></line><line data-dc-tpl="47" x1="67.7" y1="11.5" x2="63.5" y2="-4.0" data-om-id="480ea089:51"></line></g>
+        </g>
+      </g>
+      <g data-dc-tpl="48" class="mol" data-om-id="480ea089:52" style="offset-path: path(&#34;M 420 40 C 360 90 306 90 306 160&#34;); offset-rotate: auto; animation: 7s ease-in-out -0.7s infinite normal none running molDock;">
+        <g data-dc-tpl="49" class="molwave" data-om-id="480ea089:53">
+          <path data-dc-tpl="50" class="molbb" d="M -75.0 5.9 L -71.7 5.7 L -68.5 5.2 L -65.2 4.6 L -62.0 3.8 L -58.7 2.8 L -55.4 1.7 L -52.2 0.6 L -48.9 -0.5 L -45.7 -1.7 L -42.4 -2.7 L -39.1 -3.7 L -35.9 -4.5 L -32.6 -5.2 L -29.3 -5.7 L -26.1 -5.9 L -22.8 -6.0 L -19.6 -5.8 L -16.3 -5.5 L -13.0 -4.9 L -9.8 -4.1 L -6.5 -3.2 L -3.3 -2.2 L 0.0 -1.1 L 3.3 0.0 L 6.5 1.2 L 9.8 2.3 L 13.0 3.3 L 16.3 4.2 L 19.6 4.9 L 22.8 5.5 L 26.1 5.8 L 29.3 6.0 L 32.6 5.9 L 35.9 5.6 L 39.1 5.1 L 42.4 4.5 L 45.7 3.6 L 48.9 2.7 L 52.2 1.6 L 55.4 0.5 L 58.7 -0.7 L 62.0 -1.8 L 65.2 -2.9 L 68.5 -3.8 L 71.7 -4.6 L 75.0 -5.3" data-om-id="480ea089:54"></path>
+          <g data-dc-tpl="51" class="moltk" data-om-id="480ea089:55"><line data-dc-tpl="52" x1="-63.9" y1="12.5" x2="-67.4" y2="-3.1" data-om-id="480ea089:56"></line><line data-dc-tpl="53" x1="-44.3" y1="6.3" x2="-49.5" y2="-8.8" data-om-id="480ea089:57"></line><line data-dc-tpl="54" x1="-27.4" y1="2.2" x2="-28.9" y2="-13.8" data-om-id="480ea089:58"></line><line data-dc-tpl="55" x1="-11.4" y1="3.7" x2="-7.4" y2="-11.8" data-om-id="480ea089:59"></line><line data-dc-tpl="56" x1="6.9" y1="9.7" x2="11.9" y2="-5.5" data-om-id="480ea089:60"></line><line data-dc-tpl="57" x1="27.8" y1="14.0" x2="28.4" y2="-2.0" data-om-id="480ea089:61"></line><line data-dc-tpl="58" x1="49.1" y1="10.9" x2="44.6" y2="-4.4" data-om-id="480ea089:62"></line><line data-dc-tpl="59" x1="68.0" y1="4.7" x2="63.3" y2="-10.6" data-om-id="480ea089:63"></line></g>
+        </g>
+      </g>
+
+      
+      <rect data-dc-tpl="60" class="cring" x="158" y="128" width="64" height="64" rx="11" data-om-id="480ea089:64"></rect>
+      <rect data-dc-tpl="61" class="cring b" x="158" y="128" width="64" height="64" rx="11" data-om-id="480ea089:65"></rect>
+
+      
+      <g data-dc-tpl="62" fill="#181113" data-om-id="480ea089:66">
+        <rect data-dc-tpl="63" x="146" y="52" width="16" height="30" rx="6" data-om-id="480ea089:67"></rect>
+        <rect data-dc-tpl="64" x="182" y="52" width="16" height="30" rx="6" data-om-id="480ea089:68"></rect>
+        <rect data-dc-tpl="65" x="218" y="52" width="16" height="30" rx="6" data-om-id="480ea089:69"></rect>
+        <rect data-dc-tpl="66" x="146" y="238" width="16" height="30" rx="6" data-om-id="480ea089:70"></rect>
+        <rect data-dc-tpl="67" x="182" y="238" width="16" height="30" rx="6" data-om-id="480ea089:71"></rect>
+        <rect data-dc-tpl="68" x="218" y="238" width="16" height="30" rx="6" data-om-id="480ea089:72"></rect>
+        <rect data-dc-tpl="69" x="82" y="116" width="30" height="16" rx="6" data-om-id="480ea089:73"></rect>
+        <rect data-dc-tpl="70" x="82" y="152" width="30" height="16" rx="6" data-om-id="480ea089:74"></rect>
+        <rect data-dc-tpl="71" x="82" y="188" width="30" height="16" rx="6" data-om-id="480ea089:75"></rect>
+        <rect data-dc-tpl="72" x="268" y="116" width="30" height="16" rx="6" data-om-id="480ea089:76"></rect>
+        <rect data-dc-tpl="73" x="268" y="152" width="30" height="16" rx="6" data-om-id="480ea089:77"></rect>
+        <rect data-dc-tpl="74" x="268" y="188" width="30" height="16" rx="6" data-om-id="480ea089:78"></rect>
+        <rect data-dc-tpl="75" x="110" y="80" width="160" height="160" rx="22" data-om-id="480ea089:79"></rect>
+      </g>
+      <g data-dc-tpl="76" fill="#2f2325" data-om-id="480ea089:80">
+        <circle data-dc-tpl="77" cx="136" cy="106" r="6" data-om-id="480ea089:81"></circle>
+        <circle data-dc-tpl="78" cx="244" cy="106" r="6" data-om-id="480ea089:82"></circle>
+        <circle data-dc-tpl="79" cx="136" cy="214" r="6" data-om-id="480ea089:83"></circle>
+        <circle data-dc-tpl="80" cx="244" cy="214" r="6" data-om-id="480ea089:84"></circle>
+      </g>
+
+      
+      <rect data-dc-tpl="81" class="cglow" x="156" y="126" width="68" height="68" rx="12" fill="#ec4a3c" data-om-id="480ea089:85"></rect>
+      <rect data-dc-tpl="82" class="cdie" x="160" y="130" width="60" height="60" rx="9" fill="#4a4244" stroke="#dcd0d1" stroke-width="3.5" data-om-id="480ea089:86"></rect>
+
+
+      
+      <text data-dc-tpl="83" class="cwm" x="432" y="214" data-om-id="480ea089:87">
+        <tspan data-dc-tpl="84" fill="#16100f" data-om-id="480ea089:88">CE</tspan><tspan data-dc-tpl="85" class="crna" fill="#9e1a20" data-om-id="480ea089:89">RNA</tspan><tspan data-dc-tpl="86" fill="#16100f" data-om-id="480ea089:90">L</tspan>
+      </text>
+      <text data-dc-tpl="87" class="ctag" x="436" y="263" data-om-id="480ea089:91">COMPILER-LIKE ENGINE FOR RNA LOGIC</text>
+    </svg>

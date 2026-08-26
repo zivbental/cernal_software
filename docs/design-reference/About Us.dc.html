@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+:root{
+  --background:oklch(0.99 0.003 220);
+  --foreground:oklch(0.22 0.03 250);
+  --card:oklch(1 0 0);
+  --primary:oklch(0.18 0.02 25);
+  --primary-foreground:oklch(0.99 0 0);
+  --secondary:oklch(0.96 0.006 25);
+  --muted-foreground:oklch(0.48 0.02 25);
+  --border:oklch(0.91 0.008 25);
+  --mint:oklch(0.48 0.19 26);
+  --mint-foreground:oklch(0.99 0 0);
+  --surface:oklch(0.985 0.003 25);
+  --gradient-mint:linear-gradient(135deg,oklch(0.55 0.2 28),oklch(0.42 0.2 26));
+  --gradient-deep:linear-gradient(135deg,oklch(0.2 0.02 25),oklch(0.1 0.01 25));
+  --shadow-clinical:0 1px 2px oklch(0.18 0.02 25 / 0.06),0 8px 24px -12px oklch(0.48 0.19 26 / 0.18);
+  --font-display:"Space Grotesk",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--background);color:var(--foreground);font-family:var(--font-display);-webkit-font-smoothing:antialiased}
+button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+a{text-decoration:none;color:inherit}
+@keyframes cernal-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--background)">
+
+  <!-- NAV -->
+  <header style="position:sticky;top:0;z-index:40;border-bottom:1px solid var(--border);background:color-mix(in oklab,var(--background) 80%,transparent);backdrop-filter:blur(20px)">
+    <div style="margin:0 auto;display:flex;height:64px;max-width:1400px;align-items:center;justify-content:space-between;padding:0 32px;gap:16px">
+      <div style="display:flex;align-items:center;gap:40px;min-width:0">
+        <img src="uploads/cernal-logo-loop (2).gif" alt="CERNAL" style="height:40px;width:auto;display:block;mix-blend-mode:multiply">
+        <nav style="display:flex;align-items:center;gap:4px">
+          <a href="./CERNAL Compiler.dc.html" style="border-radius:6px;padding:6px 12px;font-size:14px;color:var(--muted-foreground);transition:all .15s">Dashboard</a>
+          <a href="#" style="border-radius:6px;padding:6px 12px;font-size:14px;color:var(--muted-foreground);transition:all .15s">Quick Guide</a>
+          <a href="#" style="border-radius:6px;padding:6px 12px;font-size:14px;color:var(--muted-foreground);transition:all .15s">Use Cases</a>
+          <a href="#" style="border-radius:6px;padding:6px 12px;font-size:14px;background:var(--secondary);color:var(--foreground);font-weight:500;transition:all .15s">About Us</a>
+        </nav>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);padding:6px 12px;font-size:12px">
+          <span style="height:6px;width:6px;border-radius:999px;background:var(--mint);animation:cernal-pulse 2s cubic-bezier(.4,0,.6,1) infinite"></span>
+          <span style="font-family:var(--font-mono);color:var(--muted-foreground)">TAU iGEM Lab</span>
+        </div>
+        <div style="display:grid;height:36px;width:36px;place-items:center;border-radius:999px;background-image:var(--gradient-mint);color:var(--mint-foreground)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- PAGE HEADER -->
+  <div style="border-bottom:1px solid var(--border);background:color-mix(in oklab,var(--surface) 60%,transparent)">
+    <div style="margin:0 auto;max-width:1400px;padding:32px">
+      <div style="font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:var(--muted-foreground);display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        Dashboard / About Us
+      </div>
+      <h1 style="margin:0 0 4px;font-size:30px;font-weight:600;letter-spacing:-0.02em;color:var(--foreground)">About Us</h1>
+      <p style="margin:0;font-size:14px;color:var(--muted-foreground)">TAU iGEM 2026 — Tel Aviv University</p>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <main style="margin:0 auto;max-width:1400px;padding:40px 32px;display:flex;flex-direction:column;gap:24px">
+
+    <!-- About the project -->
+    <section style="border-radius:16px;border:1px solid var(--border);background:var(--card);padding:32px;box-shadow:var(--shadow-clinical)">
+      <div style="margin-bottom:20px">
+        <div style="font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:var(--mint);margin-bottom:6px">The Project</div>
+        <h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.02em;color:var(--foreground)">CERNAL — Compiler-like Engine for RNA Logic</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start">
+        <div>
+          
+          <p style="margin:0;font-size:14px;color:var(--muted-foreground);line-height:1.75">CERNAL was developed by the <strong style="color: var(--foreground); font-weight: 600;" bis_size="{&quot;x&quot;:272,&quot;y&quot;:356,&quot;w&quot;:273,&quot;h&quot;:17,&quot;abs_x&quot;:589,&quot;abs_y&quot;:408}">iGEM 2026 Tel Aviv University (TAU) team</strong> as part of the International Genetically Engineered Machine (iGEM) competition — the world's largest synthetic biology community. CERNAL grew out of the team's goal to make designing RNA-based logical circuits accessible to any lab, turning what used to be months of complicated manual circuit design into a simple and quick process.</p>
+          <p style="margin:16px 0 0;font-size:14px;color:var(--muted-foreground);line-height:1.75">Empowering scientists with the ability to design RNA-trigger-based systems that sense their environment and respond only when the right conditions&nbsp;are met would accelerate the development of RNA-based synthetic biology solutions, from smart therapeutics to complex biosensors.</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);padding:14px 16px">
+            <div style="display:grid;height:36px;width:36px;place-items:center;border-radius:8px;background-image:var(--gradient-deep);color:var(--primary-foreground);flex-shrink:0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M5 2c0 5 14 7 14 10S5 17 5 22M19 2c0 5-14 7-14 10s14 7 14 10M7 5h10M9 9h6M9 15h6M7 19h10"></path></svg>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--foreground)">RNA cellular logic</div>
+              <div style="font-size:12px;color:var(--muted-foreground)">Toehold switches · CRISPR-guide RNAs · AND, OR, NOT</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);padding:14px 16px">
+            <div style="display:grid;height:36px;width:36px;place-items:center;border-radius:8px;background-image:var(--gradient-deep);color:var(--primary-foreground);flex-shrink:0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M3 3v18h18M7 16l4-4 4 4 4-4"></path></svg>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--foreground)">Compiler-driven &amp; automated</div>
+              <div style="font-size:12px;color:var(--muted-foreground)">Months of manual design → an automated workflow</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);padding:14px 16px">
+            <div style="display:grid;height:36px;width:36px;place-items:center;border-radius:8px;background-image:var(--gradient-deep);color:var(--primary-foreground);flex-shrink:0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path></svg>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--foreground)">Smart therapeutics &amp; biosensors</div>
+              <div style="font-size:12px;color:var(--muted-foreground)">Condition-responsive systems for any lab</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Team photo grid -->
+    <section style="border-radius:16px;border:1px solid var(--border);background:var(--card);padding:32px;box-shadow:var(--shadow-clinical)">
+      <div style="margin-bottom:8px">
+        <div style="font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:var(--mint);margin-bottom:6px">The Team</div>
+        <h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.02em;color:var(--foreground)">TAU iGEM 2026</h2>
+      </div>
+      <p style="margin:0 0 28px;font-size:14px;color:var(--muted-foreground);line-height:1.75;max-width:720px">A multidisciplinary student team from Tel Aviv University, combining computational biology, molecular biology, biochemistry, and human practices to build the next generation of programmable biological circuits.</p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:32px 12px">
+        <sc-for list="{{ students }}" as="m" hint-placeholder-count="14">
+          <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px">
+            <div style="position:relative;width:88px;height:88px;border-radius:50%;overflow:hidden;border:1px solid var(--border);background:var(--surface)">
+              <img src="{{ m.photo }}" alt="{{ m.name }}" style="{{ m.imgStyle }}">
+            </div>
+            <div>
+              <div style="font-size:15px;font-weight:600;letter-spacing:-0.01em;color:var(--foreground)">{{ m.name }}</div>
+              <div style="font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--mint);margin-top:3px">{{ m.title }}</div>
+              <p style="margin:8px 0 0;font-size:12.5px;color:var(--muted-foreground);line-height:1.6">{{ m.bio }}</p>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="margin:36px 0 8px">
+        <div style="font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:var(--mint);margin-bottom:6px">Principal Investigator &amp; Advisor</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:32px 12px">
+        <sc-for list="{{ advisors }}" as="m" hint-placeholder-count="2">
+          <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px">
+            <div style="position:relative;width:88px;height:88px;border-radius:50%;overflow:hidden;border:1px solid var(--border);background:var(--surface)">
+              <img src="{{ m.photo }}" alt="{{ m.name }}" style="{{ m.imgStyle }}">
+            </div>
+            <div>
+              <div style="font-size:15px;font-weight:600;letter-spacing:-0.01em;color:var(--foreground)">{{ m.name }}</div>
+              <div style="font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--mint);margin-top:3px">{{ m.title }}</div>
+              <p style="margin:8px 0 0;font-size:12.5px;color:var(--muted-foreground);line-height:1.6">{{ m.bio }}</p>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- Wiki row -->
+    <div style="display:grid;grid-template-columns:1fr;gap:24px">
+
+      <!-- Wiki link -->
+      <section style="border-radius:16px;border:1px solid var(--border);background:var(--card);padding:32px;box-shadow:var(--shadow-clinical);display:flex;flex-direction:column">
+        <div style="margin-bottom:20px">
+          <div style="font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:var(--mint);margin-bottom:6px">iGEM Wiki</div>
+          <h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.02em;color:var(--foreground)">Full project documentation</h2>
+        </div>
+        <p style="margin:0 0 24px;font-size:14px;color:var(--muted-foreground);line-height:1.75;flex:1">Our iGEM wiki contains the complete project documentation — experiments, results, human practices, safety, and the full engineering write-up. All protocols, models, and wet-lab data are published there.</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <a href="https://2025.igem.wiki/tau-israel" target="_blank" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;background-image:var(--gradient-deep);padding:12px 20px;font-size:14px;font-weight:600;color:var(--primary-foreground);box-shadow:var(--shadow-clinical);transition:opacity .15s" style-hover="opacity:.9">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            Visit TAU iGEM 2025 Wiki
+          </a>
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-family:var(--font-mono);font-size:11px;color:var(--muted-foreground)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            2025.igem.wiki/tau-israel
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Contact -->
+    <section style="border-radius:16px;border:1px solid var(--border);background:var(--card);padding:32px;box-shadow:var(--shadow-clinical)">
+      <div style="margin-bottom:8px">
+        <div style="font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:var(--mint);margin-bottom:6px">Contact Us</div>
+        <h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.02em;color:var(--foreground)">Get in touch</h2>
+      </div>
+      <p style="margin:0 0 28px;font-size:14px;color:var(--muted-foreground);line-height:1.75;max-width:720px">Whether you need help designing an RNA circuit with CERNAL, want to report an issue, or are interested in collaborating with the TAU iGEM team, we'd love to hear from you. Reach out and we'll get back to you.</p>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px">
+          <div style="display:flex;flex-direction:column;gap:8px;border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:20px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--mint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M14 9V5a3 3 0 0 0-6 0v4"></path><rect x="2" y="9" width="20" height="12" rx="2"></rect></svg>
+            <div style="font-size:13px;font-weight:600;color:var(--foreground)">Design &amp; support</div>
+            <div style="font-size:12px;color:var(--muted-foreground);line-height:1.6">Questions about building circuits or using the compiler — we'll walk you through it.</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:20px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--mint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            <div style="font-size:13px;font-weight:600;color:var(--foreground)">Collaborate</div>
+            <div style="font-size:12px;color:var(--muted-foreground);line-height:1.6">Labs, teams and partners interested in RNA cellular logic are welcome to reach out.</div>
+          </div>
+        </div>
+        <a href="mailto:igem.tau.2026@gmail.com" style="display:flex;flex-direction:column;gap:8px;border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:20px;text-decoration:none" style-hover="border-color:var(--mint)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--mint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 5L2 7"></path></svg>
+          <div style="font-size:13px;font-weight:600;color:var(--foreground)">Email the team</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted-foreground)">igem.tau.2026@gmail.com</div>
+        </a>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer style="display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--border);padding-top:24px;font-family:var(--font-mono);font-size:11px;color:var(--muted-foreground);flex-wrap:wrap">
+      <div>CERNAL · Synthetic Biology Compiler · © 2026</div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <span>v2.4.1</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="height:6px;width:6px;border-radius:999px;background:var(--mint)"></span> All systems operational</span>
+      </div>
+    </footer>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const P = "assets/team/";
+    const crops = {
+      "altar-horowitz":{l:-0.10288,t:-0.0608,r:-0.0013,b:-0.05328},
+      "shir-harel":{l:0,t:0,r:0,b:-0.2826},
+      "shani-linzish":{l:-0.09941,t:0,r:-0.12427,b:-0.33194},
+      "liran-raanan-cohen":{l:0,t:-0.07391,r:0,b:-0.07391},
+      "ronen-rusinov":{l:-0.48581,t:-0.05982,r:-0.23856,b:-0.66455},
+      "mor-gurwicz":{l:-0.06897,t:-0.02771,r:-0.04083,b:-0.20327},
+      "aviv-hendler":{l:0,t:0,r:-0.00936,b:0},
+      "michal-naor":{l:-0.03695,t:-0.00888,r:0,b:-0.4966},
+      "ziv-bentulila":{l:0,t:-0.0034,r:0,b:-0.46216},
+      "jonathan-tirnover":{l:-0.02729,t:0,r:-0.01776,b:0},
+      "yael-shenkerman":{l:0,t:0,r:0,b:-0.48423},
+      "tal-berezovsky":{l:-0.65221,t:-0.07463,r:-0.79454,b:-1.37213},
+      "tamir-tuller":{l:-0.00381,t:0,r:-0.00381,b:0},
+      "daniel-dovrat":{l:0,t:-0.04227,r:0,b:-0.04227},
+      "yair-shoat":{l:-0.11846,t:0,r:0,b:-0.44609},
+      "lior-rosenberg":{l:0,t:-0.14088,r:0,b:-1.09375},
+    };
+    const pct = (n) => (n * 100).toFixed(3) + "%";
+    const imgStyle = (slug) => {
+      const c = crops[slug] || { l: 0, t: 0, r: 0, b: 0 };
+      return "position:absolute;display:block;left:" + pct(c.l) + ";top:" + pct(c.t) +
+        ";width:" + pct(1 - c.l - c.r) + ";height:" + pct(1 - c.t - c.b) + ";object-fit:fill";
+    };
+    const mk = (name, slug, title, bio) => ({
+      name,
+      photo: P + slug + ".png",
+      imgStyle: imgStyle(slug),
+      title: title || "Role · add later",
+      bio: bio || "Short description — add later.",
+    });
+    const students = [
+      mk("Yael Shenkerman", "yael-shenkerman"),
+      mk("Tal Berezovsky", "tal-berezovsky"),
+      mk("Mor Gurwicz", "mor-gurwicz"),
+      mk("Aviv Hendler", "aviv-hendler"),
+      mk("Ziv Bentulila", "ziv-bentulila"),
+      mk("Michal Naor", "michal-naor"),
+      mk("Jonathan Tirnover", "jonathan-tirnover"),
+      mk("Lior Rosenberg", "lior-rosenberg"),
+      mk("Ronen Rusinov", "ronen-rusinov"),
+      mk("Shir Harel", "shir-harel"),
+      mk("Yair Shoat", "yair-shoat"),
+      mk("Altar Horowitz", "altar-horowitz"),
+      mk("Shani Linzish", "shani-linzish"),
+      mk("Liran Raanan Cohen", "liran-raanan-cohen"),
+    ];
+    const advisors = [
+      mk("Prof. Tamir Tuller", "tamir-tuller", "Principal Investigator"),
+      mk("Dr. Daniel Dovrat", "daniel-dovrat", "Advisor"),
+    ];
+    return { students, advisors };
+  }
+}
+</script>
+</body>
+</html>

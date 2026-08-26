@@ -1,0 +1,169 @@
+{% extends "layout.html" %}
+{% block title %}Notebook | iGEM Wiki{% endblock %}
+{% block page_content %}
+<div class="no-wiki-sidebar"></div>
+<div class="container" style="margin-top: 4rem;">
+    <h1>Notebook</h1>
+    <section class="glass-card">
+        <p>Click on one of our laboratory cows below to reveal Notebook entries, solving the smart cow problem.</p>
+
+        <div class="cow-grid">
+            <div class="cow-card" onclick="toggleCowText('cow1-text')">
+                <img src="{{ url_for('static', filename='images/cow1.png') }}" alt="Synthwave Cow">
+            </div>
+            <div class="cow-card" onclick="toggleCowText('cow2-text')">
+                <img src="{{ url_for('static', filename='images/cow2.png') }}" alt="Tech Cow">
+            </div>
+            <div class="cow-card" onclick="toggleCowText('cow3-text')">
+                <img src="{{ url_for('static', filename='images/cow3.png') }}" alt="Lab Cow">
+            </div>
+        </div>
+
+        <div id="cow1-text" class="cow-text-section"
+            style="display: none; margin-top: 3rem; padding: 2rem; background: var(--bg-secondary); border: 1px solid var(--accent-glow); border-radius: 16px;">
+            <h3 style="color: var(--accent-color);">The Smart Cow Problem - Entry 1</h3>
+            <p>The smart cow problem is the idea that a technically difficult task may only need to be solved once, by
+                one
+                person, for less technically proficient group members to accomplish the task using an easily repeatable
+                method. The term is derived from the expression: "It only takes one smart cow to open the latch of the
+                gate,
+                and then all the other cows follow."</p>
+            <p>This concept has been applied to digital rights management (DRM), where, due to the rapid spread of
+                information on the Internet, it only takes one individual's defeat of a DRM scheme to render the method
+                obsolete.</p>
+        </div>
+
+        <div id="cow2-text" class="cow-text-section"
+            style="display: none; margin-top: 3rem; padding: 2rem; background: var(--bg-secondary); border: 1px solid var(--accent-glow); border-radius: 16px;">
+            <h3 style="color: var(--accent-color);">Technological Blueprint - Entry 2</h3>
+            <p>Below is the 3D structure of the Winter Flounder (fish) Antifreeze Protein (PDB: 1WFA). This Type I AFP
+                is an amphipathic alpha helix that binds to ice crystals to prevent their growth, serving as an
+                inspiration for our synthetic geometry integrations.</p>
+            <p style="margin-top: 0.3rem; font-size:0.85rem; color: var(--text-secondary);">
+                Colored by hydrophobicity (Kyte-Doolittle scale): hydrophobic as red → hydrophilic as blue
+            </p>
+            <script src="https://3dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
+            <div id="afp-viewer" style="height: 400px; width: 100%; position: relative; margin-top: 1.5rem;"></div>
+            <small style="color: var(--text-secondary); display: block; text-align: center; margin-top: 0.5rem;">
+                Structure of Type I fish antifreeze protein (PDB: 1WFA)
+            </small>
+            <script>
+                (function () {
+                    const hydrophobicity = {
+                        ILE: 4.5, VAL: 4.2, LEU: 3.8, PHE: 2.8, CYS: 2.5,
+                        MET: 1.9, ALA: 1.8, GLY: -0.4, THR: -0.7, SER: -0.8,
+                        TRP: -0.9, TYR: -1.3, PRO: -1.6, HIS: -3.2, GLU: -3.5,
+                        GLN: -3.5, ASP: -3.5, ASN: -3.5, LYS: -3.9, ARG: -4.5
+                    };
+
+                    function initViewer() {
+                        if (typeof $3Dmol === 'undefined') {
+                            setTimeout(initViewer, 100);
+                            return;
+                        }
+                        const viewer = $3Dmol.createViewer("afp-viewer", {});
+                        viewer.setBackgroundColor(0x000000, 0.2);
+                        $3Dmol.download("pdb:1WFA", viewer, {}, function () {
+                            viewer.setStyle({}, {
+                                cartoon: {
+                                    colorfunc: function (atom) {
+                                        const score = hydrophobicity[atom.resn] || 0;
+                                        const t = (score + 4.5) / 9.0; // normalise to 0..1
+                                        const r = Math.round(255 * t);
+                                        const b = Math.round(255 * (1 - t));
+                                        return "rgb(" + r + ",0," + b + ")";
+                                    }
+                                }
+                            });
+                            viewer.zoom(2, 600);
+                            viewer.render();
+                            viewer.spin("y", 0.1);
+                        });
+                    }
+
+                    // Wait until the section is visible, then init
+                    const observer = new MutationObserver(function (mutations) {
+                        mutations.forEach(function (m) {
+                            if (m.target.id === 'cow2-text' && m.target.style.display !== 'none') {
+                                initViewer();
+                                observer.disconnect();
+                            }
+                        });
+                    });
+                    observer.observe(document.getElementById('cow2-text'), { attributes: true, attributeFilter: ['style'] });
+                })();
+            </script>
+        </div>
+
+        <div id="cow3-text" class="cow-text-section"
+            style="display: none; margin-top: 3rem; padding: 2rem; background: var(--bg-secondary); border: 1px solid var(--accent-glow); border-radius: 16px;">
+            <h3 style="color: var(--accent-color); margin-bottom: 1rem;">Veronika (cow)</h3>
+            <p>Veronika (born 2012 or 2013) is a pet Braunvieh cow in the Austrian town of Nötsch im Gailtal. She became
+                known in January 2026 after being observed using tools to scratch herself. The incident has been
+                described as the first documented case of cattle using tools, and has led scientists to reassess the
+                intelligence of cows.</p>
+
+            <h4
+                style="font-weight: 500; font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--text-color);">
+                Life</h4>
+            <p>Veronika, a brown cow, was born in 2012 or 2013 and lives in the Austrian town of Nötsch im Gailtal, near
+                the Italian border. She is kept as a pet by Witgar Wiegele, a farmer and baker. Veronika started playing
+                with branches that had fallen off trees years before the study was published in 2026, and worked out in
+                about 2016 how to use them as tools to scratch herself. Wiegele has also reported that Veronika can
+                recognise the voices of her family members and runs over to them when they call for her.</p>
+
+            <h4
+                style="font-weight: 500; font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--text-color);">
+                Research and tool use</h4>
+            <p>After cognitive biologist Alice Auersperg found video recordings of Veronika using tools, she and her
+                postdoctoral student Antonio Osuna-Mascaró travelled by car to Nötsch im Gailtal to study the cow and
+                did so for two weeks. They gave her a broom and she would pick it up, using her tongue to reposition it
+                until firmly holding it with her teeth. The cow would move the broom around by moving her head, and
+                would use the broom to scratch regions of her body that were normally unreachable to her. She would use
+                the bristles to scratch the tough parts of her skin and would use the wooden handle of the broom to more
+                carefully scratch the softer parts of her: the udder and underbelly. The researchers initially thought
+                that this was a mistake, Veronika picking up the wrong side of the broom, but came to the conclusion
+                that Veronika appears to do it on purpose.</p>
+            <p style="margin-top: 0.5rem">The study was published in the journal Current Biology in January 2026. It
+                described the behaviour as the first documented use of a tool by a cow. The lead author of the study,
+                Antonio J. Osuna-Mascaró, has written that "What this tells us is that cows have the potential to
+                innovate tool use, and we have ignored this fact for thousands of years ... There are around 1.5 billion
+                heads of cattle in the world, and humans have lived with them for at least 10,000 years. It's shocking
+                that we're only discovering this now." As of January 2026, the authors plan on further studying
+                Veronika's behaviour and request contact from people who have observed farm animals using tools. Before
+                the study, chimpanzees and humans were the only mammals known to use tools for multiple purposes.</p>
+            <p style="margin-top: 0.5rem">The authors do not believe that Veronika is an extremely intelligent cow, but
+                instead believe that cows have always been capable of tool use and that humans have not noticed this
+                ability. While the cause of Veronika's learning to use the tools is unknown, Osuna-Mascaró has said that
+                the cow's owner "provid[ed] the special conditions that enabled Veronika to express herself". The owner
+                gave the cow rakes and sticks which allowed her to improve her ability to use them. Veronika is 13 years
+                old as of 2026, much older than what most farm animals live to, possibly giving her more time to develop
+                the skill since acquiring it about a decade earlier. Farm animals also often live in places where they
+                cannot interact with and manipulate objects, such as in factory farms.</p>
+
+            <h4
+                style="font-weight: 500; font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--text-color);">
+                Reaction</h4>
+            <p>Jill Pruetz, a primatologist at Texas State University, has said that "I am not completely surprised that
+                cattle can use tools—after living in close proximity to my two cows for about seven years now, I have a
+                lot more respect for bovine intelligence!" Scientific American has paraphrased further comments from
+                Pruetz, saying that the "paper illustrates the need for enrichment for the welfare of cattle".</p>
+        </div>
+
+        <script>
+            function toggleCowText(targetId) {
+                // Hide all sections smoothly
+                document.querySelectorAll('.cow-text-section').forEach(el => {
+                    el.style.display = 'none';
+                });
+
+                // Show the targeted section
+                const target = document.getElementById(targetId);
+                target.style.display = 'block';
+                target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        </script>
+    </section>
+</div>
+
+{% endblock %}

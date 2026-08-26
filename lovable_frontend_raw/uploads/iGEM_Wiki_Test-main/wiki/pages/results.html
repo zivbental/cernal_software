@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% block title %}Results | iGEM Wiki{% endblock %}
+{% block page_content %}
+<div style="margin-top: 4rem;">
+    <h1>Results</h1>
+    <section class="glass-card">
+        {% if md_content %}
+        <div class="md-content">{{ md_content | safe }}</div>
+        {% else %}
+        <p>Content for Results coming soon.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

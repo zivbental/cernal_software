@@ -1,0 +1,12 @@
+image: python:3.9-buster
+
+pages:
+  stage: deploy
+  script:
+  - pip install -r dependencies.txt
+  - python app.py freeze
+  artifacts:
+    paths:
+    - public
+  only:
+  - main

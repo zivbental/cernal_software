@@ -1,0 +1,757 @@
+:root {
+  /* Color Palette */
+  --bg-primary: #0f172a; /* Deep slate */
+  --bg-secondary: #1e293b;
+  --bg-accent: rgba(255, 255, 255, 0.05);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --accent-color: #3b82f6; /* Vibrant blue */
+  --accent-glow: rgba(59, 130, 246, 0.4);
+  --gradient-main: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899);
+
+  /* Typography */
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: 'Outfit', var(--font-body);
+
+  /* Glassmorphism */
+  --glass-bg: rgba(30, 41, 59, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-blur: blur(12px);
+
+  /* Layout */
+  --nav-height: 80px;
+  --container-width: 1200px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* Background Animation */
+.bg-animation {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  background: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15), transparent 25%),
+              radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15), transparent 25%);
+  animation: bgShift 20s ease-in-out infinite alternate;
+}
+
+@keyframes bgShift {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.1); }
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  background: var(--gradient-main);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+  display: inline-block;
+}
+
+h2 { font-size: 2.5rem; color: var(--text-primary); }
+p { margin-bottom: 1.5rem; color: var(--text-secondary); font-size: 1.125rem; }
+
+a {
+  color: var(--accent-color);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+a:hover {
+  color: #60a5fa;
+}
+
+/* Container */
+.container {
+  width: 100%;
+  max-width: var(--container-width);
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* Navigation System */
+nav {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  height: var(--nav-height);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.nav-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: var(--container-width);
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.nav-logo {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: -0.5px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-logo span {
+  color: var(--accent-color);
+}
+
+.nav-links {
+  display: flex;
+  gap: 2rem;
+  list-style: none;
+  align-items: center;
+}
+
+.nav-item {
+  position: relative;
+}
+
+.nav-link {
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 0.95rem;
+  padding: 0.5rem 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dropdown-arrow {
+  font-size: 0.8rem;
+  transition: transform 0.3s ease;
+}
+
+/* Hover and Active states for Nav */
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0%;
+  height: 2px;
+  background: var(--gradient-main);
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+
+.nav-link:hover,
+.nav-item:hover .nav-link {
+  color: var(--text-primary);
+}
+
+.nav-link:hover::after,
+.nav-item:hover .nav-link::after {
+  width: 100%;
+}
+
+.nav-link.active {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.nav-link.active::after {
+  width: 100%;
+}
+
+/* Dropdown Sub-menu */
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: -1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  min-width: 200px;
+  padding: 0.5rem 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  list-style: none;
+  z-index: 1000;
+}
+
+.nav-item.dropdown:hover .dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.nav-item.dropdown:hover .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.dropdown-link {
+  display: block;
+  padding: 0.75rem 1.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.dropdown-link:hover,
+.dropdown-link.active {
+  background: var(--bg-accent);
+  color: var(--text-primary);
+  padding-left: 2rem;
+}
+
+/* Mobile Menu Toggle */
+.mobile-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .mobile-toggle { display: block; }
+  
+  .nav-links {
+    position: fixed;
+    top: var(--nav-height);
+    right: -100%;
+    width: 250px;
+    height: calc(100vh - var(--nav-height));
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--glass-border);
+    flex-direction: column;
+    padding: 2rem;
+    transition: right 0.3s ease;
+  }
+  
+  .nav-links.active {
+    right: 0;
+  }
+}
+
+/* Main Content Area */
+main {
+  margin-top: calc(var(--nav-height) + 4rem);
+  flex: 1;
+}
+
+/* Hero Section Base */
+.hero {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  margin: 2rem auto;
+  max-width: calc(var(--container-width) - 4rem);
+  background: rgba(30, 41, 59, 0.4);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  padding: 4rem;
+}
+
+.hero-content {
+  max-width: 600px;
+  position: relative;
+  z-index: 2;
+}
+
+.hero p {
+  font-size: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.875rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: none;
+  gap: 0.5rem;
+}
+
+.btn-primary {
+  background: var(--gradient-main);
+  color: white;
+  box-shadow: 0 4px 15px var(--accent-glow);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px var(--accent-glow);
+  color: white;
+}
+
+/* Tables */
+.table-wrapper {
+  overflow-x: auto;
+  padding: 1.5rem;
+}
+
+.wiki-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.wiki-table th, 
+.wiki-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.wiki-table th {
+  color: var(--text-primary);
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.wiki-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Make second column (Description) widest */
+.wiki-table th:nth-child(2),
+.wiki-table td:nth-child(2) {
+  width: 60%;
+}
+
+.wiki-table th:nth-child(1),
+.wiki-table td:nth-child(1),
+.wiki-table th:nth-child(3),
+.wiki-table td:nth-child(3) {
+  width: 20%;
+}
+
+/* Glass Cards System */
+.cow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.cow-card {
+  cursor: pointer;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+  aspect-ratio: 1 / 1;
+  background: var(--bg-secondary);
+}
+
+.cow-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.cow-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 10px 30px var(--accent-glow);
+  border-color: var(--accent-color);
+}
+
+.cow-card:hover img {
+  transform: scale(1.05);
+}
+
+@media (max-width: 768px) {
+  .cow-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin: 4rem 0;
+}
+
+.glass-card {
+  background: var(--bg-accent);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 2.5rem;
+  transition: all 0.4s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+  transition: left 0.5s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+.glass-card:hover::before {
+  left: 100%;
+}
+
+.glass-card h3 {
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+/* Footer */
+footer {
+  margin-top: 6rem;
+  padding: 3rem 0;
+  border-top: 1px solid var(--glass-border);
+  text-align: center;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+}
+
+/* ═══════════════════════════════════════════════════════
+   GLOBAL WIKI PAGE LAYOUT — sidebar + content grid
+   ═══════════════════════════════════════════════════════ */
+
+/* Grid: sidebar + main content */
+.wiki-page {
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: 2.5rem;
+  align-items: start;
+  padding-bottom: 6rem;
+}
+
+/* When sidebar has no entries JS adds this class */
+.wiki-page--no-sidebar {
+  grid-template-columns: 1fr;
+}
+.wiki-page--no-sidebar .wiki-sidebar {
+  display: none;
+}
+
+/* ── Sticky Sidebar ── */
+.wiki-sidebar {
+  position: sticky;
+  top: calc(var(--nav-height) + 1.5rem);
+  height: fit-content;
+  max-height: calc(100vh - var(--nav-height) - 3rem);
+  overflow-y: auto;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 1.25rem 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+.wiki-sidebar::-webkit-scrollbar { width: 3px; }
+.wiki-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+}
+
+.wiki-sidebar__title {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+  margin-bottom: 0.85rem;
+}
+
+.wiki-sidebar__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wiki-sidebar__link {
+  display: block;
+  text-decoration: none;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  padding: 0.3rem 0.7rem;
+  border-left: 2px solid transparent;
+  border-radius: 5px;
+  transition: color .2s, background .2s, border-color .2s;
+}
+.wiki-sidebar__link:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.05);
+  border-left-color: color-mix(in srgb, var(--accent-color) 40%, transparent);
+}
+.wiki-sidebar__link--active {
+  color: var(--accent-color);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent-color) 8%, transparent);
+  border-left-color: var(--accent-color);
+}
+
+/* Sub-headings indented */
+.wiki-sidebar__link--sub {
+  padding-left: 1.3rem;
+  font-size: 0.78rem;
+}
+
+/* ── Markdown content area styling ── */
+.wiki-main h2,
+.wiki-main h3 {
+  color: var(--text-primary);
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+  scroll-margin-top: calc(var(--nav-height) + 1.5rem);
+}
+.wiki-main h2 { font-size: 1.4rem; }
+.wiki-main h3 {
+  font-size: 1.15rem;
+  background: var(--gradient-main);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+}
+.wiki-main .glass-card img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+.wiki-main .glass-card table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+.wiki-main .glass-card th,
+.wiki-main .glass-card td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--glass-border);
+  font-size: 0.95rem;
+}
+.wiki-main .glass-card th {
+  background: rgba(255,255,255,0.04);
+  font-weight: 600;
+}
+
+/* ── Collapsible References Dropdown ── */
+.wiki-ref-dropdown {
+  margin-top: 2rem;
+  border: 2px solid rgba(120,180,255,0.3);
+  border-radius: 12px;
+  background: rgba(15,20,40,0.55);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+  transition: border-color .3s;
+  scroll-margin-top: calc(var(--nav-height) + 1.5rem);
+}
+.wiki-ref-dropdown:hover { border-color: rgba(120,180,255,0.55); }
+
+.wiki-ref-dropdown summary {
+  cursor: pointer;
+  padding: 1rem 1.5rem;
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #c0d8ff;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  user-select: none;
+  transition: background .25s;
+}
+.wiki-ref-dropdown summary::-webkit-details-marker { display: none; }
+
+.wiki-ref-dropdown summary::before {
+  content: '▶';
+  display: inline-block;
+  font-size: .85rem;
+  transition: transform .3s;
+}
+.wiki-ref-dropdown[open] summary::before { transform: rotate(90deg); }
+.wiki-ref-dropdown summary:hover { background: rgba(120,180,255,0.08); }
+
+.wiki-ref-dropdown .wiki-ref-body {
+  padding: .5rem 1.5rem 1.5rem;
+  border-top: 1px solid rgba(120,180,255,0.15);
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .wiki-page {
+    grid-template-columns: 1fr;
+  }
+  .wiki-sidebar {
+    display: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   INLINE INFO DROPDOWNS — ((info: key)) system
+   Clickable inline pills that expand full-width bars.
+   Content is registered per-page via window.DROPDOWN_CONTENT.
+   ═══════════════════════════════════════════════════════ */
+
+.info-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.7rem;
+  margin: 0 0.15rem;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.9em;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  line-height: 1.6;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  vertical-align: baseline;
+  backdrop-filter: blur(6px);
+  text-decoration: none;
+}
+
+.info-trigger:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.info-trigger.active {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.info-trigger .info-chevron {
+  display: inline-block;
+  transition: transform 0.3s ease;
+  font-size: 0.7em;
+}
+
+.info-trigger.active .info-chevron {
+  transform: rotate(180deg);
+}
+
+.info-bar {
+  width: 100%;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 0.35s ease,
+      margin 0.35s ease;
+  opacity: 0;
+  margin: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.info-bar.open {
+  max-height: 600px;
+  opacity: 1;
+  margin: 1rem 0;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.info-bar__inner {
+  padding: 1.25rem 1.5rem;
+}
+
+.info-bar__title {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.6rem;
+  opacity: 0.9;
+  letter-spacing: 0.3px;
+}
+
+.info-bar__text {
+  font-size: 0.92rem;
+  line-height: 1.75;
+  opacity: 0.85;
+}
+
+.info-bar__text p {
+  margin: 0 0 0.6rem 0;
+}
+
+.info-bar__text p:last-child {
+  margin-bottom: 0;
+}
