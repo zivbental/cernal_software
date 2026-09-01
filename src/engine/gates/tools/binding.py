@@ -34,9 +34,10 @@ def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float
         displace the stem, and the switch stays dark.
 
     Implementation (Step 5):
-        1. ``G_complex`` — fold the two strands together. In ViennaRNA this is
-           ``RNA.cofold(switch + "&" + trigger)``, which returns the energy of the
-           dimer.
+        1. ``G_complex`` — fold the two strands together as a dimer, through the shared
+           engine: ``folder.mfe(f"{switch}&{trigger}").energy``. Going through
+           ``folder`` rather than calling ``RNA.cofold`` directly is what gives this the
+           shared cache and consistent temperature ``folder`` was passed in for.
         2. ``G_switch`` — ``folder.mfe(switch).energy``.
         3. ``G_trigger`` — ``folder.mfe(trigger).energy``.
         4. Subtract.
@@ -45,7 +46,7 @@ def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float
         * The ``&`` separator is ViennaRNA's dimer convention. Concatenating without it
           silently folds one long single strand and gives a meaningless answer that looks
           plausible.
-        * ``cofold`` energies include a duplex initiation term. That is correct here, but
+        * The dimer energy includes a duplex initiation term. That is correct here, but
           it means the value is not comparable with a hand-computed base-pairing sum.
         * Order matters for the string but not for the energy. Keep ``switch`` first so
           any structure returned alongside it is indexed the way callers expect.

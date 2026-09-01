@@ -1,10 +1,11 @@
 """The tools that are implemented rather than stubbed.
 
 `engine.sequences` (S6) and `engine.stages.motifs` (S7) need no scientific decision and
-no ViennaRNA, so they are real code and tested as such. The folding, off-target, codon
-and translation tools raise NotImplementedError until Step 5.
+no ViennaRNA, so they are real code and tested as such.
+`engine.gates.tools.folding.FoldEngine.mfe` is now real too. The rest of folding, and
+off-target, codons and translation, still raise NotImplementedError until Step 5.
 
-The two live in different places because they are shared by different callers — see
+The tools live in different places because they are shared by different callers — see
 docs/engine.md §3.3. This file tests them together because what they have in common is
 that they are *finished*, which is a fact about the test suite, not about the layout.
 """
@@ -13,6 +14,7 @@ import pytest
 
 from engine import sequences as sq
 from engine.domain import AssemblyStandard
+from engine.gates.tools.folding import FoldEngine
 from engine.stages.motifs import MotifScreener
 
 GFP_START = "AUGGCUAGCAAGGGCGAGGAGCUGUUCACC"
@@ -146,3 +148,37 @@ def test_extra_motifs_can_be_supplied_without_touching_the_logic():
     """The motif sets are the scientific team's to own; the matching is not."""
     screener = MotifScreener(AssemblyStandard.RFC10, extra_motifs={"custom": "GGGGG"})
     assert any(v.name == "custom" for v in screener.violations("AAGGGGGAA"))
+
+
+# --- Folding ------------------------------------------------------------------------
+
+
+def test_mfe_folds_a_hairpin():
+    result = FoldEngine(temperature=37.0).mfe("GGGAAACCC")
+    assert result.structure == "(((...)))"
+    assert result.energy == pytest.approx(-1.2, abs=0.05)
+
+
+def test_mfe_is_cached_per_instance():
+    folder = FoldEngine()
+    assert folder.mfe("GGGAAACCC") is folder.mfe("GGGAAACCC")
+
+
+def test_mfe_respects_the_instance_temperature():
+    """Two designs folded at different temperatures must not land on the same energy
+    axis by accident — each `FoldEngine` instance commits to one temperature."""
+    warm = FoldEngine(temperature=37.0).mfe("GGGAAACCC")
+    cool = FoldEngine(temperature=10.0).mfe("GGGAAACCC")
+    assert cool.energy < warm.energy
+
+
+def test_mfe_folds_a_complex_as_a_dimer_not_a_concatenated_strand():
+    """The ON state is switch and trigger folded together, joined with `&` — a
+    different (and correct) physical system from folding one merged strand."""
+    switch, trigger = "GGGAAACCC", "GGGUUUCCC"
+
+    dimer = FoldEngine().mfe(f"{switch}&{trigger}")
+    concatenated = FoldEngine().mfe(switch + trigger)
+
+    assert len(dimer.structure) == len(switch) + len(trigger)
+    assert dimer.energy != concatenated.energy
