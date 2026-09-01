@@ -24,7 +24,7 @@ from engine.domain import (
     GateDesign,
     SelectedGene,
 )
-from engine.tools.off_target import OffTargetScanner
+from engine.stages.off_target import OffTargetScanner
 
 
 class CircuitDesigner:

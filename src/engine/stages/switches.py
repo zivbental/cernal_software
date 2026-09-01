@@ -20,10 +20,10 @@ from engine.domain import (
     TriggerSet,
     ValidationResult,
 )
-from engine.tools.folding import FoldEngine
-from engine.tools.motifs import MotifScreener
-from engine.tools.off_target import OffTargetScanner
-from engine.tools.translation import TranslationScorer
+from engine.gates.tools.folding import FoldEngine
+from engine.gates.tools.translation import TranslationScorer
+from engine.stages.motifs import MotifScreener
+from engine.stages.off_target import OffTargetScanner
 
 
 class SwitchDesigner:

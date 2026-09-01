@@ -1,7 +1,13 @@
 """S6 — sequence facts. Pure functions, no state, no dependencies.
 
-Implemented rather than stubbed: none of this needs a scientific decision, and every
-stage below depends on it.
+Implemented rather than stubbed: none of this needs a scientific decision, and almost
+everything below depends on it.
+
+**At the engine root rather than under ``gates/`` or ``stages/``**, because it is used by
+both and belongs to neither: a gate family calls ``reverse_complement`` to build a
+binding region, the switch validator calls ``find_augs`` and ``find_stops``, and trigger
+scoring calls ``gc_content``. Filing it under one layer would make the other import
+sideways into it for no reason.
 """
 
 import re

@@ -29,7 +29,7 @@ product works end to end on deterministic fake science today.
 **What "the engine is stubbed" means precisely:** every class, method and signature
 exists with a docstring recording what it owes its caller. Filling one in is a scientific
 problem, not an architectural one. The stubs are in `src/engine/stages/`,
-`src/engine/tools/`, `src/engine/gates/` and `src/engine/pipeline.py`.
+`src/engine/gates/` (including `gates/tools/`) and `src/engine/pipeline.py`.
 
 ---
 
@@ -46,8 +46,8 @@ E1 domain+tools ──▶ E2 stages 1–3 ──▶ E3 pruning ──▶ E4 toeh
 ```
 
 **Three things can start today with no scientific input:** E0 (dependency groups), E1
-(`domain.py` is already written; `tools/sequences.py` and `tools/motifs.py` need no
-ViennaRNA), and every task in §4.
+(`domain.py`, `sequences.py` and `stages/motifs.py` are already written; nothing left
+in E1's first rungs needs ViennaRNA), and every task in §4.
 
 **One thing blocks everything else: Q1.** The DE table has gene identifiers, not
 sequences. No amount of infrastructure work answers it.
@@ -174,20 +174,26 @@ it, and `./do test` still passes.
 
 `domain.py` is already written and tested. The tools are not.
 
+They no longer live in one folder: what the **gate families** share is in
+`gates/tools/`, what only **stages** use is beside the stages, and `sequences.py` — used
+by both — is at the engine root. See [engine.md §3.3](engine.md#33-tools--s1-to-s9).
+
 | Order | Build | Needs |
 |---|---|---|
-| 1 | `tools/sequences.py` (S6) — `reverse_complement`, `translate`, `find_stops`, `find_augs`, `gc_content`, `longest_homopolymer` | Nothing. Start here |
-| 2 | `tools/motifs.py` (S7) — `MotifScreener`: RFC10/RFC1000 sites, RBP motifs, RNase sites, homopolymers > 5 nt | Nothing |
-| 3 | `tools/folding.py` (S1, S2, S4) — `FoldEngine`, `FoldProfiler`, `structure_match` | ViennaRNA |
-| 4 | `tools/binding.py` (S3) — `hybridization_energy` | ViennaRNA |
-| 5 | `tools/off_target.py` (S5) — `OffTargetScanner`, both directions | Q1's transcriptome |
-| 6 | `tools/codons.py` (S8), `tools/translation.py` (S9) | Codon tables per host |
+| 1 | `sequences.py` (S6) — `reverse_complement`, `translate`, `find_stops`, `find_augs`, `gc_content`, `longest_homopolymer` | Nothing. Start here |
+| 2 | `stages/motifs.py` (S7) — `MotifScreener`: RFC10/RFC1000 sites, RBP motifs, RNase sites, homopolymers > 5 nt | Nothing |
+| 3 | `gates/tools/folding.py` (S2, S4) — `FoldEngine`, `structure_match` | ViennaRNA |
+| 4 | `stages/folding.py` (S1) — `FoldProfiler`, wrapping `RNAplfold` | ViennaRNA |
+| 5 | `gates/tools/binding.py` (S3) — `hybridization_energy` | ViennaRNA |
+| 6 | `stages/off_target.py` (S5) — `OffTargetScanner`, both directions | Q1's transcriptome |
+| 7 | `gates/tools/codons.py` (S8), `gates/tools/translation.py` (S9) | Codon tables per host |
 
 **`FoldEngine` is the highest-leverage thing in the engine.** Every generator and
 validator folds sequences. Two rules:
 
-- **It is the only module that imports `RNA`.** One place to swap the library, one place
-  to record its version.
+- **Only two modules import `RNA`**, and `FoldEngine` is the one that matters:
+  `gates/tools/folding.py` for design-side folding, `stages/folding.py` for windowed
+  `RNAplfold` profiling. One place to swap the library, one place to record its version.
 - **Cache aggressively.** `lru_cache` on `mfe` is the single biggest speed win available —
   the same subsequence recurs constantly across designs, and folding it twice is pure
   waste. (This is why sequences are `str` and trigger sets are tuples: `lru_cache` needs

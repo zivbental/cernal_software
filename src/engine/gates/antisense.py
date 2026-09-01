@@ -19,8 +19,8 @@ from engine.domain import (
     TriggerSet,
 )
 from engine.gates.base import GateFamily
-from engine.tools.codons import CodonOptimizer
-from engine.tools.folding import FoldEngine
+from engine.gates.tools.codons import CodonOptimizer
+from engine.gates.tools.folding import FoldEngine
 
 
 class AntisenseNotGate(GateFamily):

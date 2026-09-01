@@ -10,7 +10,7 @@ every gate family reports the same quantity on the same scale. Two families comp
 normalise onto one axis as though they were comparable.
 """
 
-from engine.tools.folding import FoldEngine
+from engine.gates.tools.folding import FoldEngine
 
 
 def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float:

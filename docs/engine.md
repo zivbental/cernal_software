@@ -55,10 +55,11 @@ flowchart TB
     SEAM{{"engine.contract + engine.client<br/>THE BOUNDARY"}}
 
     subgraph engine["CERNAL Engine — no Django"]
-        PIPE["stages/<br/>6 stages + QC"]
+        PIPE["stages/<br/>6 stages + QC · S1 S5 S7"]
         GATES["gates/<br/>GateFamily"]
-        TOOLS["tools/<br/>S1–S9"]
+        TOOLS["gates/tools/<br/>S2 S3 S8 S9"]
         SCORE["scoring/<br/>S10"]
+        SEQ["sequences.py<br/>S6"]
     end
 
     SPA -->|"HTTPS /api/"| API
@@ -71,12 +72,14 @@ flowchart TB
     PIPE --> TOOLS
     PIPE --> SCORE
     GATES --> TOOLS
+    PIPE --> SEQ
+    TOOLS --> SEQ
     SEAM -.->|"JobResult"| SVC
 
     classDef built fill:#dcfce7,stroke:#15803d,color:#14532d
     classDef todo fill:#f4f4f5,stroke:#a1a1aa,color:#3f3f46
     classDef seam fill:#fef3c7,stroke:#b45309,color:#78350f
-    class SPA,API,SVC,DB,WORKER,SCORE built
+    class SPA,API,SVC,DB,WORKER,SCORE,SEQ built
     class PIPE,GATES,TOOLS todo
     class SEAM seam
 ```
@@ -582,32 +585,49 @@ between stages.
 ### 3.3 Tools — S1 to S9
 
 The map's shared scientific functions. Each is a **class only where it holds
-configuration**; otherwise a module of pure functions. All live under `engine/tools/`.
+configuration**; otherwise a module of pure functions.
 
-| Map | Class / module | Shape | Holds |
-|---|---|---|---|
-| **S1** LocalFoldProfile | `FoldProfiler` | class | Window parameters. `profile(seq)`, `openness(seq, start, end)` |
-| **S2** FoldEngine | `FoldEngine` | class | The ViennaRNA adapter. `mfe`, `partition`, `ensemble_defect`, `bppm`, `subopt`. **Cache here** |
-| **S3** HybridizationEnergy | `hybridization_energy()` | function | Stateless: `ΔG_bind = G_complex − (G_switch + G_trigger)` |
-| **S4** StructureMatch | `structure_match()` | function | `(dot_bracket, target) -> StructureMatch` |
-| **S5** OffTargetScan | `OffTargetScanner` | class | The transcriptome index and `max_mismatch` |
-| **S6** SequenceUtils | `sequences.py` | module | `reverse_complement`, `translate`, `find_stops`, `find_augs`, `gc_content`, `longest_homopolymer` |
-| **S7** MotifScreen | `MotifScreener` | class | The motif sets — RFC10/RFC1000 sites, RBP motifs, RNase sites, homopolymers |
-| **S8** CodonTools | `CodonOptimizer` | class | The organism's usage table |
-| **S9** TranslationInitiationScore | `TranslationScorer` | class | The host: RBS strength or Kozak match |
+**A tool lives with whoever shares it.** There is no single `tools/` folder, because
+"shared" meant two different things and lumping them together hid which:
+
+| Where | What | Why there |
+|---|---|---|
+| `gates/tools/` | S2, S3, S4, S8, S9 | Shared **across gate families**. A toehold, an antisense element and a blocked sgRNA all fold, all bind, all care about codons and initiation — and all must report those on the same scale |
+| `stages/` | S1, S5, S7 | Used by **no gate family**, and by two or three stages each. Sibling modules to the stages that call them |
+| `engine/sequences.py` | S6 | Used by both, belongs to neither. At the root so nothing imports sideways to reach it |
+
+The column below records which is which.
+
+| Map | Class / module | Lives in | Shape | Holds |
+|---|---|---|---|---|
+| **S1** LocalFoldProfile | `FoldProfiler` | `stages/folding.py` | class | Window parameters. `profile(seq)`, `openness(seq, start, end)` |
+| **S2** FoldEngine | `FoldEngine` | `gates/tools/folding.py` | class | The ViennaRNA adapter. `mfe`, `partition`, `ensemble_defect`, `bppm`, `subopt`. **Cache here** |
+| **S3** HybridizationEnergy | `hybridization_energy()` | `gates/tools/binding.py` | function | Stateless: `ΔG_bind = G_complex − (G_switch + G_trigger)` |
+| **S4** StructureMatch | `structure_match()` | `gates/tools/folding.py` | function | `(dot_bracket, target) -> StructureMatch` |
+| **S5** OffTargetScan | `OffTargetScanner` | `stages/off_target.py` | class | The transcriptome index and `max_mismatch` |
+| **S6** SequenceUtils | `sequences.py` | `engine/` root | module | `reverse_complement`, `translate`, `find_stops`, `find_augs`, `gc_content`, `longest_homopolymer` |
+| **S7** MotifScreen | `MotifScreener` | `stages/motifs.py` | class | The motif sets — RFC10/RFC1000 sites, RBP motifs, RNase sites, homopolymers |
+| **S8** CodonTools | `CodonOptimizer` | `gates/tools/codons.py` | class | The organism's usage table |
+| **S9** TranslationInitiationScore | `TranslationScorer` | `gates/tools/translation.py` | class | The host: RBS strength or Kozak match |
 
 ```mermaid
 flowchart LR
-    subgraph tools["engine/tools/ — shared primitives"]
-        S1["FoldProfiler<br/><i>S1 · openness</i>"]
+    subgraph gt["engine/gates/tools/ — shared across gate families"]
         S2["FoldEngine<br/><i>S2 · MFE, ensemble</i>"]
         S3["hybridization_energy<br/><i>S3</i>"]
         S4["structure_match<br/><i>S4</i>"]
-        S5["OffTargetScanner<br/><i>S5</i>"]
-        S6["sequences<br/><i>S6</i>"]
-        S7["MotifScreener<br/><i>S7</i>"]
         S8["CodonOptimizer<br/><i>S8</i>"]
         S9["TranslationScorer<br/><i>S9</i>"]
+    end
+
+    subgraph st["engine/stages/ — shared across stages, used by no gate"]
+        S1["FoldProfiler<br/><i>S1 · openness</i>"]
+        S5["OffTargetScanner<br/><i>S5</i>"]
+        S7["MotifScreener<br/><i>S7</i>"]
+    end
+
+    subgraph rt["engine/ root"]
+        S6["sequences<br/><i>S6</i>"]
     end
 
     TS["TriggerScorer"]
@@ -635,7 +655,9 @@ flowchart LR
 ```
 
 **`FoldEngine` (S2) and `sequences` (S6) are used by nearly everything — build them first
-and well.**
+and well.** They are also the two that ended up furthest apart: `FoldEngine` is a gate
+tool because folding a *design* is what every chemistry does, while `sequences` sits at
+the root because it is the one primitive with no layer to call home.
 
 ### 3.4 What makes something a "tool"
 
@@ -660,6 +682,10 @@ part.
 the transcriptome, tolerating mismatches.* That needs an index, a mismatch model and a
 consistent penalty scale. It is fiddly, slow to get right, and identical in all three
 places.
+
+All three callers are **stages**; no gate family scans. That is why `OffTargetScanner`
+lives in `stages/off_target.py` beside them rather than in `gates/tools/` — but it is
+still **one** module, and the argument below is the reason it must stay one.
 
 **What differs** is which sequence you hand it and what the hits mean — and that lives in
 the stage, not the tool.
@@ -706,8 +732,10 @@ Applying the test — *does it need to know its caller?*
 | | **S14** `ReportBuilder` — a *stage* |
 | | **S15** QC — a *stage* |
 
-Calling all fifteen "shared functions" flattens a real distinction. Only the first row
-belongs in `engine/tools/`.
+Calling all fifteen "shared functions" flattens a real distinction. Only the first row is
+a tool at all — and within it, S2/S3/S4/S8/S9 are shared by the **gate families** and live
+under `gates/tools/`, S1/S5/S7 are shared by **stages** and live beside them, and S6 is
+used by both and sits at the engine root.
 
 ### 3.5 Gate families
 
@@ -879,24 +907,22 @@ src/engine/
 ├── errors.py          the exception hierarchy                ✅ built
 ├── artifacts.py       checksummed artifact writing           ✅ built
 ├── domain.py          ALL records + enums                    ✅ built
+├── sequences.py       pure functions, no class               ✅ built · S6
 ├── pipeline.py        run_pipeline — wiring only             ★ stub
 ├── store.py           CandidateStore · ParetoFilter          ★ stub
-│
-├── tools/
-│   ├── folding.py     FoldEngine · FoldProfiler · structure_match   S1 S2 S4
-│   ├── binding.py     hybridization_energy                          S3
-│   ├── off_target.py  OffTargetScanner                              S5
-│   ├── sequences.py   pure functions, no class                      S6
-│   ├── motifs.py      MotifScreener                                 S7
-│   ├── codons.py      CodonOptimizer                                S8
-│   └── translation.py TranslationScorer                             S9
 │
 ├── gates/
 │   ├── base.py        GateFamily ABC                         ✅ built
 │   ├── registry.py    register · get_family · describe       ✅ built
 │   ├── toehold.py     ToeholdGate + ToeholdAndGate           ★ stub
 │   ├── antisense.py   AntisenseNotGate                       ★ planned
-│   └── crispr.py      CrisprGate                             ★ planned
+│   ├── crispr.py      CrisprGate                             ★ planned
+│   │
+│   └── tools/         what the gate families share
+│       ├── folding.py     FoldEngine · structure_match          S2 S4
+│       ├── binding.py     hybridization_energy                  S3
+│       ├── codons.py      CodonOptimizer                        S8
+│       └── translation.py TranslationScorer                     S9
 │
 ├── scoring/           ✅ built and tested — S10
 │   ├── profiles.py    MetricSpec · HardFilter · ScoringProfile
@@ -909,7 +935,11 @@ src/engine/
     ├── switches.py    SwitchDesigner + SwitchValidator
     ├── circuits.py    CircuitDesigner + ConfusionEvaluator
     ├── plasmids.py    PlasmidBuilder
-    └── reporting.py   ReportBuilder + StructureRenderer      S14
+    ├── reporting.py   ReportBuilder + StructureRenderer      S14
+    │
+    ├── folding.py     FoldProfiler        stage 2            S1
+    ├── off_target.py  OffTargetScanner    stages 2, 3, 4     S5
+    └── motifs.py      MotifScreener       stages 2, 3, 5     S7
 ```
 
 ### Why these groupings
@@ -917,7 +947,9 @@ src/engine/
 | Choice | Reason |
 |---|---|
 | **`domain.py` as one file** | Records reference each other constantly. Splitting them early invites circular imports. Split into a package when it passes ~400 lines, not before |
-| **`tools/` by scientific topic** | `folding.py` holds S1, S2 and S4 because they all wrap ViennaRNA and share its cache. Splitting them would mean three modules importing `RNA` |
+| **`gates/tools/` holds only what gates share** | S2, S3, S8 and S9 are needed by more than one chemistry, and all four must produce numbers on one scale across families. Putting them beside the families that share them says so; a flat `engine/tools/` said only "scientific" |
+| **S1, S5 and S7 sit beside the stages** | No gate family touches them. `FoldProfiler` answers a question only stage 2 asks; `OffTargetScanner` and `MotifScreener` are shared by three stages each. Filing them under `gates/` would have been filing them by topic rather than by caller |
+| **Two modules import ViennaRNA** | `gates/tools/folding.py` (MFE, ensemble — cached, per design) and `stages/folding.py` (`RNAplfold` — windowed, per transcript). They share no cache and no window parameters, so the second import buys the honest split |
 | **One module per gate chemistry** | A new family is a new file plus one `register()` call. Nothing else changes |
 | **`stages/` mirrors the pipeline map** | Someone reading the map can find the code by name |
 | **`pipeline.py` is one flat file** | It only wires things together. If it grows past ~150 lines, logic has leaked into it |
@@ -927,12 +959,18 @@ src/engine/
 Dependencies point **downward only**, which is what keeps any of it testable in isolation:
 
 ```
-pipeline  →  stages  →  gates  →  tools  →  domain
-                  ↘  scoring  ↗
+pipeline  →  stages  →  gates  →  gates/tools  →  sequences  →  domain
+                  ↘        scoring        ↗
 ```
 
-`tools/` imports nothing but `domain` and its scientific library. `domain` imports nothing
-at all. So a tool can be tested with no pipeline, and a stage tested with fake tools.
+A tool imports nothing but `domain`, `sequences` and its scientific library. `domain`
+imports nothing at all. So a tool can be tested with no pipeline, and a stage tested with
+fake tools.
+
+The stage-level tools (S1, S5, S7) sit at the `stages/` level, so a stage importing one is
+a **sideways** import within one layer — `switches.py` reaching for `stages/motifs.py`,
+not upward into `pipeline`. That is allowed and is the point: one screener, three callers.
+A stage importing another *stage* is not.
 
 **Nothing imports upward.** A tool that needs to know which stage called it is the signal
 something is in the wrong place.
@@ -1088,7 +1126,7 @@ flowchart LR
     end
 
     subgraph todo["Step 5"]
-        T1["tools/ S1–S9"]
+        T1["S1–S9 tools"]
         T2["6 stage bodies"]
         T3["ToeholdGate"]
         T4["CandidateStore S11"]
@@ -1109,7 +1147,9 @@ flowchart LR
 | User inputs 1–4 | `CountMatrix`, `DgeTable`, `Host`, `DesiredOutcome` | ✅ types built |
 | Supporting databases 5–8 | codon tables, sequence library, cell atlas, backbone spec | ✗ **no data source chosen** |
 | QC (S15) → Compiler's Output | `stages/` | ★ signatures only |
-| S1–S9 | `tools/` | ★ signatures only |
+| S2 S3 S4 S8 S9 | `gates/tools/` | ★ signatures only |
+| S1 S5 S7 | `stages/folding.py`, `off_target.py`, `motifs.py` | ★ signatures only |
+| S6 | `engine/sequences.py` | ✅ **built and tested** |
 | **S10** ScoreNormalizer + Aggregator | `engine/scoring/` | ✅ **built and tested** |
 | S11 CandidateStore | `store.py` | ★ — design decision open, [ROADMAP.md](ROADMAP.md) E10 |
 | S12 FilterEngine | `ScoringProfile.hard_filters` + `failed_filter` | ✅ metric filters; sequence filters are S7 |
@@ -1119,6 +1159,7 @@ flowchart LR
 | Rejection with reasons | enforced by a **database constraint** on import | ✅ built |
 | Metric normalization contract | `MetricSpec` | ✅ built |
 
-**Start with `tools/sequences.py` and `tools/motifs.py`** — no ViennaRNA needed, no
-scientific input needed, testable immediately, and everything else depends on them. The
+**`sequences.py` and `stages/motifs.py` are already done** — no ViennaRNA needed, no
+scientific input needed, and everything else depends on them. Start on
+`gates/tools/folding.py`, which is what the rest is waiting for. The
 full task list is [ROADMAP.md §5](ROADMAP.md).

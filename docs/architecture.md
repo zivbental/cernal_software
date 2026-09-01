@@ -121,7 +121,7 @@ Consequences that follow from it, and which agents must respect:
 - `engine/` never writes to the database. It returns a `JobResult`; the Platform persists it.
 - `engine/` never reads Django settings. Configuration arrives inside `JobRequest`.
 - Conversely, `apps/` and `api/` never import from `engine.pipeline`, `engine.gates`,
-  `engine.stages`, `engine.tools` or `engine.scoring`. They may import only
+  `engine.stages`, `engine.gates.tools` or `engine.scoring`. They may import only
   `engine.contract` and `engine.client`.
 
 ```

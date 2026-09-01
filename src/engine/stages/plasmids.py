@@ -19,8 +19,8 @@ from engine.domain import (
     PlasmidDesign,
     Segment,
 )
-from engine.tools.codons import CodonOptimizer
-from engine.tools.motifs import MotifScreener
+from engine.gates.tools.codons import CodonOptimizer
+from engine.stages.motifs import MotifScreener
 
 
 class PlasmidBuilder:

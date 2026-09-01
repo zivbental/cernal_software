@@ -17,9 +17,9 @@ across all genes keeps a run in minutes; keeping everything makes it hours.
 from collections.abc import Iterator
 
 from engine.domain import Constraints, SelectedGene, TriggerCandidate
-from engine.tools.folding import FoldProfiler
-from engine.tools.motifs import MotifScreener
-from engine.tools.off_target import OffTargetScanner
+from engine.stages.folding import FoldProfiler
+from engine.stages.motifs import MotifScreener
+from engine.stages.off_target import OffTargetScanner
 
 
 class TriggerScorer:

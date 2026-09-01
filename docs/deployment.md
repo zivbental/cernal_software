@@ -384,7 +384,7 @@ Nothing about it involves Google Cloud, Django, or containers:
 |---|---|
 | **No Django. Ever.** | The container has no Django installed; it would not start |
 | **Filesystem paths only** | The entrypoint stages files. The pipeline must not know where they came from |
-| **All ViennaRNA calls go through `tools/folding.py`** | One place to swap the tool, one place to record its version |
+| **All ViennaRNA calls go through a `folding.py`** | `gates/tools/folding.py` for design folding, `stages/folding.py` for `RNAplfold`. Two entry points, no third — one place to swap the tool, one place to record its version |
 | **Stages are pure over their inputs** | Testable without a pipeline around them |
 | **Call `on_progress` between batches** | It is the progress bar *and* the cancellation check |
 | **Never mutate a `JobRequest`** | It is frozen, and it is the reproducibility record |

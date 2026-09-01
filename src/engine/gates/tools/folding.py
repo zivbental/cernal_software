@@ -1,7 +1,15 @@
-"""S1, S2, S4 — RNA secondary structure prediction.
+"""S2, S4 — RNA secondary structure prediction for gate designs.
 
-**The only module in the engine that imports ViennaRNA.** Everything else asks these
-classes. That gives four things:
+**The only place a gate family folds anything.** Every chemistry here folds: a toehold's
+hairpin, an antisense duplex and a blocked sgRNA are all structural predictions, and all
+three must be made the same way or their numbers are not comparable. That is what makes
+this a shared gate tool rather than something each family carries.
+
+Stage-side accessibility profiling (S1, ``RNAplfold``) is a different entry point with
+its own window parameters and no shared cache, and lives in ``engine.stages.folding``.
+
+Everything else asks these classes rather than ViennaRNA directly. That gives four
+things:
 
 1. **A shared cache.** The same subsequence is folded hundreds of times across a run —
    every toehold length variant re-folds most of the same stem. Caching is the single
@@ -11,8 +19,8 @@ classes. That gives four things:
    with one from 2.6. ``FoldEngine.versions()`` is written into every ``JobResult``.
 3. **One place to swap the library.** NUPACK, or a lab-specific solver, replaces this
    module and nothing else.
-4. **One stub point for tests.** Faking this module fakes all folding, so stages and
-   gate families can be tested without ViennaRNA installed at all.
+4. **One stub point for tests.** Faking this module fakes all design-side folding, so
+   the gate families can be tested without ViennaRNA installed at all.
 
 Background: a toehold switch works because its OFF state is a hairpin that sequesters
 the ribosome binding site, and the trigger opens it by strand displacement. Everything
@@ -194,82 +202,6 @@ class FoldEngine:
             that changes the numbers, not only the library version.
         """
         raise NotImplementedError("Step 5 — return RNA.__version__ and the model settings")
-
-
-class FoldProfiler:
-    """S1 — per-position unpaired probability in *local* folding context.
-
-    The primitive behind trigger selection, and the reason a trigger is more than "a
-    30-nucleotide window". A trigger must be **accessible**: single-stranded enough in
-    the context of its own transcript for the switch to reach it. A perfect sequence
-    match buried inside a stable hairpin will never bind.
-
-    "Local context" matters because a full mRNA can be thousands of nucleotides, and
-    global folding of that is both slow and biologically dubious — RNA folds
-    co-transcriptionally and locally. ``RNAplfold`` computes unpaired probabilities using
-    only a sliding window, which is faster and closer to reality.
-
-    Args:
-        window: ``-W``. Span of the sliding window in nucleotides. Positions further
-            apart than this are never considered paired. 80 is a common choice.
-        max_span: ``-L``. Maximum base-pair span within the window. Must be less than or
-            equal to ``window``.
-        unpaired: ``-u``. Maximum length of unpaired stretch to compute probabilities
-            for. Must be at least as long as the trigger lengths being screened, or the
-            openness of a full-length trigger cannot be read off.
-
-    Gotcha:
-        ``unpaired`` shorter than the trigger length is the most common misconfiguration
-        here, and it fails quietly by returning probabilities for stretches shorter than
-        you asked about.
-    """
-
-    def __init__(self, window: int = 80, max_span: int = 40, unpaired: int = 10) -> None:
-        self.window = window
-        self.max_span = max_span
-        self.unpaired = unpaired
-
-    def profile(self, sequence: str) -> list[float]:
-        """Unpaired probability at every position of a transcript.
-
-        Args:
-            sequence: The **whole transcript**, not the candidate segment. Context is
-                the entire point — a segment folded alone gives a different, wrong answer.
-
-        Returns:
-            One probability per position, each in 0.0 to 1.0, where 1.0 means certainly
-            single-stranded. Same length as ``sequence``.
-
-        Implementation (Step 5):
-            ``RNA.pfl_fold_up(sequence, self.unpaired, self.window, self.max_span)``,
-            taking the length-1 column. Cache per transcript: this is called once per
-            gene and then read many times by ``openness``, so computing it per window
-            would be quadratic.
-        """
-        raise NotImplementedError("Step 5 — wrap RNAplfold")
-
-    def openness(self, sequence: str, start: int, end: int) -> float:
-        """Mean unpaired probability across a segment. The map's ``Trigger Openness``.
-
-        Args:
-            sequence: The whole transcript.
-            start: 0-indexed inclusive start of the candidate segment.
-            end: 0-indexed exclusive end.
-
-        Returns:
-            Mean unpaired probability in 0.0 to 1.0. Higher is more accessible and
-            therefore a better trigger.
-
-        Implementation (Step 5):
-            Mean of ``profile(sequence)[start:end]``. Call ``profile`` once per
-            transcript and slice, rather than re-profiling per window.
-
-        Note:
-            The mean can hide a problem: a segment that is wide open at both ends and
-            firmly paired in the middle averages to something respectable. Consider also
-            recording the minimum, and let the scientific team decide which matters.
-        """
-        raise NotImplementedError("Step 5 — mean of profile()[start:end]")
 
 
 def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:

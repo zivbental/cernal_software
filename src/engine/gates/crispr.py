@@ -19,7 +19,7 @@ from engine.domain import (
     TriggerSet,
 )
 from engine.gates.base import GateFamily
-from engine.tools.folding import FoldEngine
+from engine.gates.tools.folding import FoldEngine
 
 
 class CrisprGate(GateFamily):

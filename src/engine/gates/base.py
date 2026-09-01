@@ -4,8 +4,8 @@ Every switch chemistry implements this. It is the one real class hierarchy in th
 — everything else is data or a function (docs/engine.md §2.1).
 
 The types it works with live in ``engine.domain``; the scientific primitives it calls
-live in ``engine.tools``. A family **is** a gate and **uses** folding, which is why one
-is inheritance and the other composition.
+live in ``engine.gates.tools``. A family **is** a gate and **uses** folding, which is
+why one is inheritance and the other composition.
 """
 
 from abc import ABC, abstractmethod

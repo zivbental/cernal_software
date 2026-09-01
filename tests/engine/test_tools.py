@@ -1,15 +1,19 @@
 """The tools that are implemented rather than stubbed.
 
-`sequences` and `motifs` need no scientific decision and no ViennaRNA, so they are real
-code and tested as such. The folding, off-target, codon and translation tools raise
-NotImplementedError until Step 5.
+`engine.sequences` (S6) and `engine.stages.motifs` (S7) need no scientific decision and
+no ViennaRNA, so they are real code and tested as such. The folding, off-target, codon
+and translation tools raise NotImplementedError until Step 5.
+
+The two live in different places because they are shared by different callers — see
+docs/engine.md §3.3. This file tests them together because what they have in common is
+that they are *finished*, which is a fact about the test suite, not about the layout.
 """
 
 import pytest
 
+from engine import sequences as sq
 from engine.domain import AssemblyStandard
-from engine.tools import sequences as sq
-from engine.tools.motifs import MotifScreener
+from engine.stages.motifs import MotifScreener
 
 GFP_START = "AUGGCUAGCAAGGGCGAGGAGCUGUUCACC"
 
