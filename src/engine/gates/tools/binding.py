@@ -10,6 +10,8 @@ every gate family reports the same quantity on the same scale. Two families comp
 normalise onto one axis as though they were comparable.
 """
 
+import RNA
+
 from engine.gates.tools.folding import FoldEngine
 
 
@@ -55,5 +57,22 @@ def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float
         kinetic and outside what folding predicts — one reason the scoring profile
         carries ``predicted_success_rate`` as a separate, model-based metric rather than
         deriving everything from energy.
+
+    Implementation note:
+        Uses an explicit ``fold_compound(switch + "&" + trigger, RNA.md())`` rather than
+        the bare ``RNA.cofold`` the docstring above sketches — numerically identical (both
+        go through the same cofold code path and include the same duplex initiation term),
+        but ``RNA.cofold`` sets ``RNA.cvar.temperature`` as global interpreter state, which
+        is exactly the footgun ``FoldEngine._model()`` exists to avoid: a worker process
+        reused for a design folded at a different temperature would silently carry over the
+        wrong one. Folding the two lone strands still goes through ``folder.mfe``, so the
+        cache is shared with everything else that has already folded them.
     """
-    raise NotImplementedError("Step 5 — cofold the complex, subtract the parts")
+    model = RNA.md()
+    model.temperature = folder.temperature
+    complex_compound = RNA.fold_compound(f"{switch}&{trigger}", model)
+    _, g_complex = complex_compound.mfe()
+
+    g_switch = folder.mfe(switch).energy
+    g_trigger = folder.mfe(trigger).energy
+    return g_complex - (g_switch + g_trigger)

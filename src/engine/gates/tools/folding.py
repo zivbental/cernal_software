@@ -31,6 +31,8 @@ Bodies land in Step 5 (docs/ROADMAP.md E1).
 
 from functools import cache
 
+import RNA
+
 from engine.domain import FoldResult, StructureMatch
 
 
@@ -63,6 +65,18 @@ class FoldEngine:
         self.temperature = temperature
         self._cache_size = cache_size
 
+    def _model(self) -> "RNA.md":
+        """A fresh, explicit model per call rather than ``RNA.cvar.temperature``.
+
+        The global-state form is what the class docstring's "Gotchas" warns against —
+        it does not survive a ``ProcessPoolExecutor`` worker being reused for a design
+        folded at a different temperature. An explicit ``md()`` costs nothing and sidesteps
+        the whole class of bug.
+        """
+        model = RNA.md()
+        model.temperature = self.temperature
+        return model
+
     @cache  # noqa: B019 — one instance per run; see the class docstring
     def mfe(self, sequence: str) -> FoldResult:
         """Fold a sequence and return its most stable predicted structure.
@@ -93,8 +107,11 @@ class FoldEngine:
             * ViennaRNA returns energies in kcal/mol; NUPACK also uses kcal/mol but
               different parameter sets. Do not mix them within a run.
         """
-        raise NotImplementedError("Step 5 — wrap RNA.fold")
+        fold_compound = RNA.fold_compound(sequence, self._model())
+        structure, energy = fold_compound.mfe()
+        return FoldResult(structure=structure, energy=energy)
 
+    @cache  # noqa: B019 — one instance per run; see the class docstring
     def partition(self, sequence: str) -> float:
         """Ensemble free energy over all structures, not just the most stable one.
 
@@ -114,7 +131,9 @@ class FoldEngine:
             must be called after ``mfe()`` on the same compound if you want both, or the
             compound rescales internally.
         """
-        raise NotImplementedError("Step 5 — wrap RNA.pf")
+        fold_compound = RNA.fold_compound(sequence, self._model())
+        _, energy = fold_compound.pf()
+        return energy
 
     def ensemble_defect(self, sequence: str, target: str) -> float:
         """How far the predicted ensemble sits from an intended structure.
@@ -153,7 +172,12 @@ class FoldEngine:
         than ``FoldProfiler`` gives. The results view can render this as a heat map.
 
         Args:
-            sequence: RNA, uppercase.
+            sequence: RNA, uppercase. May be a ViennaRNA cofold pair written as
+                ``"switch&trigger"`` — ``fold_compound`` folds that as one two-strand
+                ensemble, and the returned matrix is indexed over the concatenation with
+                the ``&`` removed, switch positions first. Antisense leakage needs exactly
+                this: how open the switch's initiation region is *with the trigger bound*,
+                not in isolation.
 
         Returns:
             An n-by-n matrix where entry [i][j] is the probability that position i pairs
@@ -165,7 +189,27 @@ class FoldEngine:
             upper-triangular; convert to 0-indexed and symmetric here so callers do not
             each rediscover that.
         """
-        raise NotImplementedError("Step 5 — wrap RNA.bpp")
+        # Cached as an immutable tuple-of-tuples, then copied out as a fresh
+        # list-of-lists per call — @cache on this method directly would hand every
+        # caller the *same* mutable matrix, and one caller mutating it would corrupt
+        # every other caller's view for the rest of the run.
+        return [list(row) for row in self._base_pair_probabilities_cached(sequence)]
+
+    @cache  # noqa: B019 — one instance per run; see the class docstring
+    def _base_pair_probabilities_cached(self, sequence: str) -> tuple[tuple[float, ...], ...]:
+        fold_compound = RNA.fold_compound(sequence, self._model())
+        fold_compound.pf()
+        raw = fold_compound.bpp()  # 1-indexed, upper-triangular, row 0 unused
+        n = len(raw) - 1
+        matrix = [[0.0] * n for _ in range(n)]
+        for i in range(1, n + 1):
+            row = raw[i]
+            for j in range(i + 1, n + 1):
+                probability = row[j]
+                if probability:
+                    matrix[i - 1][j - 1] = probability
+                    matrix[j - 1][i - 1] = probability
+        return tuple(tuple(row) for row in matrix)
 
     def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]:
         """Every structure within an energy window of the MFE.
@@ -201,7 +245,7 @@ class FoldEngine:
             e.g. ``{"ViennaRNA": "2.7.2", "temperature_c": "37.0"}``. Include anything
             that changes the numbers, not only the library version.
         """
-        raise NotImplementedError("Step 5 — return RNA.__version__ and the model settings")
+        return {"ViennaRNA": RNA.__version__, "temperature_c": str(self.temperature)}
 
 
 def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:
