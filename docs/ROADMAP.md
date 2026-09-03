@@ -19,7 +19,7 @@
 | Step 2 — Domain model | **Complete** | 8 models, migrations, admin back-office, `seed_demo` |
 | Step 3 — API + orchestration | **Complete** | 32 endpoints, run state machine, django-q2 worker |
 | Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages |
-| **Step 5 — Real science** | **Not started** | §5. The engine is 50 documented stubs raising `NotImplementedError` |
+| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. Everything else is still a documented stub raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
 
 `./do test` → **415 passing**, and `.gitlab-ci.yml` runs the same checks plus the frontend
@@ -69,7 +69,7 @@ specific task.
 | **Q6** | Final metric set and weights for `default-v1`. The nine metrics in place are provisional placeholders | E5 |
 | **Q7** | Hard filters — what disqualifies a candidate outright | E5 |
 | **Q8** | Does the organism affect the design rules, or only the input data? | E2, E4 |
-| **Q9** | Antisense NOT: does the trigger transcript *act* as the antisense, or *drive* a separate one? | Deferred family, §7 |
+| **Q9** | ~~Antisense NOT: does the trigger transcript *act* as the antisense, or *drive* a separate one?~~ **Answered by implementation:** it acts directly (simpler, no extra transcriptional unit) — `engine/gates/antisense.py`. The "drives a separate antisense RNA" alternative, for amplification, is not built | Deferred family, §7 |
 | **Q10** | CRISPR: activator or repressor effector? It changes what the circuit means and has no home in the run configuration | Deferred family, §7 |
 | **Q11** | Payload sequences. There is no library for GFP, mCherry, luciferase, AmpR or an apoptosis inducer | E5 |
 
@@ -441,7 +441,7 @@ Recorded so the decision is cheap when someone asks. **None of this is scheduled
 | Item | Blocked on | Note |
 |---|---|---|
 | **`ToeholdAndGate` bodies** | E4 | The chemistry is inherited; the serial-stem construction is not. Watch the half-open intermediate state |
-| **`AntisenseNotGate`** | Q9 | Unblocks NOT logic, and therefore down-regulated genes as inputs — half the DE signal |
+| ~~`AntisenseNotGate`~~ | ✅ Built, not deferred | See status table, [engine.md §9](engine.md#9-status). Requires `payload` (a real gene, e.g. GFP or mCherry) at construction; there is still no payload library (Q11) |
 | **`CrisprGate`** | Q10 + a genomic off-target scanner | `OffTargetScanner` searches the transcriptome; the spacer needs the genome |
 | **GenBank export** | E5 | Needs a real annotated construct |
 | **Plasmid synthesis ordering** | E5 | A partner integration, not a code problem |

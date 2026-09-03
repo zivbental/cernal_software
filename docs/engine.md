@@ -915,12 +915,13 @@ src/engine/
 │   ├── base.py        GateFamily ABC                         ✅ built
 │   ├── registry.py    register · get_family · describe       ✅ built
 │   ├── toehold.py     ToeholdGate + ToeholdAndGate           ★ stub
-│   ├── antisense.py   AntisenseNotGate                       ★ planned
+│   ├── antisense.py   AntisenseNotGate                       ✅ built · answers Q9
 │   ├── crispr.py      CrisprGate                             ★ planned
 │   │
 │   └── tools/         what the gate families share
-│       ├── folding.py     FoldEngine · structure_match          S2 S4
-│       ├── binding.py     hybridization_energy                  S3
+│       ├── folding.py     FoldEngine (mfe/partition/bpp/versions ✅; S2 S4
+│       │                  ensemble_defect/suboptimal/structure_match ★)
+│       ├── binding.py     hybridization_energy                  ✅ S3
 │       ├── codons.py      CodonOptimizer                        S8
 │       └── translation.py TranslationScorer                     S9
 │
@@ -1147,7 +1148,7 @@ flowchart LR
 | User inputs 1–4 | `CountMatrix`, `DgeTable`, `Host`, `DesiredOutcome` | ✅ types built |
 | Supporting databases 5–8 | codon tables, sequence library, cell atlas, backbone spec | ✗ **no data source chosen** |
 | QC (S15) → Compiler's Output | `stages/` | ★ signatures only |
-| S2 S3 S4 S8 S9 | `gates/tools/` | ★ signatures only |
+| S2 S3 S4 S8 S9 | `gates/tools/` | ⚠️ `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` (S2, S3) real; `ensemble_defect`, `suboptimal`, `structure_match` (S4) and S8/S9 still signatures only |
 | S1 S5 S7 | `stages/folding.py`, `off_target.py`, `motifs.py` | ★ signatures only |
 | S6 | `engine/sequences.py` | ✅ **built and tested** |
 | **S10** ScoreNormalizer + Aggregator | `engine/scoring/` | ✅ **built and tested** |
@@ -1156,6 +1157,7 @@ flowchart LR
 | S13 TopK / Pareto | `rank_candidates` | ⚠️ ranking yes, **Pareto not built** |
 | S14 StructureViz + Report | `stages/reporting.py` | ★ |
 | Gate dispatch | `GateFamily` ABC + registry | ✅ built |
+| `AntisenseNotGate` | `gates/antisense.py` | ✅ **built** — Q9 answered (trigger acts directly as the antisense); needs `payload` (Q11 still open for where a payload library comes from) |
 | Rejection with reasons | enforced by a **database constraint** on import | ✅ built |
 | Metric normalization contract | `MetricSpec` | ✅ built |
 
