@@ -1,0 +1,79 @@
+# CODEOWNERS — who GitHub automatically asks to review which files.
+#
+# What this file does: when a pull request touches a path listed below, GitHub adds the
+# people on that line as reviewers automatically. You do not have to remember to ask.
+#
+# IMPORTANT: on its own this is only a suggestion. It becomes a rule only once
+# "Require review from Code Owners" is switched on in
+#   Settings -> Branches -> Branch protection rules -> main.
+# Until that box is ticked, a PR can still be merged without the review being done.
+#
+# Why these particular paths: they are the shared, comparability-critical code. Everything
+# under them is called by more than one person's module, so a change made to suit one gate
+# family silently changes every other family's numbers — and nothing crashes when it does.
+# A wrong metric name or a locally-normalised score does not raise; it just produces a
+# plausible ranking that is wrong. That failure is invisible in review unless someone who
+# knows the whole pipeline looks, which is why review here is routed to the two people who
+# merge to main.
+#
+# Ownership is by GitHub handle. @zivbental owns the repository; @offersimha-bit is the
+# software lead. These two are the only people who merge to main.
+#
+# Syntax note: patterns work like .gitignore, and the LAST matching line wins.
+# Adding yourself to a line does not remove the owners — list everyone who should review.
+
+# ---------------------------------------------------------------------------
+# Default: no owner. Most of the repo (your own gate module, your own stage,
+# docs, the frontend) needs no special approval — that is deliberate, so day-to-day
+# work is not bottlenecked on two people.
+# ---------------------------------------------------------------------------
+
+# --- Scoring: the nine metric names and their weights live here ---------------
+# Renaming a metric, changing a weight, or changing a valid_range silently invalidates
+# comparison with every run made before the change. Nothing in the code notices.
+/src/engine/scoring/                @zivbental @offersimha-bit
+
+# --- Shared tools: constructed exactly once, in pipeline.build_tools() -------
+# FoldEngine, CodonOptimizer, TranslationScorer and the binding helpers. A second
+# instance built inside a gate bypasses the shared cache and the recorded temperature
+# model, so its energies come from a different physical model than the rest of the run.
+/src/engine/gates/tools/            @zivbental @offersimha-bit
+
+# --- The gate contract and the registry ------------------------------------
+# base.py defines what evaluate_design must return (RAW values, never normalised).
+# registry.py decides which families a submission is allowed to request.
+/src/engine/gates/base.py           @zivbental @offersimha-bit
+/src/engine/gates/registry.py       @zivbental @offersimha-bit
+
+# --- The shared data records and the Platform<->Engine contract -------------
+# Every stage passes these frozen dataclasses. A field added, renamed or retyped here
+# reaches all seven modules at once, and the CSV exports change shape with it.
+/src/engine/domain.py               @zivbental @offersimha-bit
+/src/engine/contract.py             @zivbental @offersimha-bit
+
+# --- Shared sequence helpers (S6) -------------------------------------------
+# reverse_complement, gc_content, windows, hamming. Everyone calls these; nobody
+# should own a private copy. gc_content returns a PERCENT — changing that breaks scoring.
+/src/engine/sequences.py            @zivbental @offersimha-bit
+
+# --- Shared stage tools used by more than one member ------------------------
+# off_target.py fixes the mismatch convention, motifs.py the restriction-site screen (S7),
+# folding.py the accessibility window. Three people's numbers depend on each of these.
+/src/engine/stages/off_target.py    @zivbental @offersimha-bit
+/src/engine/stages/motifs.py        @zivbental @offersimha-bit
+/src/engine/stages/folding.py       @zivbental @offersimha-bit
+
+# --- Tests ------------------------------------------------------------------
+# Listed so that nobody can make a red build green by editing the assertion instead of
+# the code. Adding new tests is welcome; weakening an existing one needs a second pair
+# of eyes and a sentence explaining why the old assertion was wrong.
+/tests/                             @zivbental @offersimha-bit
+
+# --- The machinery itself ---------------------------------------------------
+# CI, this file, the PR template, the AI-writer rules, the dependency set and the lock.
+# uv.lock in particular is a large generated file: it must be regenerated with
+# `uv lock`, never hand-edited, and never resolved by hand in a merge conflict.
+/.github/                           @zivbental @offersimha-bit
+/CLAUDE.md                          @zivbental @offersimha-bit
+/pyproject.toml                     @zivbental @offersimha-bit
+/uv.lock                            @zivbental @offersimha-bit

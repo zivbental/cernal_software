@@ -14,6 +14,8 @@ venv/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+# .gitlab-ci.yml and .github/workflows/ci.yml both set UV_CACHE_DIR to this.
+.uv-cache/
 
 # --- Frontend ---
 node_modules/

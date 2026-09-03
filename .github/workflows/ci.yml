@@ -1,0 +1,88 @@
+# CI for CERNAL on GitHub — iGEM 2026, Tel Aviv University.
+#
+# Why this file exists alongside .gitlab-ci.yml:
+#   .gitlab-ci.yml is the iGEM Project Software deliverable (the competition asks for a
+#   CI/CD pipeline configuration on iGEM GitLab) and it stays exactly where it is. GitHub
+#   ignores it completely. Since the team actually collaborates on
+#   github.com/zivbental/cernal_software, without this file every push and every pull
+#   request lands unchecked — which is how seven people working in parallel silently fork
+#   the shared scoring and folding code without anyone noticing.
+#
+# This file is therefore the real gate. It runs the same commands as .gitlab-ci.yml, which
+# are the same commands `./do lint` and `./do test` run locally, so "green here" and "green
+# on my laptop" mean the same thing. If you change one of the two CI files, change the other.
+#
+# Turn it into an actual gate: Settings -> Branches -> add a rule for `main` requiring the
+# `backend` and `frontend` checks to pass before merging.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same branch cancels the previous, still-running check.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Backend: lint, format, Django system checks and the full pytest suite.
+  # Runs against MockEngine (the default), so no scientific dependencies are needed
+  # for the suite to pass — but `uv sync` still installs viennarna from its wheel.
+  backend:
+    name: backend (ruff + django check + pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # setup-uv reads .python-version (3.13) and provisions that interpreter itself.
+      # Do NOT add a setup-python step: pyproject requires >=3.13,<3.14 and a runner
+      # default of 3.12 or 3.14 would fail the install rather than the tests.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # Deliberately plain `uv sync`, NOT `uv sync --locked` or `--frozen`.
+      # uv.lock is currently stale: `viennarna>=2.7` was added to pyproject.toml without
+      # regenerating the lock, so `--locked` errors out and would fail every single PR.
+      # TODO: once someone runs `uv lock` and commits the result, change this to
+      #   `uv sync --locked --extra dev`
+      # so that a drifted lockfile is caught here instead of by seven simultaneous
+      # merge conflicts on a 30k-line generated file.
+      - run: uv sync --extra dev
+
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run python manage.py check
+      - run: uv run pytest -q
+
+  # Frontend: type-check, lint, the server-render regression test, and a real build.
+  # `npm run check` is "tsc --noEmit && eslint . && node e2e/render-logic.mjs" — the last
+  # step renders the results views headlessly via esbuild + react-dom/server, so no
+  # browser download is required and the job stays fast.
+  frontend:
+    name: frontend (typecheck + eslint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          # This path is resolved from the repository root, not from working-directory.
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci` (not `npm install`) so the lockfile is honoured exactly and the run
+      # cannot quietly pick up a newer transitive dependency than anyone tested against.
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
