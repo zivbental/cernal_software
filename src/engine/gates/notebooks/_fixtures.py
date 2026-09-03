@@ -280,10 +280,17 @@ def toehold_and(host: Host = Host.ECOLI, *, real_fold: bool = False) -> ToeholdA
     )
 
 
-def antisense(host: Host = Host.ECOLI, *, real_fold: bool = False) -> AntisenseNotGate:
-    """A wired :class:`~engine.gates.antisense.AntisenseNotGate`. ``available`` is still
-    ``False`` — ``is_compatible`` returns ``Compatibility.no(...)`` rather than raising."""
-    return AntisenseNotGate(host, fold_engine(real_fold), CodonOptimizer(host))
+def antisense(
+    host: Host = Host.ECOLI, *, payload: str, real_fold: bool = False
+) -> AntisenseNotGate:
+    """A wired :class:`~engine.gates.antisense.AntisenseNotGate`.
+
+    ``payload`` is the gene this switch controls — a full CDS starting with a start
+    codon, e.g. a GFP or mCherry sequence — and is required: the gate is generic over
+    the payload gene, so there is no built-in default to fall back to. Pass whatever
+    gene the scenario you're building calls for.
+    """
+    return AntisenseNotGate(host, fold_engine(real_fold), CodonOptimizer(host), payload)
 
 
 def crispr(host: Host = Host.HUMAN, *, real_fold: bool = False) -> CrisprGate:
