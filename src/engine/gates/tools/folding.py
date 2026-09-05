@@ -65,50 +65,63 @@ class FoldEngine:
         self.temperature = temperature
         self._cache_size = cache_size
 
-    def _model(self) -> "RNA.md":
-        """A fresh, explicit model per call rather than ``RNA.cvar.temperature``.
+    def _compound(self, strands: str) -> RNA.fold_compound:
+        """Build a ``fold_compound`` at this engine's temperature.
 
-        The global-state form is what the class docstring's "Gotchas" warns against —
-        it does not survive a ``ProcessPoolExecutor`` worker being reused for a design
-        folded at a different temperature. An explicit ``md()`` costs nothing and sidesteps
-        the whole class of bug.
+        Shared by every method on this class that needs one, so the model — and
+        therefore the temperature — is built exactly one way here. Duplicating this in
+        each method risks one of them reading the global ``RNA.cvar.temperature``
+        instead, which is exactly the split-brain the class docstring warns about.
+
+        Args:
+            strands: RNA, uppercase. A single sequence to fold alone, or multiple
+                sequences joined with ``&`` to fold as a complex — ViennaRNA's
+                dimer/multi-strand syntax. A toehold's ON state (switch + trigger) must
+                be folded this way, as a true dimer, not as one concatenated strand —
+                concatenating covalently joins two molecules that are not covalently
+                joined, which is a different, wrong physical system.
+
+        An explicit ``RNA.md()`` model carries the temperature rather than mutating
+        ``RNA.cvar.temperature``, which is process-global and unsafe once folding moves
+        to a process pool (see docs/ROADMAP.md §3).
         """
         model = RNA.md()
         model.temperature = self.temperature
-        return model
+        return RNA.fold_compound(strands, model)
 
     @cache  # noqa: B019 — one instance per run; see the class docstring
-    def mfe(self, sequence: str) -> FoldResult:
-        """Fold a sequence and return its most stable predicted structure.
+    def mfe(self, strands: str) -> FoldResult:
+        """Fold a sequence — or a multi-strand complex — and return its most stable
+        predicted structure.
 
-        The workhorse. Called for the switch alone (OFF state), the switch with its
-        trigger (ON state), the trigger alone, and the assembled construct.
+        The workhorse. Called for the switch alone (OFF state), the trigger alone, and
+        the switch-plus-trigger complex (ON state).
 
         Args:
-            sequence: RNA, uppercase, A/C/G/U only. Pass DNA and ViennaRNA will
-                misinterpret T — convert with ``sequences.to_rna`` first.
+            strands: RNA, uppercase, A/C/G/U only. Pass DNA and ViennaRNA will
+                misinterpret T — convert with ``sequences.to_rna`` first. For a
+                complex, join the strands with ``&`` (e.g. ``f"{switch}&{trigger}"``)
+                rather than passing a list — see ``_compound`` for why a concatenated
+                strand is wrong, and the class docstring for why this stays a plain
+                ``str``: it is what keeps this method's cache key hashable, the same
+                reason trigger sets elsewhere in the engine are tuples, not lists.
 
         Returns:
             ``FoldResult(structure, energy)`` where ``structure`` is dot-bracket
-            notation the same length as the input (``.`` unpaired, ``(``/``)`` paired)
-            and ``energy`` is the minimum free energy in kcal/mol. **More negative means
-            more stable**, so a switch's OFF state should be strongly negative and the
-            difference between OFF and ON is what drives the design.
-
-        Implementation (Step 5):
-            ``structure, energy = RNA.fold(sequence)`` after setting the model
-            temperature via ``RNA.cvar.temperature = self.temperature``. Prefer a
-            ``fold_compound`` with an explicit ``RNA.md()`` model so the temperature is
-            not global state — global mutation and a process pool interact badly.
+            notation (``.`` unpaired, ``(``/``)`` paired) over the combined strands —
+            same total length as ``strands`` with the ``&`` removed — and ``energy`` is
+            the minimum free energy in kcal/mol. **More negative means more stable**,
+            so a switch's OFF state should be strongly negative and the difference
+            between OFF and ON is what drives the design.
 
         Gotchas:
-            * Results are cached on ``sequence`` only. If you ever make the model
+            * Results are cached on ``strands`` only. If you ever make the model
               configurable per call, the cache key must include it.
             * ViennaRNA returns energies in kcal/mol; NUPACK also uses kcal/mol but
               different parameter sets. Do not mix them within a run.
         """
-        fold_compound = RNA.fold_compound(sequence, self._model())
-        structure, energy = fold_compound.mfe()
+        fc = self._compound(strands)
+        structure, energy = fc.mfe()
         return FoldResult(structure=structure, energy=energy)
 
     @cache  # noqa: B019 — one instance per run; see the class docstring
@@ -127,11 +140,11 @@ class FoldEngine:
             Ensemble free energy in kcal/mol. Always less than or equal to the MFE.
 
         Implementation (Step 5):
-            ``fc = RNA.fold_compound(sequence); _, energy = fc.pf()``. Note that ``pf()``
+            ``fc = self._compound(sequence); _, energy = fc.pf()``. Note that ``pf()``
             must be called after ``mfe()`` on the same compound if you want both, or the
             compound rescales internally.
         """
-        fold_compound = RNA.fold_compound(sequence, self._model())
+        fold_compound = self._compound(sequence)
         _, energy = fold_compound.pf()
         return energy
 
@@ -155,7 +168,7 @@ class FoldEngine:
             designs of different lengths can be compared.
 
         Implementation (Step 5):
-            ``fc.ensemble_defect(target)`` after ``fc.pf()``.
+            ``fc = self._compound(sequence); fc.pf(); fc.ensemble_defect(target)``.
 
         Gotchas:
             * ``target`` must be balanced and the same length as ``sequence``, or
@@ -185,9 +198,9 @@ class FoldEngine:
             square of length** — do not call this for a whole plasmid.
 
         Implementation (Step 5):
-            ``fc.pf()`` then ``fc.bpp()``. ViennaRNA's matrix is 1-indexed and
-            upper-triangular; convert to 0-indexed and symmetric here so callers do not
-            each rediscover that.
+            ``fc = self._compound(sequence); fc.pf(); fc.bpp()``. ViennaRNA's matrix is
+            1-indexed and upper-triangular; convert to 0-indexed and symmetric here so
+            callers do not each rediscover that.
         """
         # Cached as an immutable tuple-of-tuples, then copied out as a fresh
         # list-of-lists per call — @cache on this method directly would hand every
@@ -197,7 +210,7 @@ class FoldEngine:
 
     @cache  # noqa: B019 — one instance per run; see the class docstring
     def _base_pair_probabilities_cached(self, sequence: str) -> tuple[tuple[float, ...], ...]:
-        fold_compound = RNA.fold_compound(sequence, self._model())
+        fold_compound = self._compound(sequence)
         fold_compound.pf()
         raw = fold_compound.bpp()  # 1-indexed, upper-triangular, row 0 unused
         n = len(raw) - 1
@@ -228,9 +241,9 @@ class FoldEngine:
             first.
 
         Implementation (Step 5):
-            ``fc.subopt(int(delta * 100))`` — ViennaRNA takes the window in dekacal/mol,
-            not kcal/mol. Getting that conversion wrong returns either one structure or
-            millions.
+            ``self._compound(sequence).subopt(int(delta * 100))`` — ViennaRNA takes the
+            window in dekacal/mol, not kcal/mol. Getting that conversion wrong returns
+            either one structure or millions.
         """
         raise NotImplementedError("Step 5 — wrap RNA.subopt")
 
