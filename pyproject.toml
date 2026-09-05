@@ -32,6 +32,13 @@ target-version = "py313"
 src = ["src", "tests"]
 extend-exclude = ["**/migrations/*", "frontend", "var"]
 
+# The notebook formatter rewrites each cell's "source" from a single JSON string into a
+# list of lines and renormalises quotes. That is pure churn on a file type the team edits
+# in Jupyter, and it conflicts hard when two people touch the same notebook. `ruff check`
+# still runs on them — only the formatter is held back.
+[tool.ruff.format]
+exclude = ["src/engine/gates/notebooks/**/*.ipynb"]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "DJ", "RUF"]
 ignore = [
@@ -43,6 +50,12 @@ ignore = [
 # (File(...), Form(...), Query(...)) — the same dependency-injection idiom FastAPI uses.
 # B008 exists to catch mutable defaults, which these are not.
 "src/api/routers/*.py" = ["B008"]
+
+# The gate notebooks open with a bootstrap cell that puts `_fixtures.py` on sys.path
+# before importing it. That import cannot move to the top of the cell — the path it
+# needs does not exist yet — and isort reordering it would break the notebook outright.
+# E401 covers the `import sys, pathlib` line the same cell opens with.
+"src/engine/gates/notebooks/**/*.ipynb" = ["E401", "E402", "I001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["config", "apps", "api", "engine"]
