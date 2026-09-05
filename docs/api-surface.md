@@ -37,11 +37,11 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 34 |
-| Public classes | 79 |
-| Public callables (excluding `__init__`) | 138 |
-| — `BUILT` | 83 |
-| — `STUB` | 48 |
+| Modules | 35 |
+| Public classes | 80 |
+| Public callables (excluding `__init__`) | 156 |
+| — `BUILT` | 107 |
+| — `STUB` | 42 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
 | `__init__` constructors | 20 |
@@ -59,16 +59,17 @@ layers above it, never the ones below.
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
 | scoring | `engine.scoring.profiles` |  | 5 | 0 | Versioned scoring profiles. |
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
-| gate_tools | `engine.gates.tools.binding` | S3 | 0 | 1 | S3 — trigger/switch hybridisation energy. |
+| gate_tools | `engine.gates.tools.binding` | S3 | 1 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 0 | 2 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 1 | 6 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 4 | 3 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
-| gates | `engine.gates.antisense` |  | 3 | 2 | Antisense NOT gate. |
+| gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
 | gates | `engine.gates.base` |  | 8 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
 | gates | `engine.gates.toehold` |  | 2 | 4 | Toehold switches — single input, and two-input AND. |
+| gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
 | stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 0 | 2 | S1 — local accessibility profiling, the primitive behind trigger selection. |
@@ -764,7 +765,7 @@ S3 — trigger/switch hybridisation energy.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `STUB` | `def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float` | Free energy released when a trigger binds its switch. |
+| `BUILT` | `def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float` | Free energy released when a trigger binds its switch. |
 
 ### `engine.gates.tools.codons` · S8
 
@@ -800,11 +801,11 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, temperature: float = 37.0, cache_size: int = 100000) -> None` |  |
 | `BUILT` | `@cache def mfe(self, strands: str) -> FoldResult` | Fold a sequence — or a multi-strand complex — and return its most stable predicted structure. |
-| `STUB` | `def partition(self, sequence: str) -> float` | Ensemble free energy over all structures, not just the most stable one. |
+| `BUILT` | `@cache def partition(self, sequence: str) -> float` | Ensemble free energy over all structures, not just the most stable one. |
 | `STUB` | `def ensemble_defect(self, sequence: str, target: str) -> float` | How far the predicted ensemble sits from an intended structure. |
-| `STUB` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` | Probability that each pair of positions is bonded, over the whole ensemble. |
+| `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` | Probability that each pair of positions is bonded, over the whole ensemble. |
 | `STUB` | `def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]` | Every structure within an energy window of the MFE. |
-| `STUB` | `def versions(self) -> dict[str, str]` | The tool versions this run was computed with. |
+| `BUILT` | `def versions(self) -> dict[str, str]` | The tool versions this run was computed with. |
 
 ### `engine.gates.tools.translation` · S9
 
@@ -847,21 +848,28 @@ Post-transcriptional silencing. The pipeline's inverting element.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'antisense'` |
-| `version` |  | `'0.0.0-planned'` |
+| `version` |  | `'0.1.0'` |
 | `kind` |  | `GateKind.ANTISENSE_NOT` |
 | `label` |  | `'Antisense Repression'` |
 | `description` |  | `'Post-transcriptional silencing'` |
 | `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})` |
 | `max_inputs` |  | `1` |
-| `available` |  | `False` |
+| `available` |  | `True` |
+| `UTR_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(8, 10, 12, 14)` |
+| `SPACER_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(5, 7, 9)` |
+| `RBS_PROKARYOTIC` | `ClassVar[str]` | `'AGGAGGA'` |
+| `KOZAK_EUKARYOTIC` | `ClassVar[str]` | `'GCCACC'` |
+| `PAYLOAD_HEAD_LENGTH` | `ClassVar[int]` | `30` |
+| `WINDOW_STEP` | `ClassVar[int]` | `3` |
+| `MIN_TRIGGER_ACCESSIBILITY` | `ClassVar[float]` | `0.3` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, codons: CodonOptimizer) -> None` |  |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, codons: CodonOptimizer, payload: str) -> None` |  |
 | `BUILT` | `def required_tools(self) -> list[ToolRequirement]` | External tools this family needs, checked before a run starts. |
 | `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | Can this family invert this trigger set? |
-| `STUB` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build an antisense element that silences the payload when the trigger is present. |
-| `STUB` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Measure a silencing design. |
+| `BUILT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build an antisense element that silences the payload when the trigger is present. |
+| `BUILT` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Measure a silencing design. |
 | `BUILT` | `def emit_sequence(self, design: GateDesign) -> str` | The synthesis-ready sequence. |
 
 ### `engine.gates.base`
@@ -986,6 +994,44 @@ Two-input AND toehold.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `STUB` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build a switch that opens only when **both** triggers are present. |
+
+### `engine.gates.notebooks._fixtures`
+
+`src/engine/gates/notebooks/_fixtures.py`
+
+Shared setup for the per-gate notebooks under this folder.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def bootstrap() -> pathlib.Path` | Put ``<repo>/src`` on ``sys.path`` and say where it pointed. |
+| `BUILT` | `def fold_engine(real: bool = False, temperature: float = 37.0) -> object` | The folder to hand a gate. |
+| `BUILT` | `def sample_trigger(*, trigger_id: str = 'trig-000001', gene_id: str = 'b0002', symbol: str = 'thrA', sequence: str \| None = None, length: int = 36, start_index: int = 120, seed: int = 2026) -> TriggerCandidate` | One made-up :class:`~engine.domain.TriggerCandidate` with plausible values. |
+| `BUILT` | `def sample_trigger_set(n_activators: int = 1, n_repressors: int = 0) -> TriggerSet` | A :class:`~engine.domain.TriggerSet` of made-up triggers. |
+| `BUILT` | `def sample_constraints(**overrides) -> Constraints` | A :class:`~engine.domain.Constraints` with library defaults; each keyword overrides one field (e.g. ``max_switch_length=160``). |
+| `BUILT` | `def sample_design(gate: GateFamily, trigger_set: TriggerSet \| None = None, *, sequence: str \| None = None) -> GateDesign` | A hand-built :class:`~engine.domain.GateDesign` for the output helpers. |
+| `BUILT` | `def toehold(host: Host = Host.ECOLI, *, real_fold: bool = False) -> ToeholdGate` | A wired :class:`~engine.gates.toehold.ToeholdGate`. Hosts: ECOLI, YEAST, HUMAN. |
+| `BUILT` | `def toehold_and(host: Host = Host.ECOLI, *, real_fold: bool = False) -> ToeholdAndGate` | A wired :class:`~engine.gates.toehold.ToeholdAndGate` (two-input AND). |
+| `BUILT` | `def antisense(host: Host = Host.ECOLI, *, payload: str, real_fold: bool = False) -> AntisenseNotGate` | A wired :class:`~engine.gates.antisense.AntisenseNotGate`. |
+| `BUILT` | `def crispr(host: Host = Host.HUMAN, *, real_fold: bool = False) -> CrisprGate` | A wired :class:`~engine.gates.crispr.CrisprGate`. Eukaryotic only — hosts YEAST and HUMAN; ECOLI is rejected by ``is_compatible`` with a host-specific message. |
+| `BUILT` | `def describe_gate(gate: GateFamily) -> None` | Print a gate's class-level declarations — the contract it advertises before you call anything on it. |
+| `BUILT` | `def attempt(label: str, call) -> object \| None` | Run ``call()`` and display the result. |
+
+#### `class StubFoldEngine`
+
+A stand-in for :class:`~engine.gates.tools.folding.FoldEngine`.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `temperature` |  | `37.0` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def mfe(self, sequence: str) -> FoldResult` |  |
+| `BUILT` | `def partition(self, sequence: str) -> float` |  |
+| `BUILT` | `def ensemble_defect(self, sequence: str, target: str) -> float` |  |
+| `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` |  |
+| `BUILT` | `def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]` |  |
+| `BUILT` | `def versions(self) -> dict[str, str]` |  |
 
 ## Layer 6 · Stages — the six steps of a run
 

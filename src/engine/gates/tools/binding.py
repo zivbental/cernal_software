@@ -57,4 +57,7 @@ def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float
         carries ``predicted_success_rate`` as a separate, model-based metric rather than
         deriving everything from energy.
     """
-    raise NotImplementedError("Step 5 — cofold the complex, subtract the parts")
+    g_complex = folder.mfe(f"{switch}&{trigger}").energy
+    g_switch = folder.mfe(switch).energy
+    g_trigger = folder.mfe(trigger).energy
+    return g_complex - (g_switch + g_trigger)

@@ -16,6 +16,7 @@ venv/
 .ruff_cache/
 # .gitlab-ci.yml and .github/workflows/ci.yml both set UV_CACHE_DIR to this.
 .uv-cache/
+.ipynb_checkpoints/
 
 # --- Frontend ---
 node_modules/
