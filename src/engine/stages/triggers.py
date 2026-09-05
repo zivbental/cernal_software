@@ -12,11 +12,25 @@ window along each transcript and ranks every position.
 how many candidates survive here, so this filter sets the compute budget far more than
 any hardware choice does (docs/ROADMAP.md §3). Keeping the top few hundred
 across all genes keeps a run in minutes; keeping everything makes it hours.
+
+**Provenance.** The sliding-window scan and the use of a window's own folding energy as a
+scoring input are a port of a validated approach built outside this repo
+(``find_triggers.py``): scan every transcript with ``sequences.windows`` (S6) and
+disqualify with the shared ``MotifScreener`` (S7) and ``OffTargetScanner`` (S5) before
+anything expensive runs. Not ported: the source script's positional bonus, which added a
+Gaussian term straight onto the raw MFE value before ranking. Its own inline comment
+("bonus near the edges of the sequence") does not match what the formula it sits next to
+actually computes (a Gaussian centred on the *midpoint*, not the ends — see the port's
+open questions), and mutating a physical quantity with an undeclared positional prior is
+exactly the kind of hidden per-family filter ``CLAUDE.md`` §3 rules out; ``mfe`` here is
+therefore the plain folding energy, unadjusted.
 """
 
 from collections.abc import Iterator
 
+from engine import sequences as sq
 from engine.domain import Constraints, SelectedGene, TriggerCandidate
+from engine.gates.tools.folding import FoldEngine
 from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
 from engine.stages.off_target import OffTargetScanner
@@ -34,20 +48,33 @@ class TriggerScorer:
         screener: The run's shared ``MotifScreener``. Rejects segments carrying
             restriction sites or long homopolymers, which would make the eventual
             construct unbuildable.
+        folder: The run's shared ``FoldEngine``. Needed for ``TriggerCandidate.mfe`` — a
+            window's own folding energy — which is not one of ``profiler``'s outputs
+            (``FoldProfiler`` wraps windowed ``RNAplfold`` and reports only per-position
+            unpaired probability, never an energy). Not part of this class's signature
+            before this port; see the port's open questions.
 
-    All three are handed in rather than constructed, so their caches and settings are
+    All four are handed in rather than constructed, so their caches and settings are
     shared with the stages downstream (docs/engine.md §2.4).
     """
+
+    #: Trigger candidates kept per gene after scoring, across every swept trigger length.
+    #: ``Constraints`` carries no equivalent field today (see the port's open questions),
+    #: so this stays a class constant — a search-budget knob, not an undeclared filter on
+    #: any single candidate's numbers.
+    TOP_K_PER_GENE = 50
 
     def __init__(
         self,
         profiler: FoldProfiler,
         off_target: OffTargetScanner,
         screener: MotifScreener,
+        folder: FoldEngine,
     ) -> None:
         self.profiler = profiler
         self.off_target = off_target
         self.screener = screener
+        self.folder = folder
 
     def score(
         self,
@@ -100,5 +127,67 @@ class TriggerScorer:
             Keep a top-K per gene rather than everything above a threshold. A threshold
             lets one unusually open transcript flood the candidate pool and starve the
             other genes of budget.
+
+        Deviations from this port (see the module docstring's Provenance note and the
+        PR's open questions for the full list): windows are scanned densely
+        (``sequences.windows``'s own default stride of 1), since neither the source
+        script's ``stride`` parameter nor a GC-content cutoff has a home in
+        ``Constraints`` today; ``segment_specificity`` is approximated from the
+        off-target report rather than a real paralogue search, for the same reason.
+        ``score`` is a simple, explicitly-labelled placeholder combination — per
+        ``SelectedGene.score``'s own docstring, a stage's ranking weights are a
+        recorded scientific choice, and this one has not been reviewed by the
+        scientific team yet.
         """
-        raise NotImplementedError("Step 5")
+        for gene in genes:
+            transcript = sequences[gene.gene_id]
+            # Profile the whole transcript once and slice per window below; profiling
+            # per window is quadratic (this method's own docstring, and
+            # FoldProfiler.profile's — neither caches per instance).
+            profile = self.profiler.profile(transcript)
+
+            candidates: list[TriggerCandidate] = []
+            for length in constraints.trigger_lengths:
+                for start, window in sq.windows(transcript, length):
+                    end = start + length
+                    # Cheapest filter first: a string scan, before anything folds or
+                    # searches the transcriptome.
+                    if self.screener.violations(window):
+                        continue
+
+                    local_profile = profile[start:end]
+                    openness = sum(local_profile) / length
+                    # "the minimum rather than the mean" per this method's own
+                    # docstring — open at both ends and paired in the middle binds
+                    # badly however good the mean looks. The docstring leaves the
+                    # final call to the scientific team; flagged in the PR.
+                    accessibility = min(local_profile)
+
+                    off_target_report = self.off_target.scan_trigger(window)
+                    # No dedicated paralogue search exists in this engine; the
+                    # off-target report is the closest available signal for how much
+                    # this window is shared with other transcripts. See the PR's open
+                    # questions — this is a proxy, not a distinct measurement.
+                    segment_specificity = max(0.0, 1.0 - off_target_report.penalty)
+
+                    candidates.append(
+                        TriggerCandidate(
+                            trigger_id=f"trig-{gene.gene_id}-{start}-{length}",
+                            gene_id=gene.gene_id,
+                            symbol=gene.symbol,
+                            sequence=window,
+                            start_index=start,
+                            openness=openness,
+                            accessibility=accessibility,
+                            mfe=self.folder.mfe(window).energy,
+                            off_target_penalty=off_target_report.penalty,
+                            segment_specificity=segment_specificity,
+                            gc_content=sq.gc_content(window),
+                            aug_indexes=sq.find_augs(window),
+                            stop_indexes=sq.find_stops(window),
+                            score=accessibility * segment_specificity,
+                        )
+                    )
+
+            candidates.sort(key=lambda c: c.score, reverse=True)
+            yield from candidates[: self.TOP_K_PER_GENE]
