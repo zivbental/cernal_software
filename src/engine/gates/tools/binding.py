@@ -10,8 +10,6 @@ every gate family reports the same quantity on the same scale. Two families comp
 normalise onto one axis as though they were comparable.
 """
 
-import RNA
-
 from engine.gates.tools.folding import FoldEngine
 
 
@@ -36,9 +34,10 @@ def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float
         displace the stem, and the switch stays dark.
 
     Implementation (Step 5):
-        1. ``G_complex`` — fold the two strands together. In ViennaRNA this is
-           ``RNA.cofold(switch + "&" + trigger)``, which returns the energy of the
-           dimer.
+        1. ``G_complex`` — fold the two strands together as a dimer, through the shared
+           engine: ``folder.mfe(f"{switch}&{trigger}").energy``. Going through
+           ``folder`` rather than calling ``RNA.cofold`` directly is what gives this the
+           shared cache and consistent temperature ``folder`` was passed in for.
         2. ``G_switch`` — ``folder.mfe(switch).energy``.
         3. ``G_trigger`` — ``folder.mfe(trigger).energy``.
         4. Subtract.
@@ -47,7 +46,7 @@ def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float
         * The ``&`` separator is ViennaRNA's dimer convention. Concatenating without it
           silently folds one long single strand and gives a meaningless answer that looks
           plausible.
-        * ``cofold`` energies include a duplex initiation term. That is correct here, but
+        * The dimer energy includes a duplex initiation term. That is correct here, but
           it means the value is not comparable with a hand-computed base-pairing sum.
         * Order matters for the string but not for the energy. Keep ``switch`` first so
           any structure returned alongside it is indexed the way callers expect.
@@ -57,22 +56,8 @@ def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float
         kinetic and outside what folding predicts — one reason the scoring profile
         carries ``predicted_success_rate`` as a separate, model-based metric rather than
         deriving everything from energy.
-
-    Implementation note:
-        Uses an explicit ``fold_compound(switch + "&" + trigger, RNA.md())`` rather than
-        the bare ``RNA.cofold`` the docstring above sketches — numerically identical (both
-        go through the same cofold code path and include the same duplex initiation term),
-        but ``RNA.cofold`` sets ``RNA.cvar.temperature`` as global interpreter state, which
-        is exactly the footgun ``FoldEngine._model()`` exists to avoid: a worker process
-        reused for a design folded at a different temperature would silently carry over the
-        wrong one. Folding the two lone strands still goes through ``folder.mfe``, so the
-        cache is shared with everything else that has already folded them.
     """
-    model = RNA.md()
-    model.temperature = folder.temperature
-    complex_compound = RNA.fold_compound(f"{switch}&{trigger}", model)
-    _, g_complex = complex_compound.mfe()
-
+    g_complex = folder.mfe(f"{switch}&{trigger}").energy
     g_switch = folder.mfe(switch).energy
     g_trigger = folder.mfe(trigger).energy
     return g_complex - (g_switch + g_trigger)
