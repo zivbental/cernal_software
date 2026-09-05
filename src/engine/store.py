@@ -124,6 +124,24 @@ class ParetoFilter:
     def __init__(self, objectives: Sequence[Objective]) -> None:
         self.objectives = tuple(objectives)
 
+    def _point(self, record: Any) -> tuple[float, ...]:
+        """The record's objectives as a maximize-everything tuple.
+
+        A minimize objective is negated so one dominance test (``a >= b`` on every axis)
+        works for both directions — the sign flip cancels out of every comparison.
+        """
+        return tuple(
+            float(getattr(record, o.field)) if o.maximize else -float(getattr(record, o.field))
+            for o in self.objectives
+        )
+
+    @staticmethod
+    def _dominates(p: tuple[float, ...], q: tuple[float, ...]) -> bool:
+        """True when ``p`` is at least as good as ``q`` everywhere, and better somewhere."""
+        return all(a >= b for a, b in zip(p, q, strict=True)) and any(
+            a > b for a, b in zip(p, q, strict=True)
+        )
+
     def frontier(self, records: Sequence[Any]) -> list[Any]:
         """Keep only the candidates nothing else beats on every axis.
 
@@ -136,12 +154,15 @@ class ParetoFilter:
             the input, and it is the set worth showing a researcher: every member is the
             best available at some trade-off, and no member is simply worse than another.
 
-        Implementation (Step 5):
+        Implementation:
             A record **dominates** another when it is at least as good on every objective
             and strictly better on one. Keep every record that nothing dominates.
 
             The naive comparison is quadratic, which is fine here — this runs on hundreds
             of circuits, not hundreds of thousands. Do the simple thing.
+
+            Two records with identical objective values dominate neither each other nor
+            anything else on those axes, so duplicates all survive the filter together.
 
         Example:
             Score 0.90 with 12 components and score 0.85 with 4: **neither dominates**.
@@ -149,7 +170,12 @@ class ParetoFilter:
             see both. A single blended score would hide that, which is precisely why this
             is separate from ``engine.scoring``.
         """
-        raise NotImplementedError("Step 5")
+        points = [self._point(record) for record in records]
+        return [
+            record
+            for i, record in enumerate(records)
+            if not any(j != i and self._dominates(points[j], points[i]) for j in range(len(points)))
+        ]
 
     def top_k(self, records: Sequence[Any], k: int, key: str = "score") -> list[Any]:
         """Cap how much passes from one stage to the next.
@@ -174,8 +200,11 @@ class ParetoFilter:
             better science as well as the more predictable runtime.
 
         Note:
-            Break ties on a stable secondary key, not on input order. Otherwise a re-run
-            can return a different set for identical input, and the determinism the
-            contract promises quietly stops holding.
+            Ties on ``key`` keep the input's relative order (Python's sort is stable) —
+            the caller is responsible for handing in records in a reproducible order (e.g.
+            by ``CandidateStore``-minted id) when the contract's run-to-run determinism
+            needs to survive a tie. This method has no basis to invent a secondary key of
+            its own for a record type it does not know.
         """
-        raise NotImplementedError("Step 5")
+        ordered = sorted(records, key=lambda record: getattr(record, key), reverse=True)
+        return ordered[:k]

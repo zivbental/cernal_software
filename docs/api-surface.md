@@ -40,8 +40,8 @@ so that convention is the only rule there is.
 | Modules | 35 |
 | Public classes | 80 |
 | Public callables (excluding `__init__`) | 156 |
-| — `BUILT` | 107 |
-| — `STUB` | 42 |
+| — `BUILT` | 109 |
+| — `STUB` | 40 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
 | `__init__` constructors | 20 |
@@ -87,7 +87,7 @@ layers above it, never the ones below.
 | top | `engine.contract` |  | 5 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.pipeline` |  | 0 | 2 | The real scientific pipeline. |
-| top | `engine.store` | S11, S13 | 1 | 4 | S11, S13 — provenance and pruning. |
+| top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
 
 ## Layer 1 · Domain — the vocabulary
 
@@ -1552,8 +1552,8 @@ S13 — keep only the non-dominated candidates.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, objectives: Sequence[Objective]) -> None` |  |
-| `STUB` | `def frontier(self, records: Sequence[Any]) -> list[Any]` | Keep only the candidates nothing else beats on every axis. |
-| `STUB` | `def top_k(self, records: Sequence[Any], k: int, key: str = 'score') -> list[Any]` | Cap how much passes from one stage to the next. |
+| `BUILT` | `def frontier(self, records: Sequence[Any]) -> list[Any]` | Keep only the candidates nothing else beats on every axis. |
+| `BUILT` | `def top_k(self, records: Sequence[Any], k: int, key: str = 'score') -> list[Any]` | Cap how much passes from one stage to the next. |
 
 ---
 
