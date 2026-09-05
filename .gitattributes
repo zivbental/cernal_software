@@ -1,0 +1,48 @@
+# Line endings and file types for CERNAL.
+#
+# Why this file exists at all:
+# The Git for Windows installer sets core.autocrlf=true system-wide. Until this file
+# existed, that setting won by default: every text file was stored LF in the repository
+# but written CRLF into a Windows working copy. For most files that is harmless. For the
+# `do` task runner it is fatal — a script whose shebang line ends in CRLF makes Linux read
+# the interpreter name as "bash\r", and WSL answers:
+#     /usr/bin/env: 'bash\r': No such file or directory
+# which is exit code 127 and means nothing to anyone who has not seen it before.
+# Git Bash happens to tolerate it; WSL does not. So the documented WSL setup was broken
+# for exactly the people it was written for.
+#
+# A fresh `git clone` made after this file is committed already gets it right.
+# An EXISTING Windows checkout does not: the files are stored LF but were already written
+# to disk as CRLF, and Git will not rewrite them just because the rules changed. Check with
+#     git ls-files --eol do
+# If that prints `w/crlf`, commit or stash your work first, then force a re-checkout:
+#     git rm --cached -r .
+#     git reset --hard
+# Anything that then shows as modified is a line-ending fix, not a content change.
+
+# Let Git decide what is text and normalise it to LF in the repository. Text files still
+# arrive in your working copy with whatever endings your platform and core.autocrlf want —
+# this line only guarantees that what is *stored* is LF, so the repository never carries
+# CRLF for one person and LF for another.
+* text=auto
+
+# --- Files that must be LF in the working copy too, not just in the repository ---------
+# These carry a `#!` shebang and are executed directly (mode 100755). The kernel reads the
+# shebang byte for byte, so a trailing \r becomes part of the interpreter's name.
+
+do          text eol=lf
+manage.py   text eol=lf
+
+# --- Binary: never touch these, and never try to merge them ---------------------------
+# Without this, an unlucky auto-detection could rewrite bytes inside an image or a PDF.
+*.png       binary
+*.pdf       binary
+
+# --- Generated lockfiles ---------------------------------------------------------------
+# Cosmetic only: this collapses them by default in GitHub pull-request diffs so a
+# 30,000-line regenerated lock does not bury the twenty lines of science you actually
+# want reviewed. They are still tracked, still diffable locally, and still must be
+# regenerated with `uv lock` / `npm install` — never hand-edited, and never resolved by
+# hand during a merge conflict.
+uv.lock                     linguist-generated=true
+frontend/package-lock.json  linguist-generated=true
