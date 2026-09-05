@@ -22,7 +22,7 @@ DATASET_CONTENT = (
 def dataset(tmp_path):
     """A real file on disk, so the engine's checksum path is genuinely exercised."""
     path = tmp_path / "expression.csv"
-    path.write_text(DATASET_CONTENT, encoding="utf-8")
+    path.write_text(DATASET_CONTENT, encoding="utf-8", newline="")
     return path
 
 
