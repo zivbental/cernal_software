@@ -1,26 +1,16 @@
 """Toehold switches — single input, and two-input AND.
 
-**Stubs.** Signatures and structure are final; the bodies land in Step 5. Each docstring
-records what the method owes its caller, so filling it in is a scientific problem rather
-than an architectural one.
-
-**Provenance (``ToeholdGate``).** The domain architecture and dot-bracket construction
-below are a port of a validated NUPACK-based generator built outside this repo
-(``prokaryotic_switch_generator.py``): a 5' leader, a toehold, an ascending stem split by
-a 3-nt bulge, a loop carrying the ribosome binding site (or Kozak context), a matching
-descending stem, the start-codon bulge, and a linker — the Watson-Crick-derived
-construction path of that generator, re-expressed against this repo's ``FoldEngine``
-(ViennaRNA) and its ``GateFamily`` contract. The source generator's other half — running
-NUPACK's ``tube_design`` to *solve* for the loop's undesigned nucleotides and to report
-``ensemble_defect``/target-complex concentration as design-quality proxies — could not be
-ported: this repo folds only through ``FoldEngine`` (ViennaRNA; see
-``tests/engine/test_house_rules.py::test_only_the_two_folding_adapters_import_a_folding_library``),
-and has no NUPACK sequence-design step. Where the two genuinely diverge, the divergence is
-called out inline rather than silently guessed — see the port's open questions.
+**``ToeholdAndGate`` is a stub.** Its ``generate_designs`` raises ``NotImplementedError``
+and is deliberately not touched here — the serial-stem AND construction is separate work
+(docs/ROADMAP.md E4 note on ``ToeholdAndGate`` bodies). ``ToeholdGate``'s methods below are
+written generically against ``self.max_inputs`` / ``self.kind`` / ``self.host`` precisely so
+``ToeholdAndGate`` can keep inheriting ``is_compatible`` unmodified once it exists for real,
+the same way it already inherits ``emit_sequence``.
 
 Reference: design map 12, and the pipeline map's Switches Design stage.
 """
 
+import math
 from collections.abc import Iterator
 from typing import ClassVar
 
@@ -36,6 +26,7 @@ from engine.domain import (
     TriggerSet,
 )
 from engine.gates.base import GateFamily
+from engine.gates.tools.binding import hybridization_energy
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
@@ -66,6 +57,34 @@ class ToeholdGate(GateFamily):
     Those two pull against each other, which is why this is a search rather than a
     formula: a stem stable enough to be truly dark is often too stable to open.
 
+    **Provenance and simplifications**, in the same spirit as ``AntisenseNotGate``'s
+    docstring — this is an engine-native construction of the mechanism described above
+    and in ``modalities.md`` §C1 / Green et al. 2014, not a port of an external run:
+
+    * Unlike ``AntisenseNotGate``, this gate takes **no payload argument**. The switch's
+      own hairpin does not need to know the downstream gene's sequence — only that
+      whatever follows starts translating from the ``AUG`` this gate places at the very
+      end of its emitted sequence. A caller downstream (``PlasmidBuilder``) fuses the
+      real payload after it.
+    * The descending stem is built as the reverse complement of the ascending stem, then
+      its **last 3 nt are forced to read ``AUG``** (Green et al.'s own design: the start
+      codon is placed at a fixed position even where that costs a mismatch or two against
+      perfect stem pairing, rather than searched for). This gate does not run
+      ``CodonOptimizer.variants`` to hunt for an AUG-compatible stem instead — that search
+      is exactly what ``codons`` is held for and is not invoked here (S8 is still a stub;
+      see ``docs/ROADMAP.md`` Q4/Q5).
+    * ``predicted_success_rate``'s ΔG sigmoid reuses ``AntisenseNotGate``'s placeholder
+      reference/steepness (``_DG_REFERENCE_KCAL`` / ``_DG_STEEPNESS``) rather than a
+      toehold-specific calibration, which does not exist yet either. Both families use the
+      same shape for the same reason: a monotonic 0-1 squash of ΔG_bind with no real data
+      to fit it to. Revisit together once wet-lab ON/OFF data exists for either mechanism.
+    * ``translation`` (``TranslationScorer``) is accepted, per the fixed constructor
+      signature, but not called: every one of its methods is still
+      ``NotImplementedError`` (S9, ``docs/engine.md`` §9). Calling it would only convert a
+      documented gap into a crash. ``translation_score`` is therefore not one of the keys
+      ``evaluate_design`` returns — consistent with "return ``None`` /omit rather than a
+      sentinel" for a metric that cannot yet be computed.
+
     Args:
         host: Decides RBS-in-loop (prokaryotic) versus Kozak (eukaryotic). Held as a
             parameter rather than a subclass until the method bodies actually diverge
@@ -91,41 +110,23 @@ class ToeholdGate(GateFamily):
     #: Toehold lengths to explore per trigger. Widening this multiplies the search space.
     toehold_lengths: ClassVar[tuple[int, ...]] = (12, 15, 18)
 
-    #: Unstructured 5' leader ahead of the toehold. Matches the source generator's default
-    #: (``leader_sequence="GGG"``) — a fixed, unengineered spacer, not swept.
-    LEADER_SEQUENCE: ClassVar[str] = "GGG"
+    #: Minimum nucleotides left for the stem once the toehold is peeled off the binding
+    #: region. Below this there is no real duplex left to hold the AUG and resist opening
+    #: on its own — the design would be all toehold and no hairpin.
+    MIN_STEM_LENGTH: ClassVar[int] = 6
 
-    #: Ascending-stem length either side of the 3-nt bulge, matching the source
-    #: generator's defaults (``a_domain_size``'s neighbours ``b_domain_size_pre_bulge`` /
-    #: ``_post_bulge``). Fixed rather than swept: only ``toehold_lengths`` varies per the
-    #: stub's own note that "two designs from the same trigger differ only in toehold
-    #: length" — see the port's open questions for what this means when a trigger is
-    #: longer than one sweep step needs.
-    STEM_PRE_BULGE_LEN: ClassVar[int] = 9
-    STEM_POST_BULGE_LEN: ClassVar[int] = 6
+    #: E. coli Shine-Dalgarno consensus, sitting in the loop where it stays accessible in
+    #: both OFF and ON. Matches ``AntisenseNotGate.RBS_PROKARYOTIC`` — same conserved
+    #: element, same organism, no reason for the two families to disagree about it.
+    RBS_PROKARYOTIC: ClassVar[str] = "AGGAGGA"
 
-    #: Loop length; must be at least as long as the RBS/Kozak element it carries. Matches
-    #: the source generator's default (``loop_size=11``, exactly the RBS length below, so
-    #: the default leaves no undesigned filler at all).
-    LOOP_LEN: ClassVar[int] = 11
-
-    #: Prokaryotic ribosome binding site placed in the loop. Matches the source
-    #: generator's ``RBS_SEQUENCE``.
-    RBS_PROKARYOTIC: ClassVar[str] = "AACAGAGGAGA"
-
-    #: Eukaryotic Kozak context placed in the loop instead of an RBS (``host.track``
-    #: dispatches between the two, per this class's own docstring). The source generator
-    #: is prokaryotic-only (it has no eukaryotic branch); this reuses
-    #: ``AntisenseNotGate.KOZAK_EUKARYOTIC``'s value for the same conserved element rather
-    #: than inventing a new one, but it is unvalidated for a *toehold* specifically — see
-    #: the port's open questions.
+    #: Kozak context for the eukaryotic track. Matches ``AntisenseNotGate.KOZAK_EUKARYOTIC``.
     KOZAK_EUKARYOTIC: ClassVar[str] = "GCCACC"
 
-    #: In-frame linker between the start codon and the payload (attached later, at
-    #: plasmid assembly — see the port's open questions on why the payload itself is not
-    #: part of ``GateDesign.sequence`` here). Matches the source generator's
-    #: ``linker_pattern`` default.
-    LINKER_SEQUENCE: ClassVar[str] = "AACCUGGCGGCAGCGCAAAAG"
+    #: Binding-energy sigmoid. See the class docstring's provenance note: shared,
+    #: unvalidated placeholder with ``AntisenseNotGate``, not a toehold-specific fit.
+    _DG_REFERENCE_KCAL: ClassVar[float] = -15.0
+    _DG_STEEPNESS: ClassVar[float] = 2.0
 
     def __init__(
         self,
@@ -141,6 +142,17 @@ class ToeholdGate(GateFamily):
         self.translation = translation
         self.codons = codons
 
+    def _loop_element(self) -> str:
+        """The conserved translation-initiation element sitting in the loop.
+
+        Never engineered, and identical in role to ``AntisenseNotGate._loop_element`` —
+        reachable in the loop regardless of which state the switch is in, unlike the
+        stem either side of it.
+        """
+        if self.host.track is Track.PROKARYOTIC:
+            return self.RBS_PROKARYOTIC
+        return self.KOZAK_EUKARYOTIC
+
     def required_tools(self) -> list[ToolRequirement]:
         """External tools this family needs, checked before a run starts.
 
@@ -152,54 +164,52 @@ class ToeholdGate(GateFamily):
     def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility:
         """Can this family build anything for this trigger set?
 
-        **Cheap checks only.** This runs for every trigger set against every family, and
-        its whole purpose is to avoid the expensive work in ``generate_designs``. Nothing
-        here should fold.
+        **Cheap checks only** — nothing here folds. A toehold switch opens when its
+        trigger is *present*, so every input must be an activator (no repressors: this
+        gate has no inverting mechanism, unlike ``AntisenseNotGate``), and there must be
+        exactly ``self.max_inputs`` of them — read generically rather than hardcoded so
+        ``ToeholdAndGate`` (``max_inputs = 2``) keeps this check correct by inheritance.
 
-        Args:
-            trigger_set: The proposed inputs.
-            constraints: The researcher's limits.
-
-        Returns:
-            ``Compatibility.yes()``, or ``Compatibility.no(reason)``. **The reason is
-            shown to the researcher**, so write it for them: "this gate takes one input,
-            two were given", not "arity mismatch".
-
-        What to check (Step 5):
-            * ``trigger_set.arity <= self.max_inputs``.
-            * ``self.host in self.supported_hosts``.
-            * Each trigger clears ``constraints.min_separation`` — a trigger that barely
-              differs between states cannot drive a switch however well it folds.
-            * Trigger length is within the window this chemistry can build a toehold
-              against. Far too short and there is nothing to nucleate on; far too long and
-              the stem cannot accommodate it.
-
-        Note:
-            ``constraints.min_separation`` is a minimum log2 fold change — a property of
-            the *gene* (``SelectedGene.log2_fold_change``), not of a ``TriggerCandidate``,
-            which carries no expression field at all. This check cannot be implemented
-            against the type this method actually receives; see the port's open
-            questions rather than a silent, made-up substitute.
+        ``constraints.min_separation`` (a gene's log2 fold change) is not checked here —
+        ``TriggerCandidate`` does not carry that field; separation is already enforced
+        upstream, at the stage that produced the trigger, not re-derivable from what
+        reaches a gate family.
         """
         if trigger_set.repressors or len(trigger_set.activators) != self.max_inputs:
             return Compatibility.no(
-                f"This gate takes exactly {self.max_inputs} activating input(s) and no "
-                f"repressors, but got {len(trigger_set.activators)} activator(s) and "
+                f"This gate takes exactly {self.max_inputs} input(s), and every one of "
+                "them must be an activator — this chemistry has no inverting mechanism, "
+                f"so a trigger that must be absent cannot drive it. Got "
+                f"{len(trigger_set.activators)} activator(s) and "
                 f"{len(trigger_set.repressors)} repressor(s)."
             )
         if self.host not in self.supported_hosts:
-            return Compatibility.no(f"{self.label} is not offered for {self.host.value}.")
+            return Compatibility.no(f"Toehold switches are not offered for {self.host.value}.")
 
-        footprint = (
-            min(self.toehold_lengths) + self.STEM_PRE_BULGE_LEN + 3 + self.STEM_POST_BULGE_LEN
-        )
-        too_short = [t.trigger_id for t in trigger_set.activators if t.length < footprint]
-        if too_short:
-            return Compatibility.no(
-                f"Trigger(s) {', '.join(too_short)} are shorter than {footprint} nt — too "
-                "short to supply a toehold and stem even at the shortest swept toehold "
-                "length."
-            )
+        loop = self._loop_element()
+        min_footprint = min(self.toehold_lengths) + self.MIN_STEM_LENGTH
+        for trigger in trigger_set.activators:
+            if trigger.length < min_footprint:
+                return Compatibility.no(
+                    f"The trigger is {trigger.length} nt, too short to build a toehold "
+                    f"switch — this gate needs at least {min_footprint} nt to fit the "
+                    "shortest toehold plus a real stem."
+                )
+            # Switch length is toehold + 2*stem + loop, and stem = trigger_length -
+            # toehold_length — the stem appears twice (ascending and descending arms are
+            # separate stretches of sequence, not two views of one), so widening the
+            # toehold *shrinks* the switch: 2*trigger_length - toehold_length + loop_length.
+            # The largest toehold_length gives the smallest switch, so that is the cheap,
+            # optimistic bound worth checking here — generate_designs still checks every
+            # variant against the real limit; this only rejects the clearly hopeless case
+            # where even that best case cannot fit.
+            tightest_switch_length = 2 * trigger.length - max(self.toehold_lengths) + len(loop)
+            if tightest_switch_length > constraints.max_switch_length:
+                return Compatibility.no(
+                    f"The trigger is {trigger.length} nt; even the smallest toehold "
+                    f"switch built from it ({tightest_switch_length} nt) would exceed "
+                    f"the {constraints.max_switch_length} nt switch-length limit."
+                )
         return Compatibility.yes()
 
     def generate_designs(
@@ -246,111 +256,44 @@ class ToeholdGate(GateFamily):
             Two designs from the same trigger differ only in toehold length, so they share
             most of their sequence. That is precisely why ``FoldEngine`` caches: the
             validator will fold overlapping sequences repeatedly.
-
-        Deviations from the source generator (see the port's open questions):
-            * ``STEM_PRE_BULGE_LEN``/``STEM_POST_BULGE_LEN`` stay fixed at the source
-              generator's defaults for every swept ``toehold_length``; only the toehold
-              itself grows or shrinks. Any reverse-complemented trigger nucleotides beyond
-              ``toehold_length + STEM_PRE_BULGE_LEN + 3 + STEM_POST_BULGE_LEN`` are simply
-              unused for that variant, rather than the stem scaling to consume the whole
-              binding region the way the source generator's single fixed-length trigger did.
-            * The loop's undesigned filler (when ``LOOP_LEN`` exceeds the RBS/Kozak
-              length — zero nucleotides at the class defaults) is a fixed, non-repeating
-              placeholder, not solved by a sequence-design optimizer the way the source
-              generator's NUPACK ``tube_design`` call would.
-            * The construct stops at the linker. The source generator fused a specific
-              downstream gene onto the same output string; ``ToeholdGate.__init__`` is
-              given no payload (unlike ``AntisenseNotGate``, which takes one), and
-              ``SegmentKind`` treats ``SWITCH`` and ``PAYLOAD`` as separate plasmid
-              segments — so the payload is attached later, at plasmid assembly, not here.
         """
         trigger = trigger_set.activators[0]
         binding_region = sq.reverse_complement(trigger.sequence)
         loop = self._loop_element()
+        design_index = 0
 
         for toehold_length in self.toehold_lengths:
-            footprint = toehold_length + self.STEM_PRE_BULGE_LEN + 3 + self.STEM_POST_BULGE_LEN
-            if footprint > len(binding_region):
+            stem_length = len(binding_region) - toehold_length
+            if stem_length < self.MIN_STEM_LENGTH:
                 continue
 
-            a_domain = binding_region[:toehold_length]
-            pre_start = toehold_length
-            b_pre = binding_region[pre_start : pre_start + self.STEM_PRE_BULGE_LEN]
-            bulge_start = pre_start + self.STEM_PRE_BULGE_LEN
-            b_bulge = binding_region[bulge_start : bulge_start + 3]
-            post_start = bulge_start + 3
-            b_post = binding_region[post_start : post_start + self.STEM_POST_BULGE_LEN]
+            toehold_arm = binding_region[:toehold_length]
+            stem_top = binding_region[toehold_length:]
+            # Descending stem: complementary to stem_top, so the two form the OFF-state
+            # hairpin — except its last 3 nt, forced to the start codon regardless of what
+            # perfect complementarity would have put there (Green et al.'s own design; see
+            # the class docstring's provenance note).
+            stem_bottom = sq.reverse_complement(stem_top)[:-3] + sq.START_CODON
 
-            switch = (
-                self.LEADER_SEQUENCE
-                + a_domain
-                + b_pre
-                + b_bulge
-                + b_post
-                + loop
-                + sq.reverse_complement(b_post)
-                + sq.START_CODON
-                + sq.reverse_complement(b_pre)
-                + self.LINKER_SEQUENCE
-            )
+            switch = toehold_arm + stem_top + loop + stem_bottom
             if len(switch) > constraints.max_switch_length:
                 continue
 
-            aug_index = (
-                len(self.LEADER_SEQUENCE)
-                + toehold_length
-                + self.STEM_PRE_BULGE_LEN
-                + 3
-                + self.STEM_POST_BULGE_LEN
-                + len(loop)
-                + self.STEM_POST_BULGE_LEN
-            )
-            dot_bracket = (
-                "." * len(self.LEADER_SEQUENCE)
-                + "." * toehold_length
-                + "(" * self.STEM_PRE_BULGE_LEN
-                + "." * 3
-                + "(" * self.STEM_POST_BULGE_LEN
-                + "." * len(loop)
-                + ")" * self.STEM_POST_BULGE_LEN
-                + "." * 3
-                + ")" * self.STEM_PRE_BULGE_LEN
-                + "." * len(self.LINKER_SEQUENCE)
-            )
-
+            design_index += 1
             yield GateDesign(
-                design_id=f"toehold-{trigger.trigger_id}-{toehold_length}",
+                design_id=f"toehold-{trigger.trigger_id}-{design_index:04d}",
                 gate_kind=self.kind,
                 host=self.host,
                 trigger_set=trigger_set,
                 sequence=switch,
-                dot_bracket=dot_bracket,
                 architecture={
                     "toehold_length": toehold_length,
-                    "stem_pre_bulge_len": self.STEM_PRE_BULGE_LEN,
-                    "stem_post_bulge_len": self.STEM_POST_BULGE_LEN,
-                    "loop_len": len(loop),
-                    "leader_len": len(self.LEADER_SEQUENCE),
-                    "linker_len": len(self.LINKER_SEQUENCE),
-                    "aug_index": aug_index,
+                    "stem_length": stem_length,
+                    "loop_length": len(loop),
+                    "loop_element": loop,
                     "track": self.host.track.value,
                 },
             )
-
-    def _loop_element(self) -> str:
-        """The loop's translation-initiation element: RBS (prokaryotic) or Kozak
-        (eukaryotic), padded with a fixed filler to ``LOOP_LEN`` if it is longer than the
-        element itself.
-
-        Not a scientific computation — the RBS/Kozak choice is dispatched on
-        ``self.host.track`` per this class's own docstring, and the filler (when needed)
-        is a placeholder, not a sequence-design result. See the port's open questions.
-        """
-        element = (
-            self.RBS_PROKARYOTIC if self.host.track is Track.PROKARYOTIC else self.KOZAK_EUKARYOTIC
-        )
-        filler_len = max(0, self.LOOP_LEN - len(element))
-        return _filler(filler_len) + element
 
     def evaluate_design(self, design: GateDesign) -> dict[str, float | None]:
         """Measure one design.
@@ -394,33 +337,58 @@ class ToeholdGate(GateFamily):
             Fold the ON state as a **dimer** (``cofold`` with the ``&`` separator), not as
             a concatenated single strand. Concatenation gives a plausible-looking number
             that means nothing.
-
-        Emits (see the port's metrics audit for why not the others the docstring above
-        names): ``gate_folding_energy``, ``predicted_leakage``, ``dynamic_range``,
-        ``trigger_accessibility``, ``gc_content``. ``translation_score`` and
-        ``binding_site_off_target`` are not legal ``evaluate_design`` keys (they are
-        ``GateDesign`` fields filled elsewhere, not profile metrics) and are not computed
-        here; ``self.translation`` (``TranslationScorer.score``) is not called because it
-        still raises ``NotImplementedError`` — see the port's open questions for
-        ``predicted_success_rate``, which is left unemitted for the same reason.
         """
-        switch = design.sequence
+        architecture = design.architecture
+        toehold_length = architecture["toehold_length"]
+        stem_length = architecture["stem_length"]
+        loop_length = architecture["loop_length"]
+
+        loop_start = toehold_length + stem_length
+        loop_end = loop_start + loop_length
+        aug_start = loop_end + stem_length - 3
+        initiation_start, initiation_end = loop_start, aug_start + 3
+
         trigger = design.trigger_set.activators[0]
-        aug_index = design.architecture["aug_index"]
+        switch = design.sequence
 
         off_matrix = self.folder.base_pair_probabilities(switch)
-        off_accessibility = _mean_unpaired(off_matrix, aug_index, aug_index + 3)
+        off_accessibility = _mean_unpaired(off_matrix, initiation_start, initiation_end)
 
         on_matrix = self.folder.base_pair_probabilities(f"{switch}&{trigger.sequence}")
-        on_accessibility = _mean_unpaired(on_matrix, aug_index, aug_index + 3)
+        on_accessibility = _mean_unpaired(on_matrix, initiation_start, initiation_end)
+        open_run = _longest_open_run(on_matrix, initiation_start, initiation_end)
+
+        gate_folding_energy = self.folder.mfe(switch).energy
+
+        binding_dg = hybridization_energy(switch, trigger.sequence, self.folder)
+        predicted_success_rate = self._binding_energy_factor(binding_dg)
+
+        # Opposite of AntisenseNotGate's leakage/dynamic_range: here the trigger's ABSENCE
+        # is the OFF state, so leakage is the initiation region's residual openness alone,
+        # and dynamic_range is ON over that (docs/ROADMAP.md line 321's "opposite
+        # biological event between toehold and antisense", same metric names).
+        predicted_leakage = off_accessibility
+        dynamic_range = on_accessibility / max(predicted_leakage, 1e-3)
 
         return {
-            "gate_folding_energy": self.folder.mfe(switch).energy,
-            "predicted_leakage": off_accessibility,
-            "dynamic_range": on_accessibility / max(off_accessibility, 1e-3),
+            "gate_folding_energy": gate_folding_energy,
+            "predicted_leakage": predicted_leakage,
+            "dynamic_range": dynamic_range,
             "trigger_accessibility": trigger.accessibility,
+            "predicted_success_rate": predicted_success_rate,
             "gc_content": sq.gc_content(switch),
+            "initiation_open_run_nt": float(open_run),
         }
+
+    def _binding_energy_factor(self, binding_dg: float) -> float:
+        """Sigmoid mapping ΔG_bind (kcal/mol, more negative is stronger) onto 0-1.
+
+        Shared, unvalidated placeholder with ``AntisenseNotGate._binding_energy_factor``
+        — see the class docstring's provenance note.
+        """
+        x = (binding_dg - self._DG_REFERENCE_KCAL) / self._DG_STEEPNESS
+        x = max(-50.0, min(50.0, x))  # clamp: math.exp overflows well before this
+        return 1.0 / (1.0 + math.exp(x))
 
     def emit_sequence(self, design: GateDesign) -> str:
         """The synthesis-ready sequence.
@@ -439,17 +407,6 @@ class ToeholdAndGate(ToeholdGate):
 
     Both triggers may come from the same gene: the pipeline map is explicit that "2
     inputs can be of the same gene or trigger", so nothing here may deduplicate.
-
-    **Not ported.** ``generate_designs`` below is unchanged (still ``NotImplementedError``)
-    — the source generator this file ports (see the module docstring) only builds
-    single-input switches; it has no serial/two-hairpin construction to port. ``ToeholdGate``'s
-    ``is_compatible`` is inherited unchanged and generalises correctly (it already reads
-    ``self.max_inputs``), but ``evaluate_design`` is also inherited unchanged and only
-    folds against a single activator (``trigger_set.activators[0]``) — a real two-input
-    evaluation needs both triggers, and per this method's own docstring below, the two
-    single-trigger intermediate states as well. Whoever implements this class's
-    ``generate_designs`` should override ``evaluate_design`` too rather than rely on the
-    inherited one. See the port's open questions.
     """
 
     name = "toehold_and"
@@ -496,35 +453,11 @@ class ToeholdAndGate(ToeholdGate):
         raise NotImplementedError("Step 5")
 
 
-#: A short, non-repeating unit — no base repeats, so no length of filler ever introduces
-#: a homopolymer run regardless of ``ToeholdGate.LOOP_LEN``.
-_FILLER_UNIT = "ACAG"
-
-
-def _filler(length: int) -> str:
-    """A fixed placeholder for the loop's undesigned nucleotides.
-
-    The source generator (see this module's docstring) solves these positions with
-    NUPACK's ``tube_design`` sequence optimizer; this port has no such step, so this is a
-    deterministic, non-scientific stand-in — not a designed sequence. At the class
-    defaults ``length`` is 0 (``LOOP_LEN`` exactly matches the RBS), so this only matters
-    if ``LOOP_LEN`` is widened. See the port's open questions.
-    """
-    if length <= 0:
-        return ""
-    return (_FILLER_UNIT * (length // len(_FILLER_UNIT) + 1))[:length]
-
-
 def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float:
     """Mean P(unpaired) over ``[start, end)`` from a ``base_pair_probabilities`` matrix.
 
-    P(unpaired) at position i is ``1 - sum(matrix[i])`` — the matrix is already symmetric
-    and 0-indexed (``FoldEngine.base_pair_probabilities``'s contract), so this sums a
-    position's pairing probability to *every* other position regardless of which strand
-    it is on. For a dimer matrix that is exactly what "is the AUG still accessible with
-    the trigger bound" needs. (Duplicated from the same helper in ``gates/antisense.py``
-    rather than imported — see the port's open questions on promoting it to a shared
-    tool.)
+    Identical in shape to ``antisense._mean_unpaired`` — see that module for the full
+    rationale (a dimer matrix's row sum already covers pairing to either strand).
     """
     n = len(matrix)
     end = min(end, n)
@@ -532,3 +465,25 @@ def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float:
         return 0.0
     unpaired = [max(0.0, 1.0 - sum(matrix[i])) for i in range(start, end)]
     return sum(unpaired) / len(unpaired)
+
+
+def _longest_open_run(
+    matrix: list[list[float]], start: int, end: int, threshold: float = 0.5
+) -> int:
+    """Longest contiguous run of positions unpaired at ``threshold`` or above in ``[start, end)``.
+
+    Identical in shape to ``antisense._longest_open_run`` — mean openness treats one open
+    base between two paired ones the same as a long open stretch; a ribosome footprint
+    needs the latter.
+    """
+    n = len(matrix)
+    end = min(end, n)
+    best = current = 0
+    for i in range(start, end):
+        unpaired = max(0.0, 1.0 - sum(matrix[i]))
+        if unpaired >= threshold:
+            current += 1
+            best = max(best, current)
+        else:
+            current = 0
+    return best

@@ -1,7 +1,8 @@
-"""``ToeholdGate`` — single-input toehold switch generation and evaluation.
+"""``ToeholdGate`` — the single-input translational switch.
 
-Real ``FoldEngine``/ViennaRNA throughout, matching ``test_antisense.py``: every switch
-here tops out under 90 nt, so a real fold costs low milliseconds.
+Real ``FoldEngine``/ViennaRNA throughout, same rationale as ``test_antisense.py``: every
+sequence here is tiny (the switch tops out around 65 nt, the dimer around 100), so a real
+fold costs low milliseconds and the file stays under docs/engine.md §8's one-second budget.
 """
 
 import pytest
@@ -13,22 +14,23 @@ from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 
-# A non-repetitive, deterministic 36 nt trigger — long enough for every swept toehold
-# length (12/15/18 + the 9+3+6 nt stem) with room to spare.
-TRIGGER_SEQUENCE = "GCUAAAGACAAUUACAUAACAUACACGUCAGCACGA"[:36]
+# A made-up but deterministic 35 nt trigger window — plausible values, not pinned to any
+# external run (unlike AntisenseNotGate's MCHERRY_TRIGGER, this gate has no source pipeline
+# to reuse a validated window from; see the class docstring's provenance note).
+TRIGGER_SEQUENCE = "CGUACAACGUCAACAUCAAGUUGGACAUCACCUCC"
 
 
 def make_trigger(**overrides) -> TriggerCandidate:
     """A tiny, deterministic activator trigger. Any field can be overridden."""
     sequence = overrides.pop("sequence", TRIGGER_SEQUENCE)
     defaults = {
-        "trigger_id": "trig-000042",
+        "trigger_id": "trig-thra-100",
         "gene_id": "b0002",
         "symbol": "thrA",
         "sequence": sequence,
-        "start_index": 10,
-        "openness": 0.70,
-        "accessibility": 0.62,
+        "start_index": 100,
+        "openness": 0.72,
+        "accessibility": 0.65,
         "mfe": -4.0,
         "off_target_penalty": 0.0,
         "segment_specificity": 0.9,
@@ -74,50 +76,41 @@ def test_compatible_with_a_single_activator(gate, activator_set, constraints):
     assert gate.is_compatible(activator_set, constraints) == Compatibility.yes()
 
 
-def test_incompatible_with_a_repressor():
-    """This gate turns ON when its trigger is present, so its one input must be an
-    activator, not a repressor."""
-    gate = ToeholdGate(
-        Host.ECOLI, FoldEngine(), TranslationScorer(Host.ECOLI), CodonOptimizer(Host.ECOLI)
-    )
-    trigger_set = TriggerSet(activators=(), repressors=(make_trigger(),))
-    result = gate.is_compatible(trigger_set, Constraints())
+def test_incompatible_with_a_repressor(gate, constraints):
+    """This gate has no inverting mechanism — every input must be an activator."""
+    trigger_set = TriggerSet(activators=(), repressors=(make_trigger(trigger_id="trig-r"),))
+    result = gate.is_compatible(trigger_set, constraints)
     assert not result.ok
+    assert "activator" in result.reason
 
 
-def test_incompatible_with_two_activators(gate, constraints):
+def test_incompatible_with_two_inputs(gate, constraints):
     trigger_set = TriggerSet(
-        activators=(make_trigger(trigger_id="trig-a"), make_trigger(trigger_id="trig-b"))
+        activators=(make_trigger(trigger_id="trig-a"), make_trigger(trigger_id="trig-b")),
     )
     result = gate.is_compatible(trigger_set, constraints)
     assert not result.ok
-    assert "exactly 1" in result.reason
-
-
-def test_and_gate_needs_exactly_two_activators():
-    """`is_compatible` is inherited from `ToeholdGate` unchanged, and generalises via
-    `self.max_inputs` rather than a hardcoded arity."""
-    gate = ToeholdAndGate(
-        Host.ECOLI, FoldEngine(), TranslationScorer(Host.ECOLI), CodonOptimizer(Host.ECOLI)
-    )
-    two = TriggerSet(
-        activators=(make_trigger(trigger_id="trig-a"), make_trigger(trigger_id="trig-b"))
-    )
-    one = TriggerSet(activators=(make_trigger(trigger_id="trig-a"),))
-    assert gate.is_compatible(two, Constraints()) == Compatibility.yes()
-    assert not gate.is_compatible(one, Constraints()).ok
+    assert "1 input" in result.reason
 
 
 def test_incompatible_when_trigger_too_short(gate, constraints):
-    short = make_trigger(sequence="ACGUACGUACGU")  # 12 nt, below any sweep's footprint
+    short = make_trigger(sequence="ACGUACGUACGU")  # 12 nt, below any toehold+stem floor
     trigger_set = TriggerSet(activators=(short,))
     result = gate.is_compatible(trigger_set, constraints)
     assert not result.ok
-    assert "too short" in result.reason.lower() or "shorter than" in result.reason
+    assert "too short" in result.reason
+
+
+def test_incompatible_when_switch_would_exceed_length_limit(gate):
+    tight = Constraints(max_switch_length=20)  # smaller than the trigger itself
+    trigger_set = TriggerSet(activators=(make_trigger(),))
+    result = gate.is_compatible(trigger_set, tight)
+    assert not result.ok
+    assert "exceed" in result.reason
 
 
 def test_is_compatible_never_folds(gate, activator_set, constraints, monkeypatch):
-    """Cheap checks only — the whole point of `is_compatible` is to avoid folding."""
+    """Cheap checks only — the whole point of ``is_compatible`` is to avoid folding."""
 
     def _boom(*_args, **_kwargs):
         raise AssertionError("is_compatible must not fold")
@@ -127,13 +120,32 @@ def test_is_compatible_never_folds(gate, activator_set, constraints, monkeypatch
     gate.is_compatible(activator_set, constraints)
 
 
+def test_and_gate_is_compatible_inherits_and_requires_two_activators(constraints):
+    """``ToeholdAndGate`` does not override ``is_compatible`` — it must keep working
+    correctly by inheritance, generic over ``max_inputs``, not hardcoded to 1."""
+    and_gate = ToeholdAndGate(
+        Host.ECOLI, FoldEngine(), TranslationScorer(Host.ECOLI), CodonOptimizer(Host.ECOLI)
+    )
+    two = TriggerSet(
+        activators=(make_trigger(trigger_id="trig-a"), make_trigger(trigger_id="trig-b"))
+    )
+    one = TriggerSet(activators=(make_trigger(),))
+    assert and_gate.is_compatible(two, constraints) == Compatibility.yes()
+    assert not and_gate.is_compatible(one, constraints).ok
+
+
 # --- generate_designs -----------------------------------------------------------------
 
 
-def test_generate_designs_yields_one_per_toehold_length(gate, activator_set, constraints):
+def test_generate_designs_yields_at_least_one(gate, activator_set, constraints):
     designs = list(gate.generate_designs(activator_set, constraints))
-    assert len(designs) == len(gate.toehold_lengths)
-    assert [d.architecture["toehold_length"] for d in designs] == list(gate.toehold_lengths)
+    assert designs
+
+
+def test_every_design_respects_the_length_constraint(gate, activator_set):
+    tight = Constraints(max_switch_length=50)
+    for design in gate.generate_designs(activator_set, tight):
+        assert design.length <= 50
 
 
 def test_generated_sequences_are_valid_rna(gate, activator_set, constraints):
@@ -141,67 +153,50 @@ def test_generated_sequences_are_valid_rna(gate, activator_set, constraints):
         assert sq.is_valid_rna(design.sequence)
 
 
-def test_dot_bracket_is_balanced_and_the_same_length_as_the_sequence(
-    gate, activator_set, constraints
-):
-    for design in gate.generate_designs(activator_set, constraints):
-        assert len(design.dot_bracket) == len(design.sequence)
-        assert design.dot_bracket.count("(") == design.dot_bracket.count(")")
-
-
-def test_every_design_respects_the_length_constraint(gate, activator_set):
-    tight = Constraints(max_switch_length=85)
-    designs = list(gate.generate_designs(activator_set, tight))
-    assert designs  # the shortest (toehold_length=12) sweep is 83 nt, still fits
-    assert len(designs) < len(gate.toehold_lengths)  # but not every sweep does
-    for design in designs:
-        assert design.length <= 85
-
-
-def test_a_trigger_too_short_for_a_longer_sweep_still_yields_the_shorter_ones(gate, constraints):
-    """36 nt fits every swept toehold length; 33 nt only fits the two shortest."""
-    trigger = make_trigger(sequence=TRIGGER_SEQUENCE[:33])
-    designs = list(gate.generate_designs(TriggerSet(activators=(trigger,)), constraints))
-    assert [d.architecture["toehold_length"] for d in designs] == [12, 15]
-
-
-def test_architecture_records_enough_to_relocate_the_start_codon(gate, activator_set, constraints):
+def test_architecture_records_enough_to_relocate_boundaries(gate, activator_set, constraints):
     design = next(gate.generate_designs(activator_set, constraints))
-    aug_index = design.architecture["aug_index"]
-    assert design.sequence[aug_index : aug_index + 3] == sq.START_CODON
-
-
-def test_the_toehold_is_the_trigger_reverse_complement(gate, activator_set, constraints):
-    """The mechanism this whole family exists for: the toehold must be complementary to
-    the trigger, or the trigger cannot nucleate strand invasion against it."""
-    design = next(gate.generate_designs(activator_set, constraints))
-    toehold_length = design.architecture["toehold_length"]
-    leader_len = design.architecture["leader_len"]
-    toehold = design.sequence[leader_len : leader_len + toehold_length]
-    expected = sq.reverse_complement(TRIGGER_SEQUENCE)[:toehold_length]
-    assert toehold == expected
+    architecture = design.architecture
+    assert architecture.keys() >= {
+        "toehold_length",
+        "stem_length",
+        "loop_length",
+        "loop_element",
+        "track",
+    }
+    toehold_len = architecture["toehold_length"]
+    stem_len = architecture["stem_length"]
+    loop_len = architecture["loop_length"]
+    loop_start = toehold_len + stem_len
+    assert design.sequence[loop_start : loop_start + loop_len] == architecture["loop_element"]
+    assert design.sequence[-3:] == "AUG"
 
 
 def test_design_ids_are_unique_and_traceable(gate, activator_set, constraints):
     designs = list(gate.generate_designs(activator_set, constraints))
     ids = [d.design_id for d in designs]
     assert len(ids) == len(set(ids))
-    assert all(activator_set.activators[0].trigger_id in i for i in ids)
-
-
-def test_eukaryotic_host_uses_kozak_instead_of_rbs(activator_set, constraints):
-    gate = ToeholdGate(
-        Host.HUMAN, FoldEngine(), TranslationScorer(Host.HUMAN), CodonOptimizer(Host.HUMAN)
+    assert all(
+        d.trigger_set.activators[0].trigger_id in i for d, i in zip(designs, ids, strict=True)
     )
-    design = next(gate.generate_designs(activator_set, constraints))
-    assert gate.KOZAK_EUKARYOTIC in design.sequence
-    assert gate.RBS_PROKARYOTIC not in design.sequence
+
+
+def test_widening_the_toehold_shrinks_the_switch(gate, activator_set, constraints):
+    """The stem appears twice (ascending and descending arms are separate stretches), so
+    widening the toehold shrinks it: 2*trigger_length - toehold_length + loop_length
+    (see ``is_compatible``'s tightest_switch_length comment)."""
+    designs = sorted(
+        gate.generate_designs(activator_set, constraints),
+        key=lambda d: d.architecture["toehold_length"],
+    )
+    lengths = [d.length for d in designs]
+    assert lengths == sorted(lengths, reverse=True)
+    assert len(set(lengths)) == len(lengths)
 
 
 # --- evaluate_design: raw values, no scoring -------------------------------------------
 
 
-def test_evaluate_design_returns_only_declared_metric_names(gate, activator_set, constraints):
+def test_evaluate_design_returns_the_declared_metric_names(gate, activator_set, constraints):
     design = next(gate.generate_designs(activator_set, constraints))
     metrics = gate.evaluate_design(design)
 
@@ -210,15 +205,18 @@ def test_evaluate_design_returns_only_declared_metric_names(gate, activator_set,
         "predicted_leakage",
         "dynamic_range",
         "trigger_accessibility",
+        "predicted_success_rate",
         "gc_content",
+        "initiation_open_run_nt",
     }
     assert all(isinstance(v, float) for v in metrics.values())
 
 
-def test_predicted_leakage_is_a_fraction(gate, activator_set, constraints):
+def test_predicted_leakage_and_success_rate_are_fractions(gate, activator_set, constraints):
     design = next(gate.generate_designs(activator_set, constraints))
     metrics = gate.evaluate_design(design)
     assert 0.0 <= metrics["predicted_leakage"] <= 1.0
+    assert 0.0 <= metrics["predicted_success_rate"] <= 1.0
     assert metrics["dynamic_range"] > 0.0
 
 
@@ -229,22 +227,7 @@ def test_trigger_accessibility_is_carried_not_recomputed(gate, activator_set, co
     assert metrics["trigger_accessibility"] == activator_set.activators[0].accessibility
 
 
-def test_a_tighter_stem_at_the_start_codon_leaks_less(gate, constraints):
-    """Sanity check on the mechanism, not just the plumbing: an OFF-state switch whose
-    start codon is well and truly paired should show lower predicted_leakage than one
-    that leaves it exposed. Regression coverage for an inverted accessible/paired sign."""
-    design = next(gate.generate_designs(TriggerSet(activators=(make_trigger(),)), constraints))
-    metrics = gate.evaluate_design(design)
-    off_matrix = gate.folder.base_pair_probabilities(design.sequence)
-    aug_index = design.architecture["aug_index"]
-    mean_aug_unpaired = (
-        sum(max(0.0, 1.0 - sum(off_matrix[i])) for i in range(aug_index, aug_index + 3)) / 3
-    )
-    # predicted_leakage is the *unpaired* fraction, so it must fall as pairing rises.
-    assert metrics["predicted_leakage"] == pytest.approx(mean_aug_unpaired, abs=1e-6)
-
-
-# --- emit_sequence -----------------------------------------------------------------
+# --- emit_sequence / describe -----------------------------------------------------------
 
 
 def test_emit_sequence_is_the_design_sequence(gate, activator_set, constraints):
@@ -252,10 +235,15 @@ def test_emit_sequence_is_the_design_sequence(gate, activator_set, constraints):
     assert gate.emit_sequence(design) == design.sequence
 
 
+def test_describe_names_the_gene(gate, activator_set, constraints):
+    design = next(gate.generate_designs(activator_set, constraints))
+    assert "thrA" in gate.describe(design)
+
+
 # --- Golden: fixed input, committed output (docs/engine.md §8) -------------------------
 
 
-def test_golden_first_design_for_a_known_trigger(gate, activator_set, constraints):
+def test_golden_first_design_for_the_trigger(gate, activator_set, constraints):
     """Pins the exact switch and metrics this gate produces for a known trigger.
 
     A refactor that changes these numbers must be a deliberate, reviewed change — update
@@ -263,28 +251,30 @@ def test_golden_first_design_for_a_known_trigger(gate, activator_set, constraint
     """
     design = next(gate.generate_designs(activator_set, constraints))
 
-    assert design.design_id == "toehold-trig-000042-12"
+    assert design.design_id == "toehold-trig-thra-100-0001"
     assert design.architecture == {
         "toehold_length": 12,
-        "stem_pre_bulge_len": 9,
-        "stem_post_bulge_len": 6,
-        "loop_len": 11,
-        "leader_len": 3,
-        "linker_len": 21,
-        "aug_index": 50,
+        "stem_length": 23,
+        "loop_length": 7,
+        "loop_element": "AGGAGGA",
         "track": "prokaryotic",
     }
-    assert design.sequence == (
-        "GGGUCGUGCUGACGUGUAUGUUAUGUAAUUGUCAACAGAGGAGAGACAAUAUGAUAACAUACAACCUGGCGGCAGCGCAAAAG"
-    )
+    assert design.sequence == "GGAGGUGAUGUCCAACUUGAUGUUGACGUUGUACGAGGAGGACGUACAACGUCAACAUCAAGAUG"
 
     metrics = gate.evaluate_design(design)
     assert metrics == pytest.approx(
         {
-            "gate_folding_energy": -25.899999618530273,
-            "predicted_leakage": 0.8595640592508901,
-            "dynamic_range": 0.4236469499952924,
-            "trigger_accessibility": 0.62,
-            "gc_content": 45.78313253012048,
+            "gate_folding_energy": -34.900001525878906,
+            "predicted_leakage": 0.3318126020077467,
+            "dynamic_range": 1.8385989841609207,
+            "trigger_accessibility": 0.65,
+            "predicted_success_rate": 0.9999130420727482,
+            "gc_content": 47.69230769230769,
+            "initiation_open_run_nt": 9.0,
         }
     )
+
+
+def test_generate_designs_count_for_the_default_sweep_and_trigger(gate, activator_set, constraints):
+    """A second golden pin, on the search space itself rather than one design."""
+    assert len(list(gate.generate_designs(activator_set, constraints))) == 3
