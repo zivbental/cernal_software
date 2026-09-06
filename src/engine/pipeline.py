@@ -80,7 +80,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         # Stages — each receives what it needs, holds no accumulated state.
         InputQualityCheck().check(counts, metadata)
         genes    = GeneSelector(constraints).select(counts, dge)
-        triggers = TriggerScorer(profiler, off_target, screener).score(
+        triggers = TriggerScorer(profiler, off_target, screener, folder).score(
                        genes, sequences, constraints)
         switches = SwitchDesigner(families, validator, host).design(triggers, constraints)
         circuits = CircuitDesigner(ConfusionEvaluator(off_target)).design(
