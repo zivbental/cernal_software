@@ -40,8 +40,8 @@ so that convention is the only rule there is.
 | Modules | 35 |
 | Public classes | 80 |
 | Public callables (excluding `__init__`) | 156 |
-| — `BUILT` | 107 |
-| — `STUB` | 42 |
+| — `BUILT` | 111 |
+| — `STUB` | 38 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
 | `__init__` constructors | 20 |
@@ -68,7 +68,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.base` |  | 8 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
-| gates | `engine.gates.toehold` |  | 2 | 4 | Toehold switches — single input, and two-input AND. |
+| gates | `engine.gates.toehold` |  | 5 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
 | stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
@@ -80,7 +80,7 @@ layers above it, never the ones below.
 | stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
 | stages | `engine.stages.switches` |  | 0 | 3 | Stage 3 — switch design and validation. |
-| stages | `engine.stages.triggers` |  | 0 | 1 | Stage 2 — trigger scoring. |
+| stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — trigger scoring. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
 | top | `engine.client` |  | 7 | 0 | The Platform-facing engine interface. |
@@ -960,7 +960,7 @@ Single-input toehold switch.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'toehold'` |
-| `version` |  | `'0.1.0-stub'` |
+| `version` |  | `'0.1.0'` |
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
 | `description` |  | `'Translational control · pre-mRNA'` |
@@ -968,14 +968,21 @@ Single-input toehold switch.
 | `max_inputs` |  | `1` |
 | `available` |  | `True` |
 | `toehold_lengths` | `ClassVar[tuple[int, ...]]` | `(12, 15, 18)` |
+| `LEADER_SEQUENCE` | `ClassVar[str]` | `'GGG'` |
+| `STEM_PRE_BULGE_LEN` | `ClassVar[int]` | `9` |
+| `STEM_POST_BULGE_LEN` | `ClassVar[int]` | `6` |
+| `LOOP_LEN` | `ClassVar[int]` | `11` |
+| `RBS_PROKARYOTIC` | `ClassVar[str]` | `'AACAGAGGAGA'` |
+| `KOZAK_EUKARYOTIC` | `ClassVar[str]` | `'GCCACC'` |
+| `LINKER_SEQUENCE` | `ClassVar[str]` | `'AACCUGGCGGCAGCGCAAAAG'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer) -> None` |  |
 | `BUILT` | `def required_tools(self) -> list[ToolRequirement]` | External tools this family needs, checked before a run starts. |
-| `STUB` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | Can this family build anything for this trigger set? |
-| `STUB` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build candidate switches for one trigger set. |
-| `STUB` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Measure one design. |
+| `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | Can this family build anything for this trigger set? |
+| `BUILT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build candidate switches for one trigger set. |
+| `BUILT` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Measure one design. |
 | `BUILT` | `def emit_sequence(self, design: GateDesign) -> str` | The synthesis-ready sequence. |
 
 #### `class ToeholdAndGate(ToeholdGate)`
@@ -1247,10 +1254,14 @@ Stage 2 — trigger scoring.
 
 Rank every sub-segment of every selected gene as a possible switch input.
 
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `TOP_K_PER_GENE` |  | `50` |
+
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, profiler: FoldProfiler, off_target: OffTargetScanner, screener: MotifScreener) -> None` |  |
-| `STUB` | `def score(self, genes: list[SelectedGene], sequences: dict[str, str], constraints: Constraints) -> Iterator[TriggerCandidate]` | Yield ranked trigger candidates across every selected gene. |
+| `BUILT` | `def __init__(self, profiler: FoldProfiler, off_target: OffTargetScanner, screener: MotifScreener, folder: FoldEngine) -> None` |  |
+| `BUILT` | `def score(self, genes: list[SelectedGene], sequences: dict[str, str], constraints: Constraints) -> Iterator[TriggerCandidate]` | Yield ranked trigger candidates across every selected gene. |
 
 ## Layer 7 · Top level — contract, errors, composition
 
