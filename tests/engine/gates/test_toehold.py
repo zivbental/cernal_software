@@ -8,7 +8,15 @@ import pytest
 
 from engine import sequences as sq
 from engine.domain import Compatibility, Constraints, Host, TriggerCandidate, TriggerSet
-from engine.gates.toehold import ToeholdAndGate, ToeholdGate
+from engine.gates.registry import available_families
+from engine.gates.toehold import (
+    EukaryoticToeholdAndGate,
+    EukaryoticToeholdGate,
+    ProkaryoticToeholdAndGate,
+    ProkaryoticToeholdGate,
+    ToeholdAndGate,
+    ToeholdGate,
+)
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
@@ -106,6 +114,35 @@ def test_and_gate_needs_exactly_two_activators():
     one = TriggerSet(activators=(make_trigger(trigger_id="trig-a"),))
     assert gate.is_compatible(two, Constraints()) == Compatibility.yes()
     assert not gate.is_compatible(one, Constraints()).ok
+
+
+def test_toehold_variants_are_registered_by_track_and_arity():
+    assert {
+        "prokaryotic_toehold",
+        "prokaryotic_toehold_and",
+        "eukaryotic_toehold",
+        "eukaryotic_toehold_and",
+    }.issubset(available_families())
+    assert ProkaryoticToeholdGate.max_inputs == 1
+    assert ProkaryoticToeholdAndGate.max_inputs == 2
+    assert EukaryoticToeholdGate.max_inputs == 1
+    assert EukaryoticToeholdAndGate.max_inputs == 2
+
+
+@pytest.mark.parametrize(
+    ("family", "host", "expected"),
+    [
+        (ProkaryoticToeholdGate, Host.ECOLI, True),
+        (ProkaryoticToeholdGate, Host.HUMAN, False),
+        (EukaryoticToeholdGate, Host.HUMAN, True),
+        (EukaryoticToeholdGate, Host.ECOLI, False),
+        (ProkaryoticToeholdAndGate, Host.ECOLI, True),
+        (EukaryoticToeholdAndGate, Host.YEAST, True),
+    ],
+)
+def test_toehold_variants_limit_supported_hosts(family, host, expected):
+    instance = family(host, FoldEngine(), TranslationScorer(host), CodonOptimizer(host))
+    assert instance.supports(host) is expected
 
 
 def test_incompatible_when_trigger_too_short(gate, constraints):

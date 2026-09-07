@@ -80,6 +80,7 @@ class ToeholdGate(GateFamily):
     """
 
     name = "toehold"
+    design_prefix = "toehold"
     version = "0.1.0"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
@@ -319,7 +320,7 @@ class ToeholdGate(GateFamily):
             )
 
             yield GateDesign(
-                design_id=f"toehold-{trigger.trigger_id}-{toehold_length}",
+                design_id=f"{self.design_prefix}-{trigger.trigger_id}-{toehold_length}",
                 gate_kind=self.kind,
                 host=self.host,
                 trigger_set=trigger_set,
@@ -494,6 +495,46 @@ class ToeholdAndGate(ToeholdGate):
             ``gene_id`` — the pipeline map calls this out explicitly.
         """
         raise NotImplementedError("Step 5")
+
+
+class ProkaryoticToeholdGate(ToeholdGate):
+    """Single-input toehold family for prokaryotic translation."""
+
+    name = "prokaryotic_toehold"
+    design_prefix = "prokaryotic_toehold"
+    label = "Prokaryotic Toehold"
+    description = "Prokaryotic single-input translational control"
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI})
+
+
+class ProkaryoticToeholdAndGate(ToeholdAndGate):
+    """Two-input AND toehold family for prokaryotic translation."""
+
+    name = "prokaryotic_toehold_and"
+    design_prefix = "prokaryotic_toehold_and"
+    label = "Prokaryotic AND Toehold"
+    description = "Prokaryotic two-input translational AND"
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI})
+
+
+class EukaryoticToeholdGate(ToeholdGate):
+    """Single-input toehold family for eukaryotic translation."""
+
+    name = "eukaryotic_toehold"
+    design_prefix = "eukaryotic_toehold"
+    label = "Eukaryotic Toehold"
+    description = "Eukaryotic single-input translational control"
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.YEAST, Host.HUMAN})
+
+
+class EukaryoticToeholdAndGate(ToeholdAndGate):
+    """Two-input AND toehold family for eukaryotic translation."""
+
+    name = "eukaryotic_toehold_and"
+    design_prefix = "eukaryotic_toehold_and"
+    label = "Eukaryotic AND Toehold"
+    description = "Eukaryotic two-input translational AND"
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.YEAST, Host.HUMAN})
 
 
 #: A short, non-repeating unit — no base repeats, so no length of filler ever introduces
