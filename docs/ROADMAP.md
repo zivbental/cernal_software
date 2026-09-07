@@ -343,11 +343,14 @@ the constraint that made streaming impossible.
 **This is a team decision, and it should be made deliberately** — it is hard to reverse
 once six stages depend on it.
 
-### E11 · Pareto filtering
+### E11 · Pareto filtering — ✅ built
 
-`rank_candidates` ranks; **Pareto filtering across score-versus-complexity is not built**.
-A circuit with a slightly lower score and half the components is often the better answer,
-and only a Pareto front says so.
+`rank_candidates` ranks by a single blended score; Pareto filtering across
+score-versus-complexity (or any other pair of axes) is now `ParetoFilter.frontier`/
+`.top_k` in `store.py` — see status table, [engine.md §9](engine.md#9-status). A circuit
+with a slightly lower score and half the components is often the better answer, and only
+a Pareto front says so; nothing in the engine calls `ParetoFilter` yet, so wiring it into
+a stage (`CircuitDesigner` is the obvious first caller) is still open.
 
 ---
 

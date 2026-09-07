@@ -1119,11 +1119,11 @@ flowchart LR
         D5["scoring — S10"]
         D6["GateFamily ABC<br/>+ registry"]
         D7["boundary test"]
+        D8["S13 ParetoFilter"]
     end
 
     subgraph partial["Partly built"]
         P1["S12 FilterEngine<br/><i>metric filters yes,<br/>sequence filters no</i>"]
-        P2["S13 TopK / Pareto<br/><i>ranking yes,<br/>Pareto no</i>"]
     end
 
     subgraph todo["Step 5"]
@@ -1138,8 +1138,8 @@ flowchart LR
     classDef built fill:#dcfce7,stroke:#15803d,color:#14532d
     classDef part fill:#fef3c7,stroke:#b45309,color:#78350f
     classDef todo2 fill:#f4f4f5,stroke:#a1a1aa,color:#3f3f46
-    class D1,D2,D3,D4,D5,D6,D7 built
-    class P1,P2 part
+    class D1,D2,D3,D4,D5,D6,D7,D8 built
+    class P1 part
     class T1,T2,T3,T4,T5,T6 todo2
 ```
 
@@ -1154,7 +1154,7 @@ flowchart LR
 | **S10** ScoreNormalizer + Aggregator | `engine/scoring/` | ✅ **built and tested** |
 | S11 CandidateStore | `store.py` | ★ — design decision open, [ROADMAP.md](ROADMAP.md) E10 |
 | S12 FilterEngine | `ScoringProfile.hard_filters` + `failed_filter` | ✅ metric filters; sequence filters are S7 |
-| S13 TopK / Pareto | `rank_candidates` | ⚠️ ranking yes, **Pareto not built** |
+| S13 TopK / Pareto | `store.py::ParetoFilter`, `rank_candidates` | ✅ **Pareto built** — `ParetoFilter.frontier`/`.top_k`; single-score ranking still via `rank_candidates` |
 | S14 StructureViz + Report | `stages/reporting.py` | ★ |
 | Gate dispatch | `GateFamily` ABC + registry | ✅ built |
 | `AntisenseNotGate` | `gates/antisense.py` | ✅ **built** — Q9 answered (trigger acts directly as the antisense); needs `payload` (Q11 still open for where a payload library comes from) |
