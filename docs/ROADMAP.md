@@ -19,7 +19,7 @@
 | Step 2 — Domain model | **Complete** | 8 models, migrations, admin back-office, `seed_demo` |
 | Step 3 — API + orchestration | **Complete** | 32 endpoints, run state machine, django-q2 worker |
 | Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages |
-| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. Everything else is still a documented stub raising `NotImplementedError` |
+| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` and `ToeholdGate` (single-input) are real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. `ToeholdAndGate` and everything else is still a documented stub raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
 
 `./do test` → **415 passing**, and `.gitlab-ci.yml` runs the same checks plus the frontend
@@ -64,8 +64,8 @@ specific task.
 | **Q1** | **Where do trigger sequences come from?** The DE table has gene identifiers, not sequences. A reference transcriptome per organism? An accession lookup? User-supplied FASTA? | **E2** — and it may introduce a new data dependency with its own storage and licensing questions |
 | **Q2** | Thresholds for a usable trigger: minimum fold change, maximum adjusted p, expression bounds | E3 |
 | **Q3** | Maximum trigger-set size. Are 3-input circuits in scope, or is 2 the ceiling? | E3, and the whole compute budget (§3) |
-| **Q4** | Toehold construction rules: stem and loop lengths, RBS sequence, linker, start-codon placement, which toehold lengths to vary | E4 |
-| **Q5** | How leakage and dynamic range are computed from folding energies | E4 |
+| **Q4** | ~~Toehold construction rules: stem and loop lengths, RBS sequence, linker, start-codon placement, which toehold lengths to vary~~ **Answered by implementation**, for the single-input switch — `ToeholdGate.generate_designs` in `engine/gates/toehold.py`. The AND toehold's serial-stem construction is a separate, still-open question (see the `ToeholdAndGate` bodies entry, §7) | E4 |
+| **Q5** | ~~How leakage and dynamic range are computed from folding energies~~ **Answered by implementation:** leakage is the initiation region's mean P(unpaired) in the switch alone (OFF); dynamic_range is the same region's openness with the trigger bound (ON), over that — `ToeholdGate.evaluate_design`. The ΔG→success-rate sigmoid is still an unvalidated placeholder shared with `AntisenseNotGate`, not a real calibration for either mechanism | E4 |
 | **Q6** | Final metric set and weights for `default-v1`. The nine metrics in place are provisional placeholders | E5 |
 | **Q7** | Hard filters — what disqualifies a candidate outright | E5 |
 | **Q8** | Does the organism affect the design rules, or only the input data? | E2, E4 |
@@ -236,17 +236,25 @@ survives here.
 **Done when:** the number of trigger sets produced from a real dataset is a number you
 chose, not a number you discovered.
 
-### E4 · Toehold design and evaluation · **blocked on Q4, Q5**
+### E4 · Toehold design and evaluation · **single-input done, AND still open**
 
-`ToeholdGate.generate_designs` and `evaluate_design`. **This is where the CPU time goes.**
+`ToeholdGate.generate_designs` and `evaluate_design` are real, real ViennaRNA throughout,
+with a golden test pinning exact output (`tests/engine/gates/test_toehold.py`).
+**This is where the CPU time goes.**
 
-Construction and the metric list are spelled out in the stubs and summarised in
-[modalities.md §3](modalities.md). Two things worth repeating because they are the
-expensive mistakes:
+Construction and the metric list, as built, are spelled out in the class docstring in
+`engine/gates/toehold.py` and summarised in [modalities.md §3](modalities.md) (that page's
+prose is not yet updated to say "built" — see the ROADMAP note above). Two things that
+were the expensive mistakes to get wrong, both handled:
 
-- Fold the ON state as a **dimer** (`cofold`, `&` separator), not a concatenated strand.
-- Return **raw** values with `None` for anything uncomputable. Normalization, weighting
-  and filtering belong to `engine.scoring`, which is already built and tested.
+- The ON state is folded as a **dimer** (`cofold`, `&` separator), not a concatenated
+  strand.
+- **Raw** values, `None` for anything uncomputable. Normalization, weighting and
+  filtering belong to `engine.scoring`, which is already built and tested.
+
+`ToeholdAndGate`'s serial-stem construction is separate, still-open work — see its entry
+in §7. It is not blocked on anything this section answered; it needs its own design
+questions (order of the two stems, the half-open intermediate state) resolved.
 
 **Done when:** a golden test fixes a small input to its full expected output, and
 `ENGINE_VERSION` is bumped whenever that file legitimately changes.

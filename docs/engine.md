@@ -914,7 +914,7 @@ src/engine/
 ├── gates/
 │   ├── base.py        GateFamily ABC                         ✅ built
 │   ├── registry.py    register · get_family · describe       ✅ built
-│   ├── toehold.py     ToeholdGate + ToeholdAndGate           ★ stub
+│   ├── toehold.py     ToeholdGate ✅ · ToeholdAndGate ★ stub
 │   ├── antisense.py   AntisenseNotGate                       ✅ built · answers Q9
 │   ├── crispr.py      CrisprGate                             ★ planned
 │   │
@@ -1158,6 +1158,7 @@ flowchart LR
 | S14 StructureViz + Report | `stages/reporting.py` | ★ |
 | Gate dispatch | `GateFamily` ABC + registry | ✅ built |
 | `AntisenseNotGate` | `gates/antisense.py` | ✅ **built** — Q9 answered (trigger acts directly as the antisense); needs `payload` (Q11 still open for where a payload library comes from) |
+| `ToeholdGate` | `gates/toehold.py` | ✅ **built** — Q4/Q5 answered for the single-input switch. `ToeholdAndGate` (same file, inherits from it) is still a stub — its serial-stem construction is separate, still-open work (docs/ROADMAP.md §7) |
 | Rejection with reasons | enforced by a **database constraint** on import | ✅ built |
 | Metric normalization contract | `MetricSpec` | ✅ built |
 
