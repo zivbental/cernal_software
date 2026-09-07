@@ -10,7 +10,14 @@ from engine.errors import UnsupportedGateFamilyError
 from engine.gates.antisense import AntisenseNotGate
 from engine.gates.base import GateFamily
 from engine.gates.crispr import CrisprGate
-from engine.gates.toehold import ToeholdAndGate, ToeholdGate
+from engine.gates.toehold import (
+    EukaryoticToeholdAndGate,
+    EukaryoticToeholdGate,
+    ProkaryoticToeholdAndGate,
+    ProkaryoticToeholdGate,
+    ToeholdAndGate,
+    ToeholdGate,
+)
 
 _REGISTRY: dict[str, type[GateFamily]] = {}
 
@@ -111,5 +118,9 @@ def describe_families(host: Host | None = None) -> list[GateFamilyInfo]:
 
 register(ToeholdGate)
 register(ToeholdAndGate)
+register(ProkaryoticToeholdGate)
+register(ProkaryoticToeholdAndGate)
+register(EukaryoticToeholdGate)
+register(EukaryoticToeholdAndGate)
 register(AntisenseNotGate)
 register(CrisprGate)

@@ -38,7 +38,7 @@ so that convention is the only rule there is.
 | | Count |
 | --- | ---: |
 | Modules | 35 |
-| Public classes | 80 |
+| Public classes | 84 |
 | Public callables (excluding `__init__`) | 156 |
 | — `BUILT` | 111 |
 | — `STUB` | 38 |
@@ -960,6 +960,7 @@ Single-input toehold switch.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'toehold'` |
+| `design_prefix` |  | `'toehold'` |
 | `version` |  | `'0.1.0'` |
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
@@ -1001,6 +1002,54 @@ Two-input AND toehold.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `STUB` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build a switch that opens only when **both** triggers are present. |
+
+#### `class ProkaryoticToeholdGate(ToeholdGate)`
+
+Single-input toehold family for prokaryotic translation.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` |  | `'prokaryotic_toehold'` |
+| `design_prefix` |  | `'prokaryotic_toehold'` |
+| `label` |  | `'Prokaryotic Toehold'` |
+| `description` |  | `'Prokaryotic single-input translational control'` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI})` |
+
+#### `class ProkaryoticToeholdAndGate(ToeholdAndGate)`
+
+Two-input AND toehold family for prokaryotic translation.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` |  | `'prokaryotic_toehold_and'` |
+| `design_prefix` |  | `'prokaryotic_toehold_and'` |
+| `label` |  | `'Prokaryotic AND Toehold'` |
+| `description` |  | `'Prokaryotic two-input translational AND'` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI})` |
+
+#### `class EukaryoticToeholdGate(ToeholdGate)`
+
+Single-input toehold family for eukaryotic translation.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` |  | `'eukaryotic_toehold'` |
+| `design_prefix` |  | `'eukaryotic_toehold'` |
+| `label` |  | `'Eukaryotic Toehold'` |
+| `description` |  | `'Eukaryotic single-input translational control'` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.YEAST, Host.HUMAN})` |
+
+#### `class EukaryoticToeholdAndGate(ToeholdAndGate)`
+
+Two-input AND toehold family for eukaryotic translation.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` |  | `'eukaryotic_toehold_and'` |
+| `design_prefix` |  | `'eukaryotic_toehold_and'` |
+| `label` |  | `'Eukaryotic AND Toehold'` |
+| `description` |  | `'Eukaryotic two-input translational AND'` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.YEAST, Host.HUMAN})` |
 
 ### `engine.gates.notebooks._fixtures`
 
