@@ -21,7 +21,7 @@ from engine.domain import (
 from engine.gates.base import GateFamily
 from engine.gates.tools.folding import FoldEngine
 
-
+#bdika
 class CrisprGate(GateFamily):
     """Transcriptional control via a trigger-gated guide RNA.
 
