@@ -20,6 +20,7 @@ _OWNER_PATHS: dict[str, str] = {
     "results.Candidate": "run__project__owner",
     "results.Artifact": "run__project__owner",
     "results.Annotation": "candidate__run__project__owner",
+    "accounts.ApiKey": "owner",
 }
 
 

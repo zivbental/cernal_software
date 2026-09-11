@@ -9,6 +9,7 @@ from uuid import UUID
 
 from ninja import Field, ModelSchema, Schema
 
+from apps.accounts.models import ApiKey
 from apps.analyses.models import AnalysisRun
 from apps.datasets.models import Dataset
 from apps.projects.models import Project
@@ -46,6 +47,52 @@ class UserOut(Schema):
     username: str
     email: str
     is_staff: bool
+
+
+# --- API keys (ADR 0006) -----------------------------------------------------------
+
+
+class ApiKeyCreateIn(Schema):
+    label: str = Field(max_length=100)
+    scopes: list[str] = Field(default_factory=lambda: ["read", "design"])
+    expires_in_days: int | None = Field(default=None, description="Never expires if omitted.")
+
+
+class ApiKeyOut(ModelSchema):
+    """Never the secret — only its prefix (ADR 0006)."""
+
+    class Meta:
+        model = ApiKey
+        fields = [
+            "id",
+            "label",
+            "prefix",
+            "scopes",
+            "max_concurrent_runs",
+            "rate_per_minute",
+            "expires_at",
+            "revoked_at",
+            "last_used_at",
+            "created_at",
+        ]
+
+
+class ApiKeyCreatedOut(ApiKeyOut):
+    """The only response that ever carries the secret — shown once, at creation."""
+
+    secret: str
+
+
+class WhoAmIOut(Schema):
+    """What ``GET /api/auth/whoami`` confirms: the key works, and what it can do."""
+
+    username: str
+    scopes: list[str]
+    max_concurrent_runs: int
+    rate_per_minute: int
+    expires_at: datetime | None
+    key_label: str
+    key_prefix: str
 
 
 # --- Projects ---------------------------------------------------------------------

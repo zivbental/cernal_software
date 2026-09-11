@@ -4,15 +4,30 @@ Session cookies rather than tokens: the SPA is served from the same origin, so t
 works with no CORS and nothing sensitive in browser storage (ADR 0003).
 """
 
+from uuid import UUID
+
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth import login as django_login
 from django.contrib.auth import logout as django_logout
 from django.middleware.csrf import get_token
 from ninja import Router, Status
+from ninja.security import django_auth
 
+from api.auth import get_owned, owned_queryset
 from api.errors import ApiError, ValidationFailed
-from api.schemas import LoginIn, RegisterIn, RegistrationOut, UserOut
-from apps.accounts.services import RegistrationError, register_user
+from api.schemas import (
+    ApiKeyCreatedOut,
+    ApiKeyCreateIn,
+    ApiKeyOut,
+    LoginIn,
+    RegisterIn,
+    RegistrationOut,
+    UserOut,
+    WhoAmIOut,
+)
+from api.security import ApiKeyAuth
+from apps.accounts.models import ApiKey
+from apps.accounts.services import RegistrationError, issue_api_key, register_user, revoke_api_key
 
 router = Router()
 
@@ -112,3 +127,72 @@ def logout(request):
 @router.get("/me", response=UserOut)
 def me(request):
     return request.user
+
+
+# --- API keys (ADR 0006) -------------------------------------------------------------
+#
+# Session-authenticated only, on every one of these — explicit auth=django_auth
+# overrides the API-wide auth=[ApiKeyAuth(), django_auth] default. You cannot mint,
+# list or revoke a key with a key: that would let a leaked key become a permanent
+# foothold (docs/public-api.md §5).
+
+
+@router.get("/keys", response=list[ApiKeyOut], auth=django_auth)
+def list_keys(request):
+    """Yours. Label, prefix, scopes, last_used_at, expiry. Never the secret."""
+    return owned_queryset(ApiKey, request.user).order_by("-created_at")
+
+
+@router.post("/keys", response={201: ApiKeyCreatedOut}, auth=django_auth)
+def create_key(request, payload: ApiKeyCreateIn):
+    """Mint a key. The only response that ever carries the secret."""
+    try:
+        key, secret = issue_api_key(
+            owner=request.user,
+            label=payload.label,
+            scopes=tuple(payload.scopes),
+            expires_in_days=payload.expires_in_days,
+        )
+    except RegistrationError as exc:
+        raise ValidationFailed(str(exc)) from None
+
+    return Status(
+        201,
+        {
+            "id": key.id,
+            "label": key.label,
+            "prefix": key.prefix,
+            "scopes": key.scopes,
+            "max_concurrent_runs": key.max_concurrent_runs,
+            "rate_per_minute": key.rate_per_minute,
+            "expires_at": key.expires_at,
+            "revoked_at": key.revoked_at,
+            "last_used_at": key.last_used_at,
+            "created_at": key.created_at,
+            "secret": secret,
+        },
+    )
+
+
+@router.delete("/keys/{key_id}", response={204: None}, auth=django_auth)
+def delete_key(request, key_id: UUID):
+    """Revoke. Idempotent — revoking an already-revoked key is still 204."""
+    key = get_owned(ApiKey, key_id, request.user)
+    revoke_api_key(key)
+    return Status(204, None)
+
+
+@router.get("/whoami", response=WhoAmIOut, auth=ApiKeyAuth())
+def whoami(request):
+    """Confirms a key works: user, scopes, quota, expiry. The first call every client
+    makes (docs/public-api.md §5)."""
+    key = request.api_key
+    return WhoAmIOut(
+        username=request.user.get_username(),
+        scopes=key.scopes,
+        max_concurrent_runs=key.max_concurrent_runs,
+        rate_per_minute=key.rate_per_minute,
+        expires_at=key.expires_at,
+        key_label=key.label,
+        key_prefix=key.prefix,
+    )

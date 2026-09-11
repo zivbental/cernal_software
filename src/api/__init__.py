@@ -4,8 +4,13 @@ The only HTTP surface in the system (docs/architecture.md §4). Built with
 django-ninja: Pydantic schemas in, OpenAPI out at ``/api/openapi.json``, which the SPA
 uses to generate a typed client (ADR 0004).
 
-Authentication is a session cookie, and CSRF is enforced on writes — the SPA is served
-from the same origin, so this needs no configuration on either side (ADR 0003).
+Two credentials, one API (ADR 0006, docs/public-api.md §3): the SPA authenticates with a
+session cookie and CSRF is enforced on its writes (ADR 0003); everything else — Python,
+R, MATLAB, curl — authenticates with an ``X-API-Key`` header, which needs no CORS and no
+CSRF work. django-ninja tries each in ``auth=`` in order and uses the first that
+resolves, so every existing endpoint accepts either credential with no code changed:
+``ApiKeyAuth.authenticate`` returns the key's owning ``User``, and ``api/auth.py``'s
+``get_owned``/``owned_queryset`` keep working unmodified either way.
 """
 
 import logging
@@ -22,6 +27,7 @@ from api.routers.meta import router as meta_router
 from api.routers.projects import router as projects_router
 from api.routers.results import router as results_router
 from api.routers.runs import router as runs_router
+from api.security import ApiKeyAuth
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +35,10 @@ api = NinjaAPI(
     title="CERNAL API",
     version="1",
     description="RNA logic circuit design platform.",
-    # django_auth is SessionAuth, which carries csrf=True — in django-ninja 1.6 CSRF is
-    # a property of the auth mechanism rather than an API-level flag.
-    auth=django_auth,
+    # Key first: cheaper, and it has no CSRF path (api/security.py). django_auth is
+    # SessionAuth, which carries csrf=True — in django-ninja 1.6 CSRF is a property of
+    # the auth mechanism rather than an API-level flag.
+    auth=[ApiKeyAuth(), django_auth],
     urls_namespace="api",
 )
 
