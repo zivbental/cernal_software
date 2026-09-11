@@ -100,5 +100,13 @@ jobs:
       # `npm ci` (not `npm install`) so the lockfile is honoured exactly and the run
       # cannot quietly pick up a newer transitive dependency than anyone tested against.
       - run: npm ci
+
+      # src/routeTree.gen.ts is gitignored — TanStack Router's Vite plugin writes it as a
+      # side effect of a real `vite build`, not of `tsc` alone. Both `npm run check` and
+      # `npm run build` start with a bare `tsc --noEmit`, so on a fresh checkout (nothing
+      # has ever run `vite build` here) that first `tsc` fails before the file exists:
+      # "Cannot find module './routeTree.gen'". `build:fast` is `vite build` with no
+      # leading tsc, so it generates the file without caring that it's missing yet.
+      - run: npm run build:fast
       - run: npm run check
       - run: npm run build
