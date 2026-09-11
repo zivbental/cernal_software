@@ -7,6 +7,8 @@ from ninja import Router, Status
 from api.auth import get_owned, owned_queryset
 from api.errors import ValidationFailed
 from api.schemas import CancelOut, RunCounts, RunIn, RunOut, RunStatusOut
+from api.security import enforce_concurrency_ceiling, require_scope
+from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun, InputMode
 from apps.analyses.services import RunError, cancel_run, submit_run
 from apps.datasets.models import Dataset
@@ -38,7 +40,13 @@ def create_run(request, project_id: UUID, payload: RunIn):
     Returns 202: the work has been accepted, not completed. Poll ``GET /api/runs/{id}``.
     A repeated ``idempotency_key`` returns the existing run rather than launching a
     second computation.
+
+    A ``design``-scoped key is required (ADR 0006, docs/public-api.md §6) — this and
+    ``POST /api/design`` are the two submission paths, so a ``read``-scoped key must not
+    reach either. The per-key concurrency ceiling applies here too, for the same reason.
     """
+    require_scope(request, ApiKeyScope.DESIGN)
+    enforce_concurrency_ceiling(request)
     project = get_owned(Project, project_id, request.user)
 
     dataset = None
@@ -101,6 +109,7 @@ def cancel(request, run_id: UUID):
     Cooperative: a running analysis is flagged and stops between stages. The response
     distinguishes what actually happened, as design map 08 requires.
     """
+    require_scope(request, ApiKeyScope.DESIGN)
     run = get_owned(AnalysisRun, run_id, request.user)
     outcome = cancel_run(run)
     run.refresh_from_db()

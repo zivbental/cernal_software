@@ -92,6 +92,20 @@ DATABASES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# --- Cache (docs/public-api.md §6) -----------------------------------------------
+
+# No CACHES setting means Django defaults to LocMemCache — per-process, so throttle
+# counters split across gunicorn workers and the true rate limit becomes rate * workers.
+# DatabaseCache is one table in the same SQLite database that is already the Q_CLUSTER
+# broker (ADR 0002): no Redis to run or back up. The table itself is created by a
+# migration (apps/accounts/migrations/0003_create_cache_table.py), not a manual step.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "cernal_cache_table",
+    }
+}
+
 # --- Internationalization -------------------------------------------------------
 
 LANGUAGE_CODE = "en-us"

@@ -10,10 +10,12 @@ not weaken the SPA's CSRF protection by one bit (docs/public-api.md §2).
 from django.core.cache import cache
 from django.utils import timezone
 from ninja.security import APIKeyHeader
+from ninja.throttling import SimpleRateThrottle
 
 from api.errors import ApiError
 from apps.accounts.models import ApiKey
 from apps.accounts.services import authenticate_api_key
+from apps.analyses.models import AnalysisRun, RunStatus
 
 #: ``last_used_at`` is written at most this often per key, so a 3-second poll from a
 #: script does not become a database write on every request — real cost under
@@ -81,3 +83,75 @@ def require_scope(request, scope: str) -> None:
     api_key = getattr(request, "api_key", None)
     if api_key is not None and not api_key.has_scope(scope):
         raise InsufficientScope(f"This key does not have the '{scope}' scope.")
+
+
+class ApiKeyRateThrottle(SimpleRateThrottle):
+    """Requests/minute, keyed by the API key's id — not the owning user's.
+
+    ``UserRateThrottle`` would key on ``request.user``, which pools every key a user
+    owns together: a shared CI key would then starve their laptop (docs/public-api.md
+    §6). Each key configures its own ``rate_per_minute``, which the base class cannot
+    express — it reads a fixed rate once at construction via ``get_rate()`` — so this
+    reimplements ``allow_request`` to read the limit from ``request.api_key`` on every
+    call instead. A session-authenticated request (no ``request.api_key``) is not this
+    mechanism's concern and always passes.
+    """
+
+    scope = "api_key"
+
+    def get_rate(self):
+        # A per-instance default is meaningless here — the real limit is read fresh in
+        # allow_request(). None keeps the base constructor's parse_rate(None) happy.
+        return None
+
+    def get_cache_key(self, request) -> str | None:
+        api_key = getattr(request, "api_key", None)
+        if api_key is None:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": api_key.id}
+
+    def allow_request(self, request) -> bool:
+        api_key = getattr(request, "api_key", None)
+        if api_key is None:
+            return True
+
+        self.num_requests = api_key.rate_per_minute
+        self.duration = 60
+        self.key = self.get_cache_key(request)
+        self.history = self.cache.get(self.key, [])
+        self.now = self.timer()
+
+        while self.history and self.history[-1] <= self.now - self.duration:
+            self.history.pop()
+        if len(self.history) >= self.num_requests:
+            return self.throttle_failure()
+        return self.throttle_success()
+
+
+class TooManyActiveRuns(ApiError):
+    status = 429
+    code = "too_many_active_runs"
+
+
+def enforce_concurrency_ceiling(request) -> None:
+    """The load-bearing control, not the rate limit above (docs/public-api.md §6):
+    ``Q_CLUSTER`` runs one worker with a one-hour timeout, so 60 accepted submissions in
+    one minute is 60 hours of queue. A session-authenticated request is exempt — these
+    go through the SPA's own UX, not a loop.
+
+    Counts the *owner's* active runs, not just this key's: the ceiling protects the
+    shared queue from the account as a whole, using whichever key's configured limit
+    this request happens to carry.
+    """
+    api_key = getattr(request, "api_key", None)
+    if api_key is None:
+        return
+
+    active = AnalysisRun.objects.filter(
+        created_by=request.user, status__in=[RunStatus.QUEUED, RunStatus.RUNNING]
+    ).count()
+    if active >= api_key.max_concurrent_runs:
+        raise TooManyActiveRuns(
+            f"{active} run(s) already active; this key allows {api_key.max_concurrent_runs}.",
+            headers={"Retry-After": "60"},
+        )

@@ -17,7 +17,7 @@ import logging
 
 from django.http import Http404
 from ninja import NinjaAPI
-from ninja.errors import AuthenticationError, ValidationError
+from ninja.errors import AuthenticationError, Throttled, ValidationError
 from ninja.security import django_auth
 
 from api.errors import ApiError, envelope
@@ -27,7 +27,7 @@ from api.routers.meta import router as meta_router
 from api.routers.projects import router as projects_router
 from api.routers.results import router as results_router
 from api.routers.runs import router as runs_router
-from api.security import ApiKeyAuth
+from api.security import ApiKeyAuth, ApiKeyRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,10 @@ api = NinjaAPI(
     # SessionAuth, which carries csrf=True — in django-ninja 1.6 CSRF is a property of
     # the auth mechanism rather than an API-level flag.
     auth=[ApiKeyAuth(), django_auth],
+    # Applies to every operation unless it sets its own throttle=. A no-op for session
+    # auth — ApiKeyRateThrottle.get_cache_key returns None when request.api_key is unset
+    # (docs/public-api.md §6).
+    throttle=[ApiKeyRateThrottle()],
     urls_namespace="api",
 )
 
@@ -52,9 +56,28 @@ api.add_router("", meta_router, tags=["meta"])
 
 @api.exception_handler(ApiError)
 def handle_api_error(request, exc: ApiError):
-    return api.create_response(
+    response = api.create_response(
         request, envelope(exc.code, exc.message, exc.detail), status=exc.status
     )
+    for name, value in exc.headers.items():
+        response[name] = value
+    return response
+
+
+@api.exception_handler(Throttled)
+def handle_throttled(request, exc: Throttled):
+    """ninja's own Throttled, raised by ApiKeyRateThrottle (api/security.py) — mapped to
+    the shared envelope rather than left to the generic Exception handler, which would
+    otherwise turn a 429 into a 500 (docs/public-api.md §10)."""
+    retry_after = None if exc.wait is None else int(exc.wait) + 1
+    response = api.create_response(
+        request,
+        envelope("rate_limited", "Too many requests.", {"retry_after": retry_after}),
+        status=429,
+    )
+    if retry_after is not None:
+        response["Retry-After"] = str(retry_after)
+    return response
 
 
 @api.exception_handler(Http404)
