@@ -908,7 +908,7 @@ src/engine/
 ├── artifacts.py       checksummed artifact writing           ✅ built
 ├── domain.py          ALL records + enums                    ✅ built
 ├── sequences.py       pure functions, no class               ✅ built · S6
-├── pipeline.py        run_pipeline — wiring only             ★ stub
+├── pipeline.py        run_pipeline — wiring only             ⚠️ `direct` built · `de` stub
 ├── store.py           CandidateStore · ParetoFilter          ★ stub
 │
 ├── gates/
@@ -933,14 +933,14 @@ src/engine/
     ├── quality.py     InputQualityCheck                      S15
     ├── genes.py       GeneSelector
     ├── triggers.py    TriggerScorer
-    ├── switches.py    SwitchDesigner + SwitchValidator
+    ├── switches.py    SwitchDesigner + SwitchValidator       ⚠️ sequence rules only
     ├── circuits.py    CircuitDesigner + ConfusionEvaluator
     ├── plasmids.py    PlasmidBuilder
     ├── reporting.py   ReportBuilder + StructureRenderer      S14
     │
-    ├── folding.py     FoldProfiler        stage 2            S1
+    ├── folding.py     FoldProfiler        stage 2            S1 ✅
     ├── off_target.py  OffTargetScanner    stages 2, 3, 4     S5
-    └── motifs.py      MotifScreener       stages 2, 3, 5     S7
+    └── motifs.py      MotifScreener       stages 2, 3, 5     S7 ✅
 ```
 
 ### Why these groupings
@@ -1124,32 +1124,37 @@ flowchart LR
 
     subgraph partial["Partly built"]
         P1["S12 FilterEngine<br/><i>metric filters yes,<br/>sequence filters no</i>"]
+        P2["pipeline.py<br/><i>`direct` built, `de` stub</i>"]
+        P3["switches.py<br/><i>sequence rules only</i>"]
     end
 
     subgraph todo["Step 5"]
-        T1["S1–S9 tools"]
-        T2["6 stage bodies"]
+        T1["S2–S5, S8, S9 tools"]
+        T2["5 stage bodies<br/><i>quality, genes, triggers,<br/>circuits, plasmids, reporting</i>"]
         T3["ToeholdGate"]
         T4["CandidateStore S11"]
         T5["ReportBuilder S14"]
-        T6["pipeline.py wiring"]
     end
 
     classDef built fill:#dcfce7,stroke:#15803d,color:#14532d
     classDef part fill:#fef3c7,stroke:#b45309,color:#78350f
     classDef todo2 fill:#f4f4f5,stroke:#a1a1aa,color:#3f3f46
     class D1,D2,D3,D4,D5,D6,D7,D8 built
-    class P1 part
-    class T1,T2,T3,T4,T5,T6 todo2
+    class P1,P2,P3 part
+    class T1,T2,T3,T4,T5 todo2
 ```
 
 | Map item | Where | Status |
 |---|---|---|
 | User inputs 1–4 | `CountMatrix`, `DgeTable`, `Host`, `DesiredOutcome` | ✅ types built |
 | Supporting databases 5–8 | codon tables, sequence library, cell atlas, backbone spec | ✗ **no data source chosen** |
-| QC (S15) → Compiler's Output | `stages/` | ★ signatures only |
+| QC (S15), Gene Selection, Trigger Scoring | `stages/quality.py`, `genes.py`, `triggers.py` | ★ signatures only |
+| Switch design + validation (stage 3) | `stages/switches.py` | ⚠️ `SwitchDesigner.design`/`.build_trigger_sets` and `SwitchValidator.validate`'s sequence rules real ([ROADMAP.md](ROADMAP.md) E2a, `direct`/toehold only); the structural rule (`ensemble_defect`) and RBS-geometry rule still deferred |
+| Circuit Design → Compiler's Output | `stages/circuits.py`, `plasmids.py`, `reporting.py` | ★ signatures only |
 | S2 S3 S4 S8 S9 | `gates/tools/` | ⚠️ `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` (S2, S3) real; `ensemble_defect`, `suboptimal`, `structure_match` (S4) and S8/S9 still signatures only |
-| S1 S5 S7 | `stages/folding.py`, `off_target.py`, `motifs.py` | ★ signatures only |
+| S1 | `stages/folding.py` | ✅ **built** — `FoldProfiler.profile`/`.openness`, windowed RNAplfold ([ROADMAP.md](ROADMAP.md) E2a-4) |
+| S5 | `stages/off_target.py` | ★ signatures only — blocked on Q1 |
+| S7 | `stages/motifs.py` | ✅ **built and tested** |
 | S6 | `engine/sequences.py` | ✅ **built and tested** |
 | **S10** ScoreNormalizer + Aggregator | `engine/scoring/` | ✅ **built and tested** |
 | S11 CandidateStore | `store.py` | ★ — design decision open, [ROADMAP.md](ROADMAP.md) E10 |

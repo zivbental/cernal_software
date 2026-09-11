@@ -291,9 +291,14 @@ def test_mock_and_local_engines_both_satisfy_the_protocol():
     assert isinstance(LocalEngine(), EngineClient)
 
 
-def test_local_engine_is_not_implemented_until_step_5(make_request, progress):
-    with pytest.raises(NotImplementedError, match="Step 5"):
-        LocalEngine().run(make_request(), progress)
+def test_local_engine_de_mode_is_not_implemented_yet(make_request, progress):
+    """`direct` mode is real (tests/engine/test_pipeline.py) — `de` is not, and reports
+    that as an expected scientific failure (data), not a raised NotImplementedError:
+    this module's own docstring draws exactly that line."""
+    result = LocalEngine().run(make_request(), progress)  # default input_mode is "de"
+
+    assert result.status == FAILED
+    assert result.error is not None and "direct" in result.error.lower()
 
 
 # --- Capabilities -----------------------------------------------------------------

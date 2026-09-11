@@ -11,6 +11,7 @@ An expected scientific failure is **data**: the engine returns a ``JobResult`` w
 Cancellation returns ``status="cancelled"``.
 """
 
+import dataclasses
 import importlib
 import random
 import time
@@ -157,19 +158,49 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
 
 
 class LocalEngine:
-    """Runs the real scientific pipeline in-process. Step 5."""
+    """Runs the real scientific pipeline in-process.
 
-    ENGINE_VERSION = "local-0.1.0-stub"
+    **Partial, honestly.** Only the ``direct`` input path is real — a pasted trigger
+    sequence through toehold design, evaluation and scoring, with real ViennaRNA
+    folding throughout. ``de`` submissions, circuits, plasmids and rendered artifacts
+    are not built yet; see docs/smoke-run.md for exactly what that means and why.
+    ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
+    """
+
+    ENGINE_VERSION = "local-0.1.0-direct-only"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.
 
         Imported lazily so that constructing a ``LocalEngine`` — which the Platform does
         just to read capabilities — does not import numpy, pandas and ViennaRNA.
+
+        Converts ``JobCancelled``/``EngineError`` into a terminal ``JobResult`` exactly
+        as ``MockEngine.run`` does — an expected scientific failure is data, not a
+        crash (this module's own docstring) — and stamps ``ENGINE_VERSION`` onto
+        whatever ``run_pipeline`` returns, so that string has exactly one source of
+        truth rather than being duplicated into ``engine/pipeline.py`` as well.
         """
         from engine.pipeline import run_pipeline
 
-        return run_pipeline(request, on_progress)
+        try:
+            result = run_pipeline(request, on_progress)
+        except JobCancelled:
+            return self._terminal(request, CANCELLED, error=None)
+        except EngineError as exc:
+            return self._terminal(request, FAILED, error=str(exc))
+
+        return dataclasses.replace(result, engine_version=self.ENGINE_VERSION)
+
+    def _terminal(self, request: JobRequest, status: str, error: str | None) -> JobResult:
+        return JobResult(
+            schema_version=SCHEMA_VERSION,
+            engine_version=self.ENGINE_VERSION,
+            status=status,
+            error=error,
+            input_checksum=request.input_checksum,
+            params=request.params,
+        )
 
     def capabilities(self) -> EngineCapabilities:
         """The families and profiles actually installed in this build."""

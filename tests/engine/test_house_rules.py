@@ -431,14 +431,6 @@ def test_only_the_two_folding_adapters_import_a_folding_library():
     )
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "docs/ROADMAP.md E1 rung 4: stages/folding.py is still a stub — its "
-        "RNAplfold body (and therefore its `import RNA`) lands in Step 5. This "
-        "xfail is the reminder; delete the marker when FoldProfiler.profile is real."
-    ),
-)
 def test_both_folding_adapters_actually_fold():
     """The other half of rule 1: each declared adapter really is the folding front door.
 
