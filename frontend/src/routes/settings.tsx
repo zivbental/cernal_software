@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Check, Copy, KeyRound, Plus, RotateCw, ShieldAlert, Trash2 } from "lucide-react";
+import { BookMarked, Check, Copy, KeyRound, Plus, RotateCw, ShieldAlert, Trash2 } from "lucide-react";
 
 import { ApiError } from "@/api/client";
 import {
@@ -35,8 +35,15 @@ function SettingsPage() {
         }
         title="API Keys"
         description="Authenticate a script, notebook or pipeline with a header instead of a
-          login — the same account, the same projects and runs, no browser required.
-          See docs/public-api.md for the full reference."
+          login — the same account, the same projects and runs, no browser required."
+        actions={
+          <Link
+            to="/api-docs"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"
+          >
+            <BookMarked className="h-4 w-4" /> API reference
+          </Link>
+        }
       />
       <ApiKeysSection />
     </>
