@@ -98,6 +98,19 @@ def test_version_advertises_engine_capabilities(client, db):
     assert body["engine"] == "MockEngine"
     assert "default" in body["scoring_profiles"]
 
+
+def test_version_advertises_the_scoring_vocabulary(client, db):
+    """docs/public-api.md §4/§7: this is what a client validates a custom scoring block
+    against before submitting — units included, so it never has to guess linear vs. log2."""
+    body = client.get("/api/version").json()
+
+    metric_names = {metric["name"] for metric in body["metrics"]}
+    assert "predicted_leakage" in metric_names
+    assert all(metric["unit"] for metric in body["metrics"])
+
+    by_metric = {hf["metric"] for hf in body["hard_filters"]}
+    assert "predicted_leakage" in by_metric
+
     families = {f["name"]: f for f in body["gate_families"]}
     assert families["toehold"]["available"]
     assert families["toehold"]["label"] == "Toehold Riboswitch"

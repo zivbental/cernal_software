@@ -9,6 +9,7 @@ from uuid import UUID
 
 from ninja import Field, ModelSchema, Schema
 
+from apps.accounts.models import ApiKey
 from apps.analyses.models import AnalysisRun
 from apps.datasets.models import Dataset
 from apps.projects.models import Project
@@ -46,6 +47,52 @@ class UserOut(Schema):
     username: str
     email: str
     is_staff: bool
+
+
+# --- API keys (ADR 0006) -----------------------------------------------------------
+
+
+class ApiKeyCreateIn(Schema):
+    label: str = Field(max_length=100)
+    scopes: list[str] = Field(default_factory=lambda: ["read", "design"])
+    expires_in_days: int | None = Field(default=None, description="Never expires if omitted.")
+
+
+class ApiKeyOut(ModelSchema):
+    """Never the secret — only its prefix (ADR 0006)."""
+
+    class Meta:
+        model = ApiKey
+        fields = [
+            "id",
+            "label",
+            "prefix",
+            "scopes",
+            "max_concurrent_runs",
+            "rate_per_minute",
+            "expires_at",
+            "revoked_at",
+            "last_used_at",
+            "created_at",
+        ]
+
+
+class ApiKeyCreatedOut(ApiKeyOut):
+    """The only response that ever carries the secret — shown once, at creation."""
+
+    secret: str
+
+
+class WhoAmIOut(Schema):
+    """What ``GET /api/auth/whoami`` confirms: the key works, and what it can do."""
+
+    username: str
+    scopes: list[str]
+    max_concurrent_runs: int
+    rate_per_minute: int
+    expires_at: datetime | None
+    key_label: str
+    key_prefix: str
 
 
 # --- Projects ---------------------------------------------------------------------
@@ -271,6 +318,105 @@ class AnnotationOut(ModelSchema):
         return obj.author.get_username()
 
 
+# --- Design (docs/public-api.md §8-§9): the one-call fast path --------------------
+
+
+class DesignIn(Schema):
+    """Everything ``POST /api/design`` accepts. ``constraints``, ``scoring``,
+    ``budget`` and ``payload`` are free-form dicts, not nested schemas — the same
+    reason ``RunIn.params`` is a dict: their real shape is ``engine.domain.Constraints``
+    / a scoring profile / etc, which ``api/`` may not import (architecture.md §3).
+    ``strict`` (default ``True``, unlike the legacy run endpoint) is what catches a
+    misspelled key here instead of ``engine.scoring`` silently discarding it
+    (CLAUDE.md §2).
+    """
+
+    # --- input (exactly one) ---
+    trigger_sequence: str = ""
+    dataset_id: UUID | None = None
+    dge_csv: str = ""
+    project: str = Field(default="", description="Name or UUID; created if absent.")
+
+    # --- biology ---
+    organism: str = Field(default="", description="Only used when creating a project.")
+    payload: dict = Field(
+        default_factory=dict, description='{"outputs": [...], "custom_sequence": ...}'
+    )
+
+    # --- which chemistries may be used ---
+    gate_families: list[str] | None = None
+    exclude_gate_families: list[str] = Field(default_factory=list)
+
+    # --- search constraints: engine.domain.Constraints, field for field ---
+    constraints: dict = Field(default_factory=dict)
+
+    # --- how candidates are compared (§9.1) ---
+    scoring: dict = Field(default_factory=dict)
+
+    # --- cost ceiling (§9.3) ---
+    budget: dict = Field(default_factory=dict)
+
+    # --- output shaping ---
+    top_n: int = 25
+    include_rejected: bool = False
+    include_metrics: bool = True
+    include_artifacts: list[str] = Field(default_factory=list)
+
+    # --- reproducibility & control ---
+    seed: int | None = None
+    idempotency_key: str | None = None
+    strict: bool = True
+    notes: str = ""
+
+
+class DesignEstimateOut(Schema):
+    designs: int
+    seconds: float
+    confidence: str = Field(description='"rough" or "very rough" — never a guarantee.')
+
+
+class DesignResolvedOut(Schema):
+    """Every default the server chose, echoed back — so a run is reproducible from its
+    response alone (docs/public-api.md §8). ``constraints`` here is exactly what the
+    caller supplied, not padded with engine-side defaults: computing those would mean
+    duplicating engine.domain.Constraints' defaults in api/, which the boundary rule
+    (architecture.md §3) forbids importing and CLAUDE.md §3 forbids re-deriving."""
+
+    input_mode: str
+    gate_families: list[str]
+    scoring_profile: str
+    seed: int | None
+    constraints: dict
+
+
+class DesignAcceptedOut(Schema):
+    job_id: UUID
+    status: str
+    progress_pct: int
+    poll_url: str
+    results_url: str
+    web_url: str
+    estimate: DesignEstimateOut
+    resolved: DesignResolvedOut
+
+
+class DesignResponseOut(Schema):
+    """The 200 shape — serves two different callers with one schema, both additive
+    (docs/public-api.md §10): a resolved ``wait=`` result (job_id/status/candidates)
+    and a ``dry_run=true`` estimate (estimate/budget_ok). Each caller ignores the
+    fields meant for the other, exactly as the compatibility promise expects."""
+
+    resolved: DesignResolvedOut
+    # populated when wait= resolved before the deadline
+    job_id: UUID | None = None
+    status: str | None = None
+    candidates: list[CandidateDetailOut] = Field(default_factory=list)
+    artifacts: list[ArtifactOut] = Field(default_factory=list)
+    # populated for dry_run=true
+    estimate: DesignEstimateOut | None = None
+    budget_ok: bool | None = None
+
+
 # --- Meta -------------------------------------------------------------------------
 
 
@@ -287,6 +433,29 @@ class GateFamilyOut(Schema):
     available: bool
 
 
+class MetricInfoOut(Schema):
+    """One scoring metric, as advertised by the engine (engine.contract.MetricInfo).
+
+    What lets a caller validate a custom ``scoring.weights`` block against the real
+    vocabulary instead of discovering a typo as a silently-worst-scored candidate
+    (CLAUDE.md §2, docs/public-api.md §7/§9.1).
+    """
+
+    name: str
+    direction: str
+    weight: float
+    valid_range: tuple[float, float]
+    unit: str = ""
+    description: str = ""
+
+
+class HardFilterOut(Schema):
+    metric: str
+    minimum: float | None = None
+    maximum: float | None = None
+    reason: str = ""
+
+
 class VersionOut(Schema):
     app_version: str
     api_schema_version: str
@@ -295,3 +464,5 @@ class VersionOut(Schema):
     engine_schema_version: str
     gate_families: list[GateFamilyOut]
     scoring_profiles: list[str]
+    metrics: list[MetricInfoOut] = Field(default_factory=list)
+    hard_filters: list[HardFilterOut] = Field(default_factory=list)

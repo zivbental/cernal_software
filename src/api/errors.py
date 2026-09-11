@@ -17,10 +17,19 @@ class ApiError(Exception):
     status = 400
     code = "bad_request"
 
-    def __init__(self, message: str, *, detail: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        detail: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.detail = detail or {}
+        #: e.g. {"Retry-After": "60"} — read by handle_api_error (api/__init__.py).
+        #: Empty for every error that isn't a quota (docs/public-api.md §6, §10).
+        self.headers = headers or {}
 
 
 class NotFound(ApiError):

@@ -1,0 +1,20 @@
+{
+  "candidate_columns": [
+    "design",
+    "engine_ref",
+    "gate_family",
+    "id",
+    "is_rejected",
+    "logic_type",
+    "metrics",
+    "output",
+    "overall_score",
+    "rank",
+    "rejection_reason",
+    "run_id",
+    "summary",
+    "triggers",
+    "warnings"
+  ],
+  "response_columns": ["job_id", "status", "resolved", "candidates", "artifacts"]
+}

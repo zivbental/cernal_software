@@ -38,9 +38,9 @@ so that convention is the only rule there is.
 | | Count |
 | --- | ---: |
 | Modules | 35 |
-| Public classes | 84 |
-| Public callables (excluding `__init__`) | 156 |
-| — `BUILT` | 113 |
+| Public classes | 85 |
+| Public callables (excluding `__init__`) | 160 |
+| — `BUILT` | 117 |
 | — `STUB` | 36 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
@@ -57,7 +57,7 @@ layers above it, never the ones below.
 | sequences | `engine.sequences` | S6 | 12 | 0 | S6 — sequence facts. Pure functions, no state, no dependencies. |
 | scoring | `engine.scoring` |  | 0 | 0 |  |
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
-| scoring | `engine.scoring.profiles` |  | 5 | 0 | Versioned scoring profiles. |
+| scoring | `engine.scoring.profiles` |  | 8 | 0 | Versioned scoring profiles. |
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 1 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 0 | 2 | S8 — codon usage and synonymous rewriting. |
@@ -83,7 +83,7 @@ layers above it, never the ones below.
 | stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — trigger scoring. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
-| top | `engine.client` |  | 7 | 0 | The Platform-facing engine interface. |
+| top | `engine.client` |  | 8 | 0 | The Platform-facing engine interface. |
 | top | `engine.contract` |  | 5 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.pipeline` |  | 0 | 2 | The real scientific pipeline. |
@@ -696,6 +696,9 @@ Versioned scoring profiles.
 | --- | --- | --- |
 | `BUILT` | `def get_profile(name: str) -> ScoringProfile` | Look up a profile by name, validating it before returning. |
 | `BUILT` | `def available_profiles() -> list[str]` | Profile names a submission may request. Surfaced at ``GET /api/version``. |
+| `BUILT` | `def custom_scoring_label(base_name: str, weights: dict[str, float], hard_filters: list[dict], tie_breakers: list[str] \| None) -> str` | ``<hash8>`` — a pure function of the overrides, so two runs with identical weights get the same label and stay comparable (design map 12). |
+| `BUILT` | `def derive_profile(base: ScoringProfile, *, weights: dict[str, float] \| None = None, hard_filters: list[dict] \| None = None, tie_breakers: list[str] \| None = None) -> ScoringProfile` | A per-request variant of ``base``. Only ``weight`` on each metric may change — ``direction`` and ``valid_range`` are physics and units, not preference, so a caller who could widen ``valid_range`` could make their own numbers look better an… |
+| `BUILT` | `def resolve_profile(base_name: str, overrides: dict \| None = None) -> ScoringProfile` | What ``MockEngine``/the real pipeline actually calls: ``base_name`` is ``AnalysisRun.scoring_profile`` (always a known name — kept that way so ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is ``JobRequest.params.get("scoring")``. |
 
 #### `class MetricSpec`
 
@@ -711,6 +714,7 @@ The declaration of one metric, per design map 12.
 | `valid_range` | `tuple[float, float]` |  |
 | `missing_behavior` | `str` | `TREAT_AS_WORST` |
 | `description` | `str` | `''` |
+| `unit` | `str` | `''` |
 
 #### `class HardFilter`
 
@@ -1347,6 +1351,7 @@ The Platform-facing engine interface.
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.MockEngine``. |
+| `BUILT` | `def label_for_custom_scoring(base_name: str, overrides: dict \| None) -> str` | The label the engine will actually score under (docs/public-api.md §9.1) — computable from the request alone, before the engine ever runs, so the Platform can echo it in a submission's ``resolved`` field without building a ``ScoringProfile… |
 
 #### `class EngineClient(Protocol)`
 
@@ -1442,6 +1447,21 @@ One selectable switch mechanism, as the engine describes itself.
 | `description` | `str` |  |
 | `available` | `bool` |  |
 
+#### `class MetricInfo`
+
+`@dataclass(frozen=True, slots=True)`
+
+One metric in a scoring profile, as the engine describes it.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` | `str` |  |
+| `direction` | `str` |  |
+| `weight` | `float` |  |
+| `valid_range` | `tuple[float, float]` |  |
+| `unit` | `str` | `''` |
+| `description` | `str` | `''` |
+
 #### `class EngineCapabilities`
 
 `@dataclass(frozen=True, slots=True)`
@@ -1454,6 +1474,8 @@ What this engine build can do.
 | `schema_version` | `str` |  |
 | `gate_families` | `list[GateFamilyInfo]` |  |
 | `scoring_profiles` | `list[str]` |  |
+| `metrics` | `list[MetricInfo]` | `field(default_factory=list)` |
+| `hard_filters` | `list[dict]` | `field(default_factory=list)` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |

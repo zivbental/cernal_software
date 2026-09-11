@@ -18,6 +18,7 @@ const NAV = [
   { to: "/projects", label: "Dashboard" },
   { to: "/guide", label: "Quick Guide" },
   { to: "/use-cases", label: "Use Cases" },
+  { to: "/api-docs", label: "API Reference" },
   { to: "/about", label: "About Us" },
 ] as const;
 
@@ -80,9 +81,9 @@ function Nav() {
           </div>
 
           <Link
-            to="/about"
+            to="/settings"
             className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
-            aria-label="About"
+            aria-label="Settings"
           >
             <Settings className="h-4 w-4" />
           </Link>

@@ -41,6 +41,38 @@ def test_result_echoes_back_what_was_submitted(engine, make_request, progress):
     assert result.params == request.params
 
 
+def test_custom_scoring_actually_changes_which_candidates_rank(engine, make_request, progress):
+    """X7 end to end: MockEngine._execute resolves a custom scoring block through
+    engine.scoring.profiles.resolve_profile, not just get_profile(request.scoring_profile)."""
+    baseline = make_request(
+        idempotency_key="baseline",
+        params={"mock": {"candidate_count": 30}},
+    )
+    zero_leakage_weight = make_request(
+        idempotency_key="zero-leakage-weight",
+        params={
+            "mock": {"candidate_count": 30},
+            "scoring": {"weights": {"predicted_leakage": 0.0, "gc_content": 8.0}},
+        },
+    )
+
+    baseline_result = engine.run(baseline, progress)
+    reweighted_result = engine.run(zero_leakage_weight, progress)
+
+    baseline_order = [c.ref for c in baseline_result.accepted]
+    reweighted_order = [c.ref for c in reweighted_result.accepted]
+
+    assert baseline_order != reweighted_order, (
+        "re-weighting gc_content this heavily must move the rank"
+    )
+
+    # The metric itself is still measured and reported — weight=0 silences it in the
+    # rank, it does not delete it (CLAUDE.md §3).
+    for candidate in reweighted_result.accepted:
+        names = {metric.name for metric in candidate.metrics}
+        assert "predicted_leakage" in names
+
+
 def test_mock_results_are_labelled_as_not_real_science(engine, make_request, progress):
     result = engine.run(make_request(), progress)
     assert any("MockEngine" in warning for warning in result.warnings)

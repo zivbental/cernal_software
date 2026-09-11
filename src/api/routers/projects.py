@@ -5,6 +5,7 @@ from uuid import UUID
 from django.db import IntegrityError
 from django.db.models import Count
 from ninja import Router, Status
+from ninja.security import django_auth
 
 from api.auth import get_owned, owned_queryset
 from api.errors import Conflict
@@ -58,8 +59,11 @@ def update_project(request, project_id: UUID, payload: ProjectPatch):
     return _with_counts(Project.objects.filter(pk=project.pk)).get()
 
 
-@router.delete("/{project_id}", response={204: None})
+@router.delete("/{project_id}", response={204: None}, auth=django_auth)
 def delete_project(request, project_id: UUID):
+    """Session-authenticated only (docs/public-api.md §13, §6): destructive
+    operations stay in the web UI, where a human is present — a leaked API key must
+    not be able to delete anything, whatever scope it carries."""
     project = get_owned(Project, project_id, request.user)
 
     if project.runs.exists():

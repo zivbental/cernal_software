@@ -12,6 +12,8 @@ from ninja.pagination import LimitOffsetPagination, paginate
 from api.auth import get_owned
 from api.errors import NotFound, ValidationFailed
 from api.schemas import AnnotationIn, AnnotationOut, ArtifactOut, CandidateDetailOut, CandidateOut
+from api.security import require_scope
+from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun
 from apps.results.models import Annotation, Artifact, Candidate, DecisionTag
 
@@ -162,6 +164,7 @@ def list_annotations(request, candidate_id: UUID):
 
 @router.post("/candidates/{candidate_id}/annotations", response={201: AnnotationOut})
 def create_annotation(request, candidate_id: UUID, payload: AnnotationIn):
+    require_scope(request, ApiKeyScope.DESIGN)
     candidate = get_owned(Candidate, candidate_id, request.user)
 
     if payload.decision_tag not in DecisionTag.values:
@@ -181,6 +184,7 @@ def create_annotation(request, candidate_id: UUID, payload: AnnotationIn):
 
 @router.delete("/annotations/{annotation_id}", response={204: None})
 def delete_annotation(request, annotation_id: UUID):
+    require_scope(request, ApiKeyScope.DESIGN)
     annotation = get_owned(Annotation, annotation_id, request.user)
     annotation.delete()
     return Status(204, None)

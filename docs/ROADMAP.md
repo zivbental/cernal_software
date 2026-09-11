@@ -17,12 +17,14 @@
 | Step 0 — Scaffold | **Complete** | Boots, migrates, admin reachable |
 | Step 1 — Engine contract + MockEngine | **Complete** | Contract, `MockEngine`, gate/scoring layers, boundary test |
 | Step 2 — Domain model | **Complete** | 8 models, migrations, admin back-office, `seed_demo` |
-| Step 3 — API + orchestration | **Complete** | 32 endpoints, run state machine, django-q2 worker |
+| Step 3 — API + orchestration | **Complete** | 39 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
 | Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages |
 | **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. Everything else is still a documented stub raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
 
-`./do test` → **415 passing**, and `.gitlab-ci.yml` runs the same checks plus the frontend
+`./do test` → **825 passing** (plus the Python client's own conformance suite,
+`clients/python/tests/`, verified separately — see Phase X), and `.gitlab-ci.yml` runs
+the same checks plus the frontend
 build on every push. `CERNAL_ENGINE` defaults to `engine.client.MockEngine`, so the entire
 product works end to end on deterministic fake science today.
 
@@ -485,6 +487,7 @@ in [decisions/](decisions/) explaining what broke without it.
 | Same-origin SPA, session cookies, no JWT | [ADR 0003](decisions/0003-same-origin-spa-session-auth.md) |
 | django-ninja over DRF | [ADR 0004](decisions/0004-django-ninja-over-drf.md) |
 | Static SPA, not TanStack Start | [ADR 0005](decisions/0005-static-spa-not-tanstack-start.md) |
+| API keys as a second credential, not a second surface — extends 0003, does not reverse it | [ADR 0006](decisions/0006-api-keys-for-non-browser-clients.md) |
 | **Deployment separation is not repository separation.** The container builds a subset of the repo; splitting it would cost the boundary test, atomic contract changes, and the equivalence tests | [deployment.md](deployment.md) |
 | **No `Job` class.** The pipeline is functions over frozen data. A god object cannot be tested per stage, forces materialisation, and fights parallelism | [engine.md §2.3](engine.md) |
 | **Gate families do not score themselves.** Raw metrics out, normalization in `engine.scoring` | [engine.md §3.6](engine.md) |
@@ -492,6 +495,57 @@ in [decisions/](decisions/) explaining what broke without it.
 | **Host is a parameter, not a subclass**, until the method bodies actually diverge | [engine.md §2.4](engine.md) |
 | No Pydantic inside the engine, no workflow framework, no ORM in the engine | [engine.md §2.5](engine.md) |
 | Python 3.13, not 3.14 — scientific wheels lag new CPython by months | [development.md](development.md) |
+
+---
+
+## 10. Phase X — External integration
+
+Answers iGEM's *"How well can the software be integrated with external tools/software
+applications?"* Full rationale, the security review, and what NOT to build are in
+[public-api.md](public-api.md); this table is the work, per this file's own rule that
+work lives here, not in a second planning document.
+
+**X1–X8 and X7 are done. X9/X10 are unverified. X6 is mostly absorbed into X5. X12 is
+deliberately not built.** Rows below are kept as the record of what was planned and
+what actually landed — update them again the next time this phase moves.
+
+| # | Task | Where | Size | Status |
+|---|---|---|---|---|
+| **X1** | ADR 0006 + `ApiKey` model, migration, `issue_api_key`/`authenticate_api_key`, admin, `./do key` | `docs/decisions/`, `apps/accounts/` | M | **Done** |
+| **X2** | `ApiKeyAuth`; `auth=[ApiKeyAuth(), django_auth]`; key management endpoints; `GET /api/auth/whoami` | `api/security.py`, `api/__init__.py`, `api/routers/auth.py` | M | **Done** |
+| **X3** | Scopes, per-key throttle, `max_concurrent_runs`, `DatabaseCache` | `api/security.py`, `apps/analyses/services.py`, `config/settings/base.py` | S | **Done** |
+| **X4** | `MetricInfo` on `EngineCapabilities`; `unit` on every metric; surfaced at `GET /api/version` | `engine/contract.py`, `engine/client.py`, `engine/scoring/profiles.py`, `api/routers/meta.py` | S | **Done** |
+| **X5** | `POST /api/design` + `GET /api/design/{id}[/results]`: defaults, auto-project, inline `dge_csv`, `resolved`, `wait`, `strict`, `top_n` | `api/routers/design.py`, `apps/analyses/services.py` | M | **Done** |
+| **X6** | `budget` + `dry_run` estimate. API-side cap now; engine-side enforcement via `on_progress`/`JobCancelled` with an E-phase | `api/routers/design.py`, `engine/pipeline.py` | M | **API-side done, folded into X5.** Engine-side enforcement still blocked on `engine/pipeline.py`, which does not exist (Step 5) |
+| **X7** | Custom scoring profile — validate names against X4, deterministic `custom-<hash>` label, engine-side construction | `api/schemas.py`, `engine/scoring/profiles.py` | M | **Done** — `derive_profile`/`resolve_profile`/`custom_scoring_label` |
+| **X8** | Python client + PyPI + conformance test in CI | `clients/python/`, CI | M | **Done and verified.** `clients/python/tests/test_conformance.py` passes against a real live-server MockEngine run; wired into both CI files. Not yet published to PyPI |
+| **X9** | R client + conformance test in CI | `clients/r/`, CI | M | **Written, not verified.** No R interpreter was available to run it. Conformance test exists (`testthat`) but is inert without `CERNAL_TEST_BASE_URL`; no CI job wires it up |
+| **X10** | MATLAB client + manual conformance run | `clients/matlab/` | S | **Written, not verified.** No MATLAB/Octave was available. Per this table's own original note, MATLAB conformance was always meant to be manual, not CI |
+| **X11** | Docs: `api.md` key section, compatibility promise, three quickstarts, `curl` recipe | `docs/api.md`, `docs/public-api.md` | S | **Done** |
+| **X12** | *(optional, phase 2)* Webhooks with full SSRF guarding | `apps/analyses/services.py` | M | **Not built, deliberately.** [public-api.md §9.4](public-api.md) frames it as optional and names the SSRF risk explicitly; given ~5 analyses/day, polling remains sufficient |
+
+**Before X9/X10 ship for real:** someone with R installed runs
+`Rscript -e 'testthat::test_dir("clients/r/tests/testthat")'` against a live deployment
+(`CERNAL_TEST_BASE_URL`/`CERNAL_TEST_API_KEY` set), and someone with MATLAB runs
+`runtests('clients/matlab/tests/testCernal')` the same way. Both conformance tests
+submit `clients/fixtures/design_request.json` and check the columns against
+`clients/fixtures/expected_columns.json` — the same fixture the Python client's CI job
+already exercises.
+
+**Also open:** `ApiKey` is not published to PyPI/CRAN (that is a release step, not a code
+one); `ApiKeyAuth`'s scope/quota checks have no dedicated `/security-review` pass yet
+(docs/public-api.md §13 lists what one should look for); a sandbox `read`-scoped key
+against a `MockEngine` deployment, printed in documentation, is the single most
+persuasive judging artefact on this list and does not exist yet.
+
+**Web UI, added after X1–X11 landed (not in the original public-api.md scope, but the
+same ADR 0006 surface):** `/settings` lets a signed-in user see their own keys, mint one,
+reset it (`POST /api/auth/keys/{id}/regenerate` — a new endpoint; reissues a secret in
+place, keeping label/scopes/quotas, un-revokes on the way), and revoke it, with the
+secret shown exactly once. `/api-docs` is an in-app reference — Python/R/MATLAB/curl
+quickstarts plus the full `POST /api/design` field table — reachable from the main nav
+and cross-linked with `/settings`. This is what makes the "sandbox key, printed in
+documentation" idea above cheap to finish: the page to print it *in* now exists.
 
 ---
 

@@ -95,7 +95,7 @@ Change it to a list and every existing endpoint accepts either credential:
 api = NinjaAPI(
     title="CERNAL API",
     version="1",
-    auth=[ApiKeyAuth(), django_auth],   # key first: cheaper, and no CSRF path
+    auth=[ApiKeyAuth(), django_auth],  # key first: cheaper, and no CSRF path
     urls_namespace="api",
 )
 ```
@@ -200,6 +200,7 @@ today](../src/apps/accounts/models.py) and whose `services.py` already owns regi
 ```python
 # src/apps/accounts/models.py
 
+
 class ApiKey(UUIDModel, TimestampedModel):
     """A long-lived credential for a non-browser client (ADR 0006).
 
@@ -208,25 +209,25 @@ class ApiKey(UUIDModel, TimestampedModel):
     without the log ever containing something that authenticates.
     """
 
-    owner       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-                                    related_name="api_keys")
-    label       = models.CharField(max_length=100)          # "laptop", "snakemake-prod"
-    prefix      = models.CharField(max_length=16, db_index=True)   # "cern_live_7Kd2"
-    key_hash    = models.CharField(max_length=64, unique=True)     # sha256 hexdigest
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="api_keys"
+    )
+    label = models.CharField(max_length=100)  # "laptop", "snakemake-prod"
+    prefix = models.CharField(max_length=16, db_index=True)  # "cern_live_7Kd2"
+    key_hash = models.CharField(max_length=64, unique=True)  # sha256 hexdigest
 
-    scopes      = models.JSONField(default=list)            # ["read"] | ["read","design"]
+    scopes = models.JSONField(default=list)  # ["read"] | ["read","design"]
     max_concurrent_runs = models.PositiveSmallIntegerField(default=2)
-    rate_per_minute     = models.PositiveSmallIntegerField(default=60)
+    rate_per_minute = models.PositiveSmallIntegerField(default=60)
 
-    expires_at  = models.DateTimeField(null=True, blank=True)
-    revoked_at  = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
     last_used_at = models.DateTimeField(null=True, blank=True)
 
     @property
     def is_active(self) -> bool:
         now = timezone.now()
-        return (self.revoked_at is None
-                and (self.expires_at is None or self.expires_at > now))
+        return self.revoked_at is None and (self.expires_at is None or self.expires_at > now)
 ```
 
 ### Key format
@@ -257,10 +258,12 @@ def issue_api_key(*, owner, label, scopes=("read", "design"), expires_at=None):
     """Mint a key. Returns (ApiKey, secret) — the ONLY time the secret exists."""
     secret = f"cern_live_{secrets.token_urlsafe(24)}"
     key = ApiKey.objects.create(
-        owner=owner, label=label,
+        owner=owner,
+        label=label,
         prefix=secret[:14],
         key_hash=hashlib.sha256(secret.encode()).hexdigest(),
-        scopes=list(scopes), expires_at=expires_at,
+        scopes=list(scopes),
+        expires_at=expires_at,
     )
     return key, secret
 
@@ -283,15 +286,15 @@ def authenticate_api_key(secret: str) -> ApiKey | None:
 ```python
 # src/api/security.py
 class ApiKeyAuth(APIKeyHeader):
-    param_name = "X-API-Key"        # APIKeyHeader reads request.headers — no CSRF path
+    param_name = "X-API-Key"  # APIKeyHeader reads request.headers — no CSRF path
 
     def authenticate(self, request, key):
         api_key = authenticate_api_key(key or "")
         if api_key is None:
             return None
-        request.api_key = api_key    # scopes, quotas and throttling read this
-        _touch_last_used(api_key)    # throttled write, see below
-        return api_key.owner         # ← a real User, so get_owned() is unchanged
+        request.api_key = api_key  # scopes, quotas and throttling read this
+        _touch_last_used(api_key)  # throttled write, see below
+        return api_key.owner  # ← a real User, so get_owned() is unchanged
 ```
 
 `last_used_at` is written **at most once per 5 minutes per key**, guarded by the cache.
@@ -385,6 +388,7 @@ metric name or to document a unit.
 ```python
 # src/engine/contract.py — additive, both fields defaulted
 
+
 @dataclass(frozen=True, slots=True)
 class MetricInfo:
     """One metric in a scoring profile, as the engine describes it.
@@ -393,11 +397,12 @@ class MetricInfo:
     so the API can reject an unknown metric name at submit time — the same reason
     GateFamilyInfo exists.
     """
+
     name: str
-    direction: str            # HIGHER_BETTER | LOWER_BETTER
+    direction: str  # HIGHER_BETTER | LOWER_BETTER
     weight: float
     valid_range: tuple[float, float]
-    unit: str = ""            # "kcal/mol" · "percent 0-100" · "log2 fold" · "linear fold"
+    unit: str = ""  # "kcal/mol" · "percent 0-100" · "log2 fold" · "linear fold"
     description: str = ""
 
 
@@ -483,9 +488,9 @@ Blocks up to 120 s (hard ceiling **300 s**) and returns the finished result inli
 same handle, so **the client code path is identical either way**:
 
 ```python
-r = post(...)                       # 200 or 202, the client does not care
-job = Job.from_response(r)          # holds results, or knows how to poll for them
-df  = job.wait().to_dataframe()     # returns immediately if already resolved
+r = post(...)  # 200 or 202, the client does not care
+job = Job.from_response(r)  # holds results, or knows how to poll for them
+df = job.wait().to_dataframe()  # returns immediately if already resolved
 ```
 
 > **Be honest about `wait` in the docs.** [ROADMAP §3](ROADMAP.md) measures ~15 ms per
@@ -736,11 +741,11 @@ clients, and the conformance test (§11.4) fails if one drifts.
 import os
 from cernal import Client
 
-c = Client(api_key=os.environ["CERNAL_API_KEY"])       # base_url defaults to the public host
+c = Client(api_key=os.environ["CERNAL_API_KEY"])  # base_url defaults to the public host
 
 # fast and dirty
 job = c.design(trigger_sequence="AUGGCUAAGCUUAACGGAUCC", organism="ecoli")
-df  = job.wait().to_dataframe()                        # blocks, polls with backoff
+df = job.wait().to_dataframe()  # blocks, polls with backoff
 print(df.head())
 
 # constrained
@@ -748,15 +753,23 @@ job = c.design(
     dge_csv=open("deseq2.csv").read(),
     organism="ecoli",
     gate_families=["toehold"],
-    constraints=dict(max_triggers=2, min_separation=1.0, max_p_adj=0.01,
-                     trigger_lengths=[30, 36], standard="RFC10"),
-    scoring=dict(weights={"predicted_leakage": 4.0, "gc_content": 0.0},
-                 hard_filters=[{"metric": "dynamic_range", "minimum": 10.0}]),
+    constraints=dict(
+        max_triggers=2,
+        min_separation=1.0,
+        max_p_adj=0.01,
+        trigger_lengths=[30, 36],
+        standard="RFC10",
+    ),
+    scoring=dict(
+        weights={"predicted_leakage": 4.0, "gc_content": 0.0},
+        hard_filters=[{"metric": "dynamic_range", "minimum": 10.0}],
+    ),
     budget=dict(max_designs=50_000, max_runtime_seconds=1800),
-    seed=42, top_n=25,
+    seed=42,
+    top_n=25,
 )
-print(job.estimate)                     # from the 202, before waiting
-best = job.wait().best()                # highest-ranked CandidateResult
+print(job.estimate)  # from the 202, before waiting
+best = job.wait().best()  # highest-ranked CandidateResult
 job.artifact("fasta").save("best.fa")
 ```
 

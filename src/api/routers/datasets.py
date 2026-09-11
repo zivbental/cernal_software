@@ -8,6 +8,7 @@ from uuid import UUID
 
 from ninja import File, Form, Router, Status
 from ninja.files import UploadedFile
+from ninja.security import django_auth
 
 from api.auth import get_owned, owned_queryset
 from api.errors import Conflict, ValidationFailed
@@ -77,8 +78,11 @@ def get_dataset(request, dataset_id: UUID):
     return get_owned(Dataset, dataset_id, request.user)
 
 
-@router.delete("/datasets/{dataset_id}", response={204: None})
+@router.delete("/datasets/{dataset_id}", response={204: None}, auth=django_auth)
 def remove_dataset(request, dataset_id: UUID):
+    """Session-authenticated only (docs/public-api.md §13, §6): destructive
+    operations stay in the web UI, where a human is present — a leaked API key must
+    not be able to delete anything, whatever scope it carries."""
     dataset = get_owned(Dataset, dataset_id, request.user)
 
     try:

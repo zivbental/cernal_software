@@ -1,0 +1,25 @@
+[project]
+name = "cernal"
+version = "0.1.0"
+description = "Python client for the CERNAL RNA logic circuit design API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+authors = [{ name = "iGEM TAU 2026 Team, Tel Aviv University" }]
+keywords = ["synthetic-biology", "rna", "logic-circuits", "igem", "cernal"]
+dependencies = ["requests>=2.31"]
+
+[project.optional-dependencies]
+pandas = ["pandas>=2.0"]
+dev = ["pytest>=8.3", "requests>=2.31"]
+
+[project.urls]
+Homepage = "https://github.com/zivbental/cernal_software"
+Documentation = "https://github.com/zivbental/cernal_software/blob/main/docs/api.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cernal"]

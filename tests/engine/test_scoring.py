@@ -24,7 +24,10 @@ from engine.scoring.profiles import (
     MetricSpec,
     ScoringProfile,
     available_profiles,
+    custom_scoring_label,
+    derive_profile,
     get_profile,
+    resolve_profile,
 )
 
 HIGHER = MetricSpec("h", HIGHER_BETTER, weight=1.0, valid_range=(0.0, 10.0))
@@ -220,3 +223,122 @@ def test_filter_referencing_an_unknown_metric_is_rejected():
     )
     with pytest.raises(ScoringProfileError, match="unknown metric"):
         profile.validate()
+
+
+def test_every_default_metric_declares_a_unit():
+    """docs/public-api.md §7: unit is what lets a caller tell linear from log2, or
+    0-100 from 0-1, without reading CLAUDE.md §6 first."""
+    for spec in DEFAULT_V1.metrics:
+        assert spec.unit, f"{spec.name} has no unit"
+
+
+# --- Custom scoring (docs/public-api.md §9.1, X7) ----------------------------------
+
+
+def test_derive_profile_with_no_overrides_returns_something_equal_but_new():
+    derived = derive_profile(DEFAULT_V1)
+    assert derived.metrics == DEFAULT_V1.metrics
+    assert derived.hard_filters == DEFAULT_V1.hard_filters
+    assert derived.tie_breakers == DEFAULT_V1.tie_breakers
+
+
+def test_weights_merge_by_name_others_keep_the_base_weight():
+    derived = derive_profile(DEFAULT_V1, weights={"predicted_leakage": 4.0, "gc_content": 0.0})
+
+    assert derived.spec("predicted_leakage").weight == 4.0
+    assert derived.spec("gc_content").weight == 0.0
+    # untouched
+    assert derived.spec("state_separation").weight == DEFAULT_V1.spec("state_separation").weight
+
+
+def test_weight_override_never_touches_direction_or_valid_range():
+    """docs/public-api.md §9.1: direction and valid_range are physics and units, not
+    preference — a caller widening valid_range could make its own numbers look better."""
+    derived = derive_profile(DEFAULT_V1, weights={"gate_folding_energy": 9.0})
+    spec = derived.spec("gate_folding_energy")
+
+    assert spec.direction == DEFAULT_V1.spec("gate_folding_energy").direction
+    assert spec.valid_range == DEFAULT_V1.spec("gate_folding_energy").valid_range
+
+
+def test_hard_filters_merge_by_metric_the_base_filters_survive():
+    """A caller adding one new threshold must not silently lose the base's existing
+    safety filters (predicted_leakage's ceiling, state_separation's floor)."""
+    derived = derive_profile(
+        DEFAULT_V1, hard_filters=[{"metric": "dynamic_range", "minimum": 10.0}]
+    )
+
+    by_metric = {hf.metric: hf for hf in derived.hard_filters}
+    assert by_metric["dynamic_range"].minimum == 10.0
+    assert by_metric["predicted_leakage"].maximum == 0.85, "base filter must survive"
+    assert by_metric["state_separation"].minimum == 0.5, "base filter must survive"
+
+
+def test_hard_filter_override_replaces_the_same_metric():
+    derived = derive_profile(
+        DEFAULT_V1, hard_filters=[{"metric": "predicted_leakage", "maximum": 0.5}]
+    )
+
+    matching = [hf for hf in derived.hard_filters if hf.metric == "predicted_leakage"]
+    assert len(matching) == 1, "override must replace, not duplicate"
+    assert matching[0].maximum == 0.5
+
+
+def test_tie_breakers_replace_outright_when_given():
+    derived = derive_profile(DEFAULT_V1, tie_breakers=["dynamic_range"])
+    assert derived.tie_breakers == ["dynamic_range"]
+
+
+def test_tie_breakers_keep_the_base_when_not_given():
+    derived = derive_profile(DEFAULT_V1, weights={"gc_content": 1.0})
+    assert derived.tie_breakers == DEFAULT_V1.tie_breakers
+
+
+def test_derived_profile_validates_and_labels_itself_custom():
+    derived = derive_profile(DEFAULT_V1, weights={"gc_content": 1.0})
+    derived.validate()  # must not raise
+    assert derived.label.startswith("custom-")
+    assert derived.name == "custom"
+
+
+def test_derived_label_is_deterministic():
+    a = custom_scoring_label("default", {"gc_content": 1.0}, [], None)
+    b = custom_scoring_label("default", {"gc_content": 1.0}, [], None)
+    assert a == b
+
+
+def test_derived_label_differs_for_different_weights():
+    a = custom_scoring_label("default", {"gc_content": 1.0}, [], None)
+    b = custom_scoring_label("default", {"gc_content": 2.0}, [], None)
+    assert a != b
+
+
+def test_weight_of_zero_leaves_the_metric_measured_but_silent():
+    """CLAUDE.md §3: raw values only. weight=0 stops a metric moving the rank without
+    deleting its spec — the value is still measured and visible in the decomposition."""
+    derived = derive_profile(DEFAULT_V1, weights={"gc_content": 0.0})
+    spec = derived.spec("gc_content")
+    assert spec is not None
+    assert spec.weight == 0.0
+
+
+def test_resolve_profile_with_no_overrides_returns_the_base():
+    assert resolve_profile("default", None) is get_profile("default")
+    assert resolve_profile("default", {}) is get_profile("default")
+
+
+def test_resolve_profile_with_empty_blocks_returns_the_base():
+    assert resolve_profile(
+        "default", {"weights": {}, "hard_filters": [], "tie_breakers": []}
+    ) is get_profile("default")
+
+
+def test_resolve_profile_with_overrides_derives():
+    profile = resolve_profile("default", {"weights": {"gc_content": 9.0}})
+    assert profile.name == "custom"
+    assert profile.spec("gc_content").weight == 9.0
+
+
+def test_resolve_profile_unknown_base_still_raises():
+    with pytest.raises(ScoringProfileError, match="Available profiles"):
+        resolve_profile("nope", {"weights": {"gc_content": 1.0}})

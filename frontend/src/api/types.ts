@@ -213,6 +213,26 @@ export interface Paginated<T> {
   count: number;
 }
 
+/** ADR 0006. Never carries the secret except right after creation/regeneration. */
+export interface ApiKey {
+  id: string;
+  label: string;
+  prefix: string;
+  scopes: string[];
+  max_concurrent_runs: number;
+  rate_per_minute: number;
+  expires_at: string | null;
+  revoked_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+/** The one shape that carries a secret — shown once, on POST /auth/keys and
+ * POST /auth/keys/{id}/regenerate. Never persist this past the page that shows it. */
+export interface ApiKeyCreated extends ApiKey {
+  secret: string;
+}
+
 /** The wizard's configuration, frozen into params_snapshot at submission. */
 export interface RunParams {
   schema_version?: string;
