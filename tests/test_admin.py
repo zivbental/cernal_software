@@ -11,6 +11,7 @@ from apps.results.services import import_job_result
 CHANGELISTS = [
     "/admin/",
     "/admin/accounts/user/",
+    "/admin/accounts/apikey/",
     "/admin/projects/project/",
     "/admin/datasets/dataset/",
     "/admin/analyses/analysisrun/",

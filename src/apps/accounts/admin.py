@@ -2,8 +2,8 @@ from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.utils.html import format_html
 
-from apps.accounts.models import User
-from apps.accounts.services import approve_user
+from apps.accounts.models import ApiKey, User
+from apps.accounts.services import approve_user, revoke_api_key
 
 
 class PendingApprovalFilter(admin.SimpleListFilter):
@@ -74,3 +74,35 @@ class UserAdmin(DjangoUserAdmin):
                 messages.WARNING,
             )
         return super().changelist_view(request, extra_context)
+
+
+@admin.register(ApiKey)
+class ApiKeyAdmin(admin.ModelAdmin):
+    """The secret itself is never stored, so there is nothing here to leak — only the
+    prefix, which is safe to show (ADR 0006)."""
+
+    list_display = ("prefix", "owner", "label", "scopes", "status", "last_used_at", "created_at")
+    list_filter = ("scopes", "created_at")
+    search_fields = ("prefix", "label", "owner__username")
+    readonly_fields = ("prefix", "key_hash", "created_at", "updated_at", "last_used_at")
+    actions = ("revoke_selected",)
+
+    @admin.display(description="Status")
+    def status(self, obj: ApiKey) -> str:
+        if obj.revoked_at:
+            return format_html('<span style="color:#b91c1c">revoked</span>')
+        if obj.expires_at and obj.expires_at < obj.created_at:  # pragma: no cover — defensive
+            return "expired"
+        return format_html('<span style="color:#15803d">active</span>')
+
+    @admin.action(description="Revoke selected keys")
+    def revoke_selected(self, request, queryset):
+        revoked = sum(revoke_api_key(key) for key in queryset)
+        skipped = queryset.count() - revoked
+
+        if revoked:
+            self.message_user(
+                request, f"Revoked {revoked} key{'s' if revoked != 1 else ''}.", messages.SUCCESS
+            )
+        if skipped:
+            self.message_user(request, f"{skipped} were already revoked.", messages.INFO)

@@ -119,6 +119,16 @@ case "${1:-help}" in
     uv run python manage.py pending_accounts --approve "$@"
     ;;
 
+  key)            # Mint an API key: ./do key <username> <label>
+    shift || true
+    uv run python manage.py issue_api_key "$@"
+    ;;
+
+  keys)           # List a user's API keys: ./do keys <username>
+    shift || true
+    uv run python manage.py api_keys "$@"
+    ;;
+
   check)          # Run Django's system checks
     uv run python manage.py check
     ;;
@@ -158,6 +168,8 @@ Usage: ./do <command>
   make-admin <user> Promote an existing account to administrator
   pending          List accounts waiting for approval
   approve <user>   Approve a pending account
+  key <user> <label> Mint an API key for a user (ADR 0006)
+  keys <user>      List a user's API keys
   check            Run Django's system checks
   manage <cmd>     Run any manage.py command, e.g. ./do manage shell
   reset-db         Delete all local state and rebuild (DESTRUCTIVE)
