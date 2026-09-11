@@ -16,6 +16,8 @@ import { api } from "./client";
 import {
   isTerminal,
   type Annotation,
+  type ApiKey,
+  type ApiKeyCreated,
   type Artifact,
   type Candidate,
   type CandidateDetail,
@@ -47,6 +49,7 @@ export const keys = {
   candidate: (id: string) => ["candidate", id] as const,
   artifacts: (runId: string) => ["artifacts", runId] as const,
   annotations: (candidateId: string) => ["annotations", candidateId] as const,
+  apiKeys: ["api-keys"] as const,
 };
 
 /* ---------- session ---------- */
@@ -313,5 +316,38 @@ export function useDeleteAnnotation(candidateId: string) {
   return useMutation({
     mutationFn: (id: string) => api.delete<void>(`/annotations/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.annotations(candidateId) }),
+  });
+}
+
+/* ---------- API keys (ADR 0006) ---------- */
+
+export function useApiKeys() {
+  return useQuery({ queryKey: keys.apiKeys, queryFn: () => api.get<ApiKey[]>("/auth/keys") });
+}
+
+export function useCreateApiKey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { label: string; scopes: string[]; expires_in_days?: number | null }) =>
+      api.post<ApiKeyCreated>("/auth/keys", body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.apiKeys }),
+  });
+}
+
+/** Revoke. Idempotent server-side, so a double-click never surfaces an error. */
+export function useRevokeApiKey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/auth/keys/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.apiKeys }),
+  });
+}
+
+/** "Reset": a fresh secret for the same key. The old one stops working immediately. */
+export function useRegenerateApiKey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<ApiKeyCreated>(`/auth/keys/${id}/regenerate`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.apiKeys }),
   });
 }

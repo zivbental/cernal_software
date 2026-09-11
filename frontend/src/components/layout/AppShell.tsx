@@ -80,9 +80,9 @@ function Nav() {
           </div>
 
           <Link
-            to="/about"
+            to="/settings"
             className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
-            aria-label="About"
+            aria-label="Settings"
           >
             <Settings className="h-4 w-4" />
           </Link>
