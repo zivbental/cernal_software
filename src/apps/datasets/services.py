@@ -79,8 +79,8 @@ class DatasetValidationError(Exception):
 
 
 @transaction.atomic
-def create_example_dataset(*, project, user, key: str = "ecoli-oxidative-stress"):
-    """Attach a bundled example dataset to a project.
+def create_example_dataset(*, user, key: str = "ecoli-oxidative-stress"):
+    """Copy a bundled example dataset into one the user owns.
 
     Goes through exactly the same checksum and validation path as an upload, so an
     example run is indistinguishable from a real one downstream.
@@ -98,7 +98,6 @@ def create_example_dataset(*, project, user, key: str = "ecoli-oxidative-stress"
         raise DatasetValidationError("That example dataset is missing from this install.")
 
     return create_dataset(
-        project=project,
         uploaded_file=SimpleUploadedFile(
             example["filename"], source.read_bytes(), content_type="text/csv"
         ),
@@ -108,7 +107,7 @@ def create_example_dataset(*, project, user, key: str = "ecoli-oxidative-stress"
 
 
 @transaction.atomic
-def create_dataset(*, project, uploaded_file, user, name: str | None = None) -> Dataset:
+def create_dataset(*, uploaded_file, user, name: str | None = None) -> Dataset:
     """Store an upload, checksum it, and validate it — all before returning.
 
     The dataset is immutable once written, so everything that can be known about it is
@@ -128,7 +127,6 @@ def create_dataset(*, project, uploaded_file, user, name: str | None = None) -> 
     uploaded_file.seek(0)
 
     dataset = Dataset(
-        project=project,
         name=name or uploaded_file.name,
         checksum_sha256=checksum,
         size_bytes=size,
@@ -143,9 +141,9 @@ def create_dataset(*, project, uploaded_file, user, name: str | None = None) -> 
     dataset.save()
 
     logger.info(
-        "Dataset %s uploaded to project %s: %s (%d rows)",
+        "Dataset %s uploaded by %s: %s (%d rows)",
         dataset.id,
-        project.id,
+        user,
         dataset.validation_status,
         report.get("rows", 0),
     )

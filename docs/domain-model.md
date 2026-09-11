@@ -1,6 +1,6 @@
 # Domain model reference
 
-Eight models, down from the fifteen entities in design map 05. The architectural
+Seven models, down from the fifteen entities in design map 05. The architectural
 reasoning for the cuts is in [architecture.md §5](architecture.md); this document is the
 field-level reference for what actually exists. The *values* these fields carry — input
 modes, organisms, gate families, payloads — are explained in
@@ -9,15 +9,18 @@ modes, organisms, gate families, payloads — are explained in
 UUID primary keys throughout — identifiers appear in URLs and are handed to the engine,
 so they must not leak row counts or be guessable by increment.
 
+Runs are not organized into projects — each `AnalysisRun` stands on its own, scoped only
+to the user who submitted it (`created_by`). A `Dataset` is scoped the same way
+(`uploaded_by`).
+
 ```
-User ──┬── Project ──┬── Dataset ────┐
-       │             │               │
-       │             └── AnalysisRun ┘  (PROTECT both)
-       │                     │
-       │                     ├── Candidate ──┬── CandidateMetric
-       │                     │               ├── Artifact
-       │                     │               └── Annotation ── User
-       │                     └── Artifact (run-level)
+User ──┬── Dataset
+       ├── AnalysisRun ── Dataset (PROTECT)
+       │       │
+       │       ├── Candidate ──┬── CandidateMetric
+       │       │               ├── Artifact
+       │       │               └── Annotation ── User
+       │       └── Artifact (run-level)
        └── Annotation
 ```
 
@@ -32,19 +35,6 @@ Workspaces, memberships and roles from design map 05 are **not** implemented. An
 team is one trusted group; authorization is "is this object mine, or am I staff".
 Re-add when external collaborators need scoped access.
 
-## `projects.Project`
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID pk | |
-| `owner` | FK → User, PROTECT | Deleting an account never orphans research |
-| `name` | Char(200) | Unique per owner |
-| `organism` | Char(100) | |
-| `biological_objective` | Text | Base state, target state, desired logic |
-| `created_at` / `updated_at` | DateTime | |
-
-Editing a project never rewrites a submitted run (rule 7).
-
 ## `datasets.Dataset`
 
 **Immutable.** Re-uploading creates a new row — the Dataset *is* the version, which is
@@ -53,7 +43,6 @@ why map 05's separate `DatasetVersion` table is unnecessary.
 | Field | Type | Notes |
 |---|---|---|
 | `id` | UUID pk | |
-| `project` | FK → Project, CASCADE | |
 | `name` | Char(200) | |
 | `file` | FileField | `var/media/datasets/<id>/<name>` |
 | `checksum_sha256` | Char(64), read-only | Computed once on upload |
@@ -77,11 +66,11 @@ The centre of the product. **Immutable once submitted.**
 | Field | Type | Notes |
 |---|---|---|
 | `id` | UUID pk | Also the external run identifier |
-| `project` | FK → Project, **PROTECT** | Results never outlive their inputs |
+| `organism` | Char(100), blank | e.g. `"E. coli"` — free text, submitted with the run |
 | `input_mode` | `de` · `direct` | How the trigger was supplied ([modalities.md §1](modalities.md)) |
 | `dataset` | FK → Dataset, **PROTECT**, null | **Null when `input_mode` is `direct`** — there is no uploaded table |
 | `trigger_sequence` | Text, blank | The pasted mRNA when `input_mode` is `direct` |
-| `created_by` | FK → User, PROTECT | |
+| `created_by` | FK → User, PROTECT | Deleting an account never orphans research |
 | `idempotency_key` | Char(64), **unique** | A retry must not launch a second computation |
 | `params_snapshot` | JSON | Full normalized configuration, frozen at submission |
 | `gate_families` | JSON list | |
@@ -211,9 +200,7 @@ Product-owned and entirely independent of engine output, so decisions survive re
 |---|---|
 | Delete a run | Candidates, metrics, artifacts and annotations go with it |
 | Delete a dataset used by a run | **Blocked** (PROTECT) |
-| Delete a project with runs | **Blocked** (PROTECT) |
-| Delete a project with only datasets | Datasets cascade |
-| Delete a user with projects | **Blocked** (PROTECT) |
+| Delete a user with datasets or runs | **Blocked** (PROTECT) |
 
 Deleting demo data therefore requires dependency order — see `_reset()` in
 `apps/common/management/commands/seed_demo.py`.

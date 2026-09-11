@@ -1,5 +1,7 @@
 """Session auth and the shared error envelope (docs/architecture.md §7.2)."""
 
+import json
+
 import pytest
 
 
@@ -62,7 +64,7 @@ def test_logout_ends_the_session(auth_client):
 @pytest.mark.parametrize(
     ("path", "code"),
     [
-        ("/api/projects/00000000-0000-0000-0000-000000000000", "not_found"),
+        ("/api/datasets/00000000-0000-0000-0000-000000000000", "not_found"),
         ("/api/runs/00000000-0000-0000-0000-000000000000", "not_found"),
     ],
 )
@@ -78,7 +80,9 @@ def test_errors_share_one_shape(auth_client, path, code):
 
 def test_invalid_body_returns_422_with_details(auth_client):
     response = auth_client.post(
-        "/api/projects", data={"organism": "E. coli"}, content_type="application/json"
+        "/api/runs",
+        data=json.dumps({"dataset_id": "not-a-uuid"}),
+        content_type="application/json",
     )
 
     assert response.status_code == 422

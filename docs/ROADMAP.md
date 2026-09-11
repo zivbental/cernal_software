@@ -16,8 +16,8 @@
 |---|---|---|
 | Step 0 — Scaffold | **Complete** | Boots, migrates, admin reachable |
 | Step 1 — Engine contract + MockEngine | **Complete** | Contract, `MockEngine`, gate/scoring layers, boundary test |
-| Step 2 — Domain model | **Complete** | 8 models, migrations, admin back-office, `seed_demo` |
-| Step 3 — API + orchestration | **Complete** | 39 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
+| Step 2 — Domain model | **Complete** | 7 models, migrations, admin back-office, `seed_demo` |
+| Step 3 — API + orchestration | **Complete** | 34 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
 | Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages |
 | **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. `de` mode and every stage past switch design are still documented stubs raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
@@ -130,7 +130,7 @@ are blocked, and each is a good first task for someone new.
 
 | # | Task | Where | Size |
 |---|---|---|---|
-| **P1** | **Reconcile the two organism fields.** `Project.organism` is free text (`"E. coli"`); `params_snapshot["organism"]` is a `Host` value (`"ecoli"`). `JobRequest.organism` is populated from the free-text one, but the engine will parse it as a `Host`. Decide which is authoritative, constrain it to the enum, and migrate | `apps/projects/models.py`, `apps/analyses/services.py`, frontend project form | S |
+| **P1** | **Reconcile the two organism fields.** `AnalysisRun.organism` is free text (`"E. coli"`); `params_snapshot["organism"]` is a `Host` value (`"ecoli"`). `JobRequest.organism` is populated from the free-text one, but the engine will parse it as a `Host`. `run_pipeline`'s `_resolve_host` already prefers `params.organism` and turns a bad fallback into a clean `InputValidationError` rather than a crash (docs/smoke-run.md, E2a) — this task is about removing the duplication itself, not just tolerating it. Decide which is authoritative, constrain it to the enum, and migrate | `apps/analyses/models.py`, `apps/analyses/services.py`, `frontend/src/components/compile/Steps.tsx` | S |
 | **P2** | **Report gate families per host.** `available_families(host)` exists in the registry but `GET /api/version` calls it without a host, so the wizard cannot grey CRISPR out for *E. coli*. Add an optional `?organism=` and use it in the wizard | `api/routers/meta.py`, `api/schemas.py`, `frontend/src/components/compile/Steps.tsx` | S |
 | **P3** | **Validate `custom_sequence`.** The `other` output accepts any pasted string — no ORF check, no stop-codon check, no length cap | `apps/analyses/services.py` | S |
 | **P4** | **Artifact retention.** `var/media/artifacts/` grows without bound. Add a retention policy before it matters, not after | `apps/results/`, a management command | S |

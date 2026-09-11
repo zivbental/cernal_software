@@ -18,7 +18,8 @@ _STATUS_COLOURS = {
 class AnalysisRunAdmin(admin.ModelAdmin):
     list_display = (
         "short_id",
-        "project",
+        "organism",
+        "created_by",
         "status_badge",
         "progress_display",
         "stage",
@@ -26,15 +27,15 @@ class AnalysisRunAdmin(admin.ModelAdmin):
         "submitted_at",
     )
     list_filter = ("status", "scoring_profile", "created_at")
-    search_fields = ("id", "idempotency_key", "project__name")
-    list_select_related = ("project", "dataset", "created_by")
+    search_fields = ("id", "idempotency_key", "organism", "created_by__username")
+    list_select_related = ("dataset", "created_by")
     date_hierarchy = "created_at"
 
     # A submitted run is immutable, and status transitions happen only in
     # apps/analyses/services.py (rules 5 and 7). Admin is for inspection, not repair.
     readonly_fields = (
         "id",
-        "project",
+        "organism",
         "dataset",
         "created_by",
         "idempotency_key",

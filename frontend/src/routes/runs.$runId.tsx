@@ -16,7 +16,6 @@ import {
   useCancelRun,
   useCandidate,
   useCandidates,
-  useRun,
   useRunStatus,
 } from "@/api/queries";
 import type { Candidate, RunStatusResponse } from "@/api/types";
@@ -43,7 +42,6 @@ export const Route = createFileRoute("/runs/$runId")({
 function RunPage() {
   const { runId } = Route.useParams();
   const status = useRunStatus(runId);
-  const run = useRun(runId);
 
   if (status.isLoading) return <Loading />;
   if (!status.data) {
@@ -58,17 +56,9 @@ function RunPage() {
         kicker={
           <>
             <CircuitBoard className="h-3 w-3" />
-            {run.data?.project_id ? (
-              <Link
-                to="/projects/$projectId"
-                params={{ projectId: run.data.project_id }}
-                className="hover:text-foreground"
-              >
-                Project
-              </Link>
-            ) : (
-              "Run"
-            )}
+            <Link to="/dashboard" className="hover:text-foreground">
+              Run
+            </Link>
             <span>/</span>
             <span className="font-mono normal-case tracking-normal">{runId.slice(0, 8)}</span>
           </>
@@ -105,8 +95,8 @@ function RunProgress({ runId, status }: { runId: string; status: RunStatusRespon
               {status.error_summary ?? "The analysis failed."}
             </p>
             <p className="mt-3 text-sm text-muted-foreground">
-              Your project, dataset and configuration are unchanged — fix the input and
-              compile again.
+              Your dataset and configuration are unchanged — fix the input and compile
+              again.
             </p>
           </div>
         </div>

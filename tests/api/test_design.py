@@ -31,16 +31,13 @@ def _post(client, secret, body, **query):
 # --- The fast path: direct mode ----------------------------------------------------
 
 
-def test_direct_trigger_submits_and_auto_creates_a_project(client, design_key, user):
-    from apps.projects.models import Project
-
+def test_direct_trigger_submits_and_queues(client, design_key):
     response = _post(client, design_key, {"trigger_sequence": TRIGGER, "organism": "ecoli"})
 
     assert response.status_code == 202
     body = response.json()
     assert body["status"] == "QUEUED"
     assert body["resolved"]["input_mode"] == "direct"
-    assert Project.objects.filter(owner=user, name="API · test-client").exists()
 
 
 def test_resolved_echoes_every_default(client, design_key):
@@ -70,25 +67,21 @@ def test_estimate_is_present_and_rough(client, design_key):
 # --- Input resolution --------------------------------------------------------------
 
 
-def test_dataset_id_mode_uses_the_existing_dataset(client, design_key, project, dataset):
-    response = _post(
-        client,
-        design_key,
-        {"dataset_id": str(dataset.id), "project": str(project.id), "organism": "ecoli"},
-    )
+def test_dataset_id_mode_uses_the_existing_dataset(client, design_key, dataset):
+    response = _post(client, design_key, {"dataset_id": str(dataset.id), "organism": "ecoli"})
 
     assert response.status_code == 202
     assert response.json()["resolved"]["input_mode"] == "de"
 
 
-def test_inline_dge_csv_creates_a_dataset(client, design_key, project):
+def test_inline_dge_csv_creates_a_dataset(client, design_key, user):
+    from apps.datasets.models import Dataset
+
     csv = "gene_id,log2fc,padj\nlacZ,3.1,0.001\nkatG,2.4,0.002\n"
-    response = _post(
-        client, design_key, {"dge_csv": csv, "project": str(project.id), "organism": "ecoli"}
-    )
+    response = _post(client, design_key, {"dge_csv": csv, "organism": "ecoli"})
 
     assert response.status_code == 202
-    assert project.datasets.filter(name="dge.csv (inline)").exists()
+    assert Dataset.objects.filter(uploaded_by=user, name="dge.csv (inline)").exists()
 
 
 def test_zero_inputs_is_a_422_naming_the_conflict(client, design_key):
@@ -110,42 +103,6 @@ def test_two_inputs_is_a_422_naming_the_conflict(client, design_key, dataset):
         "trigger_sequence",
         "dataset_id",
     }
-
-
-# --- project resolution --------------------------------------------------------------
-
-
-def test_project_by_uuid_reuses_it(client, design_key, project):
-    response = _post(
-        client,
-        design_key,
-        {"trigger_sequence": TRIGGER, "project": str(project.id), "organism": "x"},
-    )
-    assert response.status_code == 202
-
-
-def test_project_by_unknown_uuid_is_404(client, design_key):
-    response = _post(
-        client,
-        design_key,
-        {
-            "trigger_sequence": TRIGGER,
-            "project": "00000000-0000-0000-0000-000000000000",
-            "organism": "x",
-        },
-    )
-    assert response.status_code == 404
-
-
-def test_project_by_new_name_creates_it(client, design_key, user):
-    from apps.projects.models import Project
-
-    response = _post(
-        client, design_key, {"trigger_sequence": TRIGGER, "project": "sweep-3", "organism": "x"}
-    )
-
-    assert response.status_code == 202
-    assert Project.objects.filter(owner=user, name="sweep-3").exists()
 
 
 # --- gate families -------------------------------------------------------------------
@@ -276,11 +233,9 @@ def test_resolved_scoring_profile_stays_the_base_name_without_overrides(client, 
 # --- dry_run (§9.3) -------------------------------------------------------------------
 
 
-def test_dry_run_returns_an_estimate_and_creates_nothing(client, design_key, user):
+def test_dry_run_returns_an_estimate_and_creates_nothing(client, design_key):
     from apps.analyses.models import AnalysisRun
-    from apps.projects.models import Project
 
-    before_projects = Project.objects.filter(owner=user).count()
     before_runs = AnalysisRun.objects.count()
 
     response = _post(
@@ -292,15 +247,14 @@ def test_dry_run_returns_an_estimate_and_creates_nothing(client, design_key, use
     assert body["job_id"] is None
     assert body["estimate"]["designs"] > 0
     assert body["budget_ok"] is True
-    assert Project.objects.filter(owner=user).count() == before_projects
     assert AnalysisRun.objects.count() == before_runs
 
 
-def test_dry_run_bounds_de_mode_from_the_dataset_row_count(client, design_key, project, dataset):
+def test_dry_run_bounds_de_mode_from_the_dataset_row_count(client, design_key, dataset):
     response = _post(
         client,
         design_key,
-        {"dataset_id": str(dataset.id), "project": str(project.id), "organism": "x"},
+        {"dataset_id": str(dataset.id), "organism": "x"},
         dry_run="true",
     )
 
@@ -311,11 +265,11 @@ def test_dry_run_bounds_de_mode_from_the_dataset_row_count(client, design_key, p
 # --- wait= (§8) -------------------------------------------------------------------
 
 
-def test_wait_returns_202_on_timeout(client, design_key, project, dataset):
+def test_wait_returns_202_on_timeout(client, design_key, dataset):
     response = _post(
         client,
         design_key,
-        {"dataset_id": str(dataset.id), "project": str(project.id), "organism": "x"},
+        {"dataset_id": str(dataset.id), "organism": "x"},
         wait="0.05",
     )
 
@@ -330,7 +284,6 @@ def test_wait_returns_200_with_candidates_for_an_already_completed_run(
         design_key,
         {
             "dataset_id": str(completed_run.dataset_id),
-            "project": str(completed_run.project_id),
             "organism": "x",
             "idempotency_key": completed_run.idempotency_key,
         },

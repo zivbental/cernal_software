@@ -12,7 +12,6 @@ from ninja import Field, ModelSchema, Schema
 from apps.accounts.models import ApiKey
 from apps.analyses.models import AnalysisRun
 from apps.datasets.models import Dataset
-from apps.projects.models import Project
 from apps.results.models import Annotation, Artifact, Candidate
 
 # --- Auth -------------------------------------------------------------------------
@@ -95,30 +94,6 @@ class WhoAmIOut(Schema):
     key_prefix: str
 
 
-# --- Projects ---------------------------------------------------------------------
-
-
-class ProjectIn(Schema):
-    name: str = Field(max_length=200)
-    organism: str = Field(max_length=100)
-    biological_objective: str = ""
-
-
-class ProjectPatch(Schema):
-    name: str | None = Field(default=None, max_length=200)
-    organism: str | None = Field(default=None, max_length=100)
-    biological_objective: str | None = None
-
-
-class ProjectOut(ModelSchema):
-    dataset_count: int = 0
-    run_count: int = 0
-
-    class Meta:
-        model = Project
-        fields = ["id", "name", "organism", "biological_objective", "created_at", "updated_at"]
-
-
 # --- Datasets ---------------------------------------------------------------------
 
 
@@ -135,7 +110,6 @@ class UseExampleIn(Schema):
 
 
 class DatasetOut(ModelSchema):
-    project_id: UUID
     filename: str
 
     class Meta:
@@ -166,6 +140,7 @@ class RunIn(Schema):
     )
     dataset_id: UUID | None = Field(default=None, description="Required when input_mode is de.")
     trigger_sequence: str = Field(default="", description="Required when input_mode is direct.")
+    organism: str = Field(default="", max_length=100, description="e.g. E. coli")
     params: dict = Field(default_factory=dict)
     gate_families: list[str] = Field(default_factory=lambda: ["toehold"])
     scoring_profile: str = "default"
@@ -198,7 +173,6 @@ class RunStatusOut(Schema):
 
 
 class RunOut(ModelSchema):
-    project_id: UUID
     dataset_id: UUID | None
 
     class Meta:
@@ -210,6 +184,7 @@ class RunOut(ModelSchema):
             "progress_pct",
             "input_mode",
             "trigger_sequence",
+            "organism",
             "gate_families",
             "scoring_profile",
             "seed",
@@ -335,10 +310,9 @@ class DesignIn(Schema):
     trigger_sequence: str = ""
     dataset_id: UUID | None = None
     dge_csv: str = ""
-    project: str = Field(default="", description="Name or UUID; created if absent.")
 
     # --- biology ---
-    organism: str = Field(default="", description="Only used when creating a project.")
+    organism: str = Field(default="", description="e.g. E. coli")
     payload: dict = Field(
         default_factory=dict, description='{"outputs": [...], "custom_sequence": ...}'
     )

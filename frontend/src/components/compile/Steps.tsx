@@ -63,6 +63,13 @@ const ORGANISMS = [
   { key: "human", label: "Human", Icon: HumanIcon, anim: "animate-human" },
 ] as const;
 
+/** The organism key submitted with a run needs a readable label, not the enum value. */
+export const ORGANISM_LABELS: Record<Organism, string> = {
+  ecoli: "E. coli",
+  yeast: "Yeast",
+  human: "Human",
+};
+
 const sanitizeRna = (v: string) => v.toUpperCase().replace(/[^ACGUT]/g, "").replace(/T/g, "U");
 
 type Patch = (patch: Partial<CompileConfig>) => void;

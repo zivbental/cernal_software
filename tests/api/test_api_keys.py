@@ -18,7 +18,7 @@ def _key_client(client, user, **kwargs):
 # --- The dual credential ------------------------------------------------------------
 
 
-def test_a_valid_key_authenticates_like_a_session(client, user, project):
+def test_a_valid_key_authenticates_like_a_session(client, user):
     secret = _key_client(client, user)
 
     response = client.get("/api/auth/me", HTTP_X_API_KEY=secret)
@@ -27,12 +27,12 @@ def test_a_valid_key_authenticates_like_a_session(client, user, project):
     assert response.json()["username"] == user.username
 
 
-def test_a_key_sees_only_its_owners_data(client, user, other_user, project):
+def test_a_key_sees_only_its_owners_data(client, user, other_user, dataset):
     """The same ownership path every session request goes through (api/auth.py) —
     proof a key cannot see across accounts (docs/public-api.md §13)."""
     secret = _key_client(client, other_user)
 
-    response = client.get(f"/api/projects/{project.id}", HTTP_X_API_KEY=secret)
+    response = client.get(f"/api/datasets/{dataset.id}", HTTP_X_API_KEY=secret)
 
     assert response.status_code == 404
 
@@ -53,7 +53,7 @@ def test_no_credential_at_all_is_the_generic_401(client, db):
     assert response.json()["error"]["code"] == "not_authenticated"
 
 
-def test_a_revoked_key_is_401(client, user, project):
+def test_a_revoked_key_is_401(client, user):
     from apps.accounts.services import revoke_api_key
 
     key, secret = issue_api_key(owner=user, label="test-key")

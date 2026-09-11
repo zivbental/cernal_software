@@ -25,7 +25,6 @@ from api.routers.auth import router as auth_router
 from api.routers.datasets import router as datasets_router
 from api.routers.design import router as design_router
 from api.routers.meta import router as meta_router
-from api.routers.projects import router as projects_router
 from api.routers.results import router as results_router
 from api.routers.runs import router as runs_router
 from api.security import ApiKeyAuth, ApiKeyRateThrottle
@@ -48,7 +47,6 @@ api = NinjaAPI(
 )
 
 api.add_router("/auth", auth_router, tags=["auth"])
-api.add_router("/projects", projects_router, tags=["projects"])
 api.add_router("", datasets_router, tags=["datasets"])
 api.add_router("", runs_router, tags=["runs"])
 api.add_router("", results_router, tags=["results"])

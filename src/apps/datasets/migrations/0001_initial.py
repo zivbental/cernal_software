@@ -12,7 +12,6 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('projects', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -29,12 +28,11 @@ class Migration(migrations.Migration):
                 ('schema_version', models.CharField(default='1', help_text='The input format this file was validated against.', max_length=20)),
                 ('validation_status', models.CharField(choices=[('PENDING', 'Pending'), ('VALID', 'Valid'), ('INVALID', 'Invalid')], default='PENDING', max_length=10)),
                 ('validation_report', models.JSONField(blank=True, default=dict, help_text='Detected columns, row counts, errors and warnings.')),
-                ('project', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='datasets', to='projects.project')),
                 ('uploaded_by', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='datasets', to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 'ordering': ['-created_at'],
-                'indexes': [models.Index(fields=['project', '-created_at'], name='datasets_da_project_c18351_idx'), models.Index(fields=['validation_status'], name='datasets_da_validat_6874ec_idx')],
+                'indexes': [models.Index(fields=['uploaded_by', '-created_at'], name='datasets_da_uploade_64354e_idx'), models.Index(fields=['validation_status'], name='datasets_da_validat_6874ec_idx')],
             },
         ),
     ]

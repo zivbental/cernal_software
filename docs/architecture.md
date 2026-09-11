@@ -81,7 +81,7 @@ Every row is a deliberate decision, with the condition that should make us revis
 | Database | PostgreSQL | SQLite in WAL mode | At this volume SQLite is genuinely sufficient; backup is copying one file | Concurrent writers cause lock contention |
 | File storage | Object storage + signed URLs | `FileField` into `var/media/` | Identical `storage_ref` + `checksum` model, local backend | Disk pressure, or multi-host serving |
 | Compute | `ComputeProvider` adapter → Slurm | Runs inline in the worker process | No Slurm access is needed to build the product | Analyses exceed the VPS's memory/time budget |
-| Domain entities | 15 | 8 | See [§5](#5-domain-model) | Multi-tenancy or dataset lineage becomes real |
+| Domain entities | 15 | 7 | See [§5](#5-domain-model) | Multi-tenancy or dataset lineage becomes real |
 | Run states | 14 | 6 | See [§6](#6-run-state-machine) | Users need finer-grained failure recovery |
 | Auth | Identity service, workspaces, roles, object-level permissions | Django auth + per-object ownership check | An iGEM team is one trusted group | External collaborators get accounts |
 | Frontend | React SPA + typed API client | **Kept** — existing Lovable app, served same-origin by Django | Already built; same-origin removes CORS and token handling | — |
@@ -93,7 +93,7 @@ Every row is a deliberate decision, with the condition that should make us revis
 These cost almost nothing now and are expensive to retrofit:
 
 1. **Immutable run submissions.** An `AnalysisRun` snapshots its full parameter set as JSON
-   at submit time. Editing a project never mutates a submitted run.
+   at submit time, so `params_snapshot` never changes after the fact.
 2. **Idempotency keys.** Every run submission carries one. Re-submitting the same key
    returns the existing run instead of launching a second expensive computation.
 3. **Checksums** on every dataset input and every produced artifact.
@@ -168,7 +168,6 @@ cernal/
 │   ├── apps/                     Django apps — product logic only
 │   │   ├── accounts/             Custom User + admin approval
 │   │   ├── common/               Base models, checksums, SQLite pragmas
-│   │   ├── projects/             Project
 │   │   ├── datasets/             Dataset + upload validation
 │   │   ├── analyses/             AnalysisRun, orchestration, the queue task
 │   │   ├── results/              Candidate, CandidateMetric, Artifact, Annotation
@@ -179,7 +178,7 @@ cernal/
 │   │   ├── schemas.py            Request/response models
 │   │   ├── auth.py               Session auth + ownership checks
 │   │   ├── errors.py             The single error envelope
-│   │   └── routers/              auth · projects · datasets · runs · results · meta
+│   │   └── routers/              auth · datasets · runs · results · meta · design
 │   │
 │   ├── engine/                   ★ NO DJANGO. See §3, and engine.md
 │   │   ├── contract.py           JobRequest · JobResult · CandidateResult · …
@@ -210,7 +209,7 @@ cernal/
 - **`manage.py` sits at the repo root**, not in `src/`. It inserts `src/` onto `sys.path`
   before delegating to Django. This keeps `python manage.py …`, `pytest`, `ruff` and editors
   all rooted at the repo root while preserving a clean src layout.
-- Django apps are addressed as **`apps.projects`**, not `projects`. `INSTALLED_APPS` uses the
+- Django apps are addressed as **`apps.datasets`**, not `datasets`. `INSTALLED_APPS` uses the
   dotted path, and each app's `AppConfig.name` must match.
 - **Never create a package named `platform`** — it shadows a Python standard library module.
 - `var/` holds every piece of mutable state. Deleting `var/` and re-running migrations must
@@ -222,25 +221,24 @@ cernal/
 
 ## 5. Domain model
 
-Eight models, down from fifteen. UUID primary keys throughout, because identifiers appear
-in URLs and are handed to the engine.
+Seven models, down from fifteen. UUID primary keys throughout, because identifiers appear
+in URLs and are handed to the engine. Runs are not organized into projects — each
+`AnalysisRun` stands on its own, scoped only to the user who submitted it (`created_by`).
 
 ```
-User ──┬── Project ──┬── Dataset ────┐
-       │             │               │
-       │             └── AnalysisRun ┘  (PROTECT both)
-       │                     │
-       │                     ├── Candidate ──┬── CandidateMetric
-       │                     │               ├── Artifact
-       │                     │               └── Annotation ── User
-       │                     └── Artifact (run-level)
+User ──┬── Dataset
+       ├── AnalysisRun ── Dataset (PROTECT)
+       │       │
+       │       ├── Candidate ──┬── CandidateMetric
+       │       │               ├── Artifact
+       │       │               └── Annotation ── User
+       │       └── Artifact (run-level)
        └── Annotation
 ```
 
 | Model | Role |
 |---|---|
 | `accounts.User` | `AbstractUser`, intentionally empty. Self-service registration, **admin-approved** |
-| `projects.Project` | Owner, name, organism, biological objective |
 | `datasets.Dataset` | **Immutable.** Re-uploading creates a new row — the Dataset *is* the version |
 | `analyses.AnalysisRun` | The centre of the product. **Immutable once submitted** |
 | `results.Candidate` | One proposed circuit, ranked or rejected-with-reason |
@@ -313,18 +311,18 @@ carrying information.
 ## 7. HTTP API
 
 Single surface, built with **django-ninja** ([ADR 0004](decisions/0004-django-ninja-over-drf.md)).
-Everything under `/api/`. **32 endpoints.** The OpenAPI document is auto-generated at
+Everything under `/api/`. **34 endpoints.** The OpenAPI document is auto-generated at
 `/api/openapi.json`, giving the maps' "Central Typed API Client" at near-zero cost.
 
 **The endpoint reference is [api.md](api.md).** What belongs here is the shape:
 
 ```
-/api/auth/…            csrf · register · login · logout · me
-/api/projects…         CRUD, owner-scoped
-/api/…/datasets…       upload (multipart, validated synchronously) · examples · delete
-/api/…/runs…           submit (202) · poll ★ · detail · cancel
+/api/auth/…            csrf · register · login · logout · me · api keys
+/api/datasets…          upload (multipart, validated synchronously) · examples · delete
+/api/runs…              submit (202) · list · poll ★ · detail · cancel — owner-scoped
 /api/…/candidates…     list · detail · artifacts · download ★ · export.csv
 /api/…/annotations…    list · create · delete
+/api/design            the one-call fast path (docs/public-api.md)
 /api/health · version  liveness · app + engine versions + engine capabilities
 ```
 
@@ -533,8 +531,8 @@ remaining steps are in [ROADMAP.md](ROADMAP.md); this is the record of what happ
 |---|---|
 | **0 — Scaffold** | Directory tree, settings, `./do`, empty custom `User` before the first migration, ADRs 0001–0004 |
 | **1 — Engine contract + MockEngine** | `contract.py`, `client.py`, `errors.py`, `artifacts.py`, `GateFamily` ABC, registry, **scoring implemented**, the boundary test. *No Django code was written in this step — that was intentional* |
-| **2 — Domain model** | 8 models, migrations, admin back-office for every model, `seed_demo` |
-| **3 — API + orchestration** | 32 endpoints, session auth, ownership helper, error envelope, the run state machine in `services.py`, django-q2 worker. **The product became real; only the science was fake** |
+| **2 — Domain model** | 7 models, migrations, admin back-office for every model, `seed_demo` |
+| **3 — API + orchestration** | 34 endpoints, session auth, ownership helper, error envelope, the run state machine in `services.py`, django-q2 worker. **The product became real; only the science was fake** |
 | **4 — Frontend integration** | Vendored React app, Vite → `src/static/app/`, one API client module, login, wizard, progress, results explorer, annotations, CSV export, static pages, registration with admin approval |
 
 **Deviations from the original plan**, recorded because they are still live decisions:

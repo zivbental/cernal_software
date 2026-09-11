@@ -12,11 +12,11 @@ from apps.accounts.services import issue_api_key
 from apps.analyses.models import RunStatus
 
 
-def _submit(client, project, secret=None, **overrides):
+def _submit(client, secret=None, **overrides):
     payload = {"dataset_id": str(overrides.pop("dataset_id")), **overrides}
     kwargs = {"HTTP_X_API_KEY": secret} if secret else {}
     return client.post(
-        f"/api/projects/{project.id}/runs",
+        "/api/runs",
         data=json.dumps(payload),
         content_type="application/json",
         **kwargs,
@@ -26,19 +26,19 @@ def _submit(client, project, secret=None, **overrides):
 # --- Scopes ---------------------------------------------------------------------------
 
 
-def test_a_read_scoped_key_cannot_submit_a_run(client, user, project, dataset):
+def test_a_read_scoped_key_cannot_submit_a_run(client, user, dataset):
     _key, secret = issue_api_key(owner=user, label="ci", scopes=("read",))
 
-    response = _submit(client, project, secret=secret, dataset_id=dataset.id)
+    response = _submit(client, secret=secret, dataset_id=dataset.id)
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "insufficient_scope"
 
 
-def test_a_design_scoped_key_can_submit_a_run(client, user, project, dataset):
+def test_a_design_scoped_key_can_submit_a_run(client, user, dataset):
     _key, secret = issue_api_key(owner=user, label="ci", scopes=("design",))
 
-    response = _submit(client, project, secret=secret, dataset_id=dataset.id)
+    response = _submit(client, secret=secret, dataset_id=dataset.id)
 
     assert response.status_code == 202
 
@@ -51,28 +51,28 @@ def test_a_read_scoped_key_cannot_cancel_a_run(client, user, run):
     assert response.status_code == 403
 
 
-def test_a_read_scoped_key_can_still_read(client, user, project):
+def test_a_read_scoped_key_can_still_read(client, user, run):
     _key, secret = issue_api_key(owner=user, label="ci", scopes=("read",))
 
-    response = client.get(f"/api/projects/{project.id}", HTTP_X_API_KEY=secret)
+    response = client.get(f"/api/runs/{run.id}", HTTP_X_API_KEY=secret)
 
     assert response.status_code == 200
 
 
-def test_session_auth_is_exempt_from_scopes(auth_client, project, dataset):
+def test_session_auth_is_exempt_from_scopes(auth_client, dataset):
     """A human in the SPA is not a key and is not scope-limited."""
-    response = _submit(auth_client, project, dataset_id=dataset.id)
+    response = _submit(auth_client, dataset_id=dataset.id)
     assert response.status_code == 202
 
 
 # --- Concurrency ceiling ----------------------------------------------------------
 
 
-def test_the_ceiling_blocks_a_second_submission(client, user, project, dataset):
+def test_the_ceiling_blocks_a_second_submission(client, user, dataset):
     _key, secret = issue_api_key(owner=user, label="ci", scopes=("design",), max_concurrent_runs=1)
 
-    first = _submit(client, project, secret=secret, dataset_id=dataset.id, idempotency_key="a")
-    second = _submit(client, project, secret=secret, dataset_id=dataset.id, idempotency_key="b")
+    first = _submit(client, secret=secret, dataset_id=dataset.id, idempotency_key="a")
+    second = _submit(client, secret=secret, dataset_id=dataset.id, idempotency_key="b")
 
     assert first.status_code == 202
     assert second.status_code == 429
@@ -81,7 +81,7 @@ def test_the_ceiling_blocks_a_second_submission(client, user, project, dataset):
     assert second.headers["Retry-After"]
 
 
-def test_the_ceiling_is_per_owner_not_per_key(client, user, project, dataset):
+def test_the_ceiling_is_per_owner_not_per_key(client, user, dataset):
     """Two keys, same owner: each has its own limit, but the count is the owner's total
     active runs — a script cannot dodge the ceiling by minting a second key."""
     _key_a, secret_a = issue_api_key(
@@ -91,28 +91,28 @@ def test_the_ceiling_is_per_owner_not_per_key(client, user, project, dataset):
         owner=user, label="key-b", scopes=("design",), max_concurrent_runs=1
     )
 
-    first = _submit(client, project, secret=secret_a, dataset_id=dataset.id, idempotency_key="a")
-    second = _submit(client, project, secret=secret_b, dataset_id=dataset.id, idempotency_key="b")
+    first = _submit(client, secret=secret_a, dataset_id=dataset.id, idempotency_key="a")
+    second = _submit(client, secret=secret_b, dataset_id=dataset.id, idempotency_key="b")
 
     assert first.status_code == 202
     assert second.status_code == 429
 
 
-def test_session_auth_is_exempt_from_the_ceiling(auth_client, project, dataset):
-    response1 = _submit(auth_client, project, dataset_id=dataset.id, idempotency_key="a")
-    response2 = _submit(auth_client, project, dataset_id=dataset.id, idempotency_key="b")
+def test_session_auth_is_exempt_from_the_ceiling(auth_client, dataset):
+    response1 = _submit(auth_client, dataset_id=dataset.id, idempotency_key="a")
+    response2 = _submit(auth_client, dataset_id=dataset.id, idempotency_key="b")
 
     assert response1.status_code == 202
     assert response2.status_code == 202
 
 
-def test_the_ceiling_does_not_count_completed_runs(client, user, project, run):
+def test_the_ceiling_does_not_count_completed_runs(client, user, run):
     """run fixture is QUEUED; finish it, then confirm a fresh submission is allowed."""
     run.status = RunStatus.COMPLETED
     run.save(update_fields=["status"])
 
     _key, secret = issue_api_key(owner=user, label="ci", scopes=("design",), max_concurrent_runs=1)
-    response = _submit(client, project, secret=secret, dataset_id=run.dataset_id)
+    response = _submit(client, secret=secret, dataset_id=run.dataset_id)
 
     assert response.status_code == 202
 
@@ -154,28 +154,15 @@ def test_session_auth_is_not_rate_limited_by_this_mechanism(auth_client):
 # --- Destructive operations stay session-only, regardless of scope (§13) -----------
 
 
-def test_a_design_scoped_key_cannot_delete_a_project(client, user, project):
+def test_a_design_scoped_key_cannot_delete_a_dataset(client, user, dataset):
     """docs/public-api.md §13: 'Key auth cannot mint keys, cannot delete projects or
     datasets, cannot change a password. Those stay session-only.' Even a full-scope
     key must not reach this — a leaked key must not become a deletion tool."""
     _key, secret = issue_api_key(owner=user, label="full-scope", scopes=("read", "design"))
 
-    response = client.delete(f"/api/projects/{project.id}", HTTP_X_API_KEY=secret)
-
-    assert response.status_code == 401
-
-
-def test_a_design_scoped_key_cannot_delete_a_dataset(client, user, dataset):
-    _key, secret = issue_api_key(owner=user, label="full-scope", scopes=("read", "design"))
-
     response = client.delete(f"/api/datasets/{dataset.id}", HTTP_X_API_KEY=secret)
 
     assert response.status_code == 401
-
-
-def test_session_auth_can_still_delete_a_project(auth_client, project):
-    response = auth_client.delete(f"/api/projects/{project.id}")
-    assert response.status_code == 204
 
 
 def test_session_auth_can_still_delete_a_dataset(auth_client, dataset):

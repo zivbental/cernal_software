@@ -51,25 +51,12 @@ def media_root(tmp_path, settings):
 
 
 @pytest.fixture
-def project(user):
-    from apps.projects.models import Project
-
-    return Project.objects.create(
-        owner=user,
-        name="Demo project",
-        organism="E. coli",
-        biological_objective="Detect the transition and express GFP.",
-    )
-
-
-@pytest.fixture
-def dataset(project, user, media_root):
+def dataset(user, media_root):
     from apps.common.checksums import sha256_bytes
     from apps.datasets.models import Dataset, ValidationStatus
 
     payload = DATASET_CSV.encode()
     obj = Dataset(
-        project=project,
         name="expression.csv",
         checksum_sha256=sha256_bytes(payload),
         size_bytes=len(payload),
@@ -82,13 +69,13 @@ def dataset(project, user, media_root):
 
 
 @pytest.fixture
-def run(project, dataset, user):
+def run(dataset, user):
     """A QUEUED run, ready to be executed."""
     from apps.analyses.models import AnalysisRun, RunStatus
 
     return AnalysisRun.objects.create(
-        project=project,
         dataset=dataset,
+        organism="E. coli",
         created_by=user,
         idempotency_key="test-key-001",
         params_snapshot={"max_triggers": 2},

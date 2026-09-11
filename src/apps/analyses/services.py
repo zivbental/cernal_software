@@ -40,11 +40,11 @@ class InvalidTransition(RunError):
 
 def submit_run(
     *,
-    project,
     user,
     dataset=None,
     input_mode: str = InputMode.DE,
     trigger_sequence: str = "",
+    organism: str = "",
     params: dict | None = None,
     gate_families: list[str] | None = None,
     scoring_profile: str = "default",
@@ -62,8 +62,6 @@ def submit_run(
     if input_mode == InputMode.DE:
         if dataset is None:
             raise RunError("A dataset is required for a differential-expression run.")
-        if dataset.project_id != project.id:
-            raise RunError("That dataset belongs to a different project.")
         if not dataset.is_usable:
             raise RunError("This dataset did not pass validation and cannot be analysed.")
     elif input_mode == InputMode.DIRECT:
@@ -82,14 +80,14 @@ def submit_run(
     _validate_against_capabilities(families, scoring_profile, capabilities)
 
     run = AnalysisRun.objects.create(
-        project=project,
         input_mode=input_mode,
         dataset=dataset,
         trigger_sequence=trigger_sequence,
+        organism=organism,
         created_by=user,
         idempotency_key=key,
-        # The snapshot is what makes a run immutable: later edits to the project or its
-        # configuration cannot change what this run computed (rule 7).
+        # The snapshot is what makes a run immutable: later edits to its configuration
+        # cannot change what this run computed (rule 7).
         params_snapshot=dict(params or {}),
         gate_families=families,
         scoring_profile=scoring_profile,
@@ -103,7 +101,7 @@ def submit_run(
     # Queued after commit so the worker can never pick up a run that is not yet visible.
     transaction.on_commit(lambda: _enqueue(run.id))
 
-    logger.info("Run %s submitted for project %s", run.id, project.id)
+    logger.info("Run %s submitted by %s", run.id, user)
     return run, True
 
 
@@ -158,7 +156,7 @@ def execute_run(run_id: str) -> None:
     Called by the worker task. Safe to re-run: a run that is already terminal is a
     no-op, so a redelivered task cannot recompute or duplicate results.
     """
-    run = AnalysisRun.objects.filter(pk=run_id).select_related("project", "dataset").first()
+    run = AnalysisRun.objects.filter(pk=run_id).select_related("dataset").first()
     if run is None:
         logger.warning("execute_run called for unknown run %s", run_id)
         return
@@ -203,7 +201,7 @@ def _execute(run: AnalysisRun) -> None:
             trigger_sequence=run.trigger_sequence,
             input_path=run.dataset.file.path if run.dataset else "",
             input_checksum=run.dataset.checksum_sha256 if run.dataset else "",
-            organism=run.project.organism,
+            organism=run.organism,
             params=run.params_snapshot,
             gate_families=run.gate_families,
             scoring_profile=run.scoring_profile,

@@ -14,12 +14,11 @@ from api.errors import NotFound
 
 #: How to reach the owning user from each model.
 _OWNER_PATHS: dict[str, str] = {
-    "projects.Project": "owner",
-    "datasets.Dataset": "project__owner",
-    "analyses.AnalysisRun": "project__owner",
-    "results.Candidate": "run__project__owner",
-    "results.Artifact": "run__project__owner",
-    "results.Annotation": "candidate__run__project__owner",
+    "datasets.Dataset": "uploaded_by",
+    "analyses.AnalysisRun": "created_by",
+    "results.Candidate": "run__created_by",
+    "results.Artifact": "run__created_by",
+    "results.Annotation": "candidate__run__created_by",
     "accounts.ApiKey": "owner",
 }
 

@@ -15,7 +15,7 @@ import { useLogout, useMe, useVersion } from "@/api/queries";
 const NAV = [
   // The compiler is the product's front door, so it leads.
   { to: "/compile", label: "New Circuit" },
-  { to: "/projects", label: "Dashboard" },
+  { to: "/dashboard", label: "Dashboard" },
   { to: "/guide", label: "Quick Guide" },
   { to: "/use-cases", label: "Use Cases" },
   { to: "/api-docs", label: "API Reference" },
@@ -38,7 +38,7 @@ function Nav() {
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-8">
         <div className="flex items-center gap-10">
-          <Link to="/projects" className="flex items-center gap-2.5">
+          <Link to="/dashboard" className="flex items-center gap-2.5">
             <img
               src={cernalLogo}
               alt="CERNAL — Compiler-like Engine for RNA Logic"

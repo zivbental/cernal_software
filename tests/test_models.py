@@ -9,7 +9,6 @@ from django.db import IntegrityError, transaction
 
 from apps.analyses.models import ALLOWED_TRANSITIONS, TERMINAL_STATUSES, AnalysisRun, RunStatus
 from apps.datasets.models import Dataset, ValidationStatus
-from apps.projects.models import Project
 from apps.results.models import Candidate, CandidateMetric, MetricDirection
 
 
@@ -19,25 +18,13 @@ def _candidate(run, ref="c1", **kwargs):
     return Candidate.objects.create(run=run, engine_ref=ref, **defaults)
 
 
-# --- Projects ---------------------------------------------------------------------
+# --- Datasets ---------------------------------------------------------------------
 
 
-def test_project_names_are_unique_per_owner(user, project):
-    with pytest.raises(IntegrityError):
-        Project.objects.create(owner=user, name=project.name, organism="E. coli")
-
-
-def test_two_owners_may_use_the_same_project_name(other_user, project):
-    Project.objects.create(owner=other_user, name=project.name, organism="E. coli")
-
-
-def test_deleting_a_user_with_projects_is_blocked(user, project):
+def test_deleting_a_user_with_datasets_is_blocked(user, dataset):
     """PROTECT: deleting an account must not silently orphan its research."""
     with pytest.raises(IntegrityError):
         user.delete()
-
-
-# --- Datasets ---------------------------------------------------------------------
 
 
 def test_dataset_is_only_usable_once_validated(dataset):
@@ -47,8 +34,8 @@ def test_dataset_is_only_usable_once_validated(dataset):
     assert not dataset.is_usable
 
 
-def test_dataset_defaults_to_pending_validation(project, user):
-    obj = Dataset.objects.create(project=project, name="x.csv", uploaded_by=user)
+def test_dataset_defaults_to_pending_validation(user):
+    obj = Dataset.objects.create(name="x.csv", uploaded_by=user)
     assert obj.validation_status == ValidationStatus.PENDING
 
 
@@ -66,10 +53,14 @@ def test_dataset_referenced_by_a_run_cannot_be_deleted(run, dataset):
 # --- Run state machine ------------------------------------------------------------
 
 
-def test_a_new_run_defaults_to_draft(project, dataset, user):
-    obj = AnalysisRun.objects.create(
-        project=project, dataset=dataset, created_by=user, idempotency_key="fresh"
-    )
+def test_deleting_a_user_with_runs_is_blocked(user, run):
+    """PROTECT: deleting an account must not silently orphan its research."""
+    with pytest.raises(IntegrityError):
+        user.delete()
+
+
+def test_a_new_run_defaults_to_draft(dataset, user):
+    obj = AnalysisRun.objects.create(dataset=dataset, created_by=user, idempotency_key="fresh")
     assert obj.status == RunStatus.DRAFT
     assert obj.progress_pct == 0
     assert not obj.is_terminal
@@ -114,11 +105,10 @@ def test_is_active_covers_exactly_the_in_flight_states(run):
         assert not run.is_active
 
 
-def test_idempotency_keys_are_unique(run, project, dataset, user):
+def test_idempotency_keys_are_unique(run, dataset, user):
     """Rule: a retried submission must not launch a second computation."""
     with pytest.raises(IntegrityError):
         AnalysisRun.objects.create(
-            project=project,
             dataset=dataset,
             created_by=user,
             idempotency_key=run.idempotency_key,
@@ -156,10 +146,8 @@ def test_engine_ref_is_unique_within_a_run(run):
         _candidate(run, ref="dup")
 
 
-def test_the_same_engine_ref_may_appear_in_different_runs(run, project, dataset, user):
-    other = AnalysisRun.objects.create(
-        project=project, dataset=dataset, created_by=user, idempotency_key="second"
-    )
+def test_the_same_engine_ref_may_appear_in_different_runs(run, dataset, user):
+    other = AnalysisRun.objects.create(dataset=dataset, created_by=user, idempotency_key="second")
     _candidate(run, ref="cand-001")
     _candidate(other, ref="cand-001")
 

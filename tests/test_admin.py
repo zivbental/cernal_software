@@ -12,7 +12,6 @@ CHANGELISTS = [
     "/admin/",
     "/admin/accounts/user/",
     "/admin/accounts/apikey/",
-    "/admin/projects/project/",
     "/admin/datasets/dataset/",
     "/admin/analyses/analysisrun/",
     "/admin/results/candidate/",
@@ -79,6 +78,6 @@ def test_run_changelist_filters_by_status(admin_client_with_data):
 
 
 def test_admin_requires_login(client):
-    response = client.get("/admin/projects/project/")
+    response = client.get("/admin/datasets/dataset/")
     assert response.status_code == 302
     assert "/login/" in response["Location"]

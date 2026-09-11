@@ -49,7 +49,7 @@ class Client:
         """Submit a design request.
 
         Every keyword is a docs/public-api.md §9 field: ``trigger_sequence`` /
-        ``dataset_id`` / ``dge_csv`` (exactly one), ``organism``, ``project``,
+        ``dataset_id`` / ``dge_csv`` (exactly one), ``organism``,
         ``gate_families``, ``exclude_gate_families``, ``constraints``, ``scoring``,
         ``budget``, ``payload``, ``seed``, ``top_n``, ``include_rejected``,
         ``include_metrics``, ``include_artifacts``, ``idempotency_key``, ``strict``,

@@ -25,7 +25,6 @@ import {
   type DecisionTag,
   type ExampleDataset,
   type Paginated,
-  type Project,
   type Registration,
   type Run,
   type RunParams,
@@ -37,11 +36,8 @@ import {
 export const keys = {
   me: ["me"] as const,
   version: ["version"] as const,
-  projects: ["projects"] as const,
-  project: (id: string) => ["project", id] as const,
-  datasets: (projectId: string) => ["datasets", projectId] as const,
+  datasets: ["datasets"] as const,
   exampleDatasets: ["example-datasets"] as const,
-  runs: (projectId: string) => ["runs", projectId] as const,
   recentRuns: ["runs", "recent"] as const,
   run: (id: string) => ["run", id] as const,
   runStatus: (id: string) => ["run", id, "status"] as const,
@@ -105,45 +101,10 @@ export function useVersion() {
   });
 }
 
-/* ---------- projects ---------- */
-
-export function useProjects() {
-  return useQuery({ queryKey: keys.projects, queryFn: () => api.get<Project[]>("/projects") });
-}
-
-export function useProject(id: string) {
-  return useQuery({
-    queryKey: keys.project(id),
-    queryFn: () => api.get<Project>(`/projects/${id}`),
-    enabled: Boolean(id),
-  });
-}
-
-export function useCreateProject() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { name: string; organism: string; biological_objective?: string }) =>
-      api.post<Project>("/projects", body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.projects }),
-  });
-}
-
-export function useDeleteProject() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api.delete<void>(`/projects/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.projects }),
-  });
-}
-
 /* ---------- datasets ---------- */
 
-export function useDatasets(projectId: string) {
-  return useQuery({
-    queryKey: keys.datasets(projectId),
-    queryFn: () => api.get<Dataset[]>(`/projects/${projectId}/datasets`),
-    enabled: Boolean(projectId),
-  });
+export function useDatasets() {
+  return useQuery({ queryKey: keys.datasets, queryFn: () => api.get<Dataset[]>("/datasets") });
 }
 
 /** Datasets bundled with the app, for trying it without your own data. */
@@ -155,24 +116,23 @@ export function useExampleDatasets() {
   });
 }
 
-export function useUseExampleDataset(projectId: string) {
+export function useUseExampleDataset() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (key: string) =>
-      api.post<Dataset>(`/projects/${projectId}/datasets/example`, { key }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.datasets(projectId) }),
+    mutationFn: (key: string) => api.post<Dataset>("/datasets/example", { key }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.datasets }),
   });
 }
 
-export function useUploadDataset(projectId: string) {
+export function useUploadDataset() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (file: File) => {
       const form = new FormData();
       form.append("file", file);
-      return api.upload<Dataset>(`/projects/${projectId}/datasets`, form);
+      return api.upload<Dataset>("/datasets", form);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.datasets(projectId) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.datasets }),
   });
 }
 
@@ -182,6 +142,7 @@ export interface SubmitRunBody {
   input_mode: "de" | "direct";
   dataset_id?: string | null;
   trigger_sequence?: string;
+  organism?: string;
   params?: RunParams;
   gate_families?: string[];
   scoring_profile?: string;
@@ -189,12 +150,11 @@ export interface SubmitRunBody {
   idempotency_key?: string;
 }
 
-export function useSubmitRun(projectId: string) {
+export function useSubmitRun() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: SubmitRunBody) => api.post<Run>(`/projects/${projectId}/runs`, body),
+    mutationFn: (body: SubmitRunBody) => api.post<Run>("/runs", body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: keys.runs(projectId) });
       queryClient.invalidateQueries({ queryKey: keys.recentRuns });
     },
   });
@@ -204,14 +164,6 @@ export function useRecentRuns(limit = 20) {
   return useQuery({
     queryKey: keys.recentRuns,
     queryFn: () => api.get<Run[]>(`/runs?limit=${limit}`),
-  });
-}
-
-export function useProjectRuns(projectId: string) {
-  return useQuery({
-    queryKey: keys.runs(projectId),
-    queryFn: () => api.get<Run[]>(`/projects/${projectId}/runs`),
-    enabled: Boolean(projectId),
   });
 }
 

@@ -1,8 +1,9 @@
 """The Step 3 milestone (docs/architecture.md §13).
 
-One researcher completes the whole workflow through the HTTP API alone: log in, create a
-project, upload a dataset, submit a run, watch it progress, read back ranked candidates
-with their metrics, download an artifact, annotate, and export.
+One researcher completes the whole workflow through the HTTP API alone: log in, upload a
+dataset, submit a run, watch it progress, read back ranked candidates with their
+metrics, download an artifact, annotate, and export. Runs are not organized into
+projects — each stands on its own, scoped only to the researcher who submitted it.
 
 The worker is executed inline rather than by a real qcluster, so the test is
 deterministic. `./do worker` running the same task is verified separately.
@@ -52,34 +53,22 @@ def test_a_researcher_completes_the_whole_workflow(
     available = [f["name"] for f in capabilities["gate_families"] if f["available"]]
     assert "toehold" in available
 
-    # 3. Create a project.
-    project = client.post(
-        "/api/projects",
-        data=json.dumps(
-            {
-                "name": "Lactose to oxidative stress",
-                "organism": "E. coli",
-                "biological_objective": "Express GFP when both signals are present.",
-            }
-        ),
-        content_type="application/json",
-    ).json()
-
-    # 4. Upload a dataset — validated synchronously.
+    # 3. Upload a dataset — validated synchronously.
     dataset = client.post(
-        f"/api/projects/{project['id']}/datasets",
+        "/api/datasets",
         data={"file": csv_upload(DATASET, "expression.csv")},
     ).json()
     assert dataset["validation_status"] == "VALID"
     assert dataset["validation_report"]["rows"] == 4
 
-    # 5. Submit a run. Accepted, not completed.
+    # 4. Submit a run. Accepted, not completed.
     with django_capture_on_commit_callbacks(execute=False) as callbacks:
         submit = client.post(
-            f"/api/projects/{project['id']}/runs",
+            "/api/runs",
             data=json.dumps(
                 {
                     "dataset_id": dataset["id"],
+                    "organism": "E. coli",
                     "gate_families": available[:1],
                     "scoring_profile": capabilities["scoring_profiles"][0],
                     "seed": 42,
@@ -94,15 +83,15 @@ def test_a_researcher_completes_the_whole_workflow(
     assert run["status"] == RunStatus.QUEUED
     assert callbacks, "submission must enqueue exactly one worker task"
 
-    # 6. Poll while queued.
+    # 5. Poll while queued.
     queued = client.get(f"/api/runs/{run['id']}").json()
     assert queued["status"] == RunStatus.QUEUED
     assert queued["counts"]["candidates"] == 0
 
-    # 7. The worker picks it up.
+    # 6. The worker picks it up.
     run_analysis(run["id"])
 
-    # 8. Poll again — done.
+    # 7. Poll again — done.
     finished = client.get(f"/api/runs/{run['id']}").json()
     assert finished["status"] == RunStatus.COMPLETED
     assert finished["progress_pct"] == 100
@@ -110,19 +99,19 @@ def test_a_researcher_completes_the_whole_workflow(
     assert finished["counts"]["artifacts"] > 0
     assert finished["finished_at"] is not None
 
-    # 9. Read back ranked candidates.
+    # 8. Read back ranked candidates.
     candidates = client.get(f"/api/runs/{run['id']}/candidates?limit=100").json()
     assert candidates["count"] > 0
     ranks = [c["rank"] for c in candidates["items"]]
     assert ranks == list(range(1, len(ranks) + 1))
 
-    # 10. Inspect the top candidate's full score decomposition.
+    # 9. Inspect the top candidate's full score decomposition.
     top = client.get(f"/api/candidates/{candidates['items'][0]['id']}").json()
     assert top["rank"] == 1
     assert top["design"]["switch_sequence"]
     assert {m["name"] for m in top["metrics"]} >= {"state_separation", "predicted_leakage"}
 
-    # 11. Rejected candidates are available with their reasons.
+    # 10. Rejected candidates are available with their reasons.
     everything = client.get(
         f"/api/runs/{run['id']}/candidates?limit=100&include_rejected=true"
     ).json()
@@ -130,7 +119,7 @@ def test_a_researcher_completes_the_whole_workflow(
     assert rejected, "24 candidates should trip at least one hard filter"
     assert all(c["rejection_reason"] for c in rejected)
 
-    # 12. Download an artifact.
+    # 11. Download an artifact.
     artifacts = client.get(f"/api/runs/{run['id']}/artifacts").json()
     fasta = next(a for a in artifacts if a["kind"] == "sequence_fasta")
     download = client.get(fasta["download_url"])
@@ -138,7 +127,7 @@ def test_a_researcher_completes_the_whole_workflow(
     assert download.status_code == 200
     assert body.startswith(b">")
 
-    # 13. Annotate a candidate.
+    # 12. Annotate a candidate.
     annotation = client.post(
         f"/api/candidates/{top['id']}/annotations",
         data=json.dumps({"text": "Take this to synthesis.", "decision_tag": "SYNTHESIZE"}),
@@ -146,16 +135,16 @@ def test_a_researcher_completes_the_whole_workflow(
     )
     assert annotation.status_code == 201
 
-    # 14. Export.
+    # 13. Export.
     export = client.get(f"/api/runs/{run['id']}/export.csv")
     rows = list(csv.DictReader(io.StringIO(export.content.decode())))
     assert len(rows) == 24
     assert rows[0]["state_separation_raw"]
 
-    # 15. Resubmitting with the same idempotency key returns the same run.
+    # 14. Resubmitting with the same idempotency key returns the same run.
     with django_capture_on_commit_callbacks(execute=False):
         again = client.post(
-            f"/api/projects/{project['id']}/runs",
+            "/api/runs",
             data=json.dumps({"dataset_id": dataset["id"], "idempotency_key": "e2e-run-001"}),
             content_type="application/json",
         ).json()
@@ -173,21 +162,15 @@ def test_a_failed_run_is_reported_to_the_researcher(
         content_type="application/json",
     )
 
-    project = client.post(
-        "/api/projects",
-        data=json.dumps({"name": "Failure path", "organism": "E. coli"}),
-        content_type="application/json",
-    ).json()
-    dataset = client.post(
-        f"/api/projects/{project['id']}/datasets", data={"file": csv_upload(DATASET)}
-    ).json()
+    dataset = client.post("/api/datasets", data={"file": csv_upload(DATASET)}).json()
 
     with django_capture_on_commit_callbacks(execute=False):
         run = client.post(
-            f"/api/projects/{project['id']}/runs",
+            "/api/runs",
             data=json.dumps(
                 {
                     "dataset_id": dataset["id"],
+                    "organism": "E. coli",
                     "params": {"mock": {"fail": True, "fail_message": "Organism unsupported."}},
                 }
             ),

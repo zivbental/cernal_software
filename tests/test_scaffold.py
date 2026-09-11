@@ -21,7 +21,6 @@ def test_local_apps_are_installed():
     for app in (
         "apps.accounts",
         "apps.common",
-        "apps.projects",
         "apps.datasets",
         "apps.analyses",
         "apps.results",

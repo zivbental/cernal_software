@@ -15,10 +15,10 @@ def test_example_datasets_are_advertised(client, db):
         assert item["label"] and item["description"]
 
 
-def test_an_example_can_be_loaded_into_a_project(auth_client, project, media_root):
+def test_an_example_can_be_loaded(auth_client, user, media_root):
     """It must be a real, validated dataset — not a special case downstream."""
     response = auth_client.post(
-        f"/api/projects/{project.id}/datasets/example",
+        "/api/datasets/example",
         data=json.dumps({"key": "ecoli-oxidative-stress"}),
         content_type="application/json",
     )
@@ -30,24 +30,24 @@ def test_an_example_can_be_loaded_into_a_project(auth_client, project, media_roo
     assert len(body["checksum_sha256"]) == 64
 
     dataset = Dataset.objects.get(pk=body["id"])
-    assert dataset.project_id == project.id
+    assert dataset.uploaded_by_id == user.id
     assert dataset.file.storage.exists(dataset.file.name)
 
 
 def test_an_example_run_completes_like_any_other(
-    auth_client, project, media_root, django_capture_on_commit_callbacks
+    auth_client, media_root, django_capture_on_commit_callbacks
 ):
     from apps.analyses.tasks import run_analysis
 
     dataset = auth_client.post(
-        f"/api/projects/{project.id}/datasets/example",
+        "/api/datasets/example",
         data=json.dumps({"key": "ecoli-oxidative-stress"}),
         content_type="application/json",
     ).json()
 
     with django_capture_on_commit_callbacks():
         run = auth_client.post(
-            f"/api/projects/{project.id}/runs",
+            "/api/runs",
             data=json.dumps(
                 {
                     "input_mode": "de",
@@ -62,9 +62,9 @@ def test_an_example_run_completes_like_any_other(
     assert auth_client.get(f"/api/runs/{run['id']}").json()["status"] == "COMPLETED"
 
 
-def test_an_unknown_example_key_names_the_available_ones(auth_client, project):
+def test_an_unknown_example_key_names_the_available_ones(auth_client):
     response = auth_client.post(
-        f"/api/projects/{project.id}/datasets/example",
+        "/api/datasets/example",
         data=json.dumps({"key": "does-not-exist"}),
         content_type="application/json",
     )
@@ -73,23 +73,14 @@ def test_an_unknown_example_key_names_the_available_ones(auth_client, project):
     assert "ecoli-oxidative-stress" in response.json()["error"]["message"]
 
 
-def test_cannot_load_an_example_into_another_users_project(other_client, project):
-    response = other_client.post(
-        f"/api/projects/{project.id}/datasets/example",
-        data=json.dumps({"key": "ecoli-oxidative-stress"}),
-        content_type="application/json",
-    )
-    assert response.status_code == 404
-
-
 # --- Outputs ----------------------------------------------------------------------
 
 
-def _run_with_outputs(client, project, dataset, outputs, count=12):
+def _run_with_outputs(client, dataset, outputs, count=12):
     from apps.analyses.tasks import run_analysis
 
     run = client.post(
-        f"/api/projects/{project.id}/runs",
+        "/api/runs",
         data=json.dumps(
             {
                 "input_mode": "de",
@@ -107,10 +98,10 @@ def _run_with_outputs(client, project, dataset, outputs, count=12):
 
 
 def test_the_candidate_list_says_what_each_one_expresses(
-    auth_client, project, dataset, media_root, django_capture_on_commit_callbacks
+    auth_client, dataset, media_root, django_capture_on_commit_callbacks
 ):
     with django_capture_on_commit_callbacks():
-        run_id = _run_with_outputs(auth_client, project, dataset, ["gfp"])
+        run_id = _run_with_outputs(auth_client, dataset, ["gfp"])
 
     items = auth_client.get(f"/api/runs/{run_id}/candidates?limit=50").json()["items"]
     assert items
@@ -118,13 +109,11 @@ def test_the_candidate_list_says_what_each_one_expresses(
 
 
 def test_selecting_several_outputs_produces_plasmids_for_each(
-    auth_client, project, dataset, media_root, django_capture_on_commit_callbacks
+    auth_client, dataset, media_root, django_capture_on_commit_callbacks
 ):
     """They are equivalent choices, so none of them is a sub-case of another."""
     with django_capture_on_commit_callbacks():
-        run_id = _run_with_outputs(
-            auth_client, project, dataset, ["gfp", "ampr", "apoptosis"], count=12
-        )
+        run_id = _run_with_outputs(auth_client, dataset, ["gfp", "ampr", "apoptosis"], count=12)
 
     items = auth_client.get(
         f"/api/runs/{run_id}/candidates?limit=100&include_rejected=true"
