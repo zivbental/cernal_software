@@ -538,6 +538,15 @@ one); `ApiKeyAuth`'s scope/quota checks have no dedicated `/security-review` pas
 against a `MockEngine` deployment, printed in documentation, is the single most
 persuasive judging artefact on this list and does not exist yet.
 
+**Web UI, added after X1–X11 landed (not in the original public-api.md scope, but the
+same ADR 0006 surface):** `/settings` lets a signed-in user see their own keys, mint one,
+reset it (`POST /api/auth/keys/{id}/regenerate` — a new endpoint; reissues a secret in
+place, keeping label/scopes/quotas, un-revokes on the way), and revoke it, with the
+secret shown exactly once. `/api-docs` is an in-app reference — Python/R/MATLAB/curl
+quickstarts plus the full `POST /api/design` field table — reachable from the main nav
+and cross-linked with `/settings`. This is what makes the "sandbox key, printed in
+documentation" idea above cheap to finish: the page to print it *in* now exists.
+
 ---
 
 ## How to use this file
