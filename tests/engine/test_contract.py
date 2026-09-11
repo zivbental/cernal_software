@@ -103,3 +103,29 @@ def test_unknown_gate_family_names_the_available_ones():
 def test_every_engine_error_shares_one_base():
     """The Platform catches EngineError and nothing narrower (§6.2)."""
     assert issubclass(UnsupportedGateFamilyError, EngineError)
+
+
+def test_capabilities_advertise_the_scoring_vocabulary():
+    """docs/public-api.md §7: the API validates a custom scoring block against this,
+    without importing engine.scoring (§3's boundary rule)."""
+    from engine.client import MockEngine
+
+    capabilities = MockEngine().capabilities()
+    names = {metric.name for metric in capabilities.metrics}
+
+    assert names == {
+        "state_separation",
+        "trigger_accessibility",
+        "gate_folding_energy",
+        "predicted_leakage",
+        "orthogonality",
+        "gc_content",
+        "dynamic_range",
+        "predicted_success_rate",
+        "circuit_complexity",
+    }
+    assert all(metric.unit for metric in capabilities.metrics)
+    assert {hf["metric"] for hf in capabilities.hard_filters} == {
+        "predicted_leakage",
+        "state_separation",
+    }

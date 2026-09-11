@@ -30,6 +30,12 @@ class MetricSpec:
     valid_range: tuple[float, float]
     missing_behavior: str = TREAT_AS_WORST
     description: str = ""
+    #: "kcal/mol" · "percent 0-100" · "fraction 0-1" · "log2 fold" · "linear fold" · ....
+    #: Advertised via engine.contract.MetricInfo — the one piece of metadata that would
+    #: have prevented CLAUDE.md §6's documented traps (dynamic_range is linear while
+    #: state_separation directly above it is log2; gc_content is 0-100 while every
+    #: neighbouring probability is 0-1).
+    unit: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +128,7 @@ DEFAULT_V1 = ScoringProfile(
             weight=3.0,
             valid_range=(0.0, 10.0),
             description="Differential expression between base and target state (log2 fold).",
+            unit="log2 fold",
         ),
         MetricSpec(
             name="trigger_accessibility",
@@ -129,6 +136,7 @@ DEFAULT_V1 = ScoringProfile(
             weight=2.0,
             valid_range=(0.0, 1.0),
             description="Predicted fraction of the trigger region free of self-structure.",
+            unit="fraction 0-1",
         ),
         MetricSpec(
             name="gate_folding_energy",
@@ -136,6 +144,7 @@ DEFAULT_V1 = ScoringProfile(
             weight=2.0,
             valid_range=(-60.0, 0.0),
             description="Predicted MFE of the gate in kcal/mol. More negative is more stable.",
+            unit="kcal/mol",
         ),
         MetricSpec(
             name="predicted_leakage",
@@ -143,6 +152,7 @@ DEFAULT_V1 = ScoringProfile(
             weight=2.5,
             valid_range=(0.0, 1.0),
             description="Proxy for OFF-state activation.",
+            unit="fraction 0-1",
         ),
         MetricSpec(
             name="orthogonality",
@@ -150,6 +160,7 @@ DEFAULT_V1 = ScoringProfile(
             weight=1.5,
             valid_range=(0.0, 1.0),
             description="Predicted independence from other gates in the same circuit.",
+            unit="fraction 0-1",
         ),
         MetricSpec(
             name="gc_content",
@@ -157,6 +168,7 @@ DEFAULT_V1 = ScoringProfile(
             weight=0.5,
             valid_range=(30.0, 70.0),
             description="Percent GC of the assembled construct. Extremes hurt synthesis.",
+            unit="percent 0-100",
         ),
         MetricSpec(
             name="dynamic_range",
@@ -164,6 +176,7 @@ DEFAULT_V1 = ScoringProfile(
             weight=2.0,
             valid_range=(1.0, 500.0),
             description="Predicted ON/OFF fold change.",
+            unit="linear fold",
         ),
         MetricSpec(
             name="predicted_success_rate",
@@ -171,6 +184,7 @@ DEFAULT_V1 = ScoringProfile(
             weight=1.0,
             valid_range=(0.0, 1.0),
             description="Model confidence that the construct behaves as designed in vivo.",
+            unit="fraction 0-1",
         ),
         MetricSpec(
             name="circuit_complexity",
@@ -178,6 +192,7 @@ DEFAULT_V1 = ScoringProfile(
             weight=1.0,
             valid_range=(1.0, 10.0),
             description="Component count penalty. Simpler circuits are easier to build.",
+            unit="component count",
         ),
     ],
     hard_filters=[

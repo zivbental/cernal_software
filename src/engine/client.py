@@ -29,6 +29,7 @@ from engine.contract import (
     EngineCapabilities,
     JobRequest,
     JobResult,
+    MetricInfo,
 )
 from engine.errors import ChecksumMismatchError, EngineError, InputValidationError, JobCancelled
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
@@ -102,13 +103,36 @@ def load_engine(dotted_path: str) -> EngineClient:
 def _installed_capabilities(engine_version: str) -> EngineCapabilities:
     """Read the registries. Engine-internal, so importing them here is fine."""
     from engine.gates.registry import describe_families
-    from engine.scoring.profiles import available_profiles
+    from engine.scoring.profiles import DEFAULT_V1, available_profiles
 
     return EngineCapabilities(
         engine_version=engine_version,
         schema_version=SCHEMA_VERSION,
         gate_families=describe_families(),
         scoring_profiles=available_profiles(),
+        # The vocabulary a caller may name in a custom `scoring` block (docs/public-api.md
+        # §7, §9.1) — what makes an unknown or misspelled metric name a 422 instead of a
+        # silently-worst-scored candidate (CLAUDE.md §2).
+        metrics=[
+            MetricInfo(
+                name=spec.name,
+                direction=spec.direction,
+                weight=spec.weight,
+                valid_range=spec.valid_range,
+                unit=spec.unit,
+                description=spec.description,
+            )
+            for spec in DEFAULT_V1.metrics
+        ],
+        hard_filters=[
+            {
+                "metric": hard_filter.metric,
+                "minimum": hard_filter.minimum,
+                "maximum": hard_filter.maximum,
+                "reason": hard_filter.reason,
+            }
+            for hard_filter in DEFAULT_V1.hard_filters
+        ],
     )
 
 

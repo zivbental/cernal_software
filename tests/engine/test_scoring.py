@@ -220,3 +220,10 @@ def test_filter_referencing_an_unknown_metric_is_rejected():
     )
     with pytest.raises(ScoringProfileError, match="unknown metric"):
         profile.validate()
+
+
+def test_every_default_metric_declares_a_unit():
+    """docs/public-api.md §7: unit is what lets a caller tell linear from log2, or
+    0-100 from 0-1, without reading CLAUDE.md §6 first."""
+    for spec in DEFAULT_V1.metrics:
+        assert spec.unit, f"{spec.name} has no unit"

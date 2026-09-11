@@ -287,6 +287,29 @@ class GateFamilyOut(Schema):
     available: bool
 
 
+class MetricInfoOut(Schema):
+    """One scoring metric, as advertised by the engine (engine.contract.MetricInfo).
+
+    What lets a caller validate a custom ``scoring.weights`` block against the real
+    vocabulary instead of discovering a typo as a silently-worst-scored candidate
+    (CLAUDE.md §2, docs/public-api.md §7/§9.1).
+    """
+
+    name: str
+    direction: str
+    weight: float
+    valid_range: tuple[float, float]
+    unit: str = ""
+    description: str = ""
+
+
+class HardFilterOut(Schema):
+    metric: str
+    minimum: float | None = None
+    maximum: float | None = None
+    reason: str = ""
+
+
 class VersionOut(Schema):
     app_version: str
     api_schema_version: str
@@ -295,3 +318,5 @@ class VersionOut(Schema):
     engine_schema_version: str
     gate_families: list[GateFamilyOut]
     scoring_profiles: list[str]
+    metrics: list[MetricInfoOut] = Field(default_factory=list)
+    hard_filters: list[HardFilterOut] = Field(default_factory=list)

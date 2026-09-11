@@ -77,6 +77,26 @@ class GateFamilyInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class MetricInfo:
+    """One metric in a scoring profile, as the engine describes it.
+
+    Mirrors ``engine.scoring.profiles.MetricSpec``, minus anything the Platform has no
+    business knowing (``missing_behavior`` stays internal to scoring). Advertised so the
+    API can reject an unknown or misspelled metric name at submit time — the same reason
+    ``GateFamilyInfo`` exists — and so ``unit`` can be surfaced to a caller instead of
+    living only in a comment (docs/public-api.md §7; CLAUDE.md §6's traps are exactly the
+    ones a stated unit would have caught).
+    """
+
+    name: str
+    direction: str  # HIGHER_BETTER | LOWER_BETTER
+    weight: float
+    valid_range: tuple[float, float]
+    unit: str = ""  # "kcal/mol" · "percent 0-100" · "log2 fold" · "linear fold" · ...
+    description: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class EngineCapabilities:
     """What this engine build can do.
 
@@ -90,6 +110,12 @@ class EngineCapabilities:
     schema_version: str
     gate_families: list[GateFamilyInfo]
     scoring_profiles: list[str]
+    #: Every metric the default profile scores. Additive — defaulted so existing callers
+    #: and stored results are unaffected (docs/public-api.md §7).
+    metrics: list[MetricInfo] = field(default_factory=list)
+    #: Disqualifying thresholds, as plain dicts (metric, minimum, maximum, reason) —
+    #: mirroring ``engine.scoring.profiles.HardFilter`` without exposing the class itself.
+    hard_filters: list[dict] = field(default_factory=list)
 
     @property
     def available_families(self) -> list[str]:
