@@ -106,7 +106,7 @@ likewise. Neither can be written to the database.
 |---|---|
 | Model, constraint, API, wizard | **Built** |
 | `de` path through the engine | Stubbed — stages 1–2 raise `NotImplementedError` |
-| `direct` path through the engine | Stubbed — the branch that skips stages 1–2 is not written |
+| `direct` path through the engine | **Built** — `run_pipeline`/`LocalEngine` run it for real (toehold only; see [ROADMAP.md](ROADMAP.md) E2a and [smoke-run.md](smoke-run.md)) |
 | `MockEngine` | Handles both, producing identical-looking output. **The difference is invisible on mock science** |
 
 ---

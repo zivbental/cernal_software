@@ -2,8 +2,9 @@
 
 `engine.sequences` (S6) and `engine.stages.motifs` (S7) need no scientific decision and
 no ViennaRNA, so they are real code and tested as such.
-`engine.gates.tools.folding.FoldEngine.mfe` is now real too. The rest of folding, and
-off-target, codons and translation, still raise NotImplementedError until Step 5.
+`engine.gates.tools.folding.FoldEngine.mfe` is now real too, and so is
+`engine.stages.folding.FoldProfiler` (docs/smoke-run.md S2/E2a-4). The rest of folding,
+and off-target, codons and translation, still raise NotImplementedError until Step 5.
 
 The tools live in different places because they are shared by different callers — see
 docs/engine.md §3.3. This file tests them together because what they have in common is
@@ -15,6 +16,7 @@ import pytest
 from engine import sequences as sq
 from engine.domain import AssemblyStandard
 from engine.gates.tools.folding import FoldEngine
+from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
 
 GFP_START = "AUGGCUAGCAAGGGCGAGGAGCUGUUCACC"
@@ -182,3 +184,47 @@ def test_mfe_folds_a_complex_as_a_dimer_not_a_concatenated_strand():
 
     assert len(dimer.structure) == len(switch) + len(trigger)
     assert dimer.energy != concatenated.energy
+
+
+# --- Accessibility profiling (stages/folding.py, S1) --------------------------------
+
+PROFILER_SEQUENCE = "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAAGCUAGCUAGCUAGC"
+
+
+def test_profile_is_one_probability_per_position():
+    profile = FoldProfiler().profile(PROFILER_SEQUENCE)
+
+    assert len(profile) == len(PROFILER_SEQUENCE)
+    assert all(0.0 <= p <= 1.0 for p in profile)
+
+
+def test_profile_is_cached_per_transcript():
+    """`openness` is called many times per gene; profiling per window would be
+    quadratic (the class's own docstring)."""
+    profiler = FoldProfiler()
+    first = profiler.profile(PROFILER_SEQUENCE)
+    second = profiler.profile(PROFILER_SEQUENCE)
+
+    assert first == second
+    assert first is not second, "a shared mutable list would let one caller corrupt another's view"
+
+
+def test_openness_is_the_mean_of_the_requested_slice():
+    profiler = FoldProfiler()
+    profile = profiler.profile(PROFILER_SEQUENCE)
+
+    assert profiler.openness(PROFILER_SEQUENCE, 0, 10) == pytest.approx(sum(profile[0:10]) / 10)
+
+
+def test_openness_of_an_empty_segment_is_zero_not_a_division_error():
+    assert FoldProfiler().openness(PROFILER_SEQUENCE, 5, 5) == 0.0
+
+
+def test_openness_window_covers_the_whole_sequence_for_a_direct_trigger():
+    """A `direct` submission profiles the pasted sequence as its own transcript
+    (docs/smoke-run.md S2) — the whole-sequence case must not be a special case."""
+    profiler = FoldProfiler()
+    whole = profiler.openness(PROFILER_SEQUENCE, 0, len(PROFILER_SEQUENCE))
+    profile = profiler.profile(PROFILER_SEQUENCE)
+
+    assert whole == pytest.approx(sum(profile) / len(profile))

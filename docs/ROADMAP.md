@@ -19,7 +19,7 @@
 | Step 2 — Domain model | **Complete** | 8 models, migrations, admin back-office, `seed_demo` |
 | Step 3 — API + orchestration | **Complete** | 39 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
 | Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages |
-| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. Everything else is still a documented stub raising `NotImplementedError` |
+| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. `de` mode and every stage past switch design are still documented stubs raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
 
 `./do test` → **825 passing** (plus the Python client's own conformance suite,
@@ -203,6 +203,29 @@ validator folds sequences. Two rules:
 
 **Done when:** `./do test tests/engine` passes in under a second with real folding, and
 `FoldEngine.versions()` returns the ViennaRNA version.
+
+### E2a · The `direct` smoke path — ✅ built
+
+Sits before E2, which stays blocked on Q1. Full assessment and design in
+[smoke-run.md](smoke-run.md); scoped deliberately to skip everything Q1/Q3/Q11 still
+block, and to touch nothing under `engine/gates/` (`gates/tools/` included) — see that
+file's §4 for what each skip costs.
+
+| # | Task | Where | Status |
+|---|---|---|---|
+| **E2a-1** | `build_tools` + `run_pipeline` — composition only, no science | `engine/pipeline.py` | ✅ |
+| **E2a-2** | Direct-mode trigger synthesis: pasted sequence → one `TriggerCandidate`, accessibility computed once | `engine/pipeline.py` | ✅ |
+| **E2a-3** | `SwitchDesigner.design` + `build_trigger_sets`; `SwitchValidator.validate` (sequence rules only — the structural rule needs `FoldEngine.ensemble_defect`, under `gates/tools/`, deliberately left for a phase allowed to touch it) | `engine/stages/switches.py` | ✅ (sequence rules) |
+| **E2a-4** | `FoldProfiler.profile` + `openness` — the windowed RNAplfold wrapper. Deleted the `test_both_folding_adapters_actually_fold` xfail; this is **E1 rung 4**, needed for `de` regardless | `engine/stages/folding.py` | ✅ |
+| **E2a-5** | `GateDesign` → `CandidateResult` + artifact writing (design table, FASTA per candidate) | `engine/pipeline.py` | ✅ |
+| **E2a-6** | Prove it: a `direct` run to `succeeded` under `LocalEngine`, twice with one seed, byte-identical | `tests/engine/test_pipeline.py` | ✅ |
+
+**Still not in this phase, deliberately:** stages 4–6, `OffTargetScanner`,
+`TranslationScorer`, `CodonOptimizer`, `GeneSelector`, `InputQualityCheck`, the CSV
+parser, `CandidateStore.snapshot`, `de` input mode (still blocked on Q1), any gate family
+beyond `toehold` requested via `gate_families` (`antisense` is skipped with a warning —
+Q11; multi-trigger `AND` combinations are generated up to arity 2 but never validated
+past that — Q3).
 
 ### E2 · Stages 1–3 — input, genes, triggers · **blocked on Q1**
 

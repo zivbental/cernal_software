@@ -40,8 +40,8 @@ so that convention is the only rule there is.
 | Modules | 35 |
 | Public classes | 85 |
 | Public callables (excluding `__init__`) | 160 |
-| — `BUILT` | 117 |
-| — `STUB` | 36 |
+| — `BUILT` | 124 |
+| — `STUB` | 29 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
 | `__init__` constructors | 20 |
@@ -72,21 +72,21 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
 | stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
-| stages | `engine.stages.folding` | S1 | 0 | 2 | S1 — local accessibility profiling, the primitive behind trigger selection. |
+| stages | `engine.stages.folding` | S1 | 2 | 0 | S1 — local accessibility profiling, the primitive behind trigger selection. |
 | stages | `engine.stages.genes` |  | 0 | 1 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
 | stages | `engine.stages.off_target` | S5 | 0 | 4 | S5 — off-target scanning, in both directions. |
 | stages | `engine.stages.plasmids` |  | 0 | 2 | Stage 5 — plasmid construction. |
 | stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
-| stages | `engine.stages.switches` |  | 0 | 3 | Stage 3 — switch design and validation. |
+| stages | `engine.stages.switches` |  | 3 | 0 | Stage 3 — switch design and validation. |
 | stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — trigger scoring. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
 | top | `engine.client` |  | 8 | 0 | The Platform-facing engine interface. |
 | top | `engine.contract` |  | 5 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
-| top | `engine.pipeline` |  | 0 | 2 | The real scientific pipeline. |
+| top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
 | top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
 
 ## Layer 1 · Domain — the vocabulary
@@ -1144,8 +1144,8 @@ S1 — per-position unpaired probability in *local* folding context.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, window: int = 80, max_span: int = 40, unpaired: int = 10) -> None` |  |
-| `STUB` | `def profile(self, sequence: str) -> list[float]` | Unpaired probability at every position of a transcript. |
-| `STUB` | `def openness(self, sequence: str, start: int, end: int) -> float` | Mean unpaired probability across a segment. The map's ``Trigger Openness``. |
+| `BUILT` | `def profile(self, sequence: str) -> list[float]` | Unpaired probability at every position of a transcript. |
+| `BUILT` | `def openness(self, sequence: str, start: int, end: int) -> float` | Mean unpaired probability across a segment. The map's ``Trigger Openness``. |
 
 ### `engine.stages.genes`
 
@@ -1285,8 +1285,8 @@ Dispatches trigger sets to the gate families that can realise them.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, families: list, validator: 'SwitchValidator', host: Host) -> None` |  |
-| `STUB` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[GateDesign]` | Yield validated switch designs. |
-| `STUB` | `def build_trigger_sets(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[TriggerSet]` | Combine individual triggers into the input sets a circuit can use. |
+| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[GateDesign]` | Yield validated switch designs. |
+| `BUILT` | `def build_trigger_sets(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[TriggerSet]` | Combine individual triggers into the input sets a circuit can use. |
 
 #### `class SwitchValidator`
 
@@ -1294,8 +1294,8 @@ The hard rules a switch must obey, whichever family produced it.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, folder: FoldEngine, off_target: OffTargetScanner, screener: MotifScreener, translation: TranslationScorer) -> None` |  |
-| `STUB` | `def validate(self, design: GateDesign) -> ValidationResult` | Check one design against every hard rule. |
+| `BUILT` | `def __init__(self, folder: FoldEngine, off_target: OffTargetScanner, screener: MotifScreener, translation: TranslationScorer, constraints: Constraints) -> None` |  |
+| `BUILT` | `def validate(self, design: GateDesign) -> ValidationResult` | Check one design against every hard rule this stage can currently apply. |
 
 ### `engine.stages.triggers`
 
@@ -1366,11 +1366,11 @@ What the Platform depends on. Implementations must be safe to call from a worker
 
 #### `class LocalEngine`
 
-Runs the real scientific pipeline in-process. Step 5.
+Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.1.0-stub'` |
+| `ENGINE_VERSION` |  | `'local-0.1.0-direct-only'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -1596,8 +1596,8 @@ The real scientific pipeline.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `STUB` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
-| `STUB` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the full pipeline for one job. |
+| `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
+| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`-mode job. |
 
 ### `engine.store` · S11, S13
 
