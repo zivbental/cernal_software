@@ -33,7 +33,7 @@ from engine.contract import (
 )
 from engine.errors import ChecksumMismatchError, EngineError, InputValidationError, JobCancelled
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
-from engine.scoring.profiles import get_profile
+from engine.scoring.profiles import resolve_profile
 
 #: ``on_progress(percent, stage) -> keep_going``. Returning ``False`` cancels the run.
 ProgressFn = Callable[[int, str], bool]
@@ -98,6 +98,26 @@ def load_engine(dotted_path: str) -> EngineClient:
     if not isinstance(instance, EngineClient):
         raise TypeError(f"{dotted_path} does not implement EngineClient.run().")
     return instance
+
+
+def label_for_custom_scoring(base_name: str, overrides: dict | None) -> str:
+    """The label the engine will actually score under (docs/public-api.md §9.1) —
+    computable from the request alone, before the engine ever runs, so the Platform can
+    echo it in a submission's ``resolved`` field without building a ``ScoringProfile``
+    itself (§3's boundary: that stays in ``engine.scoring``, imported only here).
+    """
+    from engine.scoring.profiles import custom_scoring_label
+
+    if not overrides:
+        return base_name
+
+    weights = overrides.get("weights") or {}
+    hard_filters = overrides.get("hard_filters") or []
+    tie_breakers = overrides.get("tie_breakers") or []
+    if not (weights or hard_filters or tie_breakers):
+        return base_name
+
+    return f"custom-{custom_scoring_label(base_name, weights, hard_filters, tie_breakers)}"
 
 
 def _installed_capabilities(engine_version: str) -> EngineCapabilities:
@@ -268,7 +288,7 @@ class MockEngine:
         delay = float(options.get("step_delay", 0.0))
         fail_at = options.get("fail_at_stage", len(_STAGES) - 1)
 
-        profile = get_profile(request.scoring_profile)
+        profile = resolve_profile(request.scoring_profile, request.params.get("scoring"))
         rng = self._rng(request)
 
         for index, (percent, label) in enumerate(_STAGES):

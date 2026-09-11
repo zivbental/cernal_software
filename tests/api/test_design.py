@@ -242,6 +242,37 @@ def test_a_valid_scoring_override_is_accepted(client, design_key):
     assert response.status_code == 202
 
 
+def test_a_scoring_override_of_all_zero_weights_is_a_422(client, design_key):
+    from engine.client import MockEngine
+
+    weights = {metric.name: 0.0 for metric in MockEngine().capabilities().metrics}
+    response = _post(
+        client,
+        design_key,
+        {"trigger_sequence": TRIGGER, "organism": "x", "scoring": {"weights": weights}},
+    )
+    assert response.status_code == 422
+
+
+def test_resolved_scoring_profile_is_the_custom_label_not_the_base_name(client, design_key):
+    body = _post(
+        client,
+        design_key,
+        {
+            "trigger_sequence": TRIGGER,
+            "organism": "x",
+            "scoring": {"weights": {"predicted_leakage": 4.0}},
+        },
+    ).json()
+
+    assert body["resolved"]["scoring_profile"].startswith("custom-")
+
+
+def test_resolved_scoring_profile_stays_the_base_name_without_overrides(client, design_key):
+    body = _post(client, design_key, {"trigger_sequence": TRIGGER, "organism": "x"}).json()
+    assert body["resolved"]["scoring_profile"] == "default"
+
+
 # --- dry_run (§9.3) -------------------------------------------------------------------
 
 

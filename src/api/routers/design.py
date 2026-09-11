@@ -36,7 +36,7 @@ from apps.datasets.models import Dataset
 from apps.datasets.services import DatasetValidationError, create_dataset, validate_expression_file
 from apps.projects.models import Project
 from apps.results.models import Artifact, Candidate
-from engine.client import load_engine
+from engine.client import label_for_custom_scoring, load_engine
 
 router = Router()
 
@@ -136,6 +136,18 @@ def _resolve_scoring(body: DesignIn, capabilities) -> dict:
             f"Unknown metric name(s) in 'scoring': {', '.join(sorted(unknown))}.",
             detail={"allowed": sorted(known)},
         )
+
+    weights = scoring.get("weights")
+    if weights:
+        # Cheap arithmetic on data the API already has (capabilities.metrics), not a
+        # ScoringProfile construction — that stays engine-side (§3). Catches the case
+        # engine.scoring.profiles.ScoringProfile.validate() would otherwise only find
+        # once the run is already executing, turning it into a submission-time 422
+        # instead of an async FAILED run.
+        total = sum(weights.get(metric.name, metric.weight) for metric in capabilities.metrics)
+        if total <= 0:
+            raise ValidationFailed("'scoring.weights' leaves the total weight non-positive.")
+
     return scoring
 
 
@@ -192,7 +204,11 @@ def _resolved(run: AnalysisRun) -> dict:
     return {
         "input_mode": run.input_mode,
         "gate_families": run.gate_families,
-        "scoring_profile": run.scoring_profile,
+        # The label the engine actually scored under (X7) — not just the base name —
+        # when a custom scoring block was submitted; otherwise identical to the base.
+        "scoring_profile": label_for_custom_scoring(
+            run.scoring_profile, run.params_snapshot.get("scoring")
+        ),
         "seed": run.seed,
         "constraints": run.params_snapshot.get("constraints", {}),
     }
@@ -239,7 +255,9 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                 "resolved": {
                     "input_mode": input_mode,
                     "gate_families": gate_families,
-                    "scoring_profile": scoring.get("base", "default"),
+                    "scoring_profile": label_for_custom_scoring(
+                        scoring.get("base", "default"), scoring
+                    ),
                     "seed": body.seed,
                     "constraints": body.constraints,
                 },

@@ -10,7 +10,9 @@ its thresholds; this profile exists so the scoring machinery is exercised end to
 before the real pipeline lands.
 """
 
-from dataclasses import dataclass, field
+import hashlib
+import json
+from dataclasses import dataclass, field, replace
 
 from engine.contract import HIGHER_BETTER, LOWER_BETTER
 from engine.errors import ScoringProfileError
@@ -229,3 +231,123 @@ def get_profile(name: str) -> ScoringProfile:
 def available_profiles() -> list[str]:
     """Profile names a submission may request. Surfaced at ``GET /api/version``."""
     return sorted(PROFILES)
+
+
+# --- Custom scoring (docs/public-api.md §9.1) --------------------------------------
+#
+# A caller may re-weight the nine metrics and add hard filters through the public API.
+# The API validates metric *names* against EngineCapabilities.metrics (engine.contract)
+# and passes the block through unchanged as JobRequest.params["scoring"] — building the
+# actual ScoringProfile happens only here, engine-side, per architecture.md §3.
+
+
+def custom_scoring_label(
+    base_name: str,
+    weights: dict[str, float],
+    hard_filters: list[dict],
+    tie_breakers: list[str] | None,
+) -> str:
+    """``<hash8>`` — a pure function of the overrides, so two runs with identical
+    weights get the same label and stay comparable (design map 12)."""
+    canonical = {
+        "base": base_name,
+        "weights": dict(sorted(weights.items())),
+        "hard_filters": sorted(
+            (
+                {
+                    "metric": hf["metric"],
+                    "minimum": hf.get("minimum"),
+                    "maximum": hf.get("maximum"),
+                }
+                for hf in hard_filters
+            ),
+            key=lambda hf: hf["metric"],
+        ),
+        "tie_breakers": list(tie_breakers) if tie_breakers else [],
+    }
+    digest = hashlib.sha256(json.dumps(canonical, sort_keys=True).encode()).hexdigest()
+    return digest[:8]
+
+
+def derive_profile(
+    base: ScoringProfile,
+    *,
+    weights: dict[str, float] | None = None,
+    hard_filters: list[dict] | None = None,
+    tie_breakers: list[str] | None = None,
+) -> ScoringProfile:
+    """A per-request variant of ``base``. Only ``weight`` on each metric may change —
+    ``direction`` and ``valid_range`` are physics and units, not preference, so a caller
+    who could widen ``valid_range`` could make their own numbers look better and quietly
+    break comparability with every other run.
+
+    ``weights`` merges by metric name: unlisted metrics keep ``base``'s weight. The
+    clean way to say "ignore this metric" is ``weight=0.0``, not a deleted spec — the
+    raw value stays measured and visible in the decomposition (CLAUDE.md §3's
+    raw-values-only rule).
+
+    ``hard_filters`` merges by metric name too, deliberately not a wholesale replace: a
+    caller adding one new threshold (e.g. a ``dynamic_range`` floor) must not silently
+    lose ``base``'s existing safety filters (``predicted_leakage``'s 0.85 ceiling,
+    ``state_separation``'s 0.5 floor) just by specifying an unrelated one.
+
+    ``tie_breakers`` replaces outright when given: order is the whole point of the
+    field, so a partial list has no sensible merge.
+
+    The result's ``label`` is ``custom-<hash8>`` (``custom_scoring_label``) — computable
+    from the request alone, which is what lets the API echo it in ``resolved`` before
+    the engine ever runs (``engine.client.label_for_custom_scoring``), without building
+    a ``ScoringProfile`` itself.
+    """
+    weights = weights or {}
+    hard_filter_overrides = hard_filters or []
+    resolved_tie_breakers = list(tie_breakers) if tie_breakers else list(base.tie_breakers)
+
+    new_metrics = [
+        replace(spec, weight=weights[spec.name]) if spec.name in weights else spec
+        for spec in base.metrics
+    ]
+
+    merged_filters = {hf.metric: hf for hf in base.hard_filters}
+    for override in hard_filter_overrides:
+        merged_filters[override["metric"]] = HardFilter(
+            metric=override["metric"],
+            minimum=override.get("minimum"),
+            maximum=override.get("maximum"),
+            reason=override.get("reason", ""),
+        )
+
+    label = custom_scoring_label(base.name, weights, hard_filter_overrides, tie_breakers)
+
+    profile = ScoringProfile(
+        name="custom",
+        version=label,
+        metrics=new_metrics,
+        hard_filters=list(merged_filters.values()),
+        tie_breakers=resolved_tie_breakers,
+    )
+    profile.validate()
+    return profile
+
+
+def resolve_profile(base_name: str, overrides: dict | None = None) -> ScoringProfile:
+    """What ``MockEngine``/the real pipeline actually calls: ``base_name`` is
+    ``AnalysisRun.scoring_profile`` (always a known name — kept that way so
+    ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is
+    ``JobRequest.params.get("scoring")``. No overrides, or an empty ``weights`` /
+    ``hard_filters`` / ``tie_breakers``, returns ``base`` unchanged — most runs never
+    pay for a hash.
+    """
+    base = get_profile(base_name)
+    if not overrides:
+        return base
+
+    weights = overrides.get("weights") or {}
+    hard_filters = overrides.get("hard_filters") or []
+    tie_breakers = overrides.get("tie_breakers") or []
+    if not (weights or hard_filters or tie_breakers):
+        return base
+
+    return derive_profile(
+        base, weights=weights, hard_filters=hard_filters, tie_breakers=tie_breakers
+    )
