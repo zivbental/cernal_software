@@ -13,7 +13,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('datasets', '0001_initial'),
-        ('projects', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -24,6 +23,7 @@ class Migration(migrations.Migration):
                 ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
                 ('created_at', models.DateTimeField(auto_now_add=True, db_index=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
+                ('organism', models.CharField(blank=True, help_text='e.g. E. coli', max_length=100)),
                 ('idempotency_key', models.CharField(help_text='Re-submitting with the same key returns the existing run rather than launching a second computation.', max_length=64, unique=True)),
                 ('params_snapshot', models.JSONField(default=dict, help_text='The complete normalized configuration, frozen at submission time.')),
                 ('gate_families', models.JSONField(default=list)),
@@ -41,11 +41,10 @@ class Migration(migrations.Migration):
                 ('finished_at', models.DateTimeField(blank=True, null=True)),
                 ('created_by', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='runs', to=settings.AUTH_USER_MODEL)),
                 ('dataset', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='runs', to='datasets.dataset')),
-                ('project', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='runs', to='projects.project')),
             ],
             options={
                 'ordering': ['-created_at'],
-                'indexes': [models.Index(fields=['project', '-created_at'], name='analyses_an_project_f32de2_idx'), models.Index(fields=['status'], name='analyses_an_status_61607a_idx')],
+                'indexes': [models.Index(fields=['created_by', '-created_at'], name='analyses_an_created_bf95a6_idx'), models.Index(fields=['status'], name='analyses_an_status_61607a_idx')],
                 'constraints': [models.CheckConstraint(condition=models.Q(('progress_pct__gte', 0), ('progress_pct__lte', 100)), name='progress_pct_within_bounds')],
             },
         ),

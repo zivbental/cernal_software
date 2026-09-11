@@ -6,7 +6,6 @@ import { ApiError } from "@/api/client";
 import {
   useDatasets,
   useExampleDatasets,
-  useProject,
   useSubmitRun,
   useUploadDataset,
   useUseExampleDataset,
@@ -18,17 +17,15 @@ import { RequireAuth } from "@/components/layout/RequireAuth";
 import { StepRail } from "@/components/layout/Primitives";
 import {
   DEFAULT_CONFIG,
+  ORGANISM_LABELS,
   StepInputs,
   StepLogic,
   StepPayload,
   type CompileConfig,
 } from "@/components/compile/Steps";
 import { Loading } from "@/components/layout/Loading";
-import { ProjectPicker } from "@/components/compile/ProjectPicker";
 
 export const Route = createFileRoute("/compile")({
-  validateSearch: (search: Record<string, unknown>): { projectId?: string } =>
-    typeof search.projectId === "string" ? { projectId: search.projectId } : {},
   component: () => (
     <RequireAuth>
       <AppShell>
@@ -44,16 +41,14 @@ function newIdempotencyKey() {
 }
 
 function CompilePage() {
-  const { projectId } = Route.useSearch();
   const navigate = useNavigate();
 
-  const project = useProject(projectId ?? "");
-  const datasets = useDatasets(projectId ?? "");
+  const datasets = useDatasets();
   const version = useVersion();
-  const upload = useUploadDataset(projectId ?? "");
+  const upload = useUploadDataset();
   const examples = useExampleDatasets();
-  const useExample = useUseExampleDataset(projectId ?? "");
-  const submit = useSubmitRun(projectId ?? "");
+  const useExample = useUseExampleDataset();
+  const submit = useSubmitRun();
 
   const [config, setConfig] = useState<CompileConfig>(DEFAULT_CONFIG);
   const [idempotencyKey] = useState(newIdempotencyKey);
@@ -63,7 +58,6 @@ function CompilePage() {
   const families = useMemo(() => version.data?.gate_families ?? [], [version.data]);
 
   const blocker = useMemo(() => {
-    if (!projectId) return "Choose a project first.";
     if (config.inputMode === "de") {
       if (!config.datasetId) return "Upload or select a dataset to analyse.";
       const chosen = datasets.data?.find((d) => d.id === config.datasetId);
@@ -78,15 +72,17 @@ function CompilePage() {
     if (config.outputs.includes("other") && config.customPayload.length < 3)
       return "Paste a sequence for your custom output, or deselect it.";
     return null;
-  }, [projectId, config, datasets.data, families]);
+  }, [config, datasets.data, families]);
 
   const failed = upload.error ?? useExample.error;
   const uploadError =
     failed instanceof ApiError ? failed.message : failed ? "Could not load that dataset." : null;
   const submitError = submit.error instanceof ApiError ? submit.error.message : null;
 
+  if (version.isLoading) return <Loading />;
+
   async function onSubmit() {
-    if (!projectId || blocker) return;
+    if (blocker) return;
 
     const params: RunParams = {
       schema_version: "1",
@@ -111,6 +107,7 @@ function CompilePage() {
       input_mode: config.inputMode,
       dataset_id: config.inputMode === "de" ? config.datasetId : null,
       trigger_sequence: config.inputMode === "direct" ? config.triggerSequence : "",
+      organism: ORGANISM_LABELS[config.organism],
       gate_families: [config.mechanism],
       scoring_profile: version.data?.scoring_profiles[0] ?? "default",
       params,
@@ -120,34 +117,12 @@ function CompilePage() {
     navigate({ to: "/runs/$runId", params: { runId: run.id } });
   }
 
-  if (!projectId) {
-    // Not a dead end: pick or create a project here and carry straight on.
-    return (
-      <>
-        <PageHeader
-          kicker={
-            <>
-              <LayoutDashboard className="h-3 w-3" /> New Circuit
-            </>
-          }
-          title="Biological Compiler"
-          description="Translate transcriptomic signals into manufacturable genetic circuits."
-        />
-        <ProjectPicker
-          onPick={(id) => navigate({ to: "/compile", search: { projectId: id } })}
-        />
-      </>
-    );
-  }
-
-  if (project.isLoading || version.isLoading) return <Loading />;
-
   return (
     <>
       <PageHeader
         kicker={
           <>
-            <LayoutDashboard className="h-3 w-3" /> {project.data?.name ?? "Project"} / New Circuit
+            <LayoutDashboard className="h-3 w-3" /> New Circuit
           </>
         }
         title="Biological Compiler"

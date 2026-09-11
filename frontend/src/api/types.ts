@@ -46,17 +46,6 @@ export interface Version {
   scoring_profiles: string[];
 }
 
-export interface Project {
-  id: string;
-  name: string;
-  organism: string;
-  biological_objective: string;
-  dataset_count: number;
-  run_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface ExampleDataset {
   key: string;
   label: string;
@@ -73,7 +62,6 @@ export interface ValidationReport {
 
 export interface Dataset {
   id: string;
-  project_id: string;
   name: string;
   filename: string;
   checksum_sha256: string;
@@ -105,13 +93,13 @@ export interface RunStatusResponse {
 
 export interface Run {
   id: string;
-  project_id: string;
   dataset_id: string | null;
   status: RunStatus;
   stage: string;
   progress_pct: number;
   input_mode: InputMode;
   trigger_sequence: string;
+  organism: string;
   gate_families: string[];
   scoring_profile: string;
   seed: number | null;

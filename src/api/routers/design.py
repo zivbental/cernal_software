@@ -34,7 +34,6 @@ from apps.analyses.models import AnalysisRun, InputMode, RunStatus
 from apps.analyses.services import RunError, submit_run
 from apps.datasets.models import Dataset
 from apps.datasets.services import DatasetValidationError, create_dataset, validate_expression_file
-from apps.projects.models import Project
 from apps.results.models import Artifact, Candidate
 from engine.client import label_for_custom_scoring, load_engine
 
@@ -151,29 +150,6 @@ def _resolve_scoring(body: DesignIn, capabilities) -> dict:
     return scoring
 
 
-def _resolve_project(request, body: DesignIn) -> Project:
-    if body.project:
-        try:
-            project_id = UUID(body.project)
-        except ValueError:
-            project, _created = Project.objects.get_or_create(
-                owner=request.user,
-                name=body.project,
-                defaults={"organism": body.organism or "unspecified"},
-            )
-            return project
-        return get_owned(Project, project_id, request.user)
-
-    api_key = getattr(request, "api_key", None)
-    label = api_key.label if api_key else "session"
-    project, _created = Project.objects.get_or_create(
-        owner=request.user,
-        name=f"API · {label}",
-        defaults={"organism": body.organism or "unspecified"},
-    )
-    return project
-
-
 def _estimate(
     input_mode: str, rows: int | None, constraints: dict, gate_families: list[str]
 ) -> dict:
@@ -269,7 +245,6 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         )
 
     enforce_concurrency_ceiling(request)
-    project = _resolve_project(request, body)
 
     dataset = None
     if body.dataset_id:
@@ -277,7 +252,6 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
     elif body.dge_csv:
         try:
             dataset = create_dataset(
-                project=project,
                 uploaded_file=SimpleUploadedFile(
                     "dge.csv", body.dge_csv.encode(), content_type="text/csv"
                 ),
@@ -298,11 +272,11 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
 
     try:
         run, _created = submit_run(
-            project=project,
             user=request.user,
             dataset=dataset,
             input_mode=input_mode,
             trigger_sequence=body.trigger_sequence,
+            organism=body.organism,
             params=params,
             gate_families=gate_families,
             scoring_profile=scoring.get("base", "default"),

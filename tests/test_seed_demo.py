@@ -11,7 +11,6 @@ from django.core.management import call_command
 
 from apps.analyses.models import AnalysisRun, RunStatus
 from apps.datasets.models import Dataset, ValidationStatus
-from apps.projects.models import Project
 from apps.results.models import Annotation, Artifact, Candidate, CandidateMetric
 from engine.scoring.profiles import DEFAULT_V1
 
@@ -33,7 +32,6 @@ def test_seed_demo_creates_a_browsable_run(seeded):
 
 
 def test_seed_demo_creates_the_whole_object_graph(seeded):
-    assert Project.objects.count() == 1
     assert Dataset.objects.get().validation_status == ValidationStatus.VALID
     assert Candidate.objects.count() == 12
     # One row per metric the scoring profile declares.
@@ -66,5 +64,4 @@ def test_seed_demo_reset_clears_previous_data(db, media_root):
     call_command("seed_demo", "--candidates", "5", stdout=StringIO())
     call_command("seed_demo", "--candidates", "5", "--reset", stdout=StringIO())
 
-    assert Project.objects.count() == 1
     assert AnalysisRun.objects.count() == 1

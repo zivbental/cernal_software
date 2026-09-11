@@ -37,7 +37,7 @@ function LoginPage() {
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     await login.mutateAsync({ username, password });
-    navigate({ to: redirect ?? "/projects" });
+    navigate({ to: redirect ?? "/dashboard" });
   }
 
   return (

@@ -170,14 +170,15 @@ There are currently **two** places an organism is recorded, and they disagree:
 
 | Where | Type | Value today |
 |---|---|---|
-| `Project.organism` | `CharField(100)`, free text | `"E. coli"` — the frontend's project form is a text input |
+| `AnalysisRun.organism` | `CharField(100)`, free text | `"E. coli"` — submitted with the run (`RunIn.organism` / `DesignIn.organism`) |
 | `params_snapshot["organism"]` | one of `ecoli` · `yeast` · `human` | set by the wizard's organism picker |
 
-`JobRequest.organism` is populated from **`project.organism`** — the free-text one — while
-the engine's pipeline sketch reads `Host(request.params["organism"])`. Nothing breaks
-today because no engine code parses it yet, and `MockEngine` ignores it. It will break the
-moment `build_tools` tries to select a codon table. Recorded as task **P1** in
-[ROADMAP.md](ROADMAP.md).
+`JobRequest.organism` is populated from **`run.organism`** — the free-text one — while
+`run_pipeline`'s `_resolve_host` prefers `params.organism` (the enum) and falls back to
+it only when `params.organism` is absent, turning a bad fallback into a clean
+`InputValidationError` rather than a crash (docs/smoke-run.md, E2a). That fallback
+handling makes today's *direct* path safe, but the duplication itself is still open —
+recorded as task **P1** in [ROADMAP.md](ROADMAP.md).
 
 ### Status
 
@@ -549,7 +550,7 @@ rarely the better science anyway.
 | Axis | Engine enum | Platform field | `params_snapshot` key | API | Frontend |
 |---|---|---|---|---|---|
 | A · Input | — | `AnalysisRun.input_mode` | `input_mode` | `RunIn.input_mode` | `Steps.tsx` step 1 |
-| B · Host | `domain.Host` / `Track` | `Project.organism` ⚠️ | `organism` | `JobRequest.organism` | `Steps.tsx` step 1 |
+| B · Host | `domain.Host` / `Track` | `AnalysisRun.organism` ⚠️ | `organism` | `JobRequest.organism` | `Steps.tsx` step 1 |
 | C · Gate | `domain.GateKind` | `AnalysisRun.gate_families` | `mechanism` | `RunIn.gate_families`, `GET /api/version` | `Steps.tsx` step 2 |
 | D · Output | `domain.DesiredOutcome` | — | `payload.outputs` | — | `Steps.tsx` step 3 |
 

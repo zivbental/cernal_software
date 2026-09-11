@@ -35,7 +35,7 @@ function SettingsPage() {
         }
         title="API Keys"
         description="Authenticate a script, notebook or pipeline with a header instead of a
-          login — the same account, the same projects and runs, no browser required."
+          login — the same account and the same runs, no browser required."
         actions={
           <Link
             to="/api-docs"
@@ -102,7 +102,7 @@ function ApiKeysSection() {
 }
 
 const SCOPE_OPTIONS = [
-  { value: "read", label: "Read only", hint: "View projects, runs and results" },
+  { value: "read", label: "Read only", hint: "View runs and results" },
   { value: "read,design", label: "Read + Design", hint: "Also submit runs, cancel them, annotate" },
 ] as const;
 

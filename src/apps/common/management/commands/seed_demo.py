@@ -20,7 +20,6 @@ from django.utils import timezone
 from apps.analyses.models import AnalysisRun, RunStatus
 from apps.common.checksums import sha256_bytes
 from apps.datasets.models import Dataset, ValidationStatus
-from apps.projects.models import Project
 from apps.results.models import Annotation, DecisionTag
 from apps.results.services import import_job_result
 from engine.client import load_engine
@@ -42,7 +41,7 @@ zwf,0.74,3.88,2.39,0.0016
 
 
 class Command(BaseCommand):
-    help = "Create a demo user, project, dataset and completed analysis run."
+    help = "Create a demo user, dataset and completed analysis run."
 
     def add_arguments(self, parser) -> None:
         parser.add_argument(
@@ -64,22 +63,11 @@ class Command(BaseCommand):
         if options["reset"]:
             self.stdout.write(f"Removed {self._reset(user)} existing demo objects.")
 
-        project = Project.objects.create(
-            owner=user,
-            name=f"Lactose-to-oxidative-stress switch ({uuid.uuid4().hex[:6]})",
-            organism="E. coli",
-            biological_objective=(
-                "Detect the transition from lactose metabolism to oxidative stress response "
-                "and drive GFP expression when both signals are present."
-            ),
-        )
-
-        dataset = self._dataset(project, user)
-        run = self._run(project, dataset, user, options["candidates"])
+        dataset = self._dataset(user)
+        run = self._run(dataset, user, options["candidates"])
 
         self.stdout.write(self.style.SUCCESS("\nDemo data created.\n"))
         self.stdout.write(f"  User      {DEMO_USERNAME} / {DEMO_PASSWORD}")
-        self.stdout.write(f"  Project   {project.name}")
         self.stdout.write(f"  Dataset   {dataset.name} ({dataset.size_bytes} B)")
         self.stdout.write(f"  Run       {run.id}  [{run.get_status_display()}]")
         self.stdout.write(
@@ -95,14 +83,13 @@ class Command(BaseCommand):
     def _reset(user) -> int:
         """Delete in dependency order.
 
-        AnalysisRun holds PROTECT references to both its project and its dataset, so
-        deleting projects first raises ProtectedError.
+        AnalysisRun holds a PROTECT reference to its dataset, so deleting datasets
+        first raises ProtectedError.
         """
         removed = 0
         for queryset in (
-            AnalysisRun.objects.filter(project__owner=user),
-            Dataset.objects.filter(project__owner=user),
-            Project.objects.filter(owner=user),
+            AnalysisRun.objects.filter(created_by=user),
+            Dataset.objects.filter(uploaded_by=user),
         ):
             count, _ = queryset.delete()
             removed += count
@@ -119,10 +106,9 @@ class Command(BaseCommand):
             user.save(update_fields=["password"])
         return user
 
-    def _dataset(self, project, user) -> Dataset:
+    def _dataset(self, user) -> Dataset:
         payload = DATASET_CSV.encode("utf-8")
         dataset = Dataset(
-            project=project,
             name="expression_lactose_vs_oxidative.csv",
             checksum_sha256=sha256_bytes(payload),
             size_bytes=len(payload),
@@ -140,11 +126,11 @@ class Command(BaseCommand):
         dataset.save()
         return dataset
 
-    def _run(self, project, dataset, user, candidate_count: int) -> AnalysisRun:
+    def _run(self, dataset, user, candidate_count: int) -> AnalysisRun:
         now = timezone.now()
         run = AnalysisRun.objects.create(
-            project=project,
             dataset=dataset,
+            organism="E. coli",
             created_by=user,
             idempotency_key=f"seed-demo-{uuid.uuid4().hex}",
             params_snapshot={"max_triggers": 2, "mock": {"candidate_count": candidate_count}},
@@ -169,7 +155,7 @@ class Command(BaseCommand):
                 trigger_sequence="",
                 input_path=dataset.file.path,
                 input_checksum=dataset.checksum_sha256,
-                organism=project.organism,
+                organism=run.organism,
                 params=run.params_snapshot,
                 gate_families=run.gate_families,
                 scoring_profile=run.scoring_profile,

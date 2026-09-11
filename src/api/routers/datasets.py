@@ -21,30 +21,23 @@ from apps.datasets.services import (
     create_example_dataset,
     delete_dataset,
 )
-from apps.projects.models import Project
 
 router = Router()
 
 
-@router.get("/projects/{project_id}/datasets", response=list[DatasetOut])
-def list_datasets(request, project_id: UUID):
-    get_owned(Project, project_id, request.user)
-    return owned_queryset(Dataset, request.user).filter(project_id=project_id)
+@router.get("/datasets", response=list[DatasetOut])
+def list_datasets(request):
+    return owned_queryset(Dataset, request.user)
 
 
-@router.post("/projects/{project_id}/datasets", response={201: DatasetOut})
+@router.post("/datasets", response={201: DatasetOut})
 def upload_dataset(
     request,
-    project_id: UUID,
     file: UploadedFile = File(...),
     name: str = Form(default=""),
 ):
-    project = get_owned(Project, project_id, request.user)
-
     try:
-        dataset = create_dataset(
-            project=project, uploaded_file=file, user=request.user, name=name or None
-        )
+        dataset = create_dataset(uploaded_file=file, user=request.user, name=name or None)
     except DatasetValidationError as exc:
         raise ValidationFailed(str(exc)) from None
 
@@ -60,13 +53,11 @@ def list_examples(request):
     ]
 
 
-@router.post("/projects/{project_id}/datasets/example", response={201: DatasetOut})
-def use_example_dataset(request, project_id: UUID, payload: UseExampleIn):
-    """Copy a bundled example into this project as a real, validated dataset."""
-    project = get_owned(Project, project_id, request.user)
-
+@router.post("/datasets/example", response={201: DatasetOut})
+def use_example_dataset(request, payload: UseExampleIn):
+    """Copy a bundled example into a real, validated dataset the user can submit a run against."""
     try:
-        dataset = create_example_dataset(project=project, user=request.user, key=payload.key)
+        dataset = create_example_dataset(user=request.user, key=payload.key)
     except DatasetValidationError as exc:
         raise ValidationFailed(str(exc)) from None
 

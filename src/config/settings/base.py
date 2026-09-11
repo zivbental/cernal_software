@@ -34,7 +34,6 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     "apps.accounts",
     "apps.common",
-    "apps.projects",
     "apps.datasets",
     "apps.analyses",
     "apps.results",

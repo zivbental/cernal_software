@@ -191,10 +191,9 @@ curl -s "$HOST/api/design/$JOB/results?format=csv" -H "X-API-Key: $KEY" -o candi
 
 const PARAMETERS: ParamRow[] = [
   { field: "trigger_sequence", type: "string", default: '""', notes: "Direct mode: the mRNA, pasted. Exactly one of these three input fields." },
-  { field: "dataset_id", type: "uuid", default: "null", notes: "DE mode: an existing, VALID dataset in this project." },
+  { field: "dataset_id", type: "uuid", default: "null", notes: "DE mode: an existing, VALID dataset you own." },
   { field: "dge_csv", type: "string", default: '""', notes: "DE mode: an inline differential-expression table — creates a dataset." },
-  { field: "project", type: "string", default: '""', notes: "Name or UUID. Created automatically if omitted." },
-  { field: "organism", type: "string", default: '""', notes: "Only used when a new project is created." },
+  { field: "organism", type: "string", default: '""', notes: "e.g. \"E. coli\". Stored on the run." },
   { field: "gate_families", type: "string[] | null", default: "null (all available)", notes: "Which switch chemistries may be used." },
   { field: "exclude_gate_families", type: "string[]", default: "[]", notes: "Alternative phrasing: allow every available family except these." },
   { field: "constraints", type: "object", default: "{}", notes: "Search constraints — every field explained in the table below." },
@@ -245,7 +244,7 @@ const QUERY_PARAMS = [
 ];
 
 const SCOPES = [
-  { scope: "read", grants: "Every GET — projects, runs, candidates, artifacts, exports.", forUse: "Dashboards, a shared analysis notebook, CI that checks results." },
+  { scope: "read", grants: "Every GET — runs, datasets, candidates, artifacts, exports.", forUse: "Dashboards, a shared analysis notebook, CI that checks results." },
   { scope: "design", grants: "POST /api/design, run submission, cancellation, annotations. Implies read.", forUse: "Anything that consumes compute." },
 ];
 
@@ -431,7 +430,7 @@ function ApiDocsPage() {
               <FeatureCard
                 icon={<Sparkles className="h-4 w-4" />}
                 title="One call for the whole pipeline"
-                desc="POST /api/design resolves a project, a scoring profile and every default — then queues, or blocks with wait=."
+                desc="POST /api/design resolves a scoring profile and every default — then queues, or blocks with wait=."
               />
               <FeatureCard
                 icon={<ShieldCheck className="h-4 w-4" />}
@@ -724,7 +723,7 @@ function ApiDocsPage() {
             id="rest-api"
             kicker="Reference"
             title="Every client wraps the same five calls"
-            desc="The REST API is the product; the packages are thin, idiomatic sugar over these. Anyone needing more of the platform — projects, datasets, annotations — talks to the full 32-endpoint API directly."
+            desc="The REST API is the product; the packages are thin, idiomatic sugar over these. Anyone needing more of the platform — datasets, annotations, API keys — talks to the full 34-endpoint API directly."
           >
             <div className="overflow-hidden rounded-xl border border-border">
               <table className="w-full text-left text-sm">

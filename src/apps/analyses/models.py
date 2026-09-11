@@ -52,12 +52,13 @@ ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
 class AnalysisRun(UUIDModel, TimestampedModel):
     """One submitted analysis.
 
-    **Immutable once submitted.** ``params_snapshot`` is frozen at submission, so
-    editing the project afterwards affects future runs only (rule 7). Status changes
-    happen only in ``apps/analyses/services.py`` (rule 5).
+    **Immutable once submitted.** ``params_snapshot`` is frozen at submission, so it
+    cannot be changed after the fact (rule 7). Status changes happen only in
+    ``apps/analyses/services.py`` (rule 5). Runs are not organized into projects — each
+    stands on its own, scoped only to the user who submitted it (``created_by``).
     """
 
-    project = models.ForeignKey("projects.Project", on_delete=models.PROTECT, related_name="runs")
+    organism = models.CharField(max_length=100, blank=True, help_text="e.g. E. coli")
 
     input_mode = models.CharField(max_length=10, choices=InputMode, default=InputMode.DE)
     dataset = models.ForeignKey(
@@ -117,7 +118,7 @@ class AnalysisRun(UUIDModel, TimestampedModel):
     class Meta:
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["project", "-created_at"]),
+            models.Index(fields=["created_by", "-created_at"]),
             models.Index(fields=["status"]),
         ]
         constraints = [

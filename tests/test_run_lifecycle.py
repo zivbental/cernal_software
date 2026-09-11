@@ -9,7 +9,7 @@ import pytest
 
 from apps.analyses import services
 from apps.analyses.models import AnalysisRun, RunStatus
-from apps.analyses.services import InvalidTransition, cancel_run, execute_run, submit_run
+from apps.analyses.services import InvalidTransition, cancel_run, execute_run
 from apps.analyses.tasks import run_analysis
 
 # --- Happy path -------------------------------------------------------------------
@@ -214,12 +214,3 @@ def test_an_illegal_transition_is_refused(run):
     run.status = RunStatus.COMPLETED
     with pytest.raises(InvalidTransition):
         services._transition(run, RunStatus.RUNNING)
-
-
-def test_submit_run_refuses_a_dataset_from_another_project(project, dataset, user):
-    from apps.analyses.services import RunError
-    from apps.projects.models import Project
-
-    other = Project.objects.create(owner=user, name="Elsewhere", organism="E. coli")
-    with pytest.raises(RunError, match="different project"):
-        submit_run(project=other, dataset=dataset, user=user)

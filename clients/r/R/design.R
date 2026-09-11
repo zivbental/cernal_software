@@ -4,7 +4,7 @@
 #'
 #' Every named argument in `...` is a docs/public-api.md §9 field passed straight
 #' through as the JSON body: `trigger_sequence` / `dataset_id` / `dge_csv` (exactly
-#' one), `organism`, `project`, `gate_families`, `exclude_gate_families`,
+#' one), `organism`, `gate_families`, `exclude_gate_families`,
 #' `constraints` (a `list`), `scoring` (a `list`), `budget` (a `list`), `payload`,
 #' `seed`, `top_n`, `include_rejected`, `include_artifacts`, `idempotency_key`,
 #' `strict`, `notes`. This client does not duplicate the server's validation.

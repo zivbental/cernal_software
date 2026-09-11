@@ -30,7 +30,6 @@ def api_key(transactional_db, settings, tmp_path):
 
     from apps.accounts.services import issue_api_key
     from apps.analyses.models import AnalysisRun, InputMode, RunStatus
-    from apps.projects.models import Project
     from apps.results.services import import_job_result
     from engine.client import MockEngine
     from engine.contract import INPUT_DIRECT, SCHEMA_VERSION, JobRequest
@@ -39,14 +38,11 @@ def api_key(transactional_db, settings, tmp_path):
         username="conformance-python", password="x", is_active=True
     )
     _key, secret = issue_api_key(owner=user, label="conformance")
-    project, _created = Project.objects.get_or_create(
-        owner=user, name="API · conformance", defaults={"organism": "ecoli"}
-    )
 
     run = AnalysisRun.objects.create(
-        project=project,
         input_mode=InputMode.DIRECT,
         trigger_sequence=DESIGN_REQUEST["trigger_sequence"],
+        organism="ecoli",
         created_by=user,
         idempotency_key=DESIGN_REQUEST["idempotency_key"],
         params_snapshot={},

@@ -30,9 +30,6 @@ class Dataset(UUIDModel, CreatedAtModel):
     been analysed can never be deleted out from under its results.
     """
 
-    project = models.ForeignKey(
-        "projects.Project", on_delete=models.CASCADE, related_name="datasets"
-    )
     name = models.CharField(max_length=200)
     file = models.FileField(upload_to=dataset_upload_path)
     checksum_sha256 = models.CharField(
@@ -61,7 +58,7 @@ class Dataset(UUIDModel, CreatedAtModel):
     class Meta:
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["project", "-created_at"]),
+            models.Index(fields=["uploaded_by", "-created_at"]),
             models.Index(fields=["validation_status"]),
         ]
 

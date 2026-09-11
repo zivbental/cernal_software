@@ -12,29 +12,20 @@ from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun, InputMode
 from apps.analyses.services import RunError, cancel_run, submit_run
 from apps.datasets.models import Dataset
-from apps.projects.models import Project
 
 router = Router()
 
 
 @router.get("/runs", response=list[RunOut])
 def list_all_runs(request, limit: int = 20):
-    """Recent runs across every project — what "My Circuits" shows first."""
-    return (
-        owned_queryset(AnalysisRun, request.user)
-        .select_related("project")
-        .order_by("-created_at")[: max(1, min(limit, 100))]
-    )
+    """Recent runs — what "My Circuits" shows first. Each run stands on its own."""
+    return owned_queryset(AnalysisRun, request.user).order_by("-created_at")[
+        : max(1, min(limit, 100))
+    ]
 
 
-@router.get("/projects/{project_id}/runs", response=list[RunOut])
-def list_runs(request, project_id: UUID):
-    get_owned(Project, project_id, request.user)
-    return owned_queryset(AnalysisRun, request.user).filter(project_id=project_id)
-
-
-@router.post("/projects/{project_id}/runs", response={202: RunOut})
-def create_run(request, project_id: UUID, payload: RunIn):
+@router.post("/runs", response={202: RunOut})
+def create_run(request, payload: RunIn):
     """Freeze a submission and queue it.
 
     Returns 202: the work has been accepted, not completed. Poll ``GET /api/runs/{id}``.
@@ -47,7 +38,6 @@ def create_run(request, project_id: UUID, payload: RunIn):
     """
     require_scope(request, ApiKeyScope.DESIGN)
     enforce_concurrency_ceiling(request)
-    project = get_owned(Project, project_id, request.user)
 
     dataset = None
     if payload.input_mode == InputMode.DE:
@@ -57,11 +47,11 @@ def create_run(request, project_id: UUID, payload: RunIn):
 
     try:
         run, _created = submit_run(
-            project=project,
             user=request.user,
             dataset=dataset,
             input_mode=payload.input_mode,
             trigger_sequence=payload.trigger_sequence,
+            organism=payload.organism,
             params=payload.params,
             gate_families=payload.gate_families,
             scoring_profile=payload.scoring_profile,

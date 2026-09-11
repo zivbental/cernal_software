@@ -17,11 +17,11 @@ today; [`architecture.md §3`](architecture.md) is the boundary rule this must n
 
 ## 1. The short answer
 
-**You are not building an API layer. You already have one.** `src/api/` is 32
+**You are not building an API layer. You already have one.** `src/api/` is 34
 django-ninja endpoints with an auto-generated OpenAPI document at `/api/openapi.json`
-and interactive docs at `/api/docs`. The whole scientific workflow — project, dataset,
-submit, poll, candidates, metric decomposition, artifacts, CSV export — is built, tested
-and running against `MockEngine` today.
+and interactive docs at `/api/docs`. The whole scientific workflow — dataset, submit,
+poll, candidates, metric decomposition, artifacts, CSV export — is built, tested and
+running against `MockEngine` today.
 
 What is missing is not the API. It is **five specific things** that stand between that
 API and a scientist at an R prompt:
@@ -29,7 +29,7 @@ API and a scientist at an R prompt:
 | # | Gap | Size |
 |---|---|---|
 | 1 | **No credential a script can hold.** Auth is a session cookie plus CSRF ([ADR 0003](decisions/0003-same-origin-spa-session-auth.md)) | M |
-| 2 | **No fast path.** A design costs 5 round trips and forces the caller to invent a project and a dataset | S |
+| 2 | **No fast path.** A design costs 4 round trips and forces the caller to invent a dataset | S |
 | 3 | **No client packages.** Every user hand-rolls HTTP, JSON and a polling loop | M |
 | 4 | **No budget or concurrency ceiling.** One script can fill a 1-worker queue for hours | S |
 | 5 | **`params` is free-form and silently ignores typos** — the same failure class as [CLAUDE.md §2](../CLAUDE.md) | S |
@@ -44,11 +44,11 @@ built the wrong way. Verdict, per piece:
 | Python client | **Do it.** ~250 lines | Where most users are, and `to_dataframe()` is a real value-add |
 | R client | **Do it.** ~180 lines | R users will not hand-roll `httr2` + polling. Cheap, and high judging value |
 | MATLAB client | **Do it, thinnest possible.** ~150 lines | `webwrite`/`webread` are built in; a `+cernal` package folder is the whole deliverable |
-| Three full SDKs mirroring 32 endpoints | **Overkill. Do not.** | §12 |
+| Three full SDKs mirroring 34 endpoints | **Overkill. Do not.** | §12 |
 | OAuth, GraphQL, gRPC, streaming, a separate public-API service | **Overkill. Do not.** | §12 |
 
 **The lever that makes this a week and not a month:** all three clients wrap the *same
-five HTTP calls*, not 32. The REST API stays the product; the packages are thin,
+five HTTP calls*, not 34. The REST API stays the product; the packages are thin,
 idiomatic sugar over `design · status · results · artifact · capabilities`. Anyone
 needing more drops to REST, which is documented and self-describing.
 
@@ -63,7 +63,7 @@ built and tested; call them.
 
 | You need | It already exists | Where |
 |---|---|---|
-| An HTTP surface with generated OpenAPI | 32 endpoints, `/api/openapi.json`, `/api/docs` | [`src/api/`](../src/api/), [`docs/api.md`](api.md) |
+| An HTTP surface with generated OpenAPI | 34 endpoints, `/api/openapi.json`, `/api/docs` | [`src/api/`](../src/api/), [`docs/api.md`](api.md) |
 | Submit a run, freeze its config, queue it | `submit_run(...) -> (run, created)` | [`apps/analyses/services.py:41`](../src/apps/analyses/services.py#L41) |
 | Idempotent resubmission | `idempotency_key`, unique column, returns the existing run | same |
 | Validate gate families / profiles against the engine | `_validate_against_capabilities` | [`apps/analyses/services.py:128`](../src/apps/analyses/services.py#L128) |
@@ -110,7 +110,7 @@ Three consequences worth stating out loud, because they are the selling points:
 1. **Everything done through the API appears in the web UI**, owned by the same account,
    with the same candidates, artifacts and annotations. There is no second data model and
    no "API results" silo.
-2. **The 32 existing endpoints become the advanced API for free.** §8's "fast path" is
+2. **The 34 existing endpoints become the advanced API for free.** §8's "fast path" is
    one *added* endpoint, not a replacement surface.
 3. **The security review is small**, because the only new attack surface is
    *authentication*. Authorization, error shape, artifact serving and input validation
@@ -119,7 +119,7 @@ Three consequences worth stating out loud, because they are the selling points:
 ```
                     ┌── session cookie + CSRF ──►  the SPA (same origin)
    /api/…  ─────────┤
-   32 endpoints     └── X-API-Key header ───────►  Python · R · MATLAB · curl · Galaxy · Snakemake
+   34 endpoints     └── X-API-Key header ───────►  Python · R · MATLAB · curl · Galaxy · Snakemake
         │
         └──► get_owned(model, id, request.user)   ← unchanged, one code path
 ```
@@ -463,19 +463,16 @@ without reading this document. It is the API-level equivalent of `params_snapsho
 
 Everything the SPA wizard does, in one transaction, using services that already exist:
 
-1. **Resolve the project.** `Project.objects.get_or_create(owner=user, name=f"API · {key.label}")`
-   — safe under the existing `unique_project_name_per_owner` constraint
-   ([`projects/models.py`](../src/apps/projects/models.py)). Overridable with
-   `"project": "<name or uuid>"`.
-2. **Resolve the input.** `trigger_sequence` → `direct`. `dataset_id` → `de`. Inline
+1. **Resolve the input.** `trigger_sequence` → `direct`. `dataset_id` → `de`. Inline
    `dge_csv` → `create_dataset(...)` first, then `de`. Supplying two, or neither, is a
    422 that names the conflict.
-3. **Resolve defaults** from `GET /api/version`, never from a hardcoded list — so a newly
+2. **Resolve defaults** from `GET /api/version`, never from a hardcoded list — so a newly
    available gate family is picked up with no API change.
-4. **Enforce the concurrency ceiling** (§6).
-5. **Call `submit_run(...)`** — the existing service, unchanged. Status transitions stay
-   where [architecture.md §6.2](architecture.md) puts them.
-6. **Return 202**, or block if `wait` is set.
+3. **Enforce the concurrency ceiling** (§6).
+4. **Call `submit_run(...)`** — the existing service, unchanged. Status transitions stay
+   where [architecture.md §6.2](architecture.md) puts them. `organism` is stored
+   directly on the run — there is no project to resolve or create.
+5. **Return 202**, or block if `wait` is set.
 
 ### `wait` — the "fast and dirty" mode
 
@@ -529,7 +526,6 @@ POST /api/design
   "trigger_sequence": "AUGGCU…",       // → input_mode "direct"
   "dataset_id":       "…",             // → input_mode "de"
   "dge_csv":          "gene_id,log2fc,p_adj\n…",   // inline, ≤ MAX_DATASET_MB
-  "project":          "my-study",      // name or uuid; created if absent
 
   // ─── biology ────────────────────────────────────────────────────────────
   "organism": "ecoli",                 // domain.Host
@@ -602,8 +598,8 @@ documents everywhere else — a scientist who writes `max_trigger` instead of
 `max_triggers` silently gets the default 2 and never learns.
 
 > **`strict` defaults to `true` on `POST /api/design`, and stays `false` on the existing
-> `POST /api/projects/{id}/runs`.** New surface, safe default; old surface, unchanged
-> behaviour and no SPA regression.
+> `POST /api/runs`.** New surface, safe default; old surface, unchanged behaviour and no
+> SPA regression.
 
 ```jsonc
 // 422
@@ -716,7 +712,7 @@ breaking someone's R script mid-season.
 ## 11. The three clients
 
 **The design rule that keeps this from being overkill:** every client wraps the same five
-calls and is a thin, idiomatic layer — not a generated mirror of 32 endpoints. Anyone
+calls and is a thin, idiomatic layer — not a generated mirror of 34 endpoints. Anyone
 needing more uses REST directly against a documented, self-describing API.
 
 Each client does exactly six things: hold a key, POST a design, poll with backoff,
@@ -882,7 +878,7 @@ the wrong things.
 
 | Do not build | Because |
 |---|---|
-| **Three SDKs mirroring all 32 endpoints** | ~2 000 lines to maintain in three languages for endpoints nobody calls from a script. Five functions each covers >95 % of use |
+| **Three SDKs mirroring all 34 endpoints** | ~2 000 lines to maintain in three languages for endpoints nobody calls from a script. Five functions each covers >95 % of use |
 | **Generated clients (`openapi-generator`)** | The Python output is large and unidiomatic; the R and MATLAB generators are weak or absent. Generation wins at 200 endpoints, not at 5. Publish the OpenAPI doc so *others* can generate — that is the integration story, and it is free |
 | **OAuth 2 / JWT** | Nothing needs delegated access. Refresh-token handling would be the single largest piece of R and MATLAB client code, for zero gain |
 | **GraphQL or gRPC** | The result shape is fixed and small; there is no over-fetching problem to solve, and neither has a usable MATLAB story |

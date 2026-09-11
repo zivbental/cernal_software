@@ -66,7 +66,7 @@ def list_candidates(
 
 @router.get("/candidates/{candidate_id}", response=CandidateDetailOut)
 def get_candidate(request, candidate_id: UUID):
-    return get_owned(Candidate, candidate_id, request.user, select_related=("run", "run__project"))
+    return get_owned(Candidate, candidate_id, request.user, select_related=("run",))
 
 
 @router.get("/runs/{run_id}/artifacts", response=list[ArtifactOut])

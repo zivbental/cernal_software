@@ -1,6 +1,6 @@
 # HTTP API reference
 
-The only HTTP surface in the system — **39 endpoints**. Built with
+The only HTTP surface in the system — **34 endpoints**. Built with
 [django-ninja](https://django-ninja.dev) (ADR 0004); the machine-readable schema is
 generated at **`/api/openapi.json`** and the interactive docs at **`/api/docs`**.
 
@@ -23,7 +23,7 @@ fields.** A breaking change means a new `api_schema_version` and a `/api/v2/` mo
 
 **Two credentials, one API (ADR 0006).** The SPA authenticates with a session cookie,
 same as always; everything else — a script, `curl`, Snakemake, Nextflow — authenticates
-with an `X-API-Key` header. Both reach the same 39 endpoints with the same ownership
+with an `X-API-Key` header. Both reach the same 34 endpoints with the same ownership
 rules; there is no separate "public API" surface and no second data model. `auth=` tries
 the header first (cheaper, no CSRF path), then the session cookie.
 
@@ -137,7 +137,7 @@ Both return **429**, with `Retry-After`.
 Also usable wherever a session works, except the four endpoints above:
 
 ```bash
-curl https://your-cernal-host/api/projects \
+curl https://your-cernal-host/api/runs \
   -H "X-API-Key: cern_live_7Kd2mQ8vF3xR9wLbN4pT6yH1sJ0aZcVe"
 ```
 
@@ -148,7 +148,7 @@ curl https://your-cernal-host/api/projects \
 Every failure has one shape:
 
 ```json
-{"error": {"code": "not_found", "message": "No project with that id.", "detail": {}}}
+{"error": {"code": "not_found", "message": "No run with that id.", "detail": {}}}
 ```
 
 | Status | `code` | When |
@@ -175,24 +175,17 @@ settings.
 
 ---
 
-## Projects
-
-| Endpoint | Notes |
-|---|---|
-| `GET /api/projects` | Yours only; includes `dataset_count`, `run_count` |
-| `POST /api/projects` | 201. 409 if you already have that name |
-| `GET /api/projects/{id}` | |
-| `PATCH /api/projects/{id}` | Only the fields you send |
-| `DELETE /api/projects/{id}` | 204. **409** if the project has runs |
-
 ## Datasets
 
+Datasets are not organized into projects — each one is owned by the user who uploaded
+it, and any of your datasets can be used for any run.
+
 | Endpoint | Notes |
 |---|---|
-| `GET /api/projects/{id}/datasets` | |
-| `POST /api/projects/{id}/datasets` | `multipart/form-data`, field `file`. 201 |
+| `GET /api/datasets` | Yours only |
+| `POST /api/datasets` | `multipart/form-data`, field `file`. 201 |
 | `GET /api/example-datasets` | The bundled examples, so the wizard is usable with no data of your own |
-| `POST /api/projects/{id}/datasets/example` | Copy one of them into the project. 201 |
+| `POST /api/datasets/example` | Copy one of them into a dataset you own. 201 |
 | `GET /api/datasets/{id}` | |
 | `DELETE /api/datasets/{id}` | 204. **409** if any run used it |
 
@@ -215,11 +208,12 @@ row count, parseable numerics. Scientific validation belongs to the engine.
 
 ## Runs
 
+Each run stands on its own — there is no project to organize it under.
+
 | Endpoint | Notes |
 |---|---|
 | `GET /api/runs` | Every run you own, newest first |
-| `GET /api/projects/{id}/runs` | |
-| `POST /api/projects/{id}/runs` | **202 Accepted** |
+| `POST /api/runs` | **202 Accepted** |
 | `GET /api/runs/{id}` | **The polling endpoint** |
 | `GET /api/runs/{id}/detail` | Full record incl. the immutable snapshot |
 | `POST /api/runs/{id}/cancel` | |
@@ -230,6 +224,7 @@ row count, parseable numerics. Scientific validation belongs to the engine.
 {
   "input_mode": "de",
   "dataset_id": "…",
+  "organism": "E. coli",
   "gate_families": ["toehold"],
   "scoring_profile": "default",
   "seed": 42,
@@ -245,7 +240,7 @@ row count, parseable numerics. Scientific validation belongs to the engine.
 
 | `input_mode` | Send | Must not send |
 |---|---|---|
-| `de` | `dataset_id` — a `VALID` dataset in this project | `trigger_sequence` |
+| `de` | `dataset_id` — a `VALID` dataset you own | `trigger_sequence` |
 | `direct` | `trigger_sequence` — the mRNA, pasted | `dataset_id` |
 
 A mismatch returns **422**. The rule is also a database constraint, so it cannot be
@@ -263,8 +258,8 @@ add a field without an engine release. Its v1 shape is in
 rather than launching a second computation. Generate one key per user-initiated
 submission and reuse it across network retries.
 
-The configuration is snapshotted at submission. Editing the project afterwards affects
-future runs only.
+The configuration is snapshotted at submission — a run's `params_snapshot` never changes
+after the fact.
 
 ### Polling
 
@@ -301,9 +296,9 @@ or `already_terminal`.
 ## Design — the one-call fast path
 
 The five calls above, collapsed into one for a script: `POST /api/design` resolves the
-project (creating one if you don't name one), the dataset (inline `dge_csv` creates one),
-the gate families and the scoring profile, then submits through the same `submit_run` the
-wizard uses — no new science, no new status transitions.
+dataset (inline `dge_csv` creates one), the gate families and the scoring profile, then
+submits through the same `submit_run` the wizard uses — no new science, no new status
+transitions.
 
 | Endpoint | Notes |
 |---|---|
@@ -336,7 +331,7 @@ dataset's row count, since gene selection (stage 1) doesn't compute the real one
 
 **Exactly one input**: `trigger_sequence`, `dataset_id`, or inline `dge_csv` — two or
 none is 422 naming the conflict. **`strict` defaults to `true`** here (unlike
-`POST /api/projects/{id}/runs`, where `params` stays intentionally free-form): an unknown
+`POST /api/runs`, where `params` stays intentionally free-form): an unknown
 key anywhere in `constraints`, `scoring`, `budget` or `payload` is 422 with
 `did_you_mean`, instead of the silent "unrecognised field, quietly ignored" failure the
 free-form endpoint accepts on purpose.
@@ -477,17 +472,16 @@ The full workflow, verified against a live server and worker:
 1. `GET  /api/auth/csrf` → cookie
 2. `POST /api/auth/login`
 3. `GET  /api/version` → available gate families
-4. `POST /api/projects`
-5. `POST /api/projects/{id}/datasets` (multipart) → `VALID`
-6. `POST /api/projects/{id}/runs` → **202**, `QUEUED`
-7. `GET  /api/runs/{id}` every 3s → `RUNNING 30% Discovering candidate features` → … → `COMPLETED 100%`
-8. `GET  /api/runs/{id}/candidates` → ranked, best first
-9. `GET  /api/candidates/{id}` → metric decomposition
-10. `GET  /api/artifacts/{id}/download` → the FASTA
-11. `POST /api/candidates/{id}/annotations`
-12. `GET  /api/runs/{id}/export.csv`
+4. `POST /api/datasets` (multipart) → `VALID`
+5. `POST /api/runs` → **202**, `QUEUED`
+6. `GET  /api/runs/{id}` every 3s → `RUNNING 30% Discovering candidate features` → … → `COMPLETED 100%`
+7. `GET  /api/runs/{id}/candidates` → ranked, best first
+8. `GET  /api/candidates/{id}` → metric decomposition
+9. `GET  /api/artifacts/{id}/download` → the FASTA
+10. `POST /api/candidates/{id}/annotations`
+11. `GET  /api/runs/{id}/export.csv`
 
-Steps 3–10 collapse into one `POST /api/design` call from a script — see
+Steps 3–9 collapse into one `POST /api/design` call from a script — see
 [Design — the one-call fast path](#design--the-one-call-fast-path) above.
 
 ---
