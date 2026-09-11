@@ -14,6 +14,7 @@ from apps.accounts.services import (
     RegistrationError,
     authenticate_api_key,
     issue_api_key,
+    regenerate_api_key,
     revoke_api_key,
 )
 
@@ -95,3 +96,56 @@ def test_read_scope_does_not_imply_design(user):
 
     assert key.has_scope(ApiKeyScope.READ)
     assert not key.has_scope(ApiKeyScope.DESIGN)
+
+
+# --- Regeneration ("reset" in the web UI) -------------------------------------------
+
+
+def test_regenerating_returns_a_new_secret(user):
+    key, old_secret = issue_api_key(owner=user, label="laptop")
+
+    _key, new_secret = regenerate_api_key(key)
+
+    assert new_secret != old_secret
+    assert new_secret.startswith("cern_live_")
+
+
+def test_regenerating_invalidates_the_old_secret_immediately(user):
+    key, old_secret = issue_api_key(owner=user, label="laptop")
+    assert authenticate_api_key(old_secret) is not None
+
+    regenerate_api_key(key)
+
+    assert authenticate_api_key(old_secret) is None
+
+
+def test_regenerating_makes_the_new_secret_work(user):
+    key, _old_secret = issue_api_key(owner=user, label="laptop")
+
+    _key, new_secret = regenerate_api_key(key)
+
+    resolved = authenticate_api_key(new_secret)
+    assert resolved is not None
+    assert resolved.id == key.id
+
+
+def test_regenerating_keeps_identity_label_and_scopes(user):
+    key, _secret = issue_api_key(owner=user, label="laptop", scopes=(ApiKeyScope.READ,))
+    original_id = key.id
+
+    key, _new_secret = regenerate_api_key(key)
+
+    assert key.id == original_id
+    assert key.label == "laptop"
+    assert key.scopes == [ApiKeyScope.READ]
+
+
+def test_regenerating_a_revoked_key_reactivates_it(user):
+    key, _secret = issue_api_key(owner=user, label="laptop")
+    revoke_api_key(key)
+    assert key.revoked_at is not None
+
+    key, new_secret = regenerate_api_key(key)
+
+    assert key.revoked_at is None
+    assert authenticate_api_key(new_secret) is not None

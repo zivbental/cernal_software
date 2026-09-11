@@ -175,3 +175,22 @@ def revoke_api_key(key: ApiKey) -> bool:
     key.save(update_fields=["revoked_at"])
     logger.info("API key %s (%s) revoked", key.id, key.prefix)
     return True
+
+
+def regenerate_api_key(key: ApiKey) -> tuple[ApiKey, str]:
+    """Issue a fresh secret for an existing key, keeping its identity — label, scopes,
+    quotas, `id` all unchanged. Returns ``(key, secret)``, the same as
+    :func:`issue_api_key`: the secret exists only in this return value.
+
+    The old secret stops authenticating the instant this returns — there is no overlap
+    window, and a previously revoked key becomes active again (regenerating is the "I
+    lost/leaked this, give me a working one back" action, not a second credential
+    alongside the old one).
+    """
+    secret = f"{_KEY_PREFIX}{secrets.token_urlsafe(24)}"
+    key.prefix = secret[:14]
+    key.key_hash = hashlib.sha256(secret.encode()).hexdigest()
+    key.revoked_at = None
+    key.save(update_fields=["prefix", "key_hash", "revoked_at", "updated_at"])
+    logger.info("API key '%s' (%s) regenerated for %s", key.label, key.prefix, key.owner.username)
+    return key, secret

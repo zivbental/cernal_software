@@ -166,3 +166,45 @@ def test_whoami_requires_a_key_not_a_session(auth_client):
     """A session has no request.api_key, so whoami — which is about confirming a key —
     correctly refuses it rather than describing a key that was never presented."""
     assert auth_client.get("/api/auth/whoami").status_code == 401
+
+
+# --- Regenerate ("reset" in the web UI) ---------------------------------------------
+
+
+def test_regenerate_returns_a_new_secret(auth_client, user):
+    key, old_secret = issue_api_key(owner=user, label="laptop")
+
+    response = auth_client.post(f"/api/auth/keys/{key.id}/regenerate")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["secret"] != old_secret
+    assert body["secret"].startswith("cern_live_")
+    assert body["id"] == str(key.id)
+    assert body["label"] == "laptop"
+
+
+def test_regenerate_invalidates_the_old_secret(client, auth_client, user):
+    key, old_secret = issue_api_key(owner=user, label="laptop")
+    assert client.get("/api/auth/whoami", HTTP_X_API_KEY=old_secret).status_code == 200
+
+    auth_client.post(f"/api/auth/keys/{key.id}/regenerate")
+
+    assert client.get("/api/auth/whoami", HTTP_X_API_KEY=old_secret).status_code == 401
+
+
+def test_regenerate_someone_elses_key_is_404_not_403(auth_client, other_user):
+    key, _secret = issue_api_key(owner=other_user, label="not-yours")
+
+    response = auth_client.post(f"/api/auth/keys/{key.id}/regenerate")
+
+    assert response.status_code == 404
+
+
+def test_a_key_cannot_regenerate_a_key(client, user):
+    """Session-only, same as mint/list/revoke (ADR 0006)."""
+    key, secret = issue_api_key(owner=user, label="laptop")
+
+    response = client.post(f"/api/auth/keys/{key.id}/regenerate", HTTP_X_API_KEY=secret)
+
+    assert response.status_code == 401

@@ -27,7 +27,13 @@ from api.schemas import (
 )
 from api.security import ApiKeyAuth
 from apps.accounts.models import ApiKey
-from apps.accounts.services import RegistrationError, issue_api_key, register_user, revoke_api_key
+from apps.accounts.services import (
+    RegistrationError,
+    issue_api_key,
+    regenerate_api_key,
+    register_user,
+    revoke_api_key,
+)
 
 router = Router()
 
@@ -143,6 +149,24 @@ def list_keys(request):
     return owned_queryset(ApiKey, request.user).order_by("-created_at")
 
 
+def _key_with_secret(key: ApiKey, secret: str) -> dict:
+    """The one response shape that ever carries a secret — used by both minting and
+    regenerating, so there is exactly one place that has to remember every field."""
+    return {
+        "id": key.id,
+        "label": key.label,
+        "prefix": key.prefix,
+        "scopes": key.scopes,
+        "max_concurrent_runs": key.max_concurrent_runs,
+        "rate_per_minute": key.rate_per_minute,
+        "expires_at": key.expires_at,
+        "revoked_at": key.revoked_at,
+        "last_used_at": key.last_used_at,
+        "created_at": key.created_at,
+        "secret": secret,
+    }
+
+
 @router.post("/keys", response={201: ApiKeyCreatedOut}, auth=django_auth)
 def create_key(request, payload: ApiKeyCreateIn):
     """Mint a key. The only response that ever carries the secret."""
@@ -156,22 +180,7 @@ def create_key(request, payload: ApiKeyCreateIn):
     except RegistrationError as exc:
         raise ValidationFailed(str(exc)) from None
 
-    return Status(
-        201,
-        {
-            "id": key.id,
-            "label": key.label,
-            "prefix": key.prefix,
-            "scopes": key.scopes,
-            "max_concurrent_runs": key.max_concurrent_runs,
-            "rate_per_minute": key.rate_per_minute,
-            "expires_at": key.expires_at,
-            "revoked_at": key.revoked_at,
-            "last_used_at": key.last_used_at,
-            "created_at": key.created_at,
-            "secret": secret,
-        },
-    )
+    return Status(201, _key_with_secret(key, secret))
 
 
 @router.delete("/keys/{key_id}", response={204: None}, auth=django_auth)
@@ -180,6 +189,16 @@ def delete_key(request, key_id: UUID):
     key = get_owned(ApiKey, key_id, request.user)
     revoke_api_key(key)
     return Status(204, None)
+
+
+@router.post("/keys/{key_id}/regenerate", response=ApiKeyCreatedOut, auth=django_auth)
+def regenerate_key(request, key_id: UUID):
+    """Reissue a fresh secret for this key, keeping its label/scopes/quotas — 'reset'
+    in the web UI. The previous secret stops working the instant this returns, and a
+    previously revoked key becomes active again."""
+    key = get_owned(ApiKey, key_id, request.user)
+    _key, secret = regenerate_api_key(key)
+    return _key_with_secret(key, secret)
 
 
 @router.get("/whoami", response=WhoAmIOut, auth=ApiKeyAuth())
