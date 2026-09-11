@@ -149,3 +149,35 @@ def test_session_auth_is_not_rate_limited_by_this_mechanism(auth_client):
     cache.clear()
     for _ in range(3):
         assert auth_client.get("/api/auth/me").status_code == 200
+
+
+# --- Destructive operations stay session-only, regardless of scope (§13) -----------
+
+
+def test_a_design_scoped_key_cannot_delete_a_project(client, user, project):
+    """docs/public-api.md §13: 'Key auth cannot mint keys, cannot delete projects or
+    datasets, cannot change a password. Those stay session-only.' Even a full-scope
+    key must not reach this — a leaked key must not become a deletion tool."""
+    _key, secret = issue_api_key(owner=user, label="full-scope", scopes=("read", "design"))
+
+    response = client.delete(f"/api/projects/{project.id}", HTTP_X_API_KEY=secret)
+
+    assert response.status_code == 401
+
+
+def test_a_design_scoped_key_cannot_delete_a_dataset(client, user, dataset):
+    _key, secret = issue_api_key(owner=user, label="full-scope", scopes=("read", "design"))
+
+    response = client.delete(f"/api/datasets/{dataset.id}", HTTP_X_API_KEY=secret)
+
+    assert response.status_code == 401
+
+
+def test_session_auth_can_still_delete_a_project(auth_client, project):
+    response = auth_client.delete(f"/api/projects/{project.id}")
+    assert response.status_code == 204
+
+
+def test_session_auth_can_still_delete_a_dataset(auth_client, dataset):
+    response = auth_client.delete(f"/api/datasets/{dataset.id}")
+    assert response.status_code == 204
