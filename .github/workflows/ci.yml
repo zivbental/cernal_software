@@ -58,6 +58,25 @@ jobs:
       - run: uv run python manage.py check
       - run: uv run pytest -q
 
+  # Python client conformance (docs/public-api.md §11.4): submits
+  # clients/fixtures/design_request.json against a real, running MockEngine server
+  # (pytest-django's live_server) through the published cernal package's own HTTP code
+  # path, and checks the result columns against clients/fixtures/expected_columns.json.
+  # `--with` installs the client and its one runtime dependency (requests) into an
+  # ephemeral overlay — the main project never depends on requests.
+  client-python:
+    name: client-python (conformance)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --locked --extra dev
+      - run: >
+          uv run --with requests --with 'cernal @ ./clients/python'
+          pytest clients/python/tests -c clients/python/tests/pytest.ini -q
+
   # Frontend: type-check, lint, the server-render regression test, and a real build.
   # `npm run check` is "tsc --noEmit && eslint . && node e2e/render-logic.mjs" — the last
   # step renders the results views headlessly via esbuild + react-dom/server, so no
