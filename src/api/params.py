@@ -29,6 +29,7 @@ CONSTRAINT_KEYS = {
 SCORING_KEYS = {"base", "weights", "hard_filters", "tie_breakers"}
 BUDGET_KEYS = {"max_designs", "max_runtime_seconds", "on_exceed"}
 PAYLOAD_KEYS = {"outputs", "custom_sequence"}
+BACKBONE_KEYS = {"catalog_key", "custom_genbank"}
 
 
 class UnknownParameter(ApiError):
@@ -87,3 +88,28 @@ def check_scoring_block(scoring: dict, capabilities) -> None:
         total = sum(weights.get(metric.name, metric.weight) for metric in capabilities.metrics)
         if total <= 0:
             raise ValidationFailed("'scoring.weights' leaves the total weight non-positive.")
+
+
+def check_backbone_block(backbone: dict, capabilities) -> None:
+    """Exactly one of ``catalog_key`` / ``custom_genbank``, and ``catalog_key`` must be
+    one the engine actually advertises — the submission-time version of the check
+    ``engine.pipeline._resolve_backbone`` would otherwise only run once the run is
+    already executing (CLAUDE.md §2, docs/plasmids.md Q13).
+
+    ``custom_genbank`` is not validated here beyond presence — parsing it is real work
+    (:func:`engine.stages.plasmids.parse_custom_backbone`) that stays engine-side, the
+    same boundary ``_resolve_scoring`` already draws for ``ScoringProfile`` construction.
+    """
+    catalog_key = backbone.get("catalog_key")
+    custom_genbank = backbone.get("custom_genbank")
+    if catalog_key and custom_genbank:
+        raise ValidationFailed(
+            "Provide at most one of 'backbone.catalog_key' or 'backbone.custom_genbank', not both."
+        )
+    if catalog_key:
+        known = {b.key for b in capabilities.available_backbones}
+        if catalog_key not in known:
+            raise ValidationFailed(
+                f"Unknown backbone 'catalog_key' {catalog_key!r}.",
+                detail={"allowed": sorted(known)},
+            )

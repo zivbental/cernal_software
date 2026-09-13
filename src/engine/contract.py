@@ -97,6 +97,21 @@ class MetricInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class BackboneInfo:
+    """One selectable plasmid backbone vector, as the engine describes itself
+    (docs/plasmids.md Q13, docs/ROADMAP.md E5b).
+
+    Advertised for the same reason ``GateFamilyInfo`` is: so the API can reject an
+    unknown ``catalog_key`` at submit time, and so the wizard renders real names
+    without the catalog being hardcoded a second time in the frontend.
+    """
+
+    key: str
+    name: str
+    length_bp: int
+
+
+@dataclass(frozen=True, slots=True)
 class EngineCapabilities:
     """What this engine build can do.
 
@@ -116,6 +131,9 @@ class EngineCapabilities:
     #: Disqualifying thresholds, as plain dicts (metric, minimum, maximum, reason) —
     #: mirroring ``engine.scoring.profiles.HardFilter`` without exposing the class itself.
     hard_filters: list[dict] = field(default_factory=list)
+    #: Real backbone vectors this build can assemble a plasmid onto. Additive, same
+    #: convention as ``metrics`` — existing callers and stored results are unaffected.
+    available_backbones: list[BackboneInfo] = field(default_factory=list)
 
     @property
     def available_families(self) -> list[str]:

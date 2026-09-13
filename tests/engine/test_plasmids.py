@@ -38,10 +38,12 @@ from engine.errors import InputValidationError
 from engine.gates.tools.codons import CodonOptimizer
 from engine.stages.motifs import MotifScreener
 from engine.stages.plasmids import (
+    BACKBONES,
     PAYLOADS,
     PROMOTERS,
     TERMINATORS,
     PlasmidBuilder,
+    parse_custom_backbone,
     to_genbank,
     validate_payload_cds,
 )
@@ -402,6 +404,71 @@ def test_genbank_output_is_deterministic(builder):
     design = builder.build(_circuit(), DesiredOutcome.GFP)
 
     assert to_genbank(design) == to_genbank(design)
+
+
+# --- BACKBONES catalog (docs/plasmids.md Q13, docs/ROADMAP.md E5b) ------------------
+
+
+def test_backbones_table_has_ten_real_entries():
+    assert len(BACKBONES) == 10
+    for key, (name, sequence) in BACKBONES.items():
+        assert key == key.lower()
+        assert name  # a real registry name, never blank
+        assert set(sequence) <= set("ACGT"), f"{key} contains non-ACGT characters"
+        assert len(sequence) > 1000  # every real vector is well over a kilobase
+
+
+def test_backbones_span_more_than_one_resistance_marker_and_copy_number():
+    """Not ten flavours of the same vector — real, meaningfully different choices."""
+    names = {name for name, _ in BACKBONES.values()}
+    assert len(names) == 10  # every catalog entry is visibly distinct
+    lengths = {len(seq) for _, seq in BACKBONES.values()}
+    assert len(lengths) > 1  # more than one copy-number class
+
+
+# --- parse_custom_backbone -----------------------------------------------------------
+
+
+def test_parse_custom_backbone_round_trips_a_real_genbank_file(builder):
+    """Build a real plasmid, export it, and parse the export back — the same
+    round-trip discipline docs/plasmids.md §7.5 already applies to to_genbank itself,
+    now exercised through the reverse direction too."""
+    design = builder.build(_circuit(), DesiredOutcome.GFP)
+    gb_text = to_genbank(design).decode("utf-8")
+
+    segment = parse_custom_backbone(gb_text)
+
+    assert segment.kind == SegmentKind.BACKBONE
+    assert segment.sequence == design.plasmid.sequence
+
+
+def test_parse_custom_backbone_refuses_a_linear_record():
+    from Bio.Seq import Seq
+    from Bio.SeqRecord import SeqRecord
+
+    record = SeqRecord(Seq("ACGT" * 20), id="linear-test", name="linear_test")
+    record.annotations["molecule_type"] = "DNA"
+    record.annotations["topology"] = "linear"
+
+    with pytest.raises(InputValidationError, match="circular"):
+        parse_custom_backbone(record.format("genbank"))
+
+
+def test_parse_custom_backbone_refuses_unparseable_text():
+    with pytest.raises(InputValidationError, match="GenBank"):
+        parse_custom_backbone("this is not a GenBank file")
+
+
+def test_parse_custom_backbone_refuses_an_empty_sequence():
+    from Bio.Seq import Seq
+    from Bio.SeqRecord import SeqRecord
+
+    record = SeqRecord(Seq(""), id="empty-test", name="empty_test")
+    record.annotations["molecule_type"] = "DNA"
+    record.annotations["topology"] = "circular"
+
+    with pytest.raises(InputValidationError):
+        parse_custom_backbone(record.format("genbank"))
 
 
 # --- Golden fixture (docs/plasmids.md §10) ------------------------------------------

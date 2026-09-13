@@ -7,7 +7,14 @@ from ninja import Router, Status
 
 from api.auth import get_owned, owned_queryset
 from api.errors import ValidationFailed
-from api.params import CONSTRAINT_KEYS, SCORING_KEYS, check_known_keys, check_scoring_block
+from api.params import (
+    BACKBONE_KEYS,
+    CONSTRAINT_KEYS,
+    SCORING_KEYS,
+    check_backbone_block,
+    check_known_keys,
+    check_scoring_block,
+)
 from api.schemas import CancelOut, RunCounts, RunIn, RunOut, RunStatusOut
 from api.security import enforce_concurrency_ceiling, require_scope
 from apps.accounts.models import ApiKeyScope
@@ -40,11 +47,12 @@ def create_run(request, payload: RunIn):
     reach either. The per-key concurrency ceiling applies here too, for the same reason.
 
     ``params`` is otherwise free-form (docs/api.md §7) — the wizard can add a new
-    top-level key without an API release — but ``params.constraints`` and
-    ``params.scoring`` are typed projections of ``engine.domain.Constraints`` and a
-    scoring profile (the same key sets ``POST /api/design`` validates, docs/api.md §9),
-    so a typo there is rejected here rather than surfacing as an async FAILED run once
-    ``engine.pipeline._build_constraints`` rejects it in the worker (CLAUDE.md §2).
+    top-level key without an API release — but ``params.constraints``,
+    ``params.scoring`` and ``params.backbone`` are typed projections of
+    ``engine.domain.Constraints``, a scoring profile, and a plasmid backbone (the same
+    key sets ``POST /api/design`` validates for the first two, docs/api.md §9), so a
+    typo there is rejected here rather than surfacing as an async FAILED run once the
+    engine rejects it in the worker (CLAUDE.md §2).
     """
     require_scope(request, ApiKeyScope.DESIGN)
     enforce_concurrency_ceiling(request)
@@ -57,9 +65,13 @@ def create_run(request, payload: RunIn):
 
     constraints = payload.params.get("constraints") or {}
     scoring = payload.params.get("scoring") or {}
+    backbone = payload.params.get("backbone") or {}
     check_known_keys(constraints, CONSTRAINT_KEYS, "constraint")
     check_known_keys(scoring, SCORING_KEYS, "scoring field")
-    check_scoring_block(scoring, load_engine(settings.CERNAL_ENGINE).capabilities())
+    check_known_keys(backbone, BACKBONE_KEYS, "backbone field")
+    capabilities = load_engine(settings.CERNAL_ENGINE).capabilities()
+    check_scoring_block(scoring, capabilities)
+    check_backbone_block(backbone, capabilities)
 
     try:
         run, _created = submit_run(

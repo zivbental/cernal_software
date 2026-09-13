@@ -38,9 +38,9 @@ so that convention is the only rule there is.
 | | Count |
 | --- | ---: |
 | Modules | 35 |
-| Public classes | 85 |
-| Public callables (excluding `__init__`) | 163 |
-| — `BUILT` | 129 |
+| Public classes | 86 |
+| Public callables (excluding `__init__`) | 164 |
+| — `BUILT` | 130 |
 | — `STUB` | 27 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
@@ -76,7 +76,7 @@ layers above it, never the ones below.
 | stages | `engine.stages.genes` |  | 0 | 1 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
 | stages | `engine.stages.off_target` | S5 | 0 | 4 | S5 — off-target scanning, in both directions. |
-| stages | `engine.stages.plasmids` |  | 4 | 0 | Stage 5 — plasmid construction. |
+| stages | `engine.stages.plasmids` |  | 5 | 0 | Stage 5 — plasmid construction. |
 | stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
 | stages | `engine.stages.switches` |  | 3 | 0 | Stage 3 — switch design and validation. |
@@ -1232,10 +1232,12 @@ Stage 5 — plasmid construction.
 | `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC')}` |
 | `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
+| `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def validate_payload_cds(name: str, sequence: str) -> str` | Validate a payload coding sequence and return it as uppercase DNA. |
+| `BUILT` | `def parse_custom_backbone(genbank_text: str) -> Segment` | Parse a researcher-supplied backbone from raw GenBank text (docs/plasmids.md Q13, docs/ROADMAP.md E5b) — the second and last function in this module that touches Biopython (ADR 0007), confined here for the same reason ``to_genbank`` is: a… |
 | `BUILT` | `def to_genbank(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an annotated circular GenBank file. |
 
 #### `class PlasmidBuilder`
@@ -1477,6 +1479,18 @@ One metric in a scoring profile, as the engine describes it.
 | `unit` | `str` | `''` |
 | `description` | `str` | `''` |
 
+#### `class BackboneInfo`
+
+`@dataclass(frozen=True, slots=True)`
+
+One selectable plasmid backbone vector, as the engine describes itself (docs/plasmids.md Q13, docs/ROADMAP.md E5b).
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `key` | `str` |  |
+| `name` | `str` |  |
+| `length_bp` | `int` |  |
+
 #### `class EngineCapabilities`
 
 `@dataclass(frozen=True, slots=True)`
@@ -1491,6 +1505,7 @@ What this engine build can do.
 | `scoring_profiles` | `list[str]` |  |
 | `metrics` | `list[MetricInfo]` | `field(default_factory=list)` |
 | `hard_filters` | `list[dict]` | `field(default_factory=list)` |
+| `available_backbones` | `list[BackboneInfo]` | `field(default_factory=list)` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |

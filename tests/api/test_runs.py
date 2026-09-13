@@ -161,6 +161,50 @@ def test_a_valid_scoring_override_is_accepted_and_stored(
     assert run.params_snapshot["scoring"] == scoring
 
 
+def test_an_unknown_backbone_key_is_rejected_at_submission(auth_client, dataset):
+    response = _submit(auth_client, dataset_id=dataset.id, params={"backbone": {"typo": 1}})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "unknown_parameter"
+
+
+def test_an_unknown_backbone_catalog_key_is_rejected_at_submission(auth_client, dataset):
+    response = _submit(
+        auth_client,
+        dataset_id=dataset.id,
+        params={"backbone": {"catalog_key": "not-a-real-backbone"}},
+    )
+
+    assert response.status_code == 422
+    body = response.json()["error"]
+    assert "not-a-real-backbone" in body["message"]
+    assert "psb1a3" in body["detail"]["allowed"]
+
+
+def test_providing_both_backbone_keys_is_rejected_at_submission(auth_client, dataset):
+    response = _submit(
+        auth_client,
+        dataset_id=dataset.id,
+        params={"backbone": {"catalog_key": "psb1a3", "custom_genbank": "x"}},
+    )
+
+    assert response.status_code == 422
+    assert "both" in response.json()["error"]["message"].lower()
+
+
+def test_a_valid_backbone_catalog_key_is_accepted_and_stored(
+    auth_client, dataset, django_capture_on_commit_callbacks
+):
+    with django_capture_on_commit_callbacks():
+        response = _submit(
+            auth_client, dataset_id=dataset.id, params={"backbone": {"catalog_key": "psb1c3"}}
+        )
+
+    assert response.status_code == 202
+    run = AnalysisRun.objects.get(pk=response.json()["id"])
+    assert run.params_snapshot["backbone"] == {"catalog_key": "psb1c3"}
+
+
 def test_cannot_submit_using_another_users_dataset(other_client, dataset):
     """404, not 403 — 403 would confirm the dataset exists (§7.2)."""
     assert _submit(other_client, dataset_id=dataset.id).status_code == 404

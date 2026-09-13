@@ -181,16 +181,23 @@ use", which is a much easier question to answer.
 > defaults must be somebody's decision rather than a placeholder that quietly becomes
 > permanent.
 >
-> **Q13 — What backbone does the team actually build into?** Origin, selection marker,
-> and whether it differs per host. **A GenBank file of the plasmid the lab already
-> transforms is the ideal answer** — the annotations come with it.
+> **Q13 — What backbone does the team actually build into? Answered, for the `direct`
+> path (E5b).** Ten real BioBrick vectors (`BACKBONES` in `stages/plasmids.py`), fetched
+> and length-verified from the iGEM Registry API, spanning three resistance markers and
+> three copy-number classes — plus `parse_custom_backbone` for a lab's own GenBank file.
+> Each is stored as one opaque `Segment`: the registry exposes full sequences but no
+> feature-level origin/marker coordinates, and guessing those boundaries would be exactly
+> the "almost-right part" CLAUDE.md §1 warns against. Still open: **per-host** defaults —
+> a lab's actual strain/antibiotic choice is theirs, not this table's, so there is no
+> "the" backbone, only a menu.
 >
 > **Q11 (already open) — the payload sequences themselves.** Note this is blocking two
 > things, not one: `AntisenseNotGate.__init__` requires a real payload CDS today, and
 > validates that it starts with a start codon.
 
-Until Q11/Q13 are answered, stage 5 can still be built and tested end to end against a
-**caller-supplied** backbone and payload, because both arrive from outside the table.
+Until Q11 is answered, stage 5 can still be built and tested end to end against a
+**caller-supplied** payload, because it arrives from outside the table. Q13 is answered
+per the note above — a `direct` run defaults to a real catalog backbone today.
 
 ---
 
@@ -605,10 +612,10 @@ Django platform layer.
    sequence checksum, length, topology, and feature names in order. Parse back with
    `Bio.SeqIO.read()` and assert **topology explicitly** (§7.5 — pydna is not in the
    path, so its landmine does not apply, but the assertion is kept anyway). **Done.**
-3. A `direct` run under `LocalEngine` returns `plasmid_segments` with four kinds
-   (promoter, switch, payload, terminator — no backbone configured yet, §4/Q13), lengths
-   summing to `Plasmid.length_bp`, and no `U` in any emitted sequence. **Done**, verified
-   through `apps.analyses.services.submit_run`/`execute_run`, not just engine unit tests.
+3. A `direct` run under `LocalEngine` returns `plasmid_segments` with five kinds
+   (promoter, switch, payload, terminator, backbone — Q13/E5b), lengths summing to
+   `Plasmid.length_bp`, and no `U` in any emitted sequence. **Done**, verified through
+   `apps.analyses.services.submit_run`/`execute_run`, not just engine unit tests.
 4. The GenBank artifact opens correctly — verified by parsing it back with Biopython and
    checking topology and feature count; not yet manually opened in SnapGene or Benchling.
 5. `tests/test_boundary.py` still passes — Biopython imports no Django. **Done**; also
@@ -621,20 +628,20 @@ Django platform layer.
 ## 11. Sequencing
 
 ```
-ADR: Biopython, not pydna ──► P1 parts table ──► P2 payload_segment ──► P3 build ──► P4 GenBank ──► P5 wire in
-        (0007, §13)                ▲                                        ▲
-Q12 (promoter/terminator) ─────────┤                     Q13 backbone ──────┘
+ADR: Biopython, not pydna ──► P1 parts table ──► P2 payload_segment ──► P3 build ──► P4 GenBank ──► P5 wire in ──► P6 backbones (E5b)
+        (0007, §13)                ▲                                        ▲                                        ▲
+Q12 (promoter/terminator) ─────────┤                     Q13 backbone ──── (answered) ───────────────────────────────┘
 Q11 (payloads) ────────────────────┘
 ```
 
 P3 and P4 can be written and tested against hand-made segments **before** any question is
 answered — screening, framing and length logic does not care where the bases came from.
-Only P5, which puts a construct in front of a researcher, needs Q11 and Q13.
+Only P5, which puts a construct in front of a researcher, needed Q11 and Q13.
 
-**As built:** P1–P5 all shipped (§13), using a provisional catalogue for Q12
-(J23119/B0015) and GFP for Q11's most common case, with Q11's remaining outcomes and
-Q13 (backbone) still open — a `direct` run today produces a backbone-less construct
-unless one is injected.
+**As built:** P1–P6 all shipped (§13), using a provisional catalogue for Q12
+(J23119/B0015) and GFP for Q11's most common case, with Q11's remaining outcomes still
+open. Q13 (backbone) is answered by E5b: ten real catalog vectors plus custom upload, a
+`direct` run defaults to a real backbone rather than none.
 
 ---
 
@@ -645,7 +652,7 @@ For §2, the open questions table:
 | # | Question | Blocks |
 |---|---|---|
 | **Q12** | Which constitutive promoter and terminator, per host? Provisional J23119/B0015 unblocks *E. coli*; yeast and human need their own, and the defaults need to be a decision rather than a placeholder | E5a |
-| **Q13** | What backbone does the team build into? **A GenBank file of the plasmid the lab already transforms is the ideal answer** — origin and marker annotations come with it | E5a |
+| **Q13** | What backbone does the team build into? **Answered (E5b):** ten real BioBrick vectors from the iGEM Registry, or a lab's own GenBank upload. Per-host defaults still open — that choice stays the lab's | E5a, E5b |
 
 For §5, as a carve-out of E5 in the same shape as E2a:
 
@@ -668,6 +675,31 @@ Blocked on **Q11**, **Q12**, **Q13** for real parts; unblocked for the logic its
 lengths, the existing `PlasmidRing` renders from real data, the GenBank artifact opens
 annotated in SnapGene, and `tests/engine/test_plasmids.py` locks in the failure modes in
 §7.
+
+### E5b · A real, selectable backbone — `direct` path only
+
+Closes Q13. `BACKBONES` in `stages/plasmids.py`: ten real BioBrick vectors
+(`psb1a3`…`psb4c5`), fetched from the iGEM Registry API and length/alphabet/topology
+verified against the registry's own metadata, spanning three resistance markers (Amp,
+Kan, Cm/Tet combinations) and three copy-number origins (pUC/pMB1 high, p15A medium,
+pSC101 low). Each stored as one opaque `Segment` — the registry gives full sequences but
+no feature-level origin/marker coordinates, so no sub-annotation is fabricated (CLAUDE.md
+§1). `parse_custom_backbone` accepts a researcher's own GenBank file instead, rejecting a
+linear topology or unparseable text. `pipeline._resolve_backbone` resolves
+`params.backbone.catalog_key` / `params.backbone.custom_genbank` (exactly one, or neither
+— neither reproduces the pre-E5b bare four-segment construct byte for byte).
+`PlasmidBuilder.build()` needed **no changes** — `segments.extend(self.backbone)` already
+assembled, screened and exported whatever `Segment`s it was given; only backbone data and
+wiring were missing, not assembly logic, so OpenCloning/pydna remain unnecessary (§5, ADR
+0007). Advertised via `EngineCapabilities.available_backbones` / `GET /api/version`, the
+same pattern `gate_families` already uses, so the wizard never hardcodes the catalog.
+Wizard defaults to a real backbone (`psb1c3`), not "none".
+
+**Done when:** a `direct` run with a selected `catalog_key` produces `plasmid_segments`
+with five entries summing correctly, the GenBank artifact opens with a real backbone
+feature, and circular restriction screening spans the new backbone/promoter junction.
+**Shipped** — `tests/engine/test_plasmids.py`, `tests/engine/test_pipeline.py`,
+`tests/api/test_runs.py`.
 
 ### ADR · Adopt Biopython in the engine (pydna rejected) — **done**
 
@@ -738,11 +770,11 @@ skip-and-warn-or-hard-fail shape `pipeline.py` already used for gate families. `
 works today: a caller-supplied `params["payload"]["custom_sequence"]` goes through the
 identical `validate_payload_cds` check as a catalogue entry.
 
-**Q13 (backbone) is still open.** `PlasmidBuilder(backbone=())` is the default the
-pipeline constructs with — a `direct` run's construct today is promoter + switch +
-payload + terminator, no origin, no selection marker. `Plasmid.plasmid.segments` is
-correspondingly four kinds, not five; §10's original "five kinds" checklist entry
-reflected the plan, not the current backbone-less reality.
+**Q13 (backbone) is answered (E5b).** `pipeline._resolve_backbone` resolves
+`params.backbone` into the `Segment`(s) `PlasmidBuilder` is constructed with; omitting
+`params.backbone` still reproduces the old empty-tuple default byte for byte. A `direct`
+run's construct is five kinds today — promoter, switch, payload, terminator, backbone —
+when a backbone is selected, which the wizard now does by default (`psb1c3`).
 
 **`CodonOptimizer` is still stubbed**, exactly as §2 and §8 said it would remain — the
 payload is emitted verbatim, never codon-optimised, never rewritten to remove a

@@ -10,7 +10,7 @@ from dataclasses import asdict
 from django.conf import settings
 from ninja import Router
 
-from api.schemas import GateFamilyOut, HardFilterOut, MetricInfoOut, VersionOut
+from api.schemas import BackboneInfoOut, GateFamilyOut, HardFilterOut, MetricInfoOut, VersionOut
 from engine.client import load_engine
 
 router = Router()
@@ -37,4 +37,7 @@ def version(request):
         scoring_profiles=capabilities.scoring_profiles,
         metrics=[MetricInfoOut(**asdict(m)) for m in capabilities.metrics],
         hard_filters=[HardFilterOut(**hf) for hf in capabilities.hard_filters],
+        available_backbones=[
+            BackboneInfoOut(**asdict(b)) for b in capabilities.available_backbones
+        ],
     )

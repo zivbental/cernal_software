@@ -260,6 +260,86 @@ def test_run_pipeline_asks_for_circular_screening_when_building_a_plasmid(
     assert True in calls
 
 
+# --- Backbone selection (docs/plasmids.md Q13, docs/ROADMAP.md E5b) -----------------
+
+
+def test_no_backbone_param_is_unchanged_behaviour(direct_request, always_continue):
+    """Omitting params.backbone entirely must stay byte-for-byte what every direct run
+    produced before this feature existed — four segments, no origin, no marker."""
+    result = LocalEngine().run(direct_request(), always_continue)
+
+    assert result.status == "succeeded"
+    for candidate in result.candidates:
+        kinds = [s["kind"] for s in candidate.design["plasmid_segments"]]
+        assert kinds == ["promoter", "switch", "payload", "terminator"]
+
+
+def test_a_catalog_backbone_is_assembled_into_the_plasmid(direct_request, always_continue):
+    request = direct_request(params={"backbone": {"catalog_key": "psb1a3"}})
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "succeeded"
+    for candidate in result.candidates:
+        segments = candidate.design["plasmid_segments"]
+        assert [s["kind"] for s in segments] == [
+            "promoter",
+            "switch",
+            "payload",
+            "terminator",
+            "backbone",
+        ]
+        backbone = segments[-1]
+        assert backbone["name"] == "pSB1A3"
+        assert backbone["length_bp"] == 2155
+        # sequence_length_bp must agree with the segments actually drawn (this session's
+        # earlier PlasmidRing bug: a switch-only value here makes the ring's arcs
+        # overflow past 360 degrees).
+        assert candidate.design["sequence_length_bp"] == sum(s["length_bp"] for s in segments)
+
+
+def test_an_unknown_catalog_key_fails_the_whole_run_cleanly(direct_request, always_continue):
+    request = direct_request(params={"backbone": {"catalog_key": "not-a-real-backbone"}})
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "failed"
+    assert "not-a-real-backbone" in result.error
+
+
+def test_a_custom_genbank_backbone_is_assembled_into_the_plasmid(direct_request, always_continue):
+    """A real backbone built and exported once, then handed back in as if a researcher
+    uploaded it — the same round-trip discipline test_plasmids.py applies directly to
+    parse_custom_backbone, exercised here through the whole pipeline instead."""
+    source_request = direct_request(
+        params={"backbone": {"catalog_key": "psb1c3"}}, idempotency_key="custom-backbone-src"
+    )
+    baseline = LocalEngine().run(source_request, always_continue)
+    genbank_artifact = next(a for a in baseline.artifacts if a.kind == "genbank")
+    with open(os.path.join(source_request.output_dir, genbank_artifact.path)) as handle:
+        gb_text = handle.read()
+
+    custom_request = direct_request(
+        params={"backbone": {"custom_genbank": gb_text}}, idempotency_key="custom-backbone-use"
+    )
+    result = LocalEngine().run(custom_request, always_continue)
+
+    assert result.status == "succeeded"
+    for candidate in result.candidates:
+        kinds = [s["kind"] for s in candidate.design["plasmid_segments"]]
+        assert kinds[-1] == "backbone"
+
+
+def test_providing_both_catalog_key_and_custom_genbank_fails_cleanly(
+    direct_request, always_continue
+):
+    request = direct_request(
+        params={"backbone": {"catalog_key": "psb1a3", "custom_genbank": "ignored"}}
+    )
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "failed"
+    assert "both" in result.error.lower()
+
+
 # --- Failure paths, all as data (EngineClient's own contract) -------------------------
 
 

@@ -6,17 +6,19 @@ import { CheckCircle2, ChevronDown, ChevronRight, Settings } from "lucide-react"
 import { useState } from "react";
 
 /**
- * The wizard's four steps.
+ * The wizard's five steps.
  *
  * The design labelled three (Inputs / Payload / Fulfillment) while writing four Step
  * components. Fulfillment is not a wizard step here — it is a run's result page, with
- * its own URL — so "Compile" takes its place on the rail.
+ * its own URL — so "Compile" takes its place on the rail. "Vector" (docs/plasmids.md
+ * Q13) was added after: which plasmid backbone the circuit gets assembled onto.
  */
 export const steps = [
   { n: 1, label: "Inputs", sub: "Transcriptomic data" },
   { n: 2, label: "Logic", sub: "Boolean expression" },
   { n: 3, label: "Payload", sub: "Genetic output" },
-  { n: 4, label: "Compile", sub: "Submit & optimize" },
+  { n: 4, label: "Vector", sub: "Plasmid backbone" },
+  { n: 5, label: "Compile", sub: "Submit & optimize" },
 ] as const;
 
 export function StepRail({ active }: { active: number }) {

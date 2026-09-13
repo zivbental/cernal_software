@@ -445,6 +445,15 @@ class HardFilterOut(Schema):
     reason: str = ""
 
 
+class BackboneInfoOut(Schema):
+    """A selectable plasmid backbone vector, as advertised by the engine
+    (engine.contract.BackboneInfo) — docs/plasmids.md Q13, docs/ROADMAP.md E5b."""
+
+    key: str
+    name: str
+    length_bp: int
+
+
 class VersionOut(Schema):
     app_version: str
     api_schema_version: str
@@ -455,3 +464,4 @@ class VersionOut(Schema):
     scoring_profiles: list[str]
     metrics: list[MetricInfoOut] = Field(default_factory=list)
     hard_filters: list[HardFilterOut] = Field(default_factory=list)
+    available_backbones: list[BackboneInfoOut] = Field(default_factory=list)
