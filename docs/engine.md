@@ -46,7 +46,7 @@ flowchart TB
     end
 
     subgraph platform["CERNAL Platform — Django"]
-        API["api/<br/>34 endpoints"]
+        API["api/<br/>35 endpoints"]
         SVC["apps/analyses/services.py<br/>run state machine"]
         DB[("SQLite<br/>8 models")]
         WORKER["django-q2 worker"]

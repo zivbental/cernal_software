@@ -723,7 +723,7 @@ function ApiDocsPage() {
             id="rest-api"
             kicker="Reference"
             title="Every client wraps the same five calls"
-            desc="The REST API is the product; the packages are thin, idiomatic sugar over these. Anyone needing more of the platform — datasets, annotations, API keys — talks to the full 34-endpoint API directly."
+            desc="The REST API is the product; the packages are thin, idiomatic sugar over these. Anyone needing more of the platform — datasets, annotations, API keys — talks to the full 35-endpoint API directly."
           >
             <div className="overflow-hidden rounded-xl border border-border">
               <table className="w-full text-left text-sm">

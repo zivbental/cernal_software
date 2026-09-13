@@ -264,6 +264,9 @@ class ArtifactOut(ModelSchema):
     run_id: UUID
     candidate_id: UUID | None
     download_url: str
+    name: str
+    category: str
+    label: str
 
     class Meta:
         model = Artifact
@@ -273,6 +276,18 @@ class ArtifactOut(ModelSchema):
     def resolve_download_url(obj) -> str:
         """An API path, never a storage location (§7.2)."""
         return f"/api/artifacts/{obj.id}/download"
+
+    @staticmethod
+    def resolve_name(obj) -> str:
+        return obj.display_name
+
+    @staticmethod
+    def resolve_category(obj) -> str:
+        return obj.category
+
+    @staticmethod
+    def resolve_label(obj) -> str:
+        return obj.label
 
 
 class AnnotationIn(Schema):

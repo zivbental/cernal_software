@@ -1,7 +1,7 @@
 """Candidates, artifacts, annotations and exports."""
 
-import csv
-import io
+import zipfile
+from io import BytesIO
 from uuid import UUID
 
 from django.db.models import F
@@ -15,7 +15,15 @@ from api.schemas import AnnotationIn, AnnotationOut, ArtifactOut, CandidateDetai
 from api.security import require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun
-from apps.results.models import Annotation, Artifact, Candidate, DecisionTag
+from apps.results.models import (
+    Annotation,
+    Artifact,
+    ArtifactCategory,
+    Candidate,
+    DecisionTag,
+    filter_by_category,
+)
+from apps.results.services import build_candidates_csv
 
 router = Router()
 
@@ -102,55 +110,77 @@ def export_candidates_csv(request, run_id: UUID):
     """A flat candidate x metric table, for a spreadsheet or a lab notebook."""
     run = get_owned(AnalysisRun, run_id, request.user)
 
-    candidates = (
-        Candidate.objects.filter(run=run).prefetch_related("metrics").order_by("rank", "engine_ref")
-    )
-    metric_names = sorted(
-        {
-            name
-            for candidate in candidates
-            for name in candidate.metrics.values_list("name", flat=True)
-        }
-    )
-
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(
-        [
-            "candidate",
-            "rank",
-            "overall_score",
-            "gate_family",
-            "logic_type",
-            "rejected",
-            "rejection_reason",
-            *[f"{name}_raw" for name in metric_names],
-            *[f"{name}_normalized" for name in metric_names],
-        ]
-    )
-
-    for candidate in candidates:
-        by_name = {metric.name: metric for metric in candidate.metrics.all()}
-        writer.writerow(
-            [
-                candidate.engine_ref,
-                candidate.rank if candidate.rank is not None else "",
-                candidate.overall_score if candidate.overall_score is not None else "",
-                candidate.gate_family,
-                candidate.logic_type,
-                "yes" if candidate.is_rejected else "no",
-                candidate.rejection_reason,
-                *[getattr(by_name.get(name), "raw_value", "") or "" for name in metric_names],
-                *[
-                    getattr(by_name.get(name), "normalized_value", "") or ""
-                    for name in metric_names
-                ],
-            ]
-        )
-
-    response = HttpResponse(buffer.getvalue(), content_type="text/csv")
+    response = HttpResponse(build_candidates_csv(run), content_type="text/csv")
     response["Content-Disposition"] = f'attachment; filename="run-{str(run.id)[:8]}-candidates.csv"'
     return response
+
+
+@router.get("/runs/{run_id}/artifacts/download", url_name="artifacts_download_zip")
+def download_artifacts_zip(
+    request,
+    run_id: UUID,
+    category: str | None = Query(default=None),
+    ids: str | None = Query(default=None, description="Comma-separated artifact ids."),
+):
+    """Everything, one category, or a hand-picked set — always as a single .zip.
+
+    ``ids`` wins if both are given. Neither given means every artifact this run has.
+    Entries are filed under ``<category>/<display name>`` inside the archive, so the
+    zip is organized the same way the download UI is, regardless of engine storage
+    paths.
+    """
+    run = get_owned(AnalysisRun, run_id, request.user)
+    queryset = Artifact.objects.filter(run=run)
+
+    label = "all"
+    if ids:
+        try:
+            wanted = [UUID(value.strip()) for value in ids.split(",") if value.strip()]
+        except ValueError:
+            raise ValidationFailed("'ids' must be a comma-separated list of UUIDs.") from None
+        queryset = queryset.filter(id__in=wanted)
+        label = "selected"
+    elif category:
+        if category not in ArtifactCategory.values:
+            raise ValidationFailed(
+                f"Unknown category '{category}'.", detail={"allowed": ArtifactCategory.values}
+            )
+        queryset = filter_by_category(queryset, category)
+        label = category
+
+    artifacts = list(queryset)
+    if not artifacts:
+        raise NotFound("No matching artifacts were found for this run.")
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        used_names: set[str] = set()
+        for artifact in artifacts:
+            if not artifact.file or not artifact.file.storage.exists(artifact.file.name):
+                continue
+            arcname = _unique_arcname(f"{artifact.category}/{artifact.display_name}", used_names)
+            with artifact.file.open("rb") as handle:
+                archive.writestr(arcname, handle.read())
+
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="run-{str(run.id)[:8]}-{label}.zip"'
+    return response
+
+
+def _unique_arcname(name: str, used: set[str]) -> str:
+    """Two artifacts can share a display name (docs/architecture.md §16 notes this is
+    already possible on disk); a zip cannot hold two entries at the same path."""
+    if name not in used:
+        used.add(name)
+        return name
+    stem, _, ext = name.rpartition(".")
+    for n in range(2, 10_000):
+        candidate = f"{stem} ({n}).{ext}" if ext else f"{name} ({n})"
+        if candidate not in used:
+            used.add(candidate)
+            return candidate
+    raise AssertionError("unreachable: exhausted 10000 disambiguation attempts")
 
 
 # --- Annotations ------------------------------------------------------------------

@@ -1,6 +1,6 @@
 # HTTP API reference
 
-The only HTTP surface in the system — **34 endpoints**. Built with
+The only HTTP surface in the system — **35 endpoints**. Built with
 [django-ninja](https://django-ninja.dev) (ADR 0004); the machine-readable schema is
 generated at **`/api/openapi.json`** and the interactive docs at **`/api/docs`**.
 
@@ -23,7 +23,7 @@ fields.** A breaking change means a new `api_schema_version` and a `/api/v2/` mo
 
 **Two credentials, one API (ADR 0006).** The SPA authenticates with a session cookie,
 same as always; everything else — a script, `curl`, Snakemake, Nextflow — authenticates
-with an `X-API-Key` header. Both reach the same 34 endpoints with the same ownership
+with an `X-API-Key` header. Both reach the same 35 endpoints with the same ownership
 rules; there is no separate "public API" surface and no second data model. `auth=` tries
 the header first (cheaper, no CSRF path), then the session cookie.
 
@@ -368,7 +368,8 @@ purpose.
 | `GET /api/runs/{id}/candidates` | Paginated |
 | `GET /api/candidates/{id}` | Full detail incl. metric decomposition |
 | `GET /api/runs/{id}/artifacts` | |
-| `GET /api/artifacts/{id}/download` | Authorized file serve |
+| `GET /api/artifacts/{id}/download` | Authorized file serve, one artifact |
+| `GET /api/runs/{id}/artifacts/download` | Everything, one `?category=`, or a hand-picked `?ids=`, as one `.zip` |
 | `GET /api/runs/{id}/export.csv` | Flat candidate × metric table |
 
 ### Listing candidates
@@ -398,6 +399,22 @@ researcher is shown the decomposition, never a single opaque score (design map 1
 `download_url` is always an API path, never a storage location. Artifacts are served
 through an authorized view that checks run ownership — a static handler would make every
 artifact readable by anyone who guessed the path.
+
+Each artifact also carries `category` (`summary` · `sequences` · `plasmids` ·
+`diagrams` · `reports` · `other` — see [domain-model.md](domain-model.md)), `label` (a
+human description) and `name` (its filename) — the download UI groups and labels files
+from these, never by re-deriving anything from `kind` itself.
+
+`GET /api/runs/{id}/artifacts/download` returns a `.zip`:
+
+| Query | Effect |
+|---|---|
+| *(none)* | Every artifact the run has |
+| `?category=sequences` | Only that category |
+| `?ids=<uuid>,<uuid>,…` | Exactly those artifacts — wins if both are given |
+
+Entries inside the archive are filed under `<category>/<name>`, regardless of storage
+layout, so the zip reads the same way the download UI is organized.
 
 ## Annotations
 

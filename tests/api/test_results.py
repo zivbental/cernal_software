@@ -3,6 +3,7 @@
 import csv
 import io
 import json
+import zipfile
 
 
 def test_candidates_are_ranked_best_first(auth_client, completed_run):
@@ -115,6 +116,78 @@ def test_downloading_needs_authentication(client, auth_client, completed_run):
     auth_client.logout()
 
     assert client.get(artifact["download_url"]).status_code == 401
+
+
+def test_artifacts_expose_a_category_and_a_readable_label(auth_client, completed_run):
+    body = auth_client.get(f"/api/runs/{completed_run.id}/artifacts").json()
+    by_kind = {a["kind"]: a for a in body}
+
+    assert by_kind["sequence_fasta"]["category"] == "sequences"
+    assert by_kind["summary_table"]["category"] == "summary"
+    assert by_kind["run_manifest"]["category"] == "summary"
+    assert all(a["label"] and a["name"] for a in body)
+
+
+# --- Bulk download (.zip) ----------------------------------------------------------
+
+
+def _zip_names(response) -> list[str]:
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        return archive.namelist()
+
+
+def test_downloading_everything_as_one_zip(auth_client, completed_run):
+    response = auth_client.get(f"/api/runs/{completed_run.id}/artifacts/download")
+
+    assert response.status_code == 200
+    assert response["Content-Type"] == "application/zip"
+    names = _zip_names(response)
+    assert len(names) == completed_run.artifacts.count()
+    assert any(name.startswith("sequences/") for name in names)
+    assert any(name.startswith("summary/") for name in names)
+
+
+def test_downloading_one_category_as_a_zip(auth_client, completed_run):
+    response = auth_client.get(
+        f"/api/runs/{completed_run.id}/artifacts/download?category=sequences"
+    )
+
+    names = _zip_names(response)
+    expected = completed_run.artifacts.filter(kind="sequence_fasta").count()
+    assert len(names) == expected
+    assert all(name.startswith("sequences/") for name in names)
+
+
+def test_an_unknown_category_is_refused(auth_client, completed_run):
+    response = auth_client.get(f"/api/runs/{completed_run.id}/artifacts/download?category=bogus")
+
+    assert response.status_code == 422
+    assert "sequences" in response.json()["error"]["detail"]["allowed"]
+
+
+def test_downloading_specific_artifacts_by_id(auth_client, completed_run):
+    listed = auth_client.get(f"/api/runs/{completed_run.id}/artifacts").json()
+    picked = [listed[0]["id"], listed[1]["id"]]
+
+    response = auth_client.get(
+        f"/api/runs/{completed_run.id}/artifacts/download?ids={','.join(picked)}"
+    )
+
+    assert len(_zip_names(response)) == 2
+
+
+def test_malformed_ids_are_refused_with_a_clean_422(auth_client, completed_run):
+    response = auth_client.get(f"/api/runs/{completed_run.id}/artifacts/download?ids=not-a-uuid")
+
+    assert response.status_code == 422
+
+
+def test_another_user_cannot_download_the_zip(other_client, completed_run):
+    assert other_client.get(f"/api/runs/{completed_run.id}/artifacts/download").status_code == 404
+
+
+def test_zip_download_needs_authentication(client, completed_run):
+    assert client.get(f"/api/runs/{completed_run.id}/artifacts/download").status_code == 401
 
 
 # --- Export -----------------------------------------------------------------------

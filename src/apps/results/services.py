@@ -8,12 +8,16 @@ implementation rather than duplicating it. Step 3 calls this from
 ``apps/analyses/services.py`` (rule 5); this only writes results.
 """
 
+import csv
+import io
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.utils import timezone
 
 from apps.common.checksums import sha256_bytes
 from apps.results.models import Artifact, Candidate, CandidateMetric
@@ -84,6 +88,7 @@ def import_job_result(run, result: JobResult, output_dir: str | Path) -> ImportS
     CandidateMetric.objects.bulk_create(metric_rows)
 
     artifact_count = _import_artifacts(run, result, Path(output_dir), candidates_by_ref)
+    artifact_count += _write_derived_artifacts(run, result)
 
     logger.info(
         "Imported result for run %s: %d candidates, %d metrics, %d artifacts",
@@ -148,3 +153,132 @@ def _import_artifacts(
         count += 1
 
     return count
+
+
+def _write_derived_artifacts(run, result: JobResult) -> int:
+    """Platform-native artifacts computed from what was just imported, not written by
+    the engine — a summary table and a run manifest, so a downloaded archive is
+    self-documenting without needing the web app open next to it.
+
+    ``result`` (not ``run.engine_version``) is the source for engine version: this
+    runs strictly before the caller transitions the run to COMPLETED and stamps that
+    field (rule 5, apps/analyses/services.py), so ``run`` itself is still mid-flight.
+    """
+    _write_platform_artifact(
+        run,
+        kind="summary_table",
+        filename="summary.csv",
+        content=build_candidates_csv(run),
+        media_type="text/csv",
+    )
+    _write_platform_artifact(
+        run,
+        kind="run_manifest",
+        filename="manifest.json",
+        content=json.dumps(build_run_manifest(run, result), indent=2, default=str) + "\n",
+        media_type="application/json",
+    )
+    return 2
+
+
+def _write_platform_artifact(
+    run, *, kind: str, filename: str, content: str, media_type: str
+) -> Artifact:
+    payload = content.encode("utf-8")
+    artifact = Artifact(
+        run=run,
+        kind=kind,
+        media_type=media_type,
+        checksum_sha256=sha256_bytes(payload),
+        size_bytes=len(payload),
+    )
+    artifact.file.save(filename, ContentFile(payload), save=False)
+    artifact.save()
+    return artifact
+
+
+def build_candidates_csv(run) -> str:
+    """A flat candidate x metric table, for a spreadsheet or a lab notebook.
+
+    The one place that decides what "the summary table" contains — used both by
+    ``GET /api/runs/{id}/export.csv`` and to materialize the ``summary_table``
+    artifact at import time, so the two never drift apart.
+    """
+    candidates = (
+        Candidate.objects.filter(run=run).prefetch_related("metrics").order_by("rank", "engine_ref")
+    )
+    metric_names = sorted(
+        {
+            name
+            for candidate in candidates
+            for name in candidate.metrics.values_list("name", flat=True)
+        }
+    )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "candidate",
+            "rank",
+            "overall_score",
+            "gate_family",
+            "logic_type",
+            "rejected",
+            "rejection_reason",
+            *[f"{name}_raw" for name in metric_names],
+            *[f"{name}_normalized" for name in metric_names],
+        ]
+    )
+
+    for candidate in candidates:
+        by_name = {metric.name: metric for metric in candidate.metrics.all()}
+        writer.writerow(
+            [
+                candidate.engine_ref,
+                candidate.rank if candidate.rank is not None else "",
+                candidate.overall_score if candidate.overall_score is not None else "",
+                candidate.gate_family,
+                candidate.logic_type,
+                "yes" if candidate.is_rejected else "no",
+                candidate.rejection_reason,
+                *[getattr(by_name.get(name), "raw_value", "") or "" for name in metric_names],
+                *[
+                    getattr(by_name.get(name), "normalized_value", "") or ""
+                    for name in metric_names
+                ],
+            ]
+        )
+
+    return buffer.getvalue()
+
+
+def build_run_manifest(run, result: JobResult) -> dict:
+    """The run's full configuration and provenance, as JSON.
+
+    Everything a researcher would need to cite or reproduce this run from the
+    downloaded archive alone, with no need to have the web app open.
+
+    Written moments before the run is transitioned to COMPLETED (rule 5,
+    apps/analyses/services.py), so ``status``/``engine_version``/``finished_at`` come
+    from ``result`` and the current instant rather than from ``run``, which has not
+    been stamped with them yet.
+    """
+    return {
+        "run_id": str(run.id),
+        "status": "COMPLETED",
+        "organism": run.organism or None,
+        "input_mode": run.input_mode,
+        "trigger_sequence": run.trigger_sequence or None,
+        "dataset": run.dataset.name if run.dataset else None,
+        "gate_families": run.gate_families,
+        "scoring_profile": run.scoring_profile,
+        "seed": run.seed,
+        "engine_version": result.engine_version,
+        "params": run.params_snapshot,
+        "warnings": list(result.warnings),
+        "candidate_count": run.candidates.count(),
+        "submitted_at": run.submitted_at,
+        "started_at": run.started_at,
+        "finished_at": timezone.now(),
+    }
