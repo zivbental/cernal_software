@@ -29,13 +29,14 @@ export interface CompileConfig {
   /** Downstream outputs, all equivalent. Each selected one gets its own plasmids. */
   outputs: string[];
   customPayload: string;
-  constraints: {
-    max_leakage: number;
-    min_mfe: number;
-    min_off_target_score: number;
-    max_length_bp: number;
-    target_gc: number;
-  };
+  /**
+   * UI-friendly sliders for a per-run override of the scoring profile's hard filters
+   * (engine.scoring.profiles X7) — routes/compile.tsx's onSubmit turns these into
+   * params.scoring.hard_filters. Not search constraints (those are
+   * engine.domain.Constraints, a different concept the wizard does not expose today).
+   */
+  maxLeakage: number;
+  minGateStability: number;
 }
 
 export const DEFAULT_CONFIG: CompileConfig = {
@@ -48,14 +49,14 @@ export const DEFAULT_CONFIG: CompileConfig = {
   mechanism: "toehold",
   outputs: ["gfp"],
   customPayload: "",
-  constraints: {
-    max_leakage: 0.08,
-    min_mfe: -32,
-    min_off_target_score: 85,
-    max_length_bp: 5000,
-    target_gc: 50,
-  },
+  maxLeakage: 0.08,
+  minGateStability: -32,
 };
+
+/** engine.scoring.profiles.DEFAULT_V1's own predicted_leakage hard-filter ceiling
+ * (CLAUDE.md §2) — the wizard's slider must not be able to submit a run that loosens
+ * this documented safety threshold, only tighten it. */
+const MAX_SAFE_LEAKAGE = 0.85;
 
 const ORGANISMS = [
   { key: "ecoli", label: "E. coli", Icon: BacteriaIcon, anim: "animate-bacteria" },
@@ -477,34 +478,25 @@ export function StepLogic({
       </div>
 
       <AdvancedOptions>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <SliderRow
             label="Off-State Leakage Limit"
-            value={config.constraints.max_leakage}
+            value={config.maxLeakage}
             min={0}
-            max={1}
+            // The scoring profile's own predicted_leakage ceiling (CLAUDE.md §2) — this
+            // control can only tighten it, never submit a run that loosens a documented
+            // safety filter.
+            max={MAX_SAFE_LEAKAGE}
             step={0.01}
-            onChange={(v) =>
-              patch({ constraints: { ...config.constraints, max_leakage: v } })
-            }
+            onChange={(v) => patch({ maxLeakage: v })}
           />
           <SliderRow
-            label="Folding Energy (MFE) Min"
-            value={config.constraints.min_mfe}
+            label="Minimum Gate Stability (MFE ceiling)"
+            value={config.minGateStability}
             min={-60}
             max={0}
             unit=" kcal/mol"
-            onChange={(v) => patch({ constraints: { ...config.constraints, min_mfe: v } })}
-          />
-          <SliderRow
-            label="Off-Target Screening"
-            value={config.constraints.min_off_target_score}
-            min={0}
-            max={100}
-            unit="%"
-            onChange={(v) =>
-              patch({ constraints: { ...config.constraints, min_off_target_score: v } })
-            }
+            onChange={(v) => patch({ minGateStability: v })}
           />
         </div>
       </AdvancedOptions>

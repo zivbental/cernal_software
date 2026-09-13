@@ -13,7 +13,8 @@ import pytest
 
 from engine.client import LocalEngine
 from engine.contract import CANCELLED, INPUT_DE, INPUT_DIRECT, SCHEMA_VERSION
-from engine.domain import Host
+from engine.domain import AssemblyStandard, Host
+from engine.errors import InputValidationError
 from engine.pipeline import build_tools, run_pipeline
 
 # Chosen empirically (docs/smoke-run.md §5): a hand-repeated test sequence echoes extra
@@ -349,6 +350,40 @@ def test_plasmid_builder_shares_the_same_screener_and_codons_instances(direct_re
 
     assert tools["plasmid_builder"].screener is tools["screener"]
     assert tools["plasmid_builder"].codons is tools["codons"]
+
+
+# --- _build_constraints (via build_tools) -----------------------------------------
+#
+# The API layer (api/params.py) now rejects an unknown constraint field before a run
+# is even queued, but this is the engine's own defense — the check the API's absence
+# would otherwise leave as the only one — so it stays covered here independently of
+# whatever the API does.
+
+
+def test_a_default_constraints_block_builds_with_no_overrides(direct_request):
+    tools = build_tools(direct_request(), Host.ECOLI)
+    assert tools["constraints"].max_triggers == 2
+    assert tools["constraints"].standard == AssemblyStandard.RFC10
+
+
+def test_an_unknown_constraint_field_is_rejected(direct_request):
+    request = direct_request(params={"constraints": {"max_leakage": 0.08}})
+    with pytest.raises(InputValidationError, match="max_leakage"):
+        build_tools(request, Host.ECOLI)
+
+
+def test_trigger_lengths_coerces_from_a_json_list_to_a_tuple(direct_request):
+    """A JSON-sourced dict carries a list; Constraints.trigger_lengths is a tuple
+    (CLAUDE.md §6: hashable arguments for FoldEngine.mfe's lru_cache)."""
+    request = direct_request(params={"constraints": {"trigger_lengths": [30, 45]}})
+    tools = build_tools(request, Host.ECOLI)
+    assert tools["constraints"].trigger_lengths == (30, 45)
+
+
+def test_an_unknown_assembly_standard_is_rejected(direct_request):
+    request = direct_request(params={"constraints": {"standard": "rfc-nonexistent"}})
+    with pytest.raises(InputValidationError, match="rfc-nonexistent"):
+        build_tools(request, Host.ECOLI)
 
 
 def test_build_tools_skips_antisense_with_a_warning(direct_request):

@@ -556,6 +556,13 @@ rarely the better science anyway.
 
 ⚠️ See the inconsistency in §2.
 
+**Two more `params_snapshot` keys exist outside these four axes:** `constraints` and
+`scoring`, typed projections of `engine.domain.Constraints` and a scoring profile
+(docs/api.md §7, §9) rather than a modality choice — the only two `params` keys the
+engine (and, at submission, the API) reject an unknown field inside, everything else
+here being read-what-you-recognise. `Steps.tsx`'s Advanced panel writes `scoring` today;
+nothing in the wizard exposes `constraints` yet.
+
 **Two axes have no dedicated Platform column.** Host and output live only inside
 `params_snapshot`. That is deliberate — the snapshot is the immutable record of what was
 asked, and adding a column for every wizard field would couple the Platform to the

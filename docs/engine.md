@@ -400,7 +400,7 @@ and should stay that way:
 | A sequence | `str`. Hashable, sliceable, `lru_cache`-able. A `Sequence` wrapper buys nothing |
 | The pipeline itself | Functions. See [§2.3](#23-the-one-thing-not-to-build) |
 | Tool versions | `dict[str, str]`, recorded and never inspected |
-| `params_snapshot` | A dict by contract. The engine reads what it recognises and ignores the rest, which is what lets the wizard add fields without an engine release |
+| `params_snapshot` | A dict by contract. The engine reads what it recognises at the top level and ignores the rest, which is what lets the wizard add fields without an engine release — except `constraints` and `scoring`, typed projections the engine (and, at submission, the API — docs/api.md §7) both reject an unknown key inside |
 
 The test: **does anything dispatch on its type, or enforce an invariant over it?** If not, a
 dict is lighter and does not need maintaining.

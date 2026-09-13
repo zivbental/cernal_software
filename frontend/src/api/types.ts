@@ -245,12 +245,16 @@ export interface RunParams {
   mechanism?: string;
   /** All outputs are equivalent; each selected one gets its own plasmid candidates. */
   payload?: { outputs: string[]; custom_sequence: string | null };
-  constraints?: {
-    max_leakage: number;
-    min_mfe: number;
-    min_off_target_score: number;
-    max_length_bp: number;
-    target_gc: number;
+  /**
+   * A per-run override of the scoring profile's hard filters (engine.scoring.profiles
+   * X7) — the same shape POST /api/design validates. Metric names must be ones the
+   * engine's DEFAULT_V1 profile actually knows (GET /api/version.metrics); an
+   * unrecognised name is rejected at submission, not silently discarded.
+   */
+  scoring?: {
+    /** `reason` is required by the API (api/params.py) — it becomes the rejected
+     * candidate's recorded rejection_reason. */
+    hard_filters?: { metric: string; minimum?: number; maximum?: number; reason: string }[];
   };
   mock?: { candidate_count?: number; step_delay?: number; fail?: boolean };
   [key: string]: unknown;
