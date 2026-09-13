@@ -10,7 +10,7 @@ common** and lives here, so every chemistry is held to the same standard and a r
 fixed in one place rather than three.
 """
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from itertools import combinations
 
 from engine import sequences as sq
@@ -48,7 +48,12 @@ class SwitchDesigner:
         self.host = host
 
     def design(
-        self, triggers: Iterable[TriggerCandidate], constraints: Constraints
+        self,
+        triggers: Iterable[TriggerCandidate],
+        constraints: Constraints,
+        *,
+        on_incompatible: Callable[[str], None] | None = None,
+        on_invalid: Callable[[str], None] | None = None,
     ) -> Iterator[GateDesign]:
         """Yield validated switch designs.
 
@@ -56,6 +61,17 @@ class SwitchDesigner:
             triggers: Stage 2's ranked candidates, already pruned.
             constraints: ``max_triggers`` bounds the arity; ``max_switch_length`` and
                 ``standard`` are enforced by the validator.
+            on_incompatible: Optional. Called with ``Compatibility.reason`` every time a
+                trigger set is skipped for a family, instead of the reason being silently
+                dropped (docs/triggers.md T3). One call per skipped ``(trigger_set,
+                family)`` pair — a different unit than ``on_invalid`` below, so callers
+                that aggregate should keep the two counts separate rather than summing
+                them into one total.
+            on_invalid: Optional. Called once per string in a failing design's
+                ``ValidationResult.violations``, instead of the violations being silently
+                dropped. One call per violation *of a generated design* — many designs
+                can come from one trigger set (one per swept toehold length), so this is
+                a finer-grained count than ``on_incompatible``'s.
 
         Yields:
             ``GateDesign`` for every candidate that passes validation, with its measured
@@ -99,11 +115,17 @@ class SwitchDesigner:
 
                 compatibility = family.is_compatible(trigger_set, constraints)
                 if not compatibility.ok:
+                    if on_incompatible:
+                        on_incompatible(compatibility.reason)
                     continue
 
                 for design in family.generate_designs(trigger_set, constraints):
-                    if self.validator.validate(design).ok:
+                    result = self.validator.validate(design)
+                    if result.ok:
                         yield design
+                    elif on_invalid:
+                        for violation in result.violations:
+                            on_invalid(violation)
 
     def build_trigger_sets(
         self, triggers: Iterable[TriggerCandidate], constraints: Constraints

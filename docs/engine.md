@@ -1127,11 +1127,12 @@ flowchart LR
         P2["pipeline.py<br/><i>`direct` built, `de` stub</i>"]
         P3["switches.py<br/><i>sequence rules only</i>"]
         P4["PlasmidBuilder<br/><i>direct/single-switch/GFP/<br/>E. coli only — ROADMAP E5a</i>"]
+        P5["TriggerScorer + S5<br/><i>direct/synthesized-gene only —<br/>ROADMAP E2b</i>"]
     end
 
     subgraph todo["Step 5"]
         T1["S2–S5, S8, S9 tools"]
-        T2["4 stage bodies<br/><i>quality, genes, triggers,<br/>circuits, reporting</i>"]
+        T2["4 stage bodies<br/><i>quality, genes,<br/>circuits, reporting</i>"]
         T3["ToeholdGate"]
         T4["CandidateStore S11"]
         T5["ReportBuilder S14"]
@@ -1141,7 +1142,7 @@ flowchart LR
     classDef part fill:#fef3c7,stroke:#b45309,color:#78350f
     classDef todo2 fill:#f4f4f5,stroke:#a1a1aa,color:#3f3f46
     class D1,D2,D3,D4,D5,D6,D7,D8 built
-    class P1,P2,P3,P4 part
+    class P1,P2,P3,P4,P5 part
     class T1,T2,T3,T4,T5 todo2
 ```
 
@@ -1149,14 +1150,15 @@ flowchart LR
 |---|---|---|
 | User inputs 1–4 | `CountMatrix`, `DgeTable`, `Host`, `DesiredOutcome` | ✅ types built |
 | Supporting databases 5–8 | codon tables, sequence library, cell atlas, backbone spec | ✗ **no data source chosen** |
-| QC (S15), Gene Selection, Trigger Scoring | `stages/quality.py`, `genes.py`, `triggers.py` | ★ signatures only |
+| QC (S15), Gene Selection | `stages/quality.py`, `genes.py` | ★ signatures only — blocked on Q1 |
+| Trigger Scoring (stage 2) | `stages/triggers.py` | ⚠️ `TriggerScorer.score` real and called ([ROADMAP.md](ROADMAP.md) E2b, `direct` path only — a pasted sequence longer than one trigger window is scanned with a synthesized single gene; the real `de`-mode integration against `GeneSelector`'s output is still blocked on Q1) |
 | Switch design + validation (stage 3) | `stages/switches.py` | ⚠️ `SwitchDesigner.design`/`.build_trigger_sets` and `SwitchValidator.validate`'s sequence rules real ([ROADMAP.md](ROADMAP.md) E2a, `direct`/toehold only); the structural rule (`ensemble_defect`) and RBS-geometry rule still deferred |
 | Circuit Design (stage 4) | `stages/circuits.py` | ★ signatures only |
 | Plasmid Construction (stage 5) | `stages/plasmids.py` | ⚠️ `PlasmidBuilder.build`/`.payload_segment` real ([ROADMAP.md](ROADMAP.md) E5a, `direct`/single-switch/GFP/*E. coli* only); `CodonOptimizer`, other payloads/hosts, a backbone (Q11/Q12/Q13) and multi-switch circuits still open |
 | Compiler's Output (stage 6) | `reporting.py` | ★ signatures only |
 | S2 S3 S4 S8 S9 | `gates/tools/` | ⚠️ `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` (S2, S3) real; `ensemble_defect`, `suboptimal`, `structure_match` (S4) and S8/S9 still signatures only |
 | S1 | `stages/folding.py` | ✅ **built** — `FoldProfiler.profile`/`.openness`, windowed RNAplfold ([ROADMAP.md](ROADMAP.md) E2a-4) |
-| S5 | `stages/off_target.py` | ★ signatures only — blocked on Q1 |
+| S5 | `stages/off_target.py` | ⚠️ empty-transcriptome case real (`scan_trigger`/`.scan_switch` give a defined, honest zero-penalty answer rather than raising — [ROADMAP.md](ROADMAP.md) E2b); a real transcriptome index (`build_index`, `find_similar`) still blocked on Q1 |
 | S7 | `stages/motifs.py` | ✅ **built and tested** |
 | S6 | `engine/sequences.py` | ✅ **built and tested** |
 | **S10** ScoreNormalizer + Aggregator | `engine/scoring/` | ✅ **built and tested** |

@@ -1300,7 +1300,7 @@ Dispatches trigger sets to the gate families that can realise them.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, families: list, validator: 'SwitchValidator', host: Host) -> None` |  |
-| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[GateDesign]` | Yield validated switch designs. |
+| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
 | `BUILT` | `def build_trigger_sets(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[TriggerSet]` | Combine individual triggers into the input sets a circuit can use. |
 
 #### `class SwitchValidator`
@@ -1608,6 +1608,7 @@ The real scientific pipeline.
 | --- | --- | --- |
 | `ProgressFn` |  | `Callable[[int, str], bool]` |
 | `STAGE_WEIGHTS` | `dict[str, int]` | `{'Validating inputs': 2, 'Selecting genes': 5, 'Scoring triggers': 25, 'Designing switc…` |
+| `MAX_TRIGGER_LENGTH` |  | `10000` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |

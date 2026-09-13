@@ -5,19 +5,22 @@ and runs them in order. It contains no science — if it grows past ~150 lines, 
 leaked into it from a stage.
 
 **Scope of this build (docs/smoke-run.md): the `direct` input path only.** A researcher
-pastes a trigger mRNA and gets ranked toehold designs back, each with a real,
-annotated plasmid (docs/plasmids.md, E5a). The `de` path — upload a
-differential-expression table, discover triggers from it — stays a documented
-``InputValidationError`` here: it needs stage 1 (`GeneSelector`), the two stubbed tools
-stage 2 calls (`FoldProfiler` is now real; `OffTargetScanner` is not), a CSV parser with
-no home yet, and a resolved Q1 (where do trigger sequences come from). None of that is
-built by this branch. Stage 4 (`CircuitDesigner`, real multi-switch circuits) and stage 6
-(the PDF report, structure/circuit figures) are likewise out of scope — see
-docs/smoke-run.md §4 and docs/plasmids.md §3 for exactly what that costs.
+pastes a trigger mRNA — or a longer transcript to find one in, docs/triggers.md E2b —
+and gets ranked toehold designs back, each with a real, annotated plasmid
+(docs/plasmids.md, E5a). The `de` path — upload a differential-expression table,
+discover triggers from it — stays a documented ``InputValidationError`` here: it needs
+stage 1 (`GeneSelector`), a CSV parser with no home yet, and a resolved Q1 (where do
+trigger sequences come from). `OffTargetScanner` is still a stub for a real
+transcriptome (an empty one, this branch's only case, has a defined answer —
+docs/triggers.md T1), so off-target specificity is reported as unmeasured, never
+silently clean. None of the `de`-only gaps are built by this branch. Stage 4
+(`CircuitDesigner`, real multi-switch circuits) and stage 6 (the PDF report,
+structure/circuit figures) are likewise out of scope — see docs/smoke-run.md §4 and
+docs/plasmids.md §3 for exactly what that costs.
 
-**Stage 5 does not wait for stage 4.** A `direct` submission has one trigger and one
-switch, so ``_build_plasmid`` hand-builds a trivial one-gene ``CircuitCandidate`` the
-same way ``_direct_trigger`` hand-builds the one ``TriggerCandidate`` for stages 1-2
+**Stage 5 does not wait for stage 4.** Each accepted switch design gets its own
+trivial one-gene ``CircuitCandidate`` from ``_build_plasmid``, the same way
+``_direct_trigger`` hand-builds ``TriggerCandidate``(s) for stages 1-2
 (docs/plasmids.md §3) — ``PlasmidBuilder.build()`` never sees that this circuit was not
 produced by a real ``CircuitDesigner``.
 
@@ -29,6 +32,8 @@ editing something under ``gates/``.
 """
 
 import dataclasses
+import re
+from collections import Counter
 from collections.abc import Callable
 
 from engine import sequences as sq
@@ -54,6 +59,8 @@ from engine.domain import (
     LogicGraph,
     LogicOperator,
     PlasmidDesign,
+    Regulation,
+    SelectedGene,
     TriggerCandidate,
 )
 from engine.errors import InputValidationError, JobCancelled
@@ -76,6 +83,7 @@ from engine.stages.plasmids import (
     validate_payload_cds,
 )
 from engine.stages.switches import SwitchDesigner, SwitchValidator
+from engine.stages.triggers import TriggerScorer
 from engine.store import CandidateStore
 
 ProgressFn = Callable[[int, str], bool]
@@ -92,6 +100,13 @@ STAGE_WEIGHTS: dict[str, int] = {
     "Writing report": 3,
 }
 
+#: Upper bound on a pasted `direct` sequence (docs/triggers.md T2). Generous for any real
+#: transcript including UTRs — measured, screening+folding a transcript this long costs
+#: well under two seconds — and a guard against a sequence with no realistic trigger
+#: reading (a whole plasmid or genome pasted by mistake) hanging a single, uninterruptible
+#: call with no cancellation checkpoint inside it.
+MAX_TRIGGER_LENGTH = 10_000
+
 #: Families skipped even when requested, with why — never silently, always into
 #: JobResult.warnings so a researcher who asked for one learns why it is absent.
 _UNBUILDABLE_FAMILIES: dict[str, str] = {
@@ -99,6 +114,18 @@ _UNBUILDABLE_FAMILIES: dict[str, str] = {
         "no payload sequence library exists yet (docs/ROADMAP.md Q11) — "
         "AntisenseNotGate cannot be constructed without one. Request a toehold "
         "family instead."
+    ),
+    # available=True is inherited from ToeholdGate, but generate_designs is an
+    # unconditional NotImplementedError (docs/triggers.md E2b) — dormant while a
+    # direct run only ever supplies one trigger (is_compatible's arity check rejects
+    # every attempt first), but trigger scanning (E2b) can now produce real 2-input
+    # trigger sets, which would reach generate_designs and crash the run uncaught.
+    "toehold_and": "the two-input AND construction is not yet implemented for this chemistry.",
+    "prokaryotic_toehold_and": (
+        "the two-input AND construction is not yet implemented for this chemistry."
+    ),
+    "eukaryotic_toehold_and": (
+        "the two-input AND construction is not yet implemented for this chemistry."
     ),
 }
 
@@ -130,8 +157,11 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
     Note:
         The transcriptome that ``OffTargetScanner`` indexes **must be the same build**
         the trigger sequences came from. This build never has one — the `direct` path
-        has no transcriptome at all — so it is constructed empty and never called; see
-        ``run_pipeline``.
+        has no transcriptome at all — so it is constructed empty
+        (docs/triggers.md T1: an empty transcriptome gives a defined, honest
+        "nothing to compare against" answer rather than raising). Off-target
+        specificity is consequently never *measured* on this path, only defaulted —
+        the warning below says so, so a 0.0 penalty is never mistaken for a clean scan.
     """
     folder = FoldEngine()
     constraints = _build_constraints(request.params)
@@ -154,6 +184,13 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
 
     families: list = []
     warnings: list[str] = []
+    if not tools["off_target"].transcriptome:
+        warnings.append(
+            "Off-target specificity was not measured (no reference transcriptome for a "
+            "direct submission) — off_target_penalty and segment_specificity are "
+            "placeholders, not measurements."
+        )
+
     for name in request.gate_families or ["toehold"]:
         reason = _UNBUILDABLE_FAMILIES.get(name)
         if reason is not None:
@@ -225,7 +262,16 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
 
     if not on_progress(*_pct("Scoring triggers")):
         raise JobCancelled("Scoring triggers")
-    trigger = _direct_trigger(request, store, tools["profiler"], tools["folder"])
+    trigger_candidates, trigger_warnings = _direct_trigger(
+        request,
+        store,
+        tools["profiler"],
+        tools["folder"],
+        tools["off_target"],
+        tools["screener"],
+        constraints,
+    )
+    warnings.extend(trigger_warnings)
 
     validator = SwitchValidator(
         tools["folder"],
@@ -243,9 +289,31 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     plasmid_builder: PlasmidBuilder = tools["plasmid_builder"]
     custom_sequence = (request.params.get("payload") or {}).get("custom_sequence")
 
+    # Two independent tallies (docs/triggers.md T3) — counted in different units
+    # (trigger sets vs. generated designs), so kept separate rather than summed into
+    # one misleading total. One real example message is kept per bucket for display;
+    # the report never shows the generalized template itself.
+    incompatible_counts: Counter[str] = Counter()
+    incompatible_examples: dict[str, str] = {}
+    invalid_counts: Counter[str] = Counter()
+    invalid_examples: dict[str, str] = {}
+
+    def _on_incompatible(reason: str) -> None:
+        key = _rejection_bucket(reason)
+        incompatible_counts[key] += 1
+        incompatible_examples.setdefault(key, reason)
+
+    def _on_invalid(reason: str) -> None:
+        key = _rejection_bucket(reason)
+        invalid_counts[key] += 1
+        invalid_examples.setdefault(key, reason)
+
     scored: list[tuple[CandidateResult, float | None]] = []
     plasmids: dict[str, PlasmidDesign] = {}
-    for index, design in enumerate(designer.design([trigger], constraints)):
+    designs = designer.design(
+        trigger_candidates, constraints, on_incompatible=_on_incompatible, on_invalid=_on_invalid
+    )
+    for index, design in enumerate(designs):
         if index % 5 == 0 and not on_progress(*_pct("Designing switches")):
             raise JobCancelled("Designing switches")
 
@@ -261,6 +329,10 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         outcome = outcomes[index % len(outcomes)]
         plasmid = _build_plasmid(plasmid_builder, store, design, outcome, custom_sequence)
 
+        # The specific trigger that produced *this* design — scanning (docs/triggers.md
+        # T2) can feed multiple candidates from different windows into one run, so this
+        # is no longer necessarily the same trigger for every design.
+        trigger = design.trigger_set.activators[0]
         candidate = _candidate_result(
             store, design, family, trigger, metrics, breach, plasmid, outcome
         )
@@ -277,11 +349,20 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         raise JobCancelled("Writing report")
     artifacts = _write_artifacts(request.output_dir, candidates, plasmids)
 
-    if not candidates:
-        warnings.append(
-            "No candidate designs passed validation for this trigger — see "
-            "docs/smoke-run.md §5 for why a validated design is not guaranteed."
-        )
+    if not candidates and trigger_candidates:
+        # trigger_candidates was non-empty, so the loop above genuinely tried and
+        # failed — report why, rather than the old one-size-fits-all message. When
+        # trigger_candidates is already empty, _direct_trigger's own warning (above)
+        # already explains it; adding this too would double-report the same failure.
+        summary = _summarize_rejections(incompatible_counts, incompatible_examples, "trigger set")
+        summary += _summarize_rejections(invalid_counts, invalid_examples, "generated design")
+        if summary:
+            warnings.append("No candidate designs passed validation." + summary)
+        else:
+            warnings.append(
+                "No candidate designs passed validation for this trigger — see "
+                "docs/smoke-run.md §5 for why a validated design is not guaranteed."
+            )
 
     on_progress(100, "Writing report")
 
@@ -309,6 +390,32 @@ def _pct(stage: str) -> tuple[int, str]:
     total = sum(STAGE_WEIGHTS.values())
     done = sum(STAGE_WEIGHTS[name] for name in order[: order.index(stage)])
     return round(100 * done / total), stage
+
+
+def _rejection_bucket(reason: str) -> str:
+    """Collapse a specific rejection message to its general shape, so many
+    near-identical messages (differing only in a position, a count, or an ID) tally
+    into one reported bucket instead of one each (docs/triggers.md T3).
+
+    Position lists first, so ``"found 2 at [50, 58]"`` and ``"found 3 at [22, 53, 59]"``
+    both become ``"found N at [...]"`` rather than differing only in list length; then
+    every remaining run of digits becomes ``N``. A specific enzyme name or homopolymer
+    letter is deliberately left alone — a PstI site and an XbaI site are genuinely
+    different problems, and should not be merged.
+    """
+    generalized = re.sub(r"\[[\d,\s]*\]", "[...]", reason)
+    return re.sub(r"\d+", "N", generalized)
+
+
+def _summarize_rejections(counts: "Counter[str]", examples: dict[str, str], unit: str) -> str:
+    """The top few rejection buckets as one reportable clause, or ``""`` if nothing was
+    tallied. ``examples`` supplies one real, unmodified message per bucket — the
+    generalized template from ``_rejection_bucket`` is for grouping only, never shown."""
+    if not counts:
+        return ""
+    total = sum(counts.values())
+    detail = "; ".join(f"{n}x {examples[key]}" for key, n in counts.most_common(3))
+    return f" {total} {unit}(s) rejected: {detail}."
 
 
 def _resolve_host(request: JobRequest) -> Host:
@@ -409,11 +516,34 @@ def _resolve_outputs(params: dict, host: Host) -> tuple[list[DesiredOutcome], li
 
 
 def _direct_trigger(
-    request: JobRequest, store: CandidateStore, profiler: FoldProfiler, folder: FoldEngine
-) -> TriggerCandidate:
-    """The whole of stages 1-2 for a `direct` submission: the pasted sequence *is* the
-    one trigger, at full length, offset 0 — modalities.md §A2's "the pipeline picks up
-    at SwitchDesigner", made concrete.
+    request: JobRequest,
+    store: CandidateStore,
+    profiler: FoldProfiler,
+    folder: FoldEngine,
+    off_target: OffTargetScanner,
+    screener: MotifScreener,
+    constraints: Constraints,
+) -> tuple[list[TriggerCandidate], list[str]]:
+    """Resolve the trigger(s) for a `direct` submission (docs/triggers.md, E2b).
+
+    A pasted sequence can mean two different things: *"this is my trigger"* (a
+    ~30-36 nt window, sized to a chemistry's footprint) or *"this is my target
+    transcript — find a trigger in it"* (anything longer, e.g. a full mRNA). Today's
+    rule: if the paste already fits within one window
+    (``max(constraints.trigger_lengths)``), it **is** the one trigger, full length,
+    offset 0 — modalities.md §A2's "the pipeline picks up at SwitchDesigner", made
+    concrete, and unchanged from before this function scanned anything. Longer than
+    that, it is scanned like a transcript, using the already-built, already-tested
+    ``TriggerScorer.score`` rather than a second implementation of window-scanning.
+
+    This is a deliberate, measured divergence from treating every paste identically
+    regardless of length: scanning even an exact, already-correctly-sized paste would
+    take the reference `direct` scenario from 3 candidate designs to 7 (measured,
+    against ``constraints.trigger_lengths = (30, 36)``), which contradicts
+    docs/smoke-run.md §5's explicit "three designs... is exactly what a smoke run
+    wants, do not widen for more results." The threshold is not a magic constant — it
+    is derived from ``constraints`` itself, so it moves if the configured window
+    lengths ever do.
 
     Re-validates length and alphabet defensively, mirroring
     ``MockEngine._verify_input`` — the Platform already checked this
@@ -421,10 +551,12 @@ def _direct_trigger(
     caller that skipped the Platform (``LocalEngine`` used directly, as this module's
     own tests do).
 
-    ``openness``/``accessibility`` follow ``TriggerScorer.score``'s already-decided
-    convention exactly (mean, then minimum, of the same profile slice) rather than
-    inventing a second one — profiling the pasted sequence *as* the transcript, since a
-    `direct` submission has no larger context to profile.
+    Returns:
+        The candidate trigger(s), ranked best first, and any warnings about how they
+        were chosen (how many windows were considered, how many survived — or, if
+        none did, why). Empty candidates with a non-empty warning is a valid, reported
+        outcome, not a raised error — mirroring the existing "candidates is empty"
+        convention at the end of ``run_pipeline`` rather than introducing a second one.
     """
     sequence = sq.to_rna(request.trigger_sequence)
     if len(sequence) < 20:
@@ -432,34 +564,86 @@ def _direct_trigger(
             "The trigger sequence is too short to design a switch against "
             "(at least 20 nucleotides are needed)."
         )
+    if len(sequence) > MAX_TRIGGER_LENGTH:
+        raise InputValidationError(
+            f"The trigger sequence is {len(sequence)} nt, over the "
+            f"{MAX_TRIGGER_LENGTH} nt limit for a direct submission."
+        )
     if not sq.is_valid_rna(sequence):
         raise InputValidationError(
             "The trigger sequence contains characters other than A, C, G and U."
         )
 
-    window = profiler.profile(sequence)
+    max_window = max(constraints.trigger_lengths)
+    if len(sequence) <= max_window:
+        # Exactly today's behaviour, byte for byte: the whole paste is the one
+        # trigger. openness/accessibility follow TriggerScorer.score's already-decided
+        # convention (mean, then minimum, of the same profile slice) rather than
+        # inventing a second one — profiling the pasted sequence *as* the transcript,
+        # since a `direct` submission this short has no larger context to profile.
+        window = profiler.profile(sequence)
+        trigger = TriggerCandidate(
+            trigger_id=store.mint_id("trig"),
+            gene_id="direct",
+            symbol="direct-trigger",
+            sequence=sequence,
+            start_index=0,
+            openness=sum(window) / len(window),
+            accessibility=min(window),
+            mfe=folder.mfe(sequence).energy,
+            # No transcriptome exists for a direct submission (off-target is reported
+            # as unmeasured in run_pipeline's warnings, not silently clean).
+            off_target_penalty=0.0,
+            segment_specificity=1.0,
+            gc_content=sq.gc_content(sequence),
+            aug_indexes=sq.find_augs(sequence),
+            stop_indexes=sq.find_stops(sequence),
+        )
+        return [trigger], []
 
-    return TriggerCandidate(
-        trigger_id=store.mint_id("trig"),
+    # Longer than one window: genuinely ambiguous which sub-window is "the" trigger.
+    # Reuse TriggerScorer.score rather than reimplementing scanning — it already
+    # screens motifs, profiles once, folds survivors and ranks (stages/triggers.py).
+    gene = SelectedGene(
         gene_id="direct",
         symbol="direct-trigger",
-        sequence=sequence,
-        start_index=0,
-        openness=sum(window) / len(window),
-        accessibility=min(window),
-        mfe=folder.mfe(sequence).energy,
-        # No transcriptome exists for a direct submission (build_tools constructs
-        # OffTargetScanner empty and it is never called), so there is nothing to scan
-        # against. 0.0/1.0 read as "clean" rather than "not measured" because
-        # TriggerCandidate.off_target_penalty is a plain float with no None state to
-        # express the difference — and neither built gate family's evaluate_design
-        # reads either field today, so this has no effect on any current output.
-        off_target_penalty=0.0,
-        segment_specificity=1.0,
-        gc_content=sq.gc_content(sequence),
-        aug_indexes=sq.find_augs(sequence),
-        stop_indexes=sq.find_stops(sequence),
+        regulation=Regulation.UP,
+        # Placeholders: these describe a differential-expression comparison this
+        # submission never made. TriggerScorer.score reads none of them.
+        log2_fold_change=0.0,
+        p_adj=0.0,
+        control_percentile=0.0,
+        condition_percentile=0.0,
+        condition_specificity=1.0,
+        score=0.0,
     )
+    scorer = TriggerScorer(profiler, off_target, screener, folder)
+    scored = list(scorer.score([gene], {"direct": sequence}, constraints))
+    # Re-mint through CandidateStore: TriggerCandidate.trigger_id's own contract
+    # (domain.py) says "minted by CandidateStore", but TriggerScorer builds its own
+    # f"trig-{gene_id}-{start}-{length}" string directly. Harmless while nothing
+    # outside its own tests constructed one; fixed here, at the point this is first
+    # exposed in a real run, rather than by touching triggers.py's tested code.
+    # Window provenance (offset) is recorded on the candidate result instead of the ID.
+    candidates = [dataclasses.replace(c, trigger_id=store.mint_id("trig")) for c in scored]
+
+    windows_considered = sum(
+        len(sequence) - length + 1
+        for length in constraints.trigger_lengths
+        if length <= len(sequence)
+    )
+    if not candidates:
+        return [], [
+            f"The pasted sequence is {len(sequence)} nt; none of its "
+            f"{windows_considered} possible trigger window(s) survived screening "
+            "(restriction sites, homopolymers, or extreme GC content). See "
+            "docs/triggers.md."
+        ]
+    return candidates, [
+        f"The pasted sequence is {len(sequence)} nt, longer than one trigger window "
+        f"(up to {max_window} nt) — scanned {windows_considered} window(s) and kept "
+        f"{len(candidates)} candidate(s) after screening, ranked by accessibility."
+    ]
 
 
 def _build_plasmid(
@@ -548,6 +732,11 @@ def _candidate_result(
                     "sequence": trigger.sequence,
                     "openness": trigger.openness,
                     "accessibility": trigger.accessibility,
+                    # Which window this candidate came from (docs/triggers.md T2) —
+                    # 0 for the single-trigger fast path, a real scanned offset
+                    # otherwise. Makes a chosen window inspectable rather than a
+                    # black box when more than one was considered.
+                    "start_index": trigger.start_index,
                 }
             ]
         },
@@ -558,6 +747,7 @@ def _candidate_result(
             "sequence_length_bp": len(design.sequence),
             "plasmid_segments": plasmid_segments,
             "logic_graph": logic_graph,
+            "trigger_start_index": trigger.start_index,
         },
         summary=f"{design.trigger_set.logic_type} {family.name} gate on {trigger.symbol}",
         metrics=metrics,

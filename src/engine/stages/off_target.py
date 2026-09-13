@@ -110,7 +110,14 @@ class OffTargetScanner:
             The penalty scale is arbitrary but must be *consistent*: it is normalised by
             ``engine.scoring`` against ``MetricSpec.valid_range``, so decide the range
             once, write it into the profile, and do not change one without the other.
+
+        An empty ``transcriptome`` (a `direct` submission has none to scan against,
+        docs/triggers.md T1) has nothing to compare against, not a clean result — the
+        zero penalty here is a placeholder, and the caller is responsible for reporting
+        it as unmeasured rather than letting it read as "scanned and found nothing."
         """
+        if not self.transcriptome:
+            return OffTargetReport(hits=(), penalty=0.0)
         raise NotImplementedError("Step 5")
 
     def scan_switch(self, binding_site: str) -> OffTargetReport:
@@ -132,5 +139,10 @@ class OffTargetScanner:
             *binds* the site is complementary to it rather than identical. Getting this
             backwards is the single easiest error in this module, and it fails silently:
             you get plausible-looking hits that mean nothing.
+
+        An empty ``transcriptome`` has nothing to compare against — see ``scan_trigger``'s
+        matching note.
         """
+        if not self.transcriptome:
+            return OffTargetReport(hits=(), penalty=0.0)
         raise NotImplementedError("Step 5")
