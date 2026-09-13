@@ -19,10 +19,10 @@
 | Step 2 — Domain model | **Complete** | 7 models, migrations, admin back-office, `seed_demo` |
 | Step 3 — API + orchestration | **Complete** | 35 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
 | Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages |
-| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. `PlasmidBuilder.build`/`.payload_segment` are real for the `direct` path (E5a, [plasmids.md](plasmids.md)) — a run produces a real annotated GenBank artifact and populated `plasmid_segments`, GFP payload / *E. coli* only. `de` mode, `CircuitDesigner`, `CodonOptimizer` and stage 6 (`ReportBuilder`) are still documented stubs raising `NotImplementedError` |
+| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. A pasted sequence longer than one trigger window is scanned for a usable trigger, not silently truncated (E2b, [triggers.md](triggers.md)) — `TriggerScorer` is real on this path. `PlasmidBuilder.build`/`.payload_segment` are real for the `direct` path (E5a, [plasmids.md](plasmids.md)) — a run produces a real annotated GenBank artifact and populated `plasmid_segments`, GFP payload / *E. coli* only. `de` mode, `CircuitDesigner`, `CodonOptimizer` and stage 6 (`ReportBuilder`) are still documented stubs raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
 
-`./do test` → **913 passing** (plus the Python client's own conformance suite,
+`./do test` → **949 passing** (plus the Python client's own conformance suite,
 `clients/python/tests/`, verified separately — see Phase X), and `.gitlab-ci.yml` runs
 the same checks plus the frontend
 build on every push. `CERNAL_ENGINE` defaults to `engine.client.MockEngine`, so the entire
@@ -76,6 +76,8 @@ specific task.
 | **Q11** | Payload sequences. There is no library for GFP, mCherry, luciferase, AmpR or an apoptosis inducer. **Partially answered:** GFP is now in `stages/plasmids.py`'s `PAYLOADS` table (E5a); mCherry, luciferase, AmpR and an apoptosis inducer are still missing | E5a (remaining outputs), E5 |
 | **Q12** | Which constitutive promoter and terminator, per host? **Provisionally answered for *E. coli* only:** J23119/B0015, in `stages/plasmids.py`'s `PROMOTERS`/`TERMINATORS` tables (E5a). Yeast and human still need their own, and the *E. coli* defaults need to be a scientific decision rather than a placeholder that quietly becomes permanent | E5a |
 | **Q13** | What backbone does the team build into? **Still open** — `PlasmidBuilder` takes an injected `backbone: tuple[Segment, ...]` and defaults to empty, so a `direct` run's construct has no origin or selection marker today. **A GenBank file of the plasmid the lab already transforms is the ideal answer** — origin and marker annotations come with it | E5a |
+| **Q14** | Does the RNA class change the trigger-selection rules? A window inside an mRNA's CDS, its 5′UTR, a lncRNA, or a small RNA are not equivalent choices — an sRNA may be functional only as a whole, and a CDS window is dense with start codons (measured: the #1 cause of switch-design rejection, docs/triggers.md §4). Should scanning prefer, avoid, or weight regions by class? | E2b |
+| **Q15** | What makes a scanned trigger window good, beyond merely buildable? `TriggerScorer.score`'s ranking formula (`accessibility * segment_specificity`) is a self-declared placeholder that ignores the MFE and GC it already computes. Needs a reviewed formula before any ranking is presented as a recommendation rather than "the first one that worked" | E2b, and Q6 |
 
 **Q1 first.** Without trigger sequences there is nothing to fold.
 
@@ -229,6 +231,42 @@ beyond `toehold` requested via `gate_families` (`antisense` is skipped with a wa
 Q11; multi-trigger `AND` combinations are generated up to arity 2 but never validated
 past that — Q3).
 
+### E2b · Trigger selection on the `direct` path — ✅ built
+
+Sits before E2, the way E2a does — same shape: a carve-out that skips Q1 entirely.
+Full assessment and design in [triggers.md](triggers.md); the finding that motivated it
+was a real, live `direct` submission (a full mRNA pasted as a trigger) producing zero
+candidates, because the whole paste was used *as* the trigger rather than searched for
+one within it.
+
+| # | Task | Where | Status |
+|---|---|---|---|
+| **E2b-T1** | `OffTargetScanner.scan_trigger`/`.scan_switch` — a defined answer for an empty transcriptome, plus a run-level "off-target not measured" warning | `engine/stages/off_target.py`, `engine/pipeline.py` | ✅ |
+| **E2b-T2** | `_direct_trigger` scans a paste longer than one trigger window via the already-built `TriggerScorer.score`, instead of silently using only its tail; window offset recorded on every candidate | `engine/pipeline.py` | ✅ |
+| **E2b-T3** | `SwitchDesigner.design` gains `on_incompatible`/`on_invalid` callbacks so a run that finds nothing names which rule rejected how many, instead of one generic message | `engine/stages/switches.py`, `engine/pipeline.py` | ✅ |
+| **E2b-fix** | `toehold_and` and both host variants have `available=True` but an unimplemented `generate_designs` — dormant with one trigger, but a real crash risk once E2b-T2 could produce multi-candidate trigger sets. Added to `_UNBUILDABLE_FAMILIES` | `engine/pipeline.py` | ✅ |
+
+**One deliberate divergence from [triggers.md](triggers.md)'s own first-draft
+recommendation, found during review:** scanning is not unconditional. It only triggers
+when a paste is longer than `max(constraints.trigger_lengths)` — scanning an
+already-correctly-sized paste was measured to change the existing `direct`-path reference
+scenario from 3 candidate designs to 7, contradicting [smoke-run.md](smoke-run.md) §5's
+explicit "three designs... is exactly what a smoke run wants." See
+[triggers.md](triggers.md) §6.1 for the full reasoning.
+
+**Still not in this phase, deliberately:** T4 (deriving scanned window lengths from the
+gate families' actual footprints, rather than `Constraints.trigger_lengths`, which
+today under-covers one of `ToeholdGate`'s three swept lengths) and T5 (constructibility-
+aware *ranking*, as opposed to filtering — `SwitchDesigner` already filters what it is
+given). Blocked on **Q14**, **Q15** for a *defensible* ranking; unblocked for *choosing a
+window that builds*.
+
+**Done when:** a `direct` run given a full mRNA returns candidates built against a named
+window at a reported offset, a run that returns none names the rule that rejected how
+many, and off-target is reported as unmeasured rather than clean. ✅ — verified against
+the exact mCherry CDS that motivated this: 0 candidates before, 41 after, each traceable
+to a scanned offset.
+
 ### E2 · Stages 1–3 — input, genes, triggers · **blocked on Q1**
 
 `InputQualityCheck` → `GeneSelector` → `TriggerScorer`.
@@ -243,8 +281,10 @@ past that — Q3).
 - Genes DESeq2 filtered out carry **no** `p_adj` at all. "Not tested" must not be treated
   as "not significant".
 
-**Also build the `direct` branch here** — a pasted sequence becomes one `TriggerCandidate`
-and stages 1–2 are skipped ([modalities.md §1](modalities.md)).
+**The `direct` branch is already built (E2b)** — a pasted sequence becomes one
+`TriggerCandidate` if it already fits one trigger window, or is scanned into several via
+`TriggerScorer.score` if it is longer ([triggers.md](triggers.md)); either way, stages 1–2
+proper are skipped ([modalities.md §1](modalities.md)).
 
 **Done when:** a real DE file produces ranked `TriggerCandidate` records with real
 openness and GC numbers.

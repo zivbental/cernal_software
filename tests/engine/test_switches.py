@@ -181,6 +181,49 @@ def test_design_produces_nothing_for_an_empty_trigger_list(toehold_gate, validat
     assert list(designer.design([], Constraints())) == []
 
 
+def test_on_incompatible_receives_the_reason_instead_of_it_being_dropped(toehold_gate, validator):
+    """ToeholdGate.max_inputs is 1 — two non-overlapping triggers from different genes
+    pair into one 2-activator TriggerSet (build_trigger_sets), which is_compatible then
+    rejects for arity. Without on_incompatible that reason used to be silently dropped
+    (docs/triggers.md T3)."""
+    designer = SwitchDesigner([toehold_gate], validator, Host.ECOLI)
+    first = _trigger(trigger_id="trig-1", gene_id="g1")
+    second = _trigger(trigger_id="trig-2", gene_id="g2")
+    reasons: list[str] = []
+
+    designs = list(designer.design([first, second], Constraints(), on_incompatible=reasons.append))
+
+    assert designs  # the two singletons still build fine
+    assert reasons  # and the pair's rejection reason was captured, not dropped
+    assert any("input" in reason for reason in reasons)
+
+
+def test_on_invalid_receives_every_violation_for_a_failing_design(validator):
+    """A real trigger whose reverse-complemented binding region embeds a second AUG —
+    found empirically the same way docs/triggers.md's own investigation did."""
+    from engine.gates.tools.codons import CodonOptimizer
+    from engine.gates.tools.translation import TranslationScorer
+
+    host = Host.ECOLI
+    gate = ToeholdGate(host, validator.folder, TranslationScorer(host), CodonOptimizer(host))
+    designer = SwitchDesigner([gate], validator, host)
+    bad_trigger = _trigger(sequence="AUGGUGAGCAAGGGCGAGGAGGAUAACAUGGC")  # 32 nt, real AUG collision
+    violations: list[str] = []
+
+    designs = list(designer.design([bad_trigger], Constraints(), on_invalid=violations.append))
+
+    assert designs == []
+    assert violations
+    assert any("AUG" in v for v in violations)
+
+
+def test_neither_callback_fires_when_everything_is_valid(toehold_gate, validator):
+    """Default behaviour, unchanged: omitting both callbacks is exactly today's design()."""
+    designer = SwitchDesigner([toehold_gate], validator, Host.ECOLI)
+    designs = list(designer.design([_trigger()], Constraints()))
+    assert designs
+
+
 # --- SwitchValidator.validate ---------------------------------------------------------
 
 

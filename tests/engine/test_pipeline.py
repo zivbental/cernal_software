@@ -305,6 +305,36 @@ def test_requesting_only_antisense_fails_cleanly_naming_q11(direct_request, alwa
     assert "antisense" in result.error.lower() or "payload" in result.error.lower()
 
 
+def test_requesting_only_toehold_and_fails_cleanly_not_a_crash(direct_request, always_continue):
+    """ToeholdAndGate.available is inherited True, but generate_designs is an
+    unconditional NotImplementedError. Dormant with one trigger (arity always rejects
+    first); a scanned paste (docs/triggers.md E2b) can produce real 2-input trigger
+    sets that would otherwise reach it. Must fail as data, never propagate raw
+    (docs/triggers.md, blocking bug found during review)."""
+    result = LocalEngine().run(direct_request(gate_families=["toehold_and"]), always_continue)
+    assert result.status == "failed"
+    assert "toehold_and" in result.error.lower() or "and" in result.error.lower()
+
+
+def test_a_long_paste_never_reaches_the_broken_and_family_uncaught(direct_request, always_continue):
+    """The actual crash scenario: mixing a working family with the broken AND one,
+    against a paste long enough to scan into multiple, non-overlapping trigger
+    candidates — build_trigger_sets will genuinely pair some of them."""
+    long_trigger = (
+        "AUGGUGAGCAAGGGCGAGGAGGAUAACAUGGCCAUCAUCAAGGAGUUCAUGCGCUUCAAGGUGCAC"
+        "AUGGAGGGCUCCGUGAACGGCCACGAGUUCGAGAUCGAGGGCGAGGGCGAGGGCCGCCCCUACGAG"
+        "GGCACCCAGACC"
+    )
+    result = LocalEngine().run(
+        direct_request(trigger_sequence=long_trigger, gate_families=["toehold", "toehold_and"]),
+        always_continue,
+    )
+    assert result.status == "succeeded"
+    assert result.candidates
+    assert all(c.gate_family == "toehold" for c in result.candidates)
+    assert any("toehold_and" in w for w in result.warnings)
+
+
 def test_cancellation_before_the_run_starts(direct_request):
     result = LocalEngine().run(direct_request(), lambda pct, stage: False)
     assert result.status == CANCELLED
@@ -321,6 +351,91 @@ def test_cancellation_mid_switch_design(direct_request):
 
     result = LocalEngine().run(direct_request(), on_progress)
     assert result.status == CANCELLED
+
+
+# --- Trigger selection (stage 2, docs/triggers.md E2b) ------------------------------
+#
+# A real fragment of mCherry's CDS (144 nt) — the exact case that motivated this
+# feature: pasted whole, only its silently-unscanned tail used to be tried, and that
+# tail happened to fail (extra AUGs). Longer than one trigger window
+# (max(trigger_lengths) = 36), so it is scanned rather than used whole.
+LONG_PASTE = (
+    "AUGGUGAGCAAGGGCGAGGAGGAUAACAUGGCCAUCAUCAAGGAGUUCAUGCGCUUCAAGGUGCAC"
+    "AUGGAGGGCUCCGUGAACGGCCACGAGUUCGAGAUCGAGGGCGAGGGCGAGGGCCGCCCCUACGAG"
+    "GGCACCCAGACC"
+)
+
+
+def test_a_paste_longer_than_one_window_is_scanned_not_silently_truncated(
+    direct_request, always_continue
+):
+    result = LocalEngine().run(direct_request(trigger_sequence=LONG_PASTE), always_continue)
+
+    assert result.status == "succeeded"
+    assert result.candidates
+    assert not all(c.is_rejected for c in result.candidates)
+    # More than one distinct window actually got used — this is the whole point, not
+    # an accident of one lucky offset.
+    starts = {c.design.get("trigger_start_index") for c in result.candidates}
+    assert len(starts) > 1
+    assert any("scanned" in w and "144 nt" in w for w in result.warnings)
+
+
+def test_every_candidate_records_which_window_it_came_from(direct_request, always_continue):
+    result = LocalEngine().run(direct_request(trigger_sequence=LONG_PASTE), always_continue)
+    for candidate in result.candidates:
+        start = candidate.design.get("trigger_start_index")
+        assert isinstance(start, int)
+        assert start >= 0
+        assert candidate.triggers["features"][0]["start_index"] == start
+
+
+def test_a_long_paste_with_nothing_usable_reports_why_not_a_generic_message(
+    direct_request, always_continue
+):
+    """A homopolymer run: every window of either configured length trivially contains
+    one, so nothing survives TriggerScorer's own screen before switch design is even
+    attempted — a different, earlier failure than a design-validation rejection."""
+    result = LocalEngine().run(direct_request(trigger_sequence="G" * 50), always_continue)
+
+    assert result.status == "succeeded"
+    assert result.candidates == []
+    assert any("50 nt" in w and "possible trigger window" in w for w in result.warnings)
+    # The old, generic message must not also appear — one clear reason, not two.
+    assert not any("docs/smoke-run.md §5" in w for w in result.warnings)
+
+
+def test_a_paste_at_or_under_one_window_is_unaffected_byte_for_byte(
+    direct_request, always_continue
+):
+    """The threshold decision's whole point (docs/triggers.md T2): CLEAN_TRIGGER is
+    exactly max(trigger_lengths) = 36 nt, and must still produce exactly the 3 designs
+    (one per swept toehold length) it always has — not the 7 that scanning its own
+    sub-windows would add. A regression guard on the threshold itself, not just a new
+    feature test."""
+    result = LocalEngine().run(direct_request(), always_continue)
+
+    assert result.status == "succeeded"
+    assert len(result.candidates) == 3
+    assert {c.design.get("trigger_start_index") for c in result.candidates} == {0}
+    assert not any("scanned" in w for w in result.warnings)
+
+
+def test_rejections_are_summarized_with_reasons_when_scanning_finds_candidates_but_none_build(
+    direct_request, always_continue
+):
+    """Unlike the all-homopolymer case above, this paste's windows pass the cheap
+    screen and reach switch design/validation — a later, different failure point.
+    Empirically verified deterministic: every window built from this repeating
+    trinucleotide pattern embeds either a second AUG or an in-frame stop once
+    reverse-complemented into a switch, so nothing here ever builds."""
+    paste = "AUG" * 20 + "ACG" * 20  # 120 nt, real RNA, longer than one window
+    result = LocalEngine().run(direct_request(trigger_sequence=paste), always_continue)
+
+    assert result.status == "succeeded"
+    assert result.candidates == []
+    assert any("generated design(s) rejected:" in w for w in result.warnings)
+    assert any("AUG" in w or "stop codon" in w for w in result.warnings)
 
 
 # --- build_tools ------------------------------------------------------------------
