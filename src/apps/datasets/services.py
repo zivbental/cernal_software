@@ -334,6 +334,58 @@ def _read_xlsx(raw: bytes) -> tuple[list[str], Iterator[dict]]:
     return headers, as_dicts()
 
 
+#: §24 of the public-datasets brief: never render 20k rows in the browser at once. This
+#: caps what a single preview request returns; a public dataset's own curated catalog
+#: already stores at most this many rows per comparison (sync_expression_catalog.py), so
+#: an uploaded file is the only case this cap actually trims.
+PREVIEW_ROW_LIMIT = 2000
+
+
+def preview_expression_rows(dataset, *, limit: int = PREVIEW_ROW_LIMIT) -> dict:
+    """Parsed, ranked rows for any dataset — public or uploaded alike, since both are
+    the same ``Dataset`` model by the time this runs. Reuses ``_read_table``/
+    ``_canonical_columns`` rather than a second parser (CLAUDE.md §1).
+
+    Ranked by |log2FC| descending (the default sort task brief §13 asks for) *before*
+    capping, so a truncated table still shows the most differentially expressed genes,
+    not just whichever happened to come first in the file.
+    """
+    with dataset.file.open("rb") as handle:
+        raw = handle.read()
+    columns, rows_iter = _read_table(raw, dataset.name)
+    canonical = _canonical_columns(columns)
+
+    parsed = []
+    for row in rows_iter:
+        remapped = {canonical.get(k, k): v for k, v in row.items()}
+        gene_id = (remapped.get("gene_id") or "").strip()
+        if not gene_id:
+            continue
+        parsed.append(
+            {
+                "gene_id": gene_id,
+                "gene_symbol": (remapped.get("gene_symbol") or "").strip() or None,
+                "log2fc": _as_float_or_none(remapped.get("log2fc")),
+                "pvalue": _as_float_or_none(remapped.get("pvalue")),
+                "padj": _as_float_or_none(remapped.get("padj")),
+            }
+        )
+
+    parsed.sort(key=lambda r: abs(r["log2fc"]) if r["log2fc"] is not None else -1.0, reverse=True)
+    total = len(parsed)
+    capped = parsed[:limit]
+    return {"rows": capped, "total_rows": total, "truncated": total > len(capped)}
+
+
+def _as_float_or_none(value) -> float | None:
+    if value in (None, "", "NA", "NaN", "null"):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def delete_dataset(dataset) -> None:
     """Remove a dataset that no run has used.
 

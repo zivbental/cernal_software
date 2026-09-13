@@ -12,7 +12,7 @@ from ninja.security import django_auth
 
 from api.auth import get_owned, owned_queryset
 from api.errors import Conflict, ValidationFailed
-from api.schemas import DatasetOut, ExampleDatasetOut, UseExampleIn
+from api.schemas import DatasetOut, DatasetPreviewOut, ExampleDatasetOut, UseExampleIn
 from apps.datasets.models import Dataset
 from apps.datasets.services import (
     EXAMPLES,
@@ -20,6 +20,7 @@ from apps.datasets.services import (
     create_dataset,
     create_example_dataset,
     delete_dataset,
+    preview_expression_rows,
 )
 
 router = Router()
@@ -67,6 +68,17 @@ def use_example_dataset(request, payload: UseExampleIn):
 @router.get("/datasets/{dataset_id}", response=DatasetOut)
 def get_dataset(request, dataset_id: UUID):
     return get_owned(Dataset, dataset_id, request.user)
+
+
+@router.get("/datasets/{dataset_id}/preview", response=DatasetPreviewOut)
+def preview_dataset(request, dataset_id: UUID):
+    """Parsed, ranked rows — public or uploaded, the same endpoint either way (docs
+    §13/§24: sorted by |log2FC|, capped so the browser never renders a whole genome)."""
+    dataset = get_owned(Dataset, dataset_id, request.user)
+    try:
+        return preview_expression_rows(dataset)
+    except DatasetValidationError as exc:
+        raise ValidationFailed(str(exc)) from None
 
 
 @router.delete("/datasets/{dataset_id}", response={204: None}, auth=django_auth)
