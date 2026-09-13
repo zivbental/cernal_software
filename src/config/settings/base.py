@@ -35,6 +35,7 @@ LOCAL_APPS = [
     "apps.accounts",
     "apps.common",
     "apps.datasets",
+    "apps.expression",
     "apps.analyses",
     "apps.results",
     "apps.web",

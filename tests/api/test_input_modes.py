@@ -142,6 +142,27 @@ def test_deseq2_column_names_are_recognised(auth_client, media_root):
     assert detected["baseMean"] == "base_expression"
 
 
+def test_gene_id_and_gene_symbol_are_kept_as_separate_columns(auth_client, media_root):
+    """engine.domain.DgeRow wants gene_id and symbol distinct — a stable identifier to
+    join on, and a human-readable name that is never unique across annotation builds.
+    Folding "symbol" into gene_id (the old behaviour) made the two indistinguishable."""
+    csv_text = "gene_id\tgene_symbol\tlog2fc\tpadj\nENSG00000007908\tSELE\t6.84\t4.1e-9\n"
+    body = _upload(auth_client, csv_text, "public.csv").json()
+
+    assert body["validation_status"] == "VALID"
+    detected = body["validation_report"]["detected_columns"]
+    assert detected["gene_id"] == "gene_id"
+    assert detected["gene_symbol"] == "gene_symbol"
+
+
+def test_a_bare_symbol_column_is_recognised_as_gene_symbol_not_gene_id(auth_client, media_root):
+    csv_text = "gene_id\tsymbol\tlog2fc\nENSG00000007908\tSELE\t6.84\n"
+    body = _upload(auth_client, csv_text, "public2.csv").json()
+
+    detected = body["validation_report"]["detected_columns"]
+    assert detected["symbol"] == "gene_symbol"
+
+
 def test_an_xlsx_upload_is_parsed(auth_client, media_root):
     from openpyxl import Workbook
 

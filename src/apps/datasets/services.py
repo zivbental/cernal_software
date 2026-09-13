@@ -24,7 +24,12 @@ logger = logging.getLogger(__name__)
 #: Canonical column name -> the spellings researchers actually export.
 #: DESeq2, edgeR, limma and Excel all disagree, and none of them are wrong.
 COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
-    "gene_id": ("gene_id", "gene", "geneid", "gene_name", "genename", "id", "symbol", "target_id"),
+    "gene_id": ("gene_id", "gene", "geneid", "id", "target_id", "ensembl_id", "locus_tag"),
+    #: Kept distinct from gene_id — engine.domain.DgeRow already wants both (gene_id for
+    #: joining, symbol for display; "symbols are not unique across annotation builds").
+    #: Folding them into one column, as this used to do, is the thing that made a
+    #: human-readable "SELE" and a stable "ENSG00000007908" indistinguishable upstream.
+    "gene_symbol": ("gene_symbol", "symbol", "gene_name", "genename", "hgnc_symbol"),
     "log2fc": (
         "log2fc",
         "log2foldchange",
