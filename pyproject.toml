@@ -18,6 +18,9 @@ dependencies = [
     "gunicorn>=23.0",
     "viennarna>=2.7.2",
     "biopython>=1.85",
+    # Platform-side only: apps/expression's provider adapters, run offline by
+    # manage.py sync_expression_catalog. Never imported by src/engine/.
+    "requests>=2.31",
 ]
 
 [project.optional-dependencies]
