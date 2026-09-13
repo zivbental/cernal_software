@@ -24,7 +24,12 @@ logger = logging.getLogger(__name__)
 #: Canonical column name -> the spellings researchers actually export.
 #: DESeq2, edgeR, limma and Excel all disagree, and none of them are wrong.
 COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
-    "gene_id": ("gene_id", "gene", "geneid", "gene_name", "genename", "id", "symbol", "target_id"),
+    "gene_id": ("gene_id", "gene", "geneid", "id", "target_id", "ensembl_id", "locus_tag"),
+    #: Kept distinct from gene_id — engine.domain.DgeRow already wants both (gene_id for
+    #: joining, symbol for display; "symbols are not unique across annotation builds").
+    #: Folding them into one column, as this used to do, is the thing that made a
+    #: human-readable "SELE" and a stable "ENSG00000007908" indistinguishable upstream.
+    "gene_symbol": ("gene_symbol", "symbol", "gene_name", "genename", "hgnc_symbol"),
     "log2fc": (
         "log2fc",
         "log2foldchange",
@@ -137,7 +142,13 @@ def create_dataset(*, uploaded_file, user, name: str | None = None) -> Dataset:
         validation_report=report,
         uploaded_by=user,
     )
-    dataset.file.save(dataset.name, uploaded_file, save=False)
+    # The *storage* filename is the uploaded file's own name, never dataset.name — the
+    # latter is a free-form display string (a caller can pass an arbitrary long one,
+    # e.g. apps.expression.services.materialize_public_dataset's "<experiment title> —
+    # <comparison label>") with no length discipline appropriate for a filesystem path.
+    # Conflating the two is what tripped dataset_upload_path's max_length guard for
+    # long display names before that guard existed.
+    dataset.file.save(uploaded_file.name, uploaded_file, save=False)
     dataset.save()
 
     logger.info(
@@ -327,6 +338,58 @@ def _read_xlsx(raw: bytes) -> tuple[list[str], Iterator[dict]]:
         workbook.close()
 
     return headers, as_dicts()
+
+
+#: §24 of the public-datasets brief: never render 20k rows in the browser at once. This
+#: caps what a single preview request returns; a public dataset's own curated catalog
+#: already stores at most this many rows per comparison (sync_expression_catalog.py), so
+#: an uploaded file is the only case this cap actually trims.
+PREVIEW_ROW_LIMIT = 2000
+
+
+def preview_expression_rows(dataset, *, limit: int = PREVIEW_ROW_LIMIT) -> dict:
+    """Parsed, ranked rows for any dataset — public or uploaded alike, since both are
+    the same ``Dataset`` model by the time this runs. Reuses ``_read_table``/
+    ``_canonical_columns`` rather than a second parser (CLAUDE.md §1).
+
+    Ranked by |log2FC| descending (the default sort task brief §13 asks for) *before*
+    capping, so a truncated table still shows the most differentially expressed genes,
+    not just whichever happened to come first in the file.
+    """
+    with dataset.file.open("rb") as handle:
+        raw = handle.read()
+    columns, rows_iter = _read_table(raw, dataset.name)
+    canonical = _canonical_columns(columns)
+
+    parsed = []
+    for row in rows_iter:
+        remapped = {canonical.get(k, k): v for k, v in row.items()}
+        gene_id = (remapped.get("gene_id") or "").strip()
+        if not gene_id:
+            continue
+        parsed.append(
+            {
+                "gene_id": gene_id,
+                "gene_symbol": (remapped.get("gene_symbol") or "").strip() or None,
+                "log2fc": _as_float_or_none(remapped.get("log2fc")),
+                "pvalue": _as_float_or_none(remapped.get("pvalue")),
+                "padj": _as_float_or_none(remapped.get("padj")),
+            }
+        )
+
+    parsed.sort(key=lambda r: abs(r["log2fc"]) if r["log2fc"] is not None else -1.0, reverse=True)
+    total = len(parsed)
+    capped = parsed[:limit]
+    return {"rows": capped, "total_rows": total, "truncated": total > len(capped)}
+
+
+def _as_float_or_none(value) -> float | None:
+    if value in (None, "", "NA", "NaN", "null"):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def delete_dataset(dataset) -> None:

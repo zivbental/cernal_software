@@ -109,8 +109,27 @@ class UseExampleIn(Schema):
     key: str = "ecoli-oxidative-stress"
 
 
+class DatasetProvenanceOut(Schema):
+    """Where a public dataset came from (docs/public-datasets.md) — absent entirely for
+    an uploaded dataset, which has no provider to cite."""
+
+    provider: str
+    organism: str
+    experiment_accession: str
+    experiment_title: str
+    comparison_id: str
+    comparison_label: str
+    experimental_condition: str
+    reference_condition: str
+    source_url: str
+    retrieved_at: datetime
+    analysis_method: str
+    publication_doi: str
+
+
 class DatasetOut(ModelSchema):
     filename: str
+    provenance: DatasetProvenanceOut | None = None
 
     class Meta:
         model = Dataset
@@ -129,6 +148,80 @@ class DatasetOut(ModelSchema):
     def resolve_filename(obj) -> str:
         """The original name only — never the storage path (§7.2)."""
         return obj.name
+
+    @staticmethod
+    def resolve_provenance(obj):
+        # A OneToOneField's reverse accessor raises DoesNotExist rather than returning
+        # None — an upload has no DatasetProvenance row at all.
+        return getattr(obj, "provenance", None)
+
+
+class DatasetPreviewRowOut(Schema):
+    gene_id: str
+    gene_symbol: str | None = None
+    log2fc: float | None = None
+    pvalue: float | None = None
+    padj: float | None = None
+
+
+class DatasetPreviewOut(Schema):
+    """§13/§24: capped, pre-sorted so the frontend never has to sort a 20k-row table
+    itself. ``truncated`` says whether ``rows`` is everything or just the ranked top."""
+
+    rows: list[DatasetPreviewRowOut]
+    total_rows: int
+    truncated: bool
+
+
+# --- Public expression datasets (docs/public-datasets.md) --------------------------
+
+
+class OrganismOut(Schema):
+    key: str
+    name: str
+
+
+class PublicExperimentOut(Schema):
+    experiment_key: str
+    organism: str
+    provider: str
+    accession: str
+    title: str
+    source_url: str
+
+
+class PublicComparisonOut(Schema):
+    comparison_key: str
+    comparison_id: str
+    label: str
+    experimental_condition: str
+    reference_condition: str
+    gene_count: int
+
+
+class PublicDatasetInfoOut(Schema):
+    """The info card (task brief §12) shown before a researcher commits to loading it."""
+
+    comparison_key: str
+    provider: str
+    organism: str
+    experiment_accession: str
+    experiment_title: str
+    comparison_id: str
+    comparison_label: str
+    experimental_condition: str
+    reference_condition: str
+    source_url: str
+    retrieved_at: str
+    gene_count: int
+    genes_with_p_value: int
+    genes_with_adjusted_p_value: int
+    analysis_method: str = ""
+    publication_doi: str = ""
+
+
+class MaterializePublicDatasetIn(Schema):
+    comparison_key: str
 
 
 # --- Runs -------------------------------------------------------------------------

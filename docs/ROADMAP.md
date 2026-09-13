@@ -18,7 +18,7 @@
 | Step 1 — Engine contract + MockEngine | **Complete** | Contract, `MockEngine`, gate/scoring layers, boundary test |
 | Step 2 — Domain model | **Complete** | 7 models, migrations, admin back-office, `seed_demo` |
 | Step 3 — API + orchestration | **Complete** | 35 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
-| Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages |
+| Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages. The wizard's `de` mode can also seed itself from a curated, real public-dataset catalog (Phase D, [public-datasets.md](public-datasets.md)), not only an upload |
 | **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. A pasted sequence longer than one trigger window is scanned for a usable trigger, not silently truncated (E2b, [triggers.md](triggers.md)) — `TriggerScorer` is real on this path. `PlasmidBuilder.build`/`.payload_segment` are real for the `direct` path (E5a, [plasmids.md](plasmids.md)) — a run produces a real annotated GenBank artifact and populated `plasmid_segments`, GFP payload / *E. coli* only. A run assembles onto a real, selectable plasmid backbone — ten catalog vectors or a researcher's own GenBank upload (E5b, [plasmids.md](plasmids.md)). `de` mode, `CircuitDesigner`, `CodonOptimizer` and stage 6 (`ReportBuilder`) are still documented stubs raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
 
@@ -63,7 +63,7 @@ specific task.
 
 | # | Question | Blocks |
 |---|---|---|
-| **Q1** | **Where do trigger sequences come from?** The DE table has gene identifiers, not sequences. A reference transcriptome per organism? An accession lookup? User-supplied FASTA? | **E2** — and it may introduce a new data dependency with its own storage and licensing questions |
+| **Q1** | **Where do trigger sequences come from?** The DE table has gene identifiers, not sequences. A reference transcriptome per organism? An accession lookup? User-supplied FASTA? **Still open.** Phase D (§11, [public-datasets.md](public-datasets.md)) answers a related but distinct question — where a *DE table itself* comes from — and deliberately does not touch this one: a public dataset materializes into the same `Dataset` a `de`-mode upload already does, which still hits `run_pipeline`'s unconditional `InputValidationError` for anything but `direct` today | **E2** — and it may introduce a new data dependency with its own storage and licensing questions |
 | **Q2** | Thresholds for a usable trigger: minimum fold change, maximum adjusted p, expression bounds | E3 |
 | **Q3** | Maximum trigger-set size. Are 3-input circuits in scope, or is 2 the ceiling? | E3, and the whole compute budget (§3) |
 | **Q4** | Toehold construction rules: stem and loop lengths, RBS sequence, linker, start-codon placement, which toehold lengths to vary | E4 |
@@ -675,6 +675,38 @@ secret shown exactly once. `/api-docs` is an in-app reference — Python/R/MATLA
 quickstarts plus the full `POST /api/design` field table — reachable from the main nav
 and cross-linked with `/settings`. This is what makes the "sandbox key, printed in
 documentation" idea above cheap to finish: the page to print it *in* now exists.
+
+---
+
+## 11. Phase D — Public dataset ingestion
+
+A curated, real public-transcriptomics catalog a researcher can browse and load, so a
+run can be seeded from a published biological state rather than only an upload. Full
+rationale, the exact endpoints used, discovered provider limitations, and "how to add
+another organism/provider" are in [public-datasets.md](public-datasets.md); this table
+is the work, per this file's own rule.
+
+**Deliberately does not touch Q1** (§2) or `src/engine/` at all — a materialized public
+dataset becomes an ordinary `apps.datasets.Dataset` row, indistinguishable from an
+upload downstream. It makes the *input* side of `de` mode real; `de` mode's *execution*
+is exactly as blocked on Q1 as it was before this phase.
+
+**D1–D5 are done.** Gene->sequence resolution (which would let a selected gene reach a
+real, running circuit design) was scoped out on purpose — see D6.
+
+| # | Task | Where | Size | Status |
+|---|---|---|---|---|
+| **D1** | `apps.expression` app skeleton; `DatasetProvenance` model (one-to-one on `Dataset`, additive — the existing model/migrations/tests are untouched); `gene_symbol` split out of `gene_id` in `COLUMN_ALIASES` | `apps/expression/`, `apps/datasets/services.py` | S | **Done** |
+| **D2** | Provider adapters (sync-time only — never called by the running app) + `manage.py sync_expression_catalog`; a real, live-verified curated catalog, 5 comparisons × 3 organisms | `apps/expression/providers/`, `apps/expression/catalog/` | M | **Done** |
+| **D3** | `apps/expression/services.py` — catalog reads + `materialize_public_dataset`, reusing `apps.datasets.services.create_dataset` unchanged | `apps/expression/services.py` | S | **Done** |
+| **D4** | API layer: catalog browsing, materialize, and one new `GET /datasets/{id}/preview` shared by public and uploaded datasets alike | `api/routers/expression.py`, `api/routers/datasets.py`, `api/schemas.py` | M | **Done** |
+| **D5** | Wizard UI: a public-dataset picker under `de` mode, an informational "Specific Gene" route, and an expression-profile preview (table + volcano) | `frontend/src/components/compile/` | M | **Done** |
+| **D6** | *(deliberately not built)* Gene->sequence resolution, so a selected gene could feed a real `direct` run today | — | — | **Not built.** Discussed and decided against for this phase: even with a sequence, only *E. coli* has real promoters/terminators/payloads/backbones today (Q11–Q13), so human/yeast gene selection would still dead-end downstream. Revisit alongside Q11–Q13, not in isolation |
+
+**Catalog composition**, all real, live-fetched accessions (never fabricated — see
+public-datasets.md for the full per-entry citation list): 5 human (EMBL-EBI Expression
+Atlas, RNA-seq differential only), 5 yeast (same provider, scoped to *S. cerevisiae* —
+yStreX was unreachable this session), 5 *E. coli* (BV-BRC biosets).
 
 ---
 

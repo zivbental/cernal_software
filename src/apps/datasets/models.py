@@ -6,13 +6,29 @@ from django.utils.text import get_valid_filename
 
 from apps.common.models import CreatedAtModel, UUIDModel
 
+#: FileField.file's default max_length is 100 (Django's default for the DB column
+#: storing the relative path) — "datasets/" (9) + a UUID4 (36) + "/" (1) already spends
+#: 46 of that. Capped well short of the ~54 that leaves, so even a long extension has
+#: room: a filename that busts the column's max_length doesn't get truncated cleanly —
+#: Django's own uniquifying retry loop can't converge past max_length and raises
+#: SuspiciousFileOperation("Storage can not find an available filename") instead,
+#: turning a long display name into an unhandled 500 (found via
+#: apps.expression.services.materialize_public_dataset passing "<experiment title> —
+#: <comparison label>" as a filename — three real curated comparisons had titles long
+#: enough to trip this).
+_MAX_FILENAME_STEM = 40
+
 
 def dataset_upload_path(instance: "Dataset", filename: str) -> str:
     """``var/media/datasets/<dataset id>/<filename>``.
 
     Namespaced by id so two uploads of the same filename never collide.
     """
-    return f"datasets/{instance.id}/{get_valid_filename(filename)}"
+    stem, dot, ext = filename.rpartition(".")
+    stem = stem if dot else filename
+    safe_stem = get_valid_filename(stem)[:_MAX_FILENAME_STEM]
+    safe_ext = f".{get_valid_filename(ext)}" if dot else ""
+    return f"datasets/{instance.id}/{safe_stem}{safe_ext}"
 
 
 class ValidationStatus(models.TextChoices):

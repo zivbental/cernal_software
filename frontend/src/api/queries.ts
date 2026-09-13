@@ -22,9 +22,13 @@ import {
   type Candidate,
   type CandidateDetail,
   type Dataset,
+  type DatasetPreview,
   type DecisionTag,
   type ExampleDataset,
   type Paginated,
+  type PublicComparison,
+  type PublicDatasetInfo,
+  type PublicExperiment,
   type Registration,
   type Run,
   type RunParams,
@@ -37,7 +41,11 @@ export const keys = {
   me: ["me"] as const,
   version: ["version"] as const,
   datasets: ["datasets"] as const,
+  datasetPreview: (id: string) => ["dataset-preview", id] as const,
   exampleDatasets: ["example-datasets"] as const,
+  publicExperiments: (organism: string) => ["public-experiments", organism] as const,
+  publicComparisons: (experimentKey: string) => ["public-comparisons", experimentKey] as const,
+  publicDatasetInfo: (comparisonKey: string) => ["public-dataset-info", comparisonKey] as const,
   recentRuns: ["runs", "recent"] as const,
   run: (id: string) => ["run", id] as const,
   runStatus: (id: string) => ["run", id, "status"] as const,
@@ -132,6 +140,65 @@ export function useUploadDataset() {
       form.append("file", file);
       return api.upload<Dataset>("/datasets", form);
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.datasets }),
+  });
+}
+
+/** Parsed, ranked rows for any dataset — public or uploaded. Only fetched once a
+ * dataset is actually selected, hence `enabled`. */
+export function useDatasetPreview(datasetId: string | null) {
+  return useQuery({
+    queryKey: keys.datasetPreview(datasetId ?? ""),
+    queryFn: () => api.get<DatasetPreview>(`/datasets/${datasetId}/preview`),
+    enabled: Boolean(datasetId),
+  });
+}
+
+/* ---------- public expression datasets (docs/public-datasets.md) ---------- */
+
+/** The curated catalog, one organism at a time — the wizard's own organism picker
+ * drives this, so there is no separate organism selector for public data (avoids a
+ * design organism disagreeing with a data organism). */
+export function usePublicExperiments(organism: string) {
+  return useQuery({
+    queryKey: keys.publicExperiments(organism),
+    queryFn: () =>
+      api.get<PublicExperiment[]>(
+        `/public-datasets/experiments?organism=${encodeURIComponent(organism)}`,
+      ),
+    staleTime: Infinity,
+  });
+}
+
+export function usePublicComparisons(experimentKey: string | null) {
+  return useQuery({
+    queryKey: keys.publicComparisons(experimentKey ?? ""),
+    queryFn: () =>
+      api.get<PublicComparison[]>(
+        `/public-datasets/comparisons?experiment=${encodeURIComponent(experimentKey ?? "")}`,
+      ),
+    enabled: Boolean(experimentKey),
+    staleTime: Infinity,
+  });
+}
+
+/** The info card (compile UI §12) — fetched once a comparison is chosen, before the
+ * researcher commits to loading it. */
+export function usePublicDatasetInfo(comparisonKey: string | null) {
+  return useQuery({
+    queryKey: keys.publicDatasetInfo(comparisonKey ?? ""),
+    queryFn: () =>
+      api.get<PublicDatasetInfo>(`/public-datasets/${encodeURIComponent(comparisonKey ?? "")}`),
+    enabled: Boolean(comparisonKey),
+    staleTime: Infinity,
+  });
+}
+
+export function useMaterializePublicDataset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (comparisonKey: string) =>
+      api.post<Dataset>("/public-datasets/materialize", { comparison_key: comparisonKey }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.datasets }),
   });
 }

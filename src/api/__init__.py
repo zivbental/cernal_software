@@ -24,6 +24,7 @@ from api.errors import ApiError, envelope
 from api.routers.auth import router as auth_router
 from api.routers.datasets import router as datasets_router
 from api.routers.design import router as design_router
+from api.routers.expression import router as expression_router
 from api.routers.meta import router as meta_router
 from api.routers.results import router as results_router
 from api.routers.runs import router as runs_router
@@ -52,6 +53,7 @@ api.add_router("", runs_router, tags=["runs"])
 api.add_router("", results_router, tags=["results"])
 api.add_router("", meta_router, tags=["meta"])
 api.add_router("", design_router, tags=["design"])
+api.add_router("", expression_router, tags=["expression"])
 
 
 @api.exception_handler(ApiError)

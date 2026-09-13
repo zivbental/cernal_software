@@ -25,6 +25,20 @@ def test_uploading_a_good_dataset_marks_it_valid(auth_client, csv_upload, media_
     assert len(body["checksum_sha256"]) == 64
 
 
+def test_a_long_custom_name_does_not_break_the_upload(auth_client, csv_upload, media_root):
+    """The display name (a free-form 200-char field) and the storage filename are two
+    different things — a long name used to be handed straight to the storage layer as
+    a filename, which could exceed FileField's max_length and raise
+    SuspiciousFileOperation instead of uploading cleanly."""
+    long_name = "A " + "very " * 30 + "long display name"  # ~180 chars, under the 200 cap
+    response = auth_client.post("/api/datasets", data={"file": csv_upload(), "name": long_name})
+    body = response.json()
+
+    assert response.status_code == 201
+    assert body["name"] == long_name
+    assert body["validation_status"] == ValidationStatus.VALID
+
+
 def test_upload_response_exposes_no_storage_path(auth_client, csv_upload, media_root):
     body = auth_client.post("/api/datasets", data={"file": csv_upload()}).json()
 

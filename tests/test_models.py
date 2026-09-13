@@ -6,9 +6,11 @@ runs, rejected candidates keeping their reasons, and the state machine's shape.
 
 import pytest
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from apps.analyses.models import ALLOWED_TRANSITIONS, TERMINAL_STATUSES, AnalysisRun, RunStatus
-from apps.datasets.models import Dataset, ValidationStatus
+from apps.datasets.models import Dataset, ValidationStatus, dataset_upload_path
+from apps.expression.models import DatasetProvenance, Provider
 from apps.results.models import Candidate, CandidateMetric, MetricDirection
 
 
@@ -48,6 +50,70 @@ def test_dataset_referenced_by_a_run_cannot_be_deleted(run, dataset):
     """PROTECT: results must never outlive the input that produced them."""
     with pytest.raises(IntegrityError):
         dataset.delete()
+
+
+def test_dataset_upload_path_caps_a_long_filename(dataset):
+    """A real bug, not a hypothetical: FileField's default max_length=100 for the DB
+    column means "datasets/<uuid36>/<name>" has ~54 chars of headroom for the name
+    itself. A longer one used to make Django's own uniquifying retry loop unable to
+    converge, raising SuspiciousFileOperation instead of a clean, actionable error —
+    found via apps.expression.services.materialize_public_dataset, whose auto-built
+    display name easily exceeds this for a long experiment title."""
+    long_name = "x" * 40 + " — " + "y" * 200 + ".csv"
+
+    path = dataset_upload_path(dataset, long_name)
+
+    assert path.startswith(f"datasets/{dataset.id}/")
+    # FileField's own default max_length — Django's storage only kicks off its
+    # (potentially non-converging) uniquifying retry loop above this, so staying at or
+    # under it, with real margin for a longer extension than ".csv", is the invariant.
+    assert len(path) <= 90
+    assert path.endswith(".csv")
+
+
+def test_dataset_upload_path_preserves_a_normal_filename():
+    """The common case — a real, short filename — is untouched by the cap."""
+    fake = Dataset(id="00000000-0000-0000-0000-000000000000")
+    assert dataset_upload_path(fake, "deseq2_results.csv").endswith("deseq2_results.csv")
+
+
+# --- Dataset provenance (apps.expression) ------------------------------------------
+
+
+def _provenance(dataset, **kwargs):
+    defaults = {
+        "dataset": dataset,
+        "provider": Provider.EXPRESSION_ATLAS,
+        "organism": "human",
+        "experiment_accession": "E-GEOD-00000",
+        "experiment_title": "Test experiment",
+        "comparison_id": "g1_g2",
+        "comparison_label": "treated vs untreated",
+        "source_url": "https://example.org",
+        "retrieved_at": timezone.now(),
+    }
+    defaults.update(kwargs)
+    return DatasetProvenance.objects.create(**defaults)
+
+
+def test_a_dataset_has_at_most_one_provenance_record(dataset):
+    """One-to-one: a materialized dataset traces to exactly one provider origin."""
+    _provenance(dataset)
+    with pytest.raises(IntegrityError):
+        _provenance(dataset)
+
+
+def test_deleting_the_dataset_deletes_its_provenance(dataset):
+    """CASCADE, not PROTECT — provenance describes the dataset; it has no independent
+    existence once the dataset it is about is gone."""
+    provenance = _provenance(dataset)
+    dataset.delete()
+    assert not DatasetProvenance.objects.filter(pk=provenance.pk).exists()
+
+
+def test_provenance_reverse_accessor_reaches_the_dataset(dataset):
+    provenance = _provenance(dataset)
+    assert dataset.provenance == provenance
 
 
 # --- Run state machine ------------------------------------------------------------
