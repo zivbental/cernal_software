@@ -13,7 +13,8 @@ import pytest
 
 from engine.client import LocalEngine
 from engine.contract import CANCELLED, INPUT_DE, INPUT_DIRECT, SCHEMA_VERSION
-from engine.domain import Host
+from engine.domain import AssemblyStandard, Host
+from engine.errors import InputValidationError
 from engine.pipeline import build_tools, run_pipeline
 
 # Chosen empirically (docs/smoke-run.md §5): a hand-repeated test sequence echoes extra
@@ -154,13 +155,109 @@ def test_logic_graph_has_at_least_one_gene_so_the_frontend_does_not_index_past_t
         assert len(candidate.design["logic_graph"]["genes"]) >= 1
 
 
-def test_plasmid_segments_are_present_but_empty(direct_request, always_continue):
-    """Stage 5 is not built — PlasmidRing.tsx handles an empty list safely
-    (``candidate.design.plasmid_segments ?? []``); this pins that it stays empty
-    rather than silently gaining fabricated segments."""
+# --- Plasmid construction (stage 5, docs/plasmids.md E5a) ---------------------------
+
+
+def test_a_direct_run_populates_real_plasmid_segments(direct_request, always_continue):
+    """The default output (GFP) is fully configured (docs/ROADMAP.md Q11/Q12), so a
+    plain direct run — no payload requested explicitly — gets a real plasmid, not the
+    ``[]`` PlasmidRing.tsx used to be handed while stage 5 was a stub."""
     result = LocalEngine().run(direct_request(), always_continue)
+
+    assert result.candidates
     for candidate in result.candidates:
-        assert candidate.design["plasmid_segments"] == []
+        segments = candidate.design["plasmid_segments"]
+        assert [s["kind"] for s in segments] == ["promoter", "switch", "payload", "terminator"]
+        assert all(s["length_bp"] > 0 for s in segments)
+        assert candidate.design["logic_graph"]["output"] == "GFP"
+
+
+def test_a_genbank_artifact_is_written_per_accepted_candidate(direct_request, always_continue):
+    result = LocalEngine().run(direct_request(), always_continue)
+
+    accepted = [c for c in result.candidates if not c.is_rejected]
+    genbank_refs = {a.candidate_ref for a in result.artifacts if a.kind == "genbank"}
+    assert genbank_refs == {c.ref for c in accepted}
+
+
+def test_the_genbank_artifact_parses_back_as_a_circular_plasmid(direct_request, always_continue):
+    from Bio import SeqIO
+
+    request = direct_request(idempotency_key="genbank-parse-back")
+    result = LocalEngine().run(request, always_continue)
+    genbank = next(a for a in result.artifacts if a.kind == "genbank")
+
+    with open(os.path.join(request.output_dir, genbank.path)) as handle:
+        record = SeqIO.read(handle, "genbank")
+
+    assert record.annotations.get("topology") == "circular"
+    assert len(record.features) == 4
+
+
+def test_an_unconfigured_output_fails_the_whole_run_cleanly(direct_request, always_continue):
+    """mCherry has no catalog entry yet (docs/ROADMAP.md Q11) — the same "none of the
+    requested X could be built" pattern already used for gate families."""
+    request = direct_request(params={"payload": {"outputs": ["mcherry"]}})
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "failed"
+    assert "mcherry" in result.error.lower() or "Q11" in result.error
+
+
+def test_an_unknown_output_string_is_a_clean_failure(direct_request, always_continue):
+    request = direct_request(params={"payload": {"outputs": ["not-a-real-output"]}})
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "failed"
+    assert "not-a-real-output" in result.error
+
+
+def test_a_custom_payload_builds_through_the_full_pipeline(direct_request, always_continue):
+    request = direct_request(
+        params={"payload": {"outputs": ["other"], "custom_sequence": "AUGGCUAAGCUUAACUAA"}}
+    )
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "succeeded"
+    for candidate in result.candidates:
+        payload = next(s for s in candidate.design["plasmid_segments"] if s["kind"] == "payload")
+        assert payload["name"] == "Custom"
+
+
+def test_mixed_outputs_use_only_the_buildable_ones_and_warn_about_the_rest(
+    direct_request, always_continue
+):
+    request = direct_request(params={"payload": {"outputs": ["gfp", "mcherry"]}, "mock": {}})
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "succeeded"
+    assert any("mcherry" in w for w in result.warnings)
+    assert all(c.design["logic_graph"]["output"] == "GFP" for c in result.candidates)
+
+
+def test_run_pipeline_asks_for_circular_screening_when_building_a_plasmid(
+    direct_request, always_continue, monkeypatch
+):
+    """PlasmidBuilder.build() is responsible for circular screening
+    (tests/engine/test_plasmids.py already locks in the unit itself); this is the
+    integration guarantee that run_pipeline actually reaches that code path. The same
+    shared ``screener`` is also used linearly by stage 3's switch validation, so both
+    ``True`` and ``False`` calls are expected — only the presence of a ``True`` one is
+    this test's concern."""
+    from engine.stages.motifs import MotifScreener
+
+    calls = []
+    original = MotifScreener.violations
+
+    def spy(self, sequence, *, circular=False):
+        calls.append(circular)
+        return original(self, sequence, circular=circular)
+
+    monkeypatch.setattr(MotifScreener, "violations", spy)
+    result = LocalEngine().run(direct_request(), always_continue)
+
+    assert result.candidates
+    assert True in calls
 
 
 # --- Failure paths, all as data (EngineClient's own contract) -------------------------
@@ -238,10 +335,55 @@ def test_build_tools_returns_every_documented_key(direct_request):
         "screener",
         "codons",
         "translation",
+        "plasmid_builder",
         "constraints",
         "families",
         "warnings",
     }
+
+
+def test_plasmid_builder_shares_the_same_screener_and_codons_instances(direct_request):
+    """A second, independently configured MotifScreener/CodonOptimizer would mean the
+    plasmid compliance check and everything else agreeing by coincidence rather than by
+    construction (this module's own docstring on why tools are built once)."""
+    tools = build_tools(direct_request(), Host.ECOLI)
+
+    assert tools["plasmid_builder"].screener is tools["screener"]
+    assert tools["plasmid_builder"].codons is tools["codons"]
+
+
+# --- _build_constraints (via build_tools) -----------------------------------------
+#
+# The API layer (api/params.py) now rejects an unknown constraint field before a run
+# is even queued, but this is the engine's own defense — the check the API's absence
+# would otherwise leave as the only one — so it stays covered here independently of
+# whatever the API does.
+
+
+def test_a_default_constraints_block_builds_with_no_overrides(direct_request):
+    tools = build_tools(direct_request(), Host.ECOLI)
+    assert tools["constraints"].max_triggers == 2
+    assert tools["constraints"].standard == AssemblyStandard.RFC10
+
+
+def test_an_unknown_constraint_field_is_rejected(direct_request):
+    request = direct_request(params={"constraints": {"max_leakage": 0.08}})
+    with pytest.raises(InputValidationError, match="max_leakage"):
+        build_tools(request, Host.ECOLI)
+
+
+def test_trigger_lengths_coerces_from_a_json_list_to_a_tuple(direct_request):
+    """A JSON-sourced dict carries a list; Constraints.trigger_lengths is a tuple
+    (CLAUDE.md §6: hashable arguments for FoldEngine.mfe's lru_cache)."""
+    request = direct_request(params={"constraints": {"trigger_lengths": [30, 45]}})
+    tools = build_tools(request, Host.ECOLI)
+    assert tools["constraints"].trigger_lengths == (30, 45)
+
+
+def test_an_unknown_assembly_standard_is_rejected(direct_request):
+    request = direct_request(params={"constraints": {"standard": "rfc-nonexistent"}})
+    with pytest.raises(InputValidationError, match="rfc-nonexistent"):
+        build_tools(request, Host.ECOLI)
 
 
 def test_build_tools_skips_antisense_with_a_warning(direct_request):

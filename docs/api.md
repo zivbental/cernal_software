@@ -246,10 +246,20 @@ Each run stands on its own — there is no project to organize it under.
 A mismatch returns **422**. The rule is also a database constraint, so it cannot be
 bypassed by any other write path.
 
-**`params` is free-form by contract.** It is frozen verbatim into `params_snapshot`, and
-the engine reads what it recognises and ignores the rest — which is what lets the wizard
-add a field without an engine release. Its v1 shape is in
-[modalities.md §7](modalities.md).
+**`params` is free-form at the top level.** It is frozen verbatim into `params_snapshot`,
+and the engine reads what it recognises at that level and ignores the rest — which is
+what lets the wizard add a field like `logic` or `mechanism` without an engine release.
+Its v1 shape is in [modalities.md §7](modalities.md).
+
+**Two sub-blocks are the exception, and are validated at submission.**
+`params.constraints` and `params.scoring` are typed projections of
+`engine.domain.Constraints` and a scoring profile (§9 below — the same key sets
+`POST /api/design` validates), not free-form data: an unrecognised key inside either one
+returns **422** with `did_you_mean` immediately, rather than surfacing later as an async
+`FAILED` run once the engine's own `_build_constraints` rejects it in the worker. This
+narrows an earlier version of this promise, which described the whole of `params` as
+ignored-if-unrecognised — that was never true for these two keys, since the engine has
+always rejected an unknown field inside `constraints`.
 
 `gate_families` and `scoring_profile` are validated against what the engine advertises at
 `GET /api/version`; an unknown value returns 422 listing the available ones.
@@ -330,11 +340,12 @@ counts trigger lengths × gate families; `de` mode bounds the search space from 
 dataset's row count, since gene selection (stage 1) doesn't compute the real one yet.
 
 **Exactly one input**: `trigger_sequence`, `dataset_id`, or inline `dge_csv` — two or
-none is 422 naming the conflict. **`strict` defaults to `true`** here (unlike
-`POST /api/runs`, where `params` stays intentionally free-form): an unknown
-key anywhere in `constraints`, `scoring`, `budget` or `payload` is 422 with
-`did_you_mean`, instead of the silent "unrecognised field, quietly ignored" failure the
-free-form endpoint accepts on purpose.
+none is 422 naming the conflict. **`strict` defaults to `true`** here: an unknown key
+anywhere in `constraints`, `scoring`, `budget` or `payload` is 422 with `did_you_mean`.
+`budget` and `payload` are checked only on this endpoint. `constraints` and `scoring`
+are checked here *and*, unconditionally (no `strict` opt-out), on `POST /api/runs` (§7)
+— those two are the ones the engine itself cannot silently ignore, so both submission
+paths reject a typo in them at submission time rather than in the worker.
 
 **Custom scoring** — re-weight the nine metrics, or add a hard filter, per run:
 

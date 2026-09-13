@@ -98,7 +98,28 @@ function CompilePage() {
         outputs: config.outputs,
         custom_sequence: config.customPayload || null,
       },
-      constraints: config.constraints,
+      // A per-run override of the scoring profile's hard filters (engine.scoring
+      // X7), not engine.domain.Constraints — see CompileConfig's own docstring.
+      // gate_folding_energy is LOWER_BETTER, so "require at least this much
+      // stability" is a `maximum`, not a `minimum` — using minimum here would
+      // reject exactly the most stable designs. `reason` is required by the API
+      // (api/params.py check_scoring_block) — it becomes the rejected candidate's
+      // recorded rejection_reason, so a researcher can see why their own slider
+      // rejected a design.
+      scoring: {
+        hard_filters: [
+          {
+            metric: "predicted_leakage",
+            maximum: config.maxLeakage,
+            reason: `Off-state leakage above the researcher-set limit (${config.maxLeakage}).`,
+          },
+          {
+            metric: "gate_folding_energy",
+            maximum: config.minGateStability,
+            reason: `Gate folding energy above the researcher-set stability floor (${config.minGateStability} kcal/mol).`,
+          },
+        ],
+      },
       // Makes progress observable while the science is still mocked.
       mock: { candidate_count: 24, step_delay: 0.6 },
     };

@@ -116,6 +116,19 @@ class DesiredOutcome(StrEnum):
     APOPTOSIS = "apoptosis"
     CUSTOM = "other"
 
+    @property
+    def display_name(self) -> str:
+        """The name a researcher sees, e.g. in ``logic_graph.output`` — distinct from
+        the enum's own lowercase wire value."""
+        return {
+            DesiredOutcome.GFP: "GFP",
+            DesiredOutcome.MCHERRY: "mCherry",
+            DesiredOutcome.LUCIFERASE: "Luciferase",
+            DesiredOutcome.ANTIBIOTIC: "AmpR",
+            DesiredOutcome.APOPTOSIS: "Apoptosis inducer",
+            DesiredOutcome.CUSTOM: "Custom",
+        }[self]
+
 
 # --- Inputs -----------------------------------------------------------------------
 

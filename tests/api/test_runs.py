@@ -76,6 +76,91 @@ def test_an_unknown_scoring_profile_is_rejected(auth_client, dataset):
     assert "nope" in response.json()["error"]["message"]
 
 
+def test_an_unknown_constraint_field_is_rejected_at_submission(auth_client, dataset):
+    """The wizard's own bug, reproduced: params.constraints is a typed projection of
+    engine.domain.Constraints, unlike every other params key, so a typo here must
+    surface as an immediate 422 rather than an async FAILED run once
+    engine.pipeline._build_constraints rejects it in the worker."""
+    response = _submit(
+        auth_client,
+        dataset_id=dataset.id,
+        params={"constraints": {"max_leakage": 0.08}},
+    )
+
+    assert response.status_code == 422
+    body = response.json()["error"]
+    assert body["code"] == "unknown_parameter"
+    assert "max_leakage" in body["message"]
+    assert "max_switch_length" in body["detail"]["allowed"]
+
+
+def test_a_known_constraint_field_is_accepted(
+    auth_client, dataset, django_capture_on_commit_callbacks
+):
+    with django_capture_on_commit_callbacks():
+        response = _submit(
+            auth_client, dataset_id=dataset.id, params={"constraints": {"max_triggers": 3}}
+        )
+
+    assert response.status_code == 202
+
+
+def test_an_unknown_scoring_metric_name_is_rejected_at_submission(auth_client, dataset):
+    response = _submit(
+        auth_client,
+        dataset_id=dataset.id,
+        params={"scoring": {"hard_filters": [{"metric": "leakage", "maximum": 0.08}]}},
+    )
+
+    assert response.status_code == 422
+    body = response.json()["error"]
+    assert "leakage" in body["message"]
+    assert "predicted_leakage" in body["detail"]["allowed"]
+
+
+def test_an_unknown_scoring_key_is_rejected_at_submission(auth_client, dataset):
+    response = _submit(auth_client, dataset_id=dataset.id, params={"scoring": {"typo": 1}})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "unknown_parameter"
+
+
+def test_a_hard_filter_with_no_reason_is_rejected_at_submission(auth_client, dataset):
+    """engine.scoring.profiles.derive_profile defaults a missing 'reason' to '', and
+    Candidate has a DB constraint that a rejected row must carry a non-empty
+    rejection_reason — so this must be caught here, not surface as an IntegrityError
+    the first time the filter actually rejects a real candidate in the worker."""
+    response = _submit(
+        auth_client,
+        dataset_id=dataset.id,
+        params={"scoring": {"hard_filters": [{"metric": "predicted_leakage", "maximum": 0.5}]}},
+    )
+
+    assert response.status_code == 422
+    message = response.json()["error"]["message"]
+    assert "predicted_leakage" in message
+    assert "reason" in message
+
+
+def test_a_valid_scoring_override_is_accepted_and_stored(
+    auth_client, dataset, django_capture_on_commit_callbacks
+):
+    """The mechanism the wizard's Advanced panel now uses (docs/plasmids.md-adjacent
+    fix): a per-run hard-filter override, the same X7 path POST /api/design already
+    validates."""
+    scoring = {
+        "hard_filters": [
+            {"metric": "predicted_leakage", "maximum": 0.5, "reason": "Researcher-set limit."}
+        ]
+    }
+    with django_capture_on_commit_callbacks():
+        response = _submit(auth_client, dataset_id=dataset.id, params={"scoring": scoring})
+
+    assert response.status_code == 202
+    run = AnalysisRun.objects.get(pk=response.json()["id"])
+    assert run.params_snapshot["scoring"] == scoring
+
+
 def test_cannot_submit_using_another_users_dataset(other_client, dataset):
     """404, not 403 — 403 would confirm the dataset exists (§7.2)."""
     assert _submit(other_client, dataset_id=dataset.id).status_code == 404

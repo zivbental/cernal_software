@@ -2,16 +2,19 @@
 
 from uuid import UUID
 
+from django.conf import settings
 from ninja import Router, Status
 
 from api.auth import get_owned, owned_queryset
 from api.errors import ValidationFailed
+from api.params import CONSTRAINT_KEYS, SCORING_KEYS, check_known_keys, check_scoring_block
 from api.schemas import CancelOut, RunCounts, RunIn, RunOut, RunStatusOut
 from api.security import enforce_concurrency_ceiling, require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun, InputMode
 from apps.analyses.services import RunError, cancel_run, submit_run
 from apps.datasets.models import Dataset
+from engine.client import load_engine
 
 router = Router()
 
@@ -35,6 +38,13 @@ def create_run(request, payload: RunIn):
     A ``design``-scoped key is required (ADR 0006, docs/public-api.md §6) — this and
     ``POST /api/design`` are the two submission paths, so a ``read``-scoped key must not
     reach either. The per-key concurrency ceiling applies here too, for the same reason.
+
+    ``params`` is otherwise free-form (docs/api.md §7) — the wizard can add a new
+    top-level key without an API release — but ``params.constraints`` and
+    ``params.scoring`` are typed projections of ``engine.domain.Constraints`` and a
+    scoring profile (the same key sets ``POST /api/design`` validates, docs/api.md §9),
+    so a typo there is rejected here rather than surfacing as an async FAILED run once
+    ``engine.pipeline._build_constraints`` rejects it in the worker (CLAUDE.md §2).
     """
     require_scope(request, ApiKeyScope.DESIGN)
     enforce_concurrency_ceiling(request)
@@ -44,6 +54,12 @@ def create_run(request, payload: RunIn):
         if payload.dataset_id is None:
             raise ValidationFailed("A dataset is required for a differential-expression run.")
         dataset = get_owned(Dataset, payload.dataset_id, request.user)
+
+    constraints = payload.params.get("constraints") or {}
+    scoring = payload.params.get("scoring") or {}
+    check_known_keys(constraints, CONSTRAINT_KEYS, "constraint")
+    check_known_keys(scoring, SCORING_KEYS, "scoring field")
+    check_scoring_block(scoring, load_engine(settings.CERNAL_ENGINE).capabilities())
 
     try:
         run, _created = submit_run(

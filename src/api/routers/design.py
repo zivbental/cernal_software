@@ -9,7 +9,6 @@ The design target: a scientist with a sequence gets ranked designs in four lines
 having read nothing.
 """
 
-import difflib
 import math
 import time
 from uuid import UUID
@@ -20,7 +19,15 @@ from django.db.models import F
 from ninja import Router, Status
 
 from api.auth import get_owned
-from api.errors import ApiError, ValidationFailed
+from api.errors import ValidationFailed
+from api.params import (
+    BUDGET_KEYS,
+    CONSTRAINT_KEYS,
+    PAYLOAD_KEYS,
+    SCORING_KEYS,
+    check_known_keys,
+    check_scoring_block,
+)
 from api.schemas import (
     DesignAcceptedOut,
     DesignIn,
@@ -50,38 +57,6 @@ _SECONDS_PER_DESIGN = 0.015
 #: measured ~12,250 designs. Used only to keep dry_run's arithmetic consistent with the
 #: one real data point this repo has.
 _DESIGNS_PER_TRIGGER_SET = 10
-
-_CONSTRAINT_KEYS = {
-    "max_triggers",
-    "min_separation",
-    "max_p_adj",
-    "trigger_lengths",
-    "max_switch_length",
-    "forbidden_motifs",
-    "standard",
-}
-_SCORING_KEYS = {"base", "weights", "hard_filters", "tie_breakers"}
-_BUDGET_KEYS = {"max_designs", "max_runtime_seconds", "on_exceed"}
-_PAYLOAD_KEYS = {"outputs", "custom_sequence"}
-
-
-class UnknownParameter(ApiError):
-    status = 422
-    code = "unknown_parameter"
-
-
-def _check_known_keys(block: dict, allowed: set[str], name: str) -> None:
-    """strict mode (§9.2): a typo becomes a 422 naming the mistake, instead of the
-    silent CLAUDE.md §2 failure — an unknown key is simply never read."""
-    unknown = sorted(set(block) - allowed)
-    if not unknown:
-        return
-    bad = unknown[0]
-    suggestion = difflib.get_close_matches(bad, allowed, n=1)
-    raise UnknownParameter(
-        f"Unknown {name} '{bad}'.",
-        detail={"did_you_mean": suggestion[0] if suggestion else None, "allowed": sorted(allowed)},
-    )
 
 
 def _input_mode(body: DesignIn) -> str:
@@ -123,30 +98,8 @@ def _resolve_gate_families(body: DesignIn, capabilities) -> list[str]:
 def _resolve_scoring(body: DesignIn, capabilities) -> dict:
     scoring = body.scoring
     if body.strict:
-        _check_known_keys(scoring, _SCORING_KEYS, "scoring field")
-
-    known = {metric.name for metric in capabilities.metrics}
-    unknown = set(scoring.get("weights", {})) | set(scoring.get("tie_breakers", []))
-    unknown |= {hf.get("metric") for hf in scoring.get("hard_filters", [])}
-    unknown -= known
-    unknown.discard(None)
-    if unknown:
-        raise ValidationFailed(
-            f"Unknown metric name(s) in 'scoring': {', '.join(sorted(unknown))}.",
-            detail={"allowed": sorted(known)},
-        )
-
-    weights = scoring.get("weights")
-    if weights:
-        # Cheap arithmetic on data the API already has (capabilities.metrics), not a
-        # ScoringProfile construction — that stays engine-side (§3). Catches the case
-        # engine.scoring.profiles.ScoringProfile.validate() would otherwise only find
-        # once the run is already executing, turning it into a submission-time 422
-        # instead of an async FAILED run.
-        total = sum(weights.get(metric.name, metric.weight) for metric in capabilities.metrics)
-        if total <= 0:
-            raise ValidationFailed("'scoring.weights' leaves the total weight non-positive.")
-
+        check_known_keys(scoring, SCORING_KEYS, "scoring field")
+    check_scoring_block(scoring, capabilities)
     return scoring
 
 
@@ -218,9 +171,9 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
     scoring = _resolve_scoring(body, capabilities)
 
     if body.strict:
-        _check_known_keys(body.constraints, _CONSTRAINT_KEYS, "constraint")
-        _check_known_keys(body.budget, _BUDGET_KEYS, "budget field")
-        _check_known_keys(body.payload, _PAYLOAD_KEYS, "payload field")
+        check_known_keys(body.constraints, CONSTRAINT_KEYS, "constraint")
+        check_known_keys(body.budget, BUDGET_KEYS, "budget field")
+        check_known_keys(body.payload, PAYLOAD_KEYS, "payload field")
 
     if dry_run:
         rows = _row_count_for_dry_run(request, body, input_mode)

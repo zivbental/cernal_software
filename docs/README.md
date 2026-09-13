@@ -24,8 +24,11 @@ circuits with scores, metrics, sequences and downloadable artifacts.
 | [ROADMAP.md](ROADMAP.md) | Every future task, open scientific question and planned implementation. Status lives here |
 | [modalities.md](modalities.md) | The four design axes — input mode, host organism, gate chemistry, output payload — in detail |
 | [engine.md](engine.md) | The scientific engine: contract, design principles, stages, records, tools, gates, scoring, layout, testing |
-| [domain-model.md](domain-model.md) | Field-level reference for the eight Django models |
-| [api.md](api.md) | Endpoint reference for the 32 HTTP endpoints |
+| [domain-model.md](domain-model.md) | Field-level reference for the Django models |
+| [api.md](api.md) | Endpoint reference for the HTTP API |
+| [public-api.md](public-api.md) | External integration: API keys, the one-call `POST /api/design` fast path, the Python/R/MATLAB clients |
+| [smoke-run.md](smoke-run.md) | What blocked the first real (non-`MockEngine`) run, and the `direct`-path slice that unblocked it |
+| [plasmids.md](plasmids.md) | What stage 5 needs to make a circuit orderable — and the part-library questions nobody has asked yet |
 | [development.md](development.md) | Setup, everyday commands, testing, troubleshooting |
 | [deployment.md](deployment.md) | Where it runs in production, and why that shape |
 | [attribution.md](attribution.md) | Who did the work, what CERNAL builds on, and how AI tools were used. **The source of truth for the iGEM Attribution Form** — it has `TODO` lines only the team can fill in |

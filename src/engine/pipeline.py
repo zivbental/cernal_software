@@ -5,13 +5,21 @@ and runs them in order. It contains no science — if it grows past ~150 lines, 
 leaked into it from a stage.
 
 **Scope of this build (docs/smoke-run.md): the `direct` input path only.** A researcher
-pastes a trigger mRNA and gets ranked toehold designs back. The `de` path — upload a
+pastes a trigger mRNA and gets ranked toehold designs back, each with a real,
+annotated plasmid (docs/plasmids.md, E5a). The `de` path — upload a
 differential-expression table, discover triggers from it — stays a documented
 ``InputValidationError`` here: it needs stage 1 (`GeneSelector`), the two stubbed tools
 stage 2 calls (`FoldProfiler` is now real; `OffTargetScanner` is not), a CSV parser with
 no home yet, and a resolved Q1 (where do trigger sequences come from). None of that is
-built by this branch. Stages 4 (circuits), 5 (plasmids) and 6 (rendered artifacts) are
-likewise out of scope — see docs/smoke-run.md §4 for exactly what that costs the UI.
+built by this branch. Stage 4 (`CircuitDesigner`, real multi-switch circuits) and stage 6
+(the PDF report, structure/circuit figures) are likewise out of scope — see
+docs/smoke-run.md §4 and docs/plasmids.md §3 for exactly what that costs.
+
+**Stage 5 does not wait for stage 4.** A `direct` submission has one trigger and one
+switch, so ``_build_plasmid`` hand-builds a trivial one-gene ``CircuitCandidate`` the
+same way ``_direct_trigger`` hand-builds the one ``TriggerCandidate`` for stages 1-2
+(docs/plasmids.md §3) — ``PlasmidBuilder.build()`` never sees that this circuit was not
+produced by a real ``CircuitDesigner``.
 
 This branch does not modify anything under ``engine/gates/`` — every gate family and
 gate tool it calls (``ToeholdGate`` and its host-specific subclasses, ``FoldEngine``)
@@ -34,7 +42,20 @@ from engine.contract import (
     JobResult,
     MetricValue,
 )
-from engine.domain import AssemblyStandard, Constraints, GateDesign, Host, TriggerCandidate
+from engine.domain import (
+    AssemblyStandard,
+    BooleanExpression,
+    CircuitCandidate,
+    ConfusionMatrix,
+    Constraints,
+    DesiredOutcome,
+    GateDesign,
+    Host,
+    LogicGraph,
+    LogicOperator,
+    PlasmidDesign,
+    TriggerCandidate,
+)
 from engine.errors import InputValidationError, JobCancelled
 from engine.gates.base import GateFamily
 from engine.gates.registry import get_family
@@ -46,6 +67,14 @@ from engine.scoring.profiles import HardFilter, resolve_profile
 from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
 from engine.stages.off_target import OffTargetScanner
+from engine.stages.plasmids import (
+    PAYLOADS,
+    PROMOTERS,
+    TERMINATORS,
+    PlasmidBuilder,
+    to_genbank,
+    validate_payload_cds,
+)
 from engine.stages.switches import SwitchDesigner, SwitchValidator
 from engine.store import CandidateStore
 
@@ -106,14 +135,20 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
     """
     folder = FoldEngine()
     constraints = _build_constraints(request.params)
+    screener = MotifScreener(constraints.standard)
+    codons = CodonOptimizer(host)
 
     tools: dict[str, object] = {
         "folder": folder,
         "profiler": FoldProfiler(),
         "off_target": OffTargetScanner({}),
-        "screener": MotifScreener(constraints.standard),
-        "codons": CodonOptimizer(host),
+        "screener": screener,
+        "codons": codons,
         "translation": TranslationScorer(host),
+        # Same screener/codons instances as above — a second PlasmidBuilder-only
+        # MotifScreener would mean two independently configured screeners agreeing by
+        # coincidence rather than by construction.
+        "plasmid_builder": PlasmidBuilder(screener, codons, constraints.standard),
         "constraints": constraints,
     }
 
@@ -177,6 +212,14 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             + "; ".join(warnings)
         )
 
+    outcomes, outcome_warnings = _resolve_outputs(request.params, host)
+    warnings.extend(outcome_warnings)
+    if not outcomes:
+        raise InputValidationError(
+            "None of the requested outputs could be built for this host: "
+            + ("; ".join(outcome_warnings) if outcome_warnings else "no output was requested.")
+        )
+
     profile = resolve_profile(request.scoring_profile, request.params.get("scoring"))
     store = CandidateStore(request.output_dir, request.run_id)
 
@@ -197,7 +240,11 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     if not on_progress(*_pct("Designing switches")):
         raise JobCancelled("Designing switches")
 
+    plasmid_builder: PlasmidBuilder = tools["plasmid_builder"]
+    custom_sequence = (request.params.get("payload") or {}).get("custom_sequence")
+
     scored: list[tuple[CandidateResult, float | None]] = []
+    plasmids: dict[str, PlasmidDesign] = {}
     for index, design in enumerate(designer.design([trigger], constraints)):
         if index % 5 == 0 and not on_progress(*_pct("Designing switches")):
             raise JobCancelled("Designing switches")
@@ -207,12 +254,19 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         metrics = build_metrics(raw, profile)
         breach = failed_filter(raw, profile)
 
-        scored.append(
-            (
-                _candidate_result(store, design, family, trigger, metrics, breach),
-                None if breach else weighted_score(metrics, profile),
-            )
+        # Round-robin, matching MockEngine._build_candidates: every requested output
+        # gets a comparable share of the candidate budget rather than one dominating
+        # by chance (both engines must agree on this, or a real run's distribution
+        # looks like a bug next to the mock one it is meant to match).
+        outcome = outcomes[index % len(outcomes)]
+        plasmid = _build_plasmid(plasmid_builder, store, design, outcome, custom_sequence)
+
+        candidate = _candidate_result(
+            store, design, family, trigger, metrics, breach, plasmid, outcome
         )
+        plasmids[candidate.ref] = plasmid
+
+        scored.append((candidate, None if breach else weighted_score(metrics, profile)))
 
     ranks = rank_candidates([(c.ref, s) for c, s in scored if not c.is_rejected])
     candidates = [
@@ -221,7 +275,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
 
     if not on_progress(*_pct("Writing report")):
         raise JobCancelled("Writing report")
-    artifacts = _write_artifacts(request.output_dir, candidates)
+    artifacts = _write_artifacts(request.output_dir, candidates, plasmids)
 
     if not candidates:
         warnings.append(
@@ -258,7 +312,7 @@ def _pct(stage: str) -> tuple[int, str]:
 
 
 def _resolve_host(request: JobRequest) -> Host:
-    """docs/ROADMAP.md P1: ``request.organism`` (from ``Project.organism``) is free
+    """docs/ROADMAP.md P1: ``request.organism`` (from ``AnalysisRun.organism``) is free
     text ("E. coli"), not a ``Host`` value. The wizard separately writes a
     ``Host``-compatible string into ``params["organism"]``; prefer that, falling back
     to the top-level field for a caller that passes one directly (``POST /api/design``
@@ -299,6 +353,59 @@ def _build_constraints(params: dict) -> Constraints:
         return Constraints(**raw)
     except TypeError as exc:
         raise InputValidationError(f"Invalid constraints: {exc}") from None
+
+
+def _resolve_outputs(params: dict, host: Host) -> tuple[list[DesiredOutcome], list[str]]:
+    """Which of ``params["payload"]["outputs"]`` can actually be built today, and why
+    any cannot (docs/plasmids.md Q11/Q12/Q13) — the same "skip and say why" pattern
+    ``_UNBUILDABLE_FAMILIES`` already uses for gate families, applied to payloads.
+
+    An unrecognised output string is a caller mistake, not a capability gap, and is
+    reported immediately rather than silently skipped — the same distinction
+    ``_resolve_host`` draws for an unrecognised organism.
+    """
+    payload = params.get("payload") or {}
+    requested = payload.get("outputs") or ["gfp"]
+    custom_sequence = payload.get("custom_sequence")
+
+    outcomes: list[DesiredOutcome] = []
+    for raw in requested:
+        try:
+            outcomes.append(DesiredOutcome(raw))
+        except ValueError:
+            raise InputValidationError(
+                f"Unknown output {raw!r}. Known outputs: "
+                f"{', '.join(o.value for o in DesiredOutcome)}."
+            ) from None
+
+    if host not in PROMOTERS or host not in TERMINATORS:
+        return [], [
+            f"No plasmid can be built for host {host.value!r} yet: no promoter/"
+            "terminator is configured (docs/ROADMAP.md Q12)."
+        ]
+
+    buildable: list[DesiredOutcome] = []
+    warnings: list[str] = []
+    for outcome in outcomes:
+        if outcome is DesiredOutcome.CUSTOM:
+            if not custom_sequence:
+                warnings.append("Skipped output 'other': no custom_sequence was supplied.")
+            else:
+                try:
+                    validate_payload_cds("Custom", custom_sequence)
+                except InputValidationError as exc:
+                    warnings.append(f"Skipped output 'other': {exc}")
+                else:
+                    buildable.append(outcome)
+        elif outcome in PAYLOADS:
+            buildable.append(outcome)
+        else:
+            warnings.append(
+                f"Skipped output {outcome.value!r}: no payload sequence is configured "
+                "yet (docs/ROADMAP.md Q11)."
+            )
+
+    return buildable, warnings
 
 
 def _direct_trigger(
@@ -355,6 +462,46 @@ def _direct_trigger(
     )
 
 
+def _build_plasmid(
+    builder: PlasmidBuilder,
+    store: CandidateStore,
+    design: GateDesign,
+    outcome: DesiredOutcome,
+    custom_sequence: str | None,
+) -> PlasmidDesign:
+    """Wrap one accepted switch design in a trivial one-gene ``CircuitCandidate`` —
+    the same move ``_direct_trigger`` makes for stages 1-2, since a `direct` run's
+    circuit *is* the one switch (docs/plasmids.md §3) — and build its plasmid.
+
+    Never raises: ``run_pipeline`` only reaches this after ``_resolve_outputs`` has
+    already confirmed ``outcome`` is buildable for this host.
+    """
+    circuit = CircuitCandidate(
+        circuit_id=store.mint_id("circ"),
+        # Placeholders below: PlasmidBuilder.build() reads only circuit.designs and
+        # circuit.circuit_id (see its own source) — expression/logic_graph/confusion
+        # exist only to satisfy CircuitCandidate's shape and are discarded the moment
+        # this function returns. In particular ConfusionMatrix(0, 0, 0, 0) must never
+        # be read as a measured separation of -1.0 (docs/plasmids.md §3) — it is not,
+        # because nothing downstream of this call ever looks at it.
+        expression=BooleanExpression.gene(design.trigger_set.activators[0].symbol),
+        logic_graph=LogicGraph(
+            genes=(),
+            mid_gate=LogicOperator.IDENTITY,
+            outer_gate=LogicOperator.IDENTITY,
+            invert=False,
+            output=outcome.value,
+            caption="",
+        ),
+        designs=(design,),
+        confusion=ConfusionMatrix(0, 0, 0, 0),
+        output=outcome.value,
+    )
+    if outcome is DesiredOutcome.CUSTOM:
+        return builder.build(circuit, outcome, custom_payload=custom_sequence)
+    return builder.build(circuit, outcome)
+
+
 def _candidate_result(
     store: CandidateStore,
     design: GateDesign,
@@ -362,23 +509,31 @@ def _candidate_result(
     trigger: TriggerCandidate,
     metrics: list[MetricValue],
     breach: HardFilter | None,
+    plasmid: PlasmidDesign,
+    outcome: DesiredOutcome,
 ) -> CandidateResult:
-    """One validated ``GateDesign`` plus its measured metrics, shaped as a
-    ``CandidateResult`` the Platform can import. Stages 4-5 do not exist in this build,
-    so ``logic_graph``/``plasmid_segments`` are honest about it — one gene, no chosen
-    payload, no plasmid — rather than fabricated (docs/smoke-run.md §4): every frontend
-    field the two render components actually index unconditionally
-    (``LogicCircuit.tsx``'s ``genes[0]``, ``PlasmidRing.tsx``'s length fallback) is
-    still present and valid, just empty where there is nothing real to show yet.
+    """One validated ``GateDesign`` plus its measured metrics and its plasmid
+    (docs/plasmids.md, E5a), shaped as a ``CandidateResult`` the Platform can import.
+
+    Stage 4 (real multi-gene circuits) does not exist in this build, so
+    ``logic_graph`` still describes one gene rather than fabricating a circuit
+    (docs/smoke-run.md §4) — but ``plasmid_segments`` is real, from the plasmid
+    ``_build_plasmid`` just constructed. Any compliance violation is carried as a
+    candidate warning, never silently dropped (docs/plasmids.md §9) — a violation is
+    a fact about the construct, not a reason to reject the switch design itself.
     """
     logic_graph = {
         "genes": [{"name": "A", "role": trigger.symbol, "state": "ON", "direction": "up"}],
         "mid_gate": "AND",
         "outer_gate": "AND",
         "invert": False,
-        "output": "",
-        "caption": f"IF {trigger.symbol} -> [no payload selected — stage 5 not built]",
+        "output": outcome.display_name,
+        "caption": f"IF {trigger.symbol} -> {outcome.display_name}",
     }
+    plasmid_segments = [
+        {"kind": segment.kind.value, "name": segment.name, "length_bp": segment.length_bp}
+        for segment in plasmid.plasmid.segments
+    ]
 
     return CandidateResult(
         ref=store.mint_id("cand"),
@@ -401,21 +556,30 @@ def _candidate_result(
             "structure": design.dot_bracket,
             "toehold_length": design.architecture.get("toehold_length", 0),
             "sequence_length_bp": len(design.sequence),
-            "plasmid_segments": [],
+            "plasmid_segments": plasmid_segments,
             "logic_graph": logic_graph,
         },
         summary=f"{design.trigger_set.logic_type} {family.name} gate on {trigger.symbol}",
         metrics=metrics,
-        warnings=[],
+        warnings=[f"Plasmid: {v}" for v in plasmid.violations],
         is_rejected=breach is not None,
         rejection_reason=breach.reason if breach else "",
     )
 
 
-def _write_artifacts(output_dir: str, candidates: list[CandidateResult]) -> list[ArtifactRef]:
-    """A design table plus a FASTA per accepted candidate — the same shape
-    ``MockEngine._write_artifacts`` produces, so the Platform's artifact import and
-    download path is exercised identically regardless of which engine ran."""
+def _write_artifacts(
+    output_dir: str, candidates: list[CandidateResult], plasmids: dict[str, PlasmidDesign]
+) -> list[ArtifactRef]:
+    """A design table, a FASTA and a GenBank per accepted candidate — the FASTA and
+    table match the shape ``MockEngine._write_artifacts`` produces, so the Platform's
+    artifact import and download path is exercised identically regardless of which
+    engine ran; the GenBank is new (docs/plasmids.md, E5a) and has no mock equivalent
+    yet.
+
+    ``plasmids`` is keyed by candidate ref, from the same run that produced
+    ``candidates`` — every accepted candidate has an entry (``_build_plasmid`` never
+    raises once ``_resolve_outputs`` has confirmed the outcome is buildable).
+    """
     header = "ref,rank,gate_family,logic_type,overall_score,rejected,rejection_reason"
     rows = [header]
     for candidate in sorted(candidates, key=lambda c: c.ref):
@@ -456,6 +620,17 @@ def _write_artifacts(output_dir: str, candidates: list[CandidateResult]) -> list
                 fasta,
                 kind="sequence_fasta",
                 media_type="text/x-fasta",
+                candidate_ref=candidate.ref,
+            )
+        )
+
+        artifacts.append(
+            write_artifact(
+                output_dir,
+                f"plasmids/{candidate.ref}.gb",
+                to_genbank(plasmids[candidate.ref]),
+                kind="genbank",
+                media_type="text/plain",
                 candidate_ref=candidate.ref,
             )
         )
