@@ -142,7 +142,13 @@ def create_dataset(*, uploaded_file, user, name: str | None = None) -> Dataset:
         validation_report=report,
         uploaded_by=user,
     )
-    dataset.file.save(dataset.name, uploaded_file, save=False)
+    # The *storage* filename is the uploaded file's own name, never dataset.name — the
+    # latter is a free-form display string (a caller can pass an arbitrary long one,
+    # e.g. apps.expression.services.materialize_public_dataset's "<experiment title> —
+    # <comparison label>") with no length discipline appropriate for a filesystem path.
+    # Conflating the two is what tripped dataset_upload_path's max_length guard for
+    # long display names before that guard existed.
+    dataset.file.save(uploaded_file.name, uploaded_file, save=False)
     dataset.save()
 
     logger.info(

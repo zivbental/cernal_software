@@ -6,9 +6,10 @@ tests/test_expression_providers.py; this file covers the materialize path)."""
 import pytest
 
 from apps.datasets.models import Dataset, ValidationStatus
-from apps.datasets.services import DatasetValidationError
+from apps.datasets.services import DatasetValidationError, preview_expression_rows
 from apps.expression.models import DatasetProvenance, Provider
 from apps.expression.services import (
+    _load_manifest,
     get_comparison_info,
     list_comparisons,
     list_experiments,
@@ -92,3 +93,21 @@ def test_each_curated_organism_has_at_least_one_working_comparison():
         assert experiments, f"{organism} has no curated experiments"
         comparisons = list_comparisons(experiments[0]["experiment_key"])
         assert comparisons, f"{organism}'s first experiment has no comparisons"
+
+
+@pytest.mark.parametrize("comparison_key", sorted(_load_manifest()))
+def test_every_curated_comparison_materializes_and_previews(comparison_key, user, media_root):
+    """Every single catalog entry, not just one representative — this is the test that
+    would have caught the real bug it's named for: three comparisons whose auto-built
+    display name ("<experiment title> — <comparison label>") produced a storage path
+    long enough to trip dataset_upload_path's max_length guard, raising
+    SuspiciousFileOperation on materialize. A "pick one and hope the rest are the same
+    shape" test does not catch a per-entry failure like that; only exercising all of
+    them does."""
+    dataset = materialize_public_dataset(user=user, comparison_key=comparison_key)
+    assert dataset.validation_status == ValidationStatus.VALID
+    assert dataset.file.storage.exists(dataset.file.name)
+
+    preview = preview_expression_rows(dataset)
+    assert preview["total_rows"] > 0
+    assert preview["rows"][0]["gene_id"]

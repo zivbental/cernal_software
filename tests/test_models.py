@@ -9,7 +9,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.analyses.models import ALLOWED_TRANSITIONS, TERMINAL_STATUSES, AnalysisRun, RunStatus
-from apps.datasets.models import Dataset, ValidationStatus
+from apps.datasets.models import Dataset, ValidationStatus, dataset_upload_path
 from apps.expression.models import DatasetProvenance, Provider
 from apps.results.models import Candidate, CandidateMetric, MetricDirection
 
@@ -50,6 +50,31 @@ def test_dataset_referenced_by_a_run_cannot_be_deleted(run, dataset):
     """PROTECT: results must never outlive the input that produced them."""
     with pytest.raises(IntegrityError):
         dataset.delete()
+
+
+def test_dataset_upload_path_caps_a_long_filename(dataset):
+    """A real bug, not a hypothetical: FileField's default max_length=100 for the DB
+    column means "datasets/<uuid36>/<name>" has ~54 chars of headroom for the name
+    itself. A longer one used to make Django's own uniquifying retry loop unable to
+    converge, raising SuspiciousFileOperation instead of a clean, actionable error —
+    found via apps.expression.services.materialize_public_dataset, whose auto-built
+    display name easily exceeds this for a long experiment title."""
+    long_name = "x" * 40 + " — " + "y" * 200 + ".csv"
+
+    path = dataset_upload_path(dataset, long_name)
+
+    assert path.startswith(f"datasets/{dataset.id}/")
+    # FileField's own default max_length — Django's storage only kicks off its
+    # (potentially non-converging) uniquifying retry loop above this, so staying at or
+    # under it, with real margin for a longer extension than ".csv", is the invariant.
+    assert len(path) <= 90
+    assert path.endswith(".csv")
+
+
+def test_dataset_upload_path_preserves_a_normal_filename():
+    """The common case — a real, short filename — is untouched by the cap."""
+    fake = Dataset(id="00000000-0000-0000-0000-000000000000")
+    assert dataset_upload_path(fake, "deseq2_results.csv").endswith("deseq2_results.csv")
 
 
 # --- Dataset provenance (apps.expression) ------------------------------------------
