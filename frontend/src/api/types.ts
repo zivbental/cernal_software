@@ -175,11 +175,26 @@ export interface CandidateDetail extends Candidate {
   metrics: Metric[];
 }
 
+/** Categories the download UI groups artifacts under (apps.results.models.ArtifactCategory). */
+export type ArtifactCategory =
+  | "summary"
+  | "sequences"
+  | "plasmids"
+  | "diagrams"
+  | "reports"
+  | "other";
+
 export interface Artifact {
   id: string;
   run_id: string;
   candidate_id: string | null;
   kind: string;
+  /** The server's grouping for this artifact — never re-derived from `kind` client-side. */
+  category: ArtifactCategory;
+  /** A human-readable description of what this file is, e.g. "Switch sequence (FASTA)". */
+  label: string;
+  /** The original filename, e.g. "cand-006.fasta". */
+  name: string;
   media_type: string;
   checksum_sha256: string;
   size_bytes: number;

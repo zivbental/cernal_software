@@ -244,6 +244,21 @@ export function useArtifacts(runId: string, enabled = true) {
   });
 }
 
+/**
+ * The URL for the bulk-download endpoint, everything / one category / a hand-picked
+ * set — the browser fetches it itself via a plain `<a href>`, same as `export.csv`.
+ */
+export function artifactsZipUrl(
+  runId: string,
+  selection: { category: string } | { ids: string[] } | Record<string, never> = {},
+): string {
+  const params = new URLSearchParams();
+  if ("category" in selection) params.set("category", selection.category);
+  if ("ids" in selection) params.set("ids", selection.ids.join(","));
+  const query = params.toString();
+  return api.url(`/runs/${runId}/artifacts/download${query ? `?${query}` : ""}`);
+}
+
 /* ---------- annotations ---------- */
 
 export function useAnnotations(candidateId: string | null) {

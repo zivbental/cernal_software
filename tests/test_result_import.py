@@ -20,7 +20,9 @@ def test_import_writes_candidates_metrics_and_artifacts(run, job_result):
 
     assert summary.candidates == len(result.candidates)
     assert summary.metrics == sum(len(c.metrics) for c in result.candidates)
-    assert summary.artifacts == len(result.artifacts)
+    # +2: the platform's own summary_table and run_manifest, materialized from what
+    # was just imported rather than written by the engine (docs/architecture.md §7).
+    assert summary.artifacts == len(result.artifacts) + 2
     assert run.candidates.count() == summary.candidates
 
 
@@ -87,6 +89,45 @@ def test_artifact_subdirectories_are_preserved(run, job_result):
 
     names = [a.file.name for a in run.artifacts.all()]
     assert any("/sequences/" in name for name in names)
+
+
+# --- Derived artifacts: summary_table and run_manifest -----------------------------
+
+
+def test_a_summary_table_is_materialized_from_the_import(run, job_result):
+    import csv
+    import io
+
+    result, output_dir = job_result
+    import_job_result(run, result, output_dir)
+
+    artifact = run.artifacts.get(kind="summary_table")
+    assert artifact.candidate is None
+    assert artifact.media_type == "text/csv"
+
+    rows = list(csv.reader(io.StringIO(artifact.file.read().decode())))
+    assert rows[0][:2] == ["candidate", "rank"]
+    assert len(rows) - 1 == run.candidates.count()
+
+
+def test_a_run_manifest_is_materialized_from_the_import(run, job_result):
+    import json
+
+    result, output_dir = job_result
+    import_job_result(run, result, output_dir)
+
+    artifact = run.artifacts.get(kind="run_manifest")
+    assert artifact.media_type == "application/json"
+
+    manifest = json.loads(artifact.file.read().decode())
+    assert manifest["run_id"] == str(run.id)
+    assert manifest["gate_families"] == run.gate_families
+    assert manifest["candidate_count"] == run.candidates.count()
+    # engine_version/status/finished_at come from `result`, not the (still mid-flight)
+    # `run` row — rule 5 stamps those on `run` only after this import returns.
+    assert manifest["status"] == "COMPLETED"
+    assert manifest["engine_version"] == result.engine_version
+    assert manifest["finished_at"]
 
 
 # --- Rejection paths --------------------------------------------------------------
