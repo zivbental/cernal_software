@@ -17,6 +17,7 @@ dependencies = [
     "whitenoise>=6.7",
     "gunicorn>=23.0",
     "viennarna>=2.7.2",
+    "biopython>=1.85",
 ]
 
 [project.optional-dependencies]

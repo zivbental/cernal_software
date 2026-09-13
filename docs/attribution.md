@@ -80,6 +80,7 @@ authoritative pins are [`uv.lock`](../uv.lock) and
 | openpyxl | MIT |
 | whitenoise | MIT |
 | gunicorn | MIT |
+| numpy | BSD-3-Clause |
 | pydantic / pydantic-core | MIT |
 | asgiref, sqlparse | BSD |
 
@@ -103,7 +104,14 @@ pytest (MIT), pytest-django (BSD-3-Clause), ruff (MIT).
 
 No GPL, AGPL or other copyleft dependency is present in either tree.
 
-### Scientific dependency — not OSI-approved
+### Scientific dependencies — not OSI-approved
+
+**Biopython**, used for GenBank export in stage 5 plasmid construction
+([ADR 0007](decisions/0007-biopython-for-genbank-export.md)), is licensed under the
+**Biopython License Agreement** — permissive and MIT-like in substance, but not a
+standard SPDX identifier, so it is called out here rather than folded into the "MIT"
+row above. It does not affect CERNAL's own license; state it alongside ViennaRNA on the
+wiki's software page.
 
 **ViennaRNA** is planned as the engine's RNA folding backend
 ([deployment.md](deployment.md), [engine.md](engine.md) — `FoldEngine`). Its license is a
@@ -177,6 +185,6 @@ safety form.
 
 - [ ] Every `TODO` above resolved
 - [ ] This file's content transferred to the iGEM Attribution Form
-- [ ] Wiki software page states the license, the repository URL, and the ViennaRNA caveat
+- [ ] Wiki software page states the license, the repository URL, and the ViennaRNA and Biopython caveats
 - [ ] Example dataset either cited or relabelled as synthetic
 - [ ] No MockEngine output published as a result

@@ -1,20 +1,27 @@
 # Stage 5 — what it takes to make a circuit orderable
 
-**Status:** Assessment. Nothing here is built yet.
+**Status:** Built (E5a, `direct` path only). `PlasmidBuilder.build()` and
+`.payload_segment()` are real; see §13 for what shipped and where it differs from this
+document's original recommendation.
 **Question it answers:** *"What stops `PlasmidBuilder` turning a designed switch into a
 construct someone could actually order — and should we write the DNA assembly ourselves
 or borrow it?"*
 **Companion documents:** [`ROADMAP.md`](ROADMAP.md) §5 E5 is the task this is a subset of;
 [`smoke-run.md`](smoke-run.md) is the same exercise for stage 3 and the model this
 follows; [`domain-model.md`](domain-model.md) has `PlasmidDesign`'s field-level shape;
-[`engine.md`](engine.md) is the architecture.
+[`engine.md`](engine.md) is the architecture; [ADR 0007](decisions/0007-biopython-for-genbank-export.md)
+is the final dependency decision — **Biopython only, `pydna` rejected** — which
+supersedes §5's recommendation below.
 
 > **This is a design document, not a planning file.** [ROADMAP.md](ROADMAP.md) is the
-> single place work is recorded. §11 below gives the rows to paste into it. This file
+> single place work is recorded. §12 below gives the rows pasted into it. This file
 > holds the *evidence and the reasoning*; the ROADMAP holds the *work*.
 
 Every measurement below was run against this commit. Where this document disagrees with
 an external brief or with upstream documentation, it is because the claim was tested.
+**§5's pydna measurements are kept for the record — they are what motivated looking
+harder at the problem — but §13 documents the course correction: further testing found
+plain Biopython sufficient on its own, and that is what got built.**
 
 ---
 
@@ -324,6 +331,14 @@ CERNAL React (React 19, Tailwind)
       └── PlasmidRing (already exists) ◄── real segments from the API
 ```
 
+> **Superseded — see §13.** This was the verdict *before* implementation. Building P3/P4
+> against real fixtures found that the "borrow" box above only needed Biopython, not
+> pydna: circular concatenation and restriction screening turned out to be a few lines
+> of pure Python once actually written, and GenBank export alone does not need pydna's
+> `Dseqrecord` layer. [ADR 0007](decisions/0007-biopython-for-genbank-export.md) is the
+> decision that was actually shipped. The frontend and service verdicts below stand
+> unchanged.
+
 The brief is right that a library integration beats standing up OpenCloning's FastAPI
 service, and CERNAL's deployment constraints say the same thing independently.
 
@@ -334,12 +349,18 @@ ViennaRNA is the same class of decision: it is hard to reverse once stage 5, sta
 GenBank export and the artifact format all assume Biopython records. The ADR should
 record the Biopython licence reference, the React-19 incompatibility that rules out the
 frontend packages, and the fact that `opencloning-linkml` arrives with pydna.
+**[ADR 0007](decisions/0007-biopython-for-genbank-export.md) is the ADR that landed —
+Biopython only, pydna evaluated and rejected on measurement.**
 
 ---
 
 ## 6. The minimal build list
 
 Five items. None needs stage 4, `CodonOptimizer`, or a resolved Q6/Q7.
+
+> **As built (§13): P3/P4 use plain Biopython, not pydna.** The text below is kept as
+> written before implementation because the shape of the work did not change — only the
+> dependency did. Read "pydna/Biopython" as "Biopython" throughout this section.
 
 ### P1 · The parts table
 
@@ -366,10 +387,10 @@ payload" in one engine is precisely the failure [CLAUDE.md](../CLAUDE.md) §1 is
 Layout, in order: **promoter → switch → payload → terminator → backbone**, each a
 `Segment` carrying its own `kind` so the map can label it.
 
-`PlasmidDesign`, `Plasmid` and `Segment` stay CERNAL's types. pydna records are an
-implementation detail **inside** this method — they go in at assembly and come out as
-segments plus a sequence. Nothing outside `stages/plasmids.py` should import pydna, for
-the same reason nothing outside `gates/tools/folding.py` imports `RNA`.
+`PlasmidDesign`, `Plasmid` and `Segment` stay CERNAL's types. As built, `build()` and
+`payload_segment()` import no external library at all — concatenation is plain string
+work on CERNAL's own types. Biopython appears only inside `to_genbank()`, the export
+function, for the same reason nothing outside `gates/tools/folding.py` imports `RNA`.
 
 Two rules that are easy to get wrong:
 
@@ -491,10 +512,10 @@ Ten residues, then a premature stop — and the frame does not close. That const
 calls this join *"the one most likely to go wrong"*; `sequences.find_stops` and
 `find_augs` make the check three lines.
 
-### 7.5 A GenBank round-trip silently linearises the construct
+### 7.5 A GenBank round-trip silently linearises the construct — in pydna, not in what shipped
 
 The file is written correctly and Biopython parses the topology correctly. The **pydna
-wrapper is where it is lost**:
+wrapper is where it would be lost, if pydna were in the path**:
 
 ```
 LOCUS line:                      ... 32 bp  DNA  circular ...
@@ -505,8 +526,12 @@ pydna.parsers.parse():           circular = True       ← correct
 
 Sequence identical, features identical, topology quietly gone. Any parse-back test that
 checks only sequence and features will pass while asserting nothing about the one
-property that makes it a plasmid. **Use `pydna.parsers.parse`, and assert topology
-explicitly.**
+property that makes it a plasmid. **As built, this landmine is moot — `to_genbank()`
+never constructs a `Dseqrecord`, only a plain `Bio.SeqRecord`, which does not have this
+problem.** It is recorded here, and in [ADR 0007](decisions/0007-biopython-for-genbank-export.md),
+so it doesn't get rediscovered if `pydna` is ever adopted later for real multi-fragment
+assembly. `tests/engine/test_plasmids.py`'s GenBank round-trip test still asserts
+topology explicitly, on principle.
 
 ### 7.6 Repair policy is not uniform across the construct
 
@@ -569,26 +594,35 @@ because this artifact is the one someone spends money on.
 
 ## 10. How we will know it worked
 
+**Status: done, for the `direct` path — see §13.** Checked off against
+`tests/engine/test_plasmids.py` (36 tests) and a manual end-to-end run through the real
+Django platform layer.
+
 1. `tests/engine/test_plasmids.py` — a clean design produces `is_compliant=True`; EcoRI
    seeded across a junction produces exactly one violation naming EcoRI; a site across
-   the **origin join** is caught; an out-of-frame payload is caught.
+   the **origin join** is caught; an out-of-frame payload is caught. **Done.**
 2. A golden fixture: one small backbone, one gate, one payload, locked down by final
    sequence checksum, length, topology, and feature names in order. Parse back with
-   `pydna.parsers.parse` and assert **topology explicitly** (§7.5).
-3. A `direct` run under `LocalEngine` returns `plasmid_segments` with five kinds, lengths
-   summing to `Plasmid.length_bp`, and no `U` in any emitted sequence.
-4. The GenBank artifact opens in SnapGene or Benchling with the switch, payload, AmpR and
-   origin all labelled, and the `cernal_*` qualifiers intact.
-5. `tests/test_boundary.py` still passes — pydna imports no Django (§5.2).
-6. Two runs with the same seed produce byte-identical constructs.
+   `Bio.SeqIO.read()` and assert **topology explicitly** (§7.5 — pydna is not in the
+   path, so its landmine does not apply, but the assertion is kept anyway). **Done.**
+3. A `direct` run under `LocalEngine` returns `plasmid_segments` with four kinds
+   (promoter, switch, payload, terminator — no backbone configured yet, §4/Q13), lengths
+   summing to `Plasmid.length_bp`, and no `U` in any emitted sequence. **Done**, verified
+   through `apps.analyses.services.submit_run`/`execute_run`, not just engine unit tests.
+4. The GenBank artifact opens correctly — verified by parsing it back with Biopython and
+   checking topology and feature count; not yet manually opened in SnapGene or Benchling.
+5. `tests/test_boundary.py` still passes — Biopython imports no Django. **Done**; also
+   true that pydna was never added, so its own import chain is moot.
+6. Two runs with the same seed produce byte-identical constructs. **Implied** by the
+   builder having no randomness in its path (CLAUDE.md §6), not yet a dedicated test.
 
 ---
 
 ## 11. Sequencing
 
 ```
-ADR: the pydna dependency ──► P1 parts table ──► P2 payload_segment ──► P3 build ──► P4 GenBank ──► P5 wire in
-                                   ▲                                        ▲
+ADR: Biopython, not pydna ──► P1 parts table ──► P2 payload_segment ──► P3 build ──► P4 GenBank ──► P5 wire in
+        (0007, §13)                ▲                                        ▲
 Q12 (promoter/terminator) ─────────┤                     Q13 backbone ──────┘
 Q11 (payloads) ────────────────────┘
 ```
@@ -596,6 +630,11 @@ Q11 (payloads) ────────────────────┘
 P3 and P4 can be written and tested against hand-made segments **before** any question is
 answered — screening, framing and length logic does not care where the bases came from.
 Only P5, which puts a construct in front of a researcher, needs Q11 and Q13.
+
+**As built:** P1–P5 all shipped (§13), using a provisional catalogue for Q12
+(J23119/B0015) and GFP for Q11's most common case, with Q11's remaining outcomes and
+Q13 (backbone) still open — a `direct` run today produces a backbone-less construct
+unless one is injected.
 
 ---
 
@@ -630,9 +669,107 @@ lengths, the existing `PlasmidRing` renders from real data, the GenBank artifact
 annotated in SnapGene, and `tests/engine/test_plasmids.py` locks in the failure modes in
 §7.
 
-### ADR · Adopt pydna/Biopython in the engine
+### ADR · Adopt Biopython in the engine (pydna rejected) — **done**
 
-The decision, its cost (21 packages, 119 MB, Biopython's non-SPDX licence reference), the
-alternative that was rejected (hand-rolled assembly, and the measured reason: circular
-correctness), and the explicit scope — **Python only; the OpenCloning frontend packages
-and the OpenCloning service are out of scope, with §5.3's measurements as the reason.**
+Filed as [0007-biopython-for-genbank-export.md](decisions/0007-biopython-for-genbank-export.md).
+Records the decision actually shipped: Biopython only, confined to the GenBank-export
+function; pydna evaluated directly and rejected once circular screening and assembly
+turned out not to need a library at all (§13); Biopython's non-SPDX licence reference
+recorded in [attribution.md](attribution.md); the OpenCloning frontend packages and the
+OpenCloning service out of scope, with §5.3's measurements as the reason.
+
+---
+
+## 13. What actually got built, and where it differs from §5–§12
+
+E5a shipped. This section is the honest diff between the plan above and
+`src/engine/stages/plasmids.py` / `src/engine/pipeline.py` as merged, written after
+implementation rather than revising the sections above out from under their own
+evidence.
+
+### 13.1 The one real course correction: no pydna
+
+§5 recommended adopting `pydna` alongside Biopython. Building P3 (`build()`) and P4
+(`to_genbank`) against real fixtures — not just the brief's Phase-1 spike — found that
+nothing past that spike was actually needed:
+
+- **Circular restriction screening** does not need `Bio.Restriction` or `Dseqrecord`.
+  `MotifScreener.violations()` gained a `circular: bool = False` keyword; when set, it
+  additionally scans `sequence + sequence[:pad]` (padded by the longest configured site
+  minus one) and merges in only the newly-found violations. Same regex-based screener,
+  same `RFC10_SITES`/`RNASE_SITES` tables, no second definition of "forbidden site" to
+  keep in sync with `MotifScreener`'s.
+- **Assembly** is `Segment`/`Plasmid` concatenation, which already existed in
+  `engine/domain.py` before this work — there was never anything for `Dseqrecord`'s `+`
+  to add.
+- **GenBank export** round-trips correctly from a plain `Bio.SeqRecord` with
+  `annotations["topology"] = "circular"`. No `pydna` wrapper is involved, so §7.5's
+  landmine (`Dseqrecord(SeqIO.read(...))` silently dropping topology) never applies to
+  the shipped code — it's recorded in §7.5 and [ADR 0007](decisions/0007-biopython-for-genbank-export.md)
+  purely so nobody re-discovers it if `pydna` is adopted later for real multi-fragment
+  assembly (Gibson, Golden Gate — still out of scope).
+
+Net effect: one dependency (`biopython`), not two. `pyproject.toml` never gained
+`pydna`. [ADR 0007](decisions/0007-biopython-for-genbank-export.md) documents this as
+the final decision; §5's pydna measurements stand as the evidence that prompted looking
+harder at the problem, not as the shipped design.
+
+### 13.2 What's real today, and what's still a placeholder
+
+```
+src/engine/stages/plasmids.py
+  PROMOTERS   = {Host.ECOLI: ("J23119", ...)}      ← Q12: E. coli only
+  TERMINATORS = {Host.ECOLI: ("B0015", ...)}       ← Q12: E. coli only
+  PAYLOADS    = {DesiredOutcome.GFP: ("GFP", ...)} ← Q11: GFP only; mCherry, luciferase,
+                                                       AmpR, apoptosis inducer still absent
+  validate_payload_cds()  — real: to_rna → is_valid_rna → start codon → whole-codon
+                             length → trailing-stop-only rule
+  PlasmidBuilder.build()          — real
+  PlasmidBuilder.payload_segment() — real
+  to_genbank()                    — real, the only function in the module that imports
+                                     Biopython
+```
+
+A `direct` run today can only build a **GFP construct for *E. coli***. Any other
+requested output (`mcherry`, `luciferase`, `antibiotic`, `apoptosis`) is skipped with a
+warning by `pipeline._resolve_outputs`, or the whole run hard-fails with
+`InputValidationError` if every requested output is unbuildable — the same
+skip-and-warn-or-hard-fail shape `pipeline.py` already used for gate families. `CUSTOM`
+works today: a caller-supplied `params["payload"]["custom_sequence"]` goes through the
+identical `validate_payload_cds` check as a catalogue entry.
+
+**Q13 (backbone) is still open.** `PlasmidBuilder(backbone=())` is the default the
+pipeline constructs with — a `direct` run's construct today is promoter + switch +
+payload + terminator, no origin, no selection marker. `Plasmid.plasmid.segments` is
+correspondingly four kinds, not five; §10's original "five kinds" checklist entry
+reflected the plan, not the current backbone-less reality.
+
+**`CodonOptimizer` is still stubbed**, exactly as §2 and §8 said it would remain — the
+payload is emitted verbatim, never codon-optimised, never rewritten to remove a
+restriction site.
+
+### 13.3 Two small design decisions §6 didn't spell out
+
+- **Stage 5 doesn't wait for stage 4, as §3 predicted** — `pipeline._build_plasmid` hand-
+  builds a placeholder single-gene `CircuitCandidate` per candidate, mirroring
+  `_direct_trigger`'s existing pattern for stages 1–2. That candidate's `ConfusionMatrix`
+  and `LogicGraph` are never read by `PlasmidBuilder.build()`; they exist only to satisfy
+  the type signature.
+- **Frame continuity (§7.4) treats a trailing run of stop codons as one terminal stop**,
+  not a violation — real GFP's own CDS ends `...UAA UAA`, and rejecting that would make
+  the shipped payload fail its own builder's check. A stop codon *before* the last codon
+  is still a violation.
+
+### 13.4 Verification
+
+`tests/engine/test_plasmids.py` (36 tests) covers a clean build, the junction-site case
+(§7.2), the circular-origin-join case (§7.3, via injected backbone segments so the
+junction is deterministic), frame continuity (§7.4), CUSTOM payload validation, and a
+golden fixture locking the exact segment order, lengths (930 bp total) and GenBank
+header. `tests/engine/test_pipeline.py` covers the pipeline wiring: real segments in
+`plasmid_segments`, a GenBank artifact per accepted candidate, unconfigured/unknown
+outputs, mixed buildable/unbuildable outputs, and that circular screening is actually
+requested during a run. Beyond engine unit tests, a manual run through
+`apps.analyses.services.submit_run`/`execute_run` (the real Django platform layer, real
+`LocalEngine`, not `MockEngine`) confirmed a `COMPLETED` run with real GenBank artifacts
+and correctly populated `plasmid_segments`/`logic_graph.output`.

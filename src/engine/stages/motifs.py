@@ -67,9 +67,38 @@ class MotifScreener:
         self.sites = dict(RFC10_SITES if standard is AssemblyStandard.RFC10 else RFC1000_SITES)
         self.extra = dict(extra_motifs or {})
 
-    def violations(self, sequence: str) -> tuple[Violation, ...]:
-        """Every prohibited motif in this sequence. Empty means compliant."""
+    def violations(self, sequence: str, *, circular: bool = False) -> tuple[Violation, ...]:
+        """Every prohibited motif in this sequence. Empty means compliant.
+
+        Args:
+            circular: When true, also catch a motif formed across the sequence's own
+                end-to-start join — invisible to a linear scan, and the classic way an
+                assembled plasmid hides a restriction site (or a homopolymer run)
+                neither individual part carried (docs/plasmids.md §7.3). Meaningless
+                for a linear molecule (a trigger, a switch) and defaults off.
+        """
         dna = sequence.strip().upper().replace("U", "T")
+        found = self._scan(dna)
+
+        if circular and dna:
+            longest = max(
+                (
+                    *(len(motif) for motif in self.sites.values()),
+                    *(len(motif) for motif in self.extra.values()),
+                    self.max_homopolymer + 1,
+                ),
+                default=0,
+            )
+            pad = longest - 1
+            if pad > 0:
+                seen = {(v.start, v.motif) for v in found}
+                found.extend(
+                    v for v in self._scan(dna + dna[:pad]) if (v.start, v.motif) not in seen
+                )
+
+        return tuple(sorted(found, key=lambda v: v.start))
+
+    def _scan(self, dna: str) -> list[Violation]:
         found: list[Violation] = []
 
         for name, motif in self.sites.items():
@@ -90,7 +119,7 @@ class MotifScreener:
             for m in re.finditer(run, dna)
         )
 
-        return tuple(sorted(found, key=lambda v: v.start))
+        return found
 
     def is_compliant(self, sequence: str) -> bool:
         """True when nothing prohibited is present. A yes/no wrapper over ``violations``."""

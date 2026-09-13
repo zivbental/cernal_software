@@ -19,10 +19,10 @@
 | Step 2 — Domain model | **Complete** | 7 models, migrations, admin back-office, `seed_demo` |
 | Step 3 — API + orchestration | **Complete** | 34 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
 | Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages |
-| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. `de` mode and every stage past switch design are still documented stubs raising `NotImplementedError` |
+| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. `PlasmidBuilder.build`/`.payload_segment` are real for the `direct` path (E5a, [plasmids.md](plasmids.md)) — a run produces a real annotated GenBank artifact and populated `plasmid_segments`, GFP payload / *E. coli* only. `de` mode, `CircuitDesigner`, `CodonOptimizer` and stage 6 (`ReportBuilder`) are still documented stubs raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
 
-`./do test` → **825 passing** (plus the Python client's own conformance suite,
+`./do test` → **913 passing** (plus the Python client's own conformance suite,
 `clients/python/tests/`, verified separately — see Phase X), and `.gitlab-ci.yml` runs
 the same checks plus the frontend
 build on every push. `CERNAL_ENGINE` defaults to `engine.client.MockEngine`, so the entire
@@ -73,7 +73,9 @@ specific task.
 | **Q8** | Does the organism affect the design rules, or only the input data? | E2, E4 |
 | **Q9** | ~~Antisense NOT: does the trigger transcript *act* as the antisense, or *drive* a separate one?~~ **Answered by implementation:** it acts directly (simpler, no extra transcriptional unit) — `engine/gates/antisense.py`. The "drives a separate antisense RNA" alternative, for amplification, is not built | Deferred family, §7 |
 | **Q10** | CRISPR: activator or repressor effector? It changes what the circuit means and has no home in the run configuration | Deferred family, §7 |
-| **Q11** | Payload sequences. There is no library for GFP, mCherry, luciferase, AmpR or an apoptosis inducer | E5 |
+| **Q11** | Payload sequences. There is no library for GFP, mCherry, luciferase, AmpR or an apoptosis inducer. **Partially answered:** GFP is now in `stages/plasmids.py`'s `PAYLOADS` table (E5a); mCherry, luciferase, AmpR and an apoptosis inducer are still missing | E5a (remaining outputs), E5 |
+| **Q12** | Which constitutive promoter and terminator, per host? **Provisionally answered for *E. coli* only:** J23119/B0015, in `stages/plasmids.py`'s `PROMOTERS`/`TERMINATORS` tables (E5a). Yeast and human still need their own, and the *E. coli* defaults need to be a scientific decision rather than a placeholder that quietly becomes permanent | E5a |
+| **Q13** | What backbone does the team build into? **Still open** — `PlasmidBuilder` takes an injected `backbone: tuple[Segment, ...]` and defaults to empty, so a `direct` run's construct has no origin or selection marker today. **A GenBank file of the plasmid the lab already transforms is the ideal answer** — origin and marker annotations come with it | E5a |
 
 **Q1 first.** Without trigger sequences there is nothing to fold.
 
@@ -276,10 +278,44 @@ expensive mistakes:
 **Done when:** a golden test fixes a small input to its full expected output, and
 `ENGINE_VERSION` is bumped whenever that file legitimately changes.
 
+### E5a · The first orderable construct — `direct` path only · ✅ built
+
+Sits before E5, the way E2a sits before E2 — same shape: a carve-out that skips what
+Q6/Q7/Q11/Q13 still block and builds `PlasmidBuilder` on the single-switch circuit a
+`direct` run already produces, skipping `CircuitDesigner` (stage 4) entirely by
+hand-building a placeholder one-gene `CircuitCandidate`, the way `pipeline._direct_trigger`
+already does for stages 1–2. Full assessment, evidence and gotchas in
+[plasmids.md](plasmids.md); §13 there is the as-built diff against the original plan.
+
+| # | Task | Where | Status |
+|---|---|---|---|
+| **E5a-1** | Parts table — promoter/terminator per host, payload CDS per `DesiredOutcome`, module constants in `stages/plasmids.py` following `motifs.py`'s precedent | `engine/stages/plasmids.py` | ✅ (E. coli + GFP only — Q11/Q12 remaining outputs and hosts still open) |
+| **E5a-2** | `payload_segment(outcome)` — table lookup + validation (whole codons, start codon, no internal in-frame stop, no forbidden motifs); `CUSTOM` gets the same validation via `build()`'s `custom_payload` | `engine/stages/plasmids.py` | ✅ |
+| **E5a-3** | `build(circuit, outcome)` — assemble promoter → switch → payload → terminator → backbone; screen the whole construct **as circular** (`MotifScreener.violations(..., circular=True)`); check frame continuity from the switch's ATG through the payload; violations recorded, never silently repaired | `engine/stages/plasmids.py` | ✅ |
+| **E5a-4** | Annotate and export GenBank — one feature per segment, standard GenBank types, CERNAL metadata in qualifiers, through `write_artifact(kind="genbank")` | `engine/stages/plasmids.py` | ✅ |
+| **E5a-5** | Wire into the `direct` pipeline — one hand-built `CircuitCandidate` per candidate, `plasmid_segments` populated, GenBank artifact per accepted candidate | `engine/pipeline.py` | ✅ |
+| **E5a-6** | Prove it — golden fixture, junction-site and circular-origin-join cases, frame-continuity case, pipeline wiring tests, and a manual run through the real Django platform layer (`submit_run`/`execute_run`, not just engine unit tests) | `tests/engine/test_plasmids.py`, `tests/engine/test_pipeline.py` | ✅ |
+
+**Dependency decision:** [ADR 0007](decisions/0007-biopython-for-genbank-export.md) —
+Biopython only for GenBank export, confined to one function in `stages/plasmids.py`.
+`pydna` (the integration brief's central recommendation) was evaluated directly and
+rejected on measurement: circular restriction screening and assembly turned out not to
+need a library at all once actually built. The OpenCloning frontend packages and backend
+service are out of scope — [plasmids.md §5.3](plasmids.md) has the measurements.
+
+**Still not in this phase, deliberately:** `CodonOptimizer` (payload emitted verbatim,
+never codon-optimised), a backbone (Q13 — a `direct` run's construct today has no origin
+or selection marker unless one is injected), mCherry/luciferase/AmpR/apoptosis-inducer
+payloads (Q11), non-*E. coli* hosts (Q12), multi-switch circuits, and any named wet-lab
+assembly protocol (Gibson, Golden Gate) — the construct is a composition, not a cloning
+plan ([plasmids.md §9](plasmids.md)).
+
 ### E5 · Circuits, plasmids, report · **blocked on Q6, Q7, Q11**
 
-`CircuitDesigner` → `PlasmidBuilder` → `ReportBuilder`, then the already-implemented
-scoring layer.
+`CircuitDesigner` → `PlasmidBuilder` (multi-switch circuits) → `ReportBuilder`, then the
+already-implemented scoring layer. `PlasmidBuilder` itself is real for the single-switch
+`direct` case — E5a, above — so what remains here is `CircuitDesigner`, `ReportBuilder`,
+and extending `PlasmidBuilder` to circuits with more than one switch.
 
 - `CircuitDesigner` turns the genes' up/down pattern into a Boolean function, generates
   the expressions reproducing it, keeps only those buildable from switches actually
@@ -288,12 +324,17 @@ scoring layer.
   re-scan the transcriptome** — per-trigger and per-switch penalties are already computed
   and stored upstream, and re-scanning would be both slow and inconsistent with the
   numbers already recorded.
-- `PlasmidBuilder` needs a payload sequence library (Q11) and a backbone spec.
+- Multi-switch circuits still need the remaining Q11 payloads (mCherry, luciferase, AmpR,
+  apoptosis inducer), a backbone (Q13), and a scientific answer on whether each
+  transcriptional unit carries its own payload copy or only the one driving the output
+  does ([plasmids.md §8](plasmids.md)).
 - Screen the **whole assembled construct** for restriction sites, not each segment —
-  screening segments individually misses sites formed across a junction.
+  screening segments individually misses sites formed across a junction. `MotifScreener`
+  already supports this (`circular=True`, built in E5a); a multi-switch construct just
+  needs more than one switch segment fed into the same assembly.
 
 **Done when:** `JobResult` from `LocalEngine` populates every field the results screen
-already renders from `MockEngine`.
+already renders from `MockEngine`, for circuits with more than one switch.
 
 ### E6 · Switch over and measure
 
@@ -471,7 +512,7 @@ Recorded so the decision is cheap when someone asks. **None of this is scheduled
 | **`ToeholdAndGate` bodies** | E4 | The chemistry is inherited; the serial-stem construction is not. Watch the half-open intermediate state |
 | ~~`AntisenseNotGate`~~ | ✅ Built, not deferred | See status table, [engine.md §9](engine.md#9-status). Requires `payload` (a real gene, e.g. GFP or mCherry) at construction; there is still no payload library (Q11) |
 | **`CrisprGate`** | Q10 + a genomic off-target scanner | `OffTargetScanner` searches the transcriptome; the spacer needs the genome |
-| **GenBank export** | E5 | Needs a real annotated construct |
+| ~~**GenBank export**~~ | ✅ Built (E5a), `direct` path only | See [plasmids.md](plasmids.md). Multi-switch circuits still need E5 |
 | **Plasmid synthesis ordering** | E5 | A partner integration, not a code problem |
 | **3-input circuits** | Q3 | See §3 — this is what forces a cluster |
 | **Repository split** | Nothing | See §9. Do it when it hurts not to, not on a date |

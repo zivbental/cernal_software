@@ -39,9 +39,9 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 35 |
 | Public classes | 85 |
-| Public callables (excluding `__init__`) | 160 |
-| — `BUILT` | 124 |
-| — `STUB` | 29 |
+| Public callables (excluding `__init__`) | 163 |
+| — `BUILT` | 129 |
+| — `STUB` | 27 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
 | `__init__` constructors | 20 |
@@ -53,7 +53,7 @@ layers above it, never the ones below.
 
 | Layer | Module | S | Not `STUB` | `STUB` | Purpose |
 | --- | --- | --- | ---: | ---: | --- |
-| domain | `engine.domain` |  | 29 | 0 | The engine's scientific vocabulary. |
+| domain | `engine.domain` |  | 30 | 0 | The engine's scientific vocabulary. |
 | sequences | `engine.sequences` | S6 | 12 | 0 | S6 — sequence facts. Pure functions, no state, no dependencies. |
 | scoring | `engine.scoring` |  | 0 | 0 |  |
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
@@ -76,7 +76,7 @@ layers above it, never the ones below.
 | stages | `engine.stages.genes` |  | 0 | 1 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
 | stages | `engine.stages.off_target` | S5 | 0 | 4 | S5 — off-target scanning, in both directions. |
-| stages | `engine.stages.plasmids` |  | 0 | 2 | Stage 5 — plasmid construction. |
+| stages | `engine.stages.plasmids` |  | 4 | 0 | Stage 5 — plasmid construction. |
 | stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
 | stages | `engine.stages.switches` |  | 3 | 0 | Stage 3 — switch design and validation. |
@@ -195,6 +195,10 @@ What a circuit expresses when it fires.
 | `ANTIBIOTIC` |  | `'ampr'` |
 | `APOPTOSIS` |  | `'apoptosis'` |
 | `CUSTOM` |  | `'other'` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def display_name(self) -> str` | The name a researcher sees, e.g. in ``logic_graph.output`` — distinct from the enum's own lowercase wire value. |
 
 #### `class SampleMetadata`
 
@@ -1196,7 +1200,7 @@ Rejects or penalises sequences carrying prohibited motifs.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, standard: AssemblyStandard = AssemblyStandard.RFC10, *, extra_motifs: dict[str, str] \| None = None, max_homopolymer: int = MAX_HOMOPOLYMER) -> None` |  |
-| `BUILT` | `def violations(self, sequence: str) -> tuple[Violation, ...]` | Every prohibited motif in this sequence. Empty means compliant. |
+| `BUILT` | `def violations(self, sequence: str, *, circular: bool = False) -> tuple[Violation, ...]` | Every prohibited motif in this sequence. Empty means compliant. |
 | `BUILT` | `def is_compliant(self, sequence: str) -> bool` | True when nothing prohibited is present. A yes/no wrapper over ``violations``. |
 
 ### `engine.stages.off_target` · S5
@@ -1223,6 +1227,17 @@ Finds near-matches of a sequence in the host transcriptome.
 
 Stage 5 — plasmid construction.
 
+| Constant | Type | Value |
+| --- | --- | --- |
+| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC')}` |
+| `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
+| `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def validate_payload_cds(name: str, sequence: str) -> str` | Validate a payload coding sequence and return it as uppercase DNA. |
+| `BUILT` | `def to_genbank(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an annotated circular GenBank file. |
+
 #### `class PlasmidBuilder`
 
 Assembles a circuit onto a backbone and checks it can be built.
@@ -1230,8 +1245,8 @@ Assembles a circuit onto a backbone and checks it can be built.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, screener: MotifScreener, codons: CodonOptimizer, standard: AssemblyStandard = AssemblyStandard.RFC10, backbone: tuple[Segment, ...] = ()) -> None` |  |
-| `STUB` | `def build(self, circuit: CircuitCandidate, outcome: DesiredOutcome) -> PlasmidDesign` | Lay out one circuit as an orderable construct. |
-| `STUB` | `def payload_segment(self, outcome: DesiredOutcome) -> Segment` | The coding sequence for the chosen output. |
+| `BUILT` | `def build(self, circuit: CircuitCandidate, outcome: DesiredOutcome, *, custom_payload: str \| None = None) -> PlasmidDesign` | Lay out one circuit as an orderable construct. |
+| `BUILT` | `def payload_segment(self, outcome: DesiredOutcome) -> Segment` | The coding sequence for the chosen output. |
 
 ### `engine.stages.quality` · S15
 

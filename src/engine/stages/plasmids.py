@@ -10,17 +10,147 @@ result.
 The output is the first artefact a researcher would put money behind, so the compliance
 check matters more than it looks. A single unnoticed restriction site turns a plasmid
 order into a wasted month.
+
+**Built for the `direct` path** (docs/plasmids.md §3, §6): a direct submission has one
+trigger and one switch, so ``pipeline.py`` hand-builds a trivial one-gene
+``CircuitCandidate`` the same way it hand-builds the one ``TriggerCandidate`` for
+stages 1-2, and this stage does not need stage 4 (``CircuitDesigner``) to exist.
+
+**No codon optimisation.** ``CodonOptimizer.translation_score``/``.variants`` are still
+Step-5 stubs with an empty usage table (docs/plasmids.md §2), so ``self.codons`` is held
+but never called here — every payload is emitted verbatim from the table in
+``PAYLOADS``, unmodified.
+
+**GenBank export lives in ``to_genbank`` below, the only function in this module that
+imports Biopython** (ADR 0007, docs/plasmids.md §5) — ``PlasmidBuilder`` itself works
+entirely in CERNAL's own ``Segment``/``Plasmid``/``PlasmidDesign`` types plus
+``sequences.py`` and ``MotifScreener``. A ``SeqRecord`` is built and discarded inside
+that one function; it never crosses back into engine or Platform code.
 """
 
+from Bio.Seq import Seq
+from Bio.SeqFeature import SeqFeature, SimpleLocation
+from Bio.SeqRecord import SeqRecord
+
+from engine import sequences as sq
 from engine.domain import (
     AssemblyStandard,
     CircuitCandidate,
     DesiredOutcome,
+    GateDesign,
+    Host,
+    Plasmid,
     PlasmidDesign,
     Segment,
+    SegmentKind,
 )
+from engine.errors import InputValidationError
 from engine.gates.tools.codons import CodonOptimizer
 from engine.stages.motifs import MotifScreener
+
+# --- Parts table (docs/plasmids.md §4; docs/ROADMAP.md Q11/Q12/Q13) ----------------
+#
+# Community-standard defaults, verified against the iGEM Registry API
+# (https://api.registry.igem.org/v1/parts) rather than typed from memory — CLAUDE.md
+# §1's "an almost-right CDS is far worse than a missing one" applies as much to a
+# promoter as to a payload. These are provisional defaults, not a scientific decision
+# made on the team's behalf: any entry can be replaced without touching
+# ``PlasmidBuilder`` itself. A host or outcome with no entry raises a clear
+# ``InputValidationError`` naming what is missing, rather than silently assembling a
+# promoter-less or payload-less plasmid.
+
+#: (part name, DNA sequence) per host. Only *E. coli* is populated today.
+PROMOTERS: dict[Host, tuple[str, str]] = {
+    # BBa_J23119 — Anderson promoter family: the consensus sequence and the strongest
+    # constitutive member. https://registry.igem.org/parts/bba-j23119
+    Host.ECOLI: ("J23119", "TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC"),
+}
+
+#: (part name, DNA sequence) per host. Only *E. coli* is populated today.
+TERMINATORS: dict[Host, tuple[str, str]] = {
+    # BBa_B0015 — double terminator (B0010 + B0012), the most-used terminator in the
+    # registry. https://registry.igem.org/parts/BBa_B0015
+    Host.ECOLI: (
+        "B0015",
+        "CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTTTGTCGGTGAACGC"
+        "TCTCTACTAGAGTCACACTGGCTCACCTTCGGGTGGGCCTTTCTGCGTTTATA",
+    ),
+}
+
+#: (part name, DNA sequence) per requested outcome. Only GFP is populated today —
+#: docs/ROADMAP.md Q11. ``DesiredOutcome.CUSTOM`` is never a key here; a custom payload
+#: always comes from the caller (``params["payload"]["custom_sequence"]``), validated
+#: by the same :func:`validate_payload_cds` every table entry passes through too.
+PAYLOADS: dict[DesiredOutcome, tuple[str, str]] = {
+    # BBa_E0040 — GFPmut3b, the most-used reporter CDS in the registry. Ends in a
+    # tandem stop (UAA UAA) — validate_payload_cds treats a trailing run of stop
+    # codons as one stop rather than N premature ones; a real CDS this common is what
+    # surfaced that the rule needed to exist (docs/plasmids.md §7).
+    # https://registry.igem.org/parts/BBa_E0040
+    DesiredOutcome.GFP: (
+        "GFP",
+        "ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGATGGTGATGTTAATGGGCAC"
+        "AAATTTTCTGTCAGTGGAGAGGGTGAAGGTGATGCAACATACGGAAAACTTACCCTTAAATTTATTTGCACTAC"
+        "TGGAAAACTACCTGTTCCATGGCCAACACTTGTCACTACTTTCGGTTATGGTGTTCAATGCTTTGCGAGATACC"
+        "CAGATCATATGAAACAGCATGACTTTTTCAAGAGTGCCATGCCCGAAGGTTATGTACAGGAAAGAACTATATTT"
+        "TTCAAAGATGACGGGAACTACAAGACACGTGCTGAAGTCAAGTTTGAAGGTGATACCCTTGTTAATAGAATCGA"
+        "GTTAAAAGGTATTGATTTTAAAGAAGATGGAAACATTCTTGGACACAAATTGGAATACAACTATAACTCACACA"
+        "ATGTATACATCATGGCAGACAAACAAAAGAATGGAATCAAAGTTAACTTCAAAATTAGACACAACATTGAAGAT"
+        "GGAAGCGTTCAACTAGCAGACCATTATCAACAAAATACTCCAATTGGCGATGGCCCTGTCCTTTTACCAGACAA"
+        "CCATTACCTGTCCACACAATCTGCCCTTTCGAAAGATCCCAACGAAAAGAGAGACCACATGGTCCTTCTTGAGT"
+        "TTGTAACAGCTGCTGGGATTACACATGGCATGGATGAACTATACAAATAATAA",
+    ),
+}
+
+
+def validate_payload_cds(name: str, sequence: str) -> str:
+    """Validate a payload coding sequence and return it as uppercase DNA.
+
+    Reuses ``AntisenseNotGate.__init__``'s own payload validation — ``to_rna``,
+    ``is_valid_rna``, starts with a start codon — rather than inventing a second
+    definition of "a valid payload" (CLAUDE.md §1), plus the checks a full CDS needs
+    that a single-gate constructor does not: whole codons, and no in-frame stop before
+    the true end.
+
+    A trailing run of stop codons is accepted as *one* stop, not rejected as several
+    premature ones — real parts carry them. BBa_E0040 ends ``...UAC AAA UAA UAA``, two
+    tandem stops, a common belt-and-braces pattern against ribosomal readthrough.
+    """
+    rna = sq.to_rna(sequence)
+    if not sq.is_valid_rna(rna):
+        raise InputValidationError(f"Payload {name!r} is not a valid RNA or DNA sequence.")
+    if rna[:3] != sq.START_CODON:
+        raise InputValidationError(
+            f"Payload {name!r} must be a full CDS starting with a start codon, got {rna[:3]!r}."
+        )
+    if len(rna) % 3 != 0:
+        raise InputValidationError(f"Payload {name!r} is not a whole number of codons.")
+
+    stops = set(sq.find_stops(rna))
+    n = len(rna)
+    trailing = 0
+    while n - 3 * (trailing + 1) in stops:
+        trailing += 1
+    if trailing == 0:
+        raise InputValidationError(f"Payload {name!r} does not end in a stop codon.")
+    if len(stops) != trailing:
+        raise InputValidationError(
+            f"Payload {name!r} has a premature in-frame stop codon before its end."
+        )
+
+    return sq.to_dna(rna)
+
+
+def _lookup_part(table: dict, key, label: str) -> tuple[str, str]:
+    try:
+        return table[key]
+    except KeyError:
+        wanted = getattr(key, "value", key)
+        configured = ", ".join(getattr(k, "value", str(k)) for k in table) or "none"
+        raise InputValidationError(
+            f"No {label} is configured for {wanted!r} yet (docs/ROADMAP.md Q11/Q12/Q13). "
+            f"Configured: {configured}."
+        ) from None
 
 
 class PlasmidBuilder:
@@ -29,8 +159,9 @@ class PlasmidBuilder:
     Args:
         screener: Shared ``MotifScreener``. Must be configured with the same standard
             passed below, or the check and the claim disagree.
-        codons: Shared ``CodonOptimizer``. Used to rewrite a payload whose opening codons
-            disturb the switch, and to adapt the payload to the host.
+        codons: Shared ``CodonOptimizer``. Held for the payload-rewriting step named in
+            ``payload_segment``; not called by this implementation (see the module
+            docstring's "No codon optimisation" note).
         standard: The assembly standard to enforce. RFC10 forbids EcoRI, XbaI, SpeI,
             PstI and NotI inside a part; RFC1000 (Type IIS) forbids BsaI and SapI.
         backbone: Fixed segments every construct shares — origin of replication,
@@ -50,73 +181,216 @@ class PlasmidBuilder:
         self.standard = standard
         self.backbone = backbone
 
-    def build(self, circuit: CircuitCandidate, outcome: DesiredOutcome) -> PlasmidDesign:
+    def build(
+        self,
+        circuit: CircuitCandidate,
+        outcome: DesiredOutcome,
+        *,
+        custom_payload: str | None = None,
+    ) -> PlasmidDesign:
         """Lay out one circuit as an orderable construct.
 
         Args:
             circuit: A ranked circuit from stage 4, with its switch designs.
             outcome: What the circuit should express when it fires.
+            custom_payload: The raw CDS from ``params["payload"]["custom_sequence"]``,
+                required when (and only meaningful when) ``outcome`` is
+                ``DesiredOutcome.CUSTOM`` — the one outcome ``payload_segment`` cannot
+                resolve from the catalog itself, since a custom sequence has no catalog
+                entry to look up. Validated through the same
+                :func:`validate_payload_cds` every catalog entry passes through.
 
         Returns:
             ``PlasmidDesign`` with its segments, full sequence, and any standard
-            violations. **Violations are recorded, not silently repaired** — a researcher
-            needs to know the construct they are about to order has a problem, and
-            quietly mutating their design is worse than reporting it.
+            violations. **Violations are recorded, not silently repaired** — a
+            researcher needs to know the construct they are about to order has a
+            problem, and quietly mutating their design is worse than reporting it.
 
-        Assembly order (Step 5):
-            promoter, then switch, then payload, then terminator, then backbone. Each is
-            a ``Segment`` with its ``kind``, so the frontend's plasmid map can label and
-            colour them, and lengths stay honest.
-
-            * **Promoter** — constitutive. The switch does the regulating, not the
-              promoter; a regulated promoter on top would confound the logic.
-            * **Switch** — from ``circuit.designs``. For a multi-input circuit there are
-              several, each needing its own promoter and terminator.
-            * **Payload** — from ``payload_segment(outcome)``, in frame with the switch's
-              start codon. This is the join most likely to go wrong.
-            * **Terminator** — stops transcription. Without one, read-through into the
-              next element quietly breaks the circuit.
-            * **Backbone** — origin and plasmid selection marker.
-
-        Then check:
-            1. ``screener.violations`` over the **assembled** sequence. This is the step
-               that catches sites formed *across a junction* — neither part contains
-               EcoRI, and joining them creates one. Screening parts individually misses
-               it entirely, and it is the classic assembly failure.
-            2. Reading frame continuity from the switch's AUG through the payload.
-            3. Total length against what synthesis vendors accept.
-
-        On repair:
-            When a violation lands inside a coding region, ``codons.variants`` can often
-            remove it without changing the protein — worth attempting, and worth
-            reporting that it happened. When it lands in a structural region, do not
-            touch it: changing a stem to remove a restriction site silently breaks the
-            switch that was validated in stage 3.
+        Raises:
+            InputValidationError: The circuit has no switch designs, no promoter or
+                terminator is configured for the requested host yet, ``outcome`` needs
+                the catalog and has no entry there, or ``outcome`` is ``CUSTOM`` with
+                no (or an invalid) ``custom_payload`` (docs/ROADMAP.md Q11/Q12/Q13) —
+                never a silently incomplete plasmid.
         """
-        raise NotImplementedError("Step 5")
+        if not circuit.designs:
+            raise InputValidationError(
+                "A circuit needs at least one switch design to build a plasmid."
+            )
+
+        host = circuit.designs[0].host
+        promoter_name, promoter_seq = _lookup_part(PROMOTERS, host, "promoter")
+        terminator_name, terminator_seq = _lookup_part(TERMINATORS, host, "terminator")
+
+        if outcome is DesiredOutcome.CUSTOM:
+            if not custom_payload:
+                raise InputValidationError(
+                    "DesiredOutcome.CUSTOM needs params['payload']['custom_sequence']."
+                )
+            payload = Segment(
+                SegmentKind.PAYLOAD, "Custom", validate_payload_cds("Custom", custom_payload)
+            )
+        else:
+            payload = self.payload_segment(outcome)
+
+        segments: list[Segment] = []
+        for design in circuit.designs:
+            # Promoter, then switch — one pair per switch, since a multi-input circuit
+            # needs its own regulation per unit (docs/plasmids.md §8, the multi-switch
+            # layout question). The switch itself does the regulating; the promoter is
+            # deliberately constitutive, or a regulated one on top would confound the
+            # logic the switch already encodes.
+            segments.append(Segment(SegmentKind.PROMOTER, promoter_name, promoter_seq))
+            segments.append(
+                Segment(SegmentKind.SWITCH, design.design_id, sq.to_dna(design.sequence))
+            )
+        # Payload, in frame with the last switch's start codon — the join checked below.
+        segments.append(payload)
+        segments.append(Segment(SegmentKind.TERMINATOR, terminator_name, terminator_seq))
+        segments.extend(self.backbone)
+
+        plasmid = Plasmid(tuple(segments))
+
+        violations = [str(v) for v in self.screener.violations(plasmid.sequence, circular=True)]
+        violations.extend(_frame_violations(circuit.designs, payload))
+
+        return PlasmidDesign(
+            plasmid_id=f"plasmid-{circuit.circuit_id.rsplit('-', 1)[-1]}-{outcome.value}",
+            circuit_id=circuit.circuit_id,
+            plasmid=plasmid,
+            standard=self.standard,
+            violations=tuple(violations),
+        )
 
     def payload_segment(self, outcome: DesiredOutcome) -> Segment:
         """The coding sequence for the chosen output.
 
         Args:
-            outcome: GFP, mCherry, Luciferase, antibiotic resistance, apoptosis inducer,
-                or a custom sequence.
+            outcome: GFP, mCherry, Luciferase, antibiotic resistance, apoptosis
+                inducer. Never ``DesiredOutcome.CUSTOM`` — a custom sequence has no
+                catalog entry to look up; the caller builds its ``Segment`` directly
+                from ``params["payload"]["custom_sequence"]``, through
+                :func:`validate_payload_cds`, the same validation this method applies
+                to every table entry.
 
         Returns:
             A ``Segment`` of kind ``PAYLOAD``.
 
-        Note:
-            **Every output is equivalent.** A reporter and a selective marker are the same
-            kind of construct with a different payload — there is no structural
-            difference, and the earlier version of this engine emitted a separate
-            ``marker`` segment which made markers look like second-class add-ons. They are
-            not: when a marker is selected, it *is* the payload.
+        Raises:
+            InputValidationError: ``outcome`` is ``CUSTOM``, or no payload is
+                configured for it yet (docs/ROADMAP.md Q11).
 
-        Implementation (Step 5):
-            Hold the standard coding sequences in a table, run each through
-            ``codons.translation_score`` for the host, and use ``codons.variants`` when
-            the opening codons interfere with the switch's stem. A custom sequence comes
-            from ``params["payload"]["custom_sequence"]`` and must be validated like any
-            other input — in frame, no internal stops, no forbidden motifs.
+        Note:
+            **Every output is equivalent.** A reporter and a selective marker are the
+            same kind of construct with a different payload — there is no structural
+            difference, and the earlier version of this engine emitted a separate
+            ``marker`` segment which made markers look like second-class add-ons. They
+            are not: when a marker is selected, it *is* the payload.
         """
-        raise NotImplementedError("Step 5")
+        if outcome is DesiredOutcome.CUSTOM:
+            raise InputValidationError(
+                "DesiredOutcome.CUSTOM has no catalog entry — build its Segment from "
+                "params['payload']['custom_sequence'] via validate_payload_cds directly."
+            )
+        name, cds = _lookup_part(PAYLOADS, outcome, "payload")
+        return Segment(SegmentKind.PAYLOAD, name, validate_payload_cds(name, cds))
+
+
+def _frame_violations(designs: tuple[GateDesign, ...], payload: Segment) -> list[str]:
+    """Reading-frame continuity from each switch's own start codon through the
+    payload — the join the docstring above calls out, and the one gotcha that
+    assembles clean, screens clean, prices normally, and expresses nothing
+    (docs/plasmids.md §7.4).
+
+    ``architecture["aug_index"]`` is the toehold family's own record of where its
+    start codon sits (``gates/toehold.py`` — read, not recomputed, per CLAUDE.md §5); a
+    design from a family that does not record one has nothing to check here.
+    """
+    violations: list[str] = []
+    payload_dna = payload.sequence
+
+    for design in designs:
+        aug_index = design.architecture.get("aug_index")
+        if aug_index is None:
+            continue
+
+        tail = sq.to_rna(design.sequence)[aug_index:]
+        fused = sq.to_rna(tail + payload_dna)
+
+        if len(fused) % 3 != 0:
+            violations.append(
+                f"{design.design_id}: the switch's start codon is not in frame with "
+                f"the payload ({len(fused)} nt from the start codon is not a whole "
+                "number of codons)."
+            )
+            continue
+
+        stops = set(sq.find_stops(fused))
+        n = len(fused)
+        trailing = 0
+        while n - 3 * (trailing + 1) in stops:
+            trailing += 1
+        premature = sorted(position for position in stops if position < n - 3 * trailing)
+        if premature:
+            violations.append(
+                f"{design.design_id}: a premature in-frame stop codon at position "
+                f"{premature[0]} of the fused switch+payload truncates translation "
+                "before the payload."
+            )
+
+    return violations
+
+
+#: GenBank feature type per segment kind. Standard keys only (CLAUDE.md §7's own
+#: instruction, echoed in docs/plasmids.md §6 P4) — CERNAL-specific metadata goes in
+#: qualifiers, never in an invented feature type.
+_GENBANK_FEATURE_TYPE: dict[SegmentKind, str] = {
+    SegmentKind.PROMOTER: "promoter",
+    SegmentKind.SWITCH: "misc_feature",
+    SegmentKind.PAYLOAD: "CDS",
+    SegmentKind.TERMINATOR: "terminator",
+    SegmentKind.BACKBONE: "misc_feature",
+}
+
+
+def to_genbank(design: PlasmidDesign) -> bytes:
+    """Render a ``PlasmidDesign`` as an annotated circular GenBank file.
+
+    The only place in this module that imports Biopython (ADR 0007). A ``SeqRecord``
+    is constructed and discarded here; it never crosses back into engine or Platform
+    code. Every CERNAL-produced segment becomes a feature with a standard GenBank type
+    (docs/plasmids.md §6 P4) — the switch and any preserved backbone segments as
+    ``misc_feature``, the payload as ``CDS`` — carrying CERNAL's own identifiers as
+    qualifiers rather than inventing a nonstandard feature key.
+    """
+    record = SeqRecord(
+        Seq(design.plasmid.sequence),
+        id=design.plasmid_id,
+        name=design.plasmid_id[:20],
+        description=f"CERNAL computationally assembled construct {design.plasmid_id}",
+    )
+    record.annotations["molecule_type"] = "DNA"
+    record.annotations["topology"] = "circular"
+
+    position = 0
+    for segment in design.plasmid.segments:
+        end = position + segment.length_bp
+        record.features.append(
+            SeqFeature(
+                SimpleLocation(position, end, strand=1),
+                type=_GENBANK_FEATURE_TYPE.get(segment.kind, "misc_feature"),
+                qualifiers={
+                    "label": [segment.name],
+                    "cernal_role": [segment.kind.value],
+                    "cernal_plasmid_id": [design.plasmid_id],
+                    "cernal_circuit_id": [design.circuit_id],
+                    "note": [
+                        "Generated by CERNAL — computationally assembled, not "
+                        "wet-lab validated (docs/plasmids.md §9)."
+                    ],
+                },
+            )
+        )
+        position = end
+
+    return record.format("genbank").encode("utf-8")

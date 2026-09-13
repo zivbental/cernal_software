@@ -139,6 +139,52 @@ def test_a_clean_sequence_is_compliant():
     assert MotifScreener(AssemblyStandard.RFC10).is_compliant("AUGGGCAGCGGUAUC")
 
 
+# --- Circular screening (docs/plasmids.md §7.3) ------------------------------------
+
+
+def _circular_fixture() -> str:
+    """Ends GAA, starts TTC -> wraps to GAATTC. Bases vary so this trips no other
+    rule (an all-A filler would also read as a homopolymer)."""
+    return "TTC" + "ACGT" * 14 + "GAA"
+
+
+def test_a_site_split_across_the_origin_is_invisible_to_a_linear_scan():
+    """The failure a plasmid's assembled sequence can hide: neither end alone
+    contains EcoRI, but a circular molecule reads straight through the join."""
+    screener = MotifScreener(AssemblyStandard.RFC10)
+
+    assert screener.violations(_circular_fixture()) == ()
+
+
+def test_circular_true_catches_the_wrapped_site():
+    screener = MotifScreener(AssemblyStandard.RFC10)
+    seq = _circular_fixture()
+
+    violations = screener.violations(seq, circular=True)
+
+    assert [v.name for v in violations] == ["EcoRI"]
+    assert violations[0].start == len(seq) - 3
+
+
+def test_circular_defaults_to_off_and_does_not_change_linear_behaviour():
+    screener = MotifScreener(AssemblyStandard.RFC10)
+    seq = "AAGAATTCAA"  # EcoRI, fully contained, nowhere near either end
+
+    assert screener.violations(seq) == screener.violations(seq, circular=False)
+    assert screener.violations(seq, circular=True)[:1] == screener.violations(seq)[:1]
+
+
+def test_circular_does_not_double_count_a_site_already_found_linearly():
+    screener = MotifScreener(AssemblyStandard.RFC10)
+    seq = "AAGAATTCAA"
+
+    assert len(screener.violations(seq, circular=True)) == len(screener.violations(seq))
+
+
+def test_circular_on_an_empty_sequence_is_still_empty():
+    assert MotifScreener(AssemblyStandard.RFC10).violations("", circular=True) == ()
+
+
 def test_violations_are_reported_in_position_order():
     screener = MotifScreener(AssemblyStandard.RFC10)
     violations = screener.violations("GAATTCAAAAAAATCTAGA")
