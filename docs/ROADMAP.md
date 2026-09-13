@@ -19,7 +19,7 @@
 | Step 2 — Domain model | **Complete** | 7 models, migrations, admin back-office, `seed_demo` |
 | Step 3 — API + orchestration | **Complete** | 35 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
 | Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages |
-| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. A pasted sequence longer than one trigger window is scanned for a usable trigger, not silently truncated (E2b, [triggers.md](triggers.md)) — `TriggerScorer` is real on this path. `PlasmidBuilder.build`/`.payload_segment` are real for the `direct` path (E5a, [plasmids.md](plasmids.md)) — a run produces a real annotated GenBank artifact and populated `plasmid_segments`, GFP payload / *E. coli* only. `de` mode, `CircuitDesigner`, `CodonOptimizer` and stage 6 (`ReportBuilder`) are still documented stubs raising `NotImplementedError` |
+| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. A pasted sequence longer than one trigger window is scanned for a usable trigger, not silently truncated (E2b, [triggers.md](triggers.md)) — `TriggerScorer` is real on this path. `PlasmidBuilder.build`/`.payload_segment` are real for the `direct` path (E5a, [plasmids.md](plasmids.md)) — a run produces a real annotated GenBank artifact and populated `plasmid_segments`, GFP payload / *E. coli* only. A run assembles onto a real, selectable plasmid backbone — ten catalog vectors or a researcher's own GenBank upload (E5b, [plasmids.md](plasmids.md)). `de` mode, `CircuitDesigner`, `CodonOptimizer` and stage 6 (`ReportBuilder`) are still documented stubs raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
 
 `./do test` → **949 passing** (plus the Python client's own conformance suite,
@@ -75,7 +75,7 @@ specific task.
 | **Q10** | CRISPR: activator or repressor effector? It changes what the circuit means and has no home in the run configuration | Deferred family, §7 |
 | **Q11** | Payload sequences. There is no library for GFP, mCherry, luciferase, AmpR or an apoptosis inducer. **Partially answered:** GFP is now in `stages/plasmids.py`'s `PAYLOADS` table (E5a); mCherry, luciferase, AmpR and an apoptosis inducer are still missing | E5a (remaining outputs), E5 |
 | **Q12** | Which constitutive promoter and terminator, per host? **Provisionally answered for *E. coli* only:** J23119/B0015, in `stages/plasmids.py`'s `PROMOTERS`/`TERMINATORS` tables (E5a). Yeast and human still need their own, and the *E. coli* defaults need to be a scientific decision rather than a placeholder that quietly becomes permanent | E5a |
-| **Q13** | What backbone does the team build into? **Still open** — `PlasmidBuilder` takes an injected `backbone: tuple[Segment, ...]` and defaults to empty, so a `direct` run's construct has no origin or selection marker today. **A GenBank file of the plasmid the lab already transforms is the ideal answer** — origin and marker annotations come with it | E5a |
+| **Q13** | What backbone does the team build into? **Answered for the `direct` path (E5b):** ten real BioBrick vectors in `stages/plasmids.py`'s `BACKBONES` table, fetched and length-verified from the iGEM Registry API, or a lab's own GenBank file via `parse_custom_backbone`. Per-host defaults still open — a lab's strain/antibiotic choice stays theirs | E5a, E5b |
 | **Q14** | Does the RNA class change the trigger-selection rules? A window inside an mRNA's CDS, its 5′UTR, a lncRNA, or a small RNA are not equivalent choices — an sRNA may be functional only as a whole, and a CDS window is dense with start codons (measured: the #1 cause of switch-design rejection, docs/triggers.md §4). Should scanning prefer, avoid, or weight regions by class? | E2b |
 | **Q15** | What makes a scanned trigger window good, beyond merely buildable? `TriggerScorer.score`'s ranking formula (`accessibility * segment_specificity`) is a self-declared placeholder that ignores the MFE and GC it already computes. Needs a reviewed formula before any ranking is presented as a recommendation rather than "the first one that worked" | E2b, and Q6 |
 
@@ -344,11 +344,36 @@ need a library at all once actually built. The OpenCloning frontend packages and
 service are out of scope — [plasmids.md §5.3](plasmids.md) has the measurements.
 
 **Still not in this phase, deliberately:** `CodonOptimizer` (payload emitted verbatim,
-never codon-optimised), a backbone (Q13 — a `direct` run's construct today has no origin
-or selection marker unless one is injected), mCherry/luciferase/AmpR/apoptosis-inducer
-payloads (Q11), non-*E. coli* hosts (Q12), multi-switch circuits, and any named wet-lab
-assembly protocol (Gibson, Golden Gate) — the construct is a composition, not a cloning
-plan ([plasmids.md §9](plasmids.md)).
+never codon-optimised), mCherry/luciferase/AmpR/apoptosis-inducer payloads (Q11),
+non-*E. coli* hosts (Q12), multi-switch circuits, and any named wet-lab assembly protocol
+(Gibson, Golden Gate) — the construct is a composition, not a cloning plan
+([plasmids.md §9](plasmids.md)). A backbone (Q13) was left out of E5a and closed
+separately, below.
+
+### E5b · A real, selectable backbone — `direct` path only · ✅ built
+
+Closes Q13. A `direct` run's construct in E5a had no origin of replication and no
+selection marker — `PlasmidBuilder(backbone=())` is the default the pipeline constructed
+with. E5b gives a researcher ten real BioBrick vectors to choose from, or lets them
+upload their own, so the plasmid that comes out is actually orderable. Full assessment in
+[plasmids.md §13](plasmids.md), including why OpenCloning/pydna were not adopted for
+this: `PlasmidBuilder.build()` already assembled, screened and exported whatever
+`Segment`s it was given — `segments.extend(self.backbone)` needed no changes at all. What
+was missing was backbone *data* and a way to *choose* one, not an assembly engine.
+
+| # | Task | Where | Status |
+|---|---|---|---|
+| **E5b-1** | `BACKBONES` table — ten real BioBrick vectors (three resistance markers × three copy-number origins), fetched from the iGEM Registry API, length/alphabet/topology verified against the registry's own metadata | `engine/stages/plasmids.py` | ✅ |
+| **E5b-2** | `parse_custom_backbone(genbank_text)` — parse a researcher's own GenBank file; reject non-circular topology and unparseable text; the second and last function in the module to import Biopython (ADR 0007) | `engine/stages/plasmids.py` | ✅ |
+| **E5b-3** | `_resolve_backbone(params)` — resolve `params.backbone.catalog_key` / `.custom_genbank` (exactly one, or neither) into the `Segment`(s) `PlasmidBuilder` is constructed with; omitting `params.backbone` reproduces the pre-E5b empty backbone byte for byte | `engine/pipeline.py` | ✅ |
+| **E5b-4** | Advertise the catalog — `EngineCapabilities.available_backbones`, `GET /api/version`, validated at submission via `api/params.py`'s `check_backbone_block`, the same pattern `gate_families` already uses | `engine/contract.py`, `engine/client.py`, `api/schemas.py`, `api/routers/meta.py`, `api/params.py`, `api/routers/runs.py` | ✅ |
+| **E5b-5** | Wizard step — pick a catalog vector, upload a custom one (`FileReader`, the same client-side pattern `customPayload` already uses), or none; defaults to a real backbone, not "none" | `frontend/src/components/compile/Steps.tsx`, `routes/compile.tsx` | ✅ |
+| **E5b-6** | Prove it — `BACKBONES` sanity, `parse_custom_backbone` round-trip/rejection cases, pipeline resolution (no param / catalog / custom / both / unknown key), submission-time validation | `tests/engine/test_plasmids.py`, `tests/engine/test_pipeline.py`, `tests/api/test_runs.py` | ✅ |
+
+**Still not in this phase, deliberately:** per-host backbone defaults (a lab's actual
+strain/antibiotic choice stays theirs); feature-level sub-annotation of a backbone
+(origin vs. marker coordinates) — the registry doesn't expose them, so each backbone
+stays one opaque `Segment` rather than a guessed split.
 
 ### E5 · Circuits, plasmids, report · **blocked on Q6, Q7, Q11**
 

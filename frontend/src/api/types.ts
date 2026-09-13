@@ -36,6 +36,14 @@ export interface GateFamily {
   available: boolean;
 }
 
+/** A selectable plasmid backbone vector, as advertised by the engine
+ * (docs/plasmids.md Q13). */
+export interface Backbone {
+  key: string;
+  name: string;
+  length_bp: number;
+}
+
 export interface Version {
   app_version: string;
   api_schema_version: string;
@@ -44,6 +52,7 @@ export interface Version {
   engine_schema_version: string;
   gate_families: GateFamily[];
   scoring_profiles: string[];
+  available_backbones: Backbone[];
 }
 
 export interface ExampleDataset {
@@ -256,6 +265,12 @@ export interface RunParams {
      * candidate's recorded rejection_reason. */
     hard_filters?: { metric: string; minimum?: number; maximum?: number; reason: string }[];
   };
+  /**
+   * The plasmid vector the circuit gets assembled onto (docs/plasmids.md Q13). Exactly
+   * one of the two fields, or neither (today's bare four-segment construct, unchanged) —
+   * the API rejects both being set at once.
+   */
+  backbone?: { catalog_key?: string; custom_genbank?: string };
   mock?: { candidate_count?: number; step_delay?: number; fail?: boolean };
   [key: string]: unknown;
 }

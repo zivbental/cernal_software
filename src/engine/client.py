@@ -26,6 +26,7 @@ from engine.contract import (
     SCHEMA_VERSION,
     SUCCEEDED,
     ArtifactRef,
+    BackboneInfo,
     CandidateResult,
     EngineCapabilities,
     JobRequest,
@@ -125,6 +126,7 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
     """Read the registries. Engine-internal, so importing them here is fine."""
     from engine.gates.registry import describe_families
     from engine.scoring.profiles import DEFAULT_V1, available_profiles
+    from engine.stages.plasmids import BACKBONES
 
     return EngineCapabilities(
         engine_version=engine_version,
@@ -153,6 +155,14 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
                 "reason": hard_filter.reason,
             }
             for hard_filter in DEFAULT_V1.hard_filters
+        ],
+        # Real backbone vectors PlasmidBuilder can assemble onto (docs/plasmids.md
+        # Q13, docs/ROADMAP.md E5b) — what lets the wizard render real names and the
+        # API reject an unknown catalog_key at submit time, the same reason
+        # gate_families/metrics are advertised rather than hardcoded twice.
+        available_backbones=[
+            BackboneInfo(key=key, name=name, length_bp=len(sequence))
+            for key, (name, sequence) in sorted(BACKBONES.items())
         ],
     )
 

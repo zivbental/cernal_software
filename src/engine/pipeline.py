@@ -60,6 +60,8 @@ from engine.domain import (
     LogicOperator,
     PlasmidDesign,
     Regulation,
+    Segment,
+    SegmentKind,
     SelectedGene,
     TriggerCandidate,
 )
@@ -75,10 +77,12 @@ from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
 from engine.stages.off_target import OffTargetScanner
 from engine.stages.plasmids import (
+    BACKBONES,
     PAYLOADS,
     PROMOTERS,
     TERMINATORS,
     PlasmidBuilder,
+    parse_custom_backbone,
     to_genbank,
     validate_payload_cds,
 )
@@ -167,6 +171,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
     constraints = _build_constraints(request.params)
     screener = MotifScreener(constraints.standard)
     codons = CodonOptimizer(host)
+    backbone = _resolve_backbone(request.params)
 
     tools: dict[str, object] = {
         "folder": folder,
@@ -178,7 +183,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         # Same screener/codons instances as above — a second PlasmidBuilder-only
         # MotifScreener would mean two independently configured screeners agreeing by
         # coincidence rather than by construction.
-        "plasmid_builder": PlasmidBuilder(screener, codons, constraints.standard),
+        "plasmid_builder": PlasmidBuilder(screener, codons, constraints.standard, backbone),
         "constraints": constraints,
     }
 
@@ -515,6 +520,45 @@ def _resolve_outputs(params: dict, host: Host) -> tuple[list[DesiredOutcome], li
     return buildable, warnings
 
 
+def _resolve_backbone(params: dict) -> tuple[Segment, ...]:
+    """The backbone segment(s) for this run, from ``params["backbone"]``
+    (docs/plasmids.md Q13, docs/ROADMAP.md E5b).
+
+    Unlike ``_resolve_outputs``, there is no "skip and warn" case here — a backbone is
+    one choice, not a list of alternatives, so a bad one is a hard
+    ``InputValidationError`` rather than something to silently drop. Omitting
+    ``params["backbone"]`` entirely is itself a fully legal choice: the plasmid is then
+    promoter+switch+payload+terminator only, exactly as every `direct` run built before
+    this feature existed — never a silent default a caller did not ask for.
+
+    Raises:
+        InputValidationError: both ``catalog_key`` and ``custom_genbank`` are given
+            (ambiguous — same "exactly one of" shape as the input-mode check on
+            ``POST /api/design``), ``catalog_key`` names no configured backbone, or
+            ``custom_genbank`` fails to parse (:func:`parse_custom_backbone`).
+    """
+    backbone = params.get("backbone") or {}
+    catalog_key = backbone.get("catalog_key")
+    custom_genbank = backbone.get("custom_genbank")
+
+    if catalog_key and custom_genbank:
+        raise InputValidationError(
+            "Provide at most one of backbone.catalog_key or backbone.custom_genbank, not both."
+        )
+    if custom_genbank:
+        return (parse_custom_backbone(custom_genbank),)
+    if catalog_key:
+        try:
+            name, sequence = BACKBONES[catalog_key]
+        except KeyError:
+            raise InputValidationError(
+                f"No backbone {catalog_key!r} is configured. Configured: "
+                f"{', '.join(sorted(BACKBONES))}."
+            ) from None
+        return (Segment(SegmentKind.BACKBONE, name, sequence),)
+    return ()
+
+
 def _direct_trigger(
     request: JobRequest,
     store: CandidateStore,
@@ -744,7 +788,12 @@ def _candidate_result(
             "switch_sequence": design.sequence,
             "structure": design.dot_bracket,
             "toehold_length": design.architecture.get("toehold_length", 0),
-            "sequence_length_bp": len(design.sequence),
+            # The whole construct, not the switch alone - matches MockEngine's
+            # convention (client.py) and Plasmid.length_bp's own definition. The
+            # frontend's PlasmidRing draws arcs proportional to this against
+            # plasmid_segments, so a switch-only value here makes every arc but the
+            # switch's own overflow past 360 degrees.
+            "sequence_length_bp": plasmid.plasmid.length_bp,
             "plasmid_segments": plasmid_segments,
             "logic_graph": logic_graph,
             "trigger_start_index": trigger.start_index,

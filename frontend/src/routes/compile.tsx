@@ -21,6 +21,7 @@ import {
   StepInputs,
   StepLogic,
   StepPayload,
+  StepVector,
   type CompileConfig,
 } from "@/components/compile/Steps";
 import { Loading } from "@/components/layout/Loading";
@@ -56,6 +57,7 @@ function CompilePage() {
 
   // Memoized so the blocker useMemo below is not invalidated on every render.
   const families = useMemo(() => version.data?.gate_families ?? [], [version.data]);
+  const backbones = useMemo(() => version.data?.available_backbones ?? [], [version.data]);
 
   const blocker = useMemo(() => {
     if (config.inputMode === "de") {
@@ -71,6 +73,8 @@ function CompilePage() {
     if (config.outputs.length === 0) return "Choose at least one downstream output.";
     if (config.outputs.includes("other") && config.customPayload.length < 3)
       return "Paste a sequence for your custom output, or deselect it.";
+    if (config.backbone === "custom" && config.customBackboneGenbank.length < 10)
+      return "Upload a GenBank file for your custom backbone, or choose a catalog vector.";
     return null;
   }, [config, datasets.data, families]);
 
@@ -124,6 +128,12 @@ function CompilePage() {
       mock: { candidate_count: 24, step_delay: 0.6 },
     };
 
+    if (config.backbone === "custom") {
+      params.backbone = { custom_genbank: config.customBackboneGenbank };
+    } else if (config.backbone !== "none") {
+      params.backbone = { catalog_key: config.backbone };
+    }
+
     const run = await submit.mutateAsync({
       input_mode: config.inputMode,
       dataset_id: config.inputMode === "de" ? config.datasetId : null,
@@ -151,7 +161,7 @@ function CompilePage() {
       />
 
       <div className="mb-8">
-        <StepRail active={blocker ? (config.inputMode === "de" && !config.datasetId ? 1 : 2) : 4} />
+        <StepRail active={blocker ? (config.inputMode === "de" && !config.datasetId ? 1 : 2) : 5} />
       </div>
 
       <div className="space-y-6">
@@ -176,6 +186,8 @@ function CompilePage() {
         <StepLogic config={config} patch={patch} families={families} />
 
         <StepPayload config={config} patch={patch} />
+
+        <StepVector config={config} patch={patch} backbones={backbones} />
 
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-6 shadow-clinical sm:flex-row sm:items-center sm:justify-between">
           <div>

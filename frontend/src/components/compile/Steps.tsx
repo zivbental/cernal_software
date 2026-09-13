@@ -8,7 +8,7 @@
 import { Activity, Dna, FileUp, Loader2, Sparkles, UploadCloud } from "lucide-react";
 import { useRef } from "react";
 
-import type { Dataset, ExampleDataset, GateFamily } from "@/api/types";
+import type { Backbone, Dataset, ExampleDataset, GateFamily } from "@/api/types";
 import { BacteriaIcon, HumanIcon, YeastIcon } from "@/components/icons/BioIcons";
 import { Panel, SectionHeading, AdvancedOptions } from "@/components/layout/Primitives";
 import { Check, SliderRow, Token } from "@/components/compile/Bits";
@@ -37,6 +37,15 @@ export interface CompileConfig {
    */
   maxLeakage: number;
   minGateStability: number;
+  /**
+   * The plasmid vector to assemble onto (docs/plasmids.md Q13) — a catalog key from
+   * `useVersion().available_backbones`, `"none"` for the bare construct (today's
+   * behaviour, unchanged), or `"custom"` to use `customBackboneGenbank` instead.
+   */
+  backbone: string;
+  /** Read client-side via FileReader, the same "paste your own" pattern
+   * `customPayload` already uses — see routes/compile.tsx's onSubmit. */
+  customBackboneGenbank: string;
 }
 
 export const DEFAULT_CONFIG: CompileConfig = {
@@ -51,6 +60,12 @@ export const DEFAULT_CONFIG: CompileConfig = {
   customPayload: "",
   maxLeakage: 0.08,
   minGateStability: -32,
+  // A real backbone by default, not "none" — the whole point of this feature is a
+  // researcher who just clicks through getting an orderable plasmid, not a bare
+  // four-segment construct (docs/plasmids.md §13 note on this being a deliberate
+  // default).
+  backbone: "psb1c3",
+  customBackboneGenbank: "",
 };
 
 /** engine.scoring.profiles.DEFAULT_V1's own predicted_leakage hard-filter ceiling
@@ -644,6 +659,134 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
             ? "One output selected — candidates will all express it."
             : `${count} outputs selected — candidates are compiled separately for each, and ranked together.`}
       </p>
+    </Panel>
+  );
+}
+
+/* ---------- Step 4 · Vector ---------- */
+
+/** One radio-style tile — the same shape `StepLogic`'s mechanism selector already
+ * uses, factored out here since this step repeats it three times (None / catalog /
+ * Custom) rather than once. */
+function VectorTile({
+  active,
+  title,
+  sub,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  sub: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex items-start gap-3 rounded-xl border p-4 text-left transition ${
+        active ? "border-mint bg-mint/5 shadow-mint" : "border-border bg-surface hover:border-mint/50"
+      }`}
+    >
+      <div
+        className={`mt-1 grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 ${
+          active ? "border-mint" : "border-muted-foreground/40"
+        }`}
+      >
+        {active && <div className="h-1.5 w-1.5 rounded-full bg-mint" />}
+      </div>
+      <div>
+        <div className="font-mono text-sm font-semibold text-foreground">{title}</div>
+        <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>
+      </div>
+    </button>
+  );
+}
+
+export function StepVector({
+  config,
+  patch,
+  backbones,
+}: {
+  config: CompileConfig;
+  patch: Patch;
+  backbones: Backbone[];
+}) {
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const onFile = (file: File) => {
+    const reader = new FileReader();
+    // Read client-side, same "paste your own" pattern customPayload already uses — no
+    // upload endpoint, the file's text goes straight into the submitted JSON body.
+    reader.onload = () => {
+      patch({ backbone: "custom", customBackboneGenbank: String(reader.result ?? "") });
+    };
+    reader.readAsText(file);
+  };
+
+  return (
+    <Panel>
+      <SectionHeading
+        kicker="Step 04 · Vector"
+        title="Choose a Plasmid Backbone"
+        desc="The vector the circuit gets assembled onto — origin of replication and selection marker. Pick a real BioBrick vector, upload your own, or skip it for a bare construct."
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <VectorTile
+          active={config.backbone === "none"}
+          title="None"
+          sub="Switch, promoter, terminator and payload only — no origin or marker."
+          onClick={() => patch({ backbone: "none" })}
+        />
+        {backbones.map((b) => (
+          <VectorTile
+            key={b.key}
+            active={config.backbone === b.key}
+            title={b.name}
+            sub={`${b.length_bp.toLocaleString()} bp`}
+            onClick={() => patch({ backbone: b.key })}
+          />
+        ))}
+        <VectorTile
+          active={config.backbone === "custom"}
+          title="Custom"
+          sub="Upload your own GenBank file"
+          onClick={() => patch({ backbone: "custom" })}
+        />
+      </div>
+
+      {config.backbone === "custom" && (
+        <div className="mt-6">
+          <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+            Backbone GenBank file
+          </label>
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".gb,.gbk,.genbank,text/plain"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onFile(file);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs font-medium text-foreground hover:border-mint"
+          >
+            <FileUp className="h-3.5 w-3.5" />
+            {config.customBackboneGenbank ? "Replace file" : "Choose a .gb file"}
+          </button>
+          {config.customBackboneGenbank && (
+            <div className="mt-2 font-mono text-[11px] text-muted-foreground">
+              {config.customBackboneGenbank.length.toLocaleString()} characters loaded — must be
+              annotated as circular (a linear file is rejected at submission).
+            </div>
+          )}
+        </div>
+      )}
     </Panel>
   );
 }
