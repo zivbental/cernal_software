@@ -12,17 +12,31 @@ import type { Backbone, Dataset, ExampleDataset, GateFamily } from "@/api/types"
 import { BacteriaIcon, HumanIcon, YeastIcon } from "@/components/icons/BioIcons";
 import { Panel, SectionHeading, AdvancedOptions } from "@/components/layout/Primitives";
 import { Check, SliderRow, Token } from "@/components/compile/Bits";
+import { ExpressionPreview } from "@/components/compile/ExpressionPreview";
+import { PublicDatasetPicker } from "@/components/compile/PublicDatasetPicker";
+import { GenePicker } from "@/components/compile/GenePicker";
 
 /* ---------- shared config ---------- */
 
 export type Organism = "ecoli" | "yeast" | "human";
-export type InputModeValue = "de" | "direct";
+/** "gene" is informational only — it never submits by itself. Picking a gene stashes
+ * `targetGene` and hands the researcher to "direct" to paste its sequence, since no
+ * gene->sequence lookup exists yet (docs/public-datasets.md's deliberate scope cut). */
+export type InputModeValue = "de" | "direct" | "gene";
 
 export interface CompileConfig {
   organism: Organism;
   inputMode: InputModeValue;
+  /** Which UI shows under "de" mode — a public dataset is just another way to arrive
+   * at a datasetId, not a different inputMode (routes/compile.tsx's blocker/onSubmit
+   * only ever look at datasetId, never at how it got set). */
+  deSource: "public" | "upload";
   datasetId: string | null;
   triggerSequence: string;
+  /** Set by the "Specific Gene" route; carried into the submission's params.target_gene
+   * regardless of which mode ultimately supplies the dataset/sequence. Informational —
+   * see InputModeValue's docstring. */
+  targetGene: { organism: Organism; geneId: string; geneSymbol: string } | null;
   setA: string;
   setB: string;
   mechanism: string;
@@ -51,8 +65,13 @@ export interface CompileConfig {
 export const DEFAULT_CONFIG: CompileConfig = {
   organism: "ecoli",
   inputMode: "de",
+  // Public dataset first — clicking through gets a real, published biological state,
+  // not an empty upload box (docs/public-datasets.md §29's "start from a real
+  // biological transcriptional state" story).
+  deSource: "public",
   datasetId: null,
   triggerSequence: "",
+  targetGene: null,
   setA: "",
   setB: "",
   mechanism: "toehold",
@@ -151,7 +170,7 @@ export function StepInputs({
         <label className="mb-2 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
           Input Mode
         </label>
-        <div className="inline-flex rounded-lg border border-border bg-surface p-1">
+        <div className="inline-flex flex-wrap rounded-lg border border-border bg-surface p-1">
           <button
             type="button"
             onClick={() => patch({ inputMode: "de" })}
@@ -176,129 +195,182 @@ export function StepInputs({
             <Dna className="h-3.5 w-3.5" />
             Direct Trigger mRNA
           </button>
+          <button
+            type="button"
+            onClick={() => patch({ inputMode: "gene" })}
+            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition ${
+              config.inputMode === "gene"
+                ? "bg-card font-medium text-foreground shadow-clinical"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Specific Gene
+          </button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          {config.inputMode === "de"
-            ? "Upload your differential expression results — CERNAL assumes fold change is calculated as target / control."
-            : "Skip discovery — provide the exact mRNA sequence you want to act as the trigger."}
+          {config.inputMode === "de" &&
+            "Browse a real public dataset or upload your own differential expression results — CERNAL assumes fold change is calculated as target / control."}
+          {config.inputMode === "direct" &&
+            "Skip discovery — provide the exact mRNA sequence you want to act as the trigger."}
+          {config.inputMode === "gene" &&
+            "Already know which transcript you want the circuit to respond to? Record it here, then paste its sequence."}
         </p>
       </div>
 
-      {config.inputMode === "de" ? (
-        <div className="rounded-xl border-2 border-dashed border-border bg-surface p-6 transition hover:border-mint hover:bg-mint/5">
-          <div className="flex items-start gap-4">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-gradient-mint shadow-mint">
-              <UploadCloud className="h-5 w-5 text-mint-foreground" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="text-base font-semibold text-foreground">
-                Differential Expression Results
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                A fold-change column is required. Common exports are recognised
-                automatically —{" "}
-                <span className="font-mono text-foreground">log2FoldChange</span>,{" "}
-                <span className="font-mono text-foreground">fold_change</span>,{" "}
-                <span className="font-mono text-foreground">FC</span>.
-              </p>
+      {config.inputMode === "de" && (
+        <>
+          <div className="mb-4 inline-flex rounded-lg border border-border bg-surface p-1">
+            <button
+              type="button"
+              onClick={() => patch({ deSource: "public" })}
+              className={`rounded-md px-3.5 py-1.5 text-xs font-medium transition ${
+                config.deSource === "public"
+                  ? "bg-card text-foreground shadow-clinical"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Public Dataset
+            </button>
+            <button
+              type="button"
+              onClick={() => patch({ deSource: "upload" })}
+              className={`rounded-md px-3.5 py-1.5 text-xs font-medium transition ${
+                config.deSource === "upload"
+                  ? "bg-card text-foreground shadow-clinical"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Upload Your Own
+            </button>
+          </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <input
-                  ref={fileInput}
-                  type="file"
-                  accept=".csv,.tsv,.txt,.xlsx"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) onUpload(file);
-                    e.target.value = "";
-                  }}
-                />
-                <button
-                  type="button"
-                  disabled={uploading}
-                  onClick={() => fileInput.current?.click()}
-                  className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:border-mint disabled:opacity-60"
-                >
-                  <FileUp className="mr-1.5 inline h-3.5 w-3.5" />
-                  {uploading ? "Uploading…" : "Browse files"}
-                </button>
-                <span className="font-mono text-xs text-muted-foreground">
-                  .csv · .tsv · .xlsx · max 100MB
-                </span>
-              </div>
+          {config.deSource === "public" ? (
+            <PublicDatasetPicker
+              organism={config.organism}
+              onLoaded={(datasetId) => patch({ datasetId })}
+            />
+          ) : (
+            <div className="rounded-xl border-2 border-dashed border-border bg-surface p-6 transition hover:border-mint hover:bg-mint/5">
+              <div className="flex items-start gap-4">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-gradient-mint shadow-mint">
+                  <UploadCloud className="h-5 w-5 text-mint-foreground" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-semibold text-foreground">
+                    Differential Expression Results
+                  </h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    A fold-change column is required. Common exports are recognised
+                    automatically —{" "}
+                    <span className="font-mono text-foreground">log2FoldChange</span>,{" "}
+                    <span className="font-mono text-foreground">fold_change</span>,{" "}
+                    <span className="font-mono text-foreground">FC</span>.
+                  </p>
 
-              {uploadError && (
-                <p role="alert" className="mt-3 text-sm text-destructive">
-                  {uploadError}
-                </p>
-              )}
-
-              {examples.length > 0 && (
-                <div className="mt-5 rounded-lg border border-border bg-card p-4">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-3.5 w-3.5 text-mint" />
-                    <span className="font-mono text-[11px] uppercase tracking-wider text-foreground">
-                      No data to hand?
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <input
+                      ref={fileInput}
+                      type="file"
+                      accept=".csv,.tsv,.txt,.xlsx"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) onUpload(file);
+                        e.target.value = "";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={uploading}
+                      onClick={() => fileInput.current?.click()}
+                      className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:border-mint disabled:opacity-60"
+                    >
+                      <FileUp className="mr-1.5 inline h-3.5 w-3.5" />
+                      {uploading ? "Uploading…" : "Browse files"}
+                    </button>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      .csv · .tsv · .xlsx · max 100MB
                     </span>
                   </div>
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    Load an example dataset to see how CERNAL works. It runs through
-                    exactly the same pipeline as your own data.
-                  </p>
-                  <div className="mt-3 space-y-2">
-                    {examples.map((example) => (
-                      <div
-                        key={example.key}
-                        className="flex items-start justify-between gap-3 rounded-md border border-border bg-surface p-3"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium text-foreground">
-                            {example.label}
-                          </div>
-                          <div className="mt-0.5 text-[11px] text-muted-foreground">
-                            {example.description}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={loadingExample}
-                          onClick={() => onUseExample(example.key)}
-                          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:border-mint disabled:opacity-60"
-                        >
-                          {loadingExample ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Sparkles className="h-3.5 w-3.5" />
-                          )}
-                          Use example
-                        </button>
+
+                  {uploadError && (
+                    <p role="alert" className="mt-3 text-sm text-destructive">
+                      {uploadError}
+                    </p>
+                  )}
+
+                  {examples.length > 0 && (
+                    <div className="mt-5 rounded-lg border border-border bg-card p-4">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-3.5 w-3.5 text-mint" />
+                        <span className="font-mono text-[11px] uppercase tracking-wider text-foreground">
+                          No data to hand?
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        Load an example dataset to see how CERNAL works. It runs through
+                        exactly the same pipeline as your own data.
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {examples.map((example) => (
+                          <div
+                            key={example.key}
+                            className="flex items-start justify-between gap-3 rounded-md border border-border bg-surface p-3"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-xs font-medium text-foreground">
+                                {example.label}
+                              </div>
+                              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                {example.description}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={loadingExample}
+                              onClick={() => onUseExample(example.key)}
+                              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:border-mint disabled:opacity-60"
+                            >
+                              {loadingExample ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-3.5 w-3.5" />
+                              )}
+                              Use example
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-              {datasets.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  {datasets.map((dataset) => (
-                    <DatasetRow
-                      key={dataset.id}
-                      dataset={dataset}
-                      selected={dataset.id === config.datasetId}
-                      onSelect={() => patch({ datasetId: dataset.id })}
-                    />
-                  ))}
-                </div>
-              )}
+                  {datasets.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {datasets.map((dataset) => (
+                        <DatasetRow
+                          key={dataset.id}
+                          dataset={dataset}
+                          selected={dataset.id === config.datasetId}
+                          onSelect={() => patch({ datasetId: dataset.id })}
+                        />
+                      ))}
+                    </div>
+                  )}
 
-              {selected?.validation_status === "INVALID" && (
-                <ValidationErrors dataset={selected} />
-              )}
+                  {selected?.validation_status === "INVALID" && (
+                    <ValidationErrors dataset={selected} />
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      ) : (
+          )}
+
+          <ExpressionPreview datasetId={config.datasetId} />
+        </>
+      )}
+
+      {config.inputMode === "direct" && (
         <div className="rounded-xl border-2 border-dashed border-border bg-surface p-6">
           <div className="flex items-start gap-4">
             <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-gradient-mint shadow-mint">
@@ -306,6 +378,12 @@ export function StepInputs({
             </div>
             <div className="min-w-0 flex-1">
               <h3 className="text-base font-semibold text-foreground">Trigger mRNA Sequence</h3>
+              {config.targetGene && (
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-mint/10 px-2.5 py-1 font-mono text-[11px] text-mint">
+                  Target gene: {config.targetGene.geneSymbol || config.targetGene.geneId} (
+                  {ORGANISM_LABELS[config.targetGene.organism]})
+                </div>
+              )}
               <p className="mt-1 text-sm text-muted-foreground">
                 Paste the mRNA transcript that should activate the riboswitch. DNA is
                 accepted and converted automatically.
@@ -332,6 +410,15 @@ export function StepInputs({
             </div>
           </div>
         </div>
+      )}
+
+      {config.inputMode === "gene" && (
+        <GenePicker
+          organism={config.organism}
+          targetGene={config.targetGene}
+          onSetGene={(targetGene) => patch({ targetGene })}
+          onContinue={() => patch({ inputMode: "direct" })}
+        />
       )}
     </Panel>
   );

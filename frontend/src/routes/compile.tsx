@@ -61,10 +61,14 @@ function CompilePage() {
 
   const blocker = useMemo(() => {
     if (config.inputMode === "de") {
-      if (!config.datasetId) return "Upload or select a dataset to analyse.";
+      if (!config.datasetId) return "Choose a public dataset, or upload your own, to analyse.";
       const chosen = datasets.data?.find((d) => d.id === config.datasetId);
       if (chosen && chosen.validation_status !== "VALID")
         return "That dataset did not pass validation.";
+    } else if (config.inputMode === "gene") {
+      // Informational only — there is no gene->sequence lookup, so this mode never
+      // submits by itself; "Continue" (GenePicker) switches inputMode to "direct".
+      return "Continue to paste the trigger sequence for this gene.";
     } else if (config.triggerSequence.length < 20) {
       return "Paste a trigger sequence of at least 20 nucleotides.";
     }
@@ -88,10 +92,16 @@ function CompilePage() {
   async function onSubmit() {
     if (blocker) return;
 
+    // "gene" is a wizard-only, informational mode (docs/public-datasets.md §16) that
+    // the blocker never lets reach here — it always resolves to "direct" or "de"
+    // before submission. Narrowed once so the API's InputMode type stays honest.
+    const submittedInputMode: "de" | "direct" =
+      config.inputMode === "de" ? "de" : "direct";
+
     const params: RunParams = {
       schema_version: "1",
       organism: config.organism,
-      input_mode: config.inputMode,
+      input_mode: submittedInputMode,
       logic: {
         set_a: config.setA.split(",").map((s) => s.trim()).filter(Boolean),
         set_b: config.setB.split(",").map((s) => s.trim()).filter(Boolean),
@@ -134,10 +144,21 @@ function CompilePage() {
       params.backbone = { catalog_key: config.backbone };
     }
 
+    // Informational only (docs/public-datasets.md §16/§19) — rides along on whatever
+    // dataset/sequence actually got submitted, documenting which gene the researcher
+    // had in mind without CERNAL claiming to have resolved it to anything.
+    if (config.targetGene) {
+      params.target_gene = {
+        organism: config.targetGene.organism,
+        gene_id: config.targetGene.geneId,
+        gene_symbol: config.targetGene.geneSymbol || null,
+      };
+    }
+
     const run = await submit.mutateAsync({
-      input_mode: config.inputMode,
-      dataset_id: config.inputMode === "de" ? config.datasetId : null,
-      trigger_sequence: config.inputMode === "direct" ? config.triggerSequence : "",
+      input_mode: submittedInputMode,
+      dataset_id: submittedInputMode === "de" ? config.datasetId : null,
+      trigger_sequence: submittedInputMode === "direct" ? config.triggerSequence : "",
       organism: ORGANISM_LABELS[config.organism],
       gate_families: [config.mechanism],
       scoring_profile: version.data?.scoring_profiles[0] ?? "default",
@@ -161,7 +182,11 @@ function CompilePage() {
       />
 
       <div className="mb-8">
-        <StepRail active={blocker ? (config.inputMode === "de" && !config.datasetId ? 1 : 2) : 5} />
+        <StepRail
+          active={
+            blocker ? (config.inputMode !== "direct" && !config.datasetId ? 1 : 2) : 5
+          }
+        />
       </div>
 
       <div className="space-y-6">

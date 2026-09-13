@@ -61,6 +61,86 @@ export interface ExampleDataset {
   description: string;
 }
 
+/** docs/public-datasets.md — a curated organism -> experiment -> comparison catalog,
+ * generalizing ExampleDataset from one bundled key to many, sourced from real public
+ * transcriptomics providers. Named OrganismInfo, not Organism — compile/Steps.tsx
+ * already exports Organism as the wizard's own "ecoli" | "yeast" | "human" union, and
+ * the wizard scopes public-dataset browsing to its own organism picker rather than
+ * fetching this list (avoids a design organism disagreeing with a data organism). */
+export interface OrganismInfo {
+  key: string;
+  name: string;
+}
+
+export interface PublicExperiment {
+  experiment_key: string;
+  organism: string;
+  provider: string;
+  accession: string;
+  title: string;
+  source_url: string;
+}
+
+export interface PublicComparison {
+  comparison_key: string;
+  comparison_id: string;
+  label: string;
+  experimental_condition: string;
+  reference_condition: string;
+  gene_count: number;
+}
+
+/** The info card (compile UI §12) shown before a researcher commits to loading it. */
+export interface PublicDatasetInfo {
+  comparison_key: string;
+  provider: string;
+  organism: string;
+  experiment_accession: string;
+  experiment_title: string;
+  comparison_id: string;
+  comparison_label: string;
+  experimental_condition: string;
+  reference_condition: string;
+  source_url: string;
+  retrieved_at: string;
+  gene_count: number;
+  genes_with_p_value: number;
+  genes_with_adjusted_p_value: number;
+  analysis_method: string;
+  publication_doi: string;
+}
+
+export interface DatasetProvenance {
+  provider: string;
+  organism: string;
+  experiment_accession: string;
+  experiment_title: string;
+  comparison_id: string;
+  comparison_label: string;
+  experimental_condition: string;
+  reference_condition: string;
+  source_url: string;
+  retrieved_at: string;
+  analysis_method: string;
+  publication_doi: string;
+}
+
+export interface DatasetPreviewRow {
+  gene_id: string;
+  gene_symbol: string | null;
+  log2fc: number | null;
+  pvalue: number | null;
+  padj: number | null;
+}
+
+/** Ranked by |log2FC| descending and capped server-side — see
+ * apps.datasets.services.preview_expression_rows. */
+export interface DatasetPreview {
+  rows: DatasetPreviewRow[];
+  total_rows: number;
+  truncated: boolean;
+}
+
 export interface ValidationReport {
   rows: number;
   columns: string[];
@@ -78,6 +158,9 @@ export interface Dataset {
   schema_version: string;
   validation_status: ValidationStatus;
   validation_report: ValidationReport;
+  /** Only present for a dataset materialized from the public catalog — null for a
+   * plain upload, which has no provider to cite. */
+  provenance: DatasetProvenance | null;
   created_at: string;
 }
 
@@ -271,6 +354,13 @@ export interface RunParams {
    * the API rejects both being set at once.
    */
   backbone?: { catalog_key?: string; custom_genbank?: string };
+  /**
+   * Informational only (compile/Steps.tsx's "Specific Gene" route) — recorded on the
+   * submission so the run documents which gene the researcher had in mind, but not
+   * resolved to a sequence or wired into the pipeline. Rides through as a free-form
+   * params key; the engine does not read it today.
+   */
+  target_gene?: { organism: string; gene_id: string; gene_symbol: string | null };
   mock?: { candidate_count?: number; step_delay?: number; fail?: boolean };
   [key: string]: unknown;
 }
