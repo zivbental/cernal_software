@@ -311,7 +311,7 @@ carrying information.
 ## 7. HTTP API
 
 Single surface, built with **django-ninja** ([ADR 0004](decisions/0004-django-ninja-over-drf.md)).
-Everything under `/api/`. **34 endpoints.** The OpenAPI document is auto-generated at
+Everything under `/api/`. **35 endpoints.** The OpenAPI document is auto-generated at
 `/api/openapi.json`, giving the maps' "Central Typed API Client" at near-zero cost.
 
 **The endpoint reference is [api.md](api.md).** What belongs here is the shape:
@@ -532,7 +532,7 @@ remaining steps are in [ROADMAP.md](ROADMAP.md); this is the record of what happ
 | **0 — Scaffold** | Directory tree, settings, `./do`, empty custom `User` before the first migration, ADRs 0001–0004 |
 | **1 — Engine contract + MockEngine** | `contract.py`, `client.py`, `errors.py`, `artifacts.py`, `GateFamily` ABC, registry, **scoring implemented**, the boundary test. *No Django code was written in this step — that was intentional* |
 | **2 — Domain model** | 7 models, migrations, admin back-office for every model, `seed_demo` |
-| **3 — API + orchestration** | 34 endpoints, session auth, ownership helper, error envelope, the run state machine in `services.py`, django-q2 worker. **The product became real; only the science was fake** |
+| **3 — API + orchestration** | 35 endpoints, session auth, ownership helper, error envelope, the run state machine in `services.py`, django-q2 worker. **The product became real; only the science was fake** |
 | **4 — Frontend integration** | Vendored React app, Vite → `src/static/app/`, one API client module, login, wizard, progress, results explorer, annotations, CSV export, static pages, registration with admin approval |
 
 **Deviations from the original plan**, recorded because they are still live decisions:

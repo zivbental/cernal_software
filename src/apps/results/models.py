@@ -123,6 +123,52 @@ class CandidateMetric(models.Model):
         return f"{self.name}={self.raw_value}"
 
 
+class ArtifactCategory(models.TextChoices):
+    """How the download UI groups artifacts. Declaration order is display order."""
+
+    SUMMARY = "summary", "Summary"
+    SEQUENCES = "sequences", "Gate & switch sequences"
+    PLASMIDS = "plasmids", "Plasmid sequences"
+    DIAGRAMS = "diagrams", "Diagrams"
+    REPORTS = "reports", "Reports"
+    OTHER = "other", "Other files"
+
+
+#: Every artifact ``kind`` the engine or the platform can produce, mapped to the
+#: category the download UI groups it under and a human label. An unmapped kind
+#: (a new engine artifact nobody has taught this table about yet) falls back to
+#: OTHER with a title-cased version of its own name — still downloadable, just not
+#: specially grouped, so nothing the engine writes is ever silently hidden from the
+#: download UI while this table catches up.
+_KIND_INFO: dict[str, tuple[str, str]] = {
+    "summary_table": (ArtifactCategory.SUMMARY, "Summary table — every candidate, every metric"),
+    "design_table": (ArtifactCategory.SUMMARY, "Candidate list (engine export)"),
+    "run_manifest": (ArtifactCategory.SUMMARY, "Run configuration"),
+    "sequence_fasta": (ArtifactCategory.SEQUENCES, "Switch sequence (FASTA)"),
+    "genbank": (ArtifactCategory.PLASMIDS, "Plasmid sequence (GenBank)"),
+    "structure_plot": (ArtifactCategory.DIAGRAMS, "Structure diagram"),
+    "logic_graph": (ArtifactCategory.DIAGRAMS, "Logic circuit diagram"),
+    "report": (ArtifactCategory.REPORTS, "Report (PDF)"),
+}
+
+
+def filter_by_category(queryset, category: str):
+    """Narrow an ``Artifact`` queryset to one category.
+
+    ``category`` is a Python property, not a database column, so this is a query
+    against ``kind`` instead. ``OTHER`` matches any kind ``_KIND_INFO`` does not
+    know about, rather than nothing — an artifact is never invisible to every
+    category just because this table has not caught up with a new engine kind yet.
+    """
+    mapped_kinds = list(_KIND_INFO)
+    if category == ArtifactCategory.OTHER:
+        return queryset.exclude(kind__in=mapped_kinds)
+    kinds = [
+        kind for kind, (kind_category, _label) in _KIND_INFO.items() if kind_category == category
+    ]
+    return queryset.filter(kind__in=kinds)
+
+
 class Artifact(UUIDModel, CreatedAtModel):
     """A file produced by a run.
 
@@ -142,7 +188,12 @@ class Artifact(UUIDModel, CreatedAtModel):
         help_text="Null for run-level artifacts.",
     )
     kind = models.CharField(
-        max_length=50, help_text="sequence_fasta, design_table, logic_graph, plot, report"
+        max_length=50,
+        help_text=(
+            "summary_table, design_table, run_manifest, sequence_fasta, genbank, "
+            "structure_plot, logic_graph, report — see _KIND_INFO for how each is "
+            "categorized and labelled for download."
+        ),
     )
     file = models.FileField(upload_to=artifact_upload_path)
     media_type = models.CharField(max_length=100)
@@ -158,6 +209,20 @@ class Artifact(UUIDModel, CreatedAtModel):
 
     def __str__(self) -> str:
         return f"{self.kind}: {self.file.name}"
+
+    @property
+    def category(self) -> str:
+        return _KIND_INFO.get(self.kind, (ArtifactCategory.OTHER, ""))[0]
+
+    @property
+    def label(self) -> str:
+        default = self.kind.replace("_", " ").capitalize()
+        return _KIND_INFO.get(self.kind, (ArtifactCategory.OTHER, default))[1] or default
+
+    @property
+    def display_name(self) -> str:
+        """The original filename, without the ``artifacts/<run id>/`` storage prefix."""
+        return self.file.name.rsplit("/", 1)[-1] if self.file else ""
 
 
 class Annotation(UUIDModel, CreatedAtModel):

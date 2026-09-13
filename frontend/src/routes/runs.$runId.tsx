@@ -1,27 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import {
-  AlertTriangle,
-  Ban,
-  CircuitBoard,
-  Download,
-  Dna,
-  Loader2,
-  ShoppingCart,
-} from "lucide-react";
+import { AlertTriangle, Ban, CircuitBoard, Dna, Loader2, ShoppingCart } from "lucide-react";
 
-import { api } from "@/api/client";
-import {
-  useArtifacts,
-  useCancelRun,
-  useCandidate,
-  useCandidates,
-  useRunStatus,
-} from "@/api/queries";
+import { useCancelRun, useCandidate, useCandidates, useRunStatus } from "@/api/queries";
 import type { Candidate, RunStatusResponse } from "@/api/types";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
 import { Panel, SectionHeading } from "@/components/layout/Primitives";
+import { ArtifactDownloads } from "@/components/results/ArtifactDownloads";
 import { MetricGrid } from "@/components/results/MetricGrid";
 import { PlasmidLegend, PlasmidRing } from "@/components/results/PlasmidRing";
 import { LogicCircuitView } from "@/components/results/LogicCircuit";
@@ -183,7 +169,6 @@ function Results({ runId }: { runId: string }) {
     sort: filters.sort,
     limit: 200,
   });
-  const artifacts = useArtifacts(runId);
 
   const items = candidates.data?.items ?? [];
   // A run can target several equivalent outputs, each compiled into its own plasmids.
@@ -331,18 +316,11 @@ function Results({ runId }: { runId: string }) {
             </div>
           </div>
 
-          <div className="mt-8 flex flex-col gap-3 border-t border-border pt-6 sm:flex-row">
-            <a
-              href={api.url(`/runs/${runId}/export.csv`)}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-card px-6 py-4 text-sm font-medium text-foreground transition hover:border-foreground/30 hover:bg-surface"
-            >
-              <Download className="h-4 w-4" />
-              Export candidates (CSV)
-            </a>
+          <div className="mt-8 border-t border-border pt-6">
             <button
               disabled
               title="Partner integration is not available yet"
-              className="group inline-flex flex-[1.4] cursor-not-allowed items-center justify-center gap-3 rounded-xl bg-gradient-deep px-6 py-4 text-sm font-semibold text-primary-foreground opacity-50"
+              className="group inline-flex w-full cursor-not-allowed items-center justify-center gap-3 rounded-xl bg-gradient-deep px-6 py-4 text-sm font-semibold text-primary-foreground opacity-50"
             >
               <ShoppingCart className="h-4 w-4" />
               Order Plasmid with Our Trusted Partner
@@ -351,34 +329,7 @@ function Results({ runId }: { runId: string }) {
         </div>
       </Panel>
 
-      {artifacts.data && artifacts.data.length > 0 && (
-        <Panel>
-          <SectionHeading
-            kicker="Artifacts"
-            title="Generated files"
-            desc="Sequences and design tables produced by the engine for this run."
-          />
-          <div className="grid gap-2 sm:grid-cols-2">
-            {artifacts.data.map((artifact) => (
-              <a
-                key={artifact.id}
-                href={artifact.download_url}
-                className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 hover:border-mint"
-              >
-                <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-mono text-xs text-foreground">
-                    {artifact.kind}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {(artifact.size_bytes / 1024).toFixed(1)} KB
-                  </div>
-                </div>
-              </a>
-            ))}
-          </div>
-        </Panel>
-      )}
+      <ArtifactDownloads runId={runId} />
     </div>
   );
 }

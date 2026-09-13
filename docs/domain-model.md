@@ -168,7 +168,7 @@ is shown the decomposition, never a single opaque score (design map 12).
 | `id` | UUID pk | |
 | `run` | FK → AnalysisRun, CASCADE | |
 | `candidate` | FK → Candidate, null | Null = run-level artifact |
-| `kind` | Char(50) | `sequence_fasta`, `design_table`, `logic_graph`, `plot`, `report` |
+| `kind` | Char(50) | `sequence_fasta`, `design_table`, `summary_table`, `run_manifest`, `genbank`, `structure_plot`, `logic_graph`, `report` |
 | `file` | FileField | `var/media/artifacts/<run id>/<relative path>` |
 | `media_type` | Char(100) | |
 | `checksum_sha256` | Char(64), read-only | Verified on import |
@@ -179,6 +179,34 @@ and `plots/x.fasta` cannot collide. Path traversal and absolute paths are stripp
 
 > Artifacts are **never** served by a static file handler. They go through an authorized
 > download view that checks run ownership ([architecture.md §7.2](architecture.md)).
+
+### Categories, for the download UI
+
+`kind` is not the same axis as `category` — `category` is how the download UI groups
+files (`ArtifactCategory` in `apps/results/models.py`), computed from `kind` by a
+lookup table (`_KIND_INFO`), not stored. An artifact whose `kind` the table has not
+learned yet still downloads fine, just filed under `other` instead of a specific
+group — a new engine artifact is never invisible, only ungrouped until this table
+catches up.
+
+| Category | `kind`s | Notes |
+|---|---|---|
+| `summary` | `design_table`, `summary_table`, `run_manifest` | `summary_table`/`run_manifest` are platform-native, not engine output — see below |
+| `sequences` | `sequence_fasta` | The switch/gate sequence, not a full plasmid |
+| `plasmids` | `genbank` | Not produced yet — stage 5 (`PlasmidBuilder`) is still a stub ([ROADMAP.md](ROADMAP.md)) |
+| `diagrams` | `structure_plot`, `logic_graph` | Not produced yet — stage 6 (`reporting.py`) is still a stub |
+| `reports` | `report` | Not produced yet |
+| `other` | anything unmapped | The fallback, never a dead end |
+
+### Platform-native artifacts
+
+`summary_table` (`summary.csv`) and `run_manifest` (`manifest.json`) are not written by
+the engine — `apps.results.services._write_derived_artifacts` materializes them at
+import time, computed from the candidates/metrics that import just wrote and from the
+`JobResult` (not from `run`, which has not yet been stamped `COMPLETED` at that point —
+see "Importing an engine result" below). `build_candidates_csv(run)` is the one place
+that decides what "the summary table" contains; `GET /api/runs/{id}/export.csv` calls
+the same function, so the two can never drift apart.
 
 ## `results.Annotation`
 
@@ -210,11 +238,14 @@ Deleting demo data therefore requires dependency order — see `_reset()` in
 `apps.results.services.import_job_result(run, result, output_dir)` writes a `JobResult`
 into these tables **atomically**: either the whole result lands or none of it does. It
 verifies the manifest's input checksum against the dataset, verifies every artifact's
-checksum, links candidate-level artifacts to their candidate, and refuses to import
-twice into the same run.
+checksum, links candidate-level artifacts to their candidate, refuses to import twice
+into the same run, and materializes the two platform-native artifacts above.
 
 It deliberately does **not** touch `run.status` — transitions belong to
-`apps/analyses/services.py` (rule 5).
+`apps/analyses/services.py` (rule 5). This is also why `run_manifest`'s content reads
+`engine_version`, `status` and `finished_at` from `result` and the current instant
+rather than from `run`: this function runs strictly before the caller transitions the
+run to `COMPLETED` and stamps those fields, so `run` itself is still mid-flight.
 
 ## Seeing it populated
 

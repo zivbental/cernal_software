@@ -44,7 +44,7 @@ built the wrong way. Verdict, per piece:
 | Python client | **Do it.** ~250 lines | Where most users are, and `to_dataframe()` is a real value-add |
 | R client | **Do it.** ~180 lines | R users will not hand-roll `httr2` + polling. Cheap, and high judging value |
 | MATLAB client | **Do it, thinnest possible.** ~150 lines | `webwrite`/`webread` are built in; a `+cernal` package folder is the whole deliverable |
-| Three full SDKs mirroring 34 endpoints | **Overkill. Do not.** | §12 |
+| Three full SDKs mirroring 35 endpoints | **Overkill. Do not.** | §12 |
 | OAuth, GraphQL, gRPC, streaming, a separate public-API service | **Overkill. Do not.** | §12 |
 
 **The lever that makes this a week and not a month:** all three clients wrap the *same
@@ -63,7 +63,7 @@ built and tested; call them.
 
 | You need | It already exists | Where |
 |---|---|---|
-| An HTTP surface with generated OpenAPI | 34 endpoints, `/api/openapi.json`, `/api/docs` | [`src/api/`](../src/api/), [`docs/api.md`](api.md) |
+| An HTTP surface with generated OpenAPI | 35 endpoints, `/api/openapi.json`, `/api/docs` | [`src/api/`](../src/api/), [`docs/api.md`](api.md) |
 | Submit a run, freeze its config, queue it | `submit_run(...) -> (run, created)` | [`apps/analyses/services.py:41`](../src/apps/analyses/services.py#L41) |
 | Idempotent resubmission | `idempotency_key`, unique column, returns the existing run | same |
 | Validate gate families / profiles against the engine | `_validate_against_capabilities` | [`apps/analyses/services.py:128`](../src/apps/analyses/services.py#L128) |
@@ -119,7 +119,7 @@ Three consequences worth stating out loud, because they are the selling points:
 ```
                     ┌── session cookie + CSRF ──►  the SPA (same origin)
    /api/…  ─────────┤
-   34 endpoints     └── X-API-Key header ───────►  Python · R · MATLAB · curl · Galaxy · Snakemake
+   35 endpoints     └── X-API-Key header ───────►  Python · R · MATLAB · curl · Galaxy · Snakemake
         │
         └──► get_owned(model, id, request.user)   ← unchanged, one code path
 ```
@@ -712,7 +712,7 @@ breaking someone's R script mid-season.
 ## 11. The three clients
 
 **The design rule that keeps this from being overkill:** every client wraps the same five
-calls and is a thin, idiomatic layer — not a generated mirror of 34 endpoints. Anyone
+calls and is a thin, idiomatic layer — not a generated mirror of 35 endpoints. Anyone
 needing more uses REST directly against a documented, self-describing API.
 
 Each client does exactly six things: hold a key, POST a design, poll with backoff,
@@ -878,7 +878,7 @@ the wrong things.
 
 | Do not build | Because |
 |---|---|
-| **Three SDKs mirroring all 34 endpoints** | ~2 000 lines to maintain in three languages for endpoints nobody calls from a script. Five functions each covers >95 % of use |
+| **Three SDKs mirroring all 35 endpoints** | ~2 000 lines to maintain in three languages for endpoints nobody calls from a script. Five functions each covers >95 % of use |
 | **Generated clients (`openapi-generator`)** | The Python output is large and unidiomatic; the R and MATLAB generators are weak or absent. Generation wins at 200 endpoints, not at 5. Publish the OpenAPI doc so *others* can generate — that is the integration story, and it is free |
 | **OAuth 2 / JWT** | Nothing needs delegated access. Refresh-token handling would be the single largest piece of R and MATLAB client code, for zero gain |
 | **GraphQL or gRPC** | The result shape is fixed and small; there is no over-fetching problem to solve, and neither has a usable MATLAB story |

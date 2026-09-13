@@ -17,7 +17,7 @@
 | Step 0 — Scaffold | **Complete** | Boots, migrates, admin reachable |
 | Step 1 — Engine contract + MockEngine | **Complete** | Contract, `MockEngine`, gate/scoring layers, boundary test |
 | Step 2 — Domain model | **Complete** | 7 models, migrations, admin back-office, `seed_demo` |
-| Step 3 — API + orchestration | **Complete** | 34 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
+| Step 3 — API + orchestration | **Complete** | 35 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
 | Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages |
 | **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. `de` mode and every stage past switch design are still documented stubs raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
