@@ -21,6 +21,7 @@ called out inline rather than silently guessed — see the port's open questions
 Reference: design map 12, and the pipeline map's Switches Design stage.
 """
 
+import math
 import re
 from bisect import bisect_right
 from collections.abc import Iterator
@@ -689,6 +690,7 @@ class ToeholdAndGate(ToeholdGate):
         r2 = rna_b[len_k2 + len_x :]
 
         rbs_loop = self.RBS_FLANK + self.RBS_PROKARYOTIC
+        main_z = self._repair_main_z(k1, rbs_loop)
         pieces = [
             ("cap", self.LEADER_SEQUENCE),
             ("r2_star", sq.reverse_complement(r2)),
@@ -702,7 +704,7 @@ class ToeholdAndGate(ToeholdGate):
             ("bulge_star", sq.reverse_complement(bulge)),
             ("k1_star", sq.reverse_complement(k1)),
             ("rbs_loop", rbs_loop),
-            ("main_z", k1),
+            ("main_z", main_z),
             ("aug", "AUG"),
             ("main_pre", main_pre),
             ("linker", self.LINKER_SEQUENCE),
@@ -737,6 +739,52 @@ class ToeholdAndGate(ToeholdGate):
             domains=domains,
             len_x=len_x,
         )
+
+    def _repair_main_z(self, k1: str, rbs_loop: str) -> str:
+        """Choose ``mainZ``, trying to keep it identical to trigger A's ``k1``.
+
+        ``mainZ`` is the switch's own copy of ``k1`` and doubles as the spacer, so setting
+        it to ``k1`` makes the main stem's ``ddG_pref`` exactly zero and every pair
+        Watson-Crick. It has one failure mode: a trigger whose first six nucleotides
+        contain ``AUG`` puts a second start codon in the 5' UTR, out of frame with the real
+        one, so what the ribosome translates from there is not the reporter. On mCherry
+        that hits 93 of 867 otherwise-clean candidates.
+
+        Rather than discard them, repair the smallest amount of sequence. A position may
+        move to any base that still pairs with its partner in ``k1*``, **wobbles
+        included** — and that is what makes a repair cheap rather than destructive:
+        ``k1[i]`` of A or C has exactly one alternative, reachable through a G:U wobble,
+        while G and U have none, since only G pairs with C and only U pairs with A. So the
+        stem stays closed at every position; one pair merely becomes a wobble.
+
+        Among the repairs that remove the start codon, the fewest substitutions win, and
+        ties go to the strongest remaining duplex — the change that weakens the main
+        hairpin least. Returns ``k1`` unchanged when no repair is needed, and also when
+        none is possible, leaving ``assembly_violations`` to report the fault rather than
+        hiding it behind a silently different design.
+        """
+        if "AUG" not in rbs_loop + k1:
+            return k1
+
+        options: list[list[str]] = []
+        for base in k1:
+            partner = sq.reverse_complement(base)
+            options.append([b for b in "ACGU" if can_pair(b, partner)])
+
+        k1_star = sq.reverse_complement(k1)
+        repairs: list[tuple[int, float, str]] = []
+        for combination in product(*options):
+            candidate = "".join(combination)
+            if "AUG" in rbs_loop + candidate:
+                continue
+            energy = fixed_alignment_energy(candidate, k1_star, self.folder)
+            if energy is None:
+                continue
+            changed = sum(1 for a, b in zip(candidate, k1, strict=True) if a != b)
+            repairs.append((changed, energy, candidate))
+        if not repairs:
+            return k1
+        return min(repairs)[2]
 
     def _off_structure(self, sequence: str, domains: dict[str, tuple[int, int]]) -> str:
         """The structure the OFF state is drawn as, for ``ensemble_defect`` to score against.
@@ -787,6 +835,120 @@ class ToeholdAndGate(ToeholdGate):
         if len(coding) % 3:
             faults.append("frame_shift")
         return tuple(faults)
+
+    def four_tube_observables(
+        self, switch: "_AssembledSwitch", trigger_a: str, trigger_b: str
+    ) -> dict[str, float | None]:
+        """Fold the four logic states at equilibrium and read the gate's behaviour off them.
+
+        The tubes are the switch alone and the switch with each combination of triggers
+        present in excess, named by state with **trigger A as the left digit**::
+
+            00 = [S]        neither         10 = [S, A]     A alone, which must stay shut
+            01 = [S, B]     B alone          11 = [S, A, B]  both, the only ON state
+
+        Every quantity here is an ensemble property — a ratio of partition functions, or a
+        mean over the pair-probability matrix. None of them needs a single representative
+        structure, so none is chosen: where the minimum free energy structure carries
+        little of the ensemble, substituting it would answer a different and worse
+        question.
+
+        Returns:
+            Raw measurements, in the units the framework quotes them in. A measurement
+            that could not be made is ``None``, never ``0.0`` — on a lower-is-better
+            quantity zero reads as perfect and passes every threshold.
+
+        Note:
+            ``separation`` and ``ddG_AND`` are taken on ``W_rank`` only. ``W_flank`` adds
+            the seven designed nucleotides of the RBS loop's 5' flank and is a pass/fail
+            check on those alone: in state 11 the region upstream of -24 is duplexed to
+            trigger A, so ranking there would penalise a gate for working.
+        """
+        rna_a, rna_b = sq.to_rna(trigger_a), sq.to_rna(trigger_b)
+        tubes = {
+            "00": switch.sequence,
+            "01": f"{switch.sequence}&{rna_b}",
+            "10": f"{switch.sequence}&{rna_a}",
+            "11": f"{switch.sequence}&{rna_a}&{rna_b}",
+        }
+        rank, flank = switch.span(-17, 13), switch.span(-24, 13)
+
+        opening: dict[str, float | None] = {}
+        for state, strands in tubes.items():
+            opening[state] = self._opening_cost(strands, rank)
+        flank_00 = self._opening_cost(tubes["00"], flank)
+
+        observables: dict[str, float | None] = {
+            f"dG_open_{state}": value for state, value in opening.items()
+        }
+        observables["dG_open_flank_00"] = flank_00
+
+        # separation: the ON state against whichever OFF state comes closest to leaking.
+        # A minimum, not a mean, because an AND gate is only as good as its worst leak --
+        # and it is what makes a state-10 leak collapse the score rather than average out.
+        off = [opening[s] for s in ("00", "01", "10")]
+        if opening["11"] is None or any(value is None for value in off):
+            observables["separation"] = None
+        else:
+            observables["separation"] = min(value - opening["11"] for value in off)
+
+        if all(opening[s] is not None for s in ("00", "01", "10", "11")):
+            observables["ddG_AND"] = (opening["11"] - opening["01"]) - (
+                opening["10"] - opening["00"]
+            )
+        else:
+            observables["ddG_AND"] = None
+
+        if flank_00 is None or opening["00"] is None:
+            observables["flank_penalty"] = None
+        else:
+            observables["flank_penalty"] = flank_00 - opening["00"]
+
+        # Stem and toehold accessibility: a mean of per-base unpaired probabilities, each
+        # read from the partition function's pair-probability matrix rather than from any
+        # one structure. Deliberately not the joint probability that a whole arm is open at
+        # once -- over eighteen nucleotides that is ~1e-22 even for an arm with nothing to
+        # pair against, which would put every design below every threshold.
+        spans = {
+            "A_S": switch.domains["sw_xs"],
+            "A_M": (switch.domains["main_z"][0], switch.domains["main_pre"][1]),
+            "A_S_full": (switch.domains["secondary_z"][0], switch.domains["sw_xs"][1]),
+        }
+        for state, strands in tubes.items():
+            matrix = self.folder.base_pair_probabilities(strands)
+            for name, (start, end) in spans.items():
+                observables[f"{name}_{state}"] = _mean_unpaired(matrix, start, end)
+            if state == "00":
+                toehold = switch.domains["r2_star"]
+                observables["A_r2_star_00"] = _mean_unpaired(matrix, *toehold)
+
+        observables["d_off"] = self.folder.ensemble_defect(
+            switch.sequence, switch.dot_bracket
+        ) / len(switch.sequence)
+
+        # Binding energies, as ensemble free-energy differences. Never a bare dG_bind for
+        # trigger A: measured against the *bare* switch it rewards A opening the main
+        # hairpin on its own, which is exactly the state-10 leak the gates exist to catch,
+        # so the score and the gate would pull against each other. A is conditioned on B.
+        g = {state: self.folder.partition(strands) for state, strands in tubes.items()}
+        observables["dG_bind_B"] = g["01"] - g["00"] - self.folder.partition(rna_b)
+        observables["dG_bind_A_given_B"] = g["11"] - g["01"] - self.folder.partition(rna_a)
+        return observables
+
+    def _opening_cost(self, strands: str, window: tuple[int, int]) -> float | None:
+        """``-RT ln P_open`` over a window: the work of opening it unaided.
+
+        The right barrier for the 30S subunit, which has a narrow entry channel, no
+        helicase at initiation, and captures transiently open states rather than forcing
+        them apart. It is the **wrong** barrier for a trigger, which nucleates on a few
+        bases and then trades pairs through branch migration without ever paying the full
+        opening cost — which is why stem accessibility above stays a bounded probability
+        instead.
+        """
+        probability = self.folder.p_open(strands, window)
+        if probability is None or probability <= 0.0:
+            return None
+        return -self.folder.rt * math.log(probability)
 
     def find_trigger_pairs(
         self, transcript: str, *, min_window_gap: int | None = None

@@ -184,7 +184,7 @@ class FoldEngine:
         return energy
 
     @property
-    def _rt(self) -> float:
+    def rt(self) -> float:
         """``RT`` in kcal/mol at this engine's temperature.
 
         Taken from ViennaRNA's own constants rather than a literal, so it cannot drift
@@ -223,8 +223,8 @@ class FoldEngine:
         -80 kcal/mol, and ``exp(80 / 0.616)`` overflows a float long before the sum does.
         """
         floor = min(energies)
-        total = math.fsum(math.exp(-(energy - floor) / self._rt) for energy in energies)
-        return floor - self._rt * math.log(total)
+        total = math.fsum(math.exp(-(energy - floor) / self.rt) for energy in energies)
+        return floor - self.rt * math.log(total)
 
     def p_open(self, strands: str, window: tuple[int, int]) -> float | None:
         """Joint probability that **every** base in ``window`` is unpaired at once.
@@ -270,7 +270,7 @@ class FoldEngine:
         if by_order is None:
             return None
         constrained, unconstrained = by_order[1], by_order[2]
-        return math.exp(-(self._combine(constrained) - self._combine(unconstrained)) / self._rt)
+        return math.exp(-(self._combine(constrained) - self._combine(unconstrained)) / self.rt)
 
     def p_open_by_order(
         self, strands: str, window: tuple[int, int]
@@ -300,7 +300,7 @@ class FoldEngine:
         if not all(math.isfinite(e) for e in (*constrained, *unconstrained)):
             return None
         probabilities = [
-            math.exp(-(c - u) / self._rt) for c, u in zip(constrained, unconstrained, strict=True)
+            math.exp(-(c - u) / self.rt) for c, u in zip(constrained, unconstrained, strict=True)
         ]
         return probabilities, constrained, unconstrained
 

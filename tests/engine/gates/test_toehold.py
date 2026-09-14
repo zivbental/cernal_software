@@ -22,7 +22,7 @@ from engine.gates.toehold import (
     _pareto_front,
     _secondary_domains,
 )
-from engine.gates.tools.binding import can_pair
+from engine.gates.tools.binding import alignment_pairs, can_pair
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
@@ -710,17 +710,42 @@ def test_the_off_structure_pairs_only_what_the_bases_can_actually_pair():
             assert can_pair(switch.sequence[partner], switch.sequence[index])
 
 
-def test_an_aug_dragged_in_by_main_z_is_reported():
-    """`mainZ` is trigger A's own k1, so a trigger beginning with an AUG puts a second
-    start codon in the 5' UTR — out of frame with the real one, so what gets translated is
-    not the reporter. On mCherry this removes 93 of 867 otherwise-clean candidates."""
+def test_an_aug_inside_main_z_is_repaired_through_a_wobble():
+    """A trigger beginning with AUG would put a second start codon in the 5' UTR, out of
+    frame with the real one. Rather than discard the candidate, the A moves to a G: it
+    still pairs with its partner in `k1*`, as a G:U wobble rather than Watson-Crick, so
+    the stem stays closed and only that one pair weakens. On mCherry this recovers 54 of
+    the 93 candidates the check would otherwise reject."""
     gate = _and_gate()
     trigger_a, trigger_b, _ = _contested_pair()
     with_aug = "AUGAAA" + trigger_a[6:]
     stem = gate.secondary_stems(with_aug, trigger_b, len(_OVERLAP))[0]
 
     switch = gate.assemble(with_aug, trigger_b, len(_OVERLAP), stem)
+    start, end = switch.domains["main_z"]
+    main_z = switch.sequence[start:end]
 
+    assert gate.assembly_violations(switch) == ()
+    assert main_z != with_aug[:6], "mainZ should have been repaired"
+    assert sum(a != b for a, b in zip(main_z, with_aug[:6], strict=True)) == 1
+    # every position still pairs with k1*, which is what makes the repair cheap
+    k1_start, k1_end = switch.domains["k1_star"]
+    assert all(alignment_pairs(main_z, switch.sequence[k1_start:k1_end]))
+
+
+def test_an_aug_straddling_the_rbs_loop_boundary_cannot_be_repaired():
+    """The RBS loop ends in A, so a `mainZ` beginning `UG` makes an AUG across the join —
+    and U and G are exactly the two bases with no alternative, since only U pairs with A
+    and only G pairs with C. The fault is reported rather than papered over with a design
+    that quietly stopped pairing."""
+    gate = _and_gate()
+    trigger_a, trigger_b, _ = _contested_pair()
+    straddling = "UGAAAA" + trigger_a[6:]
+    stem = gate.secondary_stems(straddling, trigger_b, len(_OVERLAP))[0]
+
+    switch = gate.assemble(straddling, trigger_b, len(_OVERLAP), stem)
+
+    assert gate.RBS_PROKARYOTIC.endswith("A")
     assert "upstream_aug" in gate.assembly_violations(switch)
 
 
@@ -728,3 +753,110 @@ def test_a_clean_switch_reports_no_assembly_violations():
     gate, switch = _assembled()
 
     assert gate.assembly_violations(switch) == ()
+
+
+# --- Stage 4: the four tubes ---------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def four_tubes():
+    """One assembled switch and its observables. Module-scoped: four partition functions
+    over a 161-nt switch plus two triggers costs a few seconds."""
+    gate = _and_gate()
+    trigger_a, trigger_b, _ = _contested_pair()
+    stem = gate.secondary_stems(trigger_a, trigger_b, len(_OVERLAP))[0]
+    switch = gate.assemble(trigger_a, trigger_b, len(_OVERLAP), stem)
+    return (
+        gate,
+        switch,
+        trigger_a,
+        trigger_b,
+        gate.four_tube_observables(switch, trigger_a, trigger_b),
+    )
+
+
+def test_all_four_logic_states_are_folded(four_tubes):
+    _, _, _, _, o = four_tubes
+
+    for state in ("00", "01", "10", "11"):
+        assert o[f"dG_open_{state}"] is not None
+
+
+def test_separation_is_the_worst_off_state_against_the_on_state(four_tubes):
+    """A minimum, not a mean. An AND gate is only as good as its leakiest OFF state, and
+    taking the minimum is what makes a state-10 leak collapse the score instead of being
+    averaged away by two healthy states."""
+    _, _, _, _, o = four_tubes
+
+    worst = min(o[f"dG_open_{s}"] for s in ("00", "01", "10"))
+    assert o["separation"] == pytest.approx(worst - o["dG_open_11"])
+
+
+def test_trigger_a_is_scored_conditioned_on_trigger_b(four_tubes):
+    """`dG_bind_A_given_B` is G(S.A.B) - G(S.B) - G(A), never G(S.A) - G(S) - G(A).
+    Measured against the bare switch, the term would reward trigger A for opening the main
+    hairpin alone — which is exactly the state-10 leak the gates exist to prevent, so the
+    score and the gate would pull in opposite directions."""
+    gate, switch, trigger_a, _, o = four_tubes
+    folder = gate.folder
+
+    conditioned = o["dG_bind_A_given_B"]
+    against_bare_switch = (
+        folder.partition(f"{switch.sequence}&{trigger_a}")
+        - folder.partition(switch.sequence)
+        - folder.partition(trigger_a)
+    )
+    assert conditioned != pytest.approx(against_bare_switch)
+
+
+def test_the_two_binding_energies_are_not_summed(four_tubes):
+    """Summing them telescopes to G(S.A.B) - G(S) - G(A) - G(B), the total ternary energy,
+    which is path-independent and carries no information about the cascade at all. The
+    sequential structure conditioning was introduced to capture would be destroyed."""
+    gate, switch, trigger_a, trigger_b, o = four_tubes
+    folder = gate.folder
+
+    telescoped = (
+        folder.partition(f"{switch.sequence}&{trigger_a}&{trigger_b}")
+        - folder.partition(switch.sequence)
+        - folder.partition(trigger_a)
+        - folder.partition(trigger_b)
+    )
+    assert o["dG_bind_B"] + o["dG_bind_A_given_B"] == pytest.approx(telescoped)
+
+
+def test_a_construct_that_opens_on_trigger_a_alone_fails_separation(four_tubes):
+    """The deliberately-broken case, and the one worth having: when trigger A alone opens
+    the main hairpin, `dG_open(10)` falls to `dG_open(11)`, the minimum selects state 10,
+    and `separation` collapses to zero or below. Getting the wrong sign here is the test
+    passing."""
+    _, _, _, _, o = four_tubes
+
+    assert o["dG_open_10"] == pytest.approx(o["dG_open_11"], abs=0.01)
+    assert o["separation"] <= 0.01
+    assert o["A_M_10"] > 0.2, "state-10 leak should also fail the A_M(10) gate"
+
+
+def test_the_flank_is_measured_but_never_ranked(four_tubes):
+    """`W_flank` adds the seven designed nucleotides 5' of the RBS and is a pass/fail check
+    on those alone. It never enters `separation`, because in state 11 the region upstream
+    of -24 is duplexed to trigger A and ranking there penalises a working gate."""
+    _, switch, _, _, o = four_tubes
+
+    assert switch.span(-24, 13)[1] - switch.span(-24, 13)[0] == 37
+    assert switch.span(-17, 13)[1] - switch.span(-17, 13)[0] == 30
+    assert o["flank_penalty"] == pytest.approx(o["dG_open_flank_00"] - o["dG_open_00"])
+    assert o["flank_penalty"] >= -0.01, "a wider window cannot be cheaper to open"
+
+
+def test_stem_and_toehold_accessibility_are_probabilities(four_tubes):
+    """Bounded in [0, 1], so the 0.2 and 0.5 thresholds mean something. Not the joint
+    probability that a whole arm opens at once — over eighteen nucleotides that is ~1e-22
+    even with nothing to pair against, and every design would fail every gate."""
+    _, _, _, _, o = four_tubes
+
+    for state in ("00", "01", "10", "11"):
+        for name in ("A_S", "A_M", "A_S_full"):
+            assert 0.0 <= o[f"{name}_{state}"] <= 1.0
+    assert 0.0 <= o["A_r2_star_00"] <= 1.0
+    assert 0.0 <= o["d_off"] <= 1.0
