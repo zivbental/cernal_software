@@ -37,10 +37,10 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 36 |
+| Modules | 37 |
 | Public classes | 86 |
-| Public callables (excluding `__init__`) | 165 |
-| — `BUILT` | 132 |
+| Public callables (excluding `__init__`) | 167 |
+| — `BUILT` | 134 |
 | — `STUB` | 26 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
@@ -89,6 +89,7 @@ layers above it, never the ones below.
 | top | `engine.inputs` |  | 1 | 0 | Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``. |
 | top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
 | top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
+| top | `engine.transcriptome` |  | 2 | 0 | Reference transcript sequences, by organism — Q1's first real answer. |
 
 ## Layer 1 · Domain — the vocabulary
 
@@ -1406,7 +1407,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.1.0-direct-only'` |
+| `ENGINE_VERSION` |  | `'local-0.2.0-direct-and-de-ecoli'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -1662,7 +1663,7 @@ The real scientific pipeline.
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
-| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`-mode job. |
+| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`- or `de`-mode job. |
 
 ### `engine.store` · S11, S13
 
@@ -1701,6 +1702,17 @@ S13 — keep only the non-dominated candidates.
 | `BUILT` | `def __init__(self, objectives: Sequence[Objective]) -> None` |  |
 | `BUILT` | `def frontier(self, records: Sequence[Any]) -> list[Any]` | Keep only the candidates nothing else beats on every axis. |
 | `BUILT` | `def top_k(self, records: Sequence[Any], k: int, key: str = 'score') -> list[Any]` | Cap how much passes from one stage to the next. |
+
+### `engine.transcriptome`
+
+`src/engine/transcriptome.py`
+
+Reference transcript sequences, by organism — Q1's first real answer.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@cache def load_transcriptome(host: Host) -> dict[str, str]` | Every bundled transcript for ``host``, as RNA, keyed by gene id. |
+| `BUILT` | `def available_hosts() -> tuple[Host, ...]` | Which hosts have a bundled reference transcriptome today. |
 
 ---
 

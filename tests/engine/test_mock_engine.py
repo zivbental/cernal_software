@@ -291,14 +291,16 @@ def test_mock_and_local_engines_both_satisfy_the_protocol():
     assert isinstance(LocalEngine(), EngineClient)
 
 
-def test_local_engine_de_mode_is_not_implemented_yet(make_request, progress):
-    """`direct` mode is real (tests/engine/test_pipeline.py) — `de` is not, and reports
-    that as an expected scientific failure (data), not a raised NotImplementedError:
-    this module's own docstring draws exactly that line."""
+def test_local_engine_de_mode_runs_but_still_fails_cleanly_on_bad_input(make_request, progress):
+    """`de` mode is real now (tests/engine/test_pipeline.py has the real success case),
+    but the default fixture's ``organism`` is deliberately free text ('E. coli', not
+    'ecoli' — docs/ROADMAP.md P1), so this run still fails — on host resolution now,
+    reported as an expected scientific failure (data), not a raised exception: this
+    module's own docstring draws exactly that line, and de mode is not exempt from it."""
     result = LocalEngine().run(make_request(), progress)  # default input_mode is "de"
 
     assert result.status == FAILED
-    assert result.error is not None and "direct" in result.error.lower()
+    assert result.error is not None and "organism" in result.error.lower()
 
 
 # --- Capabilities -----------------------------------------------------------------

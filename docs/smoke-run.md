@@ -1,6 +1,11 @@
 # The first real run — what actually blocks it
 
-**Status:** Assessment. Nothing here is built yet.
+**Status:** Assessment, from before any of it was built. The `direct` path this
+document is mostly about is now real (ROADMAP.md E2a); `de` mode, which this document
+treats as fully blocked throughout, now has a first real path too, for *E. coli* only
+— see [`genes.md`](genes.md) and [ROADMAP.md](ROADMAP.md) E2. This file is kept as the
+historical record of the reasoning, per its own note below; it is not re-edited line by
+line as things get built.
 **Question it answers:** *"What stops me doing one basic run end to end, on real science
 instead of `MockEngine`?"*
 **Companion documents:** [`ROADMAP.md`](ROADMAP.md) §5 is the full Phase E plan this is a

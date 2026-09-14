@@ -1,12 +1,27 @@
 # Gene selection — assessment and design
 
-**Status:** Built. `GeneSelector.select` implements §4–§6 below, tested in
-`tests/engine/test_genes.py` against real rows from the public catalog (§1's own
-worked example). **Not yet wired into `run_pipeline`** — the `de` path as a whole is
-still blocked on `InputQualityCheck` (still a stub), the pipeline composition itself,
-and Q1 (transcript sequences for `TriggerScorer`); see docs/ROADMAP.md E2. `engine.inputs.parse_dge_table`
-(§6 G3) is built too. Decisions D1–D5 in §5 were resolved as implemented, not left
-open — see each axis's own section for what was chosen and why.
+**Status:** Built, and now wired into `run_pipeline` for a first, scoped `de` path
+(`engine.pipeline._de_trigger`) — a real compile against a differential-expression
+table now produces real toehold candidates and a real plasmid, verified against an
+actual bundled public *E. coli* dataset end to end (730 accepted candidates from
+`apps/expression/catalog/ecoli/88048__42635036.csv`, 34 s). `GeneSelector.select`
+implements §4–§6 below, tested in `tests/engine/test_genes.py` against real rows from
+the public catalog (§1's own worked example); `engine.inputs.parse_dge_table` (§6 G3)
+parses the table; `engine.transcriptome.load_transcriptome` (new, `tools/
+sync_transcriptome.py`) answers **Q1 for E. coli**, a real bundled NCBI RefSeq
+K-12 MG1655 reference (4,308 real CDS, fetched live and checked in). Decisions D1–D5
+in §5 were resolved as implemented, not left open — see each axis's own section for
+what was chosen and why.
+
+**What "wired in" does not yet mean.** This is single-gene circuits only — every
+selected gene becomes its own one-gene circuit, the same trivial construction the
+`direct` path already used, never a `CircuitDesigner`-built multi-gene Boolean
+expression. *E. coli* only — no other host has a bundled transcriptome yet. No real
+off-target scanning — `OffTargetScanner`'s matching is still a stub, so its
+transcriptome stays deliberately empty even here. No `InputQualityCheck` — there is no
+count matrix in this product to check (§3 G-a is still open). See
+`engine/pipeline.py`'s own module docstring and docs/ROADMAP.md E2 for the exact scope
+line.
 **Question it answers:** *given one differential-expression table and nothing else, which
 handful of genes is worth building a circuit around?*
 **Companion documents:** [`ROADMAP.md`](ROADMAP.md) Q1/Q2 and [`integration.md`](integration.md)
@@ -379,6 +394,23 @@ conflict. *Recommend:* keep it out — `stages/genes.py`'s docstring is right th
 filters and ranks DE results rather than producing them. But it makes D3 permanent: we will
 keep receiving tables with no FDR and must handle them, not fix them.
 
+**D6 — Q1, decided for one host.** A real `de` compile hitting the still-open Q1 blocker
+(a user tried one and got the documented `InputValidationError`) forced this decision
+rather than leaving it for later. *Decided:* bundle a real reference transcriptome —
+fetched once, offline, checked into the repo (the same shape already established for
+the plasmid backbone catalog and the public dataset catalog), starting with *E. coli*
+K-12 MG1655 from NCBI RefSeq, over a live accession lookup at compile time (an
+external dependency and failure mode on every `de` run, the opposite of this repo's own
+stated provider philosophy) or requiring a second upload from the researcher (shifts
+real effort onto them, and only works for organisms they can already source
+themselves). Scope alongside it: single-gene circuits only for this pass — every
+selected gene becomes its own one-gene circuit via the same construction the `direct`
+path already used, not a `CircuitDesigner`-built multi-gene expression — deferring the
+larger, still-mostly-stubbed remainder of `de` mode (`InputQualityCheck`,
+`CircuitDesigner`, `ConfusionEvaluator`, real off-target scanning, `CodonOptimizer`,
+stage 6) rather than attempting all of it at once. See §6 G8/G10 for what actually
+landed.
+
 ---
 
 ## 6. The plan
@@ -392,10 +424,11 @@ whoever is nearest; G4–G7 are the stage itself.
 | **G2** | `Constraints` gains `max_genes: int = 20`, `max_separation: float \| None = None`, `min_base_expression`/`max_base_expression: float \| None = None`, `direction_balance: bool = True`. Nothing else needed — `_build_constraints` picks them up from the dataclass automatically | `engine/domain.py` | D4 | ✅ (plus `trigger_gc_range: tuple[float, float] = (30.0, 70.0)` for §4.2's screen, not anticipated when this table was first written) |
 | **G3** | The parser (GAP-1): `input_path` → `DgeTable`, honouring `COLUMN_ALIASES`, emitting `None` for absent columns, never returning a DataFrame. Decide its module first — `engine/inputs.py` is the obvious answer | *new* | GAP-1 | ✅ `engine/inputs.py`, `parse_dge_table(raw: bytes, filename: str) -> DgeTable` — takes bytes rather than a path, so the platform decides how the file reaches it; unranked in the layer graph, like `store.py`/`artifacts.py` |
 | **G4** | `GeneSelector.select` — axes 1 and 2, the tiered significance rule (§4.1), the abundance window, the effect-size floor and ceiling, deterministic sort with `gene_id` as final tiebreak | `engine/stages/genes.py` | G1, G2 | ✅ |
-| **G5** | Trigger yield (§4.2). `MotifScreener` injected via `__init__`, built in `pipeline.build_tools` and shared with `TriggerScorer` — never constructed here. Drop genes with yield 0; drop genes absent from `sequences` and **count them**, so a namespace mismatch (G-d) is a named error not an empty list | `engine/stages/genes.py` | G4, Q1 | ✅ — `MotifScreener` injected, not yet actually shared with a live `TriggerScorer` since nothing wires `GeneSelector`'s output into stage 2 today (G8) |
+| **G5** | Trigger yield (§4.2). `MotifScreener` injected via `__init__`, built in `pipeline.build_tools` and shared with `TriggerScorer` — never constructed here. Drop genes with yield 0; drop genes absent from `sequences` and **count them**, so a namespace mismatch (G-d) is a named error not an empty list | `engine/stages/genes.py` | G4, Q1 | ✅ — `MotifScreener` injected, and now genuinely shared with a live `TriggerScorer` via `_de_trigger` (G8) |
 | **G6** | Greedy non-redundant selection (§4.3), with whichever similarity signal is available and a clean skip when none is | `engine/stages/genes.py` | G4 | ✅ — implemented with the one signal that does not crash on a stub: a count matrix's per-sample correlation. The sequence-based (`OffTargetScanner.find_similar`) and locus-tag-adjacency signals from the table in §4.3 are not wired in — the first is itself an unimplemented stub, and calling it would crash the run outright rather than degrade gracefully |
 | **G7** | The score (§4.5): weights in one table, renormalised over present axes, and the list of contributing axes reported | `engine/stages/genes.py` | G4–G6 | ✅ — reported via an `on_warning` callback (the same idiom `SwitchDesigner.design`'s `on_incompatible`/`on_invalid` already use), added during implementation since `select`'s return type has no room for warnings of its own |
-| **G8** | Pipeline wiring: parse → `InputQualityCheck` → `GeneSelector` → `TriggerScorer`; the direction/constructibility warning (§4.4); every "axis not measured" warning surfaced on the run, not swallowed | `engine/pipeline.py` | G3–G7 | **Not done.** `run_pipeline`'s `de` branch is an unconditional `InputValidationError` today, by its own module docstring's deliberate scope — wiring it up needs `InputQualityCheck` (still a stub) and Q1 (transcript sequences) regardless of `GeneSelector`. The gate-family-aware direction warning in §4.4 belongs here specifically, once there is a `run_pipeline` to put it in |
+| **G8** | Pipeline wiring: parse → `InputQualityCheck` → `GeneSelector` → `TriggerScorer`; the direction/constructibility warning (§4.4); every "axis not measured" warning surfaced on the run, not swallowed | `engine/pipeline.py` | G3–G7 | **Partially done**, scoped deliberately (a real decision, not a shortcut — see D6). `run_pipeline` now has a real `de` branch (`_de_trigger`): parse → `GeneSelector` → `TriggerScorer` → the same `SwitchDesigner`/`PlasmidBuilder` `direct` mode already uses, one gene's designs at a time rather than through a `CircuitDesigner`. **Still not done:** `InputQualityCheck` is not called (no count matrix exists to check, §3 G-a), and the gate-family-aware direction warning in §4.4 has no home yet — nothing today requests a NOT-capable family for a `de` run to warn about, since `antisense` is unconditionally skipped (`_UNBUILDABLE_FAMILIES`, Q11) regardless of input mode. Every "axis not measured" warning from `GeneSelector.select` **is** surfaced, via `on_warning` into `JobResult.warnings` |
+| **G10** *(new)* | **Q1's first real answer, for one host.** A bundled reference transcriptome, not a live lookup — `tools/sync_transcriptome.py` fetches NCBI RefSeq accession `NC_000913.3` (*E. coli* K-12 MG1655, the same strain `stages/plasmids.py`'s promoter/terminator/backbone defaults already target) live, extracts every annotated CDS by locus tag, and writes `engine/data/transcriptomes/ecoli.fasta` (4,308 real genes, ~4 MB). `engine.transcriptome.load_transcriptome(host)` reads and caches it. CDS only, not a full transcript with UTRs — *E. coli* GenBank annotation carries no separate UTR features, so the CDS is the practical unit available; a stated limitation, not a hidden one | `tools/sync_transcriptome.py`, `engine/transcriptome.py`, `engine/data/transcriptomes/ecoli.fasta` | — | ✅ |
 | **G9** | Docs in the same PR: this file's status, [engine.md](engine.md) §3.1's signature, [ROADMAP.md](ROADMAP.md) E2 and Q2, [api-surface.md](api-surface.md) | `docs/` | all | ✅ (Q2 in ROADMAP.md is stage 2/3's own threshold question, not stage 1's — left alone) |
 
 ### Test plan — ✅ built

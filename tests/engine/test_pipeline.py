@@ -1,12 +1,15 @@
-"""``run_pipeline`` / ``build_tools`` / ``LocalEngine`` — the `direct` smoke path.
+"""``run_pipeline`` / ``build_tools`` / ``LocalEngine`` — the `direct` and `de` smoke
+paths.
 
-docs/smoke-run.md is the design document this implements: exactly the `direct` input
-mode, exactly the toehold family, nothing under ``engine/gates/`` touched to build it.
-These tests exercise the real thing end to end — real ViennaRNA folding, the real
-``ToeholdGate``, the real scoring layer — the same way tests/engine/gates/test_toehold.py
-and tests/engine/test_mock_engine.py do; nothing here is mocked.
+docs/smoke-run.md is the design document the `direct` path implements; docs/genes.md is
+the one the `de` path implements — both exactly the toehold family, both nothing under
+``engine/gates/`` touched to build. These tests exercise the real thing end to end —
+real ViennaRNA folding, real ``GeneSelector``/``TriggerScorer``, the real ``ToeholdGate``,
+the real scoring layer — the same way tests/engine/gates/test_toehold.py and
+tests/engine/test_mock_engine.py do; nothing here is mocked.
 """
 
+import hashlib
 import os
 
 import pytest
@@ -22,6 +25,12 @@ from engine.pipeline import build_tools, run_pipeline
 # design is correctly rejected. This one is not repetitive and reliably validates.
 CLEAN_TRIGGER = "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA"
 
+# Two real genes from the bundled E. coli reference transcriptome (docs/genes.md,
+# docs/ROADMAP.md Q1), keyed by their real NCBI locus tag — verified empirically to
+# produce real, accepted toehold candidates through the full pipeline, the same "chosen
+# empirically" discipline CLEAN_TRIGGER above documents for the `direct` path.
+REAL_DE_DATASET = "gene_id,gene_symbol,log2fc,padj\nb3908,sodA,3.2,0.001\nb0033,carA,-2.8,0.002\n"
+
 
 @pytest.fixture
 def direct_request(make_request):
@@ -29,6 +38,30 @@ def direct_request(make_request):
         defaults = {
             "input_mode": INPUT_DIRECT,
             "trigger_sequence": CLEAN_TRIGGER,
+            "organism": "ecoli",
+            "gate_families": ["toehold"],
+        }
+        defaults.update(overrides)
+        return make_request(**defaults)
+
+    return _make
+
+
+@pytest.fixture
+def de_request(make_request, tmp_path):
+    """Like ``direct_request``, but a real `de` submission against
+    ``REAL_DE_DATASET`` rather than the shared ``dataset`` fixture's symbol-keyed
+    rows — this one's gene IDs are real locus tags, joinable against the bundled
+    transcriptome."""
+    dataset_path = tmp_path / "real_de_dataset.csv"
+    dataset_path.write_text(REAL_DE_DATASET, encoding="utf-8", newline="")
+    checksum = hashlib.sha256(REAL_DE_DATASET.encode()).hexdigest()
+
+    def _make(**overrides):
+        defaults = {
+            "input_mode": INPUT_DE,
+            "input_path": str(dataset_path),
+            "input_checksum": checksum,
             "organism": "ecoli",
             "gate_families": ["toehold"],
         }
@@ -53,6 +86,38 @@ def test_a_direct_run_completes_with_real_candidates(direct_request, always_cont
     assert result.error is None
     assert result.candidates
     assert all(c.gate_family == "toehold" for c in result.candidates)
+
+
+def test_a_de_run_against_real_genes_completes_with_real_candidates(de_request, always_continue):
+    """The MVP scope confirmed in docs/genes.md: GeneSelector picks the best real
+    gene(s), their real transcripts are scanned by the same TriggerScorer the `direct`
+    path uses, and the result is real, accepted toehold candidates — not a
+    NotImplementedError, not an empty warning-only result."""
+    result = LocalEngine().run(de_request(), always_continue)
+
+    assert result.status == "succeeded"
+    assert result.error is None
+    assert result.candidates
+    assert all(c.gate_family == "toehold" for c in result.candidates)
+    # Both real genes' symbols should be traceable somewhere in the result — either a
+    # design built against one of them, or the summary warning naming the best one.
+    assert any("sodA" in c.summary or "carA" in c.summary for c in result.candidates)
+    assert any("sodA" in w or "carA" in w for w in result.warnings)
+
+
+def test_a_de_run_is_not_available_outside_ecoli(de_request, always_continue):
+    """docs/ROADMAP.md Q1: only E. coli has a bundled reference transcriptome today.
+    A yeast `de` submission fails cleanly rather than silently returning zero
+    candidates or crashing on a missing lookup — today it fails even earlier than
+    ``_de_trigger``'s own transcriptome guard, on Q12's still-open "no yeast
+    promoter/terminator" limitation (``_resolve_outputs``, ahead of trigger scoring
+    in ``run_pipeline``'s own order) — a real, equally honest reason to stop, and a
+    reminder that ``_de_trigger``'s host guard is defence in depth for the day Q12 is
+    answered for another host, not dead code today."""
+    result = LocalEngine().run(de_request(organism="yeast"), always_continue)
+
+    assert result.status == "failed"
+    assert "yeast" in result.error.lower()
 
 
 def test_engine_version_names_the_partial_scope():
@@ -343,11 +408,16 @@ def test_providing_both_catalog_key_and_custom_genbank_fails_cleanly(
 # --- Failure paths, all as data (EngineClient's own contract) -------------------------
 
 
-def test_de_mode_fails_cleanly(direct_request, always_continue):
+def test_de_mode_fails_cleanly_on_an_identifier_namespace_mismatch(direct_request, always_continue):
+    """`de` mode is real now (see the success path above/below), but the shared
+    ``dataset`` fixture (tests/engine/conftest.py) keys its rows by gene *symbol*
+    (``lacZ``, ``rpoS``, ``katG``), while the bundled reference transcriptome is keyed
+    by NCBI locus tag (``engine.transcriptome`` — docs/genes.md §3 G-d's exact
+    namespace-mismatch scenario). That must fail as data, not crash."""
     request = direct_request(input_mode=INPUT_DE, trigger_sequence="")
     result = LocalEngine().run(request, always_continue)
     assert result.status == "failed"
-    assert "direct" in result.error.lower()
+    assert "identifier namespace" in result.error.lower()
 
 
 def test_an_organism_the_engine_does_not_recognise_fails_cleanly(direct_request, always_continue):

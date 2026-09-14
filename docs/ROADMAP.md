@@ -19,7 +19,7 @@
 | Step 2 — Domain model | **Complete** | 7 models, migrations, admin back-office, `seed_demo` |
 | Step 3 — API + orchestration | **Complete** | 35 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
 | Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages. The wizard's `de` mode can also seed itself from a curated, real public-dataset catalog (Phase D, [public-datasets.md](public-datasets.md)), not only an upload |
-| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. A pasted sequence longer than one trigger window is scanned for a usable trigger, not silently truncated (E2b, [triggers.md](triggers.md)) — `TriggerScorer` is real on this path. `PlasmidBuilder.build`/`.payload_segment` are real for the `direct` path (E5a, [plasmids.md](plasmids.md)) — a run produces a real annotated GenBank artifact and populated `plasmid_segments`, GFP payload / *E. coli* only. A run assembles onto a real, selectable plasmid backbone — ten catalog vectors or a researcher's own GenBank upload (E5b, [plasmids.md](plasmids.md)). `de` mode, `CircuitDesigner`, `CodonOptimizer` and stage 6 (`ReportBuilder`) are still documented stubs raising `NotImplementedError` |
+| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. A pasted sequence longer than one trigger window is scanned for a usable trigger, not silently truncated (E2b, [triggers.md](triggers.md)) — `TriggerScorer` is real on this path. `PlasmidBuilder.build`/`.payload_segment` are real for the `direct` path (E5a, [plasmids.md](plasmids.md)) — a run produces a real annotated GenBank artifact and populated `plasmid_segments`, GFP payload / *E. coli* only. A run assembles onto a real, selectable plasmid backbone — ten catalog vectors or a researcher's own GenBank upload (E5b, [plasmids.md](plasmids.md)). **`de` mode now runs too, for *E. coli* only** ([genes.md](genes.md), D6): `GeneSelector` real, `parse_dge_table` real, Q1 answered for one host by a bundled real NCBI RefSeq transcriptome (`engine.transcriptome`, `tools/sync_transcriptome.py`) — verified end to end against a real bundled public dataset (730 accepted candidates). Still single-gene circuits only, no real off-target scanning, no other host. `CircuitDesigner`, `ConfusionEvaluator`, `InputQualityCheck`, `CodonOptimizer` and stage 6 (`ReportBuilder`) are still documented stubs raising `NotImplementedError` |
 | **Step 6 — Deployment** | **Not started** | §6 |
 
 `./do test` → **949 passing** (plus the Python client's own conformance suite,
@@ -63,7 +63,7 @@ specific task.
 
 | # | Question | Blocks |
 |---|---|---|
-| **Q1** | **Where do trigger sequences come from?** The DE table has gene identifiers, not sequences. A reference transcriptome per organism? An accession lookup? User-supplied FASTA? **Still open.** Phase D (§11, [public-datasets.md](public-datasets.md)) answers a related but distinct question — where a *DE table itself* comes from — and deliberately does not touch this one: a public dataset materializes into the same `Dataset` a `de`-mode upload already does, which still hits `run_pipeline`'s unconditional `InputValidationError` for anything but `direct` today | **E2** — and it may introduce a new data dependency with its own storage and licensing questions |
+| **Q1** | **Where do trigger sequences come from?** The DE table has gene identifiers, not sequences. **Answered for *E. coli* only** ([genes.md](genes.md) D6): a bundled reference transcriptome — NCBI RefSeq K-12 MG1655, fetched once by `tools/sync_transcriptome.py`, 4,308 real CDS keyed by locus tag, read by `engine.transcriptome.load_transcriptome`. Still open for yeast and human — same shape, a different accession to fetch. Phase D (§11, [public-datasets.md](public-datasets.md)) answered a related but distinct question — where a *DE table itself* comes from | **E2** — unblocked for *E. coli*; yeast/human still need their own accession |
 | **Q2** | Thresholds for a usable trigger: minimum fold change, maximum adjusted p, expression bounds | E3 |
 | **Q3** | Maximum trigger-set size. Are 3-input circuits in scope, or is 2 the ceiling? | E3, and the whole compute budget (§3) |
 | **Q4** | Toehold construction rules: stem and loop lengths, RBS sequence, linker, start-codon placement, which toehold lengths to vary | E4 |
@@ -267,7 +267,7 @@ many, and off-target is reported as unmeasured rather than clean. ✅ — verifi
 the exact mCherry CDS that motivated this: 0 candidates before, 41 after, each traceable
 to a scanned offset.
 
-### E2 · Stages 1–3 — input, genes, triggers · **blocked on Q1**
+### E2 · Stages 1–3 — input, genes, triggers · **✅ built for *E. coli*, blocked on Q1 for other hosts**
 
 `InputQualityCheck` → `GeneSelector` → `TriggerScorer`.
 
@@ -296,15 +296,20 @@ to a scanned offset.
 `TriggerScorer.score` if it is longer ([triggers.md](triggers.md)); either way, stages 1–2
 proper are skipped ([modalities.md §1](modalities.md)).
 
-**Still blocking the `de` branch as a whole:** `InputQualityCheck` is still a stub, and
-`run_pipeline` has no `de` wiring at all — it still raises `InputValidationError`
-unconditionally for anything but `direct` (`engine/pipeline.py`'s own module
-docstring). `GeneSelector` being built removes one blocker, not all of them: `Q1`
-(transcript sequences for `TriggerScorer`) and the pipeline composition itself are
-still open.
+**`run_pipeline` now has a real `de` branch** (`_de_trigger`, [genes.md](genes.md) D6):
+parse → `GeneSelector` → `TriggerScorer`, then the same `SwitchDesigner`/
+`PlasmidBuilder` the `direct` path already uses, one gene at a time rather than
+through a `CircuitDesigner`. Verified end to end against a real bundled public
+*E. coli* dataset (730 accepted candidates from a real 3,000-row catalog file). `Q1`
+is answered for *E. coli* by a bundled reference transcriptome
+(`engine.transcriptome`); any other host still hits an explicit, named
+`InputValidationError` rather than a silent empty result. `InputQualityCheck` is
+still not called — there is no count matrix in this product to check
+([genes.md](genes.md) §3 G-a), a separate, larger decision than Q1.
 
-**Done when:** a real DE file produces ranked `TriggerCandidate` records with real
-openness and GC numbers.
+**Done when (E. coli):** ✅ — a real DE file produces ranked, accepted toehold
+candidates with real ViennaRNA folding throughout. **Done when (other hosts):** a
+bundled or resolved reference transcriptome exists for that host.
 
 ### E3 · Stages 4–5 — trigger sets and pruning · **blocked on Q2, Q3**
 

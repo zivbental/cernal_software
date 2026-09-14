@@ -2,7 +2,10 @@
 
 **Status:** Built (E2b, `direct` path). T1-T3 below shipped; §6 records what was actually
 built and one deliberate divergence from this document's own first-draft recommendation,
-found during implementation review.
+found during implementation review. `TriggerScorer.score` is now also exercised from the
+`de` path, for *E. coli* — [`genes.md`](genes.md) `GeneSelector` feeds it real genes'
+real transcripts the same way `_direct_trigger`'s scanned-paste branch already fed it one
+synthetic one.
 **Question it answers:** *"A researcher pastes an RNA sequence. Sometimes it is the trigger.
 Sometimes it is a whole transcript we are supposed to find triggers in. What does CERNAL do
 today, and what should it do?"*
