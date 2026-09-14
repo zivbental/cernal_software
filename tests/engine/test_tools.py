@@ -15,7 +15,11 @@ import pytest
 
 from engine import sequences as sq
 from engine.domain import AssemblyStandard
-from engine.gates.tools.binding import alignment_pairs, fixed_alignment_energy
+from engine.gates.tools.binding import (
+    alignment_pairs,
+    fixed_alignment_energy,
+    longest_complementary_run,
+)
 from engine.gates.tools.folding import FoldEngine
 from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
@@ -443,3 +447,20 @@ def test_openness_window_covers_the_whole_sequence_for_a_direct_trigger():
     profile = profiler.profile(PROFILER_SEQUENCE)
 
     assert whole == pytest.approx(sum(profile) / len(profile))
+
+
+def test_longest_complementary_run_counts_wobbles():
+    """A knockout scored on Watson-Crick pairs alone produced, on this project, a variant
+    that read as disabled while retaining a fully wobble-paired 8-nt run — a negative
+    control that was not one, and that could not be recognised as such from the
+    experimental result."""
+    assert longest_complementary_run("GGGG", "UUUU") == 4
+    assert longest_complementary_run("GGGG", "CCCC") == 4
+
+
+def test_longest_complementary_run_finds_the_longest_unbroken_stretch():
+    """Contiguity is the point: scattered pairs do not let a trigger nucleate. Here four
+    of five positions pair, but the break in the middle leaves a longest run of two — a
+    total count would have reported four and called this trigger viable."""
+    assert longest_complementary_run("GGAGG", "CCACC") == 2
+    assert longest_complementary_run("AAAA", "AAAA") == 0

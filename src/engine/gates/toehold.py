@@ -470,6 +470,100 @@ class ToeholdAndGate(ToeholdGate):
     # assert it is registered, so the flip belongs with the commit that gives
     # `generate_designs` a body rather than to this one.
 
+    #: Trigger B's toehold: the one domain the architecture leaves permanently free, so
+    #: it can be matched to B at no cost to the lock. Fixes trigger B's window at
+    #: ``ARM_LEN + TOEHOLD_B_LEN`` = 50 nt whatever the overlap length.
+    TOEHOLD_B_LEN: ClassVar[int] = 32
+
+    #: Shortest overlap worth calling one. Below four contiguous nucleotides there is no
+    #: nucleation site, which is also why it is the knockout criterion: a trigger left
+    #: with no run this long can no longer start.
+    MIN_OVERLAP: ClassVar[int] = 4
+
+    #: Nucleotides required between the two trigger windows. Both triggers come off one
+    #: transcript here, so that molecule carries the overlap and its complement together
+    #: and can fold back to sequester both before either reaches the switch — worst in
+    #: state 11, the one state that has to work. A 4-8 bp stem closed by a loop of a few
+    #: hundred nucleotides is marginal rather than certain, which is why this is a
+    #: selection criterion and not a disqualification.
+    #:
+    #: This belongs in ``Constraints`` and there is no field for it yet; it is a class
+    #: constant rather than a literal buried in a method so that it is at least declared.
+    #: It is **a nucleotide count**, unrelated to ``separation``, which is kcal/mol.
+    MIN_WINDOW_GAP: ClassVar[int] = 50
+
+    def find_trigger_pairs(
+        self, transcript: str, *, min_window_gap: int | None = None
+    ) -> Iterator["_TriggerPair"]:
+        """Every pair of windows in one transcript that can serve as triggers A and B.
+
+        The two triggers must share a reverse-complementary overlap, because that overlap
+        is what couples the halves of the gate: trigger A carries ``x`` and trigger B
+        carries ``x*``, and ``x*`` is the only site trigger A can nucleate on once B has
+        acted. In a validation design both inputs come from one gene, so the pair is two
+        windows of the same transcript.
+
+        Every overlap is found, not sampled. Two strands pair antiparallel, so if an
+        overlap starts at ``p`` on one window its partner runs backwards from ``j`` on the
+        other and ``p + j`` never changes — every possible overlap lies on one
+        anti-diagonal of the position-by-position matrix. Seeding on every 4-mer and
+        extending both ways walks all of them.
+
+        Each pair is reported at its **maximal** perfect run only. Truncating it into
+        sub-overlaps is strictly dominated: both triggers' footprints on the stem arm are
+        18 nt regardless, so a shorter ``x`` only moves positions out of the conflict-free
+        core and into the contested region, degrading trigger A's site, trigger B's site
+        and the lock at once, with no compensating gain anywhere.
+
+        Args:
+            transcript: The coding sequence both triggers are drawn from, RNA uppercase.
+            min_window_gap: Nucleotides required between the two windows; defaults to
+                ``MIN_WINDOW_GAP``. Passed explicitly so the cutoff is visible at the call
+                site rather than applied invisibly.
+
+        Yields:
+            Pairs whose full footprints fit inside the transcript, do not collide, and are
+            at least ``min_window_gap`` apart. **Motif screening and knockout feasibility
+            are not applied here** — they need a motif screener and a codon table, neither
+            of which a gate family may reach for, and both are filters rather than
+            geometry. See the notebook workbench for the full stage-1 selection.
+        """
+        gap = self.MIN_WINDOW_GAP if min_window_gap is None else min_window_gap
+        rna = sq.to_rna(transcript)
+        n = len(rna)
+
+        index: dict[str, list[int]] = {}
+        for j in range(n - self.MIN_OVERLAP + 1):
+            index.setdefault(rna[j : j + self.MIN_OVERLAP], []).append(j)
+
+        seen: set[tuple[int, int, int]] = set()
+        for i in range(n - self.MIN_OVERLAP + 1):
+            for j in index.get(sq.reverse_complement(rna[i : i + self.MIN_OVERLAP]), ()):
+                start_x, start_xs, length = i, j, self.MIN_OVERLAP
+                # Extending x 3'-ward walks its partner 5'-ward: they pair antiparallel.
+                while (
+                    length < self.ARM_LEN
+                    and start_x + length < n
+                    and start_xs > 0
+                    and rna[start_xs - 1] == sq.reverse_complement(rna[start_x + length])
+                ):
+                    start_xs -= 1
+                    length += 1
+                while (
+                    length < self.ARM_LEN
+                    and start_x > 0
+                    and start_xs + length < n
+                    and rna[start_xs + length] == sq.reverse_complement(rna[start_x - 1])
+                ):
+                    start_x -= 1
+                    length += 1
+                seen.add((start_x, start_xs, length))
+
+        for start_x, start_xs, length in sorted(seen):
+            pair = _TriggerPair(start_x, start_xs, length, self.ARM_LEN, self.TOEHOLD_B_LEN)
+            if pair.fits(n) and pair.disjoint() and pair.gap() >= gap:
+                yield pair
+
     #: Both stem arms span 18 nt (R1), so ``len_k2 = ARM_LEN - len_x``: every nucleotide
     #: the overlap takes is one fewer for trigger B to invade with. That is the trade the
     #: overlap length is chosen against.
@@ -671,6 +765,67 @@ def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float:
 #: close the lock against A's base while B needs another) satisfies nothing and is
 #: dominated, so it is never generated.
 _ARM_STATES: tuple[str, ...] = ("both", "lockA", "lockB")
+
+
+@dataclass(frozen=True, slots=True)
+class _TriggerPair:
+    """Two windows of one transcript, sharing a perfect reverse-complementary overlap.
+
+    Coordinates are 0-based, inclusive start and exclusive end, like everywhere else in
+    the engine. Intra-module only — it becomes a ``TriggerSet`` at the stage boundary.
+    """
+
+    x_start: int
+    """Start of ``x``, trigger A's overlap domain."""
+    xstar_start: int
+    """Start of ``x*``, trigger B's ``Secondary_pre`` domain."""
+    len_x: int
+    arm_len: int
+    toehold_b_len: int
+
+    @property
+    def len_k2(self) -> int:
+        """Trigger B's invasion domain. Every nucleotide the overlap takes is one fewer."""
+        return self.arm_len - self.len_x
+
+    def window_a(self) -> tuple[int, int]:
+        """Trigger A: the 18-nt stem arm, the overlap, then the extension facing
+        ``secondaryZ``. Constant at 36 nt, since ``len_k2`` cancels ``len_x``.
+
+        **This is the widest footprint, the one schemes A and C need.** A scheme anchoring
+        every position to trigger B would need up to 14 nt less. Screening on the wide one
+        is the conservative direction, but it does drop pairs a narrower scheme could have
+        used, and it changes the candidate count — so it must not be narrowed quietly.
+        """
+        return self.x_start - self.arm_len, self.x_start + self.len_x + self.len_k2
+
+    def window_b(self) -> tuple[int, int]:
+        """Trigger B: the invasion domain, the overlap, then the free toehold. Constant at
+        ``arm_len + toehold_b_len`` = 50 nt."""
+        return self.xstar_start - self.len_k2, self.xstar_start + self.len_x + self.toehold_b_len
+
+    def fits(self, transcript_length: int) -> bool:
+        """Both full footprints lie inside the transcript."""
+        a_start, a_end = self.window_a()
+        b_start, b_end = self.window_b()
+        return (
+            a_start >= 0
+            and b_start >= 0
+            and a_end <= transcript_length
+            and b_end <= transcript_length
+        )
+
+    def disjoint(self) -> bool:
+        """The two windows do not overlap each other. One nucleotide cannot serve both."""
+        a_start, a_end = self.window_a()
+        b_start, b_end = self.window_b()
+        return a_end <= b_start or b_end <= a_start
+
+    def gap(self) -> int:
+        """Nucleotides between the windows — the loop a cis interaction would have to close."""
+        a_start, a_end = self.window_a()
+        b_start, b_end = self.window_b()
+        return b_start - a_end if a_end <= b_start else a_start - b_end
 
 
 @dataclass(frozen=True, slots=True)

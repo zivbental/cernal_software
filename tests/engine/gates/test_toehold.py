@@ -453,3 +453,88 @@ def test_the_frontier_is_the_non_dominated_set_and_keeps_exact_ties():
 
     assert _pareto_front(points) == [0, 3]
     assert _pareto_front([(2.0, 1.0, 3.0), (1.0, 2.0, 3.0)]) == [0, 1]
+
+
+# --- Stage 1: finding trigger pairs in one transcript --------------------------------
+
+
+def _transcript_with_a_planted_overlap() -> tuple[str, str]:
+    """A transcript carrying one deliberate 7-nt reverse-complementary pair, far apart
+    enough for both 36 nt and 50 nt windows to fit on either side."""
+    overlap = "GCAUCGA"
+    filler = "ACAGUACAGUACAGUACAGU"
+    left = "ACGUACGUAC" * 6 + overlap + "CAGUCAGUCA" * 6
+    right = "AUCAGUCAGU" * 6 + sq.reverse_complement(overlap) + "GUACGUACGU" * 6
+    return left + filler + right, overlap
+
+
+def test_trigger_windows_are_a_constant_36_and_50_nucleotides():
+    """`len_k2 = 18 - len_x` cancels `len_x`, so neither window's width depends on the
+    overlap. A width that moves with `len_x` means the geometry has drifted."""
+    transcript, _ = _transcript_with_a_planted_overlap()
+
+    pairs = list(_and_gate().find_trigger_pairs(transcript, min_window_gap=0))
+
+    assert pairs
+    for pair in pairs:
+        assert pair.window_a()[1] - pair.window_a()[0] == 36
+        assert pair.window_b()[1] - pair.window_b()[0] == 50
+
+
+def test_the_reported_overlap_really_is_at_the_reported_coordinates():
+    """The only check that catches an off-by-one, because a shifted window still folds and
+    still scores. `x` at `x_start` must be the reverse complement of `x*` at
+    `xstar_start`."""
+    transcript, _ = _transcript_with_a_planted_overlap()
+
+    for pair in _and_gate().find_trigger_pairs(transcript, min_window_gap=0):
+        x = transcript[pair.x_start : pair.x_start + pair.len_x]
+        x_star = transcript[pair.xstar_start : pair.xstar_start + pair.len_x]
+        assert sq.reverse_complement(x) == x_star
+
+
+def test_reported_overlaps_are_maximal_runs():
+    """Each pair is reported at its maximal perfect run, never truncated into
+    sub-overlaps: a shorter `x` only moves positions out of the conflict-free core and
+    into the contested region, with no compensating gain. So no reported overlap may be
+    extendable — it must reach the arm length, run off the transcript, or meet a base
+    that does not pair.
+
+    The planted overlap is found *inside* a reported one rather than as one, because its
+    own flanks extend it. That is the behaviour under test, not an accident.
+    """
+    transcript, overlap = _transcript_with_a_planted_overlap()
+    gate = _and_gate()
+    n = len(transcript)
+
+    pairs = list(gate.find_trigger_pairs(transcript, min_window_gap=0))
+
+    assert any(overlap in transcript[p.x_start : p.x_start + p.len_x] for p in pairs)
+    for pair in pairs:
+        if pair.len_x >= gate.ARM_LEN:
+            continue
+        extends_3 = (
+            pair.x_start + pair.len_x < n
+            and pair.xstar_start > 0
+            and transcript[pair.xstar_start - 1]
+            == sq.reverse_complement(transcript[pair.x_start + pair.len_x])
+        )
+        extends_5 = (
+            pair.x_start > 0
+            and pair.xstar_start + pair.len_x < n
+            and transcript[pair.xstar_start + pair.len_x]
+            == sq.reverse_complement(transcript[pair.x_start - 1])
+        )
+        assert not extends_3 and not extends_5
+
+
+def test_trigger_pairs_never_collide_and_respect_the_requested_gap():
+    """One nucleotide cannot serve both triggers, and both windows sit on one molecule
+    that can fold back and sequester them against each other before either reaches the
+    switch — worst in state 11, the one state that has to work."""
+    transcript, _ = _transcript_with_a_planted_overlap()
+
+    for pair in _and_gate().find_trigger_pairs(transcript, min_window_gap=40):
+        assert pair.disjoint()
+        assert pair.gap() >= 40
+        assert pair.fits(len(transcript))

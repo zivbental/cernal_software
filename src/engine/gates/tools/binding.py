@@ -44,6 +44,29 @@ def alignment_pairs(first: str, second: str) -> list[bool]:
     return [can_pair(first[i], second[n - 1 - i]) for i in range(n)]
 
 
+def longest_complementary_run(first: str, second: str) -> int:
+    """Longest unbroken stretch the two strands can pair over, in this alignment.
+
+    The question behind "can this trigger still nucleate?" — nucleation needs a few
+    contiguous pairs, and scattered ones do not substitute. It is also what decides
+    whether a negative control is really disabled.
+
+    **G:U wobbles count**, via ``can_pair``. Scored on Watson-Crick pairs alone, a
+    synonymous-substitution knockout on this project read as disabled while retaining a
+    fully wobble-paired 8-nt run — a negative control that was not one, and one that
+    could not be recognised as such from the experimental result.
+
+    Shorter strand wins: the alignment is taken over ``min(len(first), len(second))``
+    positions, so this tolerates the unequal lengths ``alignment_pairs`` rejects.
+    """
+    n = min(len(first), len(second))
+    best = run = 0
+    for i in range(n):
+        run = run + 1 if can_pair(first[i], second[n - 1 - i]) else 0
+        best = max(best, run)
+    return best
+
+
 def fixed_alignment_energy(first: str, second: str, folder: FoldEngine) -> float | None:
     """Free energy of two strands held in the alignment the **design** imposes.
 
