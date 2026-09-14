@@ -61,9 +61,10 @@ run time. An `INVALID` dataset uploads successfully (so the report can be read) 
 cannot be submitted.
 
 *The dependency this used to block on:* the DE table has gene **identifiers**, not
-**sequences**. **Answered for *E. coli*** — a bundled real reference transcriptome
-(`engine.transcriptome`, [genes.md](genes.md) D6). Still open for yeast and human; see
-[ROADMAP.md](ROADMAP.md) Q1.
+**sequences**. **Answered for *E. coli* and yeast** — a bundled real reference
+transcriptome each (`engine.transcriptome`, [genes.md](genes.md) D6, D7). Still open
+for human — a heavily-spliced genome needs real mRNA/CDS transcript records, not
+another genomic-CDS fetch; see [ROADMAP.md](ROADMAP.md) Q1.
 
 ### A2 · Direct trigger mRNA — `direct`
 
@@ -106,7 +107,7 @@ likewise. Neither can be written to the database.
 | | |
 |---|---|
 | Model, constraint, API, wizard | **Built** |
-| `de` path through the engine | **Built for *E. coli*** — `run_pipeline`/`LocalEngine` run it for real (toehold only, single-gene circuits, no real off-target scanning; see [ROADMAP.md](ROADMAP.md) E2 and [genes.md](genes.md)). Any other host fails cleanly, naming the missing reference transcriptome (Q1) |
+| `de` path through the engine | **Built for *E. coli* and yeast** — `run_pipeline`/`LocalEngine` run it for real (toehold only, single-gene circuits, no real off-target scanning, no bundled yeast backbone; see [ROADMAP.md](ROADMAP.md) E2 and [genes.md](genes.md)). Human fails cleanly, naming the missing reference transcriptome (Q1) |
 | `direct` path through the engine | **Built** — `run_pipeline`/`LocalEngine` run it for real (toehold only; see [ROADMAP.md](ROADMAP.md) E2a and [smoke-run.md](smoke-run.md)) |
 | `MockEngine` | Handles both, producing identical-looking output. **The difference is invisible on mock science** |
 

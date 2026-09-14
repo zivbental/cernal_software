@@ -13,16 +13,23 @@ reads at request time. Re-run this to refresh an entry or add a new host; nothin
 needs to change except ``engine.transcriptome.HOSTS``.
 
 **Why locus tags, not gene symbols.** The public dataset catalog's *E. coli* comparisons
-(``apps/expression/catalog/ecoli/*.csv``) and every real DESeq2/edgeR export use the
-NCBI locus tag (``b0002``) as the stable join key — symbols are reused across paralogues
-and annotation builds (docs/genes.md, `DgeRow.symbol`'s own docstring). Keying this
-bundle the same way is what makes the join in ``engine.pipeline`` a plain dict lookup.
+use the NCBI locus tag (``b0002``) as the stable join key, and its yeast comparisons use
+SGD's systematic ORF name (``YAL037C-A``) — NCBI's own ``locus_tag`` qualifier for yeast
+*is* that systematic name, so the same extraction logic joins both without a
+host-specific case. Symbols are reused across paralogues and annotation builds
+(docs/genes.md, ``DgeRow.symbol``'s own docstring); keying this bundle by locus tag is
+what makes the join in ``engine.pipeline`` a plain dict lookup either way.
 
-**CDS only, not the full transcript.** *E. coli* GenBank annotation does not carry
-separate 5'/3' UTR features the way eukaryotic annotation does, so the CDS *is* the
-practical unit available. A trigger window chosen from a CDS is dense with in-frame
-start/stop codons compared to a UTR (docs/triggers.md §4, ROADMAP.md Q14) — a known,
-stated limitation of this first cut, not a hidden one.
+**CDS only, not the full transcript.** Bacterial and yeast GenBank annotation does not
+carry separate 5'/3' UTR features the way, say, human annotation does, so the CDS *is*
+the practical unit available for either host bundled here. A trigger window chosen from
+a CDS is dense with in-frame start/stop codons compared to a UTR (docs/triggers.md §4,
+ROADMAP.md Q14) — a known, stated limitation of this first cut, not a hidden one.
+
+**Human is out of scope here, deliberately** (docs/ROADMAP.md Q1, revisited after this
+file was written) — human genes are heavily spliced, so a genomic CDS extraction like
+this one is the wrong tool; a real answer needs actual mature mRNA/CDS records (RefSeq
+``NM_`` transcripts) and an isoform-choice decision this file does not make.
 """
 
 import io
@@ -35,12 +42,39 @@ from Bio import SeqIO
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = REPO_ROOT / "src" / "engine" / "data" / "transcriptomes"
 
-#: host key (matches ``engine.domain.Host.value``) -> (NCBI nuccore accession, label).
-#: E. coli K-12 MG1655 — the same strain every promoter/terminator/backbone default in
-#: ``stages/plasmids.py`` already targets, so a run's genetic background is now
-#: consistent end to end, not just at the plasmid-construction step.
-ACCESSIONS: dict[str, tuple[str, str]] = {
-    "ecoli": ("NC_000913.3", "Escherichia coli str. K-12 substr. MG1655"),
+#: host key (matches ``engine.domain.Host.value``) -> (label, NCBI nuccore accessions).
+#: A single-chromosome genome (E. coli) is one accession; a multi-chromosome one
+#: (yeast: 16 nuclear chromosomes + the mitochondrial genome) is fetched and merged
+#: chromosome by chromosome — every accession below was looked up live via NCBI
+#: esearch/esummary, not typed from memory (docs/genes.md's own rule for a bundled
+#: reference, applied here the same way CLAUDE.md §1 applies it to code).
+ACCESSIONS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "ecoli": (
+        "Escherichia coli str. K-12 substr. MG1655",
+        ("NC_000913.3",),
+    ),
+    "yeast": (
+        "Saccharomyces cerevisiae S288C",
+        (
+            "NC_001133.9",  # chromosome I
+            "NC_001134.8",  # chromosome II
+            "NC_001135.5",  # chromosome III
+            "NC_001136.10",  # chromosome IV
+            "NC_001137.3",  # chromosome V
+            "NC_001138.5",  # chromosome VI
+            "NC_001139.9",  # chromosome VII
+            "NC_001140.6",  # chromosome VIII
+            "NC_001141.2",  # chromosome IX
+            "NC_001142.9",  # chromosome X
+            "NC_001143.9",  # chromosome XI
+            "NC_001144.5",  # chromosome XII
+            "NC_001145.3",  # chromosome XIII
+            "NC_001146.8",  # chromosome XIV
+            "NC_001147.6",  # chromosome XV
+            "NC_001148.4",  # chromosome XVI
+            "NC_001224.1",  # mitochondrion
+        ),
+    ),
 }
 
 EUTILS_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
@@ -92,13 +126,27 @@ def write_fasta(entries: list[tuple[str, str]], path: Path) -> None:
 
 def main(only: str | None = None) -> None:
     targets = {only: ACCESSIONS[only]} if only else ACCESSIONS
-    for host, (accession, organism) in targets.items():
-        print(f"Fetching {accession} ({organism})...", file=sys.stderr)
-        genbank_text = fetch_genbank(accession)
-        entries = extract_cds(genbank_text)
+    for host, (organism, accessions) in targets.items():
+        entries: list[tuple[str, str]] = []
+        seen: set[str] = set()
+        for accession in accessions:
+            print(f"Fetching {accession} ({organism})...", file=sys.stderr)
+            genbank_text = fetch_genbank(accession)
+            for locus_tag, sequence in extract_cds(genbank_text):
+                if locus_tag in seen:
+                    # Real for yeast's own systematic names (e.g. a gene annotated on
+                    # both a chromosome and, rarely, a resolved duplicated region) —
+                    # first-fetched wins, same convention extract_cds already uses
+                    # within one accession.
+                    continue
+                seen.add(locus_tag)
+                entries.append((locus_tag, sequence))
         out_path = OUTPUT_DIR / f"{host}.fasta"
         write_fasta(entries, out_path)
-        print(f"wrote {out_path} — {len(entries)} CDS from {accession}", file=sys.stderr)
+        print(
+            f"wrote {out_path} — {len(entries)} CDS from {len(accessions)} accession(s)",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":

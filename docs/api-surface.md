@@ -1249,7 +1249,7 @@ Stage 5 — plasmid construction.
 
 | Constant | Type | Value |
 | --- | --- | --- |
-| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC')}` |
+| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.YEAST: ('K124002',…` |
 | `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |
@@ -1407,7 +1407,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.2.0-direct-and-de-ecoli'` |
+| `ENGINE_VERSION` |  | `'local-0.3.0-direct-and-de-ecoli-yeast'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |

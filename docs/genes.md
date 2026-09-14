@@ -2,24 +2,31 @@
 
 **Status:** Built, and now wired into `run_pipeline` for a first, scoped `de` path
 (`engine.pipeline._de_trigger`) — a real compile against a differential-expression
-table now produces real toehold candidates and a real plasmid, verified against an
-actual bundled public *E. coli* dataset end to end (730 accepted candidates from
-`apps/expression/catalog/ecoli/88048__42635036.csv`, 34 s). `GeneSelector.select`
-implements §4–§6 below, tested in `tests/engine/test_genes.py` against real rows from
-the public catalog (§1's own worked example); `engine.inputs.parse_dge_table` (§6 G3)
-parses the table; `engine.transcriptome.load_transcriptome` (new, `tools/
-sync_transcriptome.py`) answers **Q1 for E. coli**, a real bundled NCBI RefSeq
-K-12 MG1655 reference (4,308 real CDS, fetched live and checked in). Decisions D1–D5
-in §5 were resolved as implemented, not left open — see each axis's own section for
-what was chosen and why.
+table now produces real toehold candidates and a real plasmid, verified against real
+data for both bundled hosts end to end: *E. coli* (730 accepted candidates from
+`apps/expression/catalog/ecoli/88048__42635036.csv`, 34 s) and yeast (110 accepted
+candidates from real genes in the bundled catalog). `GeneSelector.select` implements
+§4–§6 below, tested in `tests/engine/test_genes.py` against real rows from the public
+catalog (§1's own worked example); `engine.inputs.parse_dge_table` (§6 G3) parses the
+table; `engine.transcriptome.load_transcriptome` (new, `tools/sync_transcriptome.py`)
+answers **Q1 for E. coli and yeast** — real bundled NCBI RefSeq references (K-12
+MG1655, 4,308 real CDS; S288C, 6,027 real CDS across 16 chromosomes + the
+mitochondrial genome), fetched live and checked in. **Q12 (promoter/terminator)
+answered for the same two hosts too** — real iGEM Registry parts for yeast
+(`BBa_K124002`/`BBa_K1486025`), verified the same way the *E. coli* parts were.
+Decisions D1–D6 in §5 were resolved as implemented, not left open — see each axis's
+own section for what was chosen and why.
 
 **What "wired in" does not yet mean.** This is single-gene circuits only — every
 selected gene becomes its own one-gene circuit, the same trivial construction the
 `direct` path already used, never a `CircuitDesigner`-built multi-gene Boolean
-expression. *E. coli* only — no other host has a bundled transcriptome yet. No real
-off-target scanning — `OffTargetScanner`'s matching is still a stub, so its
-transcriptome stays deliberately empty even here. No `InputQualityCheck` — there is no
-count matrix in this product to check (§3 G-a is still open). See
+expression. No real off-target scanning — `OffTargetScanner`'s matching is still a
+stub, so its transcriptome stays deliberately empty even here. No `InputQualityCheck`
+— there is no count matrix in this product to check (§3 G-a is still open). No bundled
+yeast plasmid backbone (D7) — a real, verifiable one was not found in time; a yeast
+run supplies its own vector or omits a backbone entirely. No human at all — Q1 needs a
+different, bigger fetch strategy for a spliced genome, and Q12 needs an actual
+assembly-standard decision for a mammalian vector, not a parts lookup (D7). See
 `engine/pipeline.py`'s own module docstring and docs/ROADMAP.md E2 for the exact scope
 line.
 **Question it answers:** *given one differential-expression table and nothing else, which
@@ -411,6 +418,26 @@ larger, still-mostly-stubbed remainder of `de` mode (`InputQualityCheck`,
 stage 6) rather than attempting all of it at once. See §6 G8/G10 for what actually
 landed.
 
+**D7 — extending D6 to yeast and human, decided the same way.** Asked directly
+("what about yeast and human?"), rather than assumed. *Decided, yeast:* extend the
+transcriptome the same way (real NCBI RefSeq S288C, mechanically similar to *E. coli*
+— yeast has almost no introns) and extend the promoter/terminator table with real,
+iGEM-Registry-verified parts (`BBa_K124002`, `BBa_K1486025`) — but explicitly **not**
+a bundled yeast backbone: yeast's real assembly grammar (the "Lim standard") could not
+be fully verified from public sources in the time spent, and CLAUDE.md §1's rule — an
+almost-right part is worse than a missing one — applies exactly as much to a backbone
+as to a payload CDS. A yeast run relies on `params["backbone"]["custom_genbank"]` (a
+real lab vector) or no backbone at all, both already-legal `_resolve_backbone` paths
+requiring zero new code. *Decided, human:* stop, deliberately, rather than force a fit.
+Two separate reasons, not one: Q1 needs actual mRNA/CDS transcript records for a
+heavily-spliced genome (a different, bigger fetch than "another genome accession"),
+and Q12 has no defined target at all — a mammalian expression plasmid is not
+assembled via BioBrick-style restriction-site avoidance, so there is no "compliant
+promoter" to pick without first deciding what compliance even means for that host.
+That is a real architectural question for the scientific team, and is recorded as its
+own open item rather than answered by default. See §6 G11–G13 for what actually
+landed.
+
 ---
 
 ## 6. The plan
@@ -429,6 +456,9 @@ whoever is nearest; G4–G7 are the stage itself.
 | **G7** | The score (§4.5): weights in one table, renormalised over present axes, and the list of contributing axes reported | `engine/stages/genes.py` | G4–G6 | ✅ — reported via an `on_warning` callback (the same idiom `SwitchDesigner.design`'s `on_incompatible`/`on_invalid` already use), added during implementation since `select`'s return type has no room for warnings of its own |
 | **G8** | Pipeline wiring: parse → `InputQualityCheck` → `GeneSelector` → `TriggerScorer`; the direction/constructibility warning (§4.4); every "axis not measured" warning surfaced on the run, not swallowed | `engine/pipeline.py` | G3–G7 | **Partially done**, scoped deliberately (a real decision, not a shortcut — see D6). `run_pipeline` now has a real `de` branch (`_de_trigger`): parse → `GeneSelector` → `TriggerScorer` → the same `SwitchDesigner`/`PlasmidBuilder` `direct` mode already uses, one gene's designs at a time rather than through a `CircuitDesigner`. **Still not done:** `InputQualityCheck` is not called (no count matrix exists to check, §3 G-a), and the gate-family-aware direction warning in §4.4 has no home yet — nothing today requests a NOT-capable family for a `de` run to warn about, since `antisense` is unconditionally skipped (`_UNBUILDABLE_FAMILIES`, Q11) regardless of input mode. Every "axis not measured" warning from `GeneSelector.select` **is** surfaced, via `on_warning` into `JobResult.warnings` |
 | **G10** *(new)* | **Q1's first real answer, for one host.** A bundled reference transcriptome, not a live lookup — `tools/sync_transcriptome.py` fetches NCBI RefSeq accession `NC_000913.3` (*E. coli* K-12 MG1655, the same strain `stages/plasmids.py`'s promoter/terminator/backbone defaults already target) live, extracts every annotated CDS by locus tag, and writes `engine/data/transcriptomes/ecoli.fasta` (4,308 real genes, ~4 MB). `engine.transcriptome.load_transcriptome(host)` reads and caches it. CDS only, not a full transcript with UTRs — *E. coli* GenBank annotation carries no separate UTR features, so the CDS is the practical unit available; a stated limitation, not a hidden one | `tools/sync_transcriptome.py`, `engine/transcriptome.py`, `engine/data/transcriptomes/ecoli.fasta` | — | ✅ |
+| **G11** *(new)* | **Q1, extended to yeast.** The same tool, extended to a multi-accession host: `tools/sync_transcriptome.py` fetches all 16 nuclear chromosomes (`NC_001133.9`–`NC_001148.4`) plus the mitochondrial genome (`NC_001224.1`) for *S. cerevisiae* S288C — every accession looked up live via NCBI esearch/esummary, not typed from memory — merges their CDS by locus tag (SGD's systematic ORF name, e.g. `YAL037C-A`, which is also what the public yeast catalog already uses as `gene_id`), and writes `engine/data/transcriptomes/yeast.fasta` (6,027 real genes, ~9 MB) | `tools/sync_transcriptome.py`, `engine/transcriptome.py`, `engine/data/transcriptomes/yeast.fasta` | G10 | ✅ |
+| **G12** *(new)* | **Q12, extended to yeast.** Real promoter and terminator parts for yeast, verified against the same iGEM Registry API used for the *E. coli* parts — `BBa_K124002` (yeast GPD/TDH3 promoter, 681 bp, Mumberg/Muller/Funk 1995) and `BBa_K1486025` (ADH1 terminator, 188 bp) — byte-for-byte diffed against the raw API response before landing, not retyped by hand. Real biology, not a defect: both carry long homopolymer runs (yeast regulatory DNA is AT-rich) that `MotifScreener` correctly flags as informational, non-fatal compliance notes on every yeast plasmid — the same "report, never silently drop" behaviour the screener already gives every other host | `stages/plasmids.py` (`PROMOTERS`, `TERMINATORS`) | — | ✅ |
+| **G13** *(new)* | **Q13 for yeast: deliberately not answered with a bundled default.** Yeast's real BioBrick-family assembly grammar (the "Lim standard", pRS-series vectors) could not be fully verified from public sources in the time spent — no new `BACKBONES` entry, no new `AssemblyStandard` member. `_resolve_backbone` already supports a lab's own real vector (`params["backbone"]["custom_genbank"]`, pre-existing `parse_custom_backbone`) or no backbone at all (its own documented "fully legal choice") — a yeast run uses one of those two paths today, requiring zero new code | — | — | **Not done, deliberately** (D7) |
 | **G9** | Docs in the same PR: this file's status, [engine.md](engine.md) §3.1's signature, [ROADMAP.md](ROADMAP.md) E2 and Q2, [api-surface.md](api-surface.md) | `docs/` | all | ✅ (Q2 in ROADMAP.md is stage 2/3's own threshold question, not stage 1's — left alone) |
 
 ### Test plan — ✅ built
@@ -458,8 +488,11 @@ list:
 
 ## 7. What this does not solve
 
-- **Q1 stands.** Axis 3 and half of axis 4 are dark until transcript sequences exist. The
-  design degrades to axes 1, 2 and 5 — worth building, and honestly weaker.
+- **Q1 stands for human.** Axis 3 and half of axis 4 are dark for any host with no
+  bundled transcript sequences — *E. coli* and yeast now have one (D6, D7); human does
+  not, and needs a different, bigger fetch (real mRNA/CDS records, an isoform choice)
+  than "another genome accession". The design degrades to axes 1, 2 and 5 for human
+  today — worth building, and honestly weaker.
 - **No atlas, so no condition specificity.** `GeneSelector(atlas=...)` stays `None`, and
   "expressed in the target state but also everywhere in the body" remains unchecked.
 - **No confusion matrix on a one-file run** (D2). The product's headline claim — *"is this

@@ -2,7 +2,18 @@
 
 **Status:** Built (E5a, `direct` path only). `PlasmidBuilder.build()` and
 `.payload_segment()` are real; see §13 for what shipped and where it differs from this
-document's original recommendation.
+document's original recommendation. **Q12 update, made after this document was
+written:** `PROMOTERS`/`TERMINATORS` now also carry a yeast entry, verified against the
+iGEM Registry API the same way as the *E. coli* ones — real parts, not the placeholder
+this doc's own §13/§14 describe as *E. coli*-only. Human is still open, and not merely
+unbundled: a mammalian expression vector has no BioBrick-style restriction-site
+compliance to check against in the first place, an architectural question this
+document does not answer. `BACKBONES`/Q13 is unchanged by this — still *E. coli* only,
+now deliberately so for yeast too (docs/genes.md D7): a real vector for yeast exists,
+but its assembly grammar could not be verified in time to bundle responsibly. See
+[genes.md](genes.md) D6/D7 and [ROADMAP.md](ROADMAP.md) Q1/Q12/Q13 for the live status;
+the sections below are the original design reasoning and are not re-edited line by
+line as things get built, the same convention [smoke-run.md](smoke-run.md) uses.
 **Question it answers:** *"What stops `PlasmidBuilder` turning a designed switch into a
 construct someone could actually order — and should we write the DNA assembly ourselves
 or borrow it?"*

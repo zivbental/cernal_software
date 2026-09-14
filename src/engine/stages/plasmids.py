@@ -64,14 +64,33 @@ from engine.stages.motifs import MotifScreener
 # ``InputValidationError`` naming what is missing, rather than silently assembling a
 # promoter-less or payload-less plasmid.
 
-#: (part name, DNA sequence) per host. Only *E. coli* is populated today.
+#: (part name, DNA sequence) per host. *E. coli* and yeast today — human deliberately
+#: absent (docs/ROADMAP.md Q12): a mammalian expression plasmid is not assembled by
+#: BioBrick-style restriction-site avoidance at all, so there is no "compliant
+#: promoter" to pick without first deciding what compliance even means for that host —
+#: a real architectural question, not a parts lookup.
 PROMOTERS: dict[Host, tuple[str, str]] = {
     # BBa_J23119 — Anderson promoter family: the consensus sequence and the strongest
     # constitutive member. https://registry.igem.org/parts/bba-j23119
     Host.ECOLI: ("J23119", "TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC"),
+    # BBa_K124002 — the yeast GPD (TDH3) promoter: 680 bp upstream of GPD1, a very
+    # strong constitutive promoter (Mumberg, Muller & Funk 1995, p413 pGPD,
+    # doi:10.1016/0378-1119(95)00037-7). https://registry.igem.org/parts/bba-k124002
+    Host.YEAST: (
+        "K124002",
+        "TCAGTTCGAGTTTATCATTATCAATACTGCCATTTCAAAGAATACGTAAATAATTAATAGTAGTGATTTTCCTAACTT"
+        "TATTTAGTCAAAAAATTAGCCTTTTAATTCTGCTGTAACCCGTACATGCCCAAAATAGGGGGCGGGTTACACAGAAT"
+        "ATATAACATCGTAGGTGTCTGGGTGAACAGTTTATTCCTGGCATCCACTAAATATAATGGAGCCCGCTTTTTAAGCT"
+        "GGCATCCAGAAAAAAAAAGAATCCCAGCACCAAAATATTGTTTTCTTCACCAACCATCAGTTCATAGGTCCATTCTC"
+        "TTAGCGCAACTACAGAGAACAGGGGCACAAACAGGCAAAAAACGGGCACAACCTCAATGGAGTGATGCAACCTGCCT"
+        "GGAGTAAATGATGACACAAGGCAATTGACCCACGCATGTATCTATCTCATTTTCTTACACCTTCTATTACCTTCTGC"
+        "TCTCTCTGATTTGGAAAAAGCTGAAAAAAAAGGTTGAAACCAGTTCCCTGAAATTATTCCCCTACTTGACTAATAAG"
+        "TATATAAAGACGGTAGGTATTGATTGTAATTCTGTAAATCTATTTCTTAAACTTCTTAAATTCTACTTTTATAGTTA"
+        "GTCTTTTTTTTAGTTTTAAAACACCAAGAACTTAGTTTCGAATAAACACACATAAACAAACAAA",
+    ),
 }
 
-#: (part name, DNA sequence) per host. Only *E. coli* is populated today.
+#: (part name, DNA sequence) per host. Same coverage and reasoning as ``PROMOTERS``.
 TERMINATORS: dict[Host, tuple[str, str]] = {
     # BBa_B0015 — double terminator (B0010 + B0012), the most-used terminator in the
     # registry. https://registry.igem.org/parts/BBa_B0015
@@ -79,6 +98,15 @@ TERMINATORS: dict[Host, tuple[str, str]] = {
         "B0015",
         "CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTTTGTCGGTGAACGC"
         "TCTCTACTAGAGTCACACTGGCTCACCTTCGGGTGGGCCTTTCTGCGTTTATA",
+    ),
+    # BBa_K1486025 — the yeast ADH1 terminator, extracted by PCR from an Addgene
+    # plasmid; used in 22 real registry constructs.
+    # https://registry.igem.org/parts/bba-k1486025
+    Host.YEAST: (
+        "K1486025",
+        "GCGAATTTCTTATGATTTATGATTTTTATTATTAAATAAGTTATAAAAAAAATAAGTGTATACAAATTTTAAAGTGA"
+        "CTCTTAGGTTTTAAAACGAAAATTCTTATTCTTGAGTAACTCTTTCCTGTAGGTCAGGTTGCTTTCTCAGGTATAGT"
+        "ATGAGGTCGCTCTTATTGACCACACCTCTACCGG",
     ),
 }
 

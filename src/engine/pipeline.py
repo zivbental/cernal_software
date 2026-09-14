@@ -10,9 +10,10 @@ docs/triggers.md E2b — and gets ranked toehold designs back, each with a real,
 plasmid (docs/plasmids.md, E5a). A researcher who instead uploads a differential-
 expression table gets the *same* thing, sourced differently: ``GeneSelector`` (real,
 docs/genes.md) ranks the genes, the best ones' real transcripts (``engine.transcriptome``
-— *E. coli* only today, docs/ROADMAP.md Q1's first answer) are scanned for triggers by
-the same ``TriggerScorer`` the `direct` path already uses, and everything after that —
-switch design, plasmid construction — is one shared code path for both modes.
+— *E. coli* and yeast today, docs/ROADMAP.md Q1's first two answers) are scanned for
+triggers by the same ``TriggerScorer`` the `direct` path already uses, and everything
+after that — switch design, plasmid construction — is one shared code path for both
+modes and both hosts.
 
 **What the `de` path still does not do, deliberately.** No ``InputQualityCheck`` — there
 is no count matrix to check; the product only ever collects a differential-expression
@@ -22,10 +23,18 @@ still a stub, so its transcriptome is kept empty even here (an empty transcripto
 defined, honest "not measured" answer — docs/triggers.md T1 — where a populated one
 would raise). No ``CircuitDesigner`` — every selected gene becomes its own one-gene
 circuit, the same trivial construction the `direct` path already uses (see the next
-paragraph), never a multi-gene Boolean expression. No host but *E. coli* — no other
-organism has a bundled reference transcriptome yet. Stage 6 (the PDF report,
-structure/circuit figures) is out of scope for both modes — see docs/smoke-run.md §4 and
-docs/plasmids.md §3 for exactly what that costs.
+paragraph), never a multi-gene Boolean expression. No human — no bundled reference
+transcriptome (a genomic CDS extraction is the wrong tool for a heavily-spliced genome,
+``tools/sync_transcriptome.py``), and no promoter/terminator either (Q12). No bundled
+yeast plasmid backbone either, deliberately — yeast's real BioBrick-family assembly
+grammar (the "Lim standard") could not be fully verified from public sources in the
+time this took, so a yeast run relies on ``params["backbone"]["custom_genbank"]``
+(a lab's own real vector) rather than a first-party default built on a half-verified
+restriction-site table (CLAUDE.md §1: an almost-right part is worse than a missing
+one) — omitting backbone entirely is also a fully legal choice (``_resolve_backbone``'s
+own docstring). Stage 6 (the PDF report, structure/circuit figures) is out of scope for
+every mode and host — see docs/smoke-run.md §4 and docs/plasmids.md §3 for exactly what
+that costs.
 
 **Stage 5 does not wait for stage 4.** Each accepted switch design gets its own
 trivial one-gene ``CircuitCandidate`` from ``_build_plasmid``, the same way
@@ -240,9 +249,10 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
 
     Raises:
         InputValidationError: An unrecognised ``input_mode``, a ``de`` submission for a
-            host with no bundled reference transcriptome (only *E. coli* today —
-            docs/ROADMAP.md Q1), an organism this engine does not recognise, an unusable
-            dataset or trigger sequence, or constraints that do not parse. All are
+            host with no bundled reference transcriptome (*E. coli* and yeast today,
+            not human — ``engine.transcriptome.available_hosts()``, docs/ROADMAP.md
+            Q1), an organism this engine does not recognise, an unusable dataset or
+            trigger sequence, or constraints that do not parse. All are
             ``EngineError`` — **data**, per ``EngineClient``'s contract — and
             ``LocalEngine.run`` converts them into a terminal ``JobResult`` rather than
             letting them propagate as a crash.
@@ -744,8 +754,8 @@ def _de_trigger(
            — the engine trusts nothing the Platform already checked, the same discipline
            ``_direct_trigger`` applies to a pasted sequence.
         2. Load the bundled reference transcriptome for ``host`` (``engine.transcriptome``
-           — *E. coli* only today; anything else raises before any work happens, rather
-           than silently producing an empty shortlist).
+           — *E. coli* and yeast today, not human; anything unbundled raises before any
+           work happens, rather than silently producing an empty shortlist).
         3. ``GeneSelector.select`` the shortlist, degrading gracefully on every axis it
            cannot measure — there is no count matrix here (docs/genes.md §3 G-a), so
            percentiles, the abundance window and non-redundancy are all unmeasured on

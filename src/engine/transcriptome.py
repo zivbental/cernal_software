@@ -1,12 +1,14 @@
 """Reference transcript sequences, by organism — Q1's first real answer.
 
 ``docs/ROADMAP.md`` Q1 asks where trigger sequences come from, and calls it "the single
-largest unanswered question in the whole engine". This module is the first answer for
-one host: a real reference genome, fetched once by ``tools/sync_transcriptome.py`` and
+largest unanswered question in the whole engine". This module answers it for *E. coli*
+and yeast: a real reference genome, fetched once by ``tools/sync_transcriptome.py`` and
 bundled under ``engine/data/transcriptomes/`` — the same "fetch offline, check in,
 never call a provider from the running application" shape already used for the plasmid
 backbone catalog (``stages/plasmids.py``) and the public dataset catalog
-(``docs/public-datasets.md``).
+(``docs/public-datasets.md``). Human is deliberately not here yet — see
+``tools/sync_transcriptome.py``'s own docstring for why a genomic CDS extraction is the
+wrong tool for a heavily-spliced genome.
 
 **This is the "supporting-database module... no home yet" CLAUDE.md and
 docs/integration.md GAP-1/Q1 describe.** It has a home now: this file for the loader,
@@ -30,8 +32,13 @@ _DATA_DIR = Path(__file__).resolve().parent / "data" / "transcriptomes"
 
 #: Host -> bundled FASTA filename. Extend this, and re-run
 #: ``tools/sync_transcriptome.py``, to add another organism — nothing else changes.
+#: Human is deliberately not here: a genomic CDS extraction is the wrong tool for a
+#: heavily-spliced genome (``tools/sync_transcriptome.py``'s own docstring) — it needs
+#: real mRNA/CDS transcript records and an isoform-choice decision, not a bigger fetch
+#: of the same shape.
 _FILES: dict[Host, str] = {
     Host.ECOLI: "ecoli.fasta",
+    Host.YEAST: "yeast.fasta",
 }
 
 
@@ -45,7 +52,7 @@ def load_transcriptome(host: Host) -> dict[str, str]:
     string).
 
     Args:
-        host: The organism. Only ``Host.ECOLI`` is bundled today.
+        host: The organism. ``available_hosts()`` names which are bundled today.
 
     Returns:
         Gene id (NCBI locus tag, e.g. ``"b0002"``) to its CDS sequence, uppercase RNA.
