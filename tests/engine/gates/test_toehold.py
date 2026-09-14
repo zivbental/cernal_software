@@ -860,3 +860,117 @@ def test_stem_and_toehold_accessibility_are_probabilities(four_tubes):
             assert 0.0 <= o[f"{name}_{state}"] <= 1.0
     assert 0.0 <= o["A_r2_star_00"] <= 1.0
     assert 0.0 <= o["d_off"] <= 1.0
+
+
+# --- The cheap pre-filter, and the gates ---------------------------------------------
+
+
+def test_the_pair_screen_agrees_with_a_full_evaluation_on_every_stem():
+    """The premise the funnel rests on. Scheme C designs only the secondary hairpin, so
+    the main hairpin, the free toehold and everything derived from them are the same
+    molecule whichever build it picks. If this ever stops holding, screening a pair before
+    enumerating its stems starts discarding designs that would have worked."""
+    gate = _and_gate()
+    trigger_a, trigger_b, _ = _contested_pair()
+    stems = gate.secondary_stems(trigger_a, trigger_b, len(_OVERLAP))
+    weakest = max(stems, key=lambda s: s.ddg_pref)
+    strongest = min(stems, key=lambda s: s.lock_energy)
+    assert weakest is not strongest
+
+    screened = gate.screen_pair(trigger_a, trigger_b, len(_OVERLAP))
+    full = [
+        gate.four_tube_observables(
+            gate.assemble(trigger_a, trigger_b, len(_OVERLAP), stem), trigger_a, trigger_b
+        )
+        for stem in (weakest, strongest)
+    ]
+
+    # Not exactly equal, and should not be: the two hairpins sit on one molecule, so the
+    # ensembles couple slightly. The measured spread is under 0.01 kcal/mol, two orders of
+    # magnitude below the folding model's own ~1.5 kcal/mol error, so it cannot move a gate
+    # or a ranking.
+    assert set(screened) == gate.STEM_INDEPENDENT
+    for name in gate.STEM_INDEPENDENT:
+        assert full[0][name] == pytest.approx(full[1][name], abs=0.02), name
+        assert screened[name] == pytest.approx(full[0][name], abs=0.02), name
+
+
+def test_everything_trigger_b_touches_is_excluded_from_the_pair_screen():
+    """The other half, and the one that would silently break the funnel. Trigger B binds
+    the secondary stem, so every observable involving it moves with the build — measured
+    here at ~20 kcal/mol for `dG_bind_B` alone. Screening a pair on these would reject
+    candidates a different stem would have saved."""
+    gate = _and_gate()
+    trigger_a, trigger_b, _ = _contested_pair()
+    stems = gate.secondary_stems(trigger_a, trigger_b, len(_OVERLAP))
+    pair = (max(stems, key=lambda s: s.ddg_pref), min(stems, key=lambda s: s.lock_energy))
+
+    full = [
+        gate.four_tube_observables(
+            gate.assemble(trigger_a, trigger_b, len(_OVERLAP), stem), trigger_a, trigger_b
+        )
+        for stem in pair
+    ]
+
+    for name in ("dG_bind_B", "dG_bind_A_given_B", "dG_open_01", "ddG_AND"):
+        assert name not in gate.STEM_INDEPENDENT, name
+        assert abs(full[0][name] - full[1][name]) > 0.5, name
+    assert abs(full[0]["dG_bind_B"] - full[1]["dG_bind_B"]) > 10.0
+
+
+def test_the_pair_screen_only_gates_what_no_stem_could_rescue():
+    """A rejection at the pair screen is final, so it may only use thresholds whose
+    observable the build cannot move."""
+    gate = _and_gate()
+
+    screened = dict.fromkeys(gate.STEM_INDEPENDENT)  # every value None -> "<name>=None"
+    names = {v.removesuffix("=None") for v in gate.pair_gate_violations(screened)}
+
+    assert names <= gate.STEM_INDEPENDENT
+    assert "A_M_10" in names, "the state-10 leak is the whole point of screening early"
+    assert not any(n.startswith("A_S") or n == "separation" for n in names)
+
+
+def test_the_probe_switch_serves_both_triggers_everywhere():
+    """Built at the corner that needs no energies, so screening a pair costs one fold and
+    no stem enumeration at all."""
+    gate = _and_gate()
+    trigger_a, trigger_b, wanted = _contested_pair()
+
+    probe = gate.probe_switch(trigger_a, trigger_b, len(_OVERLAP))
+    start, end = probe.domains["k2_star"]
+
+    assert probe.sequence[start:end] == wanted
+
+
+def test_the_gates_report_every_failure_not_the_first():
+    """A design failing one threshold and a design failing six are different objects, and
+    when nothing passes, *which* gate is binding is the entire result."""
+    gate = _and_gate()
+    hopeless = dict.fromkeys(
+        (name for name, _, _ in gate.THRESHOLDS), 0.35
+    )  # fails every < 0.2 and every > 0.5 at once
+    hopeless["separation"] = 0.0
+    hopeless["ddG_AND"] = 0.0
+
+    violations = gate.gate_violations(hopeless)
+
+    assert len(violations) == len(gate.THRESHOLDS)
+
+
+def test_an_unmeasured_observable_fails_its_gate_rather_than_passing_it():
+    """`None` means the ensemble could not be computed. Admitting the design would let it
+    outrank measured ones on a number nobody has."""
+    gate = _and_gate()
+    observables = {name: None for name, _, _ in gate.THRESHOLDS}
+
+    assert all(v.endswith("=None") for v in gate.gate_violations(observables))
+
+
+def test_a_design_meeting_every_threshold_passes():
+    gate = _and_gate()
+    good = {}
+    for name, comparison, threshold in gate.THRESHOLDS:
+        good[name] = threshold - 0.05 if comparison == "<" else threshold + 0.05
+
+    assert gate.gate_violations(good) == ()

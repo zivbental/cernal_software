@@ -836,6 +836,136 @@ class ToeholdAndGate(ToeholdGate):
             faults.append("frame_shift")
         return tuple(faults)
 
+    #: The feasible set: pass/fail on the four-tube observables, applied before any
+    #: ranking. Each entry is ``(observable, comparison, threshold)``.
+    #:
+    #: The values come from §4.6 of the objective-function document, set from physics at
+    #: values that exclude only the indefensible rather than values chosen to select
+    #: winners. A stem meant to be shut should be mostly paired and one meant to be open
+    #: more open than closed, which is all 0.2 and 0.5 assert. The two energy bounds sit at
+    #: roughly the folding model's own error: below about 1.5 kcal/mol two designs are not
+    #: distinguishable, so a gate there excludes what cannot be told apart rather than
+    #: making a claim.
+    #:
+    #: ``A_S`` is taken over ``sw_xs`` alone — the site trigger A must nucleate on — with
+    #: the whole descending arm reported beside it as ``A_S_full`` (D22).
+    #:
+    #: ``τ12``, the designed-flank gate, is deliberately absent: it is a kcal/mol
+    #: difference with no symmetry argument to reach it, and the decision is to measure
+    #: ``flank_penalty`` across a real run first and set the threshold from where the
+    #: distribution actually sits. Adding a guessed value here would be the one thing
+    #: worse than leaving it out.
+    THRESHOLDS: ClassVar[tuple[tuple[str, str, float], ...]] = (
+        ("A_S_00", "<", 0.2),  # τ1  — the inhibitory hairpin is shut with no trigger
+        ("A_M_00", "<", 0.2),  # τ2  — so is the main one
+        ("A_S_10", "<", 0.2),  # τ3  — trigger A alone must not open the inhibitory hairpin
+        ("A_M_10", "<", 0.2),  # τ4a — nor the main one. The dangerous leak.
+        ("A_M_01", "<", 0.2),  # τ4b — and neither may trigger B, which is the harder test
+        ("A_S_01", ">", 0.5),  # τ5  — but trigger B must open the inhibitory hairpin
+        ("A_S_11", ">", 0.5),  # τ6  — and keep it open with both present
+        ("A_M_11", ">", 0.5),  # τ7  — trigger A opens the main hairpin, but only with B
+        ("A_r2_star_00", ">", 0.5),  # τ8  — the toehold is available to begin with
+        ("d_off", "<", 0.1),  # τ9  — the OFF state is the structure we drew
+        ("separation", ">", 1.5),  # τ10 — state 11 is the most open, by more than noise
+        ("ddG_AND", "<", -1.0),  # τ11 — and the two triggers act cooperatively
+    )
+
+    def gate_violations(
+        self,
+        observables: dict[str, float | None],
+        thresholds: tuple[tuple[str, str, float], ...] | None = None,
+    ) -> tuple[str, ...]:
+        """Every threshold this design fails. Empty means it enters the ranking.
+
+        **Every** violation, not the first: a design failing one gate and a design failing
+        six are different objects, and which gates a candidate set fails is the most
+        informative thing a run produces when nothing passes.
+
+        A missing measurement counts as a failure rather than a pass. ``None`` means the
+        ensemble could not be computed, and admitting an unmeasured design would let it
+        outrank measured ones on a number nobody has.
+        """
+        failed: list[str] = []
+        for name, comparison, threshold in thresholds or self.THRESHOLDS:
+            value = observables.get(name)
+            if value is None:
+                failed.append(f"{name}=None")
+            elif (value < threshold) if comparison == "<" else (value > threshold):
+                continue
+            else:
+                failed.append(f"{name}{comparison}{threshold}")
+        return tuple(failed)
+
+    #: Observables that depend on the trigger pair alone, not on which secondary stem was
+    #: chosen for it. Scheme C designs ``k2_star`` and ``secondary_z``, which live in the
+    #: *secondary* hairpin, so the main hairpin and the free toehold are effectively the
+    #: same molecule whichever build it picks. Measured across four stems spanning the
+    #: frontier, every entry below moves by less than 0.006 — against a folding model whose
+    #: own error is ~1.5 kcal/mol — while ``A_S`` and ``d_off`` move visibly.
+    #:
+    #: **Deliberately excluded, and the reason is not subtle:** trigger B binds the
+    #: secondary stem, so everything that involves it is stem-dependent. Measured on the
+    #: same four stems, ``dG_bind_B`` spans **20.1 kcal/mol**, ``dG_bind_A_given_B`` 15.4
+    #: (it is conditioned on B), and ``dG_open_01`` and ``ddG_AND`` 1.7 each. ``separation``
+    #: is excluded too: it is a minimum over the three OFF states, so it is only invariant
+    #: while state 10 is the leakiest, and a pair whose state 01 leaks worst would make it
+    #: move with the stem.
+    #:
+    #: What survives is exactly the set of gates no stem can rescue — the main hairpin's
+    #: four accessibilities and the toehold's — which is what makes a pair screenable
+    #: before any stem is enumerated, one fold instead of roughly a hundred and twenty.
+    STEM_INDEPENDENT: ClassVar[frozenset[str]] = frozenset(
+        {
+            "dG_open_00",
+            "dG_open_10",
+            "dG_open_11",
+            "dG_open_flank_00",
+            "flank_penalty",
+            "A_M_00",
+            "A_M_01",
+            "A_M_10",
+            "A_M_11",
+            "A_r2_star_00",
+        }
+    )
+
+    def probe_switch(self, trigger_a: str, trigger_b: str, len_x: int) -> "_AssembledSwitch":
+        """A switch on the un-traded secondary stem, for screening the pair itself.
+
+        Built at the corner where every contested position serves both triggers, which
+        needs no energies and so no folding. It is not a design worth ordering — its upper
+        stem is mismatched wherever the triggers disagree — but the main hairpin, the
+        toehold and the reporter region are identical to every real build's, and those are
+        what a pair is screened on.
+        """
+        ext, k2 = _secondary_domains(trigger_a, trigger_b, len_x, self.ARM_LEN)
+        k2_star, secondary_z = _build_arms(ext, k2, {})
+        untraded = _SecondaryStem(k2_star, secondary_z, (), 0.0, 0.0, 0.0, 0.0)
+        return self.assemble(trigger_a, trigger_b, len_x, untraded)
+
+    def screen_pair(self, trigger_a: str, trigger_b: str, len_x: int) -> dict[str, float | None]:
+        """The stem-independent observables for one trigger pair: one fold, not a hundred.
+
+        A pair that leaks in state 10 cannot be rescued by any secondary stem — trigger A
+        opening the main hairpin unaided is a property of trigger A and the main hairpin,
+        and scheme C designs neither. Screening here and enumerating stems only for the
+        survivors is the difference between folding every build and folding a pair once.
+        """
+        probe = self.probe_switch(trigger_a, trigger_b, len_x)
+        observables = self.four_tube_observables(probe, trigger_a, trigger_b)
+        return {k: v for k, v in observables.items() if k in self.STEM_INDEPENDENT}
+
+    def pair_gate_violations(self, screened: dict[str, float | None]) -> tuple[str, ...]:
+        """The thresholds a pair fails on its own, before any stem is designed.
+
+        Restricted to the gates whose observable is stem-independent, which is what makes
+        a rejection here **final**: no build could have changed the answer, so there is no
+        point enumerating its stems. The rest of the feasible set is applied per build,
+        once a stem exists to apply it to.
+        """
+        applicable = tuple(t for t in self.THRESHOLDS if t[0] in self.STEM_INDEPENDENT)
+        return self.gate_violations(screened, thresholds=applicable)
+
     def four_tube_observables(
         self, switch: "_AssembledSwitch", trigger_a: str, trigger_b: str
     ) -> dict[str, float | None]:
