@@ -22,6 +22,7 @@ from engine.gates.toehold import (
     _pareto_front,
     _secondary_domains,
 )
+from engine.gates.tools.binding import can_pair
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
@@ -582,3 +583,148 @@ def test_a_trigger_with_synonymous_freedom_can_be_knocked_out():
     region = "CUGCUGCUGAGCAGCAGC"
 
     assert gate.knockout_possible(region, 0, len(region), sq.reverse_complement(region))
+
+
+# --- Assembly ------------------------------------------------------------------------
+
+
+def _assembled(conflict_at=_CONFLICT_AT):
+    gate = _and_gate()
+    trigger_a, trigger_b, _ = _contested_pair(conflict_at=conflict_at)
+    stem = gate.secondary_stems(trigger_a, trigger_b, len(_OVERLAP))[0]
+    return gate, gate.assemble(trigger_a, trigger_b, len(_OVERLAP), stem)
+
+
+def test_the_folded_region_is_161_nucleotides_whatever_the_overlap_length():
+    """`len_k2 = 18 - len_x` cancels `len_x`, so the cap-through-LINKER region the four
+    tubes fold is a fixed size. This is the one number that catches a dropped or
+    duplicated domain, because every other check would still pass."""
+    gate = _and_gate()
+
+    for len_x in (4, 5, 6, 7):
+        trigger_a, trigger_b, _ = _contested_pair()
+        stem = gate.secondary_stems(trigger_a, trigger_b, len_x)[0]
+        assert len(gate.assemble(trigger_a, trigger_b, len_x, stem).sequence) == 161
+
+
+def test_every_domain_lands_on_the_coordinate_the_specification_quotes():
+    """The layout, in the framework's own numbering. An off-by-one here still folds and
+    still scores, so it has to be asserted rather than inspected."""
+    _, switch = _assembled()
+
+    expected = {
+        "main_pre_star": (-42, -34),
+        "bulge_star": (-33, -31),
+        "k1_star": (-30, -25),
+        "rbs_loop": (-24, -7),
+        "main_z": (-6, -1),
+        "aug": (1, 3),
+        "main_pre": (4, 12),
+    }
+    for name, (first, last) in expected.items():
+        start, end = switch.domains[name]
+        assert (switch.position(start), switch.position(end - 1)) == (first, last), name
+
+
+def test_the_start_codon_is_where_the_windows_are_measured_from():
+    _, switch = _assembled()
+    start, end = switch.domains["aug"]
+
+    assert switch.sequence[start:end] == "AUG"
+    assert switch.position(start) == 1
+    assert switch.position(start - 1) == -1, "the numbering has no zero"
+    # -17 is 17 bases before the A; +13 is the 13th base of the CDS, and the numbering
+    # skips zero, so the half-open end lands at start + 13 rather than end + 13.
+    assert switch.span(-17, 13) == (start - 17, start + 13)
+    assert switch.span(-17, 13)[1] - switch.span(-17, 13)[0] == 30  # W_rank
+    assert switch.span(-24, 13)[1] - switch.span(-24, 13)[0] == 37  # W_flank
+
+
+def test_the_two_hairpins_are_directly_adjacent():
+    """`a = 0` is the defining parameter: with no exposed spacer, trigger A has nowhere to
+    land until trigger B has opened the inhibitory hairpin."""
+    _, switch = _assembled()
+
+    assert switch.domains["sw_xs"][1] == switch.domains["main_pre_star"][0]
+
+
+def test_the_ribosome_binding_site_sits_flush_at_the_3_end_of_its_loop():
+    """What makes `k1*` the Shine-Dalgarno-to-start spacing (R2, R8). If the RBS floated
+    within the loop that spacing would silently change."""
+    gate, switch = _assembled()
+    start, end = switch.domains["rbs_loop"]
+
+    assert switch.sequence[start:end].endswith(gate.RBS_PROKARYOTIC)
+    assert end - start == 18
+
+
+def test_the_main_stem_uses_trigger_as_own_k1_so_it_pairs_perfectly():
+    """`mainZ` is trigger A's 5' six nucleotides, which makes the main stem's ddG_pref
+    exactly zero — accepted, because trigger A's advantage comes from the toehold and from
+    pairing straight through the 3x3 internal loop the hairpin cannot."""
+    gate, switch = _assembled()
+    trigger_a, _, _ = _contested_pair()
+    k1_start, k1_end = switch.domains["k1_star"]
+    z_start, z_end = switch.domains["main_z"]
+
+    assert switch.sequence[z_start:z_end] == trigger_a[: gate.STEM_POST_BULGE_LEN]
+    assert switch.sequence[k1_start:k1_end] == sq.reverse_complement(switch.sequence[z_start:z_end])
+
+
+def test_the_off_structure_is_a_legal_balanced_target():
+    """`ensemble_defect` takes this as its reference, and rejects anything unbalanced or
+    of the wrong length."""
+    _, switch = _assembled()
+
+    assert len(switch.dot_bracket) == len(switch.sequence)
+    assert switch.dot_bracket.count("(") == switch.dot_bracket.count(")")
+    depth = 0
+    for character in switch.dot_bracket:
+        depth += (character == "(") - (character == ")")
+        assert depth >= 0
+    assert depth == 0
+
+
+def test_the_start_codon_is_left_open_in_the_off_state():
+    """It sits in the 3x3 internal loop opposite the bulge and is already unpaired with no
+    trigger present. The gate works by burying the ribosome binding site and the stem
+    around the AUG, not the AUG itself."""
+    _, switch = _assembled()
+    start, end = switch.domains["aug"]
+
+    assert switch.dot_bracket[start:end] == "..."
+
+
+def test_the_off_structure_pairs_only_what_the_bases_can_actually_pair():
+    """Scheme C leaves mismatches in the upper stem by design, so a reference structure
+    drawn from the diagram rather than the sequence would score every design against
+    something impossible."""
+    _, switch = _assembled()
+
+    opens: list[int] = []
+    for index, character in enumerate(switch.dot_bracket):
+        if character == "(":
+            opens.append(index)
+        elif character == ")":
+            partner = opens.pop()
+            assert can_pair(switch.sequence[partner], switch.sequence[index])
+
+
+def test_an_aug_dragged_in_by_main_z_is_reported():
+    """`mainZ` is trigger A's own k1, so a trigger beginning with an AUG puts a second
+    start codon in the 5' UTR — out of frame with the real one, so what gets translated is
+    not the reporter. On mCherry this removes 93 of 867 otherwise-clean candidates."""
+    gate = _and_gate()
+    trigger_a, trigger_b, _ = _contested_pair()
+    with_aug = "AUGAAA" + trigger_a[6:]
+    stem = gate.secondary_stems(with_aug, trigger_b, len(_OVERLAP))[0]
+
+    switch = gate.assemble(with_aug, trigger_b, len(_OVERLAP), stem)
+
+    assert "upstream_aug" in gate.assembly_violations(switch)
+
+
+def test_a_clean_switch_reports_no_assembly_violations():
+    gate, switch = _assembled()
+
+    assert gate.assembly_violations(switch) == ()

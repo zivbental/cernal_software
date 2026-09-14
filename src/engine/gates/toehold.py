@@ -41,6 +41,7 @@ from engine.domain import (
 )
 from engine.gates.base import GateFamily
 from engine.gates.tools.binding import (
+    alignment_pairs,
     can_pair,
     fixed_alignment_energy,
     longest_complementary_run,
@@ -497,6 +498,21 @@ class ToeholdAndGate(ToeholdGate):
     #: It is **a nucleotide count**, unrelated to ``separation``, which is kcal/mol.
     MIN_WINDOW_GAP: ClassVar[int] = 50
 
+    #: The 7 designed nucleotides ahead of the fixed RBS. Together they are the 18-nt RBS
+    #: loop, with the RBS flush at its 3' end — which is what makes ``k1*`` the
+    #: Shine-Dalgarno-to-start spacing (R2, R8).
+    RBS_FLANK: ClassVar[str] = "AGACAAG"
+
+    #: The inhibitory hairpin's loop: Kim's Sw-G5-G3n* sequence, carrying no SD-like motif
+    #: so it creates no second ribosome entry point (R9, Appendix B).
+    SECONDARY_LOOP: ClassVar[str] = "CAAGAACUUAGACAA"
+
+    #: The 3-nt bulge facing the start codon across the main stem, making a 3x3 internal
+    #: loop (R7). It earns its place twice: trigger A pairs straight *through* it in the ON
+    #: state, giving 18 contiguous base pairs where the hairpin managed 15 plus a loop, and
+    #: it splits the stem into two shorter helices, reducing RNase III exposure.
+    BULGE_LEN: ClassVar[int] = 3
+
     #: Patterns forbidden anywhere in trigger A's window, as regular expressions over RNA.
     #: RNase E cleavage would shorten the transcript carrying the trigger; a G-quadruplex
     #: or a poly-U run would sequester or terminate it; an internal Shine-Dalgarno would
@@ -633,6 +649,144 @@ class ToeholdAndGate(ToeholdGate):
             )
         )
         return ko_a, ko_b
+
+    def assemble(
+        self, trigger_a: str, trigger_b: str, len_x: int, stem: "_SecondaryStem"
+    ) -> "_AssembledSwitch":
+        """Build the switch for one trigger pair and one secondary stem.
+
+        Of the fifteen domains, twelve are already fixed by this point — five constants,
+        and seven reverse complements of trigger domains. ``k2_star`` and ``secondary_z``
+        come from ``secondary_stems``; ``mainZ`` is trigger A's own ``k1``, which makes the
+        main stem's ``ddG_pref`` exactly zero. That is accepted rather than tuned: the
+        exchange is a wash and the drive comes from elsewhere — the toehold, and the three
+        extra pairs trigger A makes straight through the 3x3 internal loop that the hairpin
+        itself cannot.
+
+        The two hairpins sit directly adjacent, with **nothing between them**. That is
+        ``a = 0``, the defining parameter of this architecture: until trigger B has opened
+        the inhibitory hairpin, trigger A has no exposed nucleotide anywhere to bind.
+
+        Args:
+            trigger_a: 36 nt, reading ``k1 · bulge · main_pre · xA · extA``.
+            trigger_b: 50 nt, reading ``k2 · xB · r2``.
+            len_x: The overlap length the stem was built for.
+            stem: One entry from ``secondary_stems``.
+
+        Returns:
+            The switch from the 5' cap through the LINKER — the region stage 4 folds —
+            with its intended OFF structure and the coordinates of every domain. The
+            reporter CDS is appended later, at plasmid assembly.
+        """
+        arm, len_k2 = self.ARM_LEN, self.ARM_LEN - len_x
+        pre_bulge, post_bulge = self.STEM_PRE_BULGE_LEN, self.STEM_POST_BULGE_LEN
+        rna_a, rna_b = sq.to_rna(trigger_a), sq.to_rna(trigger_b)
+
+        k1 = rna_a[:post_bulge]
+        bulge = rna_a[post_bulge : post_bulge + self.BULGE_LEN]
+        main_pre = rna_a[post_bulge + self.BULGE_LEN : arm]
+        x = rna_a[arm : arm + len_x]
+        r2 = rna_b[len_k2 + len_x :]
+
+        rbs_loop = self.RBS_FLANK + self.RBS_PROKARYOTIC
+        pieces = [
+            ("cap", self.LEADER_SEQUENCE),
+            ("r2_star", sq.reverse_complement(r2)),
+            ("sw_x", x),
+            ("k2_star", stem.k2_star),
+            ("secondary_loop", self.SECONDARY_LOOP),
+            ("secondary_z", stem.secondary_z),
+            ("sw_xs", sq.reverse_complement(x)),
+            # a = 0: nothing between the two hairpins.
+            ("main_pre_star", sq.reverse_complement(main_pre)),
+            ("bulge_star", sq.reverse_complement(bulge)),
+            ("k1_star", sq.reverse_complement(k1)),
+            ("rbs_loop", rbs_loop),
+            ("main_z", k1),
+            ("aug", "AUG"),
+            ("main_pre", main_pre),
+            ("linker", self.LINKER_SEQUENCE),
+        ]
+
+        sequence = ""
+        domains: dict[str, tuple[int, int]] = {}
+        for name, piece in pieces:
+            domains[name] = (len(sequence), len(sequence) + len(piece))
+            sequence += piece
+
+        expected = (
+            len(self.LEADER_SEQUENCE)
+            + self.TOEHOLD_B_LEN
+            + 2 * arm
+            + len(self.SECONDARY_LOOP)
+            + pre_bulge
+            + self.BULGE_LEN
+            + post_bulge
+            + len(rbs_loop)
+            + post_bulge
+            + 3
+            + pre_bulge
+            + len(self.LINKER_SEQUENCE)
+        )
+        if len(sequence) != expected:
+            raise ValueError(f"assembled {len(sequence)} nt, expected {expected}")
+
+        return _AssembledSwitch(
+            sequence=sequence,
+            dot_bracket=self._off_structure(sequence, domains),
+            domains=domains,
+            len_x=len_x,
+        )
+
+    def _off_structure(self, sequence: str, domains: dict[str, tuple[int, int]]) -> str:
+        """The structure the OFF state is drawn as, for ``ensemble_defect`` to score against.
+
+        Built from what the arms can *actually* pair rather than from the drawing: scheme C
+        leaves mismatches in the upper stem by design, and a reference structure asserting
+        pairs the bases cannot form would measure the design against something impossible.
+
+        The start codon is left unpaired. It sits in the 3x3 internal loop opposite
+        ``bulge_star`` and is already open in the OFF state — the gate works by burying the
+        *ribosome binding site* and the stem around the AUG, not the AUG itself.
+        """
+        structure = ["."] * len(sequence)
+
+        for ascending, descending in (
+            (("sw_x", "k2_star"), ("secondary_z", "sw_xs")),
+            (("main_pre_star",), ("main_pre",)),
+            (("k1_star",), ("main_z",)),
+        ):
+            up_start = domains[ascending[0]][0]
+            up_end = domains[ascending[-1]][1]
+            down_start = domains[descending[0]][0]
+            down_end = domains[descending[-1]][1]
+            up, down = sequence[up_start:up_end], sequence[down_start:down_end]
+            for offset, paired in enumerate(alignment_pairs(up, down)):
+                if paired:
+                    structure[up_start + offset] = "("
+                    structure[down_end - 1 - offset] = ")"
+        return "".join(structure)
+
+    def assembly_violations(self, switch: "_AssembledSwitch") -> tuple[str, ...]:
+        """Sequence-level faults in a finished switch. Empty means clean.
+
+        Two ways to lose the reporter, both in the same region and both checked on the
+        finished molecule rather than assumed from the parts (R5). An in-frame stop
+        truncates the product before it begins. An earlier AUG gives the ribosome a second
+        place to start, and out of frame with the real one what it translates is not the
+        reporter.
+        """
+        faults: list[str] = []
+        aug_start = switch.domains["aug"][0]
+        coding = switch.sequence[aug_start:]
+        if sq.find_stops(coding):
+            faults.append("in_frame_stop")
+        loop_start = switch.domains["rbs_loop"][0]
+        if "AUG" in switch.sequence[loop_start:aug_start]:
+            faults.append("upstream_aug")
+        if len(coding) % 3:
+            faults.append("frame_shift")
+        return tuple(faults)
 
     def find_trigger_pairs(
         self, transcript: str, *, min_window_gap: int | None = None
@@ -907,6 +1061,43 @@ def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float:
 #: close the lock against A's base while B needs another) satisfies nothing and is
 #: dominated, so it is never generated.
 _ARM_STATES: tuple[str, ...] = ("both", "lockA", "lockB")
+
+
+@dataclass(frozen=True, slots=True)
+class _AssembledSwitch:
+    """A finished switch, from the 5' cap through the LINKER — the region stage 4 folds.
+
+    Intra-module only; it becomes a ``GateDesign`` at the stage boundary.
+    """
+
+    sequence: str
+    dot_bracket: str
+    #: Domain name to ``(start, end)``, 0-based and half-open, in 5'->3' order.
+    domains: dict[str, tuple[int, int]]
+    len_x: int
+
+    def position(self, index: int) -> int:
+        """The index re-expressed in the framework's coordinates, where the A of the start
+        codon is ``+1``, the base 5' of it is ``-1``, and **there is no zero**.
+
+        Every window in the specification is quoted this way, so converting here once is
+        what stops each caller rediscovering that the numbering skips a value.
+        """
+        aug = self.domains["aug"][0]
+        return index - aug + 1 if index >= aug else index - aug
+
+    def span(self, first: int, last: int) -> tuple[int, int]:
+        """A window quoted in framework coordinates, back as a half-open index range.
+
+        ``span(-17, 13)`` is ``W_rank``, the 30-nt ribosome footprint stage 4 ranks on;
+        ``span(-24, 13)`` is ``W_flank``, which is pass/fail only and must never be ranked
+        — in state 11 the region upstream of -24 is duplexed to trigger A, so ranking there
+        penalises a working gate.
+        """
+        aug = self.domains["aug"][0]
+        start = aug + first - 1 if first > 0 else aug + first
+        end = aug + last - 1 if last > 0 else aug + last
+        return start, end + 1
 
 
 @dataclass(frozen=True, slots=True)
