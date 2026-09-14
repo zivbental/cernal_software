@@ -21,7 +21,10 @@ called out inline rather than silently guessed — see the port's open questions
 Reference: design map 12, and the pipeline map's Switches Design stage.
 """
 
+from bisect import bisect_right
 from collections.abc import Iterator
+from dataclasses import dataclass
+from itertools import product
 from typing import ClassVar
 
 from engine import sequences as sq
@@ -36,6 +39,7 @@ from engine.domain import (
     TriggerSet,
 )
 from engine.gates.base import GateFamily
+from engine.gates.tools.binding import can_pair, fixed_alignment_energy
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
@@ -459,6 +463,84 @@ class ToeholdAndGate(ToeholdGate):
     label = "AND Toehold"
     description = "Two-input translational AND"
     max_inputs = 2
+    # NOTE: `available` is still inherited as True from ToeholdGate while
+    # `generate_designs` below raises, so a submission naming this family validates and
+    # then fails part-way through a run. Re-declaring it False here is the documented fix,
+    # but it unregisters the family and three tests in tests/engine/gates/test_toehold.py
+    # assert it is registered, so the flip belongs with the commit that gives
+    # `generate_designs` a body rather than to this one.
+
+    #: Both stem arms span 18 nt (R1), so ``len_k2 = ARM_LEN - len_x``: every nucleotide
+    #: the overlap takes is one fewer for trigger B to invade with. That is the trade the
+    #: overlap length is chosen against.
+    ARM_LEN: ClassVar[int] = 18
+
+    #: Consecutive positions trigger B may be left unable to pair at before the stem is
+    #: rejected. Three in a row is enough to stall branch migration.
+    MAX_INVASION_STALL: ClassVar[int] = 2
+
+    def secondary_stems(self, trigger_a: str, trigger_b: str, len_x: int) -> list["_SecondaryStem"]:
+        """Every secondary stem worth folding, for one trigger pair and overlap length.
+
+        Enumerates the per-position assignment of §5.2's three states, keeps what satisfies
+        R6 and the invasion-stall cap, and returns the Pareto front over (lock, A-site,
+        B-site). Letting each position choose independently explores ``3^n`` builds and
+        strictly contains the two global strategies — anchoring every position to trigger A
+        or every position to trigger B — as special cases; measured on real candidates,
+        roughly half of the frontier is mixed, meaning neither global strategy can express
+        it.
+
+        The Pareto step is what makes the downstream folding affordable. The front grows
+        roughly linearly in the number of conflicts while ``3^n`` grows exponentially —
+        11, 29, 88 and 99 builds at n = 4, 6, 8 and 9 — so it reduces the work by three
+        orders of magnitude without discarding anything a later stage might have preferred.
+        Nothing is ranked here: a build is dropped only when another is at least as good on
+        all three claims and better on one.
+
+        Args:
+            trigger_a: Trigger A, RNA uppercase, reading ``k1 · bulge · main_pre · xA · extA``.
+            trigger_b: Trigger B, RNA uppercase, reading ``k2 · xB · r2``.
+            len_x: Length of the perfect reverse-complementary overlap the pair shares.
+
+        Returns:
+            The non-dominated stems, in enumeration order. Empty if no assignment satisfies
+            R6 — a real outcome for a pair whose extension fights its partner everywhere,
+            and the caller's signal to move on rather than to relax the rule.
+        """
+        ext, k2 = _secondary_domains(trigger_a, trigger_b, len_x, self.ARM_LEN)
+        x = trigger_a[self.ARM_LEN : self.ARM_LEN + len_x]
+        conflicts = _arm_conflicts(ext, k2)
+
+        stems: list[_SecondaryStem] = []
+        objectives: list[tuple[float, float, float]] = []
+        for combination in product(_ARM_STATES, repeat=len(conflicts)):
+            states = dict(zip(conflicts, combination, strict=True))
+            k2_star, secondary_z = _build_arms(ext, k2, states)
+            if not _invasion_runs_ok(ext, k2, k2_star, self.MAX_INVASION_STALL):
+                continue
+            lock = fixed_alignment_energy(k2_star, secondary_z, self.folder)
+            b_site = fixed_alignment_energy(k2, k2_star, self.folder)
+            a_site = fixed_alignment_energy(
+                x + ext, secondary_z + sq.reverse_complement(x), self.folder
+            )
+            if lock is None or b_site is None or a_site is None:
+                continue  # unevaluable, not zero — see fixed_alignment_energy
+            ddg_pref = lock - b_site
+            if ddg_pref < 0.0:
+                continue  # R6: the switch's own copy must be the weaker binder
+            stems.append(
+                _SecondaryStem(
+                    k2_star=k2_star,
+                    secondary_z=secondary_z,
+                    states=combination,
+                    ddg_pref=ddg_pref,
+                    lock_energy=lock,
+                    a_site_energy=a_site,
+                    b_site_energy=b_site,
+                )
+            )
+            objectives.append((lock, a_site, b_site))
+        return [stems[i] for i in _pareto_front(objectives)]
 
     def generate_designs(
         self, trigger_set: TriggerSet, constraints: Constraints
@@ -573,3 +655,129 @@ def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float:
         return 0.0
     unpaired = [max(0.0, 1.0 - sum(matrix[i])) for i in range(start, end)]
     return sum(unpaired) / len(unpaired)
+
+
+# --- The AND gate's secondary (inhibitory) stem -------------------------------------
+#
+# The top half of that stem carries three claims that cannot all be met. Trigger B must
+# invade the ascending arm, trigger A must nucleate on the descending arm, and the two
+# arms must hold each other shut when either trigger arrives alone. Across the overlap
+# `x` the three coincide and nothing is decided. Above it they do not, and at each
+# disagreeing position exactly two of the three can be served. These helpers enumerate
+# that choice rather than resolving it with a global rule, because which pair to serve is
+# a different answer at different positions.
+
+#: Per-position assignments worth making at a conflict. A fourth (serve neither trigger,
+#: close the lock against A's base while B needs another) satisfies nothing and is
+#: dominated, so it is never generated.
+_ARM_STATES: tuple[str, ...] = ("both", "lockA", "lockB")
+
+
+@dataclass(frozen=True, slots=True)
+class _SecondaryStem:
+    """One built secondary stem, with what the build costs on each of the three claims.
+
+    Intra-module only: this never crosses a stage boundary, which is why it is not a
+    record in ``engine.domain``.
+    """
+
+    k2_star: str
+    secondary_z: str
+    #: Assignment per conflict position, parallel to ``conflicts``.
+    states: tuple[str, ...]
+    #: ``dG(secondaryZ : k2*) - dG(k2 : k2*)``. R6 wants this ``>= 0``: free energies are
+    #: negative, so positive means the switch's own copy is the *weaker* binder and
+    #: trigger B can displace it. Computing it the other way round inverts the gate.
+    ddg_pref: float
+    lock_energy: float
+    a_site_energy: float
+    b_site_energy: float
+
+
+def _secondary_domains(trigger_a: str, trigger_b: str, len_x: int, arm_len: int) -> tuple[str, str]:
+    """Trigger A's extension past the overlap, and trigger B's invasion domain.
+
+    Trigger A reads ``k1 · bulge · main_pre · xA · extA`` and trigger B reads
+    ``k2 · xB · r2``, so both wanted domains are slices of sequences already in hand.
+    This is the adapter between a chosen trigger pair and the stem builder; the builder's
+    own two-transcript entry point is for a case this architecture does not use.
+    """
+    len_k2 = arm_len - len_x
+    ext_start = arm_len + len_x
+    return trigger_a[ext_start : ext_start + len_k2], trigger_b[:len_k2]
+
+
+def _arm_conflicts(ext: str, k2: str) -> tuple[int, ...]:
+    """Positions in ``k2*`` where trigger A's extension is not what trigger B needs."""
+    wanted = sq.reverse_complement(k2)
+    return tuple(p for p in range(len(ext)) if ext[p] != wanted[p])
+
+
+def _build_arms(ext: str, k2: str, states: dict[int, str]) -> tuple[str, str]:
+    """The two designed domains for one per-position assignment.
+
+    ``k2_star[p]`` pairs with ``secondary_z[len_k2 - 1 - p]``, so the descending arm is
+    written 3'→5' relative to the ascending one and both are returned 5'→3' as they sit
+    on the switch.
+    """
+    wanted = sq.reverse_complement(k2)
+    n = len(ext)
+    k2_star = "".join(ext[p] if states.get(p) == "lockA" else wanted[p] for p in range(n))
+    secondary_z = "".join(
+        sq.reverse_complement(
+            wanted[n - 1 - q] if states.get(n - 1 - q) == "lockB" else ext[n - 1 - q]
+        )
+        for q in range(n)
+    )
+    return k2_star, secondary_z
+
+
+def _invasion_runs_ok(ext: str, k2: str, k2_star: str, max_run: int) -> bool:
+    """Reject stems that hand trigger B a stretch it cannot migrate through.
+
+    **The cap is on positions where B cannot pair at all**, not on positions the design
+    flipped toward B. Where B gains a pair the incumbent lacks, its step is downhill; where
+    it must break a lock pair and form nothing, the step is uphill, and a run of those is
+    the barrier this rule exists to prevent. Capping the *flips* instead would be actively
+    harmful: it forces the lock's mismatches to scatter, and scattered mismatches cost
+    considerably more lock stability than clustered ones, because loop initiation is
+    sub-linear in size.
+    """
+    n = len(ext)
+    stalled = [p for p in _arm_conflicts(ext, k2) if not can_pair(k2_star[p], k2[n - 1 - p])]
+    run = 1
+    for i in range(1, len(stalled)):
+        run = run + 1 if stalled[i] == stalled[i - 1] + 1 else 1
+        if run > max_run:
+            return False
+    return True
+
+
+def _pareto_front(points: list[tuple[float, float, float]]) -> list[int]:
+    """Indices of the non-dominated points, all three objectives minimised.
+
+    A staircase sweep rather than the obvious all-pairs scan. Sorting by the first
+    objective means every point already seen is no worse on it, so domination collapses to
+    a two-dimensional query, answered against a list kept sorted on the second objective
+    with a strictly decreasing third. That is ``O(m log m)`` where all-pairs is ``O(m²)``
+    — at the largest real stems (~1.9M builds) the difference is minutes against weeks.
+
+    Exact ties are kept, all of them: identical objectives do not dominate each other, and
+    two builds scoring alike here are still different sequences that fold differently.
+    """
+    groups: dict[tuple[float, float, float], list[int]] = {}
+    for index, point in enumerate(points):
+        groups.setdefault(point, []).append(index)
+
+    staircase: list[tuple[float, float]] = []  # sorted by o1 ascending, o2 descending
+    survivors: list[int] = []
+    for o0, o1, o2 in sorted(groups):
+        cut = bisect_right(staircase, (o1, float("inf")))
+        if cut and staircase[cut - 1][1] <= o2:
+            continue  # something already seen is at least as good on all three
+        survivors.extend(groups[(o0, o1, o2)])
+        drop = cut
+        while drop < len(staircase) and staircase[drop][1] >= o2:
+            drop += 1
+        staircase[cut:drop] = [(o1, o2)]
+    return sorted(survivors)

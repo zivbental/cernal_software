@@ -127,6 +127,39 @@ class FoldEngine:
         return FoldResult(structure=structure, energy=energy)
 
     @cache  # noqa: B019 — one instance per run; see the class docstring
+    def structure_energy(self, strands: str, structure: str) -> float | None:
+        """Energy of one **given** structure, rather than the best one.
+
+        ``mfe`` asks "what will this fold into?"; this asks "what would it cost to hold it
+        like *this*?" — the question a designed duplex needs, where the alignment is
+        imposed by the design and not up for negotiation.
+
+        Args:
+            strands: RNA, uppercase, ``&``-joined for a complex, as everywhere else here.
+            structure: Dot-bracket over the strands **with the ``&`` removed**, same
+                length as ``strands`` minus its separators.
+
+        Returns:
+            Free energy in kcal/mol, or ``None`` if the structure is not evaluable under
+            the model.
+
+        Gotchas:
+            * ViennaRNA wants the separator-free structure here even though the compound
+              was built with ``&``; passing it back in returns the sentinel below instead
+              of raising, and the wrong number then flows onward looking plausible.
+            * It signals "impossible" by **returning** ``1e5``-ish rather than raising, so
+              a ``try``/``except`` around this call catches nothing. That is checked for
+              here, once, so no caller has to remember it.
+        """
+        if len(structure) != len(strands) - strands.count("&"):
+            raise ValueError(
+                f"structure is {len(structure)} long but {strands.count('&') + 1} strands "
+                f"hold {len(strands) - strands.count('&')} nucleotides"
+            )
+        energy = float(self._compound(strands).eval_structure(structure))
+        return energy if abs(energy) < 1e4 else None
+
+    @cache  # noqa: B019 — one instance per run; see the class docstring
     def partition(self, sequence: str) -> float:
         """Ensemble free energy over all structures, not just the most stable one.
 

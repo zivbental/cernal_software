@@ -15,6 +15,7 @@ import pytest
 
 from engine import sequences as sq
 from engine.domain import AssemblyStandard
+from engine.gates.tools.binding import alignment_pairs, fixed_alignment_energy
 from engine.gates.tools.folding import FoldEngine
 from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
@@ -330,6 +331,74 @@ def test_ensemble_defect_is_a_raw_count_not_a_fraction():
 def test_ensemble_defect_rejects_a_target_of_the_wrong_length():
     with pytest.raises(ValueError):
         FoldEngine().ensemble_defect("GGGGAAAACCCC", "((((....)))")
+
+
+# --- Fixed-alignment duplex energy (S3) ----------------------------------------------
+
+DUPLEX_A = "GGGAAACCCUUUAG"
+DUPLEX_B = "CUAAAGGGUUUCCC"  # exact reverse complement of DUPLEX_A
+
+
+def test_fixed_alignment_energy_matches_the_free_fold_when_the_alignment_is_the_best_one():
+    """The known answer. A perfect duplex has nothing better to do than pair straight
+    through, so forcing that register must agree with letting ViennaRNA choose it."""
+    folder = FoldEngine(temperature=37.0)
+
+    forced = fixed_alignment_energy(DUPLEX_A, DUPLEX_B, folder)
+
+    assert forced == pytest.approx(-22.8, abs=0.05)
+    assert forced == pytest.approx(folder.mfe(f"{DUPLEX_A}&{DUPLEX_B}").energy, abs=0.05)
+
+
+def test_fixed_alignment_energy_weakens_as_mismatches_are_added():
+    folder = FoldEngine()
+
+    perfect = fixed_alignment_energy(DUPLEX_A, DUPLEX_B, folder)
+    one_off = fixed_alignment_energy(DUPLEX_A, "CUAAAGGGUUACCC", folder)
+    ragged = fixed_alignment_energy(DUPLEX_A, "CAUAGGCGUAACGC", folder)
+
+    assert perfect < one_off < ragged
+
+
+def test_fixed_alignment_energy_never_returns_viennarnas_sentinel():
+    """ViennaRNA signals an unevaluable structure by *returning* 1e5 rather than raising,
+    so a try/except catches nothing and two such values subtract to 0.00 — which passes a
+    `>= 0` gate. Every stem energy in the upstream scripts reads as a pass for this
+    reason. `None` is the only safe answer."""
+    folder = FoldEngine()
+
+    for probe in (DUPLEX_A, "AAAAAAAAAAAAAA", "GUGUGUGUGUGUGU"):
+        value = fixed_alignment_energy(probe, DUPLEX_B, folder)
+        assert value is None or abs(value) < 1e4
+
+
+def test_fixed_alignment_energy_is_zero_when_no_position_can_pair():
+    """A real answer — the strands simply do not interact — and distinct from `None`,
+    which means the model could not tell us."""
+    assert fixed_alignment_energy("AAAA", "AAAA", FoldEngine()) == 0.0
+
+
+def test_fixed_alignment_energy_requires_equal_lengths():
+    """Truncating silently would score a shorter duplex than the design describes."""
+    with pytest.raises(ValueError):
+        fixed_alignment_energy("AAAA", "AAA", FoldEngine())
+
+
+def test_alignment_pairs_counts_gu_wobbles():
+    """A duplex scored on Watson-Crick pairs alone reads as broken while it still holds;
+    on this project that produced a knockout retaining a fully wobble-paired run."""
+    assert alignment_pairs("GGGG", "UUUU") == [True, True, True, True]
+
+
+def test_structure_energy_rejects_a_structure_that_still_carries_the_separator():
+    """The one-character mistake behind the sentinel: `eval_structure` wants the
+    separator-free structure even though the compound was built with `&`."""
+    folder = FoldEngine()
+    strands = f"{DUPLEX_A}&{DUPLEX_B}"
+
+    assert folder.structure_energy(strands, "(" * 14 + ")" * 14) == pytest.approx(-22.8, abs=0.05)
+    with pytest.raises(ValueError):
+        folder.structure_energy(strands, "(" * 14 + "&" + ")" * 14)
 
 
 # --- Accessibility profiling (stages/folding.py, S1) --------------------------------
