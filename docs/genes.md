@@ -1,7 +1,12 @@
 # Gene selection — assessment and design
 
-**Status:** Design. Nothing in this document is built; `GeneSelector.select` is still
-`raise NotImplementedError("Step 5")`.
+**Status:** Built. `GeneSelector.select` implements §4–§6 below, tested in
+`tests/engine/test_genes.py` against real rows from the public catalog (§1's own
+worked example). **Not yet wired into `run_pipeline`** — the `de` path as a whole is
+still blocked on `InputQualityCheck` (still a stub), the pipeline composition itself,
+and Q1 (transcript sequences for `TriggerScorer`); see docs/ROADMAP.md E2. `engine.inputs.parse_dge_table`
+(§6 G3) is built too. Decisions D1–D5 in §5 were resolved as implemented, not left
+open — see each axis's own section for what was chosen and why.
 **Question it answers:** *given one differential-expression table and nothing else, which
 handful of genes is worth building a circuit around?*
 **Companion documents:** [`ROADMAP.md`](ROADMAP.md) Q1/Q2 and [`integration.md`](integration.md)
@@ -112,9 +117,11 @@ matrix.** Worth deciding deliberately rather than discovering at stage 4.
 
 ```python
 class DgeRow:
-    p_adj: float          # not float | None
+    p_adj: float  # not float | None
+
+
 class SelectedGene:
-    p_adj: float          # not float | None
+    p_adj: float  # not float | None
 ```
 
 The parser cannot build a `DgeRow` for a catalog row without inventing a number, and the
@@ -379,21 +386,25 @@ keep receiving tables with no FDR and must handle them, not fix them.
 Ordered so that each step is testable when it lands. G1–G3 are prerequisites owned by
 whoever is nearest; G4–G7 are the stage itself.
 
-| # | Task | File | Depends on |
-|---|---|---|---|
-| **G1** | `DgeRow.p_adj` → `float \| None` (`p_value` already is); add `base_expression`/`target_expression: float \| None` (the platform already recognises those column aliases; `DgeRow` has nowhere to put them). `SelectedGene`: `p_adj`, `control_percentile`, `condition_percentile`, `condition_specificity` → `\| None`; add `trigger_yield: float \| None` and `usable_windows: int \| None` | `engine/domain.py` | D1 |
-| **G2** | `Constraints` gains `max_genes: int = 20`, `max_separation: float \| None = None`, `min_base_expression`/`max_base_expression: float \| None = None`, `direction_balance: bool = True`. Nothing else needed — `_build_constraints` picks them up from the dataclass automatically | `engine/domain.py` | D4 |
-| **G3** | The parser (GAP-1): `input_path` → `DgeTable`, honouring `COLUMN_ALIASES`, emitting `None` for absent columns, never returning a DataFrame. Decide its module first — `engine/inputs.py` is the obvious answer | *new* | GAP-1 |
-| **G4** | `GeneSelector.select` — axes 1 and 2, the tiered significance rule (§4.1), the abundance window, the effect-size floor and ceiling, deterministic sort with `gene_id` as final tiebreak | `engine/stages/genes.py` | G1, G2 |
-| **G5** | Trigger yield (§4.2). `MotifScreener` injected via `__init__`, built in `pipeline.build_tools` and shared with `TriggerScorer` — never constructed here. Drop genes with yield 0; drop genes absent from `sequences` and **count them**, so a namespace mismatch (G-d) is a named error not an empty list | `engine/stages/genes.py` | G4, Q1 |
-| **G6** | Greedy non-redundant selection (§4.3), with whichever similarity signal is available and a clean skip when none is | `engine/stages/genes.py` | G4 |
-| **G7** | The score (§4.5): weights in one table, renormalised over present axes, and the list of contributing axes reported | `engine/stages/genes.py` | G4–G6 |
-| **G8** | Pipeline wiring: parse → `InputQualityCheck` → `GeneSelector` → `TriggerScorer`; the direction/constructibility warning (§4.4); every "axis not measured" warning surfaced on the run, not swallowed | `engine/pipeline.py` | G3–G7 |
-| **G9** | Docs in the same PR: this file's status, [engine.md](engine.md) §3.1's signature, [ROADMAP.md](ROADMAP.md) E2 and Q2, [api-surface.md](api-surface.md) | `docs/` | all |
+| # | Task | File | Depends on | Status |
+|---|---|---|---|---|
+| **G1** | `DgeRow.p_adj` → `float \| None` (`p_value` already is); add `base_expression`/`target_expression: float \| None` (the platform already recognises those column aliases; `DgeRow` has nowhere to put them). `SelectedGene`: `p_adj`, `control_percentile`, `condition_percentile`, `condition_specificity` → `\| None`; add `trigger_yield: float \| None` and `usable_windows: int \| None` | `engine/domain.py` | D1 | ✅ (named `control_mean`/`target_mean`, not `base_expression`/`target_expression` — a clearer domain name than the CSV column it's parsed from; docstring cross-references it) |
+| **G2** | `Constraints` gains `max_genes: int = 20`, `max_separation: float \| None = None`, `min_base_expression`/`max_base_expression: float \| None = None`, `direction_balance: bool = True`. Nothing else needed — `_build_constraints` picks them up from the dataclass automatically | `engine/domain.py` | D4 | ✅ (plus `trigger_gc_range: tuple[float, float] = (30.0, 70.0)` for §4.2's screen, not anticipated when this table was first written) |
+| **G3** | The parser (GAP-1): `input_path` → `DgeTable`, honouring `COLUMN_ALIASES`, emitting `None` for absent columns, never returning a DataFrame. Decide its module first — `engine/inputs.py` is the obvious answer | *new* | GAP-1 | ✅ `engine/inputs.py`, `parse_dge_table(raw: bytes, filename: str) -> DgeTable` — takes bytes rather than a path, so the platform decides how the file reaches it; unranked in the layer graph, like `store.py`/`artifacts.py` |
+| **G4** | `GeneSelector.select` — axes 1 and 2, the tiered significance rule (§4.1), the abundance window, the effect-size floor and ceiling, deterministic sort with `gene_id` as final tiebreak | `engine/stages/genes.py` | G1, G2 | ✅ |
+| **G5** | Trigger yield (§4.2). `MotifScreener` injected via `__init__`, built in `pipeline.build_tools` and shared with `TriggerScorer` — never constructed here. Drop genes with yield 0; drop genes absent from `sequences` and **count them**, so a namespace mismatch (G-d) is a named error not an empty list | `engine/stages/genes.py` | G4, Q1 | ✅ — `MotifScreener` injected, not yet actually shared with a live `TriggerScorer` since nothing wires `GeneSelector`'s output into stage 2 today (G8) |
+| **G6** | Greedy non-redundant selection (§4.3), with whichever similarity signal is available and a clean skip when none is | `engine/stages/genes.py` | G4 | ✅ — implemented with the one signal that does not crash on a stub: a count matrix's per-sample correlation. The sequence-based (`OffTargetScanner.find_similar`) and locus-tag-adjacency signals from the table in §4.3 are not wired in — the first is itself an unimplemented stub, and calling it would crash the run outright rather than degrade gracefully |
+| **G7** | The score (§4.5): weights in one table, renormalised over present axes, and the list of contributing axes reported | `engine/stages/genes.py` | G4–G6 | ✅ — reported via an `on_warning` callback (the same idiom `SwitchDesigner.design`'s `on_incompatible`/`on_invalid` already use), added during implementation since `select`'s return type has no room for warnings of its own |
+| **G8** | Pipeline wiring: parse → `InputQualityCheck` → `GeneSelector` → `TriggerScorer`; the direction/constructibility warning (§4.4); every "axis not measured" warning surfaced on the run, not swallowed | `engine/pipeline.py` | G3–G7 | **Not done.** `run_pipeline`'s `de` branch is an unconditional `InputValidationError` today, by its own module docstring's deliberate scope — wiring it up needs `InputQualityCheck` (still a stub) and Q1 (transcript sequences) regardless of `GeneSelector`. The gate-family-aware direction warning in §4.4 belongs here specifically, once there is a `run_pipeline` to put it in |
+| **G9** | Docs in the same PR: this file's status, [engine.md](engine.md) §3.1's signature, [ROADMAP.md](ROADMAP.md) E2 and Q2, [api-surface.md](api-surface.md) | `docs/` | all | ✅ (Q2 in ROADMAP.md is stage 2/3's own threshold question, not stage 1's — left alone) |
 
-### Test plan
+### Test plan — ✅ built
 
-`tests/engine/test_genes.py`, matching `tests/engine`'s no-Django, sub-second budget:
+`tests/engine/test_genes.py` (24 tests) and `tests/engine/test_inputs.py` (17 tests),
+both matching `tests/engine`'s no-Django, sub-second budget — every case below is
+covered, plus the significance tiers (§4.1: `padj`/computed BH/raw fallback/none) and
+the direction-balance behaviour (§4.4), which this original test-plan draft did not yet
+list:
 
 - **The §1 regression.** A fixture shaped like the `E-CURD-149` head — a huge-|log2FC| row
   with no p-value, one with p=0.06, one modest and clean — asserts the clean gene outranks

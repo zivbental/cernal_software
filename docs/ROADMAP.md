@@ -272,10 +272,20 @@ to a scanned offset.
 `InputQualityCheck` → `GeneSelector` → `TriggerScorer`.
 
 - Read the DE table with pandas. **Do not carry DataFrames through the pipeline** —
-  convert to `DgeTable` at the edge.
+  convert to `DgeTable` at the edge. **✅ built** — `engine.inputs.parse_dge_table`
+  (no pandas: a stdlib CSV/TSV parser, since nothing downstream needs a DataFrame).
 - `GeneSelector` keeps genes that separate the two states: fold change, adjusted p, and a
   usable absolute expression range in both states. Too low gives false negatives, too high
-  false positives.
+  false positives. **✅ built** — full design and worked examples in
+  [genes.md](genes.md): a tiered significance rule (a table's own `p_adj`, a
+  computed Benjamini-Hochberg FDR, a raw-p fallback, or none at all, depending on what
+  the table actually carries), an effect-size floor *and* ceiling, a directional
+  ON/OFF abundance check, a no-folding trigger-yield screen when transcript sequences
+  are available, a greedy non-redundancy pass over a count matrix, and a
+  direction-balanced shortlist. `counts` and `sequences` are optional constructor
+  arguments, not required ones — every axis that needs them degrades to `None`
+  (never a placeholder number) when they are absent, which is the normal case for
+  every public dataset this product ships (docs/genes.md §2).
 - `TriggerScorer` slides a window along each surviving transcript and ranks every
   sub-segment. **Per length class**, because each gate family needs a different footprint.
 - Genes DESeq2 filtered out carry **no** `p_adj` at all. "Not tested" must not be treated
@@ -285,6 +295,13 @@ to a scanned offset.
 `TriggerCandidate` if it already fits one trigger window, or is scanned into several via
 `TriggerScorer.score` if it is longer ([triggers.md](triggers.md)); either way, stages 1–2
 proper are skipped ([modalities.md §1](modalities.md)).
+
+**Still blocking the `de` branch as a whole:** `InputQualityCheck` is still a stub, and
+`run_pipeline` has no `de` wiring at all — it still raises `InputValidationError`
+unconditionally for anything but `direct` (`engine/pipeline.py`'s own module
+docstring). `GeneSelector` being built removes one blocker, not all of them: `Q1`
+(transcript sequences for `TriggerScorer`) and the pipeline composition itself are
+still open.
 
 **Done when:** a real DE file produces ranked `TriggerCandidate` records with real
 openness and GC numbers.

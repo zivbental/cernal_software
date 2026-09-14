@@ -148,16 +148,39 @@ class SampleMetadata:
 
 @dataclass(frozen=True, slots=True)
 class DgeRow:
-    """One gene's differential-expression result, as DESeq2 and friends report it."""
+    """One gene's differential-expression result, as DESeq2 and friends report it.
+
+    Only ``gene_id`` and ``log2_fold_change`` are guaranteed present — everything else
+    is ``None`` when the source table does not carry it, never a fabricated number
+    (docs/genes.md §2). The public dataset catalog carries no adjusted p-value at all in
+    any of its 15 curated comparisons and no p-value in five of them; a bundled example
+    upload carries neither ``symbol`` nor per-group means. ``p_adj``/``p_value`` of
+    ``None`` mean "not tested", not "not significant" — a DESeq2 run drops rows it
+    filtered internally, and those rows must never be treated as passing a significance
+    threshold.
+
+    Attributes:
+        base_mean: DESeq2's ``baseMean`` — average expression across *all* samples,
+            not split by group. Cannot distinguish the ON state from the OFF state on
+            its own; see ``control_mean``/``target_mean``.
+        control_mean: Mean expression in the control group, when the source table
+            provides per-group means (the platform's ``base_expression`` column,
+            uncommon in a raw DESeq2 export — most researchers export ``baseMean``
+            only).
+        target_mean: Mean expression in the condition group (the platform's
+            ``target_expression`` column).
+    """
 
     gene_id: str
-    symbol: str
-    base_mean: float
     log2_fold_change: float
-    p_adj: float
+    symbol: str = ""
+    p_adj: float | None = None
+    p_value: float | None = None
+    base_mean: float | None = None
+    control_mean: float | None = None
+    target_mean: float | None = None
     lfc_se: float | None = None
     stat: float | None = None
-    p_value: float | None = None
 
     @property
     def regulation(self) -> Regulation:
@@ -205,6 +228,12 @@ class CountMatrix:
 class SelectedGene:
     """Stage 1 output — a gene that separates the two cell states.
 
+    Every field below ``log2_fold_change`` is ``None`` rather than a placeholder number
+    when it was not measured (docs/genes.md §3, §4.5) — a run given only a bare DE table
+    (no count matrix, no transcript sequences, no reference atlas) still produces a
+    ranked shortlist, but most of these fields, and ``score``'s underlying axes, will be
+    ``None`` on every row. That degradation is reported, not hidden.
+
     Attributes:
         gene_id: The database identifier, e.g. ``b0002``. Joins to the DGE table and to
             the sequence library.
@@ -214,10 +243,16 @@ class SelectedGene:
             UP gene is a natural activator input, a DOWN gene reaches the circuit through
             a NOT gate. Stage 4 makes that mapping.
         log2_fold_change: Effect size, from the researcher's DGE results.
-        p_adj: Adjusted p-value. Genes DESeq2 filtered out carry no value at all, and
-            "not tested" must not be treated as "not significant".
+        score: Stage 1's combined ranking. The weighting decides what the whole run
+            explores, so it should be a recorded scientific choice
+            (``GeneSelector``'s own ``WEIGHT_*`` constants, docs/genes.md §4.5).
+        p_adj: Adjusted p-value, when the table carries one. Genes DESeq2 filtered out
+            carry no value at all, and "not tested" must not be treated as "not
+            significant" — ``None`` here may mean either "not tested" or "the table has
+            no adjusted p-value column at all"; see ``GeneSelector``'s significance tier
+            for which.
         control_percentile: Where this gene sits in the control group's own expression
-            distribution, 0 to 100.
+            distribution, 0 to 100. Needs a count matrix.
         condition_percentile: The same for the condition group. Two genes with identical
             fold changes can differ sharply here, and the pair is a better separation
             signal than the fold change alone.
@@ -225,19 +260,28 @@ class SelectedGene:
             target state rather than being everywhere. Needs a reference atlas; a gene
             expressed strongly in the target *and* throughout the body is a poor trigger
             for anything therapeutic.
-        score: Stage 1's combined ranking. The weighting decides what the whole run
-            explores, so it should be a recorded scientific choice.
+        trigger_yield: Fraction of this transcript's scanned windows that survive a
+            no-folding screen (motif violations, an accidental start codon in either
+            orientation, GC extremes) — docs/genes.md §4.2. A gene with a yield of 0.0 is
+            never selected: however clean its statistics, stage 2 could build nothing
+            from it. Needs the transcript sequence (Q1); ``None`` when it was not
+            supplied, never 0.0 for "not tested".
+        usable_windows: The raw count behind ``trigger_yield`` — how many windows
+            survived, not just what fraction. Useful on its own when the transcript is
+            short enough that the fraction alone hides a very small absolute number.
     """
 
     gene_id: str
     symbol: str
     regulation: Regulation
     log2_fold_change: float
-    p_adj: float
-    control_percentile: float
-    condition_percentile: float
-    condition_specificity: float
     score: float
+    p_adj: float | None = None
+    control_percentile: float | None = None
+    condition_percentile: float | None = None
+    condition_specificity: float | None = None
+    trigger_yield: float | None = None
+    usable_windows: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -320,6 +364,31 @@ class Constraints:
             The scientific team's to populate.
         standard: Which assembly standard to enforce. Decides which restriction sites are
             prohibited.
+        max_genes: Stage 1's shortlist ceiling (docs/genes.md §5 D4). A compute-budget
+            knob, not a scientific threshold — everything downstream scales with it, so
+            it belongs here rather than as a class constant nobody can configure.
+        max_separation: Optional ceiling on ``abs(log2FoldChange)``. ``min_separation`` is
+            a floor; an implausibly *large* fold change is usually evidence of a
+            near-zero denominator, not strong regulation (docs/genes.md §1). ``None``
+            means no ceiling is applied.
+        min_base_expression: Floor on a gene's expression in whichever group is the "ON"
+            state for its direction — too low and a switch never sees enough trigger.
+            ``None`` means the check is skipped (most public datasets carry no
+            abundance column at all, docs/genes.md §2).
+        max_base_expression: Ceiling on a gene's expression in whichever group is the
+            "OFF" state for its direction — too high and the switch leaks.
+        trigger_gc_range: GC% band a trigger window must fall inside to count as usable
+            in stage 1's trigger-yield screen (docs/genes.md §4.2). Separate from
+            ``engine.scoring``'s ``gc_content`` metric range: this is a coarse,
+            no-folding-required pre-filter at gene-selection time, not the scored
+            per-design metric — the default mirrors that range because nobody has
+            reviewed a different one yet.
+        direction_balance: When true, stage 1 reserves shortlist slots for both
+            ``Regulation.UP`` and ``Regulation.DOWN`` genes rather than letting
+            whichever direction happens to have larger effect sizes in this dataset
+            crowd out the other (docs/genes.md §4.4 — measured as 19-to-1 on a real
+            public comparison). Circuit logic needing ``AND NOT`` has nothing to build
+            from if stage 1 never kept a repressor candidate.
     """
 
     max_triggers: int = 2
@@ -329,6 +398,12 @@ class Constraints:
     max_switch_length: int = 200
     forbidden_motifs: tuple[str, ...] = ()
     standard: AssemblyStandard = AssemblyStandard.RFC10
+    max_genes: int = 20
+    max_separation: float | None = None
+    min_base_expression: float | None = None
+    max_base_expression: float | None = None
+    trigger_gc_range: tuple[float, float] = (30.0, 70.0)
+    direction_balance: bool = True
 
 
 @dataclass(frozen=True, slots=True)

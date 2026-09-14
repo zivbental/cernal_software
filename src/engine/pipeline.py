@@ -455,6 +455,8 @@ def _build_constraints(params: dict) -> Constraints:
         raw["trigger_lengths"] = tuple(raw["trigger_lengths"])
     if "forbidden_motifs" in raw:
         raw["forbidden_motifs"] = tuple(raw["forbidden_motifs"])
+    if "trigger_gc_range" in raw:
+        raw["trigger_gc_range"] = tuple(raw["trigger_gc_range"])
     if "standard" in raw:
         try:
             raw["standard"] = AssemblyStandard(raw["standard"])
@@ -652,13 +654,12 @@ def _direct_trigger(
         gene_id="direct",
         symbol="direct-trigger",
         regulation=Regulation.UP,
-        # Placeholders: these describe a differential-expression comparison this
-        # submission never made. TriggerScorer.score reads none of them.
+        # This describes a differential-expression comparison this submission never
+        # made. TriggerScorer.score reads none of these fields — log2_fold_change and
+        # score are required by the record and stay 0.0 as inert placeholders; every
+        # optional field is None rather than a fabricated measurement (domain.py's own
+        # "None means not measured" rule, docs/genes.md §3 G1), since none of them were.
         log2_fold_change=0.0,
-        p_adj=0.0,
-        control_percentile=0.0,
-        condition_percentile=0.0,
-        condition_specificity=1.0,
         score=0.0,
     )
     scorer = TriggerScorer(profiler, off_target, screener, folder)

@@ -501,12 +501,21 @@ class InputQualityCheck:  # S15
     def check(self, counts: CountMatrix, metadata: SampleMetadata) -> QcReport: ...
 
 
-class GeneSelector:  # Stage 1
+class GeneSelector:  # Stage 1 — built, docs/genes.md
     """Keep the genes that actually separate the two cell states. Big enough fold
     change, statistically significant, and expressed in a usable absolute range in
-    both states: too low gives false negatives, too high gives false positives."""
+    both states: too low gives false negatives, too high gives false positives.
+    ``counts`` and ``sequences`` are optional — a bare DE table alone still produces a
+    ranked shortlist, on effect size and significance only (docs/genes.md §5 D1)."""
 
-    def select(self, counts: CountMatrix, dge: DgeTable) -> list[SelectedGene]: ...
+    def select(
+        self,
+        dge: DgeTable,
+        *,
+        counts: CountMatrix | None = None,
+        sequences: dict[str, str] | None = None,
+        on_warning: Callable[[str], None] | None = None,
+    ) -> list[SelectedGene]: ...
 
 
 class TriggerScorer:  # Stage 2
