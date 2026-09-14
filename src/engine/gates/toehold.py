@@ -21,6 +21,7 @@ called out inline rather than silently guessed — see the port's open questions
 Reference: design map 12, and the pipeline map's Switches Design stage.
 """
 
+import re
 from bisect import bisect_right
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -39,7 +40,11 @@ from engine.domain import (
     TriggerSet,
 )
 from engine.gates.base import GateFamily
-from engine.gates.tools.binding import can_pair, fixed_alignment_energy
+from engine.gates.tools.binding import (
+    can_pair,
+    fixed_alignment_energy,
+    longest_complementary_run,
+)
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
@@ -491,6 +496,143 @@ class ToeholdAndGate(ToeholdGate):
     #: constant rather than a literal buried in a method so that it is at least declared.
     #: It is **a nucleotide count**, unrelated to ``separation``, which is kcal/mol.
     MIN_WINDOW_GAP: ClassVar[int] = 50
+
+    #: Patterns forbidden anywhere in trigger A's window, as regular expressions over RNA.
+    #: RNase E cleavage would shorten the transcript carrying the trigger; a G-quadruplex
+    #: or a poly-U run would sequester or terminate it; an internal Shine-Dalgarno would
+    #: give the ribosome a second place to start.
+    #:
+    #: Not routed through ``MotifScreener``, and not from preference: that screener
+    #: ``re.escape``s its ``extra_motifs``, so it can only match literals and cannot
+    #: express any of these. It also answers a different question — restriction sites and
+    #: homopolymers, i.e. whether a sequence can be *assembled* — where these are about
+    #: whether the transcript survives and is translated once. Teaching it regexes is a
+    #: change to a stage every family is screened by, so it needs coordinating; until then
+    #: these live here, where the pipeline can reach them.
+    FORBIDDEN_MOTIFS: ClassVar[dict[str, str]] = {
+        "RNase_E": r"[AG]AUGA",
+        "G_quadruplex": r"G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,7}G{3,}",
+        "poly_U": r"U{5,}",
+        "internal_SD": r"AGGAGG|AAGGAG|GGAGGA",
+    }
+
+    #: *E. coli* rare codons. A negative control may not introduce one: it has to differ
+    #: from the real construct in whether the trigger works, not in how well it translates.
+    RARE_CODONS: ClassVar[frozenset[str]] = frozenset({"AGG", "AGA", "CGA", "AUA", "CUA"})
+
+    def screen_trigger_window(self, window_a: str, main_pre: str) -> tuple[str, ...]:
+        """Sequence restrictions on trigger A's window. Empty means clean.
+
+        Args:
+            window_a: Trigger A's full 36-nt footprint on the transcript.
+            main_pre: The 9 nt immediately 5' of the overlap.
+
+        Returns:
+            The name of every violated restriction, in declaration order.
+
+        Note:
+            ``main_pre`` is checked for a stop codon **in its own frame**, read from its
+            own 5' end. In the finished switch it lands at +4…+12, codons 2 to 4 of the
+            output protein, so its frame there is set by the switch's start codon and not
+            by the frame it happens to occupy in the transcript it was taken from.
+        """
+        rna = sq.to_rna(window_a)
+        hits = [name for name, pattern in self.FORBIDDEN_MOTIFS.items() if re.search(pattern, rna)]
+        pre = sq.to_rna(main_pre)
+        if any(pre[i : i + 3] in sq.STOP_CODONS for i in (0, 3, 6)):
+            hits.append("in_frame_stop")
+        return tuple(hits)
+
+    def _synonymous(self, codon: str) -> list[str]:
+        """Other codons for the same residue, excluding rare ones and the codon itself."""
+        residue = sq.CODON_TABLE.get(codon)
+        if residue is None:
+            return []
+        return [
+            c
+            for c, r in sq.CODON_TABLE.items()
+            if r == residue and c != codon and c not in self.RARE_CODONS
+        ]
+
+    def knockout_possible(self, transcript: str, start: int, length: int, partner: str) -> bool:
+        """Could synonymous substitution alone leave this trigger unable to nucleate?
+
+        The negative controls are the whole point of a four-state panel: state 10 is the
+        transcript with trigger B disabled, state 01 with trigger A disabled, both on the
+        same background so the comparison means something. A pair whose codons do not
+        permit that cannot be validated, however good the gate is.
+
+        Computed exactly rather than by search: break *every* position any synonymous
+        codon can break, then ask whether a pairable run of ``MIN_OVERLAP`` still
+        survives. If one does, no combination of synonymous edits can disable this
+        trigger.
+
+        **Wobbles count**, through ``longest_complementary_run``, and that is why this is
+        not a rare outcome — a position can only be broken by a base pairing with
+        *neither* partner option, and codons like ``AUG`` and ``UGG`` offer nothing at all.
+
+        Args:
+            transcript: The coding sequence, RNA uppercase, in frame from its first base.
+            start: 0-based start of the region to disable.
+            length: Its length in nucleotides.
+            partner: The switch domain this region pairs with, built against the original
+                sequence, since that is what the gate was designed for.
+        """
+        rna = sq.to_rna(transcript)
+        broken = list(rna[start : start + length])
+        for position in self._breakable_positions(rna, start, length):
+            codon_index, offset = divmod(position, 3)
+            codon = rna[codon_index * 3 : codon_index * 3 + 3]
+            partner_base = partner[length - 1 - (position - start)]
+            for alternative in self._synonymous(codon):
+                if not can_pair(alternative[offset], partner_base):
+                    broken[position - start] = alternative[offset]
+                    break
+        return longest_complementary_run("".join(broken), partner) < self.MIN_OVERLAP
+
+    def _breakable_positions(self, transcript: str, start: int, length: int) -> set[int]:
+        """Positions inside a region that some synonymous codon can actually change."""
+        movable: set[int] = set()
+        for codon_index in range(start // 3, (start + length - 1) // 3 + 1):
+            codon = transcript[codon_index * 3 : codon_index * 3 + 3]
+            for alternative in self._synonymous(codon):
+                for offset in range(3):
+                    position = codon_index * 3 + offset
+                    if codon[offset] != alternative[offset] and start <= position < start + length:
+                        movable.add(position)
+        return movable
+
+    def controls_constructible(self, transcript: str, pair: "_TriggerPair") -> tuple[bool, bool]:
+        """Whether states 01 and 10 can both be built for this pair, as ``(ko_A, ko_B)``.
+
+        Each trigger has two places it can be hit. The overlap is the cheapest and most
+        specific — for trigger A it is the *only* nucleation site, which is what ``a = 0``
+        means. When the codons there do not permit enough change, and with wobbles counted
+        they often do not, the invasion arm is the fallback: ``k1`` for trigger A, ``k2``
+        for trigger B.
+        """
+        rna = sq.to_rna(transcript)
+        a_start, _ = pair.window_a()
+        x = rna[pair.x_start : pair.x_start + pair.len_x]
+        x_star = rna[pair.xstar_start : pair.xstar_start + pair.len_x]
+
+        ko_a = self.knockout_possible(rna, pair.x_start, pair.len_x, x_star) or (
+            self.knockout_possible(
+                rna, a_start, 6, sq.reverse_complement(rna[a_start : a_start + 6])
+            )
+        )
+        k2_start = pair.xstar_start - pair.len_k2
+        ko_b = self.knockout_possible(rna, pair.xstar_start, pair.len_x, x) or (
+            pair.len_k2 > 0
+            and k2_start >= 0
+            and self.knockout_possible(
+                rna,
+                k2_start,
+                pair.len_k2,
+                sq.reverse_complement(rna[k2_start : pair.xstar_start]),
+            )
+        )
+        return ko_a, ko_b
 
     def find_trigger_pairs(
         self, transcript: str, *, min_window_gap: int | None = None

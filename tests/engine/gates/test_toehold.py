@@ -538,3 +538,47 @@ def test_trigger_pairs_never_collide_and_respect_the_requested_gap():
         assert pair.disjoint()
         assert pair.gap() >= 40
         assert pair.fits(len(transcript))
+
+
+def test_forbidden_motifs_are_caught_in_the_trigger_window():
+    """These are regular expressions, which is exactly why they cannot go through
+    `MotifScreener` — it `re.escape`s its extra motifs and can only match literals."""
+    gate = _and_gate()
+    clean_pre = "GCAUCGAUC"
+
+    assert gate.screen_trigger_window("ACGUACGUACGU", clean_pre) == ()
+    assert "RNase_E" in gate.screen_trigger_window("ACGAAUGAACGU", clean_pre)
+    assert "poly_U" in gate.screen_trigger_window("ACGUUUUUACGU", clean_pre)
+    assert "internal_SD" in gate.screen_trigger_window("ACGAGGAGGACG", clean_pre)
+
+
+def test_a_stop_codon_in_main_pre_is_read_in_its_own_frame():
+    """`main_pre` lands at +4..+12 in the finished switch, so its frame is set by the
+    switch's own start codon, not by the frame it occupied in the source transcript. Read
+    in the wrong frame this check both misses real stops and invents absent ones."""
+    gate = _and_gate()
+
+    assert "in_frame_stop" in gate.screen_trigger_window("ACGUACGUACGU", "GCAUAAGCU")
+    #      ^ UAA at offset 3, in frame.  Below, the same UAA sits at offset 4 - out of
+    #        frame, harmless, and must not be reported.
+    assert "in_frame_stop" not in gate.screen_trigger_window("ACGUACGUACGU", "GCAGUAAGC")
+
+
+def test_a_trigger_of_pure_methionine_and_tryptophan_cannot_be_knocked_out():
+    """AUG and UGG have no synonym at all, so no synonymous substitution can touch them.
+    A pair resting on such a stretch has no negative control and is unusable however good
+    the gate would be - which is why this runs inside the scan, not after it."""
+    gate = _and_gate()
+    immovable = "AUGUGGAUGUGGAUGUGG"
+
+    assert not gate.knockout_possible(immovable, 0, 6, sq.reverse_complement(immovable[:6]))
+
+
+def test_a_trigger_with_synonymous_freedom_can_be_knocked_out():
+    """The other side of the check: leucine and serine each have six codons, so these
+    positions can be broken and the control is buildable. Without a passing case the
+    immovable one above would also pass a function that always answered `False`."""
+    gate = _and_gate()
+    region = "CUGCUGCUGAGCAGCAGC"
+
+    assert gate.knockout_possible(region, 0, len(region), sq.reverse_complement(region))
