@@ -232,6 +232,106 @@ def test_mfe_folds_a_complex_as_a_dimer_not_a_concatenated_strand():
     assert dimer.energy != concatenated.energy
 
 
+# --- Joint accessibility: p_open (S2) -----------------------------------------------
+
+# An 18-bp stem closed by Kim's inhibitory loop, padded so the arms have real context.
+STEM = "GGACAGGAUGUCCCAUGC"
+HAIRPIN = "GGG" + STEM + "CAAGAACUUAGACAA" + sq.reverse_complement(STEM) + "AAAA"
+ARM = (3, 21)  # the 18-nt ascending arm, 0-based half-open
+
+
+def test_p_open_collapses_over_a_paired_stem_arm():
+    """The whole point of the joint form: an arm locked in a stem is not merely
+    unlikely to be open, it is astronomically unlikely, and the average over bases
+    (0.0013 here) hides that by twelve orders of magnitude."""
+    assert FoldEngine().p_open(HAIRPIN, ARM) == pytest.approx(3.4e-22, rel=0.25)
+
+
+def test_p_open_is_far_below_one_even_for_a_completely_unstructured_span():
+    """Holding N named bases open at once costs entropy even with nothing to pair
+    against, which is why `p_open` must never be compared against a threshold that was
+    calibrated for a per-base average."""
+    unstructured = "A" * 20 + STEM + "A" * 20
+    folder = FoldEngine()
+
+    wide = folder.p_open(unstructured, (20, 38))
+    narrow = folder.p_open(unstructured, (20, 24))
+
+    assert wide == pytest.approx(1.6e-4, rel=0.3)
+    assert narrow == pytest.approx(1.4e-3, rel=0.3)
+    assert wide < narrow < 0.01
+
+
+def test_p_open_constrains_the_window_of_the_first_strand_not_the_concatenation():
+    """The only thing that catches an off-by-one, because a shifted window still folds
+    and still scores. Opening the switch's own stem must cost more than opening a span
+    of the same length that is already unpaired."""
+    switch, trigger = HAIRPIN, "GGGUUUCCC"
+    folder = FoldEngine()
+
+    complex_ = f"{switch}&{trigger}"
+    assert folder.p_open(complex_, ARM) < folder.p_open(complex_, (54, 58))
+
+    with pytest.raises(ValueError):
+        folder.p_open(f"{switch}&{trigger}", (0, len(switch) + 5))
+    with pytest.raises(ValueError):
+        folder.p_open(switch, (10, 10))
+
+
+def test_p_open_is_invariant_to_rotating_the_strand_order():
+    """ViennaRNA's multi-strand ensemble depends on strand order only up to rotation, so
+    `_strand_orders` may enumerate one representative per circular class."""
+    switch, a, b = HAIRPIN, "GGGUUUCCC", "AUGCAUGCAUGC"
+    folder = FoldEngine()
+
+    assert folder.partition(f"{switch}&{a}&{b}") == pytest.approx(
+        folder.partition(f"{a}&{b}&{switch}"), abs=1e-6
+    )
+
+
+def test_p_open_sums_over_every_strand_ordering():
+    """Summed, so the answer does not depend on the order the caller happened to pass —
+    and the spread between orderings is real (2.75 kcal/mol on a realistic triple), so
+    picking one silently would be picking a number."""
+    switch, a, b = HAIRPIN, "GGGUUUCCC", "AUGCAUGCAUGC"
+    folder = FoldEngine()
+
+    assert folder.p_open(f"{switch}&{a}&{b}", ARM) == pytest.approx(
+        folder.p_open(f"{switch}&{b}&{a}", ARM), rel=1e-9
+    )
+    assert len(folder.p_open_by_order(f"{switch}&{a}&{b}", ARM)[0]) == 2
+    assert len(folder.p_open_by_order(switch, ARM)[0]) == 1
+
+
+# --- Ensemble defect (S2) ------------------------------------------------------------
+
+
+def test_ensemble_defect_is_small_against_the_structure_the_sequence_actually_folds_into():
+    folder = FoldEngine()
+    sequence = "GGGGAAAACCCC"
+
+    defect = folder.ensemble_defect(sequence, folder.mfe(sequence).structure)
+
+    assert 0.0 <= defect < 0.2 * len(sequence)
+
+
+def test_ensemble_defect_is_a_raw_count_not_a_fraction():
+    """ViennaRNA's own function divides by length despite its name; this method's
+    contract is the count, because callers normalise it themselves for
+    `structure_deviation` and would otherwise divide twice."""
+    sequence = "GGGGAAAACCCC"
+
+    defect = FoldEngine().ensemble_defect(sequence, "." * len(sequence))
+
+    assert defect == pytest.approx(0.6395 * len(sequence), rel=0.05)
+    assert defect > 1.0
+
+
+def test_ensemble_defect_rejects_a_target_of_the_wrong_length():
+    with pytest.raises(ValueError):
+        FoldEngine().ensemble_defect("GGGGAAAACCCC", "((((....)))")
+
+
 # --- Accessibility profiling (stages/folding.py, S1) --------------------------------
 
 PROFILER_SEQUENCE = "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAAGCUAGCUAGCUAGC"

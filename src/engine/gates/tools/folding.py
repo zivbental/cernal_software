@@ -29,7 +29,9 @@ this module computes is in service of predicting whether that actually happens.
 Bodies land in Step 5 (docs/ROADMAP.md E1).
 """
 
+import math
 from functools import cache
+from itertools import permutations
 
 import RNA
 
@@ -148,6 +150,127 @@ class FoldEngine:
         _, energy = fold_compound.pf()
         return energy
 
+    @property
+    def _rt(self) -> float:
+        """``RT`` in kcal/mol at this engine's temperature.
+
+        Taken from ViennaRNA's own constants rather than a literal, so it cannot drift
+        from the model the energies were computed under.
+        """
+        return (RNA.GASCONST / 1000.0) * (self.temperature + RNA.K0)
+
+    @staticmethod
+    def _strand_orders(strands: str) -> list[str]:
+        """One representative per distinct circular ordering of the strands.
+
+        ViennaRNA's multi-strand partition function only counts structures that are
+        non-crossing when the strands are laid out in the given order, so the answer
+        depends on that order. It is invariant under *rotation* — measured here as
+        exactly 0.0000 kcal/mol across the three rotations of a class — but not under
+        reordering, so there are ``(n-1)!`` genuinely different answers. Fixing the first
+        strand and permuting the rest enumerates exactly one representative of each, and
+        keeps strand 0 at offset 0 so a window into it never needs remapping.
+        """
+        head, *rest = strands.split("&")
+        return ["&".join((head, *tail)) for tail in permutations(rest)]
+
+    @cache  # noqa: B019 — one instance per run; see the class docstring
+    def _partition_with_unpaired(self, strands: str, unpaired: tuple[int, ...]) -> float:
+        """Ensemble free energy with every 1-based position in ``unpaired`` forced open."""
+        fold_compound = self._compound(strands)
+        for position in unpaired:
+            fold_compound.hc_add_up(position)
+        _, energy = fold_compound.pf()
+        return energy
+
+    def _combine(self, energies: list[float]) -> float:
+        """Free energy of the union of several ensembles, summed in Boltzmann space.
+
+        Shifted by the minimum before exponentiating: a 160-nt complex sits near
+        -80 kcal/mol, and ``exp(80 / 0.616)`` overflows a float long before the sum does.
+        """
+        floor = min(energies)
+        total = math.fsum(math.exp(-(energy - floor) / self._rt) for energy in energies)
+        return floor - self._rt * math.log(total)
+
+    def p_open(self, strands: str, window: tuple[int, int]) -> float | None:
+        """Joint probability that **every** base in ``window`` is unpaired at once.
+
+        Not the average of per-base unpaired probabilities, and much smaller than it: if
+        every base of a 30-nt window is 90% open the average reads 0.90 while the joint
+        probability is far lower, because the bases are correlated — a closed stem shuts a
+        whole block at once. This is the quantity a ribosome footprint needs, since the
+        30S entry channel holds only single-stranded RNA and the whole threaded window
+        must be open simultaneously in the assembled complex.
+
+        Args:
+            strands: RNA, uppercase, ``&``-joined for a complex — the same convention and
+                the same reason (a hashable cache key) as ``mfe``.
+            window: ``(start, end)`` into **the first strand**, 0-based, inclusive start,
+                exclusive end — the engine's convention everywhere. Converted to
+                ViennaRNA's 1-based indexing here so that no caller has to.
+
+        Returns:
+            A probability in [0, 1], or ``None`` if the ensemble came back non-finite.
+            ``None`` rather than ``0.0`` because a hard filter reads 0.0 as a perfectly
+            closed window instead of as a measurement that failed.
+
+        Raises:
+            ValueError: if the window is empty, reversed, or runs off the first strand.
+                That is always a bug upstream, not a bad design, and an off-by-one here
+                still folds and still scores.
+
+        Note:
+            Summed over all ``(n-1)!`` strand orderings, numerator and denominator alike.
+            The spread between orderings is **not** negligible and does not cancel in the
+            ratio: measured on a 160+36+50 nt triple it is 2.75 kcal/mol in ``dG_open``
+            — above the folding model's own ~1.5 kcal/mol error — because the
+            unconstrained ensembles differ far more between orderings (3.29 kcal/mol)
+            than the constrained ones do (0.54). Use ``p_open_by_order`` to see it.
+            This is not NUPACK's exact treatment, which restricts each complex to
+            connected structures and applies a symmetry correction; ViennaRNA counts
+            disconnected states too, so a structure representable in several orderings is
+            counted several times. Summing both sides over the same orderings is what
+            makes that cancel to first order.
+        """
+        by_order = self.p_open_by_order(strands, window)
+        if by_order is None:
+            return None
+        constrained, unconstrained = by_order[1], by_order[2]
+        return math.exp(-(self._combine(constrained) - self._combine(unconstrained)) / self._rt)
+
+    def p_open_by_order(
+        self, strands: str, window: tuple[int, int]
+    ) -> tuple[list[float], list[float], list[float]] | None:
+        """``p_open`` resolved per strand ordering, for auditing the spread above.
+
+        Returns:
+            ``(probabilities, constrained_energies, unconstrained_energies)``, one entry
+            each per ordering from ``_strand_orders``, or ``None`` if any came back
+            non-finite. For one or two strands there is a single ordering and the spread
+            is necessarily zero — the degeneracy only appears from three strands up.
+        """
+        start, end = window
+        first = strands.split("&")[0]
+        if not 0 <= start < end <= len(first):
+            raise ValueError(
+                f"window {window} is not a non-empty range inside the first strand "
+                f"(length {len(first)})"
+            )
+        positions = tuple(range(start + 1, end + 1))
+
+        constrained: list[float] = []
+        unconstrained: list[float] = []
+        for order in self._strand_orders(strands):
+            constrained.append(self._partition_with_unpaired(order, positions))
+            unconstrained.append(self.partition(order))
+        if not all(math.isfinite(e) for e in (*constrained, *unconstrained)):
+            return None
+        probabilities = [
+            math.exp(-(c - u) / self._rt) for c, u in zip(constrained, unconstrained, strict=True)
+        ]
+        return probabilities, constrained, unconstrained
+
     def ensemble_defect(self, sequence: str, target: str) -> float:
         """How far the predicted ensemble sits from an intended structure.
 
@@ -176,7 +299,16 @@ class FoldEngine:
             * A low defect does not mean the switch works — only that it folds as
               designed. Leakage and trigger binding are separate questions.
         """
-        raise NotImplementedError("Step 5 — wrap RNA.ensemble_defect")
+        if len(target) != len(sequence):
+            raise ValueError(
+                f"target is {len(target)} long but sequence is {len(sequence)}; "
+                "a length mismatch is always a bug upstream"
+            )
+        fold_compound = self._compound(sequence)
+        fold_compound.pf()
+        # ViennaRNA's ensemble_defect is already divided by length, despite the name;
+        # this method's contract is the raw count, which the caller then normalises.
+        return fold_compound.ensemble_defect(target) * len(sequence)
 
     def base_pair_probabilities(self, sequence: str) -> list[list[float]]:
         """Probability that each pair of positions is bonded, over the whole ensemble.
