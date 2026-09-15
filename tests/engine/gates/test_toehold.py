@@ -1132,3 +1132,28 @@ def test_disabling_trigger_a_gives_state_01_not_state_10():
         # every edit sits in, or in the invasion arm 5' of, the disabled trigger's own site
         assert min(changed) >= site - gate.ARM_LEN
         assert max(changed) < site + pair.len_x + 3
+
+
+def test_stems_are_labelled_by_the_scheme_that_could_build_them():
+    """A panel is stratified by family, so each build has to say which one it belongs to.
+    "mixed" is the only label that is evidence scheme C earns its 3^n cost: it resolves
+    some positions the A way and others the B way, which neither global scheme can
+    express."""
+    gate = _and_gate()
+    trigger_a, trigger_b, _ = _contested_pair()
+
+    stems = gate.secondary_stems(trigger_a, trigger_b, len(_OVERLAP))
+    labels = {stem.scheme for stem in stems}
+
+    assert labels <= {"A-anchored", "B-anchored", "mixed", "unlocked"}
+    for stem in stems:
+        states = set(stem.states)
+        if {"lockA", "lockB"} <= states:
+            assert stem.scheme == "mixed"
+        elif "lockA" in states:
+            assert stem.scheme == "A-anchored"
+        elif "lockB" in states:
+            assert stem.scheme == "B-anchored"
+        else:
+            assert stem.scheme == "unlocked"
+    assert "mixed" in labels, "scheme C should reach builds neither global scheme can"

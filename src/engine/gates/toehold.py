@@ -1737,6 +1737,26 @@ class _SecondaryStem:
     a_site_energy: float
     b_site_energy: float
 
+    @property
+    def scheme(self) -> str:
+        """Which design family this build belongs to, for stratifying a bench panel.
+
+        Scheme A anchors every contested position to trigger A and scheme B anchors every
+        one to trigger B, so each reaches ``2^n`` builds; scheme C lets positions choose
+        independently, reaching ``3^n`` and containing both as strict subsets. A build using
+        *both* lock states is therefore reachable by neither — that is what "mixed" means,
+        and it is the only label that is evidence scheme C earns its cost.
+        """
+        states = set(self.states)
+        locks_a, locks_b = "lockA" in states, "lockB" in states
+        if locks_a and locks_b:
+            return "mixed"
+        if locks_a:
+            return "A-anchored"
+        if locks_b:
+            return "B-anchored"
+        return "unlocked"
+
 
 def _secondary_domains(trigger_a: str, trigger_b: str, len_x: int, arm_len: int) -> tuple[str, str]:
     """Trigger A's extension past the overlap, and trigger B's invasion domain.
