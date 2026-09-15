@@ -61,6 +61,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-gap", type=int, default=None, help="default: the gate's own 50")
     parser.add_argument("--csv", help="write every surviving candidate here")
     parser.add_argument("--top", type=int, default=20)
+    parser.add_argument(
+        "--constructs",
+        metavar="PREFIX",
+        help="write the four bench-construct FASTAs for the best candidate, as "
+        "PREFIX_state{11,10,01}.fa (state 00 is the transcript withheld, so no file)",
+    )
     args = parser.parse_args(argv)
 
     transcript = read_fasta(args.fasta)
@@ -115,6 +121,38 @@ def main(argv: list[str] | None = None) -> int:
         )
     if len(clean) > args.top:
         print(f"  ... {len(clean) - args.top} more")
+
+    if args.constructs and clean:
+        best = clean[0]
+        pair = next(
+            p
+            for p in gate.find_trigger_pairs(transcript, min_window_gap=0)
+            if p.x_start == best["x_start"] and p.xstar_start == best["xstar_start"]
+        )
+        constructs = gate.bench_constructs(transcript, pair)
+        print(f"\nbench constructs for x@{pair.x_start} x*@{pair.xstar_start} len_x={pair.len_x}:")
+        for state in ("11", "10", "01"):
+            sequence = constructs[state]
+            if sequence is None:
+                print(f"  state {state}: no synonymous knockout - pick another candidate")
+                continue
+            edits = [
+                (i, a, b)
+                for i, (a, b) in enumerate(zip(transcript, sequence, strict=True))
+                if a != b
+            ]
+            path = f"{args.constructs}_state{state}.fa"
+            with open(path, "w") as handle:
+                handle.write(
+                    f">state{state} x@{pair.x_start} xstar@{pair.xstar_start} "
+                    f"len_x={pair.len_x} edits={len(edits)}\n"
+                )
+                dna = sq.to_dna(sequence)
+                for i in range(0, len(dna), 60):
+                    handle.write(dna[i : i + 60] + "\n")
+            described = ", ".join(f"{i}:{a}>{b}" for i, a, b in edits) or "unmodified"
+            print(f"  state {state}: {path}   {described}")
+        print("  state 00: the transcript is withheld, so there is nothing to synthesise")
 
     if args.csv and clean:
         with open(args.csv, "w", newline="") as handle:

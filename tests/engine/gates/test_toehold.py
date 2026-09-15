@@ -22,7 +22,11 @@ from engine.gates.toehold import (
     _pareto_front,
     _secondary_domains,
 )
-from engine.gates.tools.binding import alignment_pairs, can_pair
+from engine.gates.tools.binding import (
+    alignment_pairs,
+    can_pair,
+    longest_complementary_run,
+)
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
@@ -974,3 +978,112 @@ def test_a_design_meeting_every_threshold_passes():
         good[name] = threshold - 0.05 if comparison == "<" else threshold + 0.05
 
     assert gate.gate_violations(good) == ()
+
+
+# --- Stage 6: the bench constructs ---------------------------------------------------
+
+
+def test_a_knockout_leaves_no_run_long_enough_to_nucleate():
+    """The criterion comes from the architecture, not from taste: a trigger needs four
+    contiguous complementary nucleotides to nucleate at all, so a control is any
+    synonymous variant leaving none. Wobbles count, which is what makes it demanding."""
+    gate = _and_gate()
+    # Nine nucleotides of leucine, which is the scale a real overlap is: mCherry's clean
+    # candidates top out at len_x = 7. A longer perfect duplex needs more breaks than the
+    # four-substitution budget allows, and correctly returns None.
+    region = "CUGCUGCUG"
+    partner = sq.reverse_complement(region)
+
+    result = gate.knockout(region, 0, len(region), partner)
+
+    assert result is not None
+    assert result.residual_run < gate.MIN_OVERLAP
+    disabled = result.sequence[0 : len(region)]
+    assert longest_complementary_run(disabled, partner) < gate.MIN_OVERLAP
+
+
+def test_a_knockout_never_changes_the_protein():
+    """The whole point of the four constructs is that they differ in one variable. A
+    control that translates differently is testing two things at once."""
+    gate = _and_gate()
+    region = "CUGCUGCUG"
+
+    result = gate.knockout(region, 0, len(region), sq.reverse_complement(region))
+
+    assert result is not None
+    assert sq.translate(result.sequence, stop_at_stop=False) == sq.translate(
+        region, stop_at_stop=False
+    )
+
+
+def test_a_knockout_spends_as_few_substitutions_as_it_can():
+    gate = _and_gate()
+    region = "CUGCUGCUG"
+
+    result = gate.knockout(region, 0, len(region), sq.reverse_complement(region))
+
+    assert result is not None
+    assert 0 < len(result.edits) <= gate.MAX_KNOCKOUT_EDITS
+    for position, was, now in result.edits:
+        assert region[position] == was
+        assert result.sequence[position] == now
+        assert was != now
+
+
+def test_a_region_needing_more_edits_than_the_budget_yields_no_knockout():
+    """The budget is a real constraint, not a formality: a control differing at many
+    positions stops being a control for one variable. A 15-nt perfect duplex needs more
+    than four breaks to leave no run of four, so it is correctly refused."""
+    gate = _and_gate()
+    long_perfect = "CUGCUGCUGAGCAGC"
+
+    assert (
+        gate.knockout(long_perfect, 0, len(long_perfect), sq.reverse_complement(long_perfect))
+        is None
+    )
+
+
+def test_an_unbreakable_region_yields_no_knockout_rather_than_a_bad_one():
+    """AUG and UGG have no synonym at all. Returning `None` is the honest answer, and it
+    is why feasibility is checked during the scan rather than after a pair is chosen."""
+    gate = _and_gate()
+    immovable = "AUGUGGAUGUGGAUGUGG"
+
+    assert gate.knockout(immovable, 0, 6, sq.reverse_complement(immovable[:6])) is None
+
+
+def test_state_00_is_the_transcript_withheld_not_a_sequence():
+    """00 is the absence of the transcript, so there is nothing to synthesise for it.
+    Returning a sequence here would invent a construct nobody ordered."""
+    gate = _and_gate()
+    transcript, _ = _transcript_with_a_planted_overlap()
+    pair = next(gate.find_trigger_pairs(transcript, min_window_gap=0))
+
+    constructs = gate.bench_constructs(transcript, pair)
+
+    assert constructs["00"] is None
+    assert constructs["11"] == sq.to_rna(transcript)
+    assert set(constructs) == {"00", "01", "10", "11"}
+
+
+def test_disabling_trigger_a_gives_state_01_not_state_10():
+    """The left digit is trigger A, so the construct with trigger A disabled is state 01.
+    Swapping these mislabels every control in the panel, and the experiment cannot tell."""
+    gate = _and_gate()
+    transcript, _ = _transcript_with_a_planted_overlap()
+    pair = next(gate.find_trigger_pairs(transcript, min_window_gap=0))
+
+    constructs = gate.bench_constructs(transcript, pair)
+
+    for state, site in (("01", pair.x_start), ("10", pair.xstar_start)):
+        if constructs[state] is None:
+            continue
+        changed = [
+            i
+            for i, (a, b) in enumerate(zip(sq.to_rna(transcript), constructs[state], strict=True))
+            if a != b
+        ]
+        assert changed, state
+        # every edit sits in, or in the invasion arm 5' of, the disabled trigger's own site
+        assert min(changed) >= site - gate.ARM_LEN
+        assert max(changed) < site + pair.len_x + 3

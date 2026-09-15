@@ -1080,6 +1080,130 @@ class ToeholdAndGate(ToeholdGate):
             return None
         return -self.folder.rt * math.log(probability)
 
+    #: Most synonymous substitutions a negative control may spend. A control differing from
+    #: the real construct at many positions stops being a control for one variable.
+    MAX_KNOCKOUT_EDITS: ClassVar[int] = 4
+
+    def knockout(
+        self, transcript: str, start: int, length: int, partner: str
+    ) -> "_Knockout | None":
+        """The fewest synonymous substitutions that stop this region nucleating.
+
+        A trigger needs at least ``MIN_OVERLAP`` contiguous complementary nucleotides to
+        nucleate at all, so a knockout is any synonymous variant of the region leaving no
+        run that long against its site on the switch. Nothing else about the transcript
+        changes, which is what makes the four bench constructs comparable: states 10 and 01
+        differ from state 11 only here.
+
+        Codon combinations are examined in order of increasing edit count, so the first hit
+        is minimal. A variant is rejected if it changes the protein, introduces a rare codon
+        or introduces a forbidden motif that was not already present — a control that
+        translates differently, or is cleaved differently, is testing more than one thing.
+
+        Args:
+            transcript: The coding sequence, RNA uppercase, in frame from its first base.
+            start: 0-based start of the region to disable.
+            length: Its length in nucleotides.
+            partner: The switch domain this region pairs with, built against the
+                **original** sequence, since that is the gate the control is a control for.
+
+        Returns:
+            The minimal knockout, or ``None`` when no synonymous variant within
+            ``MAX_KNOCKOUT_EDITS`` disables the region. ``None`` is a real answer: on
+            mCherry 169 of 1,036 otherwise-valid pairs cannot have either trigger disabled,
+            which is why ``controls_constructible`` runs inside the scan.
+        """
+        rna = sq.to_rna(transcript)
+        first, last = start // 3, (start + length - 1) // 3
+        indices = list(range(first, last + 1))
+        choices = [
+            [rna[i * 3 : i * 3 + 3], *self._synonymous(rna[i * 3 : i * 3 + 3])] for i in indices
+        ]
+        original_protein = sq.translate(rna, stop_at_stop=False)
+        context = slice(max(0, start - 20), start + length + 20)
+
+        best: _Knockout | None = None
+        for combination in product(*choices):
+            edits = tuple(
+                (i * 3 + offset, rna[i * 3 + offset], codon[offset])
+                for i, codon in zip(indices, combination, strict=True)
+                for offset in range(3)
+                if rna[i * 3 + offset] != codon[offset]
+            )
+            if not edits or len(edits) > self.MAX_KNOCKOUT_EDITS:
+                continue
+            if best is not None and len(edits) >= len(best.edits):
+                continue
+            variant = list(rna)
+            for position, _, replacement in edits:
+                variant[position] = replacement
+            candidate = "".join(variant)
+
+            residual = longest_complementary_run(candidate[start : start + length], partner)
+            if residual >= self.MIN_OVERLAP:
+                continue
+            if sq.translate(candidate, stop_at_stop=False) != original_protein:
+                continue
+            if any(codon in self.RARE_CODONS for codon in combination):
+                continue
+            introduced = [
+                name
+                for name, pattern in self.FORBIDDEN_MOTIFS.items()
+                if re.search(pattern, candidate[context]) and not re.search(pattern, rna[context])
+            ]
+            if introduced:
+                continue
+            best = _Knockout(edits=edits, sequence=candidate, residual_run=residual)
+        return best
+
+    def bench_constructs(self, transcript: str, pair: "_TriggerPair") -> dict[str, str | None]:
+        """The four logic states as four transcripts on one background.
+
+        What makes the comparison interpretable: state 11 is the unmodified transcript,
+        states 10 and 01 each carry one trigger disabled by one or two synonymous
+        substitutions, and state 00 is the transcript withheld altogether — so it is
+        ``None`` here rather than a sequence. The protein is identical across all three
+        that exist.
+
+        Each trigger is attacked at the overlap first, which is the cheapest and most
+        specific target — for trigger A it is the *only* nucleation site, which is what
+        ``a = 0`` means. Where the codons there do not permit enough change, and with
+        wobbles counted they often do not, the invasion arm is the fallback: ``k1`` for
+        trigger A, ``k2`` for trigger B.
+
+        Returns:
+            ``{"11": …, "10": …, "01": …, "00": None}``, with a state mapped to ``None``
+            when no synonymous knockout exists for it.
+        """
+        rna = sq.to_rna(transcript)
+        a_start, _ = pair.window_a()
+        x = rna[pair.x_start : pair.x_start + pair.len_x]
+        x_star = rna[pair.xstar_start : pair.xstar_start + pair.len_x]
+        k2_start = pair.xstar_start - pair.len_k2
+
+        # Disabling trigger A gives state 01 (A absent, B intact), and vice versa.
+        routes = {
+            "01": (
+                (pair.x_start, pair.len_x, x_star),
+                (a_start, 6, sq.reverse_complement(rna[a_start : a_start + 6])),
+            ),
+            "10": (
+                (pair.xstar_start, pair.len_x, x),
+                (k2_start, pair.len_k2, sq.reverse_complement(rna[k2_start : pair.xstar_start])),
+            ),
+        }
+        constructs: dict[str, str | None] = {"11": rna, "00": None}
+        for state, targets in routes.items():
+            constructs[state] = None
+            for start, length, partner in targets:
+                if start < 0 or length <= 0 or start + length > len(rna):
+                    continue
+                result = self.knockout(rna, start, length, partner)
+                if result is not None:
+                    constructs[state] = result.sequence
+                    break
+        return constructs
+
     def find_trigger_pairs(
         self, transcript: str, *, min_window_gap: int | None = None
     ) -> Iterator["_TriggerPair"]:
@@ -1353,6 +1477,18 @@ def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float:
 #: close the lock against A's base while B needs another) satisfies nothing and is
 #: dominated, so it is never generated.
 _ARM_STATES: tuple[str, ...] = ("both", "lockA", "lockB")
+
+
+@dataclass(frozen=True, slots=True)
+class _Knockout:
+    """One trigger disabled by synonymous substitution — a negative-control transcript."""
+
+    #: ``(position, from_base, to_base)`` per change, 0-based into the transcript.
+    edits: tuple[tuple[int, str, str], ...]
+    sequence: str
+    #: Longest pairable run left against the switch site, **wobbles counted**. Below
+    #: ``MIN_OVERLAP``, or this is not a knockout.
+    residual_run: int
 
 
 @dataclass(frozen=True, slots=True)
