@@ -65,7 +65,8 @@ def main(argv: list[str] | None = None) -> int:
         "--constructs",
         metavar="PREFIX",
         help="write the four bench-construct FASTAs for the best candidate, as "
-        "PREFIX_state{11,10,01}.fa (state 00 is the transcript withheld, so no file)",
+        "PREFIX_state{11,10,01,00}.fa - all four on one background, with 00 carrying "
+        "both triggers disabled rather than the transcript withheld",
     )
     args = parser.parse_args(argv)
 
@@ -131,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         constructs = gate.bench_constructs(transcript, pair)
         print(f"\nbench constructs for x@{pair.x_start} x*@{pair.xstar_start} len_x={pair.len_x}:")
-        for state in ("11", "10", "01"):
+        for state in ("11", "10", "01", "00"):
             sequence = constructs[state]
             if sequence is None:
                 print(f"  state {state}: no synonymous knockout - pick another candidate")
@@ -152,7 +153,6 @@ def main(argv: list[str] | None = None) -> int:
                     handle.write(dna[i : i + 60] + "\n")
             described = ", ".join(f"{i}:{a}>{b}" for i, a, b in edits) or "unmodified"
             print(f"  state {state}: {path}   {described}")
-        print("  state 00: the transcript is withheld, so there is nothing to synthesise")
 
     if args.csv and clean:
         with open(args.csv, "w", newline="") as handle:

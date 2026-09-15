@@ -1016,31 +1016,56 @@ def test_a_knockout_never_changes_the_protein():
     )
 
 
-def test_a_knockout_spends_as_few_substitutions_as_it_can():
+def test_a_knockout_spends_the_fewest_substitutions_that_work():
+    """Minimal substitutions, by supervisor instruction and matching the .docx. The
+    original sequence is the one with bench data behind it, and every edit perturbs local
+    folding and expression, so a control spends only what the no-run-of-four criterion
+    demands. Ties break toward the variant retaining least pairing."""
     gate = _and_gate()
     region = "CUGCUGCUG"
+    partner = sq.reverse_complement(region)
 
-    result = gate.knockout(region, 0, len(region), sq.reverse_complement(region))
+    result = gate.knockout(region, 0, len(region), partner)
 
     assert result is not None
-    assert 0 < len(result.edits) <= gate.MAX_KNOCKOUT_EDITS
+    assert result.edits
     for position, was, now in result.edits:
         assert region[position] == was
         assert result.sequence[position] == now
         assert was != now
+    assert result.pairable_positions < sum(alignment_pairs(region, partner))
+    # Brute-force every synonymous spelling of this 3-codon region: none that satisfies the
+    # criterion may use fewer substitutions than the variant chosen.
+    spent = len(result.edits)
+    for a in [region[0:3], *gate._synonymous(region[0:3])]:
+        for b in [region[3:6], *gate._synonymous(region[3:6])]:
+            for c in [region[6:9], *gate._synonymous(region[6:9])]:
+                variant = a + b + c
+                if variant == region:
+                    continue
+                if longest_complementary_run(variant, partner) >= gate.MIN_OVERLAP:
+                    continue
+                if sq.translate(variant, stop_at_stop=False) != sq.translate(
+                    region, stop_at_stop=False
+                ):
+                    continue
+                changed = sum(1 for p, q in zip(variant, region, strict=True) if p != q)
+                assert changed >= spent, f"{variant} disables it in {changed} < {spent}"
 
 
-def test_a_region_needing_more_edits_than_the_budget_yields_no_knockout():
-    """The budget is a real constraint, not a formality: a control differing at many
-    positions stops being a control for one variable. A 15-nt perfect duplex needs more
-    than four breaks to leave no run of four, so it is correctly refused."""
+def test_a_long_region_is_disabled_rather_than_refused():
+    """There is no cap on substitutions. The ported script carried `max_edits=4` as an
+    undeclared default, which silently refused any region needing more -- a 15-nt perfect
+    duplex among them. Every edit is confined to one trigger domain, so the total
+    perturbation stays around 1% of the transcript either way."""
     gate = _and_gate()
     long_perfect = "CUGCUGCUGAGCAGC"
 
-    assert (
-        gate.knockout(long_perfect, 0, len(long_perfect), sq.reverse_complement(long_perfect))
-        is None
-    )
+    result = gate.knockout(long_perfect, 0, len(long_perfect), sq.reverse_complement(long_perfect))
+
+    assert result is not None
+    assert len(result.edits) > 4, "this is exactly what the old cap refused"
+    assert result.residual_run < gate.MIN_OVERLAP
 
 
 def test_an_unbreakable_region_yields_no_knockout_rather_than_a_bad_one():
@@ -1052,18 +1077,38 @@ def test_an_unbreakable_region_yields_no_knockout_rather_than_a_bad_one():
     assert gate.knockout(immovable, 0, 6, sq.reverse_complement(immovable[:6])) is None
 
 
-def test_state_00_is_the_transcript_withheld_not_a_sequence():
-    """00 is the absence of the transcript, so there is nothing to synthesise for it.
-    Returning a sequence here would invent a construct nobody ordered."""
+def test_state_00_disables_both_triggers_on_the_same_background():
+    """By instruction, state 00 is a variant with *both* triggers deleted rather than the
+    transcript withheld. Withholding it also removes its transcriptional and translational
+    load, so 00-versus-11 would confound the triggers with the burden of expressing the
+    molecule at all. Every construct here is the same length, abundance and protein."""
     gate = _and_gate()
     transcript, _ = _transcript_with_a_planted_overlap()
     pair = next(gate.find_trigger_pairs(transcript, min_window_gap=0))
 
     constructs = gate.bench_constructs(transcript, pair)
 
-    assert constructs["00"] is None
-    assert constructs["11"] == sq.to_rna(transcript)
     assert set(constructs) == {"00", "01", "10", "11"}
+    assert constructs["11"] == sq.to_rna(transcript)
+    if constructs["00"] is not None:
+        assert len(constructs["00"]) == len(constructs["11"])
+        assert sq.translate(constructs["00"], stop_at_stop=False) == sq.translate(
+            constructs["11"], stop_at_stop=False
+        )
+        # 00 is the two single knockouts applied together, so it carries both edit sets.
+        changed = {
+            i
+            for i, (a, b) in enumerate(zip(constructs["11"], constructs["00"], strict=True))
+            if a != b
+        }
+        for single in ("01", "10"):
+            if constructs[single] is None:
+                continue
+            assert {
+                i
+                for i, (a, b) in enumerate(zip(constructs["11"], constructs[single], strict=True))
+                if a != b
+            } <= changed
 
 
 def test_disabling_trigger_a_gives_state_01_not_state_10():
