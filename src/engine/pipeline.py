@@ -4,23 +4,41 @@
 and runs them in order. It contains no science — if it grows past ~150 lines, logic has
 leaked into it from a stage.
 
-**Scope of this build (docs/smoke-run.md): the `direct` input path only.** A researcher
-pastes a trigger mRNA — or a longer transcript to find one in, docs/triggers.md E2b —
-and gets ranked toehold designs back, each with a real, annotated plasmid
-(docs/plasmids.md, E5a). The `de` path — upload a differential-expression table,
-discover triggers from it — stays a documented ``InputValidationError`` here: it needs
-stage 1 (`GeneSelector`), a CSV parser with no home yet, and a resolved Q1 (where do
-trigger sequences come from). `OffTargetScanner` is still a stub for a real
-transcriptome (an empty one, this branch's only case, has a defined answer —
-docs/triggers.md T1), so off-target specificity is reported as unmeasured, never
-silently clean. None of the `de`-only gaps are built by this branch. Stage 4
-(`CircuitDesigner`, real multi-switch circuits) and stage 6 (the PDF report,
-structure/circuit figures) are likewise out of scope — see docs/smoke-run.md §4 and
-docs/plasmids.md §3 for exactly what that costs.
+**Scope of this build (docs/smoke-run.md, docs/genes.md): `direct` and a first, scoped
+`de` path.** A researcher pastes a trigger mRNA — or a longer transcript to find one in,
+docs/triggers.md E2b — and gets ranked toehold designs back, each with a real, annotated
+plasmid (docs/plasmids.md, E5a). A researcher who instead uploads a differential-
+expression table gets the *same* thing, sourced differently: ``GeneSelector`` (real,
+docs/genes.md) ranks the genes, the best ones' real transcripts (``engine.transcriptome``
+— *E. coli* and yeast today, docs/ROADMAP.md Q1's first two answers) are scanned for
+triggers by the same ``TriggerScorer`` the `direct` path already uses, and everything
+after that — switch design, plasmid construction — is one shared code path for both
+modes and both hosts.
+
+**What the `de` path still does not do, deliberately.** No ``InputQualityCheck`` — there
+is no count matrix to check; the product only ever collects a differential-expression
+table (docs/genes.md §3 G-a), so the stage that validates one has nothing to run on
+yet. No real off-target scanning — ``OffTargetScanner``'s matching (``find_similar``) is
+still a stub, so its transcriptome is kept empty even here (an empty transcriptome has a
+defined, honest "not measured" answer — docs/triggers.md T1 — where a populated one
+would raise). No ``CircuitDesigner`` — every selected gene becomes its own one-gene
+circuit, the same trivial construction the `direct` path already uses (see the next
+paragraph), never a multi-gene Boolean expression. No human — no bundled reference
+transcriptome (a genomic CDS extraction is the wrong tool for a heavily-spliced genome,
+``tools/sync_transcriptome.py``), and no promoter/terminator either (Q12). No bundled
+yeast plasmid backbone either, deliberately — yeast's real BioBrick-family assembly
+grammar (the "Lim standard") could not be fully verified from public sources in the
+time this took, so a yeast run relies on ``params["backbone"]["custom_genbank"]``
+(a lab's own real vector) rather than a first-party default built on a half-verified
+restriction-site table (CLAUDE.md §1: an almost-right part is worse than a missing
+one) — omitting backbone entirely is also a fully legal choice (``_resolve_backbone``'s
+own docstring). Stage 6 (the PDF report, structure/circuit figures) is out of scope for
+every mode and host — see docs/smoke-run.md §4 and docs/plasmids.md §3 for exactly what
+that costs.
 
 **Stage 5 does not wait for stage 4.** Each accepted switch design gets its own
 trivial one-gene ``CircuitCandidate`` from ``_build_plasmid``, the same way
-``_direct_trigger`` hand-builds ``TriggerCandidate``(s) for stages 1-2
+``_direct_trigger``/``_de_trigger`` hand-build ``TriggerCandidate``(s) for stages 1-2
 (docs/plasmids.md §3) — ``PlasmidBuilder.build()`` never sees that this circuit was not
 produced by a real ``CircuitDesigner``.
 
@@ -35,10 +53,13 @@ import dataclasses
 import re
 from collections import Counter
 from collections.abc import Callable
+from pathlib import Path
 
 from engine import sequences as sq
-from engine.artifacts import write_artifact
+from engine.artifacts import sha256_bytes, write_artifact
 from engine.contract import (
+    INPUT_DE,
+    INPUT_DIRECT,
     SCHEMA_VERSION,
     SUCCEEDED,
     ArtifactRef,
@@ -65,15 +86,17 @@ from engine.domain import (
     SelectedGene,
     TriggerCandidate,
 )
-from engine.errors import InputValidationError, JobCancelled
+from engine.errors import ChecksumMismatchError, InputValidationError, JobCancelled
 from engine.gates.base import GateFamily
 from engine.gates.registry import get_family
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
+from engine.inputs import parse_dge_table
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
 from engine.scoring.profiles import HardFilter, resolve_profile
 from engine.stages.folding import FoldProfiler
+from engine.stages.genes import GeneSelector
 from engine.stages.motifs import MotifScreener
 from engine.stages.off_target import OffTargetScanner
 from engine.stages.plasmids import (
@@ -89,6 +112,7 @@ from engine.stages.plasmids import (
 from engine.stages.switches import SwitchDesigner, SwitchValidator
 from engine.stages.triggers import TriggerScorer
 from engine.store import CandidateStore
+from engine.transcriptome import available_hosts, load_transcriptome
 
 ProgressFn = Callable[[int, str], bool]
 
@@ -191,9 +215,10 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
     warnings: list[str] = []
     if not tools["off_target"].transcriptome:
         warnings.append(
-            "Off-target specificity was not measured (no reference transcriptome for a "
-            "direct submission) — off_target_penalty and segment_specificity are "
-            "placeholders, not measurements."
+            "Off-target specificity was not measured (OffTargetScanner's matching is "
+            "not yet implemented, so it is deliberately given an empty transcriptome "
+            "rather than one it would crash on) — off_target_penalty and "
+            "segment_specificity are placeholders, not measurements."
         )
 
     for name in request.gate_families or ["toehold"]:
@@ -215,7 +240,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
 
 
 def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
-    """Execute the pipeline for one `direct`-mode job.
+    """Execute the pipeline for one `direct`- or `de`-mode job.
 
     Args:
         request: The immutable submission.
@@ -223,24 +248,24 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             one (switch design). A ``False`` return raises ``JobCancelled``.
 
     Raises:
-        InputValidationError: For a ``de`` submission (not built by this branch), an
-            organism this engine does not recognise, an unusable trigger sequence, or
-            constraints that do not parse. All are ``EngineError`` — **data**, per
-            ``EngineClient``'s contract — and ``LocalEngine.run`` converts them into a
-            terminal ``JobResult`` rather than letting them propagate as a crash.
+        InputValidationError: An unrecognised ``input_mode``, a ``de`` submission for a
+            host with no bundled reference transcriptome (*E. coli* and yeast today,
+            not human — ``engine.transcriptome.available_hosts()``, docs/ROADMAP.md
+            Q1), an organism this engine does not recognise, an unusable dataset or
+            trigger sequence, or constraints that do not parse. All are
+            ``EngineError`` — **data**, per ``EngineClient``'s contract — and
+            ``LocalEngine.run`` converts them into a terminal ``JobResult`` rather than
+            letting them propagate as a crash.
+        ChecksumMismatchError: A ``de`` submission's dataset file does not match the
+            checksum recorded at submission time.
         JobCancelled: When ``on_progress`` returns ``False``. Also converted by
             ``LocalEngine.run``.
     """
     if not on_progress(*_pct("Validating inputs")):
         raise JobCancelled("Validating inputs")
 
-    if request.input_mode != "direct":
-        raise InputValidationError(
-            "Only direct-trigger submissions are supported today — differential-"
-            "expression input needs gene selection, off-target scanning and a "
-            "transcriptome source none of which this build implements. See "
-            "docs/smoke-run.md."
-        )
+    if request.input_mode not in (INPUT_DIRECT, INPUT_DE):
+        raise InputValidationError(f"Unrecognised input mode {request.input_mode!r}.")
 
     host = _resolve_host(request)
     tools = build_tools(request, host)
@@ -265,17 +290,33 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     profile = resolve_profile(request.scoring_profile, request.params.get("scoring"))
     store = CandidateStore(request.output_dir, request.run_id)
 
-    if not on_progress(*_pct("Scoring triggers")):
-        raise JobCancelled("Scoring triggers")
-    trigger_candidates, trigger_warnings = _direct_trigger(
-        request,
-        store,
-        tools["profiler"],
-        tools["folder"],
-        tools["off_target"],
-        tools["screener"],
-        constraints,
-    )
+    if request.input_mode == INPUT_DE:
+        if not on_progress(*_pct("Selecting genes")):
+            raise JobCancelled("Selecting genes")
+        if not on_progress(*_pct("Scoring triggers")):
+            raise JobCancelled("Scoring triggers")
+        trigger_candidates, trigger_warnings = _de_trigger(
+            request,
+            store,
+            tools["profiler"],
+            tools["folder"],
+            tools["off_target"],
+            tools["screener"],
+            constraints,
+            host,
+        )
+    else:
+        if not on_progress(*_pct("Scoring triggers")):
+            raise JobCancelled("Scoring triggers")
+        trigger_candidates, trigger_warnings = _direct_trigger(
+            request,
+            store,
+            tools["profiler"],
+            tools["folder"],
+            tools["off_target"],
+            tools["screener"],
+            constraints,
+        )
     warnings.extend(trigger_warnings)
 
     validator = SwitchValidator(
@@ -455,6 +496,8 @@ def _build_constraints(params: dict) -> Constraints:
         raw["trigger_lengths"] = tuple(raw["trigger_lengths"])
     if "forbidden_motifs" in raw:
         raw["forbidden_motifs"] = tuple(raw["forbidden_motifs"])
+    if "trigger_gc_range" in raw:
+        raw["trigger_gc_range"] = tuple(raw["trigger_gc_range"])
     if "standard" in raw:
         try:
             raw["standard"] = AssemblyStandard(raw["standard"])
@@ -652,13 +695,12 @@ def _direct_trigger(
         gene_id="direct",
         symbol="direct-trigger",
         regulation=Regulation.UP,
-        # Placeholders: these describe a differential-expression comparison this
-        # submission never made. TriggerScorer.score reads none of them.
+        # This describes a differential-expression comparison this submission never
+        # made. TriggerScorer.score reads none of these fields — log2_fold_change and
+        # score are required by the record and stay 0.0 as inert placeholders; every
+        # optional field is None rather than a fabricated measurement (domain.py's own
+        # "None means not measured" rule, docs/genes.md §3 G1), since none of them were.
         log2_fold_change=0.0,
-        p_adj=0.0,
-        control_percentile=0.0,
-        condition_percentile=0.0,
-        condition_specificity=1.0,
         score=0.0,
     )
     scorer = TriggerScorer(profiler, off_target, screener, folder)
@@ -687,6 +729,117 @@ def _direct_trigger(
         f"The pasted sequence is {len(sequence)} nt, longer than one trigger window "
         f"(up to {max_window} nt) — scanned {windows_considered} window(s) and kept "
         f"{len(candidates)} candidate(s) after screening, ranked by accessibility."
+    ]
+
+
+def _de_trigger(
+    request: JobRequest,
+    store: CandidateStore,
+    profiler: FoldProfiler,
+    folder: FoldEngine,
+    off_target: OffTargetScanner,
+    screener: MotifScreener,
+    constraints: Constraints,
+    host: Host,
+) -> tuple[list[TriggerCandidate], list[str]]:
+    """Resolve trigger candidates for a `de` submission (docs/genes.md, docs/ROADMAP.md
+    Q1's first answer) — a scoped first cut, not the full `de` pipeline docs/ROADMAP.md
+    E2 describes. Reuses everything already built for `direct` mode rather than adding a
+    second implementation of anything: this module's own ``TriggerScorer.score`` call is
+    identical in shape to ``_direct_trigger``'s scanned-paste branch, just fed real genes
+    instead of one synthetic one.
+
+    What this does, in order:
+        1. Re-verify the dataset's checksum and parse it (``engine.inputs.parse_dge_table``)
+           — the engine trusts nothing the Platform already checked, the same discipline
+           ``_direct_trigger`` applies to a pasted sequence.
+        2. Load the bundled reference transcriptome for ``host`` (``engine.transcriptome``
+           — *E. coli* and yeast today, not human; anything unbundled raises before any
+           work happens, rather than silently producing an empty shortlist).
+        3. ``GeneSelector.select`` the shortlist, degrading gracefully on every axis it
+           cannot measure — there is no count matrix here (docs/genes.md §3 G-a), so
+           percentiles, the abundance window and non-redundancy are all unmeasured on
+           every run through this path today; only separation and trigger yield apply.
+        4. ``TriggerScorer.score`` across every selected gene's real transcript — the
+           same call ``_direct_trigger`` already makes for one synthetic gene, extended
+           to however many ``GeneSelector`` kept. Each design that comes out of this
+           still becomes its own one-gene circuit downstream (this module's own
+           docstring) — selecting several genes here is not a multi-gene Boolean
+           circuit, just several independent single-input switches to choose from.
+
+    Off-target scanning is **not** performed here even though a real, non-empty
+    transcriptome now exists: ``OffTargetScanner``'s own matching (``find_similar``) is
+    still a Step-5 stub, and it raises rather than degrades once its transcriptome is
+    non-empty (``off_target.transcriptome`` stays ``{}``, exactly as ``build_tools``
+    already constructs it for `direct` mode — see this module's own docstring).
+
+    Returns:
+        The candidate trigger(s), ranked best first, and warnings describing how they
+        were chosen — mirroring ``_direct_trigger``'s "empty candidates with a
+        non-empty warning is a valid, reported outcome" convention rather than raising.
+
+    Raises:
+        InputValidationError: ``host`` has no bundled reference transcriptome, the
+            dataset file cannot be read or parsed, or ``GeneSelector`` finds the input
+            unusable outright (an empty table, or every candidate gene missing from the
+            transcriptome — docs/genes.md §3 G-d).
+        ChecksumMismatchError: the dataset file does not match the checksum recorded at
+            submission time.
+    """
+    if host not in available_hosts():
+        raise InputValidationError(
+            f"Differential-expression input is only supported for "
+            f"{', '.join(sorted(h.value for h in available_hosts()))} today — no "
+            f"reference transcriptome is bundled for {host.value}. See "
+            "docs/ROADMAP.md Q1."
+        )
+
+    path = Path(request.input_path)
+    if not path.is_file():
+        raise InputValidationError("The submitted dataset could not be read.")
+    raw = path.read_bytes()
+    if request.input_checksum and sha256_bytes(raw) != request.input_checksum:
+        raise ChecksumMismatchError(
+            "The dataset does not match the checksum recorded at submission."
+        )
+
+    dge = parse_dge_table(raw, path.name)
+    transcriptome = load_transcriptome(host)
+
+    warnings: list[str] = []
+    selector = GeneSelector(constraints, screener)
+    genes = selector.select(dge, sequences=transcriptome, on_warning=warnings.append)
+    if not genes:
+        return [], [
+            *warnings,
+            "No gene passed stage 1's filters — nothing to design a switch against.",
+        ]
+
+    # Every gene GeneSelector kept is guaranteed present in `transcriptome` (it drops,
+    # and warns about, any gene missing from `sequences` itself) — safe to reuse the
+    # same dict rather than building a second, smaller one.
+    scorer = TriggerScorer(profiler, off_target, screener, folder)
+    scored = list(scorer.score(genes, transcriptome, constraints))
+    # Re-mint through CandidateStore, matching _direct_trigger's own note: trigger_id
+    # is "minted by CandidateStore" per domain.py's contract, but TriggerScorer builds
+    # its own id string directly.
+    candidates = [dataclasses.replace(c, trigger_id=store.mint_id("trig")) for c in scored]
+
+    if not candidates:
+        return [], [
+            *warnings,
+            f"{len(genes)} gene(s) passed selection, but none of their scanned "
+            "trigger windows survived screening (restriction sites, homopolymers, or "
+            "extreme GC content). See docs/triggers.md.",
+        ]
+
+    best = genes[0]
+    return candidates, [
+        *warnings,
+        f"Selected {len(genes)} gene(s) from the differential-expression table (best: "
+        f"{best.symbol or best.gene_id}, log2FC={best.log2_fold_change:.2f}); scanned "
+        f"their real transcripts and kept {len(candidates)} candidate trigger "
+        "window(s) after screening.",
     ]
 
 

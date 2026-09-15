@@ -170,14 +170,22 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
 class LocalEngine:
     """Runs the real scientific pipeline in-process.
 
-    **Partial, honestly.** Only the ``direct`` input path is real — a pasted trigger
-    sequence through toehold design, evaluation and scoring, with real ViennaRNA
-    folding throughout. ``de`` submissions, circuits, plasmids and rendered artifacts
-    are not built yet; see docs/smoke-run.md for exactly what that means and why.
+    **Partial, honestly.** The ``direct`` input path is real end to end — a pasted
+    trigger sequence through toehold design, evaluation and scoring, with real
+    ViennaRNA folding throughout. ``de`` submissions now run too, for *E. coli* and
+    yeast — the two hosts with a bundled reference transcriptome
+    (``engine.transcriptome.available_hosts()``, docs/ROADMAP.md Q1) — and only as
+    single-gene circuits: ``GeneSelector`` real, real transcripts scanned by the same
+    ``TriggerScorer`` the `direct` path uses, but no ``CircuitDesigner`` (no multi-gene
+    Boolean circuits yet), no real off-target scanning, no ``InputQualityCheck`` (there
+    is no count matrix in this product to check), no bundled yeast plasmid backbone
+    (a lab's own upload, or no backbone at all). Human has no bundled transcriptome
+    and no promoter/terminator either. See docs/genes.md and this module's own
+    ``pipeline.py`` docstring for exactly what that does and does not cover.
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.1.0-direct-only"
+    ENGINE_VERSION = "local-0.3.0-direct-and-de-ecoli-yeast"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

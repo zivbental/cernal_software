@@ -93,8 +93,13 @@ class GateFamily(ABC):
         return []
 
     def describe(self, design: GateDesign) -> str:
-        """One-line human summary. Overridable, with a reasonable default."""
-        features = ", ".join(t.symbol for t in design.trigger_set.activators)
+        """One-line human summary. Overridable, with a reasonable default.
+
+        Falls back to ``gene_id`` when ``symbol`` is blank — a real gene can
+        legitimately have no symbol (docs/genes.md §1's own worked example has one),
+        and "single-input toehold gate on " with nothing after it names nothing at all.
+        """
+        features = ", ".join(t.symbol or t.gene_id for t in design.trigger_set.activators)
         return f"{design.trigger_set.logic_type} {self.name} gate on {features}"
 
     def __repr__(self) -> str:

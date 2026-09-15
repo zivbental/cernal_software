@@ -267,8 +267,10 @@ def test_build_refuses_a_circuit_with_no_designs(builder):
 
 
 def test_build_refuses_an_unconfigured_host(builder):
-    with pytest.raises(InputValidationError, match="yeast"):
-        builder.build(_circuit(host=Host.YEAST), DesiredOutcome.GFP)
+    """*E. coli* and yeast both have a real promoter/terminator configured now
+    (docs/ROADMAP.md Q12) — human is the one still genuinely unconfigured."""
+    with pytest.raises(InputValidationError, match="human"):
+        builder.build(_circuit(host=Host.HUMAN), DesiredOutcome.GFP)
 
 
 def test_build_refuses_an_unconfigured_outcome(builder):

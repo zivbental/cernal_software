@@ -37,11 +37,11 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 35 |
+| Modules | 37 |
 | Public classes | 86 |
-| Public callables (excluding `__init__`) | 164 |
-| — `BUILT` | 130 |
-| — `STUB` | 27 |
+| Public callables (excluding `__init__`) | 167 |
+| — `BUILT` | 134 |
+| — `STUB` | 26 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
 | `__init__` constructors | 20 |
@@ -73,7 +73,7 @@ layers above it, never the ones below.
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
 | stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 2 | 0 | S1 — local accessibility profiling, the primitive behind trigger selection. |
-| stages | `engine.stages.genes` |  | 0 | 1 | Stage 1 — gene selection. |
+| stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
 | stages | `engine.stages.off_target` | S5 | 0 | 4 | S5 — off-target scanning, in both directions. |
 | stages | `engine.stages.plasmids` |  | 5 | 0 | Stage 5 — plasmid construction. |
@@ -86,8 +86,10 @@ layers above it, never the ones below.
 | top | `engine.client` |  | 8 | 0 | The Platform-facing engine interface. |
 | top | `engine.contract` |  | 5 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
+| top | `engine.inputs` |  | 1 | 0 | Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``. |
 | top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
 | top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
+| top | `engine.transcriptome` |  | 2 | 0 | Reference transcript sequences, by organism — Q1's first real answer. |
 
 ## Layer 1 · Domain — the vocabulary
 
@@ -220,13 +222,15 @@ One gene's differential-expression result, as DESeq2 and friends report it.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `gene_id` | `str` |  |
-| `symbol` | `str` |  |
-| `base_mean` | `float` |  |
 | `log2_fold_change` | `float` |  |
-| `p_adj` | `float` |  |
+| `symbol` | `str` | `''` |
+| `p_adj` | `float \| None` | `None` |
+| `p_value` | `float \| None` | `None` |
+| `base_mean` | `float \| None` | `None` |
+| `control_mean` | `float \| None` | `None` |
+| `target_mean` | `float \| None` | `None` |
 | `lfc_se` | `float \| None` | `None` |
 | `stat` | `float \| None` | `None` |
-| `p_value` | `float \| None` | `None` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -275,11 +279,13 @@ Stage 1 output — a gene that separates the two cell states.
 | `symbol` | `str` |  |
 | `regulation` | `Regulation` |  |
 | `log2_fold_change` | `float` |  |
-| `p_adj` | `float` |  |
-| `control_percentile` | `float` |  |
-| `condition_percentile` | `float` |  |
-| `condition_specificity` | `float` |  |
 | `score` | `float` |  |
+| `p_adj` | `float \| None` | `None` |
+| `control_percentile` | `float \| None` | `None` |
+| `condition_percentile` | `float \| None` | `None` |
+| `condition_specificity` | `float \| None` | `None` |
+| `trigger_yield` | `float \| None` | `None` |
+| `usable_windows` | `int \| None` | `None` |
 
 #### `class TriggerCandidate`
 
@@ -324,6 +330,12 @@ The researcher's limits, carried into every stage that has to respect them.
 | `max_switch_length` | `int` | `200` |
 | `forbidden_motifs` | `tuple[str, ...]` | `()` |
 | `standard` | `AssemblyStandard` | `AssemblyStandard.RFC10` |
+| `max_genes` | `int` | `20` |
+| `max_separation` | `float \| None` | `None` |
+| `min_base_expression` | `float \| None` | `None` |
+| `max_base_expression` | `float \| None` | `None` |
+| `trigger_gc_range` | `tuple[float, float]` | `(30.0, 70.0)` |
+| `direction_balance` | `bool` | `True` |
 
 #### `class Compatibility`
 
@@ -1161,10 +1173,18 @@ Stage 1 — gene selection.
 
 Keep the genes that actually separate the two cell states.
 
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `WEIGHT_SEPARATION` |  | `3.0` |
+| `WEIGHT_ABUNDANCE` |  | `2.0` |
+| `WEIGHT_TRIGGER_YIELD` |  | `2.0` |
+| `WEIGHT_NON_REDUNDANCY` |  | `1.5` |
+| `WEIGHT_CONDITION_SPECIFICITY` |  | `1.0` |
+
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, constraints: Constraints, atlas: dict[str, float] \| None = None) -> None` |  |
-| `STUB` | `def select(self, counts: CountMatrix, dge: DgeTable) -> list[SelectedGene]` | Filter, score and rank genes; return a shortlist with an up/down call. |
+| `BUILT` | `def __init__(self, constraints: Constraints, screener: MotifScreener, atlas: dict[str, float] \| None = None) -> None` |  |
+| `BUILT` | `def select(self, dge: DgeTable, *, counts: CountMatrix \| None = None, sequences: dict[str, str] \| None = None, on_warning: Callable[[str], None] \| None = None) -> list[SelectedGene]` | Filter, score and rank genes; return a shortlist with an up/down call. |
 
 ### `engine.stages.motifs` · S7
 
@@ -1229,7 +1249,7 @@ Stage 5 — plasmid construction.
 
 | Constant | Type | Value |
 | --- | --- | --- |
-| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC')}` |
+| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.YEAST: ('K124002',…` |
 | `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |
@@ -1387,7 +1407,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.1.0-direct-only'` |
+| `ENGINE_VERSION` |  | `'local-0.3.0-direct-and-de-ecoli-yeast'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -1613,6 +1633,21 @@ The requested scoring profile is unknown, or its metric set is inconsistent.
 
 Raised internally when a progress callback reports that the run should stop.
 
+### `engine.inputs`
+
+`src/engine/inputs.py`
+
+Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `COLUMN_ALIASES` | `dict[str, tuple[str, ...]]` | `{'gene_id': ('gene_id', 'gene', 'geneid', 'id', 'target_id', 'ensembl_id', 'locus_tag')…` |
+| `MAX_ROWS` |  | `200000` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def parse_dge_table(raw: bytes, filename: str = 'dge.csv') -> DgeTable` | Parse a differential-expression CSV or TSV into a ``DgeTable``. |
+
 ### `engine.pipeline`
 
 `src/engine/pipeline.py`
@@ -1628,7 +1663,7 @@ The real scientific pipeline.
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
-| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`-mode job. |
+| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`- or `de`-mode job. |
 
 ### `engine.store` · S11, S13
 
@@ -1667,6 +1702,17 @@ S13 — keep only the non-dominated candidates.
 | `BUILT` | `def __init__(self, objectives: Sequence[Objective]) -> None` |  |
 | `BUILT` | `def frontier(self, records: Sequence[Any]) -> list[Any]` | Keep only the candidates nothing else beats on every axis. |
 | `BUILT` | `def top_k(self, records: Sequence[Any], k: int, key: str = 'score') -> list[Any]` | Cap how much passes from one stage to the next. |
+
+### `engine.transcriptome`
+
+`src/engine/transcriptome.py`
+
+Reference transcript sequences, by organism — Q1's first real answer.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@cache def load_transcriptome(host: Host) -> dict[str, str]` | Every bundled transcript for ``host``, as RNA, keyed by gene id. |
+| `BUILT` | `def available_hosts() -> tuple[Host, ...]` | Which hosts have a bundled reference transcriptome today. |
 
 ---
 
