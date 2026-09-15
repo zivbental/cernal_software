@@ -1123,23 +1123,13 @@ class ToeholdAndGate(ToeholdGate):
             ``controls_constructible`` runs inside the scan.
         """
         rna = sq.to_rna(transcript)
-        first, last = start // 3, (start + length - 1) // 3
-        indices = list(range(first, last + 1))
-        choices = [
-            [rna[i * 3 : i * 3 + 3], *self._synonymous(rna[i * 3 : i * 3 + 3])] for i in indices
-        ]
         original_protein = sq.translate(rna, stop_at_stop=False)
         context = slice(max(0, start - 20), start + length + 20)
+        candidates = self._recodings(rna, start, length, partner)
 
         best: _Knockout | None = None
-        best_key: tuple[int, float, int] | None = None
-        for combination in product(*choices):
-            edits = tuple(
-                (i * 3 + offset, rna[i * 3 + offset], codon[offset])
-                for i, codon in zip(indices, combination, strict=True)
-                for offset in range(3)
-                if rna[i * 3 + offset] != codon[offset]
-            )
+        best_key: tuple[int, int, float] | None = None
+        for edits in candidates:
             if not edits:
                 continue
             variant = list(rna)
@@ -1152,8 +1142,6 @@ class ToeholdAndGate(ToeholdGate):
             if residual >= self.MIN_OVERLAP:
                 continue
             if sq.translate(candidate, stop_at_stop=False) != original_protein:
-                continue
-            if any(codon in self.RARE_CODONS for codon in combination):
                 continue
             if any(
                 re.search(pattern, candidate[context]) and not re.search(pattern, rna[context])
@@ -1178,6 +1166,81 @@ class ToeholdAndGate(ToeholdGate):
                     residual_energy=energy,
                 )
         return best
+
+    def _recodings(
+        self, rna: str, start: int, length: int, partner: str, *, beam: int = 24
+    ) -> list[tuple[tuple[int, str, str], ...]]:
+        """Cheapest synonymous recodings of ``[start, start+length)`` that break every run.
+
+        Brute force is not available here: disabling a whole 36-nt trigger window means
+        twelve codons with up to six spellings each, and 6^12 is not a search. But the
+        criterion is **local** — no four consecutive positions may all pair — so the cost
+        decomposes, and a codon-by-codon dynamic program over "how long is the pairable run
+        I am carrying" finds the true minimum in linear time.
+
+        Only positions inside the region may move. A codon straddling the boundary is
+        allowed to change only where it overlaps, since R13 confines every edit to a trigger
+        window and a substitution outside one alters sequence that has bench data behind it.
+
+        Returns up to ``beam`` edit sets per run-state, cheapest first, so the caller can
+        reject any that introduce a forbidden motif and still have alternatives left. Rare
+        codons are excluded here rather than filtered later: a control that translates at a
+        different rate is testing more than the trigger.
+        """
+        end = start + length
+        first, last = start // 3, (end - 1) // 3
+        # state -> list of (cost, edits); state is the trailing pairable-run length.
+        paths: dict[int, list[tuple[int, tuple[tuple[int, str, str], ...]]]] = {0: [(0, ())]}
+
+        for codon_index in range(first, last + 1):
+            base = codon_index * 3
+            original = rna[base : base + 3]
+            options = [original, *self._synonymous(original)]
+            nxt: dict[int, list[tuple[int, tuple[tuple[int, str, str], ...]]]] = {}
+            for option in options:
+                if option in self.RARE_CODONS:
+                    continue
+                # A straddling codon may differ only where it lies inside the region.
+                if any(
+                    original[offset] != option[offset] and not (start <= base + offset < end)
+                    for offset in range(3)
+                ):
+                    continue
+                edits = tuple(
+                    (base + offset, original[offset], option[offset])
+                    for offset in range(3)
+                    if original[offset] != option[offset]
+                )
+                for state, entries in paths.items():
+                    run = state
+                    ok = True
+                    for offset in range(3):
+                        position = base + offset
+                        if not (start <= position < end):
+                            continue
+                        index = position - start
+                        if can_pair(option[offset], partner[length - 1 - index]):
+                            run += 1
+                            if run >= self.MIN_OVERLAP:
+                                ok = False
+                                break
+                        else:
+                            run = 0
+                    if not ok:
+                        continue
+                    for cost, taken in entries:
+                        nxt.setdefault(run, []).append((cost + len(edits), taken + edits))
+            paths = {
+                state: sorted(entries, key=lambda item: item[0])[:beam]
+                for state, entries in nxt.items()
+            }
+            if not paths:
+                return []
+
+        merged = sorted(
+            (entry for entries in paths.values() for entry in entries), key=lambda item: item[0]
+        )
+        return [edits for _, edits in merged[:beam]]
 
     def bench_constructs(self, transcript: str, pair: "_TriggerPair") -> dict[str, str | None]:
         """The four logic states as four transcripts on **one background**.
