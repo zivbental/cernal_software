@@ -14,3 +14,18 @@
    412 x@76   len_x=4 unlocked    sep   0.00 sep(no10)  24.11 d10_11   +0.25 ulp  A_M 10/11 0.407/0.407  AUG 00/11 0.006/0.345
    413 x@64   len_x=4 unlocked    sep  -0.00 sep(no10)   6.58 d10_11   -0.25 ulp  A_M 10/11 0.327/0.327  AUG 00/11 0.873/0.355
    414 x@98   len_x=4 unlocked    sep  -0.00 sep(no10)  11.86 d10_11   -0.25 ulp  A_M 10/11 0.554/0.554  AUG 00/11 0.621/0.996
+   415 x@446  len_x=4 unlocked    sep   0.00 sep(no10)  14.65 d10_11   +0.25 ulp  A_M 10/11 0.617/0.617  AUG 00/11 0.742/0.670
+   416 x@258  len_x=4 unlocked    sep  -0.00 sep(no10)  14.11 d10_11   -0.25 ulp  A_M 10/11 0.522/0.522  AUG 00/11 0.915/0.305
+   417 x@210  len_x=4 unlocked    sep   0.00 sep(no10)  13.32 d10_11   +0.00 ulp  A_M 10/11 0.469/0.469  AUG 00/11 0.768/0.789
+   418 x@452  len_x=4 unlocked    sep   0.00 sep(no10)  20.78 d10_11   +0.49 ulp  A_M 10/11 0.449/0.449  AUG 00/11 0.375/0.464
+   419 x@179  len_x=4 unlocked    sep  -0.00 sep(no10)  11.48 d10_11   -0.49 ulp  A_M 10/11 0.457/0.457  AUG 00/11 0.639/0.949
+   420 x@231  len_x=4 unlocked    sep   0.00 sep(no10)  14.16 d10_11   +0.00 ulp  A_M 10/11 0.488/0.488  AUG 00/11 0.684/0.995
+   421 x@75   len_x=4 unlocked    sep  -0.00 sep(no10)  15.40 d10_11   -0.25 ulp  A_M 10/11 0.638/0.638  AUG 00/11 0.954/0.664
+   422 x@457  len_x=4 unlocked    sep   0.00 sep(no10)  11.45 d10_11   +0.25 ulp  A_M 10/11 0.420/0.420  AUG 00/11 0.342/0.667
+   423 x@73   len_x=4 unlocked    sep   0.00 sep(no10)  15.78 d10_11   +0.00 ulp  A_M 10/11 0.661/0.661  AUG 00/11 0.479/0.934
+   424 x@267  len_x=4 unlocked    sep   0.00 sep(no10)   6.61 d10_11   +0.00 ulp  A_M 10/11 0.473/0.473  AUG 00/11 0.951/0.337
+
+25 rows -> C:\Users\Dell\source\repos\cernal_software\src\engine\gates\notebooks\toehold_and\results\survey_0400.csv
+  d10_11 within the measurement floor: 25/25; largest |d10_11| 1.53e-05 kcal/mol
+  separation: min -0.000  max 0.000  over 25 designs
+  distinct main hairpins in this slice: 23

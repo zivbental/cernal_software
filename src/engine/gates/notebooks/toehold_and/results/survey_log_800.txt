@@ -19,3 +19,13 @@
    817 x@653  len_x=4 unlocked    sep  -0.00 sep(no10)  10.64 d10_11   -0.25 ulp  A_M 10/11 0.615/0.615  AUG 00/11 0.901/0.978
    818 x@159  len_x=4 unlocked    sep   0.00 sep(no10)  17.28 d10_11   +0.00 ulp  A_M 10/11 0.402/0.402  AUG 00/11 0.345/0.382
    819 x@173  len_x=4 unlocked    sep   0.00 sep(no10)  14.15 d10_11   +0.00 ulp  A_M 10/11 0.416/0.416  AUG 00/11 0.673/0.819
+   820 x@416  len_x=4 unlocked    sep  -0.00 sep(no10)  11.22 d10_11   -0.25 ulp  A_M 10/11 0.386/0.386  AUG 00/11 0.780/0.409
+   821 x@596  len_x=4 unlocked    sep  -0.00 sep(no10)   5.93 d10_11   -0.25 ulp  A_M 10/11 0.501/0.501  AUG 00/11 0.664/0.991
+   822 x@232  len_x=4 unlocked    sep   0.00 sep(no10)  14.48 d10_11   +0.00 ulp  A_M 10/11 0.546/0.546  AUG 00/11 0.558/0.996
+   823 x@233  len_x=4 mixed       sep   0.00 sep(no10)  16.80 d10_11   +0.00 ulp  A_M 10/11 0.448/0.448  AUG 00/11 0.673/0.972
+   824 x@411  len_x=4 mixed       sep   2.40 sep(no10)  16.06 d10_11 +77497.91 ulp  A_M 10/11 0.132/0.606  AUG 00/11 0.708/0.643
+
+25 rows -> C:\Users\Dell\source\repos\cernal_software\src\engine\gates\notebooks\toehold_and\results\survey_0800.csv
+  d10_11 within the measurement floor: 24/25; largest |d10_11| 2.40e+00 kcal/mol
+  separation: min -0.000  max 2.402  over 25 designs
+  distinct main hairpins in this slice: 24
