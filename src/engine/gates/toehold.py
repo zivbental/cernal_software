@@ -81,7 +81,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.2.0"
+    version = "0.3.0"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -447,6 +447,29 @@ class ToeholdGate(GateFamily):
         combination — see ``generate_designs``'s construction notes and
         ``KOZAK_LAYOUTS``'s docstring for the mechanism this models and why these two
         are swept rather than fixed.
+
+        Deliberately **no `LINKER_SEQUENCE`** after the start codon, unlike ``"loop"``.
+        ``LINKER_SEQUENCE`` is an unengineered spacer inherited unchanged from the
+        prokaryotic source generator (its own docstring: "matches the source
+        generator's ``linker_pattern`` default") — not something either mechanism
+        requires biologically, but harmless to leave in for a layout ported unmodified.
+        For eukaryotic cap-dependent scanning specifically, the 40S subunit initiates
+        the moment it meets Kozak+AUG; nothing after the AUG plays a role in *finding*
+        it, so there is no reason to hold this layout to a leftover prokaryotic
+        default. The switch stops at the start codon; the payload attaches directly
+        (``GateDesign.sequence[aug_index:]`` is just ``"AUG"`` for this layout — see
+        ``PlasmidBuilder._frame_violations``, which fuses from ``aug_index`` onward
+        regardless of layout).
+
+        Open question this leaves, not resolved here: ``validate_payload_cds``
+        (``stages/plasmids.py``) requires every payload to itself start with a start
+        codon, so the fused ORF reads switch-AUG, then the payload's *own* leading AUG
+        as an ordinary internal codon — an N-terminal Met before the payload's
+        intended sequence. Whether that is acceptable (translation start codons are
+        near-universally Met regardless, and N-terminal Met is often cleaved
+        post-translationally anyway) or whether the switch's own placeholder AUG
+        should instead be dropped in favour of the payload's is a scientific call for
+        the team, not decided here.
         """
         for loop_len in self.TRAILING_LOOP_LENGTHS:
             loop = _filler(loop_len)
@@ -468,7 +491,6 @@ class ToeholdGate(GateFamily):
                     + kozak_linker
                     + self.KOZAK_EUKARYOTIC
                     + sq.START_CODON
-                    + self.LINKER_SEQUENCE
                 )
                 aug_index = (
                     len(self.LEADER_SEQUENCE)
@@ -489,7 +511,6 @@ class ToeholdGate(GateFamily):
                     + "." * kozak_linker_len
                     + "." * len(self.KOZAK_EUKARYOTIC)
                     + "." * len(sq.START_CODON)
-                    + "." * len(self.LINKER_SEQUENCE)
                 )
                 architecture = {
                     "stem_pre_bulge_len": self.STEM_PRE_BULGE_LEN,
@@ -497,7 +518,7 @@ class ToeholdGate(GateFamily):
                     "loop_len": loop_len,
                     "kozak_linker_len": kozak_linker_len,
                     "leader_len": len(self.LEADER_SEQUENCE),
-                    "linker_len": len(self.LINKER_SEQUENCE),
+                    "linker_len": 0,
                     "aug_index": aug_index,
                     "track": self.host.track.value,
                     "kozak_layout": "trailing",

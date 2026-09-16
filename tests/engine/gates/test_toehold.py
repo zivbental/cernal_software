@@ -342,6 +342,25 @@ def test_trailing_layout_dot_bracket_marks_kozak_and_aug_unpaired(activator_set,
     assert design.dot_bracket.count("(") == design.dot_bracket.count(")")
 
 
+def test_trailing_layout_ends_at_the_start_codon_no_linker(activator_set, constraints):
+    """Unlike "loop", "trailing" carries no LINKER_SEQUENCE after the AUG — the
+    scanning ribosome initiates the moment it meets Kozak+AUG, so nothing after the
+    start codon plays a role in this layout's own mechanism, and the payload attaches
+    directly at plasmid assembly (PlasmidBuilder fuses from aug_index onward)."""
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+    )
+    design = next(gate.generate_designs(activator_set, constraints))
+    aug_index = design.architecture["aug_index"]
+    assert design.architecture["linker_len"] == 0
+    assert design.sequence[aug_index:] == sq.START_CODON
+    assert len(design.sequence) == aug_index + 3
+
+
 def test_design_ids_stay_unique_across_both_layouts(activator_set, constraints):
     gate = ToeholdGate(
         Host.HUMAN, FoldEngine(), TranslationScorer(Host.HUMAN), CodonOptimizer(Host.HUMAN)
