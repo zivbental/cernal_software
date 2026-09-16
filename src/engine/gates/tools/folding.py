@@ -412,6 +412,30 @@ class FoldEngine:
         """
         raise NotImplementedError("Step 5 — wrap RNA.subopt")
 
+    def layout_coordinates(self, structure: str) -> list[tuple[float, float]]:
+        """Where each nucleotide sits when a structure is drawn, one point per base.
+
+        ViennaRNA's naview layout — the same algorithm behind ``RNAplot`` and the familiar
+        forna-style pictures — solved here rather than by a caller, because this module is
+        the only one permitted to reach for the folding library at all.
+
+        Args:
+            structure: Dot-bracket, balanced. Multi-strand structures must already have
+                their ``&`` removed, since the layout is over a single coordinate space.
+
+        Returns:
+            ``(x, y)`` per position, in the layout's own arbitrary units and **y-up**
+            orientation. A caller drawing SVG has to flip y and scale to its own box; no
+            normalisation is done here because the sensible scale depends on the target.
+
+        Gotchas:
+            * The underlying vector comes back one entry longer than the structure — the
+              trailing point is padding, not a base — and is trimmed here so no caller
+              rediscovers it as a stray point at the origin.
+        """
+        points = RNA.naview_xy_coordinates(structure)
+        return [(points[i].X, points[i].Y) for i in range(len(structure))]
+
     def versions(self) -> dict[str, str]:
         """The tool versions this run was computed with.
 

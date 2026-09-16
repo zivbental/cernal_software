@@ -3,8 +3,10 @@
     uv run python src/engine/gates/notebooks/toehold_and/structure_figures.py \\
         --fasta "path/to/mCherry original.txt" --out figures --designs 3
 
-**The layout comes from ViennaRNA, the drawing does not.** ``naview_xy_coordinates``
-places every nucleotide of the predicted OFF structure; everything after that — backbone
+**The layout comes from ViennaRNA, the drawing does not.**
+``FoldEngine.layout_coordinates`` places every nucleotide of the predicted OFF structure —
+through the shared folding adapter, which is the only module permitted to reach for the
+folding library; everything after that — backbone
 weight, base-pair rungs, translucent domain highlights, leader lines — is drawn here, in
 the same visual language as the project's hand-drawn schematic. A raw ``RNAplot`` output
 would be legible but anonymous, and it could not carry the per-domain measurements, which
@@ -26,8 +28,6 @@ from pathlib import Path
 _SRC = Path(__file__).resolve().parents[4]
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
-
-import RNA  # noqa: E402  — this file draws, it does not fold for the pipeline
 
 from engine import sequences as sq  # noqa: E402
 from engine.domain import Host  # noqa: E402
@@ -64,16 +64,6 @@ def esc(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def layout(structure: str) -> list[tuple[float, float]]:
-    """Nucleotide positions for a dot-bracket structure, from ViennaRNA's naview layout.
-
-    The vector comes back one longer than the sequence — the trailing entry is padding, not
-    a base — so it is trimmed here rather than by every caller.
-    """
-    coords = RNA.naview_xy_coordinates(structure)
-    return [(coords[i].X, coords[i].Y) for i in range(len(structure))]
-
-
 def pair_table(structure: str) -> dict[int, int]:
     stack, pairs = [], {}
     for index, char in enumerate(structure):
@@ -106,7 +96,7 @@ def draw(design, out_path: Path) -> None:
 
     W, H = 1000, 640
     plot_w = 600
-    points = fit(layout(structure), plot_w, H - 120, 46)
+    points = fit(design["layout"], plot_w, H - 120, 46)
     points = [(x + 8, y + 74) for x, y in points]
     pairs = pair_table(structure)
 
@@ -273,6 +263,7 @@ def build(gate, transcript, pair, stem, label):
 
     sequence = switch.sequence
     fold = gate.folder.mfe(sequence)
+    coordinates = gate.folder.layout_coordinates(fold.structure)
     n = len(sequence)
     xs, swx = switch.domains["sw_xs"], switch.domains["sw_x"]
     locked, engaged = [], []
@@ -317,6 +308,7 @@ def build(gate, transcript, pair, stem, label):
         "switch": sequence,
         "off_mfe": fold.structure,
         "mfe": fold.energy,
+        "layout": coordinates,
         "domains": switch.domains,
         "observables": o,
         "locked": locked,
