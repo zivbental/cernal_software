@@ -10,8 +10,9 @@ Full run (hours)::
     uv run python src/engine/gates/notebooks/toehold_and/design_panel.py \\
         --fasta "path/to/mCherry original.txt" --out panel
 
-**What it produces.** Two trigger pairs, taken at the longest available overlap, and for
-each of them two designs from every secondary-stem family — A-anchored, B-anchored and
+**What it produces.** ``--pairs`` trigger pairs (default 2, ``0`` for all of them), taken
+at the longest available overlap, and for each of them ``--per-family`` designs from every
+secondary-stem family — A-anchored, B-anchored and
 mixed (the builds only scheme C can express). Twelve switches, each with its four-tube
 observables, plus the four negative-control transcripts per pair.
 
@@ -79,7 +80,7 @@ def select_pairs(gate, transcript, *, lab_filter: bool, wanted: int, verbose: bo
     kept.sort(key=lambda p: (-p.len_x, -p.gap()))
     if verbose:
         print(f"stage 1: {len(kept)} pairs survive; longest overlap is {kept[0].len_x} nt")
-    return kept[:wanted]
+    return kept if wanted == 0 else kept[:wanted]
 
 
 def pick_by_family(stems, per_family: int):
@@ -100,7 +101,13 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--fasta", required=True)
     parser.add_argument("--out", default="panel", help="prefix for the CSV and the FASTAs")
-    parser.add_argument("--pairs", type=int, default=2, help="trigger pairs to design for")
+    parser.add_argument(
+        "--pairs",
+        type=int,
+        default=2,
+        help="trigger pairs to design for, longest overlap first; 0 means every pair "
+        "that survives stage 1 (hundreds, so hours)",
+    )
     parser.add_argument("--per-family", type=int, default=2, help="designs per stem family")
     parser.add_argument(
         "--quick",

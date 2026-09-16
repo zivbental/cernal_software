@@ -1326,6 +1326,79 @@ class ToeholdAndGate(ToeholdGate):
                 constructs["00"] = both
         return constructs
 
+    def main_stem_energies(
+        self, trigger_a: str, len_x: int, main_z: str
+    ) -> tuple[float | None, float | None, float | None]:
+        """The three energies that decide whether the AND is thermodynamic or only kinetic.
+
+        Trigger A's footprint on the switch runs ``sw_xs · main_pre* · bulge* · k1*``,
+        contiguous because ``a = 0``. In state 10 the ``sw_xs`` end is locked inside the
+        inhibitory hairpin, so trigger A has only the 18-nt arm to work with; in state 11
+        trigger B has freed ``sw_xs`` and trigger A gets ``len_x`` more base pairs, in the
+        same helix. So there are exactly three numbers to compare:
+
+        * ``stem`` — the switch's own arm against its own descending copy. What trigger A
+          has to beat.
+        * ``grip_alone`` — trigger A against the 18-nt arm, which is all it can reach
+          without trigger B.
+        * ``grip_with_x`` — trigger A against ``sw_xs`` plus the arm, what it reaches once
+          trigger B has acted.
+
+        **The window.** Free energies are negative, so a true equilibrium AND needs
+
+            ``grip_with_x  <  stem  <  grip_alone``
+
+        — trigger A loses to the stem by itself and wins with the extra ``len_x`` pairs.
+        As designed today ``k1* = revcomp(k1)``, so trigger A is complementary to all 18
+        and ``grip_alone`` beats ``stem`` outright: measured -30.5 against -23.9, a 6.6
+        kcal/mol surplus, which is the state-10 leak. ``mainZ`` is the only free sequence
+        in that arm, and ``k1* = revcomp(mainZ)``, so choosing ``mainZ`` moves
+        ``grip_alone`` and ``stem`` together and is the one lever available.
+
+        No folding: three fixed-alignment duplex energies, so a 4096-way sweep over
+        ``mainZ`` costs seconds and only survivors need the four tubes.
+
+        Warning:
+            **Necessary, not sufficient, and measured to be insufficient.** Satisfying the
+            window does not buy ``separation``: 40 variants over 10 trigger pairs, spread
+            from 0.1 to 10.7 kcal/mol inside it, all returned ``separation`` 0.00 with
+            ``dG_open(10) == dG_open(11)`` (``strength_window.py``). Trigger A never has to
+            beat the *whole* stem — only the sub-helix over ``main_pre*``, where trigger
+            A's ``main_pre`` is the switch's own sequence plus the 3-nt ``bulge`` that the
+            descending ``AUG`` cannot pair. R7 grants trigger A those three pairs by
+            design, and ``mainZ`` lies on the far side of the bulge, so no choice of it can
+            take them back. Use these three numbers to *screen*, never to rank, and never
+            as evidence that a design gates.
+
+        Args:
+            trigger_a: Trigger A, RNA uppercase, ``k1 · bulge · main_pre · xA · extA``.
+            len_x: Overlap length, so ``sw_xs`` is known.
+            main_z: The candidate 6-nt spacer. ``k1*`` is its reverse complement.
+
+        Returns:
+            ``(stem, grip_alone, grip_with_x)`` in kcal/mol; any element is ``None`` if
+            the model could not evaluate that alignment.
+        """
+        arm, post = self.ARM_LEN, self.STEM_POST_BULGE_LEN
+        rna = sq.to_rna(trigger_a)
+        bulge = rna[post : post + self.BULGE_LEN]
+        main_pre = rna[post + self.BULGE_LEN : arm]
+        x = rna[arm : arm + len_x]
+
+        ascending = (
+            sq.reverse_complement(main_pre)
+            + sq.reverse_complement(bulge)
+            + (sq.reverse_complement(main_z))
+        )
+        descending = main_z + "AUG" + main_pre
+        return (
+            fixed_alignment_energy(ascending, descending, self.folder),
+            fixed_alignment_energy(rna[:arm], ascending, self.folder),
+            fixed_alignment_energy(
+                rna[: arm + len_x], sq.reverse_complement(x) + ascending, self.folder
+            ),
+        )
+
     def find_trigger_pairs(
         self, transcript: str, *, min_window_gap: int | None = None
     ) -> Iterator["_TriggerPair"]:

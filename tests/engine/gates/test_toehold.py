@@ -4,6 +4,8 @@ Real ``FoldEngine``/ViennaRNA throughout, matching ``test_antisense.py``: every 
 here tops out under 90 nt, so a real fold costs low milliseconds.
 """
 
+import itertools
+
 import pytest
 
 from engine import sequences as sq
@@ -1157,3 +1159,59 @@ def test_stems_are_labelled_by_the_scheme_that_could_build_them():
         else:
             assert stem.scheme == "unlocked"
     assert "mixed" in labels, "scheme C should reach builds neither global scheme can"
+
+
+# --- main_stem_energies: the three numbers behind the state-10 leak -------------------
+
+
+def test_the_design_as_it_stands_lets_trigger_a_beat_its_own_stem():
+    """The state-10 leak, as an energy rather than as a fold. With `mainZ = k1` — what
+    `assemble` chooses — trigger A is complementary to all 18 nt of the ascending arm, so
+    `grip_alone` beats `stem` outright and nothing about trigger B is needed to open the
+    hairpin. This is the measurement the whole problem rests on, so it is pinned."""
+    gate = _and_gate()
+    trigger_a, _, _ = _contested_pair()
+    k1 = trigger_a[: gate.STEM_POST_BULGE_LEN]
+
+    stem, grip_alone, grip_with_x = gate.main_stem_energies(trigger_a, len(_OVERLAP), k1)
+
+    assert grip_alone < stem, "as designed, trigger A wins on the 18-nt arm alone"
+    assert grip_with_x < grip_alone, "the overlap can only add base pairs, never remove any"
+
+
+def test_some_spacer_puts_the_stem_back_in_front_of_trigger_a():
+    """The one lever, and the claim the whole experiment rests on: that the window
+    `grip_with_x < stem < grip_alone` is reachable by choosing `mainZ` alone. `k1*` is
+    `revcomp(mainZ)`, so a spacer unrelated to trigger A's `k1` costs trigger A six of its
+    eighteen pairs while the stem keeps all eighteen. Searched rather than asserted on one
+    hand-picked spacer, because which spacers land inside depends on the trigger's own GC
+    content — the search is what `strength_window.py` does, at one pair."""
+    gate = _and_gate()
+    trigger_a, _, _ = _contested_pair()
+
+    inside = []
+    for letters in itertools.product("ACGU", repeat=gate.STEM_POST_BULGE_LEN):
+        spacer = "".join(letters)
+        stem, alone, with_x = gate.main_stem_energies(trigger_a, len(_OVERLAP), spacer)
+        if alone > stem > with_x:
+            inside.append((min(alone - stem, stem - with_x), spacer))
+
+    assert inside, "no spacer reaches the window; the experiment would have nothing to test"
+    best_margin, best = max(inside)
+    assert best != trigger_a[: gate.STEM_POST_BULGE_LEN]
+    assert best_margin > 0.0
+
+
+def test_the_window_is_a_screen_and_never_a_score():
+    """`main_stem_energies` prices three fixed alignments and knows nothing about the rest
+    of the molecule, so it can only ever narrow the set that gets folded. Asserting the
+    contract — no folding, so no `None` from a sentinel, and identical inputs give
+    identical answers — keeps a later caller from ranking on it."""
+    gate = _and_gate()
+    trigger_a, _, _ = _contested_pair()
+
+    first = gate.main_stem_energies(trigger_a, len(_OVERLAP), "GCCGAC")
+    again = gate.main_stem_energies(trigger_a, len(_OVERLAP), "GCCGAC")
+
+    assert first == again
+    assert all(value is not None and abs(value) < 1e4 for value in first)
