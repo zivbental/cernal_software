@@ -40,10 +40,44 @@ the two-pass score), `kim2019_benchmark.py` (the validation against published co
 
 ---
 
-## Problem 1 — the state-10 leak. Blocking, and not a code defect
+## Problem 1 — the state-10 leak. Blocking, and audited as not a code defect
+
+**Audited 2026-09-16, because two results looked too clean to trust.** Verified from three
+independent directions, and the conclusion held:
+
+1. **`p_open` against answers known without folding.** A poly-A window returns exactly
+   1.0; a 10-bp stem returns 25.3 kcal/mol; that stem's own loop returns 0.0; and moving
+   the window changes the answer. Pinned as regression tests.
+2. **`A_M` against a raw reimplementation** that reads ViennaRNA's 1-indexed
+   upper-triangular output directly instead of the shared matrix: agreement to
+   **0.0×10⁰**, so the matrix conversion carries no off-by-one.
+3. **`dG_open` against an independent re-derivation** with no `FoldEngine` involved:
+   agreement to **0.01 kcal/mol** on a ~70 kcal/mol quantity, which is ViennaRNA's own
+   partition-function scaling noise, four orders below the model's ~1.5 kcal/mol error.
+
+**Both suspicious coincidences have physical causes.** Kim's four constructs return
+identical `dG_open(10)` because **the ribosome window's sequence is identical in all
+four** — `AACAGAGGAGAUAUAGAAUGAGACAAUGGA`; they differ only in *upstream* spacing, and
+trigger A opens the primary hairpin in every one, so the window's local ensemble is the
+same. Their absolute energies differ correctly (−70.53 / −69.07 / −67.61 / −57.35, tracking
+length); only the difference over a shared window converges, and it converges to the fifth
+decimal rather than exactly.
+
+And `A_M(10)` versus `A_M(11)` are **not** identical: 0.5220967774815423 against
+0.5221042962957555, a difference of 7.5×10⁻⁶, non-uniform per base, with one base moving
+the *other* way — which is what a real ensemble does and a caching fault could not. An
+earlier version of this file claimed "identical to five decimals, max difference 0.00000";
+that was an artifact of printing three decimals, and is corrected above. The conclusion is
+unchanged, since 10⁻⁵ cannot move a gate thresholded at 0.2, but the precision was
+overstated.
+
+The reason the two tubes agree so closely is visible in the matrices: trigger A pairs the
+main arm at probability **1.0000** in both states, so that arm's local ensemble really is
+the same. Where the tubes differ hugely — max |ΔP| = 0.9999 — is the *secondary* hairpin,
+which is where trigger B acts.
 
 **Measured.** On 142 candidates, `A_M(10) < 0.2` passes **0/142**, and `A_M(10)` equals
-`A_M(11)` to five decimals on **142/142** (max difference 0.00000). `dG_bind_A` against the
+`A_M(11)` on **142/142** to within **~1×10⁻⁵**. `dG_bind_A` against the
 *bare* switch is −38…−44 kcal/mol against −38…−47 conditioned on B — a difference inside
 the model's own error. So `separation` is 0.00 for every candidate.
 

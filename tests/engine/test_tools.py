@@ -15,6 +15,7 @@ import pytest
 
 from engine import sequences as sq
 from engine.domain import AssemblyStandard
+from engine.gates.toehold import _mean_unpaired
 from engine.gates.tools.binding import (
     alignment_pairs,
     fixed_alignment_energy,
@@ -464,3 +465,67 @@ def test_longest_complementary_run_finds_the_longest_unbroken_stretch():
     total count would have reported four and called this trigger viable."""
     assert longest_complementary_run("GGAGG", "CCACC") == 2
     assert longest_complementary_run("AAAA", "AAAA") == 0
+
+
+# --- p_open against answers that are known without folding ---------------------------
+
+
+def test_p_open_is_exactly_one_where_pairing_is_impossible():
+    """A poly-A stretch has nothing to pair with, so the joint probability that a window
+    inside it is open is 1 and the opening cost is 0. If this drifts, the constrained and
+    unconstrained partition functions are no longer being compared on the same ensemble."""
+    folder = FoldEngine(temperature=37.0)
+
+    assert folder.p_open("A" * 40, (5, 35)) == pytest.approx(1.0, abs=1e-9)
+
+
+def test_p_open_prices_a_stem_and_not_its_loop():
+    """The same molecule, two windows: opening ten base pairs is expensive, opening the
+    hairpin loop they close is free. A p_open that ignored its window argument, or indexed
+    it wrongly, would return the same number for both."""
+    folder = FoldEngine(temperature=37.0)
+    hairpin = "GGGGGGGGGGAAAACCCCCCCCCC"
+
+    on_stem = folder.p_open(hairpin, (0, 10))
+    on_loop = folder.p_open(hairpin, (10, 14))
+
+    assert on_stem < 1e-12
+    assert on_loop == pytest.approx(1.0, abs=1e-6)
+
+
+def test_p_open_enumerates_one_ordering_per_circular_class():
+    """(n-1)! orderings: one for a dimer, two for a three-strand tube. The switch is kept
+    first so a window into it never needs remapping — if that changed, the constraint would
+    land on a trigger instead."""
+    folder = FoldEngine(temperature=37.0)
+    switch, trigger_a, trigger_b = "GGGAAACCCAAAGGGUUUCCC", "GGGAAACCC", "AAAGGGUUU"
+    window = (2, 8)
+
+    assert len(folder.p_open_by_order(f"{switch}&{trigger_a}", window)[0]) == 1
+    assert len(folder.p_open_by_order(f"{switch}&{trigger_a}&{trigger_b}", window)[0]) == 2
+    for order in FoldEngine._strand_orders(f"{switch}&{trigger_a}&{trigger_b}"):
+        assert order.split("&")[0] == switch
+
+
+def test_mean_unpaired_matches_a_raw_pair_probability_sum():
+    """`_mean_unpaired` reads the shared matrix; this recomputes the same quantity straight
+    from ViennaRNA's 1-indexed upper-triangular output. They must agree exactly, because a
+    disagreement would mean the matrix conversion has an off-by-one."""
+    folder = FoldEngine(temperature=37.0)
+    strands = "GGGGGGGGGGAAAACCCCCCCCCC&GGGGGGGGGG"
+    span = (0, 10)
+
+    from_shared = _mean_unpaired(folder.base_pair_probabilities(strands), *span)
+
+    compound = folder._compound(strands)
+    compound.pf()
+    raw = compound.bpp()
+    total = len(raw) - 1
+    expected = [
+        max(
+            0.0,
+            1.0 - sum(raw[min(i + 1, j)][max(i + 1, j)] for j in range(1, total + 1) if j != i + 1),
+        )
+        for i in range(*span)
+    ]
+    assert from_shared == pytest.approx(sum(expected) / len(expected), abs=1e-12)

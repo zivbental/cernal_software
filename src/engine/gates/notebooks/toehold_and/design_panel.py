@@ -116,6 +116,8 @@ def main(argv=None) -> int:
 
     pairs_wanted = 1 if args.quick else args.pairs
     per_family = 1 if args.quick else args.per_family
+    output_dir = Path(__file__).resolve().parent / "results"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     gate = ProkaryoticToeholdAndGate(
         Host.ECOLI,
@@ -192,9 +194,9 @@ def main(argv=None) -> int:
             if sequence is None:
                 print(f"  control {state}: no synonymous knockout")
                 continue
-            path = f"{args.out}_x{pair.x_start}_state{state}.fa"
+            path = output_dir / f"{args.out}_x{pair.x_start}_state{state}.fa"
             edits = sum(1 for a, b in zip(transcript, sequence, strict=True) if a != b)
-            with open(path, "w") as handle:
+            with path.open("w") as handle:
                 handle.write(f">state{state} x@{pair.x_start} edits={edits}\n")
                 dna = sq.to_dna(sequence)
                 for i in range(0, len(dna), 60):
@@ -202,8 +204,8 @@ def main(argv=None) -> int:
             print(f"  control {state}: {path}  ({edits} edits)")
 
     if rows:
-        path = f"{args.out}_designs.csv"
-        with open(path, "w", newline="") as handle:
+        path = output_dir / f"{args.out}_designs.csv"
+        with path.open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
             writer.writeheader()
             writer.writerows(rows)
