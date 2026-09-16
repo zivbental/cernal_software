@@ -1045,7 +1045,13 @@ class ToeholdAndGate(ToeholdGate):
             "A_S_full": (switch.domains["secondary_z"][0], switch.domains["sw_xs"][1]),
         }
         for state, strands in tubes.items():
-            matrix = self.folder.base_pair_probabilities(strands)
+            # Pooled, not the bare matrix: state 11 has three strands and therefore two
+            # orderings, and in "switch&B&A" trigger A's arcs cross trigger B's, so
+            # ViennaRNA forbids the both-bound structure and reports an ensemble in which
+            # trigger A is not there. Measured, the two orderings disagree by up to 0.997
+            # in per-base unpaired probability inside this very window. Writing the
+            # strands in the lucky order is not a reason to trust the answer.
+            matrix = self.folder.pooled_pair_probabilities(strands)
             for name, (start, end) in spans.items():
                 observables[f"{name}_{state}"] = _mean_unpaired(matrix, start, end)
             if state == "00":
@@ -1639,7 +1645,7 @@ def _filler(length: int) -> str:
     return (_FILLER_UNIT * (length // len(_FILLER_UNIT) + 1))[:length]
 
 
-def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float:
+def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float | None:
     """Mean P(unpaired) over ``[start, end)`` from a ``base_pair_probabilities`` matrix.
 
     P(unpaired) at position i is ``1 - sum(matrix[i])`` — the matrix is already symmetric
@@ -1649,11 +1655,16 @@ def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float:
     the trigger bound" needs. (Duplicated from the same helper in ``gates/antisense.py``
     rather than imported — see the port's open questions on promoting it to a shared
     tool.)
+
+    Returns ``None`` for a span that is empty or does not lie inside the matrix, never
+    ``0.0``: this is an accessibility, so higher is better, and 0.0 is the worst possible
+    score rather than a missing one. A span that runs off the end means the domain map and
+    the folded sequence are out of step, which is a bug upstream — reporting it as a fully
+    sequestered region would hide that and rank the design as if it had been measured.
     """
     n = len(matrix)
-    end = min(end, n)
-    if end <= start:
-        return 0.0
+    if not 0 <= start < end <= n:
+        return None
     unpaired = [max(0.0, 1.0 - sum(matrix[i])) for i in range(start, end)]
     return sum(unpaired) / len(unpaired)
 

@@ -37,6 +37,18 @@ import RNA
 
 from engine.domain import FoldResult, StructureMatch
 
+# ViennaRNA's ``pf()`` returns a C ``float``, so every ensemble free energy this module
+# handles lands exactly on the single-precision grid — verified by round-tripping real
+# outputs through ``struct.pack("<f", ...)``. At the magnitudes an AND-gate tube reaches
+# (|G| of 40 to 210 kcal/mol) one step is 3.8e-06 to 1.5e-05 kcal/mol, so a *difference*
+# of two such energies -- which is what every opening cost and every ``separation`` is --
+# carries about 3e-05 kcal/mol of quantisation.
+#
+# **Two numbers closer than this are not equal, they are unresolved.** Nothing here can
+# distinguish them, and no threshold should be set inside that band. Quoted as the
+# coarsest case so it is a bound rather than an estimate.
+_FLOAT32_ENERGY_ULP = 3.1e-05
+
 
 class FoldEngine:
     """S2 — minimum free energy, ensemble properties and suboptimal structures.
@@ -219,8 +231,14 @@ class FoldEngine:
     def _combine(self, energies: list[float]) -> float:
         """Free energy of the union of several ensembles, summed in Boltzmann space.
 
-        Shifted by the minimum before exponentiating: a 160-nt complex sits near
-        -80 kcal/mol, and ``exp(80 / 0.616)`` overflows a float long before the sum does.
+        Shifted by the minimum before exponentiating, because ``exp(-G / RT)`` overflows a
+        float64 once ``|G|`` passes about **437 kcal/mol** — reached by a complex of a few
+        hundred nucleotides, and by the constrained ensembles here sooner than by the free
+        ones. (An earlier version of this docstring justified the shift with
+        ``exp(80 / 0.616)``, which does not overflow at all: it is 2.4e+56.) The shift is
+        algebraically exact — ``floor`` is added back — and cancels in any ratio of two
+        combined ensembles; checked against a 60-digit unshifted reference to 3.2e-15
+        kcal/mol, including cases where the two sides have different minima.
         """
         floor = min(energies)
         total = math.fsum(math.exp(-(energy - floor) / self.rt) for energy in energies)
@@ -254,23 +272,55 @@ class FoldEngine:
                 still folds and still scores.
 
         Note:
-            Summed over all ``(n-1)!`` strand orderings, numerator and denominator alike.
-            The spread between orderings is **not** negligible and does not cancel in the
-            ratio: measured on a 160+36+50 nt triple it is 2.75 kcal/mol in ``dG_open``
-            — above the folding model's own ~1.5 kcal/mol error — because the
-            unconstrained ensembles differ far more between orderings (3.29 kcal/mol)
-            than the constrained ones do (0.54). Use ``p_open_by_order`` to see it.
-            This is not NUPACK's exact treatment, which restricts each complex to
-            connected structures and applies a symmetry correction; ViennaRNA counts
-            disconnected states too, so a structure representable in several orderings is
-            counted several times. Summing both sides over the same orderings is what
-            makes that cancel to first order.
+            Pooled over all ``(n-1)!`` strand orderings, numerator and denominator alike,
+            each weighted by its own population — so this is a Boltzmann average, not a
+            mean over orderings. That distinction is not cosmetic: on a real 161+36+50 nt
+            AND-gate tube the two orderings differ by **46.8 kcal/mol**, so the pooled
+            answer is the dominant ordering's to every bit, while an unweighted mean would
+            have reported ``dG_open`` 8.02 instead of 7.59. An earlier version of this note
+            claimed the spread was 2.75 kcal/mol and cancelled between the two sides;
+            measured across ten real designs it is 10.9 to 22.1 kcal/mol and does not
+            cancel — the pooling simply lets the populated ordering win. Use
+            ``p_open_by_order`` to see the spread.
+
+            Why the orderings differ so much: ViennaRNA counts only structures that are
+            non-crossing in the written order, and ``switch&B&A`` makes trigger A's arcs
+            cross trigger B's, forbidding the both-bound state. That ordering therefore
+            describes a *different* physical situation, and is correctly given a weight of
+            ``1.1e-33`` rather than half the answer.
+
+            This is not NUPACK's exact treatment, which restricts each complex to connected
+            structures and applies a symmetry correction; ViennaRNA counts disconnected
+            states too, so a structure representable in several orderings is counted
+            several times. Pooling both sides over the same orderings is what makes that
+            cancel to first order.
+
+        Warning:
+            The result is resolved to about ``4.9e-05`` *relatively*, because it is built
+            from two single-precision energies — see ``_FLOAT32_ENERGY_ULP``. Two tubes
+            whose probabilities agree to the last bit have been measured as equal to
+            within the instrument, not proven identical.
         """
         by_order = self.p_open_by_order(strands, window)
         if by_order is None:
             return None
         constrained, unconstrained = by_order[1], by_order[2]
-        return math.exp(-(self._combine(constrained) - self._combine(unconstrained)) / self.rt)
+        cost = self._combine(constrained) - self._combine(unconstrained)
+        probability = math.exp(-cost / self.rt)
+        if probability == 0.0:
+            # exp underflows once the cost passes ~459 kcal/mol, and 0.0 is the one value
+            # this must never return: a hard filter reads it as a perfectly closed window
+            # instead of as a window too closed to measure. Real 30-nt footprints top out
+            # near 22 kcal/mol, so this is headroom, not a live path.
+            return None
+        # The constrained ensemble is a subset of the unconstrained one, so the cost is
+        # non-negative in exact arithmetic. ViennaRNA returns single-precision energies,
+        # so a window with nothing left to pair can measure one ulp the wrong way and
+        # produce a probability just above 1 -- exactly the regime a working ON state
+        # reaches. Clamp inside that noise band; anything larger is a real inconsistency.
+        if probability > 1.0:
+            return 1.0 if cost > -_FLOAT32_ENERGY_ULP else None
+        return probability
 
     def p_open_by_order(
         self, strands: str, window: tuple[int, int]
@@ -372,6 +422,85 @@ class FoldEngine:
         # caller the *same* mutable matrix, and one caller mutating it would corrupt
         # every other caller's view for the rest of the run.
         return [list(row) for row in self._base_pair_probabilities_cached(sequence)]
+
+    def pooled_pair_probabilities(self, strands: str) -> list[list[float]]:
+        """``base_pair_probabilities`` Boltzmann-averaged over all strand orderings.
+
+        **Use this, not ``base_pair_probabilities``, whenever there are three or more
+        strands.** ViennaRNA counts only structures that are non-crossing in the order the
+        strands are written, and from three strands up the orderings are not
+        interchangeable: one of them can make two binders' arcs cross and so forbid the
+        both-bound structure entirely. Measured on a 161+36+50 nt AND-gate tube, the two
+        orderings of the same three molecules give per-base unpaired probabilities
+        differing by up to **0.997**, because ``switch&B&A`` crosses trigger A out of the
+        complex while ``switch&A&B`` nests it. A caller that simply writes the strands in
+        some order gets one of those two answers with nothing to say which.
+
+        Each ordering is weighted by its own ensemble population, exactly as ``p_open``
+        weights its numerator and denominator, so a geometrically forbidden ordering
+        contributes in proportion to how populated it actually is — on that same tube,
+        ``1.1e-33``, which is why the existing numbers do not move.
+
+        Args:
+            strands: RNA, uppercase, ``&``-joined. One or two strands have a single
+                ordering, so this returns the same matrix as ``base_pair_probabilities``.
+
+        Returns:
+            An n-by-n matrix indexed over the concatenation **in the order given**, the
+            same convention as ``base_pair_probabilities``. Every ordering's matrix is
+            mapped back onto those positions before averaging, so a caller's indices never
+            depend on which ordering happened to dominate.
+        """
+        orders = self._strand_orders(strands)
+        if len(orders) == 1:
+            return self.base_pair_probabilities(strands)
+
+        canonical = strands.split("&")
+        energies = [self.partition(order) for order in orders]
+        floor = min(energies)
+        weights = [math.exp(-(energy - floor) / self.rt) for energy in energies]
+        total = math.fsum(weights)
+
+        width = sum(len(strand) for strand in canonical)
+        pooled = [[0.0] * width for _ in range(width)]
+        for order, weight in zip(orders, weights, strict=True):
+            if weight / total == 0.0:  # underflowed; contributes nothing to any entry
+                continue
+            index = self._position_map(order.split("&"), canonical)
+            matrix = self.base_pair_probabilities(order)
+            share = weight / total
+            for i, row in enumerate(matrix):
+                target = pooled[index[i]]
+                for j, probability in enumerate(row):
+                    if probability:
+                        target[index[j]] += share * probability
+        return pooled
+
+    @staticmethod
+    def _position_map(order: list[str], canonical: list[str]) -> list[int]:
+        """Index in the canonical concatenation for each index in ``order``'s.
+
+        The orderings permute the strands, so position *k* means a different nucleotide in
+        each one. Built by matching strands left to right and consuming each canonical
+        strand once, so repeated identical strands map to distinct copies rather than all
+        collapsing onto the first.
+        """
+        starts, cursor = [], 0
+        for strand in canonical:
+            starts.append(cursor)
+            cursor += len(strand)
+
+        taken = [False] * len(canonical)
+        mapping: list[int] = []
+        for strand in order:
+            for position, candidate in enumerate(canonical):
+                if not taken[position] and candidate == strand:
+                    taken[position] = True
+                    mapping.extend(range(starts[position], starts[position] + len(strand)))
+                    break
+            else:  # pragma: no cover — _strand_orders only ever permutes
+                raise ValueError(f"{strand!r} is not an unused strand of the original")
+        return mapping
 
     @cache  # noqa: B019 — one instance per run; see the class docstring
     def _base_pair_probabilities_cached(self, sequence: str) -> tuple[tuple[float, ...], ...]:

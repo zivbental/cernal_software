@@ -529,3 +529,87 @@ def test_mean_unpaired_matches_a_raw_pair_probability_sum():
         for i in range(*span)
     ]
     assert from_shared == pytest.approx(sum(expected) / len(expected), abs=1e-12)
+
+
+# --- Strand ordering in pair probabilities (S2) ---------------------------------------
+#
+# A three-strand complex has (n-1)! orderings and ViennaRNA counts only structures that
+# are non-crossing in the order written, so the orderings are NOT interchangeable. The
+# gate hits this on every state-11 tube.
+
+_SITE_A = "GCGCAUGCAUGC"
+_SITE_B = "GGCCAUUGGCCA"
+# Two binding sites at opposite ends, so a binder for each. Written "S&A&B" the two
+# binders' arcs nest; written "S&B&A" they cross, and ViennaRNA then forbids the
+# both-bound structure entirely -- the same geometry as the AND gate's state 11.
+_TWO_SITE_SWITCH = sq.reverse_complement(_SITE_B) + "AUAUAUAUAU" + sq.reverse_complement(_SITE_A)
+
+
+def test_writing_the_same_three_molecules_in_another_order_changes_the_bare_matrix():
+    """The defect `pooled_pair_probabilities` exists to fix, pinned so it cannot be
+    quietly reintroduced. `base_pair_probabilities` reports whichever ordering the caller
+    happened to type, and the two answers here differ by nearly a whole base."""
+    folder = FoldEngine()
+    switch = _TWO_SITE_SWITCH
+    nested = folder.base_pair_probabilities(f"{switch}&{_SITE_A}&{_SITE_B}")
+    crossed = folder.base_pair_probabilities(f"{switch}&{_SITE_B}&{_SITE_A}")
+
+    over_switch = [abs(sum(nested[i]) - sum(crossed[i])) for i in range(len(switch))]
+    assert max(over_switch) > 0.5, "the ordering should matter enormously here"
+
+
+def test_pooled_pair_probabilities_do_not_depend_on_how_the_caller_writes_the_strands():
+    """The invariant the fix buys. Both writings enumerate the same set of orderings and
+    weight each by its own population, so the switch's own pairing comes out identical --
+    the caller no longer has to know which ordering is the physical one."""
+    folder = FoldEngine()
+    switch = _TWO_SITE_SWITCH
+    nested = folder.pooled_pair_probabilities(f"{switch}&{_SITE_A}&{_SITE_B}")
+    crossed = folder.pooled_pair_probabilities(f"{switch}&{_SITE_B}&{_SITE_A}")
+
+    for i in range(len(switch)):
+        assert sum(nested[i]) == pytest.approx(sum(crossed[i]), abs=1e-12)
+
+
+def test_pooling_is_weighted_by_population_not_a_flat_average():
+    """A forbidden ordering must not get half the answer. When one ordering dominates,
+    the pooled matrix is that ordering's; a flat mean would drag every entry halfway to an
+    ensemble in which one binder cannot bind at all."""
+    folder = FoldEngine()
+    strands = f"{_TWO_SITE_SWITCH}&{_SITE_A}&{_SITE_B}"
+    orders = folder._strand_orders(strands)
+    energies = [folder.partition(order) for order in orders]
+    dominant = orders[energies.index(min(energies))]
+
+    pooled = folder.pooled_pair_probabilities(strands)
+    best = folder.base_pair_probabilities(dominant)
+    if dominant == strands:  # only then are the two indexed the same way
+        worst = folder.base_pair_probabilities(orders[energies.index(max(energies))])
+        flat = [
+            [(b + w) / 2 for b, w in zip(row_b, row_w, strict=True)]
+            for row_b, row_w in zip(best, worst, strict=True)
+        ]
+        assert (
+            max(abs(pooled[i][j] - best[i][j]) for i in range(len(best)) for j in range(len(best)))
+            < 1e-9
+        )
+        assert (
+            max(abs(pooled[i][j] - flat[i][j]) for i in range(len(best)) for j in range(len(best)))
+            > 1e-3
+        )
+
+
+def test_pooling_is_a_no_op_below_three_strands():
+    """One and two strands have a single ordering, so there is nothing to pool and the
+    result must be the ordinary matrix -- not a copy that has drifted."""
+    folder = FoldEngine()
+    for strands in (_TWO_SITE_SWITCH, f"{_TWO_SITE_SWITCH}&{_SITE_A}"):
+        assert folder.pooled_pair_probabilities(strands) == folder.base_pair_probabilities(strands)
+
+
+def test_the_position_map_gives_each_repeated_strand_its_own_copy():
+    """Two identical triggers in one tube must not both map onto the first copy's
+    positions, which would pile both strands' pairing onto one half of the matrix."""
+    mapping = FoldEngine._position_map(["AAA", "GG", "AAA"], ["AAA", "AAA", "GG"])
+    assert mapping == [0, 1, 2, 6, 7, 3, 4, 5]
+    assert sorted(mapping) == list(range(8)), "every position is used exactly once"

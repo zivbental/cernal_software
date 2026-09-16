@@ -21,6 +21,7 @@ from engine.gates.toehold import (
     _arm_conflicts,
     _build_arms,
     _invasion_runs_ok,
+    _mean_unpaired,
     _pareto_front,
     _secondary_domains,
 )
@@ -1215,3 +1216,16 @@ def test_the_window_is_a_screen_and_never_a_score():
 
     assert first == again
     assert all(value is not None and abs(value) < 1e4 for value in first)
+
+
+def test_an_unmeasurable_span_is_none_rather_than_a_fully_sequestered_region():
+    """`_mean_unpaired` feeds accessibility metrics, where higher is better, so 0.0 is the
+    worst possible score and not a missing one. A span that runs off the matrix means the
+    domain map and the folded sequence are out of step -- reporting 0.0 would hide that
+    bug behind a design that merely looks bad. CLAUDE.md section 3."""
+    matrix = [[0.0, 0.4], [0.4, 0.0]]
+
+    assert _mean_unpaired(matrix, 0, 2) == pytest.approx(0.6)
+    assert _mean_unpaired(matrix, 1, 1) is None, "empty span"
+    assert _mean_unpaired(matrix, 1, 9) is None, "runs off the end"
+    assert _mean_unpaired(matrix, -1, 2) is None, "starts before the matrix"
