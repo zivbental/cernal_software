@@ -1,0 +1,21 @@
+1036 pairs survive stage 1; this slice is [800, 825), stem 0
+   800 x@672  len_x=4 A-anchored  sep   0.00 sep(no10)  11.81 d10_11   +0.00 ulp  A_M 10/11 0.544/0.544  AUG 00/11 0.534/0.813
+   801 x@164  len_x=4 unlocked    sep   0.00 sep(no10)  10.76 d10_11   +0.25 ulp  A_M 10/11 0.633/0.633  AUG 00/11 0.676/0.517
+   802 x@207  len_x=4 unlocked    sep   0.00 sep(no10)  15.24 d10_11   +0.25 ulp  A_M 10/11 0.316/0.316  AUG 00/11 0.360/0.453
+   803 x@279  len_x=4 unlocked    sep   0.00 sep(no10)  12.43 d10_11   +0.25 ulp  A_M 10/11 0.457/0.457  AUG 00/11 0.374/0.408
+   804 x@345  len_x=4 unlocked    sep  -0.00 sep(no10)  18.42 d10_11   -0.25 ulp  A_M 10/11 0.479/0.479  AUG 00/11 0.336/0.642
+   805 x@495  len_x=4 unlocked    sep  -0.00 sep(no10)  16.08 d10_11   -0.25 ulp  A_M 10/11 0.547/0.547  AUG 00/11 0.360/0.942
+   806 x@540  len_x=4 unlocked    sep   0.00 sep(no10)   6.46 d10_11   +0.00 ulp  A_M 10/11 0.527/0.527  AUG 00/11 0.968/0.966
+   807 x@670  len_x=4 A-anchored  sep   0.00 sep(no10)  12.40 d10_11   +0.00 ulp  A_M 10/11 0.473/0.473  AUG 00/11 0.668/0.376
+   808 x@184  len_x=4 unlocked    sep   0.00 sep(no10)  13.67 d10_11   +0.25 ulp  A_M 10/11 0.456/0.456  AUG 00/11 0.781/0.982
+   809 x@326  len_x=4 unlocked    sep   0.00 sep(no10)   7.40 d10_11   +0.25 ulp  A_M 10/11 0.389/0.389  AUG 00/11 0.672/0.408
+   810 x@442  len_x=4 unlocked    sep   0.00 sep(no10)  12.48 d10_11   +0.00 ulp  A_M 10/11 0.607/0.607  AUG 00/11 0.748/0.451
+   811 x@279  len_x=4 unlocked    sep  -0.00 sep(no10)  12.43 d10_11   -0.25 ulp  A_M 10/11 0.457/0.457  AUG 00/11 0.374/0.408
+   812 x@396  len_x=4 unlocked    sep   0.00 sep(no10)  20.22 d10_11   +0.00 ulp  A_M 10/11 0.486/0.486  AUG 00/11 0.374/0.396
+   813 x@274  len_x=4 unlocked    sep   0.00 sep(no10)  11.27 d10_11   +0.00 ulp  A_M 10/11 0.381/0.381  AUG 00/11 0.420/0.501
+   814 x@398  len_x=4 mixed       sep   0.00 sep(no10)   9.97 d10_11   +0.00 ulp  A_M 10/11 0.554/0.554  AUG 00/11 0.349/0.433
+   815 x@580  len_x=4 unlocked    sep   0.00 sep(no10)  16.39 d10_11   +0.25 ulp  A_M 10/11 0.475/0.475  AUG 00/11 0.628/0.383
+   816 x@243  len_x=4 unlocked    sep   0.00 sep(no10)  20.88 d10_11   +0.00 ulp  A_M 10/11 0.554/0.554  AUG 00/11 0.336/0.849
+   817 x@653  len_x=4 unlocked    sep  -0.00 sep(no10)  10.64 d10_11   -0.25 ulp  A_M 10/11 0.615/0.615  AUG 00/11 0.901/0.978
+   818 x@159  len_x=4 unlocked    sep   0.00 sep(no10)  17.28 d10_11   +0.00 ulp  A_M 10/11 0.402/0.402  AUG 00/11 0.345/0.382
+   819 x@173  len_x=4 unlocked    sep   0.00 sep(no10)  14.15 d10_11   +0.00 ulp  A_M 10/11 0.416/0.416  AUG 00/11 0.673/0.819
