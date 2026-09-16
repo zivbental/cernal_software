@@ -17,7 +17,12 @@ uv run python src/engine/gates/notebooks/toehold_and/design_panel.py \
 ```
 
 Other drivers: `find_candidates.py` (stage 1 + controls), `rank_candidates.py` (gates and
-the two-pass score), `kim2019_benchmark.py` (the validation against published constructs).
+the two-pass score), `kim2019_benchmark.py` (the validation against published constructs),
+`strength_window.py` (the sweep that tested and falsified the main-hairpin fix),
+`strand_occupancy.py` (where each strand goes in each tube -- the audit behind problem 1).
+
+The plain-language write-up of the state-10 investigation, English and Hebrew, is
+[`state10_leak_summary.md`](state10_leak_summary.md).
 
 ## Pipeline status
 
@@ -103,19 +108,54 @@ than locked — looked promising and is not the leak: candidate x@68 has `engage
 (c) `len_x` does not predict the leak: `engaged(10)` spans 0.048–0.858 with no relation to
 overlap length or lock energy.
 
+**The strength-window fix was tested and it fails. Retracted 2026-09-16.**
+
+Proposal 2 below — make the switch's own copy the stronger binder so trigger A needs `x*`
+— was implemented as a sweep and measured. `mainZ` is the only free sequence in the
+ascending arm, and `k1*` is its reverse complement, so it is the only lever the layout
+offers. `main_stem_energies` prices the three deciding alignments without folding, and
+`strength_window.py` sweeps all 4096 spacers per pair, keeps those satisfying
+`grip_with_x < stem < grip_alone`, and folds a sample **stratified across the margin
+range** so the result is a curve rather than a top-k list.
+
+**Result: 40 variants, 10 trigger pairs, margins 0.1 → 10.7 kcal/mol inside the window,
+`separation` 0.00 on every single one, with `dG_open(10) == dG_open(11)` throughout.**
+`dG_open(00)` and `dG_open(01)` do differ, so the tubes respond to strand composition; it
+is trigger B specifically that stops mattering once trigger A is present.
+
+**Why the window is empty.** The proxy asks trigger A to beat the *whole* 18-bp stem, but
+trigger A only has to displace the sub-helix over `main_pre*` — and there its `main_pre` is
+the switch's own identical sequence **plus** the 3-nt `bulge` that the descending `AUG`
+cannot pair. R7 grants trigger A those three base pairs by design. `mainZ` sits on the far
+side of the bulge, so no choice of it takes them back; what `mainZ` controls is the 6-bp
+upper stem next to the RBS loop, 6 of `W_rank`'s 30 nt, which is not enough to hold the
+window shut once `main_pre` has been peeled. `main_pre` is the reporter's first three
+codons and is trigger-derived, so it is inside the ribosome window **and** inside trigger
+A's footprint at once.
+
+**`separation +2.97` is retracted.** Recorded earlier as evidence this idea worked, it came
+from a throwaway script with a **state-labelling error**: its "state 10" was the
+switch-alone tube. Re-measured through `four_tube_observables` on the same pair and spacer
+(x@52, `len_x` 8, `mainZ` `GCCGAC`): `separation` −0.00, `A_M(10) = A_M(11) = 0.405`, and
+its "`A_M(10)` 0.060" is this pipeline's `A_M(00)`. Decoupling `k1*` does lower `A_M(10)`
+from 0.522 to 0.405 — it just never separates 10 from 11.
+
 **Proposed solutions, for Offer and the supervisor.**
 
 1. **Stop gating on τ4a; rank on `separation` over {00, 01}.** What `design_panel.py` does
    today. Honest and unblocking, but it stops claiming the AND is verified.
-2. **Invert R6 on the main stem.** The most promising, and it follows from a symmetry Offer
-   identified. R6 requires the switch's own copy to be the *weaker* binder so the trigger
-   can displace — which is precisely what lets trigger A displace *unaided*. If instead the
-   switch's `main_pre`/`mainZ` bind the ascending arm *more* strongly than trigger A does,
-   then trigger A cannot open the hairpin on the 18-nt arm alone, and needs the extra
-   `len_x` base pairs from `x*` — available only once B has acted. **That is a true AND at
-   equilibrium.** Note it makes `main_pre` a design variable, which costs 3 residues of
-   N-terminal extension on the reporter, and it reopens R6.
-3. **Add the kinetic refinement** §4.5 anticipates, reopening §6's equilibrium-only
+2. ~~**Invert R6 on the main stem.**~~ **Tested and failed** — see above. The part of the
+   idea that survives is its diagnosis: for a thermodynamic AND, the stretch of hairpin
+   covering the ribosome window has to be sequence-*independent* of trigger A. Since
+   `main_pre` is both the reporter's first three codons and a slice of trigger A, that
+   cannot be arranged by choosing `mainZ`.
+3. **Move the bulge bonus from trigger A to the switch.** The lever the failure points at.
+   If the 3 nt of the ascending arm facing the `AUG` are `CAU` — complementary to the start
+   codon rather than to trigger A's `bulge` — the switch's own arm gains the three pairs
+   and trigger A loses them, which is the first arrangement in which trigger A can lose
+   *locally*. It breaks R1 over 3 nt and removes the 3×3 loop R7 asks for, so it must be
+   checked against the ON state before it is believed. Measured with the same script.
+4. **Add the kinetic refinement** §4.5 anticipates, reopening §6's equilibrium-only
    instruction. Canonical reference: Zhang & Winfree 2009, toehold-mediated displacement
    rates spanning ~6 orders of magnitude over toehold length 0→6 nt — **unverified from
    here, check before citing.**
