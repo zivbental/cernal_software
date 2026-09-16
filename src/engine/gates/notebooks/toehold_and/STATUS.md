@@ -41,7 +41,7 @@ The plain-language write-up of the state-10 investigation, English and Hebrew, i
 | 6 | Bench constructs, four states on one background | **done** |
 | 7 | Output / ranking | **partial** — ranks on `J`, not `Φ` |
 
-695 engine tests, 259 house-rule assertions, ruff clean.
+695 engine tests, 284 house-rule assertions, ruff clean.
 
 ---
 
