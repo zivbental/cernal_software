@@ -369,6 +369,113 @@ def test_design_ids_stay_unique_across_both_layouts(activator_set, constraints):
     assert len(ids) == len(set(ids))
 
 
+# --- payload: folding the real effector gene's head instead of a placeholder -----------
+#
+# Without a payload, evaluate_design folds the switch alone (or with LINKER_SEQUENCE for
+# "loop") — a different molecule from what a real ribosome sees once a specific gene is
+# fused on. PAYLOAD_HEAD_LENGTH folds the real gene's own first nucleotides in instead,
+# same idea as AntisenseNotGate.payload (Kudla et al. 2009).
+
+PAYLOAD_CDS = "AUG" + "GCUGGUCAUGCUAGCUAGCGGAUCGAUCGAUCGGCUAGCGAUCGAUCGAUCGGCUAGC" + "UAA"
+
+
+def test_payload_must_start_with_a_start_codon():
+    with pytest.raises(ValueError, match="start codon"):
+        ToeholdGate(
+            Host.HUMAN,
+            FoldEngine(),
+            TranslationScorer(Host.HUMAN),
+            CodonOptimizer(Host.HUMAN),
+            payload="GCUGCUGCU",
+        )
+
+
+def test_payload_must_be_valid_rna_or_dna():
+    with pytest.raises(ValueError, match="RNA or DNA"):
+        ToeholdGate(
+            Host.HUMAN,
+            FoldEngine(),
+            TranslationScorer(Host.HUMAN),
+            CodonOptimizer(Host.HUMAN),
+            payload="AUGXYZ",
+        )
+
+
+def test_without_a_payload_nothing_changes(activator_set, constraints):
+    """Regression guard: the payload feature is purely additive."""
+    with_none = ToeholdGate(
+        Host.HUMAN, FoldEngine(), TranslationScorer(Host.HUMAN), CodonOptimizer(Host.HUMAN)
+    )
+    assert with_none.payload is None
+    assert with_none.payload_head is None
+    design = next(with_none.generate_designs(activator_set, constraints))
+    assert design.architecture["payload_head_length"] == 0
+
+
+def test_payload_head_is_folded_into_the_loop_layout(activator_set, constraints):
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("loop",),
+        payload=PAYLOAD_CDS,
+    )
+    expected_head = sq.to_rna(PAYLOAD_CDS)[3 : 3 + gate.PAYLOAD_HEAD_LENGTH]
+    assert gate.payload_head == expected_head
+
+    design = next(gate.generate_designs(activator_set, constraints))
+    assert design.sequence.endswith(expected_head)
+    assert design.architecture["payload_head_length"] == len(expected_head)
+    # LINKER_SEQUENCE must be gone, replaced by the real head, not appended alongside it.
+    assert gate.LINKER_SEQUENCE not in design.sequence
+
+
+def test_payload_head_is_folded_into_the_trailing_layout(activator_set, constraints):
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+        payload=PAYLOAD_CDS,
+    )
+    expected_head = sq.to_rna(PAYLOAD_CDS)[3 : 3 + gate.PAYLOAD_HEAD_LENGTH]
+    design = next(gate.generate_designs(activator_set, constraints))
+    aug_index = design.architecture["aug_index"]
+    assert design.sequence[aug_index:] == sq.START_CODON + expected_head
+    assert design.architecture["payload_head_length"] == len(expected_head)
+
+
+def test_payload_changes_evaluate_design_metrics(activator_set, constraints):
+    """The whole point: folding in the real downstream sequence changes the OFF/ON
+    ensemble the switch is measured against, so a design can score differently with a
+    payload than the placeholder-based estimate — this is what could change which
+    design ranks best, not just plumbing that returns the same numbers either way."""
+    no_payload = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+    )
+    with_payload = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+        payload=PAYLOAD_CDS,
+    )
+    design_a = next(no_payload.generate_designs(activator_set, constraints))
+    design_b = next(with_payload.generate_designs(activator_set, constraints))
+    assert design_a.sequence != design_b.sequence
+
+    metrics_a = no_payload.evaluate_design(design_a)
+    metrics_b = with_payload.evaluate_design(design_b)
+    assert metrics_a["gate_folding_energy"] != pytest.approx(metrics_b["gate_folding_energy"])
+
+
 # --- evaluate_design: raw values, no scoring -------------------------------------------
 
 
@@ -499,6 +606,7 @@ def test_golden_first_design_for_a_known_trigger(gate, activator_set, constraint
         "loop_len": 11,
         "leader_len": 3,
         "linker_len": 21,
+        "payload_head_length": 0,
         "aug_index": 50,
         "track": "prokaryotic",
         "kozak_layout": "loop",

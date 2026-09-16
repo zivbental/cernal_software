@@ -74,6 +74,14 @@ class ToeholdGate(GateFamily):
             everyone shares one instance.
         translation: Shared ``TranslationScorer``, for initiation strength.
         codons: Shared ``CodonOptimizer``, for linker and payload rewriting.
+        payload: Optional — the effector gene's own CDS (DNA or RNA, a full ORF
+            starting with a start codon). When given, the real payload's own first
+            ``PAYLOAD_HEAD_LENGTH`` nucleotides are folded into every generated switch
+            (same idea as ``AntisenseNotGate.payload``, which requires one), so
+            ``evaluate_design`` measures the molecule a ribosome would actually see
+            once this gene is fused on — not a fixed placeholder standing in for any
+            gene. Unlike ``AntisenseNotGate``, optional: a toehold switch is useful to
+            design and rank before an effector gene is chosen.
 
     Reference: Green et al., "Toehold switches: de-novo-designed regulators of gene
     expression" (2014), and the pipeline map's Switches Design stage.
@@ -81,7 +89,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.3.0"
+    version = "0.4.0"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -162,6 +170,19 @@ class ToeholdGate(GateFamily):
     #: ``engine.scoring`` settles across designs, not a constant to guess once here.
     KOZAK_LINKER_LENGTHS: ClassVar[tuple[int, ...]] = (0, 3)
 
+    #: Nucleotides of the payload's own CDS, immediately after its start codon, that get
+    #: folded into every switch when ``payload`` is supplied. Same figure and rationale
+    #: as ``AntisenseNotGate.PAYLOAD_HEAD_LENGTH``: Kudla et al. 2009 (*Science*,
+    #: "Coding-sequence determinants of gene expression in E. coli") found mRNA folding
+    #: strength in roughly this window around the start codon to be the strongest
+    #: predictor of expression level in their assay — bigger than codon usage. Without a
+    #: payload, ``evaluate_design`` folds the switch alone (or with ``LINKER_SEQUENCE``
+    #: for ``"loop"``) — a different molecule from what a real ribosome would see once a
+    #: specific gene is fused on, and the two can rank designs differently: a candidate
+    #: whose stem looks clean in isolation can pick up new base-pairing partners once the
+    #: real downstream sequence is folded in, or vice versa.
+    PAYLOAD_HEAD_LENGTH: ClassVar[int] = 30
+
     def __init__(
         self,
         host: Host,
@@ -170,6 +191,7 @@ class ToeholdGate(GateFamily):
         codons: CodonOptimizer,
         *,
         kozak_layouts: tuple[str, ...] | None = None,
+        payload: str | None = None,
     ) -> None:
         # Tools are handed in, never constructed here: FoldEngine's cache only helps if
         # every caller shares one instance (docs/engine.md §2.4).
@@ -180,6 +202,26 @@ class ToeholdGate(GateFamily):
         # None means "use the class default sweep" rather than "sweep nothing" — a
         # caller narrowing to one layout passes an explicit one-element tuple instead.
         self.kozak_layouts = kozak_layouts if kozak_layouts is not None else self.KOZAK_LAYOUTS
+
+        # Optional, unlike AntisenseNotGate's required `payload` — a toehold switch is
+        # useful to design and rank before an effector gene is chosen, so `None` falls
+        # back to today's placeholder behaviour (LINKER_SEQUENCE for "loop", nothing for
+        # "trailing") rather than forcing every caller to supply one.
+        self.payload: str | None = None
+        self.payload_head: str | None = None
+        if payload is not None:
+            payload_rna = sq.to_rna(payload)
+            if not sq.is_valid_rna(payload_rna):
+                raise ValueError("payload must be a non-empty RNA or DNA sequence.")
+            if payload_rna[:3] != sq.START_CODON:
+                raise ValueError(
+                    "payload must be a full CDS starting with a start codon, got "
+                    f"{payload_rna[:3]!r}."
+                )
+            self.payload = payload_rna
+            # Computed once, not per design: it never varies across generate_designs'
+            # sweep, same reasoning as AntisenseNotGate's own payload_head.
+            self.payload_head = payload_rna[3 : 3 + self.PAYLOAD_HEAD_LENGTH]
 
     def required_tools(self) -> list[ToolRequirement]:
         """External tools this family needs, checked before a run starts.
@@ -387,10 +429,14 @@ class ToeholdGate(GateFamily):
     ) -> tuple[str, str, dict]:
         """The ``"loop"`` layout: RBS/Kozak in the loop, start codon in the stem.
 
-        Unchanged construction from before ``"trailing"`` existed — see
-        ``generate_designs``'s construction notes for the two layouts' rationale.
+        Construction unchanged from before ``"trailing"`` existed, except the tail
+        after the start codon: the real payload's own first ``PAYLOAD_HEAD_LENGTH``
+        nucleotides when ``self.payload`` is set, else the unengineered
+        ``LINKER_SEQUENCE`` placeholder as before — see ``PAYLOAD_HEAD_LENGTH``'s
+        docstring and ``generate_designs``'s construction notes.
         """
         loop = self._loop_element()
+        tail = self.payload_head if self.payload_head is not None else self.LINKER_SEQUENCE
 
         switch = (
             self.LEADER_SEQUENCE
@@ -402,7 +448,7 @@ class ToeholdGate(GateFamily):
             + sq.reverse_complement(b_post)
             + sq.START_CODON
             + sq.reverse_complement(b_pre)
-            + self.LINKER_SEQUENCE
+            + tail
         )
 
         aug_index = (
@@ -424,14 +470,15 @@ class ToeholdGate(GateFamily):
             + ")" * self.STEM_POST_BULGE_LEN
             + "." * 3
             + ")" * self.STEM_PRE_BULGE_LEN
-            + "." * len(self.LINKER_SEQUENCE)
+            + "." * len(tail)
         )
         architecture = {
             "stem_pre_bulge_len": self.STEM_PRE_BULGE_LEN,
             "stem_post_bulge_len": self.STEM_POST_BULGE_LEN,
             "loop_len": len(loop),
             "leader_len": len(self.LEADER_SEQUENCE),
-            "linker_len": len(self.LINKER_SEQUENCE),
+            "linker_len": len(tail),
+            "payload_head_length": len(self.payload_head) if self.payload_head else 0,
             "aug_index": aug_index,
             "track": self.host.track.value,
             "kozak_layout": "loop",
@@ -456,10 +503,15 @@ class ToeholdGate(GateFamily):
         For eukaryotic cap-dependent scanning specifically, the 40S subunit initiates
         the moment it meets Kozak+AUG; nothing after the AUG plays a role in *finding*
         it, so there is no reason to hold this layout to a leftover prokaryotic
-        default. The switch stops at the start codon; the payload attaches directly
-        (``GateDesign.sequence[aug_index:]`` is just ``"AUG"`` for this layout — see
-        ``PlasmidBuilder._frame_violations``, which fuses from ``aug_index`` onward
-        regardless of layout).
+        default. **When ``self.payload`` is set**, the real payload's own first
+        ``PAYLOAD_HEAD_LENGTH`` nucleotides are folded in after the start codon instead
+        — see ``PAYLOAD_HEAD_LENGTH``'s docstring for why this can change which design
+        ranks best. Without one, the switch still stops exactly at the start codon
+        (``GateDesign.sequence[aug_index:]`` is just ``"AUG"``); the full payload
+        attaches later regardless (``PlasmidBuilder._frame_violations``, which fuses
+        from ``aug_index`` onward using the *complete* payload either way — folding in
+        only the head here is for realistic evaluation, not a change to what actually
+        gets assembled).
 
         Open question this leaves, not resolved here: ``validate_payload_cds``
         (``stages/plasmids.py``) requires every payload to itself start with a start
@@ -471,6 +523,7 @@ class ToeholdGate(GateFamily):
         should instead be dropped in favour of the payload's is a scientific call for
         the team, not decided here.
         """
+        tail = self.payload_head if self.payload_head is not None else ""
         for loop_len in self.TRAILING_LOOP_LENGTHS:
             loop = _filler(loop_len)
             hairpin = (
@@ -491,6 +544,7 @@ class ToeholdGate(GateFamily):
                     + kozak_linker
                     + self.KOZAK_EUKARYOTIC
                     + sq.START_CODON
+                    + tail
                 )
                 aug_index = (
                     len(self.LEADER_SEQUENCE)
@@ -511,6 +565,7 @@ class ToeholdGate(GateFamily):
                     + "." * kozak_linker_len
                     + "." * len(self.KOZAK_EUKARYOTIC)
                     + "." * len(sq.START_CODON)
+                    + "." * len(tail)
                 )
                 architecture = {
                     "stem_pre_bulge_len": self.STEM_PRE_BULGE_LEN,
@@ -518,7 +573,8 @@ class ToeholdGate(GateFamily):
                     "loop_len": loop_len,
                     "kozak_linker_len": kozak_linker_len,
                     "leader_len": len(self.LEADER_SEQUENCE),
-                    "linker_len": 0,
+                    "linker_len": len(tail),
+                    "payload_head_length": len(self.payload_head) if self.payload_head else 0,
                     "aug_index": aug_index,
                     "track": self.host.track.value,
                     "kozak_layout": "trailing",
