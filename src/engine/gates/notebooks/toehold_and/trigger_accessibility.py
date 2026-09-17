@@ -251,9 +251,10 @@ def main(argv=None) -> int:
                 f"  max {ordered[-1]:7.3f}"
             )
     print(
-        "\nLower SED and higher plfold openness both mean a more reachable window.\n"
-        "They are different measurements -- global slice versus local folding -- so\n"
-        "compare designs within a column, never across."
+        "\nLower SED means a more reachable window; higher l_green means the same thing\n"
+        "from the other side (l_green = 1 - sed_w0). Compare designs within a column,\n"
+        "never across: each flank size asks a different question about the same site.\n"
+        "RNAplfold local accessibility is deliberately absent -- see the module docstring."
     )
     return 0
 
