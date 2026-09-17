@@ -125,11 +125,21 @@ def variants(gate, switch, trigger_a: str) -> dict:
     # Give the AUG a partner: the ascending 3 nt become its complement.
     aug_partner = sq.reverse_complement("AUG")
 
+    # Designed PARTIAL closure. bulge* faces G, U, A across the helix, so pairing position
+    # 0 needs C or U, position 1 needs A or G, position 2 needs U. "CAU" pairs all three and
+    # removes the loop; "CCU" leaves the middle unpaired (a designed 1x1 mid-helix); "CCC"
+    # leaves two unpaired (a designed 2x2). Testing only the extreme would have left the
+    # question "or design something else for the AUG?" unanswered.
+    aug_pair_two = "CCU"
+    aug_pair_one = "CCC"
+
     out = {
         "baseline": switch,
         "upper3": patch(switch, k1_star=upper3_k1, main_z=upper3_z),
         "upper6": patch(switch, k1_star=upper6_k1, main_z=upper6_z),
         "aug_paired": patch(switch, bulge_star=aug_partner),
+        "aug_pair2": patch(switch, bulge_star=aug_pair_two),
+        "aug_pair1": patch(switch, bulge_star=aug_pair_one),
         "stop_before_bulge": patch(
             switch, bulge_star=aug_partner, k1_star=upper6_k1, main_z=upper6_z
         ),

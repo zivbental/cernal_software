@@ -117,8 +117,11 @@ stem</b>. Neither half works alone. Together they take <code>separation</code> f
 <span class="num">0.00</span> to a median <span class="num">+6.77&nbsp;kcal/mol</span> and
 drop <code>A_M(10)</code> to <span class="num">0.007</span>, passing &tau;4a for the first
 time, while <code>A_M(11)</code> holds at <span class="num">0.404</span>.</p>
-<p>Then <b>select candidates where trigger A keeps exactly 2 of its 3 pairs at the start
-codon</b> &mdash; that is the optimum of a real trade-off, measured below, not a preference.
+<p><b>How far to close it is itself a design variable</b>, not a yes/no. Closing all three
+positions is the most robust across candidates; closing two and leaving a designed
+1&times;1 loop scores the same on the statistic we have evidence for and preserves the ON
+state far better &mdash; but only on some candidates. Both belong in the panel, chosen per
+candidate.
 And note one thing not on the list at all: <b>our exposed toehold is a&nbsp;=&nbsp;0</b>,
 outside the range anyone has tested. Kim&rsquo;s AND works at a&nbsp;=&nbsp;4 and degenerates
 to a one-input switch at a&nbsp;=&nbsp;10. That is the parameter he varied deliberately, and
@@ -382,6 +385,49 @@ the optimum</b> &mdash; the only row that clears &tau;4a on <code>A_M(10)</code>
 while holding <code>A_M(11)</code> at 0.411 and leaving the start codon accessible at 0.640.
 Keeping 3 leaks (<code>A_M(10)</code> 0.352); keeping 0 or 1 turns off without turning on.
 238 of our pairs qualify.</p>
+
+<h3>3b &middot; How far to close it &mdash; a designed variable, not a switch</h3>
+<p>The first version of this analysis tested only the extreme. Since <code>bulge*</code> is
+ours to choose, it can be designed to pair <i>any</i> number of the start codon's three
+positions: <code>CAU</code> pairs all three and removes the loop, <code>CCU</code> leaves the
+middle unpaired as a designed 1&times;1, <code>CCC</code> leaves two as a designed 2&times;2.
+Medians over four candidates, all on the strongest-lock stem:</p>
+
+<div class="scroll"><table>
+<thead><tr><th>closure</th><th>bulge*</th><th>separation</th><th>mean-form sep</th>
+<th>A_M(10)</th><th>A_M(11)</th><th>AUG(11)</th></tr></thead>
+<tbody>
+<tr><td>none &mdash; baseline</td><td class="n">trigger-derived</td><td class="n">0.00</td>
+  <td class="n">0.000</td><td class="n">0.506</td><td class="n">0.506</td><td class="n">0.502</td></tr>
+<tr><td>2&times;2 designed</td><td class="n">CCC</td><td class="n">0.66</td>
+  <td class="n">0.133</td><td class="n">0.404</td><td class="n">0.506</td><td class="n">0.502</td></tr>
+<tr class="hi"><td><b>1&times;1 designed</b></td><td class="n">CCU</td><td class="n">2.05</td>
+  <td class="n"><b>0.225</b></td><td class="n">0.297</td><td class="n"><b>0.505</b></td>
+  <td class="n">0.502</td></tr>
+<tr class="hi"><td><b>closed entirely</b></td><td class="n">CAU</td><td class="n"><b>6.77</b></td>
+  <td class="n">0.219</td><td class="n"><b>0.009</b></td><td class="n">0.404</td>
+  <td class="n">0.444</td></tr>
+</tbody></table></div>
+
+<p><code>A_M(10)</code> falls monotonically with closure depth &mdash; 0.506, 0.404, 0.297,
+0.009 &mdash; which is the leak responding exactly as the mechanism predicts. But the two
+end points are not ranked the same way by the two separation forms. On the <b>joint</b> form
+full closure wins outright (6.77 against 2.05). On the <b>mean</b> form &mdash; the one the
+168-switch calibration says actually tracks performance &mdash; they are level
+(<span class="num">0.219</span> against <span class="num">0.225</span>), and the 1&times;1
+keeps <code>A_M(11)</code> at 0.505 where full closure drops it to 0.404.</p>
+
+<div class="callout">
+<p><b>And it is strongly candidate-dependent, which is the practical point.</b> On x@117,
+full closure reaches separation <span class="num">12.00</span> and <b>kills the gate</b>:
+<code>A_M(11)</code> 0.111 and the start codon 0.002 accessible. The designed 1&times;1 on the
+same candidate gives separation <span class="num">8.24</span> with <code>A_M(11)</code>
+<b>0.701</b> and the start codon <b>0.939</b> &mdash; the best result anywhere in this study,
+on every axis at once. On x@448 and x@522 the same 1&times;1 does almost nothing (0.39 and
+0.03) while full closure still works.</p>
+<p>So closure depth is not a setting to fix once. It is a per-candidate choice, and both
+settings have to be carried into the panel to find out which the molecule prefers.</p>
+</div>
 
 <h3>4 &middot; Unequal stems, 19 bp inhibitory / 17 bp main
 <span class="verdict v-test">not needed for mechanism</span></h3>
@@ -6225,6 +6271,27 @@ Compare state 10 between the two variants: that is the whole result.</p>
 <text x="871" y="491" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="11.5" text-anchor="end" font-weight="600" fill="#141413">0.476</text>
 </svg></div></figure></div>
 
+<h2>One modification makes another meaningful</h2>
+<p>Two of the effects here exist only in combination, which is worth stating plainly because
+it is why earlier passes found nothing.</p>
+<ul>
+<li><b>Closing the AUG needs the lock, and the lock needs the closure.</b> Measured in both
+directions on three candidates: neither alone moves <code>separation</code> off
+<span class="num">0.00</span>; together they reach
+<span class="num">+5.91</span>&ndash;<span class="num">12.00</span>. The mechanism is
+symmetric &mdash; closing the AUG makes trigger A need the extra <code>len_x</code> pairs
+from <code>x*</code>, and only a locked inhibitory hairpin withholds them in state 10.</li>
+<li><b>A variable that does not exist until you make the change.</b> In the baseline,
+<code>bulge*</code> is <code>revcomp(trigger_A[6:9])</code> by construction, so trigger A
+pairs all three positions in <i>every</i> candidate &mdash; "how much trigger A retains" is a
+constant and carries no information. Replace <code>bulge*</code> and it becomes variable, and
+then it is the strongest single predictor we have of the ON state
+(&rho;&nbsp;=&nbsp;<span class="num">+0.581</span>). The reverse also holds: the natural bulge
+class predicts nothing once the loop has been removed, because there is no loop left.</li>
+</ul>
+<p>The practical consequence is that these five cannot be evaluated one at a time. A panel
+that varies one factor at a time would have concluded that none of them works.</p>
+
 <h2>What is missing from the list</h2>
 <ol>
 <li><b>The exposed toehold, a.</b> We use a&nbsp;=&nbsp;0. Kim's AND works at a&nbsp;=&nbsp;4
@@ -6250,10 +6317,12 @@ forward-engineering changes.</li>
 <ol>
 <li><b>Adopt now, in code:</b> rank on the mean form rather than joint <code>p_open</code>.
 It is the only change with bench evidence behind it, and it costs nothing.</li>
-<li><b>Build:</b> <code>aug_paired</code> on the <b>strongest-lock</b> stem, selecting
-candidates where <b>trigger A keeps exactly 2 of its 3 pairs</b> at the start codon (238
-available), filtered on <code>A_M(11)</code> and start codon accessibility, never on
-separation alone &mdash; the highest-separation rows are the ones that never turn on.</li>
+<li><b>Build, on the strongest-lock stem, two closure depths per candidate:</b> fully closed
+(<code>bulge*</code> = <code>CAU</code>) and the designed 1&times;1 (<code>CCU</code>). Full
+closure is the robust choice; the 1&times;1 is the one that, where it works, is better on
+every axis at once. Select on <code>A_M(10)</code>, <code>A_M(11)</code> <i>and</i> start
+codon accessibility together, never on separation alone &mdash; the highest-separation rows
+in every table here are the ones that never turn on.</li>
 <li><b>Include as controls in the same panel:</b> baseline (the current design), and
 <code>aug_paired</code> on an unlocked stem &mdash; that pair is what demonstrates the
 interaction at the bench rather than only in silico.</li>
