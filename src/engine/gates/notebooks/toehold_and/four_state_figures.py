@@ -57,8 +57,18 @@ from engine.gates.tools.codons import CodonOptimizer  # noqa: E402
 from engine.gates.tools.folding import FoldEngine  # noqa: E402
 from engine.gates.tools.translation import TranslationScorer  # noqa: E402
 
-TRIGGER_A_STYLE = ("#F7DCC0", "#B4560F", "trigger A")
-TRIGGER_B_STYLE = ("#C9E4DC", "#0E6B54", "trigger B")
+# The switch's domains are all PALE fills. The two triggers get SATURATED fills with
+# white letters, so a trigger can never be mistaken for a switch domain whatever the
+# domain palette does -- which is what went wrong the first time.
+TRIGGER_A_STYLE = ("#C2620F", "#7A3D08", "trigger A")
+TRIGGER_B_STYLE = ("#0E6B54", "#084637", "trigger B")
+
+
+def letter_colour(fill: str) -> str:
+    """Black on a pale fill, white on a dark one, by relative luminance."""
+    r, g, b = (int(fill[i : i + 2], 16) / 255 for i in (1, 3, 5))
+    return "#FFFFFF" if (0.2126 * r + 0.7152 * g + 0.0722 * b) < 0.5 else None
+
 
 STATES = {
     "00": ("switch alone", "neither trigger — both hairpins should be shut"),
@@ -74,18 +84,22 @@ def read_fasta(path: str) -> str:
 
 
 def style_for(index: int, switch_len: int, breaks: list[int], domains: dict, order: list[str]):
-    """Fill, stroke and legend key for one position of the concatenation."""
+    """Fill, stroke and legend key for one position of the concatenation.
+
+    ``breaks`` are the cut points **including** the end of the switch, so the trigger a
+    position belongs to is ``(how many cuts it is past) - 1``. Getting that off by one put
+    trigger A in trigger B's colour on every figure, and in a two-strand tube it ran off
+    the end of ``order`` entirely and fell through to B's colour by default.
+    """
     if index < switch_len:
         for name, (start, end) in domains.items():
             if start <= index < end:
                 return DOMAIN_STYLE.get(name, NEUTRAL)
         return NEUTRAL
-    strand = 0
-    for position, cut in enumerate(breaks):
-        if index >= cut:
-            strand = position + 1
-    label = order[strand] if strand < len(order) else "?"
-    return TRIGGER_A_STYLE if label == "A" else TRIGGER_B_STYLE
+    which = sum(1 for cut in breaks if index >= cut) - 1
+    if not 0 <= which < len(order):
+        raise ValueError(f"position {index} is past every strand in {order}")
+    return TRIGGER_A_STYLE if order[which] == "A" else TRIGGER_B_STYLE
 
 
 def draw_state(design: dict, state: str, out_path: Path) -> None:
@@ -145,9 +159,10 @@ def draw_state(design: dict, state: str, out_path: Path) -> None:
             f'<circle cx="{x:.1f}" cy="{y + top:.1f}" r="9.2" fill="{fill}" '
             f'stroke="{stroke}" stroke-width="1.3"/>'
         )
+        ink = letter_colour(fill) or stroke
         svg.append(
             f'<text x="{x:.1f}" y="{y + top + 3.4:.1f}" font-family="{FONT}" font-size="9.5" '
-            f'font-weight="600" text-anchor="middle" fill="{stroke}">{sequence[i]}</text>'
+            f'font-weight="600" text-anchor="middle" fill="{ink}">{sequence[i]}</text>'
         )
 
     # Legend and this state's own numbers, in a column clear of the plot.
@@ -219,7 +234,14 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--fasta", required=True)
     parser.add_argument("--pair", type=int, default=0, help="index into the surviving pairs")
-    parser.add_argument("--stem", type=int, default=0, help="build on the Pareto front")
+    parser.add_argument(
+        "--stem",
+        default="0",
+        help="build on the Pareto front: an index, or 'strongest' for the most negative "
+        "lock energy. Index 0 is the all-'both' unlocked build, which has no inhibitory "
+        "lock anywhere and is therefore the leakiest available -- a poor default for a "
+        "figure meant to show the mechanism working.",
+    )
     parser.add_argument("--out", default="fourstate", help="filename prefix")
     args = parser.parse_args(argv)
 
@@ -241,7 +263,11 @@ def main(argv=None) -> int:
 
     trigger_a = transcript[slice(*pair.window_a())]
     trigger_b = transcript[slice(*pair.window_b())]
-    stem = gate.secondary_stems(trigger_a, trigger_b, pair.len_x)[args.stem]
+    stems = gate.secondary_stems(trigger_a, trigger_b, pair.len_x)
+    if args.stem == "strongest":
+        stem = min(stems, key=lambda s: s.lock_energy)
+    else:
+        stem = stems[int(args.stem)]
     switch = gate.assemble(trigger_a, trigger_b, pair.len_x, stem)
     observables = gate.four_tube_observables(switch, trigger_a, trigger_b)
 
@@ -253,6 +279,7 @@ def main(argv=None) -> int:
     }
     print(
         f"pair x@{pair.x_start} len_x={pair.len_x}, {stem.scheme} stem, "
+        f"lock {stem.lock_energy:.1f} kcal/mol (of {len(stems)} on the front), "
         f"switch {len(switch.sequence)} nt"
     )
 

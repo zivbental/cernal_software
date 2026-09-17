@@ -47,18 +47,18 @@ FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
 #: Fill, outline and key label per domain. Unlisted positions — the loops and the linker —
 #: fall through to the neutral pair below.
 DOMAIN_STYLE = {
-    "r2_star": ("#DAD7F0", "#534AB7", "r2* toehold"),
-    "sw_x": ("#CFEBE0", "#0F6E56", "sw_x"),
-    "k2_star": ("#CFEBE0", "#0F6E56", "k2*"),
-    "secondary_z": ("#F4DCC6", "#A0521E", "secondaryZ"),
-    "sw_xs": ("#F0CFCF", "#A32D2D", "x* nucleation site"),
-    "main_pre_star": ("#E2E0DA", "#5F5E5A", "main arm  pre*/bulge*/k1*"),
-    "bulge_star": ("#E2E0DA", "#5F5E5A", None),
-    "k1_star": ("#E2E0DA", "#5F5E5A", None),
+    "r2_star": ("#DCD8F2", "#4A42A8", "r2* toehold (trigger B's site)"),
+    "sw_x": ("#CBDFF5", "#1B5FA8", "sw_x"),
+    "k2_star": ("#C6E8E4", "#0E6A66", "k2*"),
+    "secondary_z": ("#E9E6B8", "#6E6410", "secondaryZ"),
+    "sw_xs": ("#F3CDCD", "#A32D2D", "x* nucleation site"),
+    "main_pre_star": ("#E3E1DB", "#5F5E5A", "main arm  pre*/bulge*  and main_pre"),
+    "bulge_star": ("#E3E1DB", "#5F5E5A", None),
+    "k1_star": ("#E7D9C6", "#7A5230", "k1* : mainZ  upper stem (6 bp)"),
     "rbs_loop": ("#D9E8C6", "#3B6D11", "RBS loop"),
-    "main_z": ("#E2E0DA", "#5F5E5A", None),
-    "aug": ("#F0CFCF", "#A32D2D", "AUG"),
-    "main_pre": ("#E2E0DA", "#5F5E5A", None),
+    "main_z": ("#E7D9C6", "#7A5230", None),
+    "aug": ("#F8CCE2", "#9B1B6A", "AUG"),
+    "main_pre": ("#E3E1DB", "#5F5E5A", None),
 }
 NEUTRAL = ("#EDEBE4", "#9A9890", None)
 

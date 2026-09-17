@@ -39,8 +39,14 @@ STEM_TOP = 62  # top of a hairpin stem inside a panel
 LOOP_R = 26
 
 LEFT = 56  # 5' end
-SEC_L, SEC_R = 250, 320  # secondary hairpin verticals
-MAIN_L, MAIN_R = 320, 390  # main hairpin verticals — adjacent, because a = 0
+# SVG canvas x-coordinates in PIXELS, not nucleotide indices -- this is a hand-drawn
+# schematic on a ~1000 px canvas, so the numbers are unrelated to the 161-nt switch.
+# The two hairpins used to share x = 320 (SEC_R == MAIN_L) to express "a = 0, no gap".
+# Drawing them on the same vertical made the path double back and the two hairpin
+# outlines overlap. They are now adjacent-but-distinct, and the a = 0 junction is drawn
+# as a shared knee instead of a shared line.
+SEC_L, SEC_R = 244, 312  # secondary hairpin verticals
+MAIN_L, MAIN_R = 326, 394  # main hairpin verticals — 14 px apart, a = 0 marked at the knee
 RIGHT = 864  # 3' end
 
 

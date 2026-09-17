@@ -21,8 +21,8 @@ scheme C emits ``3^n`` builds per pair, so nothing can fold everything:
 
 1. Stage 1 selects trigger pairs on geometry and motifs. Negative-control feasibility is a
    ``[lab]`` filter — both inputs coming from one recoded gene is a property of *this*
-   validation, not of the framework — so ``--no-lab-filter`` turns it off for a production
-   run where the triggers are endogenous and cannot be recoded.
+   validation, not of the framework — so it is **off by default** and ``--lab-filter``
+   turns it on when you actually need buildable controls. It costs 169 of 1036 pairs.
 2. Pairs are ranked by overlap length, and only the top few go further.
 3. Scheme C enumerates, R6 and the invasion-stall cap filter, and the Pareto front over
    (lock, A-site, B-site) keeps only builds no other build beats on all three at once.
@@ -115,9 +115,13 @@ def main(argv=None) -> int:
         help="one pair, one design per family, and cap the stem enumeration",
     )
     parser.add_argument(
-        "--no-lab-filter",
+        "--lab-filter",
         action="store_true",
-        help="skip negative-control feasibility, which is a [lab] constraint only",
+        help="require that BOTH negative controls can actually be built for the pair "
+        "(R13). OFF by default: it is a property of this validation, where both inputs "
+        "come from one recoded gene, not of the framework -- production triggers are "
+        "endogenous and cannot be recoded, so the filter is meaningless there. It removes "
+        "169 of 1036 pairs (16%), so leaving it on by default silently shrank the pool.",
     )
     args = parser.parse_args(argv)
 
@@ -138,7 +142,7 @@ def main(argv=None) -> int:
         print("quick mode: one pair, one design per family\n")
 
     pairs = select_pairs(
-        gate, transcript, lab_filter=not args.no_lab_filter, wanted=pairs_wanted, verbose=True
+        gate, transcript, lab_filter=args.lab_filter, wanted=pairs_wanted, verbose=True
     )
 
     rows = []
