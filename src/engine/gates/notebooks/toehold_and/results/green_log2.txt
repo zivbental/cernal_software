@@ -1,0 +1,51 @@
+C:\Users\Dell\source\repos\cernal_software\.venv\Lib\site-packages\openpyxl\worksheet\_reader.py:329: UserWarning: Unknown extension is not supported and will be removed
+  warn(msg)
+168 switches with a sequence pair and a measured ON/OFF
+  1/168
+  21/168
+  41/168
+  61/168
+  81/168
+  101/168
+  121/168
+  141/168
+  161/168
+scored 168, skipped 0 (no RBS, or no AUG 6 nt after it)
+-> C:\Users\Dell\source\repos\cernal_software\src\engine\gates\notebooks\toehold_and\results\green_calibration.csv
+
+Spearman rank correlation against measured ON/OFF:
+  separation     rho -0.107   n  168   |z|  1.38
+  narrow_sep     rho -0.107   n  168   |z|  1.38
+  dG_open_off    rho -0.362   n  168   |z|  4.67
+  dG_open_on     rho -0.315   n  168   |z|  4.07
+  A_M_on         rho +0.315   n  168   |z|  4.08
+  A_M_gain       rho +0.320   n  168   |z|  4.13
+  A_M_off        rho +0.046   n  168   |z|  0.60
+  mean_wrank_on  rho +0.309   n  168   |z|  3.99
+  mean_wrank_gain rho +0.317   n  168   |z|  4.09
+  aug_on         rho +0.240   n  168   |z|  3.10
+  aug_gain       rho +0.241   n  168   |z|  3.11
+
+  our top 10 by separation, with what they actually measured:
+    switch   66  separation  19.99   measured ON/OFF    26.2
+    switch  131  separation  19.73   measured ON/OFF     4.5
+    switch  109  separation  19.39   measured ON/OFF     9.8
+    switch  114  separation  19.10   measured ON/OFF     8.9
+    switch  135  separation  18.49   measured ON/OFF     3.2
+    switch  118  separation  17.90   measured ON/OFF     8.4
+    switch  161  separation  17.63   measured ON/OFF     1.1
+    switch   99  separation  17.60   measured ON/OFF    15.2
+    switch   26  separation  17.59   measured ON/OFF    68.2
+    switch  147  separation  17.22   measured ON/OFF     1.9
+
+  the 10 that actually performed best, and where we ranked them:
+    switch    1  measured   292.0   our rank  111 of 168
+    switch    2  measured   279.6   our rank  151 of 168
+    switch    3  measured   265.3   our rank   90 of 168
+    switch    4  measured   264.6   our rank  121 of 168
+    switch    5  measured   253.0   our rank  161 of 168
+    switch    6  measured   219.8   our rank   96 of 168
+    switch    7  measured   213.3   our rank   80 of 168
+    switch    8  measured   200.8   our rank  164 of 168
+    switch    9  measured   194.4   our rank   45 of 168
+    switch   10  measured   192.4   our rank  125 of 168
