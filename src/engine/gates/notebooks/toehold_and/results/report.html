@@ -110,22 +110,17 @@ should order.</p>
 </div>
 
 <div class="lede">
-<p><b>Bottom line.</b> One change works and it is not on the original list in the form we
-stated it: <b>pair the start codon</b> &mdash; make the three nucleotides facing the
-<code>AUG</code> its complement &mdash; <b>and build it on the strongest-lock secondary
-stem</b>. Neither half works alone. Together they take <code>separation</code> from
-<span class="num">0.00</span> to a median <span class="num">+6.77&nbsp;kcal/mol</span> and
-drop <code>A_M(10)</code> to <span class="num">0.007</span>, passing &tau;4a for the first
-time, while <code>A_M(11)</code> holds at <span class="num">0.404</span>.</p>
-<p><b>How far to close it is itself a design variable</b>, not a yes/no. Closing all three
-positions is the most robust across candidates; closing two and leaving a designed
-1&times;1 loop scores the same on the statistic we have evidence for and preserves the ON
-state far better &mdash; but only on some candidates. Both belong in the panel, chosen per
-candidate.
-And note one thing not on the list at all: <b>our exposed toehold is a&nbsp;=&nbsp;0</b>,
-outside the range anyone has tested. Kim&rsquo;s AND works at a&nbsp;=&nbsp;4 and degenerates
-to a one-input switch at a&nbsp;=&nbsp;10. That is the parameter he varied deliberately, and
-it may matter more than any of the five.</p>
+<p><b>Bottom line, and it changed late.</b> Our equilibrium model says every design we have
+fails: <code>separation</code> is <span class="num">0.00</span> on all of them. A kinetic
+reading of the same molecules says the opposite &mdash; the gate's designed mechanism is
+present and large, worth between <span class="num">10&times;</span> and
+<span class="num">9,470&times;</span> in trigger A's nucleation rate. The two disagree because
+the model measures end states and the architecture is built on a <i>path</i>.</p>
+<p>So the finding is not "here is the fix". It is <b>our ranking statistic was wrong, and the
+architecture may not need fixing at all</b>. We have one modification that does raise
+equilibrium separation &mdash; closing the AUG on a strong lock &mdash; and it buys nothing
+kinetically while costing ON-state accessibility. It belongs in the panel as a
+<i>contrast arm</i>, not as the answer.</p>
 </div>
 
 <h2>What is actually wrong</h2>
@@ -200,6 +195,75 @@ than as an average. On 168 bench-measured constructs, <b>the average predicts an
 partition-function form does not.</b> &rho;&nbsp;=&nbsp;0.32 is modest, but VISTA's strongest
 single feature is r&nbsp;=&nbsp;0.30, so it is in line with the field.</p>
 </div>
+
+<h2>What the equilibrium model cannot see</h2>
+<p>Kim attribute their working AND gate to <i>binding probability</i> and enforced
+<i>sequential binding</i> &mdash; rate quantities. Our model reports end states. To find out
+whether that gap matters here, ask what trigger A finds <b>on arrival</b>, which means reading
+its foothold off the configuration the switch is in <i>before</i> A binds, not after.</p>
+
+<ul>
+<li><b>Path to state 10</b> &mdash; trigger A arrives at an untriggered switch. Its foothold is
+<code>free(x*)</code> in tube <b>00</b>, where the inhibitory hairpin is shut.</li>
+<li><b>Path to state 11</b> &mdash; trigger B binds first and opens that hairpin, so trigger A
+arrives at configuration <b>01</b>.</li>
+</ul>
+
+<div class="scroll"><table>
+<thead><tr><th>design</th><th>free(x*) in 00</th><th>free(x*) in 01</th>
+<th>nucleation rate, 01 / 00</th><th>equilibrium separation</th></tr></thead>
+<tbody>
+<tr class="hi"><td>x@448 baseline</td><td class="n">0.0057</td><td class="n">0.5738</td>
+  <td class="n"><b>9,470&times;</b></td><td class="n">0.00</td></tr>
+<tr class="hi"><td>x@117 baseline</td><td class="n">0.0013</td><td class="n">0.3215</td>
+  <td class="n"><b>160&times;</b></td><td class="n">0.00</td></tr>
+<tr class="hi"><td>x@260 baseline</td><td class="n">0.0043</td><td class="n">0.2839</td>
+  <td class="n"><b>160&times;</b></td><td class="n">&minus;0.00</td></tr>
+<tr><td>x@522 baseline</td><td class="n">0.0017</td><td class="n">0.1412</td>
+  <td class="n">10&times;</td><td class="n">0.00</td></tr>
+</tbody></table></div>
+
+<div class="callout">
+<p><b>The designs our model rejects outright carry a 10&times; to 9,470&times; kinetic
+advantage for the ON path.</b> Trigger B opening the inhibitory hairpin takes <code>x*</code>
+from 0.4% free to 28&ndash;57% free. That is the designed mechanism, working, and an end-state
+model cannot see it because given infinite time trigger A arrives anyway.</p>
+<p>The ordering is corroborated rather than assumed: trigger B's own toehold <code>r2*</code>
+is <b>31&ndash;53% free</b> in the OFF state, so B is the only trigger that can bind quickly,
+and <code>free(x*|00)</code> agrees with <code>locked(00)</code>&nbsp;&asymp;&nbsp;0.99
+measured independently from the pair-probability decomposition.</p>
+<p><b>And the AUG closure adds nothing here.</b> Its footholds are identical to the
+baseline's, because the closure changes the <i>main</i> hairpin while the foothold lives in
+the <i>secondary</i> one. It buys equilibrium separation the bench may not need, at a cost in
+<code>A_M(11)</code> the bench certainly will.</p>
+</div>
+
+<p><b>What this is not.</b> The slope (one decade per nucleotide) and the saturation (~6 nt)
+are from Zhang &amp; Winfree 2009, measured on <b>DNA at 25&nbsp;&deg;C in 1 M Na<sup>+</sup></b>;
+we fold <b>RNA at 37&nbsp;&deg;C</b>. The foothold itself is still an equilibrium quantity
+&mdash; of the <i>starting</i> configuration, which is the right input to a rate model, but
+not a simulation of one. This is an order-of-magnitude argument that the mechanism exists and
+is invisible to our metric. It is not a predicted rate, and it is in no score anywhere.</p>
+
+<h2>How we are answering this</h2>
+<p>Five positions, adopted. They change what the model is <i>for</i> rather than softening a
+threshold.</p>
+<ol>
+<li><b>Rank on the mean form.</b> It is the only statistic that calibrated
+(&rho;&nbsp;=&nbsp;+0.32 against 168 measured switches, where the joint form gave
+&minus;0.11). Joint probability and its energy conversion are <b>reported beside it, never
+ranked on</b>.</li>
+<li><b>Every &tau; threshold becomes report-only</b> until AND-gate bench data exists. A
+threshold taken from an uncalibrated model is the fitting-to-the-metric trap, and it is the
+specific risk that was flagged at the start of this project.</li>
+<li><b>The kinetic ratio becomes a standing reported column.</b> It is the column that says
+"the equilibrium model is the thing that is wrong about this design".</li>
+<li><b>The baseline enters the panel as a first-class arm</b>, not a control. On this
+evidence it may be the best arm we have.</li>
+<li><b><code>aug_paired</code> stays as the contrast arm.</b> Together the two make the panel
+<i>discriminate between the hypotheses</i> rather than assume one: if they perform the same
+at the bench, the metric was the problem; if the closure wins, the leak was real.</li>
+</ol>
 
 <h2>How our architecture differs from theirs</h2>
 <p>The single clearest difference: <b>every published design stops the trigger short of the
@@ -6523,39 +6587,45 @@ forward-engineering changes.</li>
 
 <h2>Recommendation</h2>
 <div class="lede">
-<p><b>Order one panel that tests the interaction, not five separate changes.</b></p>
+<p><b>Order a panel that tells the two hypotheses apart. Do not order a fix for a problem we
+have not confirmed exists.</b></p>
 </div>
 <ol>
-<li><b>Adopt now, in code:</b> rank on the mean form rather than joint <code>p_open</code>.
-It is the only change with bench evidence behind it, and it costs nothing.</li>
-<li><b>Select the secondary stem first, on <code>lock_energy</code> alone</b> &mdash; a sort,
-no folding, and the strongest predictor we have (&rho;&nbsp;=&nbsp;&minus;0.707). In practice
-that means B-anchored or mixed; A-anchored reaches a working lock on 9% of builds and can be
-dropped from the search without losing anything.</li>
-<li><b>Replace <code>A_S</code> with the locked / engaged / free decomposition</b> in the
-reported observables. It costs nothing extra &mdash; same matrix &mdash; and it is the only
-form that can distinguish the lock working from the lock being torn open, which is the
-distinction this whole architecture turns on.</li>
-<li><b>Build, on the strongest-lock stem, two closure depths per candidate:</b> fully closed
-(<code>bulge*</code> = <code>CAU</code>) and the designed 1&times;1 (<code>CCU</code>). Full
-closure is the robust choice; the 1&times;1 is the one that, where it works, is better on
-every axis at once. Select on <code>A_M(10)</code>, <code>A_M(11)</code> <i>and</i> start
-codon accessibility together, never on separation alone &mdash; the highest-separation rows
-in every table here are the ones that never turn on.</li>
-<li><b>Include as controls in the same panel:</b> baseline (the current design), and
-<code>aug_paired</code> on an unlocked stem &mdash; that pair is what demonstrates the
-interaction at the bench rather than only in silico.</li>
-<li><b>Add the 5&prime; stabilising hairpin to every switch construct.</b> Free in our model,
+<li><b>Change the code, not the molecule, first.</b> Rank on the mean form; report joint
+probability, joint energy and mean side by side; make every &tau; gate report-only; add the
+kinetic ratio as a standing column. This is the only change with bench evidence behind it and
+it costs nothing to make.</li>
+<li><b>Build the baseline.</b> It carries a 10&times;&ndash;9,470&times; kinetic advantage and
+our metric rejects it. If it works, that is the single most informative result available to
+us, and it costs one construct.</li>
+<li><b>Build <code>aug_paired</code> on the strongest-lock stem</b> as the contrast arm, with
+both closure depths (<code>CAU</code> and <code>CCU</code>) since they differ per candidate.
+Select on <code>A_M(11)</code> and start-codon accessibility as well as separation &mdash;
+never separation alone.</li>
+<li><b>Pick candidates with a high kinetic ratio</b>, which is a criterion the equilibrium
+score cannot supply: x@448 at 9,470&times; is a better bet than x@522 at 10&times;, and
+nothing in <code>separation</code> distinguishes them.</li>
+<li><b>Select the secondary stem on <code>lock_energy</code></b> &mdash; a sort, no folding,
+&rho;&nbsp;=&nbsp;&minus;0.707. Drop A-anchored, which reaches a working lock on 9% of builds
+against 60&ndash;61% for B-anchored and mixed.</li>
+<li><b>Replace <code>A_S</code> with the locked / engaged / free decomposition.</b> Same
+matrix, no extra cost, and the only form that distinguishes the lock working from the lock
+being torn open.</li>
+<li><b>Make R6 report-only.</b> It requires the lock to be weaker than trigger B's grip so B
+can displace it &mdash; but B has a 32-nt toehold that is 31&ndash;53% exposed in the OFF
+state and does not need a weak lock, while lock strength is the axis we have found to matter.
+Keep the invasion-stall cap, which guards the real failure. The same applies to scheme C's
+excluded fourth per-position option: both exclusions were judged on the premise that helping
+trigger A is good, which is the premise this investigation overturned.</li>
+<li><b>Add the 5&prime; stabilising hairpin</b> to every switch construct. Free in our model,
 supported in the literature, and it makes our constructs comparable to Kim's.</li>
 <li><b>Hold</b> the 3-nt shift and the 19/17 stems. Neither is supported by our measurements;
-the first measured near zero, the second was not measured at all.</li>
-<li><b>Raise with the supervisor, as the largest open question:</b> a&nbsp;=&nbsp;0 puts us
-outside the range anyone has tested. Kim&rsquo;s AND works at a&nbsp;=&nbsp;4 and becomes a
-one-input switch at a&nbsp;=&nbsp;10, and it is the one parameter he varied deliberately &mdash;
-if any single change deserves a construct of its own, it is a small non-zero toehold.
-Separately: the equilibrium model cannot distinguish a validated AND gate from a switch that
-does not gate, so for this architecture the bench is not a confirmation step &mdash; it is the
-measurement.</li>
+the first measured near zero, the second was not measured at all and the stability gap it
+exists to create is already present.</li>
+<li><b>Raise with the supervisor.</b> Our a&nbsp;=&nbsp;0 sits outside the range anyone has
+tested &mdash; Kim's AND works at a&nbsp;=&nbsp;4 and degenerates at a&nbsp;=&nbsp;10. And
+more fundamentally: for this architecture the equilibrium model cannot distinguish a working
+gate from a broken one, so the bench is not a confirmation step. It is the measurement.</li>
 </ol>
 
 <div class="foot">
