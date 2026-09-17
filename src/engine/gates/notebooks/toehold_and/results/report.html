@@ -117,6 +117,12 @@ stem</b>. Neither half works alone. Together they take <code>separation</code> f
 <span class="num">0.00</span> to a median <span class="num">+6.77&nbsp;kcal/mol</span> and
 drop <code>A_M(10)</code> to <span class="num">0.007</span>, passing &tau;4a for the first
 time, while <code>A_M(11)</code> holds at <span class="num">0.404</span>.</p>
+<p>Then <b>select candidates where trigger A keeps exactly 2 of its 3 pairs at the start
+codon</b> &mdash; that is the optimum of a real trade-off, measured below, not a preference.
+And note one thing not on the list at all: <b>our exposed toehold is a&nbsp;=&nbsp;0</b>,
+outside the range anyone has tested. Kim&rsquo;s AND works at a&nbsp;=&nbsp;4 and degenerates
+to a one-input switch at a&nbsp;=&nbsp;10. That is the parameter he varied deliberately, and
+it may matter more than any of the five.</p>
 </div>
 
 <h2>What is actually wrong</h2>
@@ -316,44 +322,92 @@ and the lock alone does nothing. Both are required:</p>
 still a bad design: <code>A_M(11)</code> 0.111 and start codon 0.002. Separation alone is not
 a sufficient criterion &mdash; this is exactly why the panel reports every observable.</p>
 
-<h3>3 &middot; AUG bulge size <span class="verdict v-test">select, don't engineer</span></h3>
-<p>The loop size is not a design knob. <code>bulge*</code> is
-<code>revcomp(trigger_A[6:9])</code> and the <code>AUG</code> faces it, so the size is decided
-by <i>which trigger window you pick</i>. Across 1036 surviving pairs:</p>
+<h3>3 &middot; AUG bulge geometry <span class="verdict v-adopt">select on it</span></h3>
+<p><b>Only the ascending side is designable.</b> The descending side <i>is</i> the start
+codon. So every bulge change is a change to <code>bulge*</code>, and <code>bulge*</code> is
+<code>revcomp(trigger_A[6:9])</code> &mdash; trigger-derived. Today the loop is not a design
+choice at all; it is an accident of which window we picked.</p>
+
+<p><b>The loop cannot be asymmetric.</b> Both sides contribute exactly 3 nt, so if <i>k</i>
+positions pair, <code>3&minus;k</code> are unpaired on <b>each</b> side. 1&times;2 and
+0&times;2 cannot arise from this geometry, only from a register shift in the real fold. But
+<b>which</b> positions pair does vary, and a 1&times;1 mid-helix is a different structure from
+a 1&times;1 against the junction. Census over all 1036 surviving pairs:</p>
+
 <div class="scroll"><table>
-<thead><tr><th>loop</th><th>pairs</th><th>share</th><th>baseline sep</th><th>A_M(10)</th>
-<th>with aug_paired: sep</th><th>A_M(11)</th><th>AUG(11)</th></tr></thead>
+<thead><tr><th>pattern</th><th>loop</th><th>where it sits</th><th>pairs</th><th>share</th></tr></thead>
 <tbody>
-<tr><td>3&times;3 &mdash; what R7 specifies</td><td class="n">214</td><td class="n">20.7%</td>
-  <td class="n">0.00</td><td class="n">0.582</td><td class="n">8.95</td><td class="n">0.248</td>
-  <td class="n">0.115</td></tr>
-<tr class="hi"><td>2&times;2</td><td class="n">504</td><td class="n">48.6%</td><td class="n">0.00</td>
-  <td class="n">0.460</td><td class="n">8.60</td><td class="n">0.445</td><td class="n">0.634</td></tr>
-<tr><td>1&times;1 &mdash; Kim's</td><td class="n">280</td><td class="n">27.0%</td><td class="n">0.00</td>
-  <td class="n">0.416</td><td class="n">2.42</td><td class="n">0.404</td><td class="n">0.444</td></tr>
-<tr><td>0&times;0 &mdash; fully paired</td><td class="n">38</td><td class="n">3.7%</td>
-  <td colspan="5">not folded</td></tr>
+<tr><td class="n">o..</td><td class="n">2&times;2</td><td>at the arm base</td><td class="n">241</td><td class="n">23.3%</td></tr>
+<tr><td class="n">.o.</td><td class="n">2&times;2</td><td>split</td><td class="n">229</td><td class="n">22.1%</td></tr>
+<tr><td class="n">...</td><td class="n">3&times;3</td><td><b>what R7 specifies</b></td><td class="n">214</td><td class="n">20.7%</td></tr>
+<tr><td class="n">oo.</td><td class="n">1&times;1</td><td>at the arm base</td><td class="n">183</td><td class="n">17.7%</td></tr>
+<tr><td class="n">o.o</td><td class="n">1&times;1</td><td>mid-helix</td><td class="n">73</td><td class="n">7.0%</td></tr>
+<tr><td class="n">ooo</td><td class="n">0&times;0</td><td>no loop at all</td><td class="n">38</td><td class="n">3.7%</td></tr>
+<tr><td class="n">..o</td><td class="n">2&times;2</td><td>by the RBS loop</td><td class="n">34</td><td class="n">3.3%</td></tr>
+<tr><td class="n">.oo</td><td class="n">1&times;1</td><td>by the RBS loop</td><td class="n">24</td><td class="n">2.3%</td></tr>
 </tbody></table></div>
-<p>Two things follow. <b>R7 specifies a 3&times;3 loop and 79% of our candidates do not have
-one</b> &mdash; it was never controlled, only assumed. And the loop class alone does
-<b>not</b> fix the leak: baseline separation is 0.00 in every class. But it interacts strongly
-with the fix, and the sweet spot is <b>2&times;2</b> &mdash; neither what R7 specifies nor what
-Kim uses, and the most abundant class we have.</p>
+<p><b>R7 specifies a 3&times;3 loop and 79% of our candidates do not have one.</b> It was
+never controlled, only assumed.</p>
+
+<div class="callout">
+<p><b>A correction to the first draft of this page.</b> It recommended selecting the
+2&times;2 class, on four candidates per class. That used the wrong variable.
+<code>aug_paired</code> sets <code>bulge*</code> to <code>CAU</code>, which <b>removes the
+loop entirely</b> &mdash; the main stem becomes a continuous 18 bp helix &mdash; so after the
+modification there is no 2&times;2 left to select. What survives the change, and what
+predicts the outcome, is <b>how many of its three pairs trigger A keeps</b> once
+<code>bulge*</code> is <code>CAU</code>.</p>
+</div>
+
+<div class="scroll"><table>
+<thead><tr><th>trigger A keeps</th><th>pairs available</th><th>n folded</th><th>separation</th>
+<th>A_M(10)</th><th>A_M(11)</th><th>AUG(11)</th></tr></thead>
+<tbody>
+<tr><td class="n">0 of 3</td><td class="n">327 &middot; 31.6%</td><td class="n">6</td>
+  <td class="n">5.91</td><td class="n">0.009</td><td class="n">0.220</td><td class="n">0.229</td></tr>
+<tr><td class="n">1 of 3</td><td class="n">437 &middot; 42.2%</td><td class="n">6</td>
+  <td class="n">10.36</td><td class="n">0.007</td><td class="n">0.111</td><td class="n">0.002</td></tr>
+<tr class="hi"><td class="n"><b>2 of 3</b></td><td class="n">238 &middot; 23.0%</td><td class="n">6</td>
+  <td class="n">4.99</td><td class="n">0.006</td><td class="n">0.411</td><td class="n">0.640</td></tr>
+<tr class="lo"><td class="n">3 of 3</td><td class="n">34 &middot; 3.3%</td><td class="n">6</td>
+  <td class="n">1.68</td><td class="n">0.352</td><td class="n">0.479</td><td class="n">0.642</td></tr>
+</tbody></table></div>
+
+<p><b>This is a trade-off with an optimum, not a monotone preference.</b> Across 24 folded
+designs, how much trigger A retains correlates
+&rho;&nbsp;=&nbsp;<span class="num">&minus;0.355</span> with separation and
+&rho;&nbsp;=&nbsp;<span class="num">+0.581</span> with <code>A_M(11)</code>: take more away
+from trigger A and the OFF state improves while the ON state collapses. <b>Keeping 2 of 3 is
+the optimum</b> &mdash; the only row that clears &tau;4a on <code>A_M(10)</code> (0.006)
+while holding <code>A_M(11)</code> at 0.411 and leaving the start codon accessible at 0.640.
+Keeping 3 leaks (<code>A_M(10)</code> 0.352); keeping 0 or 1 turns off without turning on.
+238 of our pairs qualify.</p>
 
 <h3>4 &middot; Unequal stems, 19 bp inhibitory / 17 bp main
-<span class="verdict v-no">not measured</span></h3>
+<span class="verdict v-test">not needed for mechanism</span></h3>
 <div class="split">
 <div class="for"><h4>For</h4><ul>
-<li>Kim's working AND gate does exactly this.</li>
-<li>Plausible mechanism: the inhibitory hairpin must out-hold the main one.</li>
+<li><b>Comparability with Kim.</b> Matching his geometry makes our construct interpretable
+    against his bench data &mdash; a legitimate reason on its own, independent of mechanism,
+    and the reason this option is on the list.</li>
+<li>Plausible mechanism: the inhibitory hairpin should out-hold the main one.</li>
 </ul></div>
 <div class="against"><h4>Against</h4><ul>
-<li><b>One data point, with no controlled comparison in the paper.</b></li>
-<li>Requires changing <code>ARM_LEN</code> and the assembly, not a patch &mdash; so it was
-    <b>not measured here</b>, and should not be adopted on the strength of analogy.</li>
-<li>The lock-strength result above already delivers what this is supposed to deliver.</li>
+<li><b>We already have the mechanism.</b> Measured across 24 designs, our secondary hairpin
+    is <i>already</i> more stable than our main one by a median
+    <span class="num">5.7&ndash;7.9&nbsp;kcal/mol</span> &mdash; the gap the 19/17 asymmetry
+    exists to create. We get it from the lock rather than from length.</li>
+<li><b>And the gap does not predict the outcome.</b> Secondary-minus-main stability against
+    separation: &rho;&nbsp;=&nbsp;<span class="num">&minus;0.128</span>; against
+    <code>A_M(11)</code>: <span class="num">+0.168</span>. Neither significant at n&nbsp;=&nbsp;24.
+    Secondary hairpin stability alone: &rho;&nbsp;=&nbsp;<span class="num">&minus;0.030</span>.</li>
+<li>Requires changing <code>ARM_LEN</code> and the assembly, not a sequence patch, so it
+    costs real work and re-opens R1.</li>
 </ul></div>
 </div>
+<p><b>Verdict:</b> worth doing only if the lab wants direct comparability with Kim&rsquo;s
+numbers. On our own measurements it buys nothing mechanistically, because we already have the
+stability asymmetry it is designed to produce.</p>
 
 <h3>5 &middot; 5&prime; stabilising hairpin <span class="verdict v-adopt">adopt &mdash; free</span></h3>
 <div class="split">
@@ -6197,8 +6251,9 @@ forward-engineering changes.</li>
 <li><b>Adopt now, in code:</b> rank on the mean form rather than joint <code>p_open</code>.
 It is the only change with bench evidence behind it, and it costs nothing.</li>
 <li><b>Build:</b> <code>aug_paired</code> on the <b>strongest-lock</b> stem, selecting
-candidates from the <b>2&times;2</b> bulge class, filtered on <code>A_M(11)</code> and start
-codon accessibility, not on separation alone.</li>
+candidates where <b>trigger A keeps exactly 2 of its 3 pairs</b> at the start codon (238
+available), filtered on <code>A_M(11)</code> and start codon accessibility, never on
+separation alone &mdash; the highest-separation rows are the ones that never turn on.</li>
 <li><b>Include as controls in the same panel:</b> baseline (the current design), and
 <code>aug_paired</code> on an unlocked stem &mdash; that pair is what demonstrates the
 interaction at the bench rather than only in silico.</li>
@@ -6206,9 +6261,12 @@ interaction at the bench rather than only in silico.</li>
 supported in the literature, and it makes our constructs comparable to Kim's.</li>
 <li><b>Hold</b> the 3-nt shift and the 19/17 stems. Neither is supported by our measurements;
 the first measured near zero, the second was not measured at all.</li>
-<li><b>Raise with the supervisor:</b> a&nbsp;=&nbsp;0 puts us outside the range anyone has
-tested, and the equilibrium model cannot distinguish a validated AND gate from a switch that
-does not gate. For this architecture the bench is not a confirmation step &mdash; it is the
+<li><b>Raise with the supervisor, as the largest open question:</b> a&nbsp;=&nbsp;0 puts us
+outside the range anyone has tested. Kim&rsquo;s AND works at a&nbsp;=&nbsp;4 and becomes a
+one-input switch at a&nbsp;=&nbsp;10, and it is the one parameter he varied deliberately &mdash;
+if any single change deserves a construct of its own, it is a small non-zero toehold.
+Separately: the equilibrium model cannot distinguish a validated AND gate from a switch that
+does not gate, so for this architecture the bench is not a confirmation step &mdash; it is the
 measurement.</li>
 </ol>
 
