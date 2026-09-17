@@ -235,6 +235,247 @@ def test_eukaryotic_host_uses_kozak_instead_of_rbs(activator_set, constraints):
     assert gate.RBS_PROKARYOTIC not in design.sequence
 
 
+# --- generate_designs: the "trailing" Kozak layout --------------------------------------
+#
+# A second, biologically distinct eukaryotic layout: Kozak and the start codon sit after
+# the closed hairpin (scanning-ribosome blockage) rather than inside its loop (steric
+# occlusion, borrowed from the prokaryotic mechanism). See KOZAK_LAYOUTS's docstring.
+
+
+def test_prokaryotic_host_only_ever_builds_the_loop_layout(gate, activator_set, constraints):
+    """Shine-Dalgarno initiation has no scanning phase for a hairpin to block, so a
+    prokaryotic host must ignore "trailing" even though it is in the default sweep."""
+    assert gate.kozak_layouts == ("loop", "trailing")  # the class default, unrestricted
+    designs = list(gate.generate_designs(activator_set, constraints))
+    assert designs  # not vacuously true
+    assert {d.architecture["kozak_layout"] for d in designs} == {"loop"}
+
+
+def test_eukaryotic_host_sweeps_both_kozak_layouts_by_default(activator_set, constraints):
+    gate = ToeholdGate(
+        Host.HUMAN, FoldEngine(), TranslationScorer(Host.HUMAN), CodonOptimizer(Host.HUMAN)
+    )
+    designs = list(gate.generate_designs(activator_set, constraints))
+    assert {d.architecture["kozak_layout"] for d in designs} == {"loop", "trailing"}
+
+
+def test_kozak_layouts_can_be_restricted_to_one(activator_set, constraints):
+    """The parameter this class exposes for "choose between the architectures",
+    mirroring how ``host`` is a parameter rather than a subclass (docs/engine.md §2.4)."""
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+    )
+    designs = list(gate.generate_designs(activator_set, constraints))
+    assert designs
+    assert {d.architecture["kozak_layout"] for d in designs} == {"trailing"}
+
+
+def test_trailing_layout_sweeps_loop_length_and_kozak_linker_length(activator_set, constraints):
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+    )
+    designs = list(gate.generate_designs(activator_set, constraints))
+    combos = {(d.architecture["loop_len"], d.architecture["kozak_linker_len"]) for d in designs}
+    expected = {
+        (loop_len, linker_len)
+        for loop_len in gate.TRAILING_LOOP_LENGTHS
+        for linker_len in gate.KOZAK_LINKER_LENGTHS
+    }
+    # One toehold_length's worth at minimum; every combination must appear at least once.
+    assert expected.issubset(combos)
+
+
+def test_trailing_layout_places_kozak_and_start_codon_after_the_hairpin(activator_set, constraints):
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+    )
+    design = next(gate.generate_designs(activator_set, constraints))
+    arch = design.architecture
+    aug_index = arch["aug_index"]
+
+    # Kozak immediately precedes the start codon, as the Kozak consensus requires.
+    kozak_start = aug_index - len(gate.KOZAK_EUKARYOTIC)
+    assert design.sequence[kozak_start:aug_index] == gate.KOZAK_EUKARYOTIC
+    assert design.sequence[aug_index : aug_index + 3] == sq.START_CODON
+
+    # And that whole Kozak+AUG region sits after the fully closed hairpin — the entire
+    # point of this layout — rather than inside the loop the way "loop" builds it.
+    hairpin_end = (
+        arch["leader_len"]
+        + arch["toehold_length"]
+        + arch["stem_pre_bulge_len"]
+        + 3
+        + arch["stem_post_bulge_len"]
+        + arch["loop_len"]
+        + arch["stem_post_bulge_len"]
+        + 3
+        + arch["stem_pre_bulge_len"]
+    )
+    assert kozak_start >= hairpin_end + arch["kozak_linker_len"]
+
+
+def test_trailing_layout_dot_bracket_marks_kozak_and_aug_unpaired(activator_set, constraints):
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+    )
+    design = next(gate.generate_designs(activator_set, constraints))
+    aug_index = design.architecture["aug_index"]
+    tail = design.dot_bracket[aug_index - len(gate.KOZAK_EUKARYOTIC) :]
+    assert set(tail) == {"."}
+    assert len(design.dot_bracket) == len(design.sequence)
+    assert design.dot_bracket.count("(") == design.dot_bracket.count(")")
+
+
+def test_trailing_layout_ends_at_the_start_codon_no_linker(activator_set, constraints):
+    """Unlike "loop", "trailing" carries no LINKER_SEQUENCE after the AUG — the
+    scanning ribosome initiates the moment it meets Kozak+AUG, so nothing after the
+    start codon plays a role in this layout's own mechanism, and the payload attaches
+    directly at plasmid assembly (PlasmidBuilder fuses from aug_index onward)."""
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+    )
+    design = next(gate.generate_designs(activator_set, constraints))
+    aug_index = design.architecture["aug_index"]
+    assert design.architecture["linker_len"] == 0
+    assert design.sequence[aug_index:] == sq.START_CODON
+    assert len(design.sequence) == aug_index + 3
+
+
+def test_design_ids_stay_unique_across_both_layouts(activator_set, constraints):
+    gate = ToeholdGate(
+        Host.HUMAN, FoldEngine(), TranslationScorer(Host.HUMAN), CodonOptimizer(Host.HUMAN)
+    )
+    ids = [d.design_id for d in gate.generate_designs(activator_set, constraints)]
+    assert len(ids) == len(set(ids))
+
+
+# --- payload: folding the real effector gene's head instead of a placeholder -----------
+#
+# Without a payload, evaluate_design folds the switch alone (or with LINKER_SEQUENCE for
+# "loop") — a different molecule from what a real ribosome sees once a specific gene is
+# fused on. PAYLOAD_HEAD_LENGTH folds the real gene's own first nucleotides in instead,
+# same idea as AntisenseNotGate.payload (Kudla et al. 2009).
+
+PAYLOAD_CDS = "AUG" + "GCUGGUCAUGCUAGCUAGCGGAUCGAUCGAUCGGCUAGCGAUCGAUCGAUCGGCUAGC" + "UAA"
+
+
+def test_payload_must_start_with_a_start_codon():
+    with pytest.raises(ValueError, match="start codon"):
+        ToeholdGate(
+            Host.HUMAN,
+            FoldEngine(),
+            TranslationScorer(Host.HUMAN),
+            CodonOptimizer(Host.HUMAN),
+            payload="GCUGCUGCU",
+        )
+
+
+def test_payload_must_be_valid_rna_or_dna():
+    with pytest.raises(ValueError, match="RNA or DNA"):
+        ToeholdGate(
+            Host.HUMAN,
+            FoldEngine(),
+            TranslationScorer(Host.HUMAN),
+            CodonOptimizer(Host.HUMAN),
+            payload="AUGXYZ",
+        )
+
+
+def test_without_a_payload_nothing_changes(activator_set, constraints):
+    """Regression guard: the payload feature is purely additive."""
+    with_none = ToeholdGate(
+        Host.HUMAN, FoldEngine(), TranslationScorer(Host.HUMAN), CodonOptimizer(Host.HUMAN)
+    )
+    assert with_none.payload is None
+    assert with_none.payload_head is None
+    design = next(with_none.generate_designs(activator_set, constraints))
+    assert design.architecture["payload_head_length"] == 0
+
+
+def test_payload_head_is_folded_into_the_loop_layout(activator_set, constraints):
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("loop",),
+        payload=PAYLOAD_CDS,
+    )
+    expected_head = sq.to_rna(PAYLOAD_CDS)[3 : 3 + gate.PAYLOAD_HEAD_LENGTH]
+    assert gate.payload_head == expected_head
+
+    design = next(gate.generate_designs(activator_set, constraints))
+    assert design.sequence.endswith(expected_head)
+    assert design.architecture["payload_head_length"] == len(expected_head)
+    # LINKER_SEQUENCE must be gone, replaced by the real head, not appended alongside it.
+    assert gate.LINKER_SEQUENCE not in design.sequence
+
+
+def test_payload_head_is_folded_into_the_trailing_layout(activator_set, constraints):
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+        payload=PAYLOAD_CDS,
+    )
+    expected_head = sq.to_rna(PAYLOAD_CDS)[3 : 3 + gate.PAYLOAD_HEAD_LENGTH]
+    design = next(gate.generate_designs(activator_set, constraints))
+    aug_index = design.architecture["aug_index"]
+    assert design.sequence[aug_index:] == sq.START_CODON + expected_head
+    assert design.architecture["payload_head_length"] == len(expected_head)
+
+
+def test_payload_changes_evaluate_design_metrics(activator_set, constraints):
+    """The whole point: folding in the real downstream sequence changes the OFF/ON
+    ensemble the switch is measured against, so a design can score differently with a
+    payload than the placeholder-based estimate — this is what could change which
+    design ranks best, not just plumbing that returns the same numbers either way."""
+    no_payload = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+    )
+    with_payload = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+        payload=PAYLOAD_CDS,
+    )
+    design_a = next(no_payload.generate_designs(activator_set, constraints))
+    design_b = next(with_payload.generate_designs(activator_set, constraints))
+    assert design_a.sequence != design_b.sequence
+
+    metrics_a = no_payload.evaluate_design(design_a)
+    metrics_b = with_payload.evaluate_design(design_b)
+    assert metrics_a["gate_folding_energy"] != pytest.approx(metrics_b["gate_folding_energy"])
+
+
 # --- evaluate_design: raw values, no scoring -------------------------------------------
 
 
@@ -281,6 +522,63 @@ def test_a_tighter_stem_at_the_start_codon_leaks_less(gate, constraints):
     assert metrics["predicted_leakage"] == pytest.approx(mean_aug_unpaired, abs=1e-6)
 
 
+def test_trailing_layout_reads_leakage_at_the_hairpin_not_the_aug(activator_set, constraints):
+    """For "trailing", the AUG sits outside the hairpin and stays accessible regardless
+    of the trigger — see evaluate_design's docstring on why AUG-region accessibility
+    would not discriminate ON from OFF here. predicted_leakage must instead track the
+    toehold+stem region, not the (always-open) AUG."""
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+    )
+    design = next(gate.generate_designs(activator_set, constraints))
+    metrics = gate.evaluate_design(design)
+
+    arch = design.architecture
+    region_start = arch["leader_len"]
+    region_end = region_start + (
+        arch["toehold_length"] + arch["stem_pre_bulge_len"] + 3 + arch["stem_post_bulge_len"]
+    )
+    off_matrix = gate.folder.base_pair_probabilities(design.sequence)
+    expected_leakage = sum(
+        max(0.0, 1.0 - sum(off_matrix[i])) for i in range(region_start, region_end)
+    ) / (region_end - region_start)
+    assert metrics["predicted_leakage"] == pytest.approx(expected_leakage, abs=1e-6)
+
+    # And it must differ from what the AUG-region formula alone would have given — the
+    # whole point of not reusing the "loop" layout's proxy unmodified.
+    aug_index = arch["aug_index"]
+    aug_accessibility = (
+        sum(max(0.0, 1.0 - sum(off_matrix[i])) for i in range(aug_index, aug_index + 3)) / 3
+    )
+    assert metrics["predicted_leakage"] != pytest.approx(aug_accessibility, abs=1e-6)
+
+
+def test_trailing_layout_evaluate_design_emits_only_declared_metric_names(
+    activator_set, constraints
+):
+    gate = ToeholdGate(
+        Host.HUMAN,
+        FoldEngine(),
+        TranslationScorer(Host.HUMAN),
+        CodonOptimizer(Host.HUMAN),
+        kozak_layouts=("trailing",),
+    )
+    design = next(gate.generate_designs(activator_set, constraints))
+    metrics = gate.evaluate_design(design)
+    assert metrics.keys() == {
+        "gate_folding_energy",
+        "predicted_leakage",
+        "dynamic_range",
+        "trigger_accessibility",
+        "gc_content",
+    }
+    assert all(isinstance(v, float) for v in metrics.values())
+
+
 # --- emit_sequence -----------------------------------------------------------------
 
 
@@ -300,7 +598,7 @@ def test_golden_first_design_for_a_known_trigger(gate, activator_set, constraint
     """
     design = next(gate.generate_designs(activator_set, constraints))
 
-    assert design.design_id == "toehold-trig-000042-12"
+    assert design.design_id == "toehold-trig-000042-12-loop"
     assert design.architecture == {
         "toehold_length": 12,
         "stem_pre_bulge_len": 9,
@@ -308,8 +606,10 @@ def test_golden_first_design_for_a_known_trigger(gate, activator_set, constraint
         "loop_len": 11,
         "leader_len": 3,
         "linker_len": 21,
+        "payload_head_length": 0,
         "aug_index": 50,
         "track": "prokaryotic",
+        "kozak_layout": "loop",
     }
     assert design.sequence == (
         "GGGUCGUGCUGACGUGUAUGUUAUGUAAUUGUCAACAGAGGAGAGACAAUAUGAUAACAUACAACCUGGCGGCAGCGCAAAAG"
