@@ -38,6 +38,14 @@ pairs**, because a single pair has twice now produced a result that did not repl
     metrics without gating, which is a third category distinct from both "no effect" and
     "works".
 
+    A second correction, on attribution: an earlier note here said no published design
+    decouples more than 3 nt. Green 2014's forward-engineered switches and Kim both stop at
+    3, but **VISTA goes much further** -- its trigger invades only 6 bp of the stem in total,
+    leaving the inner lower stem, the whole bulge and the entire upper stem as invariant
+    conserved sequence. Decoupling beyond 3 nt is therefore the VISTA direction, with
+    ``stop_before_bulge`` (9 of 18 nt trigger-derived) our closest approach and VISTA
+    further still.
+
 ``aug_paired``
     Give the bulge bonus to the switch: the 3 nt facing the ``AUG`` become its complement,
     so the switch's own arm pairs the start codon and trigger A mismatches there.

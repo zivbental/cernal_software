@@ -275,7 +275,18 @@ below. Nothing is filtered.</p>
 <div class="against"><h4>Against</h4><ul>
 <li><b>In our architecture it does essentially nothing:</b> separation 0.02, mean-form 0.008.</li>
 <li>Green changed four things at once; the 3-nt shift is not isolated in their data either.</li>
-<li>Taking it to 6 nt (<code>upper6</code>) helps more (2.11) but still does not gate.</li>
+<li>Taking it to 6 nt (<code>upper6</code>) helps more on separation (2.11) and gives the
+    best start-codon accessibility of any variant (0.825), but <b>still does not gate</b>:
+    <code>A_M(10)</code> stays at 0.425, twice &tau;4a, and <code>A_M(11)&minus;A_M(10)</code>
+    is 0.016. It moves the metrics without gating &mdash; a third category, distinct from
+    both &ldquo;no effect&rdquo; and &ldquo;works&rdquo;.</li>
+<li><b>Direction of travel, correctly attributed.</b> Green 2014's forward-engineered switches
+    and Kim both stop at <b>3 nt</b>, which is <code>upper3</code>. But VISTA goes much
+    further than <code>upper6</code>: its trigger invades only <b>6 bp of the stem in total</b>,
+    leaving the inner lower stem, the whole bulge and the entire upper stem as invariant
+    conserved sequence. So decoupling more than 3 nt is not unprecedented &mdash; it is the
+    VISTA direction, and <code>stop_before_bulge</code> (9 of 18) is our closest approach to
+    it, with VISTA further still.</li>
 </ul></div>
 </div>
 <p>Our architecture differs from Green's in the one way that matters here: we have
@@ -474,6 +485,49 @@ stability asymmetry it is designed to produce.</p>
 triggers are synthetic transcripts he controls, ours are windows of real mCherry mRNA. We
 cannot prepend anything to an endogenous transcript, and in the validation all four control
 constructs share the same backbone, so its stability cancels.</p>
+
+<h2>Every form, all four states</h2>
+<p>Accessibility is reported three ways in this project and they are not interchangeable:
+the <b>joint</b> probability that the whole window is open at once, its energy conversion
+<code>dG_open</code>&nbsp;=&nbsp;&minus;RT&nbsp;ln&nbsp;P, and the <b>mean</b> per-base
+unpaired probability. The 168-switch calibration says the mean form is the one that tracks
+real performance, so both are shown wherever a claim rests on either. Candidate x@448,
+B-anchored stem, lock &minus;20.5.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>design</th><th>state</th><th>P_open &mdash; joint</th><th>dG_open</th>
+<th>mean over W_rank</th><th>A_M &mdash; main stem</th><th>AUG alone</th></tr></thead>
+<tbody>
+<tr><td rowspan="4">baseline</td><td>00</td><td class="n">1.49 &times; 10<sup>&minus;18</sup></td>
+  <td class="n">25.30</td><td class="n">0.4307</td><td class="n">0.1104</td><td class="n">0.606</td></tr>
+<tr><td>01</td><td class="n">1.34 &times; 10<sup>&minus;14</sup></td><td class="n">19.69</td>
+  <td class="n">0.4538</td><td class="n">0.1103</td><td class="n">0.606</td></tr>
+<tr class="lo"><td>10</td><td class="n">4.1536 &times; 10<sup>&minus;5</sup></td><td class="n">6.22</td>
+  <td class="n">0.5899</td><td class="n">0.5055</td><td class="n">0.502</td></tr>
+<tr class="lo"><td>11</td><td class="n">4.1539 &times; 10<sup>&minus;5</sup></td><td class="n">6.22</td>
+  <td class="n">0.5899</td><td class="n">0.5056</td><td class="n">0.502</td></tr>
+<tr><td rowspan="4"><b>aug_paired</b></td><td>00</td><td class="n">4.01 &times; 10<sup>&minus;23</sup></td>
+  <td class="n">31.78</td><td class="n">0.3671</td><td class="n">0.0043</td><td class="n">0.001</td></tr>
+<tr><td>01</td><td class="n">1.13 &times; 10<sup>&minus;18</sup></td><td class="n">25.47</td>
+  <td class="n">0.3901</td><td class="n">0.0042</td><td class="n">0.001</td></tr>
+<tr class="hi"><td>10</td><td class="n">6.68 &times; 10<sup>&minus;10</sup></td><td class="n">13.02</td>
+  <td class="n">0.3743</td><td class="n">0.0043</td><td class="n">0.001</td></tr>
+<tr class="hi"><td>11</td><td class="n">3.93 &times; 10<sup>&minus;5</sup></td><td class="n">6.25</td>
+  <td class="n">0.5796</td><td class="n">0.4795</td><td class="n">0.476</td></tr>
+</tbody></table></div>
+
+<div class="callout">
+<p><b>The clearest single number in this study.</b> In the baseline, the ribosome window is
+<b>exactly as open with trigger A alone as with both triggers</b>:
+P_open(11)&nbsp;/&nbsp;P_open(10)&nbsp;=&nbsp;<span class="num">1.000</span>. After closing the
+AUG it is <span class="num">58,848</span>. The gate goes from no discrimination at all
+against its worst OFF state to nearly five orders of magnitude.</p>
+<p>All three forms agree in direction for the first time: joint 1.00&nbsp;&rarr;&nbsp;58,848&times;,
+energy 0.00&nbsp;&rarr;&nbsp;+6.77 kcal/mol, mean-form 0.0000&nbsp;&rarr;&nbsp;+0.1895. And
+the start codon behaves as a switch should &mdash; sequestered at 0.001 in all three OFF
+states, exposed at 0.476 in the ON state, where the baseline leaves it at 0.502 in every
+state including the ones that should be off.</p>
+</div>
 
 <h2>What the four states actually look like</h2>
 <p>Candidate x@448, strongest-lock stem. Real ViennaRNA minimum-free-energy folds &mdash;
@@ -6270,6 +6324,51 @@ Compare state 10 between the two variants: that is the whole result.</p>
 <text x="554.6568291225999" y="491" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="11.5" fill="#3D3D3A">AUG alone</text>
 <text x="871" y="491" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="11.5" text-anchor="end" font-weight="600" fill="#141413">0.476</text>
 </svg></div></figure></div>
+
+<h2>Which to optimise first</h2>
+<p>The natural plan is to fix the main hairpin first and then tune the secondary, since many
+secondary stems share one main hairpin. <b>That order would have told us the modification
+does not work</b> &mdash; and for most of this investigation it did exactly that.</p>
+
+<p><b>In the baseline the intuition is right.</b> The secondary stem has no effect on state 10
+whatsoever: across twelve builds spanning the Pareto front, <code>dG_open(10)</code> swings
+<span class="num">0.00</span> kcal/mol while <code>dG_open(00)</code> swings 0.83 and
+<code>dG_open(01)</code> swings 4.48. Whatever the inhibitory hairpin is doing, it does not
+reach the ribosome window once trigger A is present.</p>
+
+<p><b>After the AUG is closed, the secondary stem decides everything.</b> Nine stems spanning
+the whole front, each at every closure depth:</p>
+
+<div class="scroll"><table>
+<thead><tr><th>lock energy</th><th>scheme</th><th>baseline</th><th>2&times;2</th><th>1&times;1</th>
+<th>closed</th></tr></thead>
+<tbody>
+<tr class="hi"><td class="n">&minus;14.6</td><td>B-anchored</td><td class="n">&minus;0.00</td>
+  <td class="n">0.66</td><td class="n">2.05</td><td class="n"><b>5.91</b></td></tr>
+<tr><td class="n">&minus;10.1</td><td>mixed</td><td class="n">0.00</td><td class="n">0.00</td>
+  <td class="n">0.00</td><td class="n">0.79</td></tr>
+<tr class="lo"><td class="n">&minus;8.3</td><td>B-anchored</td><td class="n">0.00</td>
+  <td class="n">&minus;0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr class="lo"><td class="n">&minus;7.0 to &minus;0.2</td><td>6 more stems</td><td class="n">0.00</td>
+  <td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+</tbody></table></div>
+
+<p><b>Lock energy is a threshold, not a gradient.</b> Only 2 of 9 stems support any closure at
+all. Below about &minus;10&nbsp;kcal/mol every closure depth reads 0.00, so a main-hairpin
+sweep run on a weak stem returns nothing and looks like a failed hypothesis.</p>
+
+<div class="callout">
+<p><b>So the order is secondary first, then main</b> &mdash; and it does <i>not</i> require
+testing every crossing.</p>
+<p>1. Sort the Pareto front by <code>lock_energy</code>. This is a cheap scalar and needs no
+folding. 2. Keep the strongest few. 3. Fold the closure depths on those alone.</p>
+<p>That is justified because <b>lock energy is a sufficient statistic for the secondary
+stem</b>: separation tracks it at &rho;&nbsp;=&nbsp;<span class="num">&minus;0.72</span>
+(1&times;1) and <span class="num">&minus;0.61</span> (closed), while the scheme label adds
+nothing once lock energy is known &mdash; every scheme shows a median of 0.00 at every
+closure, because scheme and lock energy are confounded across the front. The cost is a sort
+plus a handful of folds, not <code>stems &times; closures</code>.</p>
+</div>
 
 <h2>One modification makes another meaningful</h2>
 <p>Two of the effects here exist only in combination, which is worth stating plainly because
