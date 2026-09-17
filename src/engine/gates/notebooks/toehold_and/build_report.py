@@ -626,6 +626,118 @@ closure, because scheme and lock energy are confounded across the front. The cos
 plus a handful of folds, not <code>stems &times; closures</code>.</p>
 </div>
 
+<h2>Who is actually holding the nucleation site</h2>
+<p><code>A_S</code> is an <i>unpaired</i> probability over <code>x*</code>, so it cannot tell
+<b>held shut by the switch's own stem</b> from <b>held by trigger A</b>. Both are paired, both
+read as inaccessible, and they are opposite situations: the first is the lock working, the
+second is the leak. Decomposing the same matrix three ways &mdash; paired to <code>sw_x</code>
+(locked), paired to trigger A (engaged), unpaired (free) &mdash; shows what
+<code>A_S</code> was hiding.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>lock</th><th>scheme</th><th>locked (00)</th><th>locked (10)</th>
+<th>engaged by A (10)</th><th>separation once closed</th></tr></thead>
+<tbody>
+<tr class="hi"><td class="n">&minus;18.4</td><td>B-anchored</td><td class="n">0.999</td>
+  <td class="n"><b>0.418</b></td><td class="n">0.581</td><td class="n"><b>12.00</b></td></tr>
+<tr class="hi"><td class="n">&minus;14.6</td><td>B-anchored</td><td class="n">0.995</td>
+  <td class="n"><b>0.254</b></td><td class="n">0.737</td><td class="n"><b>5.91</b></td></tr>
+<tr><td class="n">&minus;14.3</td><td>mixed</td><td class="n">0.999</td><td class="n">0.000</td>
+  <td class="n">1.000</td><td class="n">6.61</td></tr>
+<tr class="lo"><td class="n">&minus;11.8</td><td>mixed</td><td class="n">0.995</td>
+  <td class="n">0.000</td><td class="n">1.000</td><td class="n">0.00</td></tr>
+<tr class="lo"><td class="n">&minus;9.2</td><td>mixed</td><td class="n">0.995</td>
+  <td class="n">0.000</td><td class="n">0.999</td><td class="n">&minus;0.00</td></tr>
+<tr class="lo"><td class="n">&minus;8.1</td><td>B-anchored</td><td class="n">0.982</td>
+  <td class="n">0.000</td><td class="n">0.999</td><td class="n">&minus;0.00</td></tr>
+<tr class="lo"><td class="n">&minus;5.5 to &minus;2.5</td><td>4 more</td><td class="n">0.856&ndash;0.995</td>
+  <td class="n">0.000</td><td class="n">0.999&ndash;1.000</td><td class="n">0.00</td></tr>
+</tbody></table></div>
+
+<div class="callout">
+<p><b>The inhibitory hairpin is not weak. It is out-competed.</b> Read the two locked columns
+against each other: with no trigger present the lock holds essentially perfectly &mdash;
+0.982 to 0.999 on almost every stem, including every stem that fails. Add trigger A and it
+collapses to <b>0.000</b> on 12 of 14. The design is not failing to form its lock; trigger A
+is tearing it open, which is the same story as the main hairpin told one domain over.</p>
+<p>And in state 11 the mechanism is exactly as drawn: <code>engaged by A</code> has a median
+of <span class="num">0.999</span> across every stem. Trigger A always takes the nucleation
+site when it should. The problem was never that it fails to &mdash; it is that it also does
+so when trigger B is absent.</p>
+</div>
+
+<p><b>Which of these should the pipeline select on?</b> Over 14 stems on two trigger pairs,
+against separation once the AUG is closed:</p>
+<div class="scroll"><table>
+<thead><tr><th>candidate axis</th><th>&rho;</th><th>needs folding?</th><th>note</th></tr></thead>
+<tbody>
+<tr class="hi"><td><code>lock_energy</code></td><td class="n">&minus;0.707</td><td>no</td>
+  <td>best predictor, and free</td></tr>
+<tr><td><code>locked(00)</code></td><td class="n">+0.689</td><td>yes</td><td>&mdash;</td></tr>
+<tr><td><code>locked(10)</code></td><td class="n">+0.641</td><td>yes</td>
+  <td>sufficient but <b>not necessary</b></td></tr>
+<tr><td><code>engaged_A(10)</code></td><td class="n">&minus;0.311</td><td>yes</td><td>&mdash;</td></tr>
+<tr><td><code>free(10)</code></td><td class="n">+0.279</td><td>yes</td><td>&mdash;</td></tr>
+</tbody></table></div>
+
+<p><b>Select on <code>lock_energy</code>.</b> It is the strongest predictor and it costs no
+folding at all. <code>locked(10)</code> looked binary on the first seven stems &mdash; every
+working design had it above zero and every failing one at exactly zero &mdash; but the eighth
+broke it: at lock &minus;14.3 the baseline design has <code>locked(10)</code> = 0.000 and
+still reaches separation 6.61 once closed. So a non-zero <code>locked(10)</code> is
+sufficient, not necessary, and it belongs in the report as a diagnostic rather than a
+filter.</p>
+
+<p><b>Regardless of selection, this decomposition should replace <code>A_S</code>.</b> An
+unpaired probability cannot express the distinction the architecture turns on, and
+&tau;6 (<code>A_S(11) &gt; 0.5</code>) is unsatisfiable precisely because <code>x*</code> is
+<i>supposed</i> to be paired in state 11 &mdash; to trigger A. The three-way split says that
+directly: engaged 0.999, locked 0.000, free 0.001.</p>
+
+<h2>What this says about the stem schemes</h2>
+<p>Scheme C exists because of an assumption: that <b>trigger A needs help binding</b>. It
+resolves each contested position in the inhibitory stem in favour of trigger A
+(&ldquo;A-anchored&rdquo;), of trigger B (&ldquo;B-anchored&rdquo;), of the lock, or of
+neither (&ldquo;unlocked&rdquo;, the all-<code>both</code> build). The equilibrium result
+<b>inverts that premise</b> &mdash; trigger A needs no help at all, it needs hindering &mdash;
+and the consequence shows up directly in which schemes can reach a working lock.</p>
+
+<p>Census over the <b>full Pareto fronts of 25 trigger pairs</b>, 1,576 builds, no folding
+required. The threshold column counts builds reaching the weakest lock energy observed to
+support any AUG closure:</p>
+
+<div class="scroll"><table>
+<thead><tr><th>scheme</th><th>builds</th><th>median lock</th><th>strongest</th><th>weakest</th>
+<th>reach &le; &minus;10 kcal/mol</th></tr></thead>
+<tbody>
+<tr class="hi"><td>B-anchored</td><td class="n">331</td><td class="n">&minus;11.7</td>
+  <td class="n">&minus;26.4</td><td class="n">+7.9</td><td class="n"><b>198 &middot; 60%</b></td></tr>
+<tr class="hi"><td>mixed</td><td class="n">1061</td><td class="n">&minus;11.2</td>
+  <td class="n">&minus;24.2</td><td class="n">+6.7</td><td class="n"><b>644 &middot; 61%</b></td></tr>
+<tr class="lo"><td>A-anchored</td><td class="n">163</td><td class="n">&minus;4.9</td>
+  <td class="n">&minus;14.6</td><td class="n">+10.1</td><td class="n"><b>15 &middot; 9%</b></td></tr>
+<tr class="lo"><td>unlocked</td><td class="n">21</td><td class="n">+2.1</td>
+  <td class="n">&minus;9.0</td><td class="n">+11.3</td><td class="n"><b>0 &middot; 0%</b></td></tr>
+</tbody></table></div>
+
+<p><b>B-anchored provides the strongest lock on 25 of 25 pairs.</b> A-anchored reaches a
+working lock on 9% of its builds against 60&ndash;61% for B-anchored and mixed; the unlocked
+build never does, which is true by construction since it carries no lock at any position.</p>
+
+<div class="callout">
+<p><b>Three things follow, and they are different from each other.</b></p>
+<p>1. The scheme <i>label</i> carries no information once lock energy is known &mdash; that is
+why separation by scheme shows a median of 0.00 in every cell of the factorisation table. Do
+not select on the label.</p>
+<p>2. The scheme nonetheless <b>determines which lock energies are reachable</b>, and that is
+decisive. Select on <code>lock_energy</code>, and A-anchored will disqualify itself.</p>
+<p>3. The premise scheme C was built on is the one the investigation overturned. Resolving
+contested positions in trigger A's favour is now known to be the wrong direction, and the
+census shows A-anchored is exactly the scheme that cannot reach a working lock. The machinery
+is still worth having &mdash; it is what <i>generates</i> the strong locks &mdash; but its
+selection rule flips.</p>
+</div>
+
 <h2>One modification makes another meaningful</h2>
 <p>Two of the effects here exist only in combination, which is worth stating plainly because
 it is why earlier passes found nothing.</p>
@@ -672,6 +784,14 @@ forward-engineering changes.</li>
 <ol>
 <li><b>Adopt now, in code:</b> rank on the mean form rather than joint <code>p_open</code>.
 It is the only change with bench evidence behind it, and it costs nothing.</li>
+<li><b>Select the secondary stem first, on <code>lock_energy</code> alone</b> &mdash; a sort,
+no folding, and the strongest predictor we have (&rho;&nbsp;=&nbsp;&minus;0.707). In practice
+that means B-anchored or mixed; A-anchored reaches a working lock on 9% of builds and can be
+dropped from the search without losing anything.</li>
+<li><b>Replace <code>A_S</code> with the locked / engaged / free decomposition</b> in the
+reported observables. It costs nothing extra &mdash; same matrix &mdash; and it is the only
+form that can distinguish the lock working from the lock being torn open, which is the
+distinction this whole architecture turns on.</li>
 <li><b>Build, on the strongest-lock stem, two closure depths per candidate:</b> fully closed
 (<code>bulge*</code> = <code>CAU</code>) and the designed 1&times;1 (<code>CCU</code>). Full
 closure is the robust choice; the 1&times;1 is the one that, where it works, is better on
