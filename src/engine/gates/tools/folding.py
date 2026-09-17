@@ -541,6 +541,61 @@ class FoldEngine:
         """
         raise NotImplementedError("Step 5 — wrap RNA.subopt")
 
+    def mfe_with_window_open(self, strands: str, window: tuple[int, int]) -> tuple[str, float]:
+        """The most stable structure that leaves ``window`` single-stranded.
+
+        The endpoint a refolding path has to reach for a trigger to nucleate. Constrained
+        with the same ``hc_add_up`` mechanism ``p_open`` uses, so "open" means the same
+        thing in both, and the window is 0-based half-open into the first strand as it is
+        everywhere else in this engine.
+
+        Returns:
+            ``(structure, energy)`` with the structure carrying an ``&`` for each strand
+            junction, matching ``mfe``.
+        """
+        start, end = window
+        first = strands.split("&")[0]
+        if not 0 <= start < end <= len(first):
+            raise ValueError(f"window {window} is not inside the first strand")
+        fold_compound = self._compound(strands)
+        for position in range(start + 1, end + 1):
+            fold_compound.hc_add_up(position)
+        structure, energy = fold_compound.mfe()
+        return structure, energy
+
+    def refolding_saddle(
+        self, strands: str, start: str, target: str, *, width: int = 20
+    ) -> float | None:
+        """Highest energy on a direct refolding path from ``start`` to ``target``.
+
+        ViennaRNA's ``findpath``: a breadth-limited search over direct paths, which gives
+        the barrier height a rate depends on without enumerating a landscape. It is a
+        heuristic, so it can only **over**-estimate the true saddle, never under-estimate
+        it — the result is a conservative bound, and a wider search can only lower it.
+
+        Args:
+            strands: RNA, uppercase, ``&``-joined as elsewhere.
+            start: Dot-bracket for the starting structure, same ``&`` convention.
+            target: Dot-bracket for the structure being refolded into.
+            width: findpath's search width. Higher is tighter and costs linearly.
+
+        Returns:
+            The saddle energy in **kcal/mol**, or ``None`` if the search failed.
+
+        Gotchas:
+            * ``path_findpath_saddle`` returns an integer in **dekacal/mol** — 320 means
+              3.20 kcal/mol. Converted here so no caller rediscovers it, the same trap
+              ``subopt``'s integer window sets.
+            * Both structures must be over the same sequence and balanced, or ViennaRNA
+              returns a meaningless answer rather than raising.
+        """
+        if len(start) != len(target):
+            raise ValueError(f"structures differ in length: {len(start)} vs {len(target)}")
+        saddle = self._compound(strands).path_findpath_saddle(start, target, width)
+        if saddle is None:
+            return None
+        return float(saddle) / 100.0
+
     def layout_coordinates(self, structure: str) -> list[tuple[float, float]]:
         """Where each nucleotide sits when a structure is drawn, one point per base.
 
