@@ -234,6 +234,13 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--fasta", required=True)
     parser.add_argument("--pair", type=int, default=0, help="index into the surviving pairs")
+    parser.add_argument("--x-start", type=int, help="select the pair by x_start instead of index")
+    parser.add_argument(
+        "--variant",
+        default="baseline",
+        help="an architecture variant from modification_panel (baseline, upper3, upper6, "
+        "aug_paired, stop_before_bulge, stabiliser)",
+    )
     parser.add_argument(
         "--stem",
         default="0",
@@ -259,7 +266,13 @@ def main(argv=None) -> int:
             continue
         pairs.append(pair)
     pairs.sort(key=lambda p: (-p.len_x, -p.gap(), p.x_start, p.xstar_start))
-    pair = pairs[args.pair]
+    if args.x_start is not None:
+        matching = [p for p in pairs if p.x_start == args.x_start]
+        if not matching:
+            raise SystemExit(f"no surviving pair with x_start {args.x_start}")
+        pair = matching[0]
+    else:
+        pair = pairs[args.pair]
 
     trigger_a = transcript[slice(*pair.window_a())]
     trigger_b = transcript[slice(*pair.window_b())]
@@ -269,6 +282,13 @@ def main(argv=None) -> int:
     else:
         stem = stems[int(args.stem)]
     switch = gate.assemble(trigger_a, trigger_b, pair.len_x, stem)
+    if args.variant != "baseline":
+        from modification_panel import variants as _variants
+
+        built = _variants(gate, switch, trigger_a)
+        if args.variant not in built:
+            raise SystemExit(f"unknown variant {args.variant!r}; have {sorted(built)}")
+        switch = built[args.variant]
     observables = gate.four_tube_observables(switch, trigger_a, trigger_b)
 
     tubes = {
@@ -314,7 +334,7 @@ def main(argv=None) -> int:
             "order": order,
             "readouts": readouts,
         }
-        path = output_dir / f"{args.out}_x{pair.x_start}_state{state}.svg"
+        path = output_dir / f"{args.out}_x{pair.x_start}_{args.variant}_state{state}.svg"
         draw_state(design, state, path)
         print(f"  state {state}: {path}")
 

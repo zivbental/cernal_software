@@ -1,0 +1,508 @@
+# ruff: noqa: E501 -- this module is an HTML template. Its long lines are markup
+# and table rows, and hand-wrapping them to 100 columns would break the rows
+# apart without making anything easier to read.
+"""Assemble the architecture decision report, inlining the eight structure figures.
+
+    uv run python src/engine/gates/notebooks/toehold_and/build_report.py
+
+Reads ``results/report_x448_{baseline,aug_paired}_state{00,01,10,11}.svg``, produced by
+``four_state_figures.py --x-start 448 --stem strongest --variant <v> --out report``, and
+writes ``results/report.html``. Every number in the prose is copied from a committed CSV --
+``modifications.csv`` for the variant table, ``green_calibration.csv`` for the correlations --
+so a figure that moves is a signal that the report needs regenerating, not that it drifted.
+"""
+
+import pathlib
+
+HERE = pathlib.Path(__file__).resolve().parent / "results"
+STATES = ("00", "01", "10", "11")
+STATE_NOTE = {
+    "00": "neither trigger",
+    "01": "trigger B only",
+    "10": "trigger A only &mdash; must stay OFF",
+    "11": "both &mdash; the only ON state",
+}
+
+
+def figure_panels(variant: str) -> str:
+    out = []
+    for state in STATES:
+        svg = (HERE / f"report_x448_{variant}_state{state}.svg").read_text(encoding="utf-8")
+        out.append(
+            f'<figure class="plot"><figcaption><b>{state}</b> &middot; {STATE_NOTE[state]}'
+            f'</figcaption><div class="canvas">{svg}</div></figure>'
+        )
+    return "\n".join(out)
+
+
+HEAD = """<title>A0 Architecture Review</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#F4F2EC; --raise:#FBFAF6; --ink:#16150F; --soft:#55524A; --faint:#7C7970;
+  --rule:#DFDBCD; --accent:#4A42A8; --accent-soft:#E4E1F4;
+  --good:#2F6B12; --good-soft:#E0EBD2; --warn:#8A5A00; --warn-soft:#F6E9CE;
+  --bad:#9E2B2B; --bad-soft:#F4DBDB;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+  --serif:"Spectral",Georgia,"Times New Roman",serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#14130E; --raise:#1C1B14; --ink:#F1EFE8; --soft:#B7B3A8; --faint:#8B877C;
+  --rule:#302D24; --accent:#A9A2F0; --accent-soft:#252248;
+  --good:#9BCB74; --good-soft:#1E2A14; --warn:#E0B060; --warn-soft:#2E2412;
+  --bad:#E39292; --bad-soft:#331919;
+}}
+:root[data-theme="dark"]{
+  --ground:#14130E; --raise:#1C1B14; --ink:#F1EFE8; --soft:#B7B3A8; --faint:#8B877C;
+  --rule:#302D24; --accent:#A9A2F0; --accent-soft:#252248;
+  --good:#9BCB74; --good-soft:#1E2A14; --warn:#E0B060; --warn-soft:#2E2412;
+  --bad:#E39292; --bad-soft:#331919;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+  font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:860px;margin:0 auto;padding-inline:20px;padding-block:44px 96px}
+h1{font-family:var(--serif);font-size:clamp(30px,5vw,44px);line-height:1.12;margin:0 0 10px;
+  font-weight:600;letter-spacing:-.015em;text-wrap:balance}
+.dek{font-family:var(--serif);font-size:19px;font-style:italic;color:var(--soft);
+  margin:0 0 28px;max-width:62ch}
+.meta{font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.02em;
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  padding-block:12px;margin-bottom:40px;display:flex;flex-wrap:wrap;gap:6px 22px}
+h2{font-family:var(--serif);font-size:27px;font-weight:600;letter-spacing:-.01em;
+  margin:56px 0 6px;text-wrap:balance}
+h3{font-size:16px;font-weight:600;margin:30px 0 8px;letter-spacing:-.005em}
+.eyebrow{font-family:var(--mono);font-size:11.5px;text-transform:uppercase;
+  letter-spacing:.11em;color:var(--accent);margin:0 0 4px;font-weight:600}
+p{margin:0 0 15px;max-width:68ch}
+ul,ol{max-width:68ch;padding-left:20px;margin:0 0 15px}
+li{margin-bottom:7px}
+b,strong{font-weight:600}
+code,.num{font-family:var(--mono);font-size:.9em;font-variant-numeric:tabular-nums}
+a{color:var(--accent)}
+.lede{border-left:3px solid var(--accent);padding:2px 0 2px 18px;margin:0 0 28px}
+.lede p{font-size:17.5px}
+.scroll{overflow-x:auto;margin:20px 0 26px;border:1px solid var(--rule);border-radius:3px;
+  background:var(--raise)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+th,td{padding:9px 13px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--rule)}
+th:first-child,td:first-child{text-align:left}
+thead th{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--faint);font-weight:600;background:var(--ground)}
+tbody tr:last-child td{border-bottom:none}
+tr.hi td{background:var(--good-soft)}
+tr.lo td{background:var(--bad-soft)}
+td.n{font-family:var(--mono)}
+.verdict{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;border-radius:2px;
+  vertical-align:middle;margin-left:10px}
+.v-adopt{background:var(--good-soft);color:var(--good)}
+.v-test{background:var(--warn-soft);color:var(--warn)}
+.v-no{background:var(--bad-soft);color:var(--bad)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--rule);
+  border-radius:3px;overflow:hidden;margin:18px 0 22px}
+.split>div{padding:16px 18px;background:var(--raise)}
+.split>div+div{border-left:1px solid var(--rule)}
+.split h4{margin:0 0 8px;font-size:12px;font-family:var(--mono);text-transform:uppercase;
+  letter-spacing:.07em;font-weight:600}
+.for h4{color:var(--good)} .against h4{color:var(--bad)}
+.split ul{margin:0;padding-left:17px;font-size:14.5px}
+@media(max-width:620px){.split{grid-template-columns:1fr}
+  .split>div+div{border-left:none;border-top:1px solid var(--rule)}}
+.callout{background:var(--accent-soft);border-radius:3px;padding:18px 20px;margin:24px 0;
+  font-size:15px}
+.callout p{margin:0;max-width:none}
+.callout p+p{margin-top:10px}
+figure.plot{margin:0 0 22px;border:1px solid var(--rule);border-radius:3px;
+  background:var(--raise);overflow:hidden}
+figure.plot figcaption{font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--soft);padding:9px 14px;border-bottom:1px solid var(--rule)}
+figure.plot figcaption b{color:var(--ink)}
+.canvas{overflow-x:auto}
+.canvas svg{display:block;width:100%;height:auto}
+body.zoom .canvas svg{width:auto;max-width:none;height:560px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 20px;align-items:center}
+button{font-family:var(--mono);font-size:12px;letter-spacing:.04em;padding:7px 14px;
+  border:1px solid var(--rule);background:var(--raise);color:var(--soft);border-radius:2px;
+  cursor:pointer;font-weight:600}
+button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="dark"] button[aria-pressed="true"],
+  :root:not([data-theme="light"]) button[aria-pressed="true"]{color:#14130E}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.foot{margin-top:64px;padding-top:22px;border-top:1px solid var(--rule);
+  font-size:13.5px;color:var(--faint)}
+.foot code{font-size:12px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>"""
+
+
+BODY = f"""
+<div class="wrap">
+<p class="eyebrow">A0 prokaryotic two-input AND gate &middot; decision memo</p>
+<h1>Five architecture changes, measured</h1>
+<p class="dek">Our gate does not gate at equilibrium. Here is what the literature does
+differently, which of five proposed fixes actually works in our own numbers, and what we
+should order.</p>
+<div class="meta">
+  <span>17 Sep 2026</span><span>ViennaRNA 2.7.2, 37&nbsp;&deg;C</span>
+  <span>mCherry, 711&nbsp;nt</span><span>branch offer/fold-engine-p-open</span>
+</div>
+
+<div class="lede">
+<p><b>Bottom line.</b> One change works and it is not on the original list in the form we
+stated it: <b>pair the start codon</b> &mdash; make the three nucleotides facing the
+<code>AUG</code> its complement &mdash; <b>and build it on the strongest-lock secondary
+stem</b>. Neither half works alone. Together they take <code>separation</code> from
+<span class="num">0.00</span> to a median <span class="num">+6.77&nbsp;kcal/mol</span> and
+drop <code>A_M(10)</code> to <span class="num">0.007</span>, passing &tau;4a for the first
+time, while <code>A_M(11)</code> holds at <span class="num">0.404</span>.</p>
+</div>
+
+<h2>What is actually wrong</h2>
+<p>The gate is supposed to need both triggers. At equilibrium, trigger A alone already does
+the whole job: it occupies <span class="num">35.93</span> of its 36 nt on the switch in
+state 10 and <span class="num">35.93</span> in state 11 &mdash; a difference of
+<span class="num">0.004</span> nt. There is nothing left for trigger B to enable, so every
+candidate returns <code>separation</code> <span class="num">0.00</span>.</p>
+
+<p>Trigger B is not idle. It dismantles about 19 bp of the switch's own structure. But that
+structure is the inhibitory hairpin, which lies outside the window the ribosome reads, and
+the coupling between trigger B's binding energy and the opening cost of that window is
+<b>exactly zero</b>: adding B lowers the constrained and the unconstrained ensembles by the
+identical <span class="num">&minus;90.34&nbsp;kcal/mol</span>.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>state</th><th>P_open (all 30 nt open at once)</th><th>dG_open</th>
+<th>relative to 11</th></tr></thead>
+<tbody>
+<tr><td>00 &middot; neither</td><td class="n">6.23 &times; 10<sup>&minus;16</sup></td>
+  <td class="n">21.58</td><td class="n">1.4 &times; 10<sup>&minus;10</sup></td></tr>
+<tr><td>01 &middot; B only</td><td class="n">2.05 &times; 10<sup>&minus;15</sup></td>
+  <td class="n">20.84</td><td class="n">4.6 &times; 10<sup>&minus;10</sup></td></tr>
+<tr class="lo"><td>10 &middot; A only</td><td class="n">4.47 &times; 10<sup>&minus;6</sup></td>
+  <td class="n">7.59</td><td class="n">1.0000</td></tr>
+<tr class="lo"><td>11 &middot; both</td><td class="n">4.47 &times; 10<sup>&minus;6</sup></td>
+  <td class="n">7.59</td><td class="n">1.0000</td></tr>
+</tbody></table></div>
+<p style="font-size:14px;color:var(--soft)">Candidate x@260. Note that
+<code>P_open</code> is tiny in <i>every</i> tube, the ON state included &mdash; requiring 30
+nucleotides to be unpaired simultaneously is a severe condition, so only the ratios carry
+meaning, never the absolute values.</p>
+
+<h2>First: can our own metric be trusted?</h2>
+<p>Before comparing variants we checked whether the observable we rank on has any
+relationship with real performance. Green 2014 Table&nbsp;S1 publishes
+<b>168 toehold switches</b> with full sequences and a measured ON/OFF spanning 1 to 292. We
+applied <i>our</i> observables to them unchanged &mdash; same window, same <code>p_open</code>,
+same <code>A_M</code> &mdash; and took Spearman rank correlation.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>our observable</th><th>&rho; vs measured ON/OFF</th><th>|z|</th>
+<th>verdict</th></tr></thead>
+<tbody>
+<tr class="lo"><td><code>separation</code> &mdash; what we rank on</td><td class="n">&minus;0.107</td>
+  <td class="n">1.38</td><td>not significant</td></tr>
+<tr><td><code>separation</code> over a 9-nt window</td><td class="n">&minus;0.107</td>
+  <td class="n">1.38</td><td>not significant</td></tr>
+<tr><td><code>dG_open</code> OFF state</td><td class="n">&minus;0.362</td><td class="n">4.67</td>
+  <td>significant, wrong sign</td></tr>
+<tr class="hi"><td><code>A_M</code> gain, ON &minus; OFF</td><td class="n">+0.320</td>
+  <td class="n">4.13</td><td>significant</td></tr>
+<tr class="hi"><td>mean over the <i>same</i> W_rank, gain</td><td class="n">+0.317</td>
+  <td class="n">4.09</td><td>significant</td></tr>
+<tr><td>start codon accessibility, gain</td><td class="n">+0.241</td><td class="n">3.11</td>
+  <td>significant</td></tr>
+</tbody></table></div>
+
+<div class="callout">
+<p><b>The window is fine. The statistic is wrong.</b> Compare row 5 with row 1: identical
+window, identical tubes, mean-unpaired instead of joint <code>p_open</code>, and the
+correlation moves from &minus;0.11 to +0.32. Narrowing the joint window to 9 nt changes
+nothing.</p>
+<p>Requiring 30 &mdash; or 9 &mdash; nucleotides to be unpaired <i>simultaneously</i> is
+dominated by the single most-paired base, and <code>P_open</code> runs 10<sup>&minus;6</sup>
+to 10<sup>&minus;16</sup> for every real switch, so the dynamic range sits in a tail that is
+mostly noise. Our <code>separation</code> would have <b>deselected</b> Green's best
+switches: the ten that actually performed best (192&ndash;292) landed at our ranks 111, 151,
+90, 121, 161, 96, 80, 164, 45 and 125 of 168.</p>
+<p>This bears on the instruction to compute accessibility from the partition function rather
+than as an average. On 168 bench-measured constructs, <b>the average predicts and the joint
+partition-function form does not.</b> &rho;&nbsp;=&nbsp;0.32 is modest, but VISTA's strongest
+single feature is r&nbsp;=&nbsp;0.30, so it is in line with the field.</p>
+</div>
+
+<h2>How our architecture differs from theirs</h2>
+<p>The single clearest difference: <b>every published design stops the trigger short of the
+loop, and ours does not.</b></p>
+
+<div class="scroll"><table>
+<thead><tr><th>design</th><th>ascending arm</th><th>trigger covers</th><th>left free</th>
+<th>measured ON/OFF</th></tr></thead>
+<tbody>
+<tr class="lo"><td><b>Ours (A0)</b></td><td class="n">18 nt</td><td class="n">18 &mdash; all</td>
+  <td class="n">0</td><td>&mdash;</td></tr>
+<tr><td>Green 2014, 1st generation</td><td class="n">18 nt</td><td class="n">18 &mdash; all</td>
+  <td class="n">0</td><td class="n">43 mean</td></tr>
+<tr class="hi"><td>Green 2014, forward-engineered</td><td class="n">18 nt</td><td class="n">15</td>
+  <td class="n">3, weak <code>AUA</code></td><td class="n">406 mean</td></tr>
+<tr><td>Kim 2019 (the AND gate)</td><td class="n">18 nt</td><td class="n">15</td>
+  <td class="n">3, next to the loop</td><td>works at a&nbsp;=&nbsp;4</td></tr>
+<tr><td>Green 2026 VISTA</td><td class="n">9+3&times;3+6</td><td class="n">6</td>
+  <td>the whole top</td><td class="n">up to 137</td></tr>
+</tbody></table></div>
+
+<p>Green's first generation used <i>our</i> rule. Their forward-engineered generation pulled
+the trigger back 3 nt &mdash; Fig.&nbsp;3A lists it as one of four deliberate changes,
+annotated &ldquo;3 nt shift&rdquo; &mdash; and mean ON/OFF went from 43 to 406. <b>We adopted
+the rule the field moved away from.</b> Other differences worth recording: Kim's start codon
+sits in a <b>1&times;1 bulge</b>, not a 3&times;3 loop; his two hairpins are deliberately
+<b>unequal</b> (19 bp inhibitory against 17 bp primary) where ours are equal by construction;
+and both papers add a 26-nt stabilising hairpin we lack.</p>
+
+<div class="callout">
+<p><b>A caution about our ON-state observable.</b> VISTA's specified ON structure keeps the
+6-bp upper stem <b>paired</b>, with the RBS still in its loop and only the start codon freed.
+The architecture with the best published data never opens the whole window at all &mdash;
+which is consistent with the calibration result above, and is a second reason to stop ranking
+on joint <code>p_open</code>.</p>
+</div>
+
+<h2>The five changes, measured</h2>
+<p>Each modification was built as an actual switch on the same base candidates, folded in all
+four tubes, and reported with every observable. Six base candidates, 66 switches, medians
+below. Nothing is filtered.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>variant</th><th>separation</th><th>sep excl. 10</th><th>mean-form sep</th>
+<th>A_M(11)</th><th>A_M(10)</th><th>AUG(11)</th></tr></thead>
+<tbody>
+<tr><td>baseline</td><td class="n">0.00</td><td class="n">13.50</td><td class="n">0.000</td>
+  <td class="n">0.461</td><td class="n">0.461</td><td class="n">0.502</td></tr>
+<tr><td>upper3 &mdash; Green's 3-nt shift</td><td class="n">0.02</td><td class="n">12.20</td>
+  <td class="n">0.008</td><td class="n">0.490</td><td class="n">0.421</td><td class="n">0.408</td></tr>
+<tr><td>upper6 &mdash; whole upper stem</td><td class="n">2.11</td><td class="n">11.77</td>
+  <td class="n">0.088</td><td class="n">0.322</td><td class="n">0.118</td><td class="n">0.452</td></tr>
+<tr class="hi"><td><b>aug_paired</b> &mdash; pair the start codon</td><td class="n">6.77</td>
+  <td class="n">21.66</td><td class="n">0.189</td><td class="n">0.404</td><td class="n">0.007</td>
+  <td class="n">0.444</td></tr>
+<tr class="lo"><td>stop_before_bulge</td><td class="n">8.58</td><td class="n">15.80</td>
+  <td class="n">0.043</td><td class="n">0.076</td><td class="n">0.001</td><td class="n">0.006</td></tr>
+<tr><td>stabiliser &mdash; 5&prime; hairpin</td><td class="n">0.00</td><td class="n">13.50</td>
+  <td class="n">0.000</td><td class="n">0.461</td><td class="n">0.461</td><td class="n">0.502</td></tr>
+</tbody></table></div>
+
+<p><code>stop_before_bulge</code> has the highest raw separation and is the trap in the table:
+<code>A_M(11)</code> is <span class="num">0.076</span> and the start codon sits at
+<span class="num">0.006</span>. It is shut in every state. It turns off without turning on.</p>
+
+<h3>1 &middot; Upper 3 nt of the main stem <span class="verdict v-test">test, don't commit</span></h3>
+<div class="split">
+<div class="for"><h4>For</h4><ul>
+<li>Green's own 43 &rarr; 406 improvement includes this change.</li>
+<li>Kim's constructs independently obey the same 15-of-18 rule.</li>
+<li>Costs nothing: the 3 bp stay closed, just not trigger-derived.</li>
+</ul></div>
+<div class="against"><h4>Against</h4><ul>
+<li><b>In our architecture it does essentially nothing:</b> separation 0.02, mean-form 0.008.</li>
+<li>Green changed four things at once; the 3-nt shift is not isolated in their data either.</li>
+<li>Taking it to 6 nt (<code>upper6</code>) helps more (2.11) but still does not gate.</li>
+</ul></div>
+</div>
+<p>Our architecture differs from Green's in the one way that matters here: we have
+<b>no exposed toehold</b> (a&nbsp;=&nbsp;0), so trigger A's advantage does not come from the
+top of the stem. Shortening its reach there removes something it was not relying on.</p>
+
+<h3>2 &middot; Pair the AUG bulge to the switch instead of to trigger A
+<span class="verdict v-adopt">adopt</span></h3>
+<div class="split">
+<div class="for"><h4>For</h4><ul>
+<li><b>The only change that lifts separation off zero</b> while keeping the gate switchable.</li>
+<li>Median separation +6.77, best sep-excluding-10 (21.66), best mean-form (0.189).</li>
+<li><code>A_M(10)</code> falls to 0.007 &mdash; &tau;4a passes for the first time.</li>
+<li><code>A_M(11)</code> holds at 0.404 and the start codon stays accessible at 0.444.</li>
+<li>Mechanistically motivated: it removes trigger A's built-in 3-bp advantage.</li>
+</ul></div>
+<div class="against"><h4>Against</h4><ul>
+<li><b>Requires the strong secondary lock.</b> Alone it does nothing (see below).</li>
+<li>Breaks R1 over 3 nt and removes the 3&times;3 loop R7 specifies.</li>
+<li>Untested at the bench in this architecture; no published precedent for a&nbsp;=&nbsp;0.</li>
+<li>On 3&times;3-class candidates it buries the start codon (AUG 0.115) &mdash; pair
+    selection matters.</li>
+</ul></div>
+</div>
+
+<p><b>The interaction is the finding.</b> Pairing the AUG does nothing on a lock-free stem,
+and the lock alone does nothing. Both are required:</p>
+
+<div class="scroll"><table>
+<thead><tr><th>candidate</th><th>secondary stem</th><th>lock</th><th>baseline sep</th>
+<th>aug_paired sep</th><th>A_M(10)</th><th>A_M(11)</th></tr></thead>
+<tbody>
+<tr><td>x@260</td><td>unlocked</td><td class="n">+2.4</td><td class="n">0.00</td>
+  <td class="n">0.00</td><td class="n">0.384</td><td class="n">0.384</td></tr>
+<tr class="hi"><td>x@260</td><td>strongest</td><td class="n">&minus;14.6</td><td class="n">0.00</td>
+  <td class="n">5.91</td><td class="n">0.009</td><td class="n">0.384</td></tr>
+<tr><td>x@117</td><td>unlocked</td><td class="n">+11.3</td><td class="n">0.00</td>
+  <td class="n">0.00</td><td class="n">0.114</td><td class="n">0.114</td></tr>
+<tr><td>x@117</td><td>strongest</td><td class="n">&minus;18.4</td><td class="n">0.00</td>
+  <td class="n">12.00</td><td class="n">0.007</td><td class="n">0.111</td></tr>
+<tr><td>x@448</td><td>unlocked</td><td class="n">+6.2</td><td class="n">0.00</td>
+  <td class="n">0.00</td><td class="n">0.503</td><td class="n">0.503</td></tr>
+<tr class="hi"><td>x@448</td><td>strongest</td><td class="n">&minus;20.5</td><td class="n">0.00</td>
+  <td class="n">6.77</td><td class="n">0.004</td><td class="n">0.479</td></tr>
+</tbody></table></div>
+<p style="font-size:14px;color:var(--soft)">x@117 reaches the highest separation and is
+still a bad design: <code>A_M(11)</code> 0.111 and start codon 0.002. Separation alone is not
+a sufficient criterion &mdash; this is exactly why the panel reports every observable.</p>
+
+<h3>3 &middot; AUG bulge size <span class="verdict v-test">select, don't engineer</span></h3>
+<p>The loop size is not a design knob. <code>bulge*</code> is
+<code>revcomp(trigger_A[6:9])</code> and the <code>AUG</code> faces it, so the size is decided
+by <i>which trigger window you pick</i>. Across 1036 surviving pairs:</p>
+<div class="scroll"><table>
+<thead><tr><th>loop</th><th>pairs</th><th>share</th><th>baseline sep</th><th>A_M(10)</th>
+<th>with aug_paired: sep</th><th>A_M(11)</th><th>AUG(11)</th></tr></thead>
+<tbody>
+<tr><td>3&times;3 &mdash; what R7 specifies</td><td class="n">214</td><td class="n">20.7%</td>
+  <td class="n">0.00</td><td class="n">0.582</td><td class="n">8.95</td><td class="n">0.248</td>
+  <td class="n">0.115</td></tr>
+<tr class="hi"><td>2&times;2</td><td class="n">504</td><td class="n">48.6%</td><td class="n">0.00</td>
+  <td class="n">0.460</td><td class="n">8.60</td><td class="n">0.445</td><td class="n">0.634</td></tr>
+<tr><td>1&times;1 &mdash; Kim's</td><td class="n">280</td><td class="n">27.0%</td><td class="n">0.00</td>
+  <td class="n">0.416</td><td class="n">2.42</td><td class="n">0.404</td><td class="n">0.444</td></tr>
+<tr><td>0&times;0 &mdash; fully paired</td><td class="n">38</td><td class="n">3.7%</td>
+  <td colspan="5">not folded</td></tr>
+</tbody></table></div>
+<p>Two things follow. <b>R7 specifies a 3&times;3 loop and 79% of our candidates do not have
+one</b> &mdash; it was never controlled, only assumed. And the loop class alone does
+<b>not</b> fix the leak: baseline separation is 0.00 in every class. But it interacts strongly
+with the fix, and the sweet spot is <b>2&times;2</b> &mdash; neither what R7 specifies nor what
+Kim uses, and the most abundant class we have.</p>
+
+<h3>4 &middot; Unequal stems, 19 bp inhibitory / 17 bp main
+<span class="verdict v-no">not measured</span></h3>
+<div class="split">
+<div class="for"><h4>For</h4><ul>
+<li>Kim's working AND gate does exactly this.</li>
+<li>Plausible mechanism: the inhibitory hairpin must out-hold the main one.</li>
+</ul></div>
+<div class="against"><h4>Against</h4><ul>
+<li><b>One data point, with no controlled comparison in the paper.</b></li>
+<li>Requires changing <code>ARM_LEN</code> and the assembly, not a patch &mdash; so it was
+    <b>not measured here</b>, and should not be adopted on the strength of analogy.</li>
+<li>The lock-strength result above already delivers what this is supposed to deliver.</li>
+</ul></div>
+</div>
+
+<h3>5 &middot; 5&prime; stabilising hairpin <span class="verdict v-adopt">adopt &mdash; free</span></h3>
+<div class="split">
+<div class="for"><h4>For</h4><ul>
+<li>Both Kim and Green use one; a strong 5&prime; stem-loop blocks RNase&nbsp;E, raising
+    transcript half-life.</li>
+<li><b>Measured effect on every logic observable: none.</b> Identical to baseline to three
+    decimals in all four states.</li>
+<li>Folds cleanly on its own: 7-bp stem, 6-nt loop, &minus;15.2 kcal/mol.</li>
+</ul></div>
+<div class="against"><h4>Against</h4><ul>
+<li>Adds 26 nt of synthesis.</li>
+<li>Benefit is to stability, which our model does not predict &mdash; we are taking it on
+    the literature's word.</li>
+</ul></div>
+</div>
+<p><b>On the trigger side it is meaningless for us</b> and should not be ordered: Kim's
+triggers are synthetic transcripts he controls, ours are windows of real mCherry mRNA. We
+cannot prepend anything to an endogenous transcript, and in the validation all four control
+constructs share the same backbone, so its stability cancels.</p>
+
+<h2>What the four states actually look like</h2>
+<p>Candidate x@448, strongest-lock stem. Real ViennaRNA minimum-free-energy folds &mdash;
+nothing idealised, every base lettered, switch coloured by domain, triggers in saturated fill.
+Compare state 10 between the two variants: that is the whole result.</p>
+<div class="controls">
+  <button id="b-base" aria-pressed="true">baseline</button>
+  <button id="b-aug" aria-pressed="false">aug_paired</button>
+  <button id="b-zoom" aria-pressed="false">zoom to detail</button>
+</div>
+<div id="figs-baseline">{figure_panels("baseline")}</div>
+<div id="figs-aug" hidden>{figure_panels("aug_paired")}</div>
+
+<h2>What is missing from the list</h2>
+<ol>
+<li><b>The exposed toehold, a.</b> We use a&nbsp;=&nbsp;0. Kim's AND works at a&nbsp;=&nbsp;4
+and degenerates to a one-input switch at a&nbsp;=&nbsp;10; Green uses 12&ndash;30. <b>We sit
+outside the tested range entirely</b>, at the extreme. This is arguably a larger difference
+than any of the five, and it is the one Kim actually varied and measured.</li>
+<li><b>The ranking statistic.</b> Switching from joint <code>p_open</code> to the mean form is
+the best-evidenced change available to us (&rho; &minus;0.11 &rarr; +0.32 on 168 measured
+constructs) and it is a code change, not a synthesis cost.</li>
+<li><b><code>main_pre</code> is both the reporter's first three codons and a slice of trigger
+A.</b> It sits inside the ribosome window and inside trigger A's footprint at once. Decoupling
+it costs an N-terminal extension and is the one lever we have never tested.</li>
+<li><b>The linker competes with the stem.</b> In the folds above, the run of C's after the AUG
+pairs the linker rather than the ascending arm.</li>
+<li><b>RBS loop size</b> &mdash; Green widened it from 11 to 15 nt as one of the same four
+forward-engineering changes.</li>
+</ol>
+
+<h2>Recommendation</h2>
+<div class="lede">
+<p><b>Order one panel that tests the interaction, not five separate changes.</b></p>
+</div>
+<ol>
+<li><b>Adopt now, in code:</b> rank on the mean form rather than joint <code>p_open</code>.
+It is the only change with bench evidence behind it, and it costs nothing.</li>
+<li><b>Build:</b> <code>aug_paired</code> on the <b>strongest-lock</b> stem, selecting
+candidates from the <b>2&times;2</b> bulge class, filtered on <code>A_M(11)</code> and start
+codon accessibility, not on separation alone.</li>
+<li><b>Include as controls in the same panel:</b> baseline (the current design), and
+<code>aug_paired</code> on an unlocked stem &mdash; that pair is what demonstrates the
+interaction at the bench rather than only in silico.</li>
+<li><b>Add the 5&prime; stabilising hairpin to every switch construct.</b> Free in our model,
+supported in the literature, and it makes our constructs comparable to Kim's.</li>
+<li><b>Hold</b> the 3-nt shift and the 19/17 stems. Neither is supported by our measurements;
+the first measured near zero, the second was not measured at all.</li>
+<li><b>Raise with the supervisor:</b> a&nbsp;=&nbsp;0 puts us outside the range anyone has
+tested, and the equilibrium model cannot distinguish a validated AND gate from a switch that
+does not gate. For this architecture the bench is not a confirmation step &mdash; it is the
+measurement.</li>
+</ol>
+
+<div class="foot">
+<p><b>Reproduce.</b> <code>modification_panel.py</code> (the variant table),
+<code>green_calibration.py</code> (the 168-switch correlation),
+<code>four_state_figures.py</code> (these figures),
+<code>window_probabilities.py</code> (per-base probabilities),
+<code>strand_occupancy.py</code> (where each strand goes). All under
+<code>src/engine/gates/notebooks/toehold_and/</code>.</p>
+<p><b>Caveats.</b> Every number is ViennaRNA at 37&nbsp;&deg;C, single precision &mdash;
+differences below 3&times;10<sup>&minus;5</sup> kcal/mol are unresolved, not zero. Green's 168
+switches are single-input, so they calibrate our observables, not our gate. The modification
+medians are over six base candidates; the interaction table over three. No weight is fitted to
+any data anywhere in this work.</p>
+</div>
+</div>
+<script>
+(function(){{
+  var base=document.getElementById('figs-baseline'), aug=document.getElementById('figs-aug');
+  var bb=document.getElementById('b-base'), ba=document.getElementById('b-aug'),
+      bz=document.getElementById('b-zoom');
+  function show(which){{
+    var isBase = which==='base';
+    base.hidden=!isBase; aug.hidden=isBase;
+    bb.setAttribute('aria-pressed', String(isBase));
+    ba.setAttribute('aria-pressed', String(!isBase));
+  }}
+  bb.addEventListener('click',function(){{show('base');}});
+  ba.addEventListener('click',function(){{show('aug');}});
+  bz.addEventListener('click',function(){{
+    var on=document.body.classList.toggle('zoom');
+    bz.setAttribute('aria-pressed',String(on));
+    bz.textContent = on ? 'fit to width' : 'zoom to detail';
+  }});
+}})();
+</script>
+"""
+
+(HERE / "report.html").write_text(HEAD + BODY, encoding="utf-8")
+print("wrote", HERE / "report.html", (HERE / "report.html").stat().st_size, "bytes")
