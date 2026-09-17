@@ -369,6 +369,74 @@ def test_design_ids_stay_unique_across_both_layouts(activator_set, constraints):
     assert len(ids) == len(set(ids))
 
 
+# --- leader sequence: track-specific, not a shared placeholder -------------------------
+#
+# LEADER_SEQUENCE_PROKARYOTIC ("GGG") is the source generator's T7-in-vitro-transcription
+# default. LEADER_SEQUENCE_EUKARYOTIC is the actual plasmid sequence the human construct
+# attaches before the toehold — the two are not interchangeable, so _leader_sequence must
+# dispatch on host.track rather than falling back to one shared constant.
+
+
+def test_prokaryotic_leader_is_the_t7_default(gate, activator_set, constraints):
+    design = next(gate.generate_designs(activator_set, constraints))
+    assert design.sequence.startswith(ToeholdGate.LEADER_SEQUENCE_PROKARYOTIC)
+    assert design.architecture["leader_len"] == len(ToeholdGate.LEADER_SEQUENCE_PROKARYOTIC)
+
+
+def test_eukaryotic_leader_is_the_plasmid_sequence_not_the_prokaryotic_default(
+    activator_set, constraints
+):
+    gate = ToeholdGate(
+        Host.HUMAN, FoldEngine(), TranslationScorer(Host.HUMAN), CodonOptimizer(Host.HUMAN)
+    )
+    for design in gate.generate_designs(activator_set, constraints):
+        assert design.sequence.startswith(ToeholdGate.LEADER_SEQUENCE_EUKARYOTIC)
+        assert design.architecture["leader_len"] == len(ToeholdGate.LEADER_SEQUENCE_EUKARYOTIC)
+        assert not design.sequence.startswith(ToeholdGate.LEADER_SEQUENCE_PROKARYOTIC)
+
+
+# --- kozak_rc_in_toehold: flagging a self-complementarity risk, not scoring it ---------
+#
+# Both layouts place a real Kozak copy in the switch (loop or trailing tail). If the
+# trigger-derived toehold happens to carry Kozak's reverse complement, that stretch can
+# hybridize to the switch's own Kozak intramolecularly, regardless of what the folded
+# ensemble's summary accessibility numbers report. Recorded on architecture, not folded
+# into evaluate_design's nine DEFAULT_V1 names (CLAUDE.md §2) — see
+# ``_kozak_rc_in_toehold``'s own docstring for why.
+
+
+def test_kozak_rc_in_toehold_is_false_for_a_trigger_without_the_motif(
+    gate, activator_set, constraints
+):
+    for design in gate.generate_designs(activator_set, constraints):
+        assert design.architecture["kozak_rc_in_toehold"] is False
+
+
+def test_kozak_rc_in_toehold_detects_the_motif_at_the_toehold_start():
+    """The toehold is reverse_complement(trigger.sequence)[:toehold_length] — built here
+    so the trigger's own last 12 nt reverse-complement to "GGUGGC" (reverse_complement of
+    KOZAK_EUKARYOTIC "GCCACC") followed by arbitrary bases, landing the motif at the very
+    start of a toehold_length=12 toehold, exactly the placement this flag exists to catch.
+    """
+    trigger = make_trigger(sequence=TRIGGER_SEQUENCE[:24] + "UUUUUUGCCACC")
+    gate = ToeholdGate(
+        Host.HUMAN, FoldEngine(), TranslationScorer(Host.HUMAN), CodonOptimizer(Host.HUMAN)
+    )
+    trigger_set = TriggerSet(activators=(trigger,))
+    designs = [
+        d
+        for d in gate.generate_designs(trigger_set, Constraints())
+        if d.architecture["toehold_length"] == 12
+    ]
+    assert designs  # not vacuously true
+    for design in designs:
+        toehold = design.sequence[
+            design.architecture["leader_len"] : design.architecture["leader_len"] + 12
+        ]
+        assert toehold.startswith("GGUGGC")
+        assert design.architecture["kozak_rc_in_toehold"] is True
+
+
 # --- payload: folding the real effector gene's head instead of a placeholder -----------
 #
 # Without a payload, evaluate_design folds the switch alone (or with LINKER_SEQUENCE for
@@ -610,6 +678,7 @@ def test_golden_first_design_for_a_known_trigger(gate, activator_set, constraint
         "aug_index": 50,
         "track": "prokaryotic",
         "kozak_layout": "loop",
+        "kozak_rc_in_toehold": False,
     }
     assert design.sequence == (
         "GGGUCGUGCUGACGUGUAUGUUAUGUAAUUGUCAACAGAGGAGAGACAAUAUGAUAACAUACAACCUGGCGGCAGCGCAAAAG"

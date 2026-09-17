@@ -37,10 +37,10 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 37 |
+| Modules | 38 |
 | Public classes | 86 |
-| Public callables (excluding `__init__`) | 167 |
-| — `BUILT` | 134 |
+| Public callables (excluding `__init__`) | 169 |
+| — `BUILT` | 136 |
 | — `STUB` | 26 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
@@ -70,6 +70,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
 | gates | `engine.gates.toehold` |  | 5 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
+| gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
 | stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 2 | 0 | S1 — local accessibility profiling, the primitive behind trigger selection. |
@@ -981,7 +982,7 @@ Single-input toehold switch.
 | --- | --- | --- |
 | `name` |  | `'toehold'` |
 | `design_prefix` |  | `'toehold'` |
-| `version` |  | `'0.1.0'` |
+| `version` |  | `'0.5.0'` |
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
 | `description` |  | `'Translational control · pre-mRNA'` |
@@ -989,17 +990,22 @@ Single-input toehold switch.
 | `max_inputs` |  | `1` |
 | `available` |  | `True` |
 | `toehold_lengths` | `ClassVar[tuple[int, ...]]` | `(12, 15, 18)` |
-| `LEADER_SEQUENCE` | `ClassVar[str]` | `'GGG'` |
+| `LEADER_SEQUENCE_PROKARYOTIC` | `ClassVar[str]` | `'GGG'` |
+| `LEADER_SEQUENCE_EUKARYOTIC` | `ClassVar[str]` | `'GUCAGAUC'` |
 | `STEM_PRE_BULGE_LEN` | `ClassVar[int]` | `9` |
 | `STEM_POST_BULGE_LEN` | `ClassVar[int]` | `6` |
 | `LOOP_LEN` | `ClassVar[int]` | `11` |
 | `RBS_PROKARYOTIC` | `ClassVar[str]` | `'AACAGAGGAGA'` |
 | `KOZAK_EUKARYOTIC` | `ClassVar[str]` | `'GCCACC'` |
 | `LINKER_SEQUENCE` | `ClassVar[str]` | `'AACCUGGCGGCAGCGCAAAAG'` |
+| `KOZAK_LAYOUTS` | `ClassVar[tuple[str, ...]]` | `('loop', 'trailing')` |
+| `TRAILING_LOOP_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(10, 12)` |
+| `KOZAK_LINKER_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(0, 3)` |
+| `PAYLOAD_HEAD_LENGTH` | `ClassVar[int]` | `30` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer) -> None` |  |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer, *, kozak_layouts: tuple[str, ...] \| None = None, payload: str \| None = None) -> None` |  |
 | `BUILT` | `def required_tools(self) -> list[ToolRequirement]` | External tools this family needs, checked before a run starts. |
 | `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | Can this family build anything for this trigger set? |
 | `BUILT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build candidate switches for one trigger set. |
@@ -1108,6 +1114,17 @@ A stand-in for :class:`~engine.gates.tools.folding.FoldEngine`.
 | `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` |  |
 | `BUILT` | `def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]` |  |
 | `BUILT` | `def versions(self) -> dict[str, str]` |  |
+
+### `engine.gates.notebooks.toehold.render_pdf`
+
+`src/engine/gates/notebooks/toehold/render_pdf.py`
+
+Render an HTML report to PDF via headless Chromium (Playwright).
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def render_pdf(html_path: Path, pdf_path: Path, *, landscape: bool = True) -> None` |  |
+| `BUILT` | `def main() -> None` |  |
 
 ## Layer 6 · Stages — the six steps of a run
 
