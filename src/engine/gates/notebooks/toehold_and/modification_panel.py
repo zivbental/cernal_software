@@ -26,9 +26,17 @@ pairs**, because a single pair has twice now produced a result that did not repl
     a mean ON/OFF of 43; this change was one of four that took the next generation to 406.
 
 ``upper6``
-    The same idea taken to the whole 6-bp upper stem. Already swept exhaustively over all
-    4096 spacers with no effect on ``separation``; kept here as the negative control that
-    says "more is not better".
+    The same idea taken to the whole 6-bp upper stem. **No published design does this** --
+    Green and Kim both stop at 3 nt -- so unlike ``upper3`` it has no comparability argument
+    behind it, only the hypothesis that more is better.
+
+    An earlier description called it a negative control "with no effect on ``separation``".
+    That was measured on a **lock-free** stem and is wrong on a locked one: with the
+    strongest lock it reaches ``separation`` 2.11 and the best start-codon accessibility of
+    any variant, 0.825. What it does **not** do is fix the leak -- ``A_M(10)`` stays at 0.425,
+    twice tau4a's threshold, and ``A_M(11) - A_M(10)`` is only 0.016. So it moves the
+    metrics without gating, which is a third category distinct from both "no effect" and
+    "works".
 
 ``aug_paired``
     Give the bulge bonus to the switch: the 3 nt facing the ``AUG`` become its complement,
