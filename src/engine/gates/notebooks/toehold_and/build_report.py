@@ -130,6 +130,14 @@ button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);
 :root[data-theme="dark"] button[aria-pressed="true"],
   :root:not([data-theme="light"]) button[aria-pressed="true"]{color:#14130E}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+table caption{caption-side:top;text-align:left;font-family:var(--mono);font-size:11px;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--accent);font-weight:600;
+  padding:10px 13px 6px;background:var(--raise)}
+.stat-toggle{display:flex;gap:6px;align-items:center;margin:0 0 -10px;font-family:var(--mono);
+  font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.stat-toggle button{padding:4px 10px;font-size:11px}
+body.show-spread .median-only{display:none}
+body:not(.show-spread) .spread-only{display:none}
 .foot{margin-top:64px;padding-top:22px;border-top:1px solid var(--rule);
   font-size:13.5px;color:var(--faint)}
 .foot code{font-size:12px}
@@ -177,6 +185,7 @@ the coupling between trigger B's binding energy and the opening cost of that win
 identical <span class="num">&minus;90.34&nbsp;kcal/mol</span>.</p>
 
 <div class="scroll"><table>
+<caption>Table 1 &mdash; the ribosome window as probabilities, by logic state</caption>
 <thead><tr><th>state</th><th>P_open (all 30 nt open at once)</th><th>dG_open</th>
 <th>relative to 11</th></tr></thead>
 <tbody>
@@ -202,6 +211,7 @@ applied <i>our</i> observables to them unchanged &mdash; same window, same <code
 same <code>A_M</code> &mdash; and took Spearman rank correlation.</p>
 
 <div class="scroll"><table>
+<caption>Table 2 &mdash; our observables against 168 measured switches</caption>
 <thead><tr><th>our observable</th><th>&rho; vs measured ON/OFF</th><th>|z|</th>
 <th>verdict</th></tr></thead>
 <tbody>
@@ -250,6 +260,7 @@ arrives at configuration <b>01</b>.</li>
 </ul>
 
 <div class="scroll"><table>
+<caption>Table 3 &mdash; what trigger A finds before it binds, by path</caption>
 <thead><tr><th>design</th><th>free(x*) in 00</th><th>free(x*) in 01</th>
 <th>nucleation rate, 01 / 00</th><th>equilibrium separation</th></tr></thead>
 <tbody>
@@ -310,6 +321,7 @@ at the bench, the metric was the problem; if the closure wins, the leak was real
 loop, and ours does not.</b></p>
 
 <div class="scroll"><table>
+<caption>Table 4 &mdash; trigger complementarity across published designs</caption>
 <thead><tr><th>design</th><th>ascending arm</th><th>trigger covers</th><th>left free</th>
 <th>measured ON/OFF</th></tr></thead>
 <tbody>
@@ -342,28 +354,87 @@ on joint <code>p_open</code>.</p>
 </div>
 
 <h2>The five changes, measured</h2>
-<p>Each modification was built as an actual switch on the same base candidates, folded in all
-four tubes, and reported with every observable. Six base candidates, 66 switches, medians
-below. Nothing is filtered.</p>
+<p>Each modification was built as an actual switch on the same base candidates, folded in
+all four tubes, and reported with every observable. <b>Twelve base candidates, 156 switches.</b>
+Nothing is filtered. Use the toggle to swap medians for mean&nbsp;&plusmn;&nbsp;sd &mdash; the
+spreads are wide relative to the differences, which is itself worth seeing.</p>
 
-<div class="scroll"><table>
+<div class="stat-toggle"><span>show</span>
+  <button id="b-median" aria-pressed="true">median</button>
+  <button id="b-spread" aria-pressed="false">mean &plusmn; sd, min&ndash;max</button>
+</div>
+
+<div class="scroll median-only"><table>
+<caption>Table 5 &mdash; every modification, medians over 12 candidates</caption>
 <thead><tr><th>variant</th><th>separation</th><th>sep excl. 10</th><th>mean-form sep</th>
 <th>A_M(11)</th><th>A_M(10)</th><th>AUG(11)</th></tr></thead>
 <tbody>
 <tr><td>baseline</td><td class="n">0.00</td><td class="n">13.50</td><td class="n">0.000</td>
-  <td class="n">0.461</td><td class="n">0.461</td><td class="n">0.502</td></tr>
-<tr><td>upper3 &mdash; Green's 3-nt shift</td><td class="n">0.02</td><td class="n">12.20</td>
-  <td class="n">0.008</td><td class="n">0.490</td><td class="n">0.421</td><td class="n">0.408</td></tr>
-<tr><td>upper6 &mdash; whole upper stem</td><td class="n">2.11</td><td class="n">11.77</td>
-  <td class="n">0.088</td><td class="n">0.322</td><td class="n">0.118</td><td class="n">0.452</td></tr>
-<tr class="hi"><td><b>aug_paired</b> &mdash; pair the start codon</td><td class="n">6.77</td>
-  <td class="n">21.66</td><td class="n">0.189</td><td class="n">0.404</td><td class="n">0.007</td>
-  <td class="n">0.444</td></tr>
+  <td class="n">0.506</td><td class="n">0.506</td><td class="n">0.525</td></tr>
+<tr><td>upper3 &mdash; 3 nt, weak A&middot;U</td><td class="n">0.02</td><td class="n">12.20</td>
+  <td class="n">0.008</td><td class="n">0.537</td><td class="n">0.421</td><td class="n">0.424</td></tr>
+<tr><td>upper6 &mdash; 6 nt, G&middot;C rich</td><td class="n">2.11</td><td class="n">11.77</td>
+  <td class="n">0.088</td><td class="n">0.441</td><td class="n">0.118</td><td class="n">0.623</td></tr>
+<tr><td>upper6_au &mdash; 6 nt, weak A&middot;U</td><td class="n">1.44</td><td class="n">12.28</td>
+  <td class="n">0.118</td><td class="n">0.307</td><td class="n">0.095</td><td class="n">0.143</td></tr>
+<tr><td>aug_paired &mdash; closed, <code>CAU</code></td><td class="n">6.77</td><td class="n">21.66</td>
+  <td class="n">0.189</td><td class="n">0.404</td><td class="n">0.007</td><td class="n">0.444</td></tr>
+<tr class="hi"><td><b>aug_closed_au &mdash; closed, <code>UAU</code></b></td><td class="n"><b>7.53</b></td>
+  <td class="n">20.05</td><td class="n"><b>0.243</b></td><td class="n">0.415</td>
+  <td class="n">0.007</td><td class="n">0.453</td></tr>
+<tr><td>aug_closed_gc &mdash; closed, <code>CGU</code></td><td class="n">7.03</td><td class="n">20.23</td>
+  <td class="n">0.184</td><td class="n">0.413</td><td class="n">0.007</td><td class="n">0.453</td></tr>
+<tr><td>aug_pair2 &mdash; designed 1&times;1</td><td class="n">2.05</td><td class="n">17.04</td>
+  <td class="n">0.134</td><td class="n">0.461</td><td class="n">0.269</td><td class="n">0.502</td></tr>
+<tr><td>aug_pair1 &mdash; designed 2&times;2</td><td class="n">0.59</td><td class="n">14.22</td>
+  <td class="n">0.133</td><td class="n">0.506</td><td class="n">0.404</td><td class="n">0.527</td></tr>
 <tr class="lo"><td>stop_before_bulge</td><td class="n">8.58</td><td class="n">15.80</td>
-  <td class="n">0.043</td><td class="n">0.076</td><td class="n">0.001</td><td class="n">0.006</td></tr>
+  <td class="n">0.043</td><td class="n">0.076</td><td class="n">0.002</td><td class="n">0.006</td></tr>
+<tr class="lo"><td>sec_upper3 &mdash; secondary top, 3 nt</td><td class="n">0.00</td><td class="n">13.50</td>
+  <td class="n">0.000</td><td class="n">0.506</td><td class="n">0.506</td><td class="n">0.525</td></tr>
+<tr class="lo"><td>sec_upper6 &mdash; secondary top, 6 nt</td><td class="n">0.00</td><td class="n">13.60</td>
+  <td class="n">0.000</td><td class="n">0.506</td><td class="n">0.506</td><td class="n">0.525</td></tr>
 <tr><td>stabiliser &mdash; 5&prime; hairpin</td><td class="n">0.00</td><td class="n">13.50</td>
-  <td class="n">0.000</td><td class="n">0.461</td><td class="n">0.461</td><td class="n">0.502</td></tr>
+  <td class="n">0.000</td><td class="n">0.506</td><td class="n">0.505</td><td class="n">0.525</td></tr>
 </tbody></table></div>
+
+<div class="scroll spread-only"><table>
+<caption>Table 6 &mdash; the same, as mean &plusmn; sd with the range</caption>
+<thead><tr><th>variant</th><th>separation</th><th>min &ndash; max</th><th>A_M(11)</th>
+<th>n</th></tr></thead>
+<tbody>
+<tr><td>baseline</td><td class="n">0.00 &plusmn; 0.00</td><td class="n">&minus;0.00 &ndash; 0.01</td>
+  <td class="n">0.508 &plusmn; 0.110</td><td class="n">12</td></tr>
+<tr><td>upper3</td><td class="n">0.29 &plusmn; 0.59</td><td class="n">&minus;0.00 &ndash; 1.94</td>
+  <td class="n">0.531 &plusmn; 0.153</td><td class="n">12</td></tr>
+<tr><td>upper6</td><td class="n">1.97 &plusmn; 1.65</td><td class="n">0.00 &ndash; 5.19</td>
+  <td class="n">0.386 &plusmn; 0.153</td><td class="n">12</td></tr>
+<tr class="hi"><td>aug_paired family</td><td class="n">7.76 &plusmn; 3.50</td>
+  <td class="n">2.42 &ndash; 12.00</td><td class="n">0.328 &plusmn; 0.162</td><td class="n">12</td></tr>
+<tr class="lo"><td>stop_before_bulge</td><td class="n">8.19 &plusmn; 3.71</td>
+  <td class="n">3.78 &ndash; 13.46</td><td class="n">0.126 &plusmn; 0.171</td><td class="n">12</td></tr>
+<tr><td>stabiliser</td><td class="n">0.00 &plusmn; 0.00</td><td class="n">0.00 &ndash; 0.00</td>
+  <td class="n">0.508 &plusmn; 0.110</td><td class="n">12</td></tr>
+</tbody></table></div>
+
+<div class="callout">
+<p><b>Three things the extended panel settled that the first one could not.</b></p>
+<p><b>Length is not what mattered in <code>upper6</code>.</b> The original used G&middot;C-rich
+<code>GCCGAC</code> while <code>upper3</code> used a weak A&middot;U ladder, so it varied
+length and strength together. Matching the composition (<code>upper6_au</code>) makes it
+<i>worse</i>, not better &mdash; separation 1.44 against 2.11, and <code>A_M(11)</code> 0.307
+against 0.441. The strong duplex was carrying that result, and a weak 6-bp top costs the ON
+state badly (AUG 0.143).</p>
+<p><b>At full closure, the weakest bulge wins.</b> Four 3-mers close the bulge completely;
+testing <code>UAU</code> (no G&middot;C) against <code>CGU</code> (two) at the same depth
+separates depth from strength. <code>UAU</code> is best on both separation forms &mdash;
+7.53 and 0.243, against <code>CAU</code>'s 6.77 / 0.189 and <code>CGU</code>'s 7.03 / 0.184.
+<b>Close with <code>UAU</code>, not <code>CAU</code>.</b></p>
+<p><b>The same idea on the inhibitory hairpin does nothing at all.</b> Decoupling its upper
+helix from trigger B by 3 or by 6 nt leaves every observable identical to baseline to three
+decimals. Trigger A never touches that helix, and trigger B has a 32-nt toehold that does not
+miss 3&ndash;6 nt of grip. A clean null, and a question that can be closed.</p>
+</div>
 
 <p><code>stop_before_bulge</code> has the highest raw separation and is the trap in the table:
 <code>A_M(11)</code> is <span class="num">0.076</span> and the start codon sits at
@@ -420,6 +491,7 @@ top of the stem. Shortening its reach there removes something it was not relying
 and the lock alone does nothing. Both are required:</p>
 
 <div class="scroll"><table>
+<caption>Table 7 &mdash; trigger A's retained pairs after closure</caption>
 <thead><tr><th>candidate</th><th>secondary stem</th><th>lock</th><th>baseline sep</th>
 <th>aug_paired sep</th><th>A_M(10)</th><th>A_M(11)</th></tr></thead>
 <tbody>
@@ -453,6 +525,7 @@ positions pair, <code>3&minus;k</code> are unpaired on <b>each</b> side. 1&times
 a 1&times;1 against the junction. Census over all 1036 surviving pairs:</p>
 
 <div class="scroll"><table>
+<caption>Table 8 &mdash; closure depth as a designed variable</caption>
 <thead><tr><th>pattern</th><th>loop</th><th>where it sits</th><th>pairs</th><th>share</th></tr></thead>
 <tbody>
 <tr><td class="n">o..</td><td class="n">2&times;2</td><td>at the arm base</td><td class="n">241</td><td class="n">23.3%</td></tr>
@@ -478,6 +551,7 @@ predicts the outcome, is <b>how many of its three pairs trigger A keeps</b> once
 </div>
 
 <div class="scroll"><table>
+<caption>Table 9 &mdash; lock energy as a threshold, by closure depth</caption>
 <thead><tr><th>trigger A keeps</th><th>pairs available</th><th>n folded</th><th>separation</th>
 <th>A_M(10)</th><th>A_M(11)</th><th>AUG(11)</th></tr></thead>
 <tbody>
@@ -509,6 +583,7 @@ middle unpaired as a designed 1&times;1, <code>CCC</code> leaves two as a design
 Medians over four candidates, all on the strongest-lock stem:</p>
 
 <div class="scroll"><table>
+<caption>Table 10 &mdash; who holds the nucleation site</caption>
 <thead><tr><th>closure</th><th>bulge*</th><th>separation</th><th>mean-form sep</th>
 <th>A_M(10)</th><th>A_M(11)</th><th>AUG(11)</th></tr></thead>
 <tbody>
@@ -599,6 +674,7 @@ real performance, so both are shown wherever a claim rests on either. Candidate 
 B-anchored stem, lock &minus;20.5.</p>
 
 <div class="scroll"><table>
+<caption>Table 11 &mdash; which axis to select on</caption>
 <thead><tr><th>design</th><th>state</th><th>P_open &mdash; joint</th><th>dG_open</th>
 <th>mean over W_rank</th><th>A_M &mdash; main stem</th><th>AUG alone</th></tr></thead>
 <tbody>
@@ -660,6 +736,7 @@ reach the ribosome window once trigger A is present.</p>
 the whole front, each at every closure depth:</p>
 
 <div class="scroll"><table>
+<caption>Table 12 &mdash; lock energy reachable by scheme</caption>
 <thead><tr><th>lock energy</th><th>scheme</th><th>baseline</th><th>2&times;2</th><th>1&times;1</th>
 <th>closed</th></tr></thead>
 <tbody>
@@ -699,6 +776,7 @@ second is the leak. Decomposing the same matrix three ways &mdash; paired to <co
 <code>A_S</code> was hiding.</p>
 
 <div class="scroll"><table>
+<caption>Table 13 &mdash; every accessibility form, all four states</caption>
 <thead><tr><th>lock</th><th>scheme</th><th>locked (00)</th><th>locked (10)</th>
 <th>engaged by A (10)</th><th>separation once closed</th></tr></thead>
 <tbody>
@@ -733,6 +811,7 @@ so when trigger B is absent.</p>
 <p><b>Which of these should the pipeline select on?</b> Over 14 stems on two trigger pairs,
 against separation once the AUG is closed:</p>
 <div class="scroll"><table>
+<caption>Table 14 &mdash; who holds the nucleation site, by lock energy</caption>
 <thead><tr><th>candidate axis</th><th>&rho;</th><th>needs folding?</th><th>note</th></tr></thead>
 <tbody>
 <tr class="hi"><td><code>lock_energy</code></td><td class="n">&minus;0.707</td><td>no</td>
@@ -771,6 +850,7 @@ required. The threshold column counts builds reaching the weakest lock energy ob
 support any AUG closure:</p>
 
 <div class="scroll"><table>
+<caption>Table 15 &mdash; lock energy reachable by scheme, 1576 builds</caption>
 <thead><tr><th>scheme</th><th>builds</th><th>median lock</th><th>strongest</th><th>weakest</th>
 <th>reach &le; &minus;10 kcal/mol</th></tr></thead>
 <tbody>
@@ -899,6 +979,15 @@ any data anywhere in this work.</p>
 </div>
 </div>
 <script>
+(function(){{
+  var sp=document.getElementById('b-spread'), md=document.getElementById('b-median');
+  if(sp&&md){{
+    md.addEventListener('click',function(){{document.body.classList.remove('show-spread');
+      md.setAttribute('aria-pressed','true');sp.setAttribute('aria-pressed','false');}});
+    sp.addEventListener('click',function(){{document.body.classList.add('show-spread');
+      sp.setAttribute('aria-pressed','true');md.setAttribute('aria-pressed','false');}});
+  }}
+}})();
 (function(){{
   var base=document.getElementById('figs-baseline'), aug=document.getElementById('figs-aug');
   var bb=document.getElementById('b-base'), ba=document.getElementById('b-aug'),

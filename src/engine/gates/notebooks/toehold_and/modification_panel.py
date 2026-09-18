@@ -135,8 +135,22 @@ def variants(gate, switch, trigger_a: str) -> dict:
     # sequence out of trigger A's reach.
     upper3_k1 = k1_star[:3] + WEAK_TOP
     upper3_z = sq.reverse_complement(WEAK_TOP) + main_z[3:]
+    # upper6 as first written used GC-rich GCCGAC while upper3 used the weak A-U ladder,
+    # so it compared length AND strength at once and could not separate them. Both are kept:
+    # upper6_gc is the original, upper6_au matches upper3's composition so the pair of them
+    # isolates length.
     upper6_k1 = sq.reverse_complement("GCCGAC")
     upper6_z = "GCCGAC"
+    upper6_au_z = "AUAUAU"
+    upper6_au_k1 = sq.reverse_complement(upper6_au_z)
+
+    # The same idea applied to the INHIBITORY hairpin. Its upper helix is k2* against
+    # secondary_z, adjacent to the secondary loop; trigger B binds k2* and trigger A never
+    # touches it. Decoupling the top from trigger B should therefore cost B its grip while
+    # leaving A unaffected -- the opposite of what the main hairpin's version does, which is
+    # why it is worth measuring rather than assuming.
+    k2_star = switch.sequence[slice(*switch.domains["k2_star"])]
+    secondary_z = switch.sequence[slice(*switch.domains["secondary_z"])]
 
     # Give the AUG a partner: the ascending 3 nt become its complement.
     aug_partner = sq.reverse_complement("AUG")
@@ -149,17 +163,43 @@ def variants(gate, switch, trigger_a: str) -> dict:
     aug_pair_two = "CCU"
     aug_pair_one = "CCC"
 
+    # DEPTH and GC CONTENT were confounded in the first pass: every closure tested happened
+    # to be C-rich. Four 3-mers close the bulge completely -- CAU, CGU, UAU, UGU -- spanning
+    # 0 to 2 G+C. Testing the two extremes at the SAME depth separates "how many positions
+    # pair" from "how strong those pairs are", which are different design knobs.
+    aug_closed_au = "UAU"  # depth 3, zero G+C -- the weakest full closure
+    aug_closed_gc = "CGU"  # depth 3, two G+C -- the strongest
+
     out = {
         "baseline": switch,
         "upper3": patch(switch, k1_star=upper3_k1, main_z=upper3_z),
         "upper6": patch(switch, k1_star=upper6_k1, main_z=upper6_z),
+        "upper6_au": patch(switch, k1_star=upper6_au_k1, main_z=upper6_au_z),
         "aug_paired": patch(switch, bulge_star=aug_partner),
+        "aug_closed_au": patch(switch, bulge_star=aug_closed_au),
+        "aug_closed_gc": patch(switch, bulge_star=aug_closed_gc),
         "aug_pair2": patch(switch, bulge_star=aug_pair_two),
         "aug_pair1": patch(switch, bulge_star=aug_pair_one),
         "stop_before_bulge": patch(
             switch, bulge_star=aug_partner, k1_star=upper6_k1, main_z=upper6_z
         ),
     }
+    # The secondary hairpin's upper helix, decoupled from trigger B by 3 and by 6 nt. The
+    # 3 nt nearest the secondary loop are the LAST of k2* against the FIRST of secondary_z,
+    # mirroring the main hairpin's geometry one domain over.
+    if len(k2_star) >= 3:
+        out["sec_upper3"] = patch(
+            switch,
+            k2_star=k2_star[:-3] + "AUA",
+            secondary_z=sq.reverse_complement("AUA") + secondary_z[3:],
+        )
+    if len(k2_star) >= 6:
+        out["sec_upper6"] = patch(
+            switch,
+            k2_star=k2_star[:-6] + "AUAUAU",
+            secondary_z=sq.reverse_complement("AUAUAU") + secondary_z[6:],
+        )
+
     # The stabiliser changes the length, so it cannot go through `patch`: the domain map
     # would silently shift. Rebuilt with every domain offset instead.
     shifted = {

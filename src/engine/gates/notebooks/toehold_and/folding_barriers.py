@@ -109,8 +109,8 @@ def main(argv=None) -> int:
 
     rows = []
     print(
-        f"  {'design':<24}{'barrier 00':>12}{'barrier 01':>12}{'B buys':>10}"
-        f"{'cost 00':>10}{'cost 01':>10}"
+        f"  {'design':<24}{'nucl 00':>12}{'nucl 01':>12}{'B buys':>10}"
+        f"{'window 00':>11}{'window 10':>11}{'window 11':>11}"
     )
     for pair in kept[: args.pairs]:
         trigger_a = transcript[slice(*pair.window_a())]
@@ -125,6 +125,16 @@ def main(argv=None) -> int:
             site = switch.domains["sw_xs"]
             shut = barrier_to_open(gate.folder, switch.sequence, site)
             with_b = barrier_to_open(gate.folder, f"{switch.sequence}&{trigger_b}", site)
+            # The OTHER half of the rate. Nucleation is only the first step: once trigger A
+            # has a foothold it still has to open the ribosome window, and that barrier
+            # lives in the MAIN hairpin. Rate ~ nucleation x completion, so both are needed
+            # and neither alone is the gate.
+            rank = switch.span(-17, 13)
+            window_00 = barrier_to_open(gate.folder, switch.sequence, rank)
+            window_10 = barrier_to_open(gate.folder, f"{switch.sequence}&{trigger_a}", rank)
+            window_11 = barrier_to_open(
+                gate.folder, f"{switch.sequence}&{trigger_a}&{trigger_b}", rank
+            )
             gain = (
                 None
                 if shut["barrier"] is None or with_b["barrier"] is None
@@ -141,12 +151,21 @@ def main(argv=None) -> int:
                     "barrier_drop": gain,
                     "cost_00": shut.get("cost"),
                     "cost_01": with_b.get("cost"),
+                    "window_barrier_00": window_00["barrier"],
+                    "window_barrier_10": window_10["barrier"],
+                    "window_barrier_11": window_11["barrier"],
+                    "window_drop_A": (
+                        None
+                        if window_00["barrier"] is None or window_10["barrier"] is None
+                        else window_00["barrier"] - window_10["barrier"]
+                    ),
                 }
             )
             print(
                 f"  x@{pair.x_start} {name:<16}{shut['barrier']:>12.2f}"
                 f"{with_b['barrier']:>12.2f}{gain:>10.2f}"
-                f"{shut.get('cost', 0):>10.2f}{with_b.get('cost', 0):>10.2f}",
+                f"{window_00['barrier']:>11.2f}{window_10['barrier']:>11.2f}"
+                f"{window_11['barrier']:>11.2f}",
                 flush=True,
             )
 
