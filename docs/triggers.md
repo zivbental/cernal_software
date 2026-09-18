@@ -184,15 +184,19 @@ windows usable (>=1) : 339
 windows unusable     : 337
 ```
 
-### 4.1 The ranking formula is a declared placeholder
+### 4.1 The ranking formula uses mean RNAplfold openness
 
-`score=accessibility * segment_specificity` (`triggers.py:188`), and the code says so
-itself — *"a simple, explicitly-labelled placeholder combination … has not been reviewed by
-the scientific team yet"*. Two consequences:
+Q15 is answered by `rnaplfold_mean_base_unpaired_v1`. Stage 2 stores and ranks on
+`score = openness`, where `openness` is the raw arithmetic mean of the per-nucleotide
+RNAplfold unpaired probabilities in the candidate window. This is neither the joint
+probability that the complete footprint is simultaneously open nor a probability of
+binding or biological success.
 
-- `mfe` and `gc_content` are **computed and then unused** in ranking.
-- With off-target stubbed, `segment_specificity` is a constant, so ranking collapses to
-  **accessibility alone**.
+Minimum per-base `accessibility`, window MFE, GC content, motif findings, AUG/stop
+annotations and off-target values remain diagnostics; they are not blended into the
+primary score. Exact ties use higher minimum accessibility, earlier transcript coordinate,
+the configured trigger-length order, then sequence text. Dense stride-1 scanning and the
+per-gene top-50 budget are unchanged.
 
 ---
 
@@ -393,7 +397,7 @@ candidates, each carrying the scanned window's offset, instead of 0.
 |---|---|---|
 | **Real off-target scanning** | `OffTargetScanner` is four stubs and needs Q1's transcriptome | `off_target_penalty` is unmeasured, and `segment_specificity` with it. Must be **reported as unmeasured**, never as 0.0-means-clean |
 | **`GeneSelector` / the `de` path** | Blocked on Q1 | `direct` only. One transcript at a time, supplied by the researcher |
-| **A reviewed ranking formula** | Q6, and `triggers.py` says its own formula is a placeholder | Windows are ordered by accessibility alone. Good enough to *choose a buildable one*, not to claim the best one |
+| **A calibrated multivariate success model** | No cross-dataset calibration exists for combining the diagnostics | Stage 2 ranks only by raw mean per-base RNAplfold unpaired probability; it does not claim a joint opening, binding, or biological-success probability |
 | **Paralogue-aware specificity** | No paralogue search exists; the code approximates it from the off-target report | Cannot distinguish a gene from its family. For a `direct` run with one pasted transcript, there is nothing to compare against anyway |
 | **RNA-class-specific rules** | Nobody has decided them — see §9 | An sRNA, a lncRNA and an mRNA are scanned identically today |
 
@@ -423,7 +427,7 @@ For §2, the open questions table:
 | # | Question | Blocks |
 |---|---|---|
 | **Q14** | **Does the RNA class change the rules?** A trigger window inside an mRNA's CDS, its 5′UTR, a lncRNA, or a small RNA are not equivalent choices — an sRNA may be functional only as a whole, and a CDS window is dense with start codons (measured: the #1 cause of design rejection). Should the scan prefer, avoid or weight regions by class? | E2b |
-| **Q15** | **What makes a trigger good, beyond buildable?** `score = accessibility × segment_specificity` is a self-declared placeholder that ignores the MFE and GC it already computes. Needs a reviewed formula before any ranking is presented as a recommendation | E2b, and Q6 |
+| **Q15** | **Answered:** rank by raw mean per-base RNAplfold unpaired probability (`openness`; method `rnaplfold_mean_base_unpaired_v1`). Keep minimum accessibility and the other measurements as diagnostics, not a composite success probability | E2b implemented; calibration remains Q6 |
 
 For §5, as a carve-out of E2 in the same shape as E2a and E5a:
 
@@ -437,8 +441,8 @@ call sites currently discard (T3), and derive the scanned lengths from the gate 
 real footprints (T4). Constructibility-aware *ranking* (T5) only if ranking needs it —
 `SwitchDesigner` already filters, and measured, the check costs 0.03 ms/window.
 
-Blocked on **Q14**, **Q15** for a defensible *ranking*; unblocked for *choosing a window
-that builds*.
+Q15 is answered by the mean per-base RNAplfold ranking above. Q14 remains open for
+RNA-class-specific preferences; the current scan treats RNA classes identically.
 
 **Done when:** a `direct` run given a full mRNA returns candidates built against a named
 window at a reported offset, a run that returns none names the rule that rejected how many,

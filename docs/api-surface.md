@@ -1347,6 +1347,7 @@ Rank every sub-segment of every selected gene as a possible switch input.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `TOP_K_PER_GENE` |  | `50` |
+| `SELECTION_METHOD` |  | `'rnaplfold_mean_base_unpaired_v1'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -1407,7 +1408,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.3.0-direct-and-de-ecoli-yeast'` |
+| `ENGINE_VERSION` |  | `'local-0.4.0-direct-and-de-ecoli-yeast'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |

@@ -52,7 +52,7 @@ editing something under ``gates/``.
 import dataclasses
 import re
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from engine import sequences as sq
@@ -493,7 +493,23 @@ def _build_constraints(params: dict) -> Constraints:
         raise InputValidationError(f"Unknown constraint field(s): {', '.join(sorted(unknown))}.")
 
     if "trigger_lengths" in raw:
-        raw["trigger_lengths"] = tuple(raw["trigger_lengths"])
+        trigger_lengths = raw["trigger_lengths"]
+        if isinstance(trigger_lengths, (str, bytes)) or not isinstance(trigger_lengths, Sequence):
+            raise InputValidationError(
+                "trigger_lengths must be a non-empty sequence of unique positive integers."
+            )
+        trigger_lengths = tuple(trigger_lengths)
+        if not trigger_lengths:
+            raise InputValidationError("trigger_lengths must not be empty.")
+        if any(
+            isinstance(length, bool) or not isinstance(length, int) for length in trigger_lengths
+        ):
+            raise InputValidationError("trigger_lengths values must be positive integers.")
+        if any(length <= 0 for length in trigger_lengths):
+            raise InputValidationError("trigger_lengths values must be positive integers.")
+        if len(set(trigger_lengths)) != len(trigger_lengths):
+            raise InputValidationError("trigger_lengths values must be unique.")
+        raw["trigger_lengths"] = trigger_lengths
     if "forbidden_motifs" in raw:
         raw["forbidden_motifs"] = tuple(raw["forbidden_motifs"])
     if "trigger_gc_range" in raw:
@@ -663,19 +679,20 @@ def _direct_trigger(
 
     max_window = max(constraints.trigger_lengths)
     if len(sequence) <= max_window:
-        # Exactly today's behaviour, byte for byte: the whole paste is the one
+        # Preserve today's selection behaviour: the whole paste is the one
         # trigger. openness/accessibility follow TriggerScorer.score's already-decided
         # convention (mean, then minimum, of the same profile slice) rather than
         # inventing a second one — profiling the pasted sequence *as* the transcript,
         # since a `direct` submission this short has no larger context to profile.
         window = profiler.profile(sequence)
+        openness = sum(window) / len(window)
         trigger = TriggerCandidate(
             trigger_id=store.mint_id("trig"),
             gene_id="direct",
             symbol="direct-trigger",
             sequence=sequence,
             start_index=0,
-            openness=sum(window) / len(window),
+            openness=openness,
             accessibility=min(window),
             mfe=folder.mfe(sequence).energy,
             # No transcriptome exists for a direct submission (off-target is reported
@@ -685,6 +702,7 @@ def _direct_trigger(
             gc_content=sq.gc_content(sequence),
             aug_indexes=sq.find_augs(sequence),
             stop_indexes=sq.find_stops(sequence),
+            score=openness,
         )
         return [trigger], []
 
@@ -728,7 +746,8 @@ def _direct_trigger(
     return candidates, [
         f"The pasted sequence is {len(sequence)} nt, longer than one trigger window "
         f"(up to {max_window} nt) — scanned {windows_considered} window(s) and kept "
-        f"{len(candidates)} candidate(s) after screening, ranked by accessibility."
+        f"{len(candidates)} candidate(s) after screening, ranked by mean per-base "
+        "RNAplfold unpaired probability."
     ]
 
 
@@ -839,7 +858,8 @@ def _de_trigger(
         f"Selected {len(genes)} gene(s) from the differential-expression table (best: "
         f"{best.symbol or best.gene_id}, log2FC={best.log2_fold_change:.2f}); scanned "
         f"their real transcripts and kept {len(candidates)} candidate trigger "
-        "window(s) after screening.",
+        "window(s) after screening, ranked by mean per-base RNAplfold unpaired "
+        "probability.",
     ]
 
 
@@ -929,6 +949,9 @@ def _candidate_result(
                     "sequence": trigger.sequence,
                     "openness": trigger.openness,
                     "accessibility": trigger.accessibility,
+                    "selection_method": TriggerScorer.SELECTION_METHOD,
+                    "selection_metric": "mean_base_unpaired_probability",
+                    "selection_score": trigger.score,
                     # Which window this candidate came from (docs/triggers.md T2) —
                     # 0 for the single-trigger fast path, a real scanned offset
                     # otherwise. Makes a chosen window inspectable rather than a

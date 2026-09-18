@@ -101,6 +101,17 @@ def test_a_direct_run_completes_with_real_candidates(direct_request, always_cont
     assert all(c.gate_family == "toehold" for c in result.candidates)
 
 
+def test_exact_direct_trigger_exposes_raw_selection_provenance(direct_request, always_continue):
+    result = LocalEngine().run(direct_request(), always_continue)
+
+    assert result.candidates
+    for candidate in result.candidates:
+        feature = candidate.triggers["features"][0]
+        assert feature["selection_method"] == "rnaplfold_mean_base_unpaired_v1"
+        assert feature["selection_metric"] == "mean_base_unpaired_probability"
+        assert feature["selection_score"] == feature["openness"]
+
+
 def test_a_de_run_against_real_genes_completes_with_real_candidates(de_request, always_continue):
     """The MVP scope confirmed in docs/genes.md: GeneSelector picks the best real
     gene(s), their real transcripts are scanned by the same TriggerScorer the `direct`
@@ -563,6 +574,24 @@ def test_a_paste_longer_than_one_window_is_scanned_not_silently_truncated(
     assert any("scanned" in w and "144 nt" in w for w in result.warnings)
 
 
+def test_scanned_direct_and_de_warnings_name_mean_per_base_rnaplfold_ranking(
+    direct_request, de_request, always_continue
+):
+    direct_result = LocalEngine().run(direct_request(trigger_sequence=LONG_PASTE), always_continue)
+    de_result = LocalEngine().run(de_request(), always_continue)
+    expected = "mean per-base RNAplfold unpaired probability"
+
+    assert any(expected in warning for warning in direct_result.warnings)
+    assert any(expected in warning for warning in de_result.warnings)
+    for result in (direct_result, de_result):
+        assert result.candidates
+        for candidate in result.candidates:
+            feature = candidate.triggers["features"][0]
+            assert feature["selection_method"] == "rnaplfold_mean_base_unpaired_v1"
+            assert feature["selection_metric"] == "mean_base_unpaired_probability"
+            assert feature["selection_score"] == feature["openness"]
+
+
 def test_every_candidate_records_which_window_it_came_from(direct_request, always_continue):
     result = LocalEngine().run(direct_request(trigger_sequence=LONG_PASTE), always_continue)
     for candidate in result.candidates:
@@ -611,7 +640,7 @@ def test_rejections_are_summarized_with_reasons_when_scanning_finds_candidates_b
     Empirically verified deterministic: every window built from this repeating
     trinucleotide pattern embeds either a second AUG or an in-frame stop once
     reverse-complemented into a switch, so nothing here ever builds."""
-    paste = "AUG" * 20 + "ACG" * 20  # 120 nt, real RNA, longer than one window
+    paste = "AUG" * 9 + "ACG" * 9  # 54 nt, real RNA, longer than one window
     result = LocalEngine().run(direct_request(trigger_sequence=paste), always_continue)
 
     assert result.status == "succeeded"
@@ -675,6 +704,25 @@ def test_trigger_lengths_coerces_from_a_json_list_to_a_tuple(direct_request):
     request = direct_request(params={"constraints": {"trigger_lengths": [30, 45]}})
     tools = build_tools(request, Host.ECOLI)
     assert tools["constraints"].trigger_lengths == (30, 45)
+
+
+@pytest.mark.parametrize(
+    "trigger_lengths",
+    [[], [30, 30], [0], [-1]],
+    ids=["empty", "duplicate", "zero", "negative"],
+)
+@pytest.mark.parametrize("input_mode", [INPUT_DIRECT, INPUT_DE])
+def test_invalid_trigger_lengths_fail_cleanly(
+    trigger_lengths, input_mode, direct_request, de_request, always_continue
+):
+    request_factory = direct_request if input_mode == INPUT_DIRECT else de_request
+    request = request_factory(params={"constraints": {"trigger_lengths": trigger_lengths}})
+
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert "trigger_lengths" in result.error
 
 
 def test_an_unknown_assembly_standard_is_rejected(direct_request):

@@ -1,10 +1,9 @@
 """``TriggerScorer`` — stage 2, ranking candidate trigger windows within a transcript.
 
-``FoldProfiler`` and ``OffTargetScanner`` are still stubs (``NotImplementedError``) —
-see ``docs/ROADMAP.md`` E1 — so this file drives ``TriggerScorer`` against small, explicit
-fakes for those two tools instead, in the spirit of ``gates/tools/folding.py``'s own "one
-stub point for tests" note. ``MotifScreener`` and ``FoldEngine`` are real: both are
-already implemented, and the whole point of a golden test is to pin real numbers.
+``FoldProfiler`` is real; ``OffTargetScanner``'s matching is still a stub. This file
+uses small, explicit fakes for both so per-base probabilities and penalties stay easy to
+hand-check. ``MotifScreener`` and ``FoldEngine`` are real: both are already implemented,
+and the whole point of a golden test is to pin real numbers.
 """
 
 import pytest
@@ -198,6 +197,20 @@ def test_off_target_penalty_is_read_from_the_scanner_not_invented(genes, sequenc
     assert all(c.off_target_penalty == pytest.approx(0.37) for c in candidates)
 
 
+def test_score_is_raw_openness_even_when_off_target_penalty_is_nonzero(genes, sequences):
+    scorer = TriggerScorer(
+        FakeFoldProfiler(),
+        FakeOffTargetScanner(penalty=0.37),
+        MotifScreener(AssemblyStandard.RFC10),
+        FoldEngine(),
+    )
+
+    candidates = list(scorer.score(genes, sequences, Constraints(trigger_lengths=(30,))))
+
+    assert candidates
+    assert all(candidate.score == candidate.openness for candidate in candidates)
+
+
 def test_aug_and_stop_indexes_are_recorded(scorer, genes, sequences):
     constraints = Constraints(trigger_lengths=(30,))
     candidates = {c.start_index: c for c in scorer.score(genes, sequences, constraints)}
@@ -218,9 +231,34 @@ def test_mfe_is_the_windows_own_folding_energy_not_a_sentinel(scorer, genes, seq
     assert all(c.mfe < 0.0 for c in candidates)
 
 
-def test_score_ranks_the_more_accessible_less_off_target_window_first(sequences):
-    """Not a golden pin on the exact formula (flagged as an open question in the PR) —
-    just the ordering property any reasonable combination must have."""
+def test_higher_mean_openness_outranks_higher_minimum_accessibility():
+    class MeanFirstProfiler:
+        def profile(self, sequence: str) -> list[float]:
+            assert sequence == "ACGU"
+            return [0.4, 0.4, 0.1, 0.9]
+
+    scorer = TriggerScorer(
+        MeanFirstProfiler(),
+        FakeOffTargetScanner(penalty=0.0),
+        MotifScreener(AssemblyStandard.RFC10),
+        FoldEngine(),
+    )
+
+    candidates = list(
+        scorer.score(
+            [make_gene()],
+            {"b0002": "ACGU"},
+            Constraints(trigger_lengths=(2,)),
+        )
+    )
+
+    assert candidates[0].start_index == 2
+    assert candidates[0].openness == pytest.approx(0.5)
+    assert candidates[0].accessibility == pytest.approx(0.1)
+
+
+def test_candidates_are_sorted_by_raw_openness_score(sequences, monkeypatch):
+    monkeypatch.setattr(TriggerScorer, "TOP_K_PER_GENE", 100)
     scorer = TriggerScorer(
         FakeFoldProfiler(),
         FakeOffTargetScanner(penalty=0.0),
@@ -237,6 +275,43 @@ def test_score_ranks_the_more_accessible_less_off_target_window_first(sequences)
     assert fully_open.accessibility == pytest.approx(0.9)
     assert fully_paired.accessibility == pytest.approx(0.1)
     assert fully_open.score > fully_paired.score
+
+
+def test_equal_openness_uses_documented_deterministic_tie_breakers():
+    class ProfileValues:
+        def __init__(self, values: list[float]) -> None:
+            self.values = values
+
+        def profile(self, sequence: str) -> list[float]:
+            assert len(sequence) == len(self.values)
+            return self.values
+
+    def score(values: list[float], sequence: str, lengths: tuple[int, ...]):
+        scorer = TriggerScorer(
+            ProfileValues(values),
+            FakeOffTargetScanner(penalty=0.0),
+            MotifScreener(AssemblyStandard.RFC10),
+            FoldEngine(),
+        )
+        return list(
+            scorer.score(
+                [make_gene()],
+                {"b0002": sequence},
+                Constraints(trigger_lengths=lengths),
+            )
+        )
+
+    minimum_tie = [
+        candidate
+        for candidate in score([0.0, 1.0, 0.5, 0.5], "ACGU", (2,))
+        if candidate.openness == pytest.approx(0.5)
+    ]
+    assert [candidate.start_index for candidate in minimum_tie] == [2, 0]
+
+    coordinate_and_length_tie = score([0.5] * 5, "ACGUA", (3, 2))
+    assert [
+        (candidate.start_index, len(candidate.sequence)) for candidate in coordinate_and_length_tie
+    ] == [(0, 3), (0, 2), (1, 3), (1, 2), (2, 3), (2, 2), (3, 2)]
 
 
 # --- golden: fixed input, committed output (docs/engine.md §8) -------------------------
@@ -259,4 +334,4 @@ def test_golden_first_candidate_for_a_known_transcript(scorer, genes, sequences)
     assert best.accessibility == pytest.approx(0.1)
     assert best.off_target_penalty == pytest.approx(0.2)
     assert best.segment_specificity == pytest.approx(0.8)
-    assert best.score == pytest.approx(0.08)
+    assert best.score == pytest.approx(0.5266666666666667)

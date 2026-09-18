@@ -185,7 +185,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.3.0-direct-and-de-ecoli-yeast"
+    ENGINE_VERSION = "local-0.4.0-direct-and-de-ecoli-yeast"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

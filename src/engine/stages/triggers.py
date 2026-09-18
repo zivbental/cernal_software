@@ -40,9 +40,9 @@ class TriggerScorer:
     """Rank every sub-segment of every selected gene as a possible switch input.
 
     Args:
-        profiler: The run's shared ``FoldProfiler``. Supplies accessibility, which is the
-            single most important trigger property — a sequence buried in a stable
-            hairpin cannot be reached however well it matches.
+        profiler: The run's shared ``FoldProfiler``. Supplies per-base RNAplfold
+            unpaired probabilities used for the primary mean-openness ranking and the
+            minimum-accessibility diagnostic.
         off_target: The run's shared ``OffTargetScanner``. Answers direction (b): is this
             segment sponged by other transcripts?
         screener: The run's shared ``MotifScreener``. Rejects segments carrying
@@ -63,6 +63,7 @@ class TriggerScorer:
     #: so this stays a class constant — a search-budget knob, not an undeclared filter on
     #: any single candidate's numbers.
     TOP_K_PER_GENE = 50
+    SELECTION_METHOD = "rnaplfold_mean_base_unpaired_v1"
 
     def __init__(
         self,
@@ -105,9 +106,8 @@ class TriggerScorer:
             * ``openness`` — ``profiler.openness(transcript, start, end)``. **Profile each
               transcript once** and slice; profiling per window is quadratic and is the
               easiest way to make this stage take hours instead of minutes.
-            * ``accessibility`` — the same idea, but the minimum rather than the mean, or
-              whatever the scientific team decides. A window that is open at both ends
-              and paired in the middle averages well and binds badly.
+            * ``accessibility`` — the minimum per-base unpaired probability. It remains
+              a diagnostic and the first exact-tie breaker, not part of ``score``.
             * ``mfe`` — the segment's own folding energy. A trigger that folds tightly on
               itself competes with binding the switch.
             * ``gc_content`` — ``sequences.gc_content``. Extremes hurt both synthesis and
@@ -134,10 +134,11 @@ class TriggerScorer:
         script's ``stride`` parameter nor a GC-content cutoff has a home in
         ``Constraints`` today; ``segment_specificity`` is approximated from the
         off-target report rather than a real paralogue search, for the same reason.
-        ``score`` is a simple, explicitly-labelled placeholder combination — per
-        ``SelectedGene.score``'s own docstring, a stage's ranking weights are a
-        recorded scientific choice, and this one has not been reviewed by the
-        scientific team yet.
+        ``score`` is the raw mean per-base RNAplfold unpaired probability
+        (``openness``), identified by ``SELECTION_METHOD``. MFE, GC, minimum
+        accessibility, motif, AUG/stop and off-target values remain diagnostics and are
+        not blended into that scientific selection score. Exact ties are resolved by
+        minimum accessibility, coordinate, configured trigger-length order and sequence.
         """
         for gene in genes:
             transcript = sequences[gene.gene_id]
@@ -157,10 +158,8 @@ class TriggerScorer:
 
                     local_profile = profile[start:end]
                     openness = sum(local_profile) / length
-                    # "the minimum rather than the mean" per this method's own
-                    # docstring — open at both ends and paired in the middle binds
-                    # badly however good the mean looks. The docstring leaves the
-                    # final call to the scientific team; flagged in the PR.
+                    # Keep the worst-position probability as a diagnostic and exact-tie
+                    # breaker; the primary scientific selection metric is the mean above.
                     accessibility = min(local_profile)
 
                     off_target_report = self.off_target.scan_trigger(window)
@@ -185,9 +184,17 @@ class TriggerScorer:
                             gc_content=sq.gc_content(window),
                             aug_indexes=sq.find_augs(window),
                             stop_indexes=sq.find_stops(window),
-                            score=accessibility * segment_specificity,
+                            score=openness,
                         )
                     )
 
-            candidates.sort(key=lambda c: c.score, reverse=True)
+            candidates.sort(
+                key=lambda candidate: (
+                    -candidate.openness,
+                    -candidate.accessibility,
+                    candidate.start_index,
+                    constraints.trigger_lengths.index(len(candidate.sequence)),
+                    candidate.sequence,
+                )
+            )
             yield from candidates[: self.TOP_K_PER_GENE]
