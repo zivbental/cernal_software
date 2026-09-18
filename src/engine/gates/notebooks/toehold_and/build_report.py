@@ -399,23 +399,95 @@ spreads are wide relative to the differences, which is itself worth seeing.</p>
 </tbody></table></div>
 
 <div class="scroll spread-only"><table>
-<caption>Table 6 &mdash; the same, as mean &plusmn; sd with the range</caption>
-<thead><tr><th>variant</th><th>separation</th><th>min &ndash; max</th><th>A_M(11)</th>
-<th>n</th></tr></thead>
+<caption>Table 6 &mdash; the same modifications as mean &plusmn; sd over 12 candidates</caption>
+<thead><tr><th>variant</th><th>separation</th><th>sep excl. 10</th><th>mean-form sep</th>
+<th>A_M(11)</th><th>A_M(10)</th><th>A_M(00)</th><th>AUG(11)</th><th>AUG(00)</th>
+<th>dG_open(00)</th><th>d_off</th></tr></thead>
 <tbody>
-<tr><td>baseline</td><td class="n">0.00 &plusmn; 0.00</td><td class="n">&minus;0.00 &ndash; 0.01</td>
-  <td class="n">0.508 &plusmn; 0.110</td><td class="n">12</td></tr>
-<tr><td>upper3</td><td class="n">0.29 &plusmn; 0.59</td><td class="n">&minus;0.00 &ndash; 1.94</td>
-  <td class="n">0.531 &plusmn; 0.153</td><td class="n">12</td></tr>
-<tr><td>upper6</td><td class="n">1.97 &plusmn; 1.65</td><td class="n">0.00 &ndash; 5.19</td>
-  <td class="n">0.386 &plusmn; 0.153</td><td class="n">12</td></tr>
-<tr class="hi"><td>aug_paired family</td><td class="n">7.76 &plusmn; 3.50</td>
-  <td class="n">2.42 &ndash; 12.00</td><td class="n">0.328 &plusmn; 0.162</td><td class="n">12</td></tr>
-<tr class="lo"><td>stop_before_bulge</td><td class="n">8.19 &plusmn; 3.71</td>
-  <td class="n">3.78 &ndash; 13.46</td><td class="n">0.126 &plusmn; 0.171</td><td class="n">12</td></tr>
-<tr><td>stabiliser</td><td class="n">0.00 &plusmn; 0.00</td><td class="n">0.00 &ndash; 0.00</td>
-  <td class="n">0.508 &plusmn; 0.110</td><td class="n">12</td></tr>
+<tr><td>baseline</td>
+  <td class="n">0.00 &plusmn; 0.00</td><td class="n">14.36 &plusmn; 2.58</td>
+  <td class="n">0.000 &plusmn; 0.002</td><td class="n">0.523 &plusmn; 0.118</td>
+  <td class="n">0.522 &plusmn; 0.118</td><td class="n">0.127 &plusmn; 0.043</td>
+  <td class="n">0.615 &plusmn; 0.220</td><td class="n">0.707 &plusmn; 0.253</td>
+  <td class="n">21.85 &plusmn; 4.02</td><td class="n">0.195 &plusmn; 0.029</td></tr>
+<tr><td>upper3</td>
+  <td class="n">0.27 &plusmn; 0.57</td><td class="n">11.96 &plusmn; 2.99</td>
+  <td class="n">0.042 &plusmn; 0.078</td><td class="n">0.534 &plusmn; 0.146</td>
+  <td class="n">0.451 &plusmn; 0.206</td><td class="n">0.131 &plusmn; 0.044</td>
+  <td class="n">0.541 &plusmn; 0.235</td><td class="n">0.705 &plusmn; 0.251</td>
+  <td class="n">19.82 &plusmn; 4.48</td><td class="n">0.197 &plusmn; 0.028</td></tr>
+<tr><td>upper6 &mdash; G&middot;C</td>
+  <td class="n">1.81 &plusmn; 1.67</td><td class="n">12.12 &plusmn; 1.31</td>
+  <td class="n">0.084 &plusmn; 0.061</td><td class="n">0.398 &plusmn; 0.152</td>
+  <td class="n">0.243 &plusmn; 0.184</td><td class="n">0.121 &plusmn; 0.041</td>
+  <td class="n">0.617 &plusmn; 0.232</td><td class="n">0.702 &plusmn; 0.244</td>
+  <td class="n">22.02 &plusmn; 2.87</td><td class="n">0.193 &plusmn; 0.030</td></tr>
+<tr><td>upper6_au &mdash; A&middot;U</td>
+  <td class="n">2.08 &plusmn; 1.62</td><td class="n">11.12 &plusmn; 3.00</td>
+  <td class="n">0.117 &plusmn; 0.068</td><td class="n">0.336 &plusmn; 0.088</td>
+  <td class="n">0.144 &plusmn; 0.106</td><td class="n">0.084 &plusmn; 0.027</td>
+  <td class="n">0.183 &plusmn; 0.099</td><td class="n">0.222 &plusmn; 0.197</td>
+  <td class="n">19.04 &plusmn; 2.93</td><td class="n">0.262 &plusmn; 0.026</td></tr>
+<tr><td>aug_paired &mdash; <code>CAU</code></td>
+  <td class="n">7.53 &plusmn; 3.44</td><td class="n">20.10 &plusmn; 2.58</td>
+  <td class="n">0.146 &plusmn; 0.081</td><td class="n">0.325 &plusmn; 0.155</td>
+  <td class="n">0.008 &plusmn; 0.004</td><td class="n">0.006 &plusmn; 0.003</td>
+  <td class="n">0.340 &plusmn; 0.279</td><td class="n">0.001 &plusmn; 0.000</td>
+  <td class="n">29.60 &plusmn; 3.16</td><td class="n">0.220 &plusmn; 0.025</td></tr>
+<tr class="hi"><td><b>aug_closed_au &mdash; <code>UAU</code></b></td>
+  <td class="n">6.90 &plusmn; 3.77</td><td class="n">19.25 &plusmn; 2.00</td>
+  <td class="n"><b>0.186 &plusmn; 0.084</b></td><td class="n"><b>0.406 &plusmn; 0.150</b></td>
+  <td class="n">0.009 &plusmn; 0.006</td><td class="n">0.006 &plusmn; 0.003</td>
+  <td class="n"><b>0.439 &plusmn; 0.251</b></td><td class="n">0.001 &plusmn; 0.000</td>
+  <td class="n">27.54 &plusmn; 3.33</td><td class="n">0.220 &plusmn; 0.025</td></tr>
+<tr><td>aug_closed_gc &mdash; <code>CGU</code></td>
+  <td class="n">7.02 &plusmn; 3.30</td><td class="n">18.60 &plusmn; 2.86</td>
+  <td class="n">0.144 &plusmn; 0.086</td><td class="n">0.319 &plusmn; 0.161</td>
+  <td class="n">0.009 &plusmn; 0.006</td><td class="n">0.006 &plusmn; 0.003</td>
+  <td class="n">0.334 &plusmn; 0.289</td><td class="n">0.001 &plusmn; 0.000</td>
+  <td class="n">27.64 &plusmn; 2.87</td><td class="n">0.220 &plusmn; 0.025</td></tr>
+<tr><td>aug_pair2 &mdash; 1&times;1</td>
+  <td class="n">2.94 &plusmn; 3.64</td><td class="n">15.63 &plusmn; 3.74</td>
+  <td class="n">0.138 &plusmn; 0.115</td><td class="n">0.491 &plusmn; 0.114</td>
+  <td class="n">0.197 &plusmn; 0.138</td><td class="n">0.065 &plusmn; 0.003</td>
+  <td class="n">0.593 &plusmn; 0.219</td><td class="n">0.351 &plusmn; 0.009</td>
+  <td class="n">24.69 &plusmn; 3.87</td><td class="n">0.207 &plusmn; 0.026</td></tr>
+<tr><td>aug_pair1 &mdash; 2&times;2</td>
+  <td class="n">1.33 &plusmn; 2.31</td><td class="n">14.58 &plusmn; 2.65</td>
+  <td class="n">0.103 &plusmn; 0.110</td><td class="n">0.523 &plusmn; 0.118</td>
+  <td class="n">0.312 &plusmn; 0.135</td><td class="n">0.119 &plusmn; 0.003</td>
+  <td class="n">0.615 &plusmn; 0.220</td><td class="n">0.667 &plusmn; 0.000</td>
+  <td class="n">22.42 &plusmn; 2.92</td><td class="n">0.196 &plusmn; 0.025</td></tr>
+<tr class="lo"><td>stop_before_bulge</td>
+  <td class="n">7.94 &plusmn; 3.64</td><td class="n">15.49 &plusmn; 3.87</td>
+  <td class="n">0.069 &plusmn; 0.091</td><td class="n">0.128 &plusmn; 0.163</td>
+  <td class="n">0.004 &plusmn; 0.005</td><td class="n">0.004 &plusmn; 0.004</td>
+  <td class="n">0.063 &plusmn; 0.139</td><td class="n">0.001 &plusmn; 0.000</td>
+  <td class="n">29.30 &plusmn; 1.92</td><td class="n">0.219 &plusmn; 0.025</td></tr>
+<tr class="lo"><td>sec_upper3</td>
+  <td class="n">0.00 &plusmn; 0.00</td><td class="n">13.69 &plusmn; 2.45</td>
+  <td class="n">0.000 &plusmn; 0.002</td><td class="n">0.523 &plusmn; 0.118</td>
+  <td class="n">0.522 &plusmn; 0.118</td><td class="n">0.127 &plusmn; 0.043</td>
+  <td class="n">0.615 &plusmn; 0.220</td><td class="n">0.707 &plusmn; 0.253</td>
+  <td class="n">21.85 &plusmn; 4.02</td><td class="n">0.196 &plusmn; 0.029</td></tr>
+<tr class="lo"><td>sec_upper6</td>
+  <td class="n">0.00 &plusmn; 0.00</td><td class="n">14.14 &plusmn; 2.80</td>
+  <td class="n">0.000 &plusmn; 0.002</td><td class="n">0.523 &plusmn; 0.118</td>
+  <td class="n">0.522 &plusmn; 0.118</td><td class="n">0.127 &plusmn; 0.043</td>
+  <td class="n">0.615 &plusmn; 0.220</td><td class="n">0.707 &plusmn; 0.253</td>
+  <td class="n">21.85 &plusmn; 4.02</td><td class="n">0.198 &plusmn; 0.029</td></tr>
+<tr><td>stabiliser</td>
+  <td class="n">0.00 &plusmn; 0.00</td><td class="n">14.31 &plusmn; 2.52</td>
+  <td class="n">0.000 &plusmn; 0.001</td><td class="n">0.523 &plusmn; 0.118</td>
+  <td class="n">0.523 &plusmn; 0.118</td><td class="n">0.127 &plusmn; 0.043</td>
+  <td class="n">0.615 &plusmn; 0.220</td><td class="n">0.707 &plusmn; 0.253</td>
+  <td class="n">21.90 &plusmn; 3.92</td><td class="n">0.251 &plusmn; 0.024</td></tr>
 </tbody></table></div>
+<p style="font-size:14px;color:var(--soft)">Every figure is a mean over the same 12 base
+candidates with its standard deviation; <code>n</code>&nbsp;=&nbsp;12 throughout.
+<code>A_S(01)</code> is omitted because it is a property of the secondary stem and identical
+across main-hairpin variants (0.389&nbsp;&plusmn;&nbsp;0.159), moving only for
+<code>sec_upper3</code> (0.383) and <code>sec_upper6</code> (0.333).</p>
 
 <div class="callout">
 <p><b>Three things the extended panel settled that the first one could not.</b></p>
@@ -430,6 +502,16 @@ testing <code>UAU</code> (no G&middot;C) against <code>CGU</code> (two) at the s
 separates depth from strength. <code>UAU</code> is best on both separation forms &mdash;
 7.53 and 0.243, against <code>CAU</code>'s 6.77 / 0.189 and <code>CGU</code>'s 7.03 / 0.184.
 <b>Close with <code>UAU</code>, not <code>CAU</code>.</b></p>
+<p><b>And A&middot;U everywhere does not leak the OFF state &mdash; it tightens it.</b>
+The worry was that weak pairs in both the bulge and the stem top would leave state 00 open.
+Measured, the opposite happens: <code>A_M(00)</code> goes from 0.127 in the baseline to
+<b>0.006</b> with <code>UAU</code> closing the bulge, and <code>dG_open(00)</code> from 21.85
+to <b>27.54</b> kcal/mol. Removing the 3&times;3 internal loop buys more stability than A&middot;U
+pairs give away, because a continuous 18-bp helix beats 9&nbsp;+&nbsp;loop&nbsp;+&nbsp;6 even
+with weaker pairs. The real cost of A&middot;U at the stem <i>top</i> is different and shows in
+<code>upper6_au</code>: the start codon is buried in <b>every</b> state (AUG(00) 0.222,
+AUG(11) 0.183), and <code>d_off</code> rises to 0.262, the worst of any variant.</p>
+
 <p><b>The same idea on the inhibitory hairpin does nothing at all.</b> Decoupling its upper
 helix from trigger B by 3 or by 6 nt leaves every observable identical to baseline to three
 decimals. Trigger A never touches that helix, and trigger B has a 32-nt toehold that does not
