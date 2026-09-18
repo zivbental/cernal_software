@@ -1389,6 +1389,7 @@ Scan transcripts and deterministically shortlist candidates per gate footprint.
 | `SELECTION_METHOD` |  | `'rnaplfold_gate_aware_joint_opening_v2'` |
 | `LEGACY_SELECTION_METHOD` |  | `'rnaplfold_mean_base_unpaired_v1'` |
 | `FOOTPRINT_TO_TOEHOLD` |  | `{30: 12, 33: 15, 36: 18}` |
+| `ALLOWED_SCANNED_LENGTHS` |  | `frozenset(FOOTPRINT_TO_TOEHOLD)` |
 | `HYPOTHESIS_LENGTH` |  | `20` |
 | `SEED_LENGTH` |  | `8` |
 | `GAS_CONSTANT_KCAL_PER_MOL_K` |  | `0.00198720425864083` |

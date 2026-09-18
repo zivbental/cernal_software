@@ -351,24 +351,26 @@ variant instead of redundantly generating shorter designs from a longer candidat
 manually supplied direct candidate leaves the mapping unset and retains the historical
 "generate every fitting variant" compatibility behaviour.
 
-### T5 · Rank on constructibility, once T1–T4 are in — not needed as built
+### T5 · Rank scanned footprints with gate-aware evidence — ✅ built
 
 Given §5's timings, the cheapest and most predictive filter available is *"can a real
 switch be built from this window?"* — 91% of the failures the current screen misses.
 Because `stages → gates` is a **downward** import ([CLAUDE.md](../CLAUDE.md) §4), a stage may
 legally ask a gate family this.
 
-But prefer the smaller change first: `SwitchDesigner` *already* filters unconstructible
-designs. Once T2 feeds it 1,358 windows instead of 1, its existing filter finds the 630
-that build, and nothing new is needed. Make `TriggerScorer` gate-aware only if ranking —
-not merely surviving — turns out to need it.
+The first implementation relied only on `SwitchDesigner` to filter unconstructible
+designs after scanning. The gate-aware RNAplfold work then updated `TriggerScorer` itself:
+exact 30/33/36-nt footprint buckets are ranked by selected joint P8, terminal-20 opening
+energy per nucleotide, and terminal-20 mean marginal openness, then unioned round-robin.
+Each scanned candidate records the one mapped toehold variant that consumes its exact
+footprint. `SwitchDesigner` still performs the later constructibility and validation
+filters; the two stages now answer different questions rather than duplicating each other.
 
-**Confirmed as built, without touching `TriggerScorer`.** `_direct_trigger` feeds
-`TriggerScorer.score`'s already-ranked, already-top-K output straight into
-`SwitchDesigner.design`, which already discards anything unconstructible on its own — this
-was the actual, only mechanism exercised in the mCherry re-run below. `TriggerScorer`
-itself was never made gate-aware, because *ranking* has not yet needed to be — surviving
-was enough to turn the reported failure into real candidates.
+This is the as-built behavior. The earlier mean-only ranking remains only as an explicitly
+labelled compatibility path for injected marginal-only profiler adapters, not as a fallback
+for a missing or broken ViennaRNA runtime. There is no scientifically valid numerical
+fallback when ViennaRNA is unavailable: real pipeline scoring fails explicitly, as does the
+real `FoldEngine` required later in the same run.
 
 **Done when:** a `direct` run given a full mRNA returns candidates built against a named,
 justified window, and a run that returns none says which rule rejected how many. ✅ —

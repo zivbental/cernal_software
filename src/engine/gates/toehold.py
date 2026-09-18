@@ -218,9 +218,10 @@ class ToeholdGate(GateFamily):
             and the architecture parameters recorded in ``architecture`` so a design can
             be traced back to how it was built.
 
-            **Yields rather than returns.** Three toehold lengths across thousands of
-            trigger sets is tens of thousands of designs, and the validator will discard
-            most of them.
+            **Yields rather than returns.** An exact scanned candidate carries its mapped
+            gate footprint and yields one matching variant. A manual direct candidate has
+            no mapping and retains the legacy sweep across every fitting toehold length;
+            across thousands of trigger sets, the validator will discard most designs.
 
         Construction (Step 5):
             1. **Binding region** — ``sequences.reverse_complement(trigger.sequence)``.
@@ -239,14 +240,14 @@ class ToeholdGate(GateFamily):
                into. The validator compares against it, so a design without one cannot be
                checked.
 
-            Vary ``toehold_lengths`` and yield one design per length. Widening that tuple
-            multiplies the whole search space — it is the cheapest knob for trading
-            runtime against quality.
+            For a manual direct candidate, vary ``toehold_lengths`` and yield one design
+            per fitting length. For an exact scanned candidate, use only its mapped length;
+            widening the tuple does not multiply that candidate's designs.
 
         Note:
-            Two designs from the same trigger differ only in toehold length, so they share
-            most of their sequence. That is precisely why ``FoldEngine`` caches: the
-            validator will fold overlapping sequences repeatedly.
+            Legacy/manual variants from the same trigger differ only in toehold length, so
+            they share most of their sequence. That is precisely why ``FoldEngine`` caches:
+            the validator will fold overlapping sequences repeatedly.
 
         Deviations from the source generator (see the port's open questions):
             * ``STEM_PRE_BULGE_LEN``/``STEM_POST_BULGE_LEN`` stay fixed at the source

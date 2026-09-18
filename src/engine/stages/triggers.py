@@ -39,6 +39,7 @@ class TriggerScorer:
     SELECTION_METHOD = "rnaplfold_gate_aware_joint_opening_v2"
     LEGACY_SELECTION_METHOD = "rnaplfold_mean_base_unpaired_v1"
     FOOTPRINT_TO_TOEHOLD = {30: 12, 33: 15, 36: 18}
+    ALLOWED_SCANNED_LENGTHS = frozenset(FOOTPRINT_TO_TOEHOLD)
     HYPOTHESIS_LENGTH = 20
     SEED_LENGTH = 8
     GAS_CONSTANT_KCAL_PER_MOL_K = 0.00198720425864083
@@ -64,6 +65,16 @@ class TriggerScorer:
         constraints: Constraints,
     ) -> Iterator[TriggerCandidate]:
         """Yield a stable per-gene shortlist across all configured footprint buckets."""
+        joint_probability = getattr(self.profiler, "joint_probability", None)
+        unsupported = sorted(set(constraints.trigger_lengths) - self.ALLOWED_SCANNED_LENGTHS)
+        if callable(joint_probability) and unsupported:
+            raise ValueError(
+                "Gate-aware transcript scanning requires trigger_lengths to contain only "
+                "the exact supported footprints 30, 33, and 36 nt; unsupported: "
+                + ", ".join(map(str, unsupported))
+                + "."
+            )
+
         for gene in genes:
             transcript = sequences[gene.gene_id]
             profile = self.profiler.profile(transcript)
@@ -118,7 +129,9 @@ class TriggerScorer:
     ) -> dict[str, object]:
         length = end - start
         toehold_length = self.FOOTPRINT_TO_TOEHOLD.get(length)
-        if toehold_length is None or not hasattr(self.profiler, "joint_probability"):
+        if toehold_length is None or not callable(
+            getattr(self.profiler, "joint_probability", None)
+        ):
             return {}
 
         hypothesis_start = end - self.HYPOTHESIS_LENGTH

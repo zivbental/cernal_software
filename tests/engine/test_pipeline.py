@@ -559,6 +559,49 @@ LONG_PASTE = (
 )
 
 
+@pytest.mark.parametrize("trigger_lengths", [[31], [30, 31, 33]])
+def test_long_direct_scan_rejects_non_exact_footprints(
+    trigger_lengths, direct_request, always_continue
+):
+    request = direct_request(
+        trigger_sequence=LONG_PASTE,
+        params={"constraints": {"trigger_lengths": trigger_lengths}},
+    )
+
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert "trigger_lengths" in result.error
+    assert "30, 33, and 36" in result.error
+
+
+@pytest.mark.parametrize("trigger_lengths", [[31], [30, 31, 33]])
+def test_de_scan_rejects_non_exact_footprints(trigger_lengths, de_request, always_continue):
+    request = de_request(params={"constraints": {"trigger_lengths": trigger_lengths}})
+
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert "trigger_lengths" in result.error
+    assert "30, 33, and 36" in result.error
+
+
+def test_manual_direct_trigger_retains_legacy_fitting_variant_sweep(
+    direct_request, always_continue
+):
+    request = direct_request(params={"constraints": {"trigger_lengths": [31, 40]}})
+
+    result = LocalEngine().run(request, always_continue)
+
+    assert result.status == "succeeded"
+    assert len(result.candidates) == 3
+    assert {
+        candidate.triggers["features"][0]["selection_method"] for candidate in result.candidates
+    } == {"rnaplfold_mean_base_unpaired_v1"}
+
+
 def test_a_paste_longer_than_one_window_is_scanned_not_silently_truncated(
     direct_request, always_continue
 ):

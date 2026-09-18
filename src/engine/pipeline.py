@@ -618,6 +618,16 @@ def _resolve_backbone(params: dict) -> tuple[Segment, ...]:
     return ()
 
 
+def _validate_scanned_trigger_lengths(constraints: Constraints) -> None:
+    "Require an exact gate mapping before scanning transcript windows."
+    unsupported = sorted(set(constraints.trigger_lengths) - TriggerScorer.ALLOWED_SCANNED_LENGTHS)
+    if unsupported:
+        raise InputValidationError(
+            "trigger_lengths for transcript scanning may contain only the exact supported "
+            "footprints 30, 33, and 36 nt; unsupported: " + ", ".join(map(str, unsupported)) + "."
+        )
+
+
 def _direct_trigger(
     request: JobRequest,
     store: CandidateStore,
@@ -707,6 +717,7 @@ def _direct_trigger(
         return [trigger], []
 
     # Longer than one window: genuinely ambiguous which sub-window is "the" trigger.
+    _validate_scanned_trigger_lengths(constraints)
     # Reuse TriggerScorer.score rather than reimplementing scanning — it already
     # screens motifs, profiles once, folds survivors and ranks (stages/triggers.py).
     gene = SelectedGene(
@@ -807,6 +818,7 @@ def _de_trigger(
         ChecksumMismatchError: the dataset file does not match the checksum recorded at
             submission time.
     """
+    _validate_scanned_trigger_lengths(constraints)
     if host not in available_hosts():
         raise InputValidationError(
             f"Differential-expression input is only supported for "

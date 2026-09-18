@@ -9,10 +9,19 @@ row as an interval start; explicit coordinate tests protect this convention.
 
 from functools import cache
 
-try:
-    import RNA as _RNA
-except ImportError:  # pragma: no cover - exercised through explicit dependency injection
-    _RNA = None
+
+def _load_rna():
+    """Load ViennaRNA, distinguishing true absence from a broken installation."""
+    try:
+        import RNA
+    except ModuleNotFoundError as exc:
+        if exc.name == "RNA":
+            return None
+        raise
+    return RNA
+
+
+_RNA = _load_rna()
 
 _DEFAULT_RNA = object()
 
@@ -24,7 +33,7 @@ class FoldProfiler:
     RNAplfold joint probability that every nucleotide in one contiguous interval is
     unpaired; it is not a product or average of marginal probabilities.
 
-    Passing ``rna_module=None`` represents an unavailable optional ViennaRNA runtime.
+    Passing ``rna_module=None`` represents a confirmed missing ViennaRNA runtime.
     That state is distinguishable through ``available``. Any error from an available
     ViennaRNA implementation propagates unchanged (fail closed).
     """

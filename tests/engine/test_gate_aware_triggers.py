@@ -1,11 +1,13 @@
 """Gate-aware RNAplfold trigger selection."""
 
+import builtins
 import math
 
 import pytest
 
 from engine.domain import AssemblyStandard, Constraints, OffTargetReport, Regulation, SelectedGene
 from engine.gates.tools.folding import FoldEngine
+from engine.stages import folding as folding_module
 from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
 from engine.stages.triggers import TriggerScorer
@@ -68,6 +70,41 @@ def test_only_missing_viennarna_is_marked_unavailable():
     assert profiler.available is False
     with pytest.raises(RuntimeError, match="ViennaRNA"):
         profiler.profile("A" * 30)
+
+
+def test_rna_loader_marks_only_the_exact_missing_rna_module_unavailable(monkeypatch):
+    error = ModuleNotFoundError("No module named 'RNA'", name="RNA")
+
+    real_import = builtins.__import__
+
+    def missing_rna(name, *args, **kwargs):
+        if name == "RNA":
+            raise error
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", missing_rna)
+    assert folding_module._load_rna() is None
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ModuleNotFoundError("No module named 'numpy'", name="numpy"),
+        ImportError("libRNA.so: cannot open shared object file"),
+    ],
+    ids=["nested-dependency", "broken-extension"],
+)
+def test_rna_loader_reraises_non_absence_import_failures(monkeypatch, error):
+    real_import = builtins.__import__
+
+    def broken_rna(name, *args, **kwargs):
+        if name == "RNA":
+            raise error
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", broken_rna)
+    with pytest.raises(type(error), match=str(error)):
+        folding_module._load_rna()
 
 
 class GateAwareProfiler:
@@ -215,6 +252,23 @@ def test_marginal_only_profiler_uses_documented_legacy_fallback():
     candidate = score_one(30, MarginalOnly())
     assert candidate.gate_toehold_length is None
     assert candidate.score == candidate.openness == pytest.approx(0.25)
+
+
+@pytest.mark.parametrize("lengths", [(31,), (30, 31, 33)])
+def test_joint_capable_scorer_rejects_non_exact_footprints(lengths):
+    scorer = TriggerScorer(GateAwareProfiler(), EmptyOffTarget(), MotifScreener(), FoldEngine())
+    with pytest.raises(ValueError, match=r"30, 33, and 36"):
+        list(scorer.score([gene()], {"g": "ACGU" * 20}, Constraints(trigger_lengths=lengths)))
+
+
+def test_marginal_only_scorer_retains_arbitrary_length_compatibility():
+    class MarginalOnly:
+        def profile(self, sequence):
+            return [0.25] * len(sequence)
+
+    candidate = score_one(31, MarginalOnly())
+    assert candidate.length == 31
+    assert candidate.gate_toehold_length is None
 
 
 def test_joint_probability_errors_are_not_downgraded_to_legacy_ranking():
