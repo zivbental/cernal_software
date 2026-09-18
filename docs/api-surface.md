@@ -38,9 +38,9 @@ so that convention is the only rule there is.
 | | Count |
 | --- | ---: |
 | Modules | 37 |
-| Public classes | 86 |
-| Public callables (excluding `__init__`) | 167 |
-| — `BUILT` | 134 |
+| Public classes | 87 |
+| Public callables (excluding `__init__`) | 170 |
+| — `BUILT` | 137 |
 | — `STUB` | 26 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
@@ -72,7 +72,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
 | stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
-| stages | `engine.stages.folding` | S1 | 2 | 0 | S1 — local accessibility profiling, the primitive behind trigger selection. |
+| stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
 | stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
 | stages | `engine.stages.off_target` | S5 | 0 | 4 | S5 — off-target scanning, in both directions. |
@@ -80,7 +80,7 @@ layers above it, never the ones below.
 | stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
 | stages | `engine.stages.switches` |  | 3 | 0 | Stage 3 — switch design and validation. |
-| stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — trigger scoring. |
+| stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
 | top | `engine.client` |  | 8 | 0 | The Platform-facing engine interface. |
@@ -287,6 +287,20 @@ Stage 1 output — a gene that separates the two cell states.
 | `trigger_yield` | `float \| None` | `None` |
 | `usable_windows` | `int \| None` | `None` |
 
+#### `class SeedOpeningTrial`
+
+`@dataclass(frozen=True, slots=True)`
+
+One physically contactable 8-nt toehold seed evaluated by RNAplfold.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `start` | `int` |  |
+| `end` | `int` |  |
+| `relative_start` | `int` |  |
+| `sequence` | `str` |  |
+| `probability` | `float` |  |
+
 #### `class TriggerCandidate`
 
 `@dataclass(frozen=True, slots=True)`
@@ -310,6 +324,21 @@ Stage 2 output — a sub-segment of a transcript, ranked as a possible input.
 | `stop_indexes` | `tuple[int, ...]` | `()` |
 | `ribosome_occupancy` | `float \| None` | `None` |
 | `score` | `float` | `0.0` |
+| `gate_toehold_length` | `int \| None` | `None` |
+| `hypothesis_start` | `int \| None` | `None` |
+| `hypothesis_end` | `int \| None` | `None` |
+| `joint_open_probability_20` | `float \| None` | `None` |
+| `mean_marginal_openness_20` | `float \| None` | `None` |
+| `delta_g_open_kcal_per_mol_per_nt` | `float \| None` | `None` |
+| `selected_seed_start` | `int \| None` | `None` |
+| `selected_seed_end` | `int \| None` | `None` |
+| `selected_seed_probability` | `float \| None` | `None` |
+| `seed_trials` | `tuple[SeedOpeningTrial, ...]` | `()` |
+| `rnaplfold_version` | `str \| None` | `None` |
+| `rnaplfold_window` | `int \| None` | `None` |
+| `rnaplfold_max_span` | `int \| None` | `None` |
+| `rnaplfold_unpaired` | `int \| None` | `None` |
+| `rnaplfold_temperature_celsius` | `float \| None` | `None` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -326,7 +355,7 @@ The researcher's limits, carried into every stage that has to respect them.
 | `max_triggers` | `int` | `2` |
 | `min_separation` | `float` | `0.5` |
 | `max_p_adj` | `float` | `0.05` |
-| `trigger_lengths` | `tuple[int, ...]` | `(30, 36)` |
+| `trigger_lengths` | `tuple[int, ...]` | `(30, 33, 36)` |
 | `max_switch_length` | `int` | `200` |
 | `forbidden_motifs` | `tuple[str, ...]` | `()` |
 | `standard` | `AssemblyStandard` | `AssemblyStandard.RFC10` |
@@ -981,7 +1010,7 @@ Single-input toehold switch.
 | --- | --- | --- |
 | `name` |  | `'toehold'` |
 | `design_prefix` |  | `'toehold'` |
-| `version` |  | `'0.1.0'` |
+| `version` |  | `'0.2.0'` |
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
 | `description` |  | `'Translational control · pre-mRNA'` |
@@ -1151,17 +1180,27 @@ Scores a circuit by how it behaves on the actual samples.
 
 `src/engine/stages/folding.py`
 
-S1 — local accessibility profiling, the primitive behind trigger selection.
+S1 — RNAplfold local opening probabilities for trigger selection.
 
-#### `class FoldProfiler` · S1
+#### `class FoldProfiler`
 
-S1 — per-position unpaired probability in *local* folding context.
+Profile marginal and joint local opening probabilities in transcript context.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `DEFAULT_WINDOW` |  | `200` |
+| `DEFAULT_MAX_SPAN` |  | `150` |
+| `DEFAULT_UNPAIRED` |  | `20` |
+| `TEMPERATURE_CELSIUS` |  | `37.0` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, window: int = 80, max_span: int = 40, unpaired: int = 10) -> None` |  |
-| `BUILT` | `def profile(self, sequence: str) -> list[float]` | Unpaired probability at every position of a transcript. |
-| `BUILT` | `def openness(self, sequence: str, start: int, end: int) -> float` | Mean unpaired probability across a segment. The map's ``Trigger Openness``. |
+| `BUILT` | `def __init__(self, window: int = DEFAULT_WINDOW, max_span: int = DEFAULT_MAX_SPAN, unpaired: int = DEFAULT_UNPAIRED, *, rna_module = _DEFAULT_RNA) -> None` |  |
+| `BUILT` | `@property def available(self) -> bool` | Whether ViennaRNA can perform the requested calculation. |
+| `BUILT` | `def provenance(self, sequence: str) -> dict[str, str \| int \| float \| None]` | Exact RNAplfold implementation and clamped parameters for ``sequence``. |
+| `BUILT` | `def profile(self, sequence: str) -> list[float]` | Return one marginal unpaired probability per transcript position. |
+| `BUILT` | `def joint_probability(self, sequence: str, start: int, end: int) -> float` | Return joint pU for ``sequence[start:end]`` using 0-based half-open coordinates. |
+| `BUILT` | `def openness(self, sequence: str, start: int, end: int) -> float` | Mean one-base marginal pU over a 0-based half-open interval. |
 
 ### `engine.stages.genes`
 
@@ -1338,20 +1377,29 @@ The hard rules a switch must obey, whichever family produced it.
 
 `src/engine/stages/triggers.py`
 
-Stage 2 — trigger scoring.
+Stage 2 — gate-aware trigger selection in transcript context.
 
 #### `class TriggerScorer`
 
-Rank every sub-segment of every selected gene as a possible switch input.
+Scan transcripts and deterministically shortlist candidates per gate footprint.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `TOP_K_PER_GENE` |  | `50` |
+| `SELECTION_METHOD` |  | `'rnaplfold_gate_aware_joint_opening_v2'` |
+| `LEGACY_SELECTION_METHOD` |  | `'rnaplfold_mean_base_unpaired_v1'` |
+| `FOOTPRINT_TO_TOEHOLD` |  | `{30: 12, 33: 15, 36: 18}` |
+| `ALLOWED_SCANNED_LENGTHS` |  | `frozenset(FOOTPRINT_TO_TOEHOLD)` |
+| `HYPOTHESIS_LENGTH` |  | `20` |
+| `SEED_LENGTH` |  | `8` |
+| `GAS_CONSTANT_KCAL_PER_MOL_K` |  | `0.00198720425864083` |
+| `TEMPERATURE_K` |  | `310.15` |
+| `PU_FLOOR` |  | `1e-12` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, profiler: FoldProfiler, off_target: OffTargetScanner, screener: MotifScreener, folder: FoldEngine) -> None` |  |
-| `BUILT` | `def score(self, genes: list[SelectedGene], sequences: dict[str, str], constraints: Constraints) -> Iterator[TriggerCandidate]` | Yield ranked trigger candidates across every selected gene. |
+| `BUILT` | `def score(self, genes: list[SelectedGene], sequences: dict[str, str], constraints: Constraints) -> Iterator[TriggerCandidate]` | Yield a stable per-gene shortlist across all configured footprint buckets. |
 
 ## Layer 7 · Top level — contract, errors, composition
 
@@ -1407,7 +1455,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.3.0-direct-and-de-ecoli-yeast'` |
+| `ENGINE_VERSION` |  | `'local-0.5.0-direct-and-de-ecoli-yeast'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
