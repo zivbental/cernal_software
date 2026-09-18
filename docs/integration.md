@@ -78,7 +78,7 @@ Ranked by how many members each unblocks, cross-checked against the repo's own b
 
 ### Two invariants to settle inside Phase 1, not after
 
-- **Temperature.** `FoldEngine.__init__(temperature=37.0)` threads an explicit `RNA.md()`; `FoldProfiler.__init__(window=80, max_span=40, unpaired=10)` has **no temperature at all** and will use ViennaRNA's process global. Set a 30 °C protocol and `trigger_accessibility` comes from one physical model while `gate_folding_energy` comes from another — both feeding one weighted score. Fix while writing #3 and #6, not later.
+- **Temperature.** `FoldEngine.__init__(temperature=37.0)` threads an explicit `RNA.md()`; `FoldProfiler` uses the benchmark RNAplfold protocol at 37 °C (`W=200`, `L=150`, `u=20`, clamped to sequence length), records the effective parameters/version, and fails closed if ViennaRNA's process-global temperature was changed. `FoldEngine` separately threads an explicit `RNA.md()` for design-side folds.
 - **`FoldEngine.versions()` first.** It is one of the smallest stubs and the docs say its result is written into every `JobResult`. `viennarna>=2.7` is a floor, not a pin — two members can be on different patch releases with different Turner defaults and nothing records which was used.
 
 ---

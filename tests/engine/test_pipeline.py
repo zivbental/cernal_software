@@ -574,12 +574,12 @@ def test_a_paste_longer_than_one_window_is_scanned_not_silently_truncated(
     assert any("scanned" in w and "144 nt" in w for w in result.warnings)
 
 
-def test_scanned_direct_and_de_warnings_name_mean_per_base_rnaplfold_ranking(
+def test_scanned_direct_and_de_report_gate_aware_rnaplfold_provenance(
     direct_request, de_request, always_continue
 ):
     direct_result = LocalEngine().run(direct_request(trigger_sequence=LONG_PASTE), always_continue)
     de_result = LocalEngine().run(de_request(), always_continue)
-    expected = "mean per-base RNAplfold unpaired probability"
+    expected = "joint P8"
 
     assert any(expected in warning for warning in direct_result.warnings)
     assert any(expected in warning for warning in de_result.warnings)
@@ -587,9 +587,15 @@ def test_scanned_direct_and_de_warnings_name_mean_per_base_rnaplfold_ranking(
         assert result.candidates
         for candidate in result.candidates:
             feature = candidate.triggers["features"][0]
-            assert feature["selection_method"] == "rnaplfold_mean_base_unpaired_v1"
-            assert feature["selection_metric"] == "mean_base_unpaired_probability"
-            assert feature["selection_score"] == feature["openness"]
+            assert feature["selection_method"] == "rnaplfold_gate_aware_joint_opening_v2"
+            assert feature["selection_metric"] == "selected_joint_p8"
+            assert feature["selection_score"] == feature["selected_seed_probability"]
+            assert feature["mean_marginal_openness_20"] is not None
+            assert feature["joint_open_probability_20"] is not None
+            assert feature["delta_g_open_kcal_per_mol_per_nt"] is not None
+            assert feature["seed_trials"]
+            assert feature["rnaplfold"]["temperature_celsius"] == 37.0
+            assert feature["orientation"] == "transcript_forward"
 
 
 def test_every_candidate_records_which_window_it_came_from(direct_request, always_continue):
@@ -811,3 +817,7 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
     with pytest.raises(InputValidationError):
         run_pipeline(direct_request(input_mode=INPUT_DE, trigger_sequence=""), always_continue)
+
+
+def test_gate_aware_trigger_ranking_bumps_engine_version():
+    assert LocalEngine.ENGINE_VERSION == "local-0.5.0-direct-and-de-ecoli-yeast"

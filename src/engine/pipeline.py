@@ -641,8 +641,8 @@ def _direct_trigger(
 
     This is a deliberate, measured divergence from treating every paste identically
     regardless of length: scanning even an exact, already-correctly-sized paste would
-    take the reference `direct` scenario from 3 candidate designs to 7 (measured,
-    against ``constraints.trigger_lengths = (30, 36)``), which contradicts
+    take the reference `direct` scenario from 3 candidate designs to 12 (measured,
+    against ``constraints.trigger_lengths = (30, 33, 36)``), which contradicts
     docs/smoke-run.md §5's explicit "three designs... is exactly what a smoke run
     wants, do not widen for more results." The threshold is not a magic constant — it
     is derived from ``constraints`` itself, so it moves if the configured window
@@ -746,8 +746,10 @@ def _direct_trigger(
     return candidates, [
         f"The pasted sequence is {len(sequence)} nt, longer than one trigger window "
         f"(up to {max_window} nt) — scanned {windows_considered} window(s) and kept "
-        f"{len(candidates)} candidate(s) after screening, ranked by mean per-base "
-        "RNAplfold unpaired probability."
+        f"{len(candidates)} candidate(s) after screening. Exact 30/33/36-nt footprints "
+        "were ranked within footprint buckets by selected joint P8, then RNAplfold "
+        "terminal-20 opening energy and mean marginal openness; buckets were unioned "
+        "round-robin."
     ]
 
 
@@ -858,8 +860,9 @@ def _de_trigger(
         f"Selected {len(genes)} gene(s) from the differential-expression table (best: "
         f"{best.symbol or best.gene_id}, log2FC={best.log2_fold_change:.2f}); scanned "
         f"their real transcripts and kept {len(candidates)} candidate trigger "
-        "window(s) after screening, ranked by mean per-base RNAplfold unpaired "
-        "probability.",
+        "window(s) after screening. Exact footprints were ranked within footprint "
+        "buckets by selected joint P8, terminal-20 opening energy and mean marginal "
+        "openness, then unioned round-robin.",
     ]
 
 
@@ -949,9 +952,44 @@ def _candidate_result(
                     "sequence": trigger.sequence,
                     "openness": trigger.openness,
                     "accessibility": trigger.accessibility,
-                    "selection_method": TriggerScorer.SELECTION_METHOD,
-                    "selection_metric": "mean_base_unpaired_probability",
+                    "selection_method": (
+                        TriggerScorer.SELECTION_METHOD
+                        if trigger.gate_toehold_length is not None
+                        else TriggerScorer.LEGACY_SELECTION_METHOD
+                    ),
+                    "selection_metric": (
+                        "selected_joint_p8"
+                        if trigger.gate_toehold_length is not None
+                        else "mean_base_unpaired_probability"
+                    ),
                     "selection_score": trigger.score,
+                    "orientation": "transcript_forward",
+                    "gate_toehold_length": trigger.gate_toehold_length,
+                    "hypothesis_start": trigger.hypothesis_start,
+                    "hypothesis_end": trigger.hypothesis_end,
+                    "joint_open_probability_20": trigger.joint_open_probability_20,
+                    "mean_marginal_openness_20": trigger.mean_marginal_openness_20,
+                    "delta_g_open_kcal_per_mol_per_nt": (trigger.delta_g_open_kcal_per_mol_per_nt),
+                    "selected_seed_start": trigger.selected_seed_start,
+                    "selected_seed_end": trigger.selected_seed_end,
+                    "selected_seed_probability": trigger.selected_seed_probability,
+                    "seed_trials": [
+                        {
+                            "start": trial.start,
+                            "end": trial.end,
+                            "relative_start": trial.relative_start,
+                            "sequence": trial.sequence,
+                            "joint_probability": trial.probability,
+                        }
+                        for trial in trigger.seed_trials
+                    ],
+                    "rnaplfold": {
+                        "viennarna_version": trigger.rnaplfold_version,
+                        "window": trigger.rnaplfold_window,
+                        "max_span": trigger.rnaplfold_max_span,
+                        "unpaired": trigger.rnaplfold_unpaired,
+                        "temperature_celsius": trigger.rnaplfold_temperature_celsius,
+                    },
                     # Which window this candidate came from (docs/triggers.md T2) —
                     # 0 for the single-trigger fast path, a real scanned offset
                     # otherwise. Makes a chosen window inspectable rather than a

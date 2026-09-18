@@ -81,7 +81,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.1.0"
+    version = "0.2.0"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -269,7 +269,15 @@ class ToeholdGate(GateFamily):
         binding_region = sq.reverse_complement(trigger.sequence)
         loop = self._loop_element()
 
-        for toehold_length in self.toehold_lengths:
+        # Scanned stage-2 candidates name one exact gate footprint and therefore one
+        # toehold variant. Legacy/manual direct candidates leave the field unset and
+        # retain the historical sweep across every variant that fits their sequence.
+        toehold_lengths = (
+            (trigger.gate_toehold_length,)
+            if trigger.gate_toehold_length is not None
+            else self.toehold_lengths
+        )
+        for toehold_length in toehold_lengths:
             footprint = toehold_length + self.STEM_PRE_BULGE_LEN + 3 + self.STEM_POST_BULGE_LEN
             if footprint > len(binding_region):
                 continue
@@ -328,6 +336,8 @@ class ToeholdGate(GateFamily):
                 dot_bracket=dot_bracket,
                 architecture={
                     "toehold_length": toehold_length,
+                    "trigger_footprint_length": footprint,
+                    "trigger_orientation": "transcript_forward",
                     "stem_pre_bulge_len": self.STEM_PRE_BULGE_LEN,
                     "stem_post_bulge_len": self.STEM_POST_BULGE_LEN,
                     "loop_len": len(loop),
