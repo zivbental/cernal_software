@@ -671,6 +671,7 @@ def test_golden_first_design_for_a_known_trigger(gate, activator_set, constraint
         "toehold_length": 12,
         "trigger_footprint_length": 30,
         "trigger_orientation": "transcript_forward",
+        "gate_toehold_length_match": None,
         "stem_pre_bulge_len": 9,
         "stem_post_bulge_len": 6,
         "loop_len": 11,
@@ -722,3 +723,26 @@ def test_manual_direct_candidate_keeps_legacy_fitting_variant_sweep(gate, constr
     trigger = make_trigger(gate_toehold_length=None)
     designs = list(gate.generate_designs(TriggerSet(activators=(trigger,)), constraints))
     assert [design.architecture["toehold_length"] for design in designs] == [12, 15, 18]
+
+
+def test_eukaryotic_scanned_footprint_still_sweeps_every_toehold_length(constraints):
+    """Unlike the prokaryotic case, a RNAplfold-verified footprint only says which
+    trigger window was scanned, not which built toehold length initiates best once
+    Kozak/the leader are attached — so eukaryotic hosts keep exploring the full sweep,
+    and flag the RNAplfold-matched variant via ``gate_toehold_length_match`` instead of
+    discarding the rest.
+    """
+    gate = EukaryoticToeholdGate(
+        Host.HUMAN, FoldEngine(), TranslationScorer(Host.HUMAN), CodonOptimizer(Host.HUMAN)
+    )
+    trigger = make_trigger(gate_toehold_length=15)
+    designs = list(gate.generate_designs(TriggerSet(activators=(trigger,)), constraints))
+
+    lengths = {design.architecture["toehold_length"] for design in designs}
+    assert lengths == {12, 15, 18}
+
+    matches = {
+        design.architecture["toehold_length"]: design.architecture["gate_toehold_length_match"]
+        for design in designs
+    }
+    assert matches == {12: False, 15: True, 18: False}

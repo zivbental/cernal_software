@@ -89,7 +89,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.6.0"
+    version = "0.7.0"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -307,10 +307,13 @@ class ToeholdGate(GateFamily):
             and the architecture parameters recorded in ``architecture`` so a design can
             be traced back to how it was built.
 
-            **Yields rather than returns.** An exact scanned candidate carries its mapped
-            gate footprint and yields one matching variant. A manual direct candidate has
-            no mapping and retains the legacy sweep across every fitting toehold length;
-            across thousands of trigger sets, the validator will discard most designs.
+            **Yields rather than returns.** A prokaryotic exact scanned candidate carries
+            its mapped gate footprint and yields one matching variant. A manual direct
+            candidate, and every eukaryotic candidate regardless of scan status, retain
+            the sweep across every fitting toehold length — each variant's
+            ``architecture["gate_toehold_length_match"]`` flags whether it is the one the
+            RNAplfold scan actually verified, for downstream ranking to weigh. Across
+            thousands of trigger sets, the validator will discard most designs.
 
         Construction (Step 5):
             1. **Binding region** — ``sequences.reverse_complement(trigger.sequence)``.
@@ -349,13 +352,17 @@ class ToeholdGate(GateFamily):
                into. The validator compares against it, so a design without one cannot be
                checked.
 
-            For a manual direct candidate (``trigger.gate_toehold_length is None``), vary
+            For a manual direct candidate, or any eukaryotic candidate, vary
             ``toehold_lengths`` (and, for ``"trailing"``, ``TRAILING_LOOP_LENGTHS`` x
-            ``KOZAK_LINKER_LENGTHS`` too) and yield one design per combination. For an
-            exact scanned candidate, use only its mapped length; widening any of these
-            tuples does not multiply that candidate's designs. Ranking the results, across
-            layouts included, is ``engine.scoring``'s job (``CLAUDE.md`` §3): this method
-            emits every combination it can build, not the ones it judges best.
+            ``KOZAK_LINKER_LENGTHS`` too) and yield one design per combination — a
+            RNAplfold-verified footprint narrows *which* trigger window was scanned, not
+            which built toehold length will initiate best once Kozak/the leader and the
+            payload are attached, so eukaryotic hosts keep exploring the whole tuple. Only
+            a prokaryotic exact scanned candidate uses its one mapped length; widening
+            ``toehold_lengths`` does not multiply that candidate's designs. Ranking the
+            results, across layouts included, is ``engine.scoring``'s job (``CLAUDE.md``
+            §3): this method emits every combination it can build, not the ones it judges
+            best.
 
         Note:
             Legacy/manual variants from the same trigger differ only in these swept
@@ -391,12 +398,16 @@ class ToeholdGate(GateFamily):
 
         layouts = self.kozak_layouts if self.host.track is Track.EUKARYOTIC else ("loop",)
 
-        # Scanned stage-2 candidates name one exact gate footprint and therefore one
-        # toehold variant. Legacy/manual direct candidates leave the field unset and
-        # retain the historical sweep across every variant that fits their sequence.
+        # A prokaryotic scanned stage-2 candidate names one exact gate footprint, so it
+        # yields one matching toehold variant. Legacy/manual direct candidates, and every
+        # eukaryotic candidate regardless of scan status, keep the full sweep: the
+        # scanned footprint identifies the trigger window RNAplfold verified as open, not
+        # which toehold length will fold and initiate best against Kozak/the leader once
+        # built — that is still an open question the eukaryotic layouts are meant to
+        # explore, not one this evidence has settled.
         toehold_lengths = (
             (trigger.gate_toehold_length,)
-            if trigger.gate_toehold_length is not None
+            if trigger.gate_toehold_length is not None and self.host.track is not Track.EUKARYOTIC
             else self.toehold_lengths
         )
         for toehold_length in toehold_lengths:
@@ -428,6 +439,11 @@ class ToeholdGate(GateFamily):
                     architecture["toehold_length"] = toehold_length
                     architecture["trigger_footprint_length"] = footprint
                     architecture["trigger_orientation"] = "transcript_forward"
+                    architecture["gate_toehold_length_match"] = (
+                        toehold_length == trigger.gate_toehold_length
+                        if trigger.gate_toehold_length is not None
+                        else None
+                    )
                     design_id = (
                         f"{self.design_prefix}-{trigger.trigger_id}-{toehold_length}-{layout}"
                     )
@@ -564,18 +580,10 @@ class ToeholdGate(GateFamily):
             for kozak_linker_len in self.KOZAK_LINKER_LENGTHS:
                 kozak_linker = _filler(kozak_linker_len)
                 switch = (
-                    leader
-                    + hairpin
-                    + kozak_linker
-                    + self.KOZAK_EUKARYOTIC
-                    + sq.START_CODON
-                    + tail
+                    leader + hairpin + kozak_linker + self.KOZAK_EUKARYOTIC + sq.START_CODON + tail
                 )
                 aug_index = (
-                    len(leader)
-                    + len(hairpin)
-                    + kozak_linker_len
-                    + len(self.KOZAK_EUKARYOTIC)
+                    len(leader) + len(hairpin) + kozak_linker_len + len(self.KOZAK_EUKARYOTIC)
                 )
                 dot_bracket = (
                     "." * len(leader)
