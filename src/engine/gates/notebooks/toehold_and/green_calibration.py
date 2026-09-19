@@ -153,6 +153,19 @@ def score(folder: FoldEngine, row: dict) -> dict | None:
     rt = folder.rt
     dg_off, dg_on = -rt * math.log(off), -rt * math.log(on)
 
+    # Green's own best predictor, for a like-for-like comparison. Table S3 defines
+    # "dG RBS-Linker" as the free energy of the sequence from the FIRST BASE OF THE LOOP to
+    # the LAST BASE OF THE 21-NT LINKER. It is a single-state folding energy of a
+    # subsequence -- how structured that region is -- and NOT a difference between two
+    # states, which is what makes it a different quantity from our dG_open rather than a
+    # rewording of it. The loop begins where the ascending stem ends and the linker ends
+    # 21 nt after the descending stem; both are fixed offsets in this architecture.
+    loop_start = rbs - 3  # the pre-RBS bases that open the 11-nt loop
+    linker_end = min(len(switch), aug + 3 + 9 + 21)
+    rbs_linker = None
+    if 0 <= loop_start < linker_end <= len(switch):
+        rbs_linker = folder.mfe(switch[loop_start:linker_end]).energy
+
     # A_M over the descending arm, the analogue of our main_z+AUG+main_pre span.
     arm = (aug - 6, aug + 3 + 9)
     off_matrix = folder.pooled_pair_probabilities(switch)
@@ -181,6 +194,7 @@ def score(folder: FoldEngine, row: dict) -> dict | None:
         "A_M_off": a_m_off,
         "A_M_on": a_m_on,
         "A_M_gain": None if a_m_on is None or a_m_off is None else a_m_on - a_m_off,
+        "dG_rbs_linker": rbs_linker,
         "mean_wrank_off": mean_wrank_off,
         "mean_wrank_on": mean_wrank_on,
         "mean_wrank_gain": None
@@ -232,6 +246,7 @@ def main(argv=None) -> int:
 
     print("Spearman rank correlation against measured ON/OFF:")
     for name in (
+        "dG_rbs_linker",
         "separation",
         "narrow_sep",
         "dG_open_off",
