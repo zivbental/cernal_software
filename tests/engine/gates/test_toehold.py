@@ -395,14 +395,19 @@ def test_eukaryotic_leader_is_the_plasmid_sequence_not_the_prokaryotic_default(
         assert not design.sequence.startswith(ToeholdGate.LEADER_SEQUENCE_PROKARYOTIC)
 
 
-# --- kozak_rc_in_toehold: flagging a self-complementarity risk, not scoring it ---------
+# --- kozak_rc_in_toehold: flagged on architecture, and scored as worst-case leakage ----
 #
 # Both layouts place a real Kozak copy in the switch (loop or trailing tail). If the
 # trigger-derived toehold happens to carry Kozak's reverse complement, that stretch can
 # hybridize to the switch's own Kozak intramolecularly, regardless of what the folded
-# ensemble's summary accessibility numbers report. Recorded on architecture, not folded
-# into evaluate_design's nine DEFAULT_V1 names (CLAUDE.md §2) — see
-# ``_kozak_rc_in_toehold``'s own docstring for why.
+# ensemble's summary accessibility numbers report — a Kozak-hijacked closure reads as
+# *low* (good-looking) leakage, indistinguishable from a properly-closed hairpin, since
+# ``_mean_unpaired`` cannot tell which partner a footprint position paired to. Recorded
+# on architecture by ``_kozak_rc_in_toehold`` (not one of evaluate_design's nine
+# DEFAULT_V1 names, CLAUDE.md §2 — this stays a structural fact, not a new metric), and
+# read back inside ``evaluate_design`` itself to force ``predicted_leakage`` to its
+# worst case (1.0) whenever the flag is set, so ``engine.scoring`` ranks a
+# Kozak-hijacked design down without either family needing a new shared metric.
 
 
 def test_kozak_rc_in_toehold_is_false_for_a_trigger_without_the_motif(
@@ -435,6 +440,37 @@ def test_kozak_rc_in_toehold_detects_the_motif_at_the_toehold_start():
         ]
         assert toehold.startswith("GGUGGC")
         assert design.architecture["kozak_rc_in_toehold"] is True
+
+
+def test_kozak_rc_in_toehold_forces_worst_case_predicted_leakage():
+    """evaluate_design must not report the (likely fake-good) measured accessibility
+    for a Kozak-hijacked toehold — see this test module's own section note above and
+    ``evaluate_design``'s docstring for why the proxy can't tell the two closures apart.
+    """
+    flagged_trigger = make_trigger(sequence=TRIGGER_SEQUENCE[:24] + "UUUUUUGCCACC")
+    clean_trigger = make_trigger()
+    gate = ToeholdGate(
+        Host.HUMAN, FoldEngine(), TranslationScorer(Host.HUMAN), CodonOptimizer(Host.HUMAN)
+    )
+    constraints = Constraints()
+
+    flagged_design = next(
+        d
+        for d in gate.generate_designs(TriggerSet(activators=(flagged_trigger,)), constraints)
+        if d.architecture["toehold_length"] == 12
+    )
+    assert flagged_design.architecture["kozak_rc_in_toehold"] is True
+    flagged_metrics = gate.evaluate_design(flagged_design)
+    assert flagged_metrics["predicted_leakage"] == 1.0
+
+    clean_design = next(
+        d
+        for d in gate.generate_designs(TriggerSet(activators=(clean_trigger,)), constraints)
+        if d.architecture["toehold_length"] == 12
+    )
+    assert clean_design.architecture["kozak_rc_in_toehold"] is False
+    clean_metrics = gate.evaluate_design(clean_design)
+    assert clean_metrics["predicted_leakage"] != 1.0
 
 
 # --- payload: folding the real effector gene's head instead of a placeholder -----------

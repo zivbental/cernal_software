@@ -89,7 +89,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.7.0"
+    version = "0.8.0"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -709,6 +709,16 @@ class ToeholdGate(GateFamily):
                 if reused unmodified. Read instead at the **toehold+stem region**: how
                 often the blocking hairpin itself fails to stay formed. Unreviewed
                 science — flagged, not silently chosen; see the port's open questions.
+              * Either layout, when ``architecture["kozak_rc_in_toehold"]`` is
+                ``True``: reported as the worst-case ``1.0`` instead of the measured
+                value. ``_mean_unpaired`` sums each footprint position's pairing
+                probability against *every* other position in the switch, Kozak
+                included — so a toehold that closed against the switch's own
+                downstream Kozak copy instead of its intended stem partner reads as
+                *low* (good-looking) accessibility, not high. The proxy cannot tell
+                a properly-closed hairpin from a Kozak-hijacked one; since the flag
+                can, prefer distrust over a number that may only look good because
+                it measured the wrong closure. See ``_kozak_rc_in_toehold``.
             * ``dynamic_range`` — ON over OFF, using whichever region ``predicted_leakage``
               above measured for this design's layout. Derived from the difference
               between the two accessibilities, not the two energies; energy difference is
@@ -757,6 +767,13 @@ class ToeholdGate(GateFamily):
 
         off_accessibility = _mean_unpaired(off_matrix, region_start, region_end)
         on_accessibility = _mean_unpaired(on_matrix, region_start, region_end)
+
+        if design.architecture.get("kozak_rc_in_toehold"):
+            # See this method's own docstring: a Kozak-hijacked closure reads as low
+            # (good) accessibility here, indistinguishable from a properly-closed
+            # hairpin. Report the worst case instead of a number that may only look
+            # good because it measured the wrong partner.
+            off_accessibility = 1.0
 
         return {
             "gate_folding_energy": self.folder.mfe(switch).energy,
