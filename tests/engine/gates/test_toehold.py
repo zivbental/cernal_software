@@ -669,6 +669,8 @@ def test_golden_first_design_for_a_known_trigger(gate, activator_set, constraint
     assert design.design_id == "toehold-trig-000042-12-loop"
     assert design.architecture == {
         "toehold_length": 12,
+        "trigger_footprint_length": 30,
+        "trigger_orientation": "transcript_forward",
         "stem_pre_bulge_len": 9,
         "stem_post_bulge_len": 6,
         "loop_len": 11,
@@ -694,3 +696,29 @@ def test_golden_first_design_for_a_known_trigger(gate, activator_set, constraint
             "gc_content": 45.78313253012048,
         }
     )
+
+
+@pytest.mark.parametrize(("footprint", "toehold"), [(30, 12), (33, 15), (36, 18)])
+def test_exact_scanned_footprint_generates_only_its_matching_gate_variant(
+    gate, constraints, footprint, toehold
+):
+    trigger = make_trigger(
+        sequence=TRIGGER_SEQUENCE[:footprint] if footprint <= 36 else TRIGGER_SEQUENCE,
+        gate_toehold_length=toehold,
+    )
+    # Pad the 33/36 cases deterministically if the shared fixture ever becomes shorter.
+    trigger = make_trigger(
+        sequence=(trigger.sequence + "ACGU" * 9)[:footprint],
+        gate_toehold_length=toehold,
+    )
+
+    designs = list(gate.generate_designs(TriggerSet(activators=(trigger,)), constraints))
+
+    assert [design.architecture["toehold_length"] for design in designs] == [toehold]
+    assert designs[0].architecture["trigger_footprint_length"] == footprint
+
+
+def test_manual_direct_candidate_keeps_legacy_fitting_variant_sweep(gate, constraints):
+    trigger = make_trigger(gate_toehold_length=None)
+    designs = list(gate.generate_designs(TriggerSet(activators=(trigger,)), constraints))
+    assert [design.architecture["toehold_length"] for design in designs] == [12, 15, 18]

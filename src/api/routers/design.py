@@ -112,7 +112,7 @@ def _estimate(
     n_families = max(1, len(gate_families))
 
     if input_mode == InputMode.DIRECT:
-        n_lengths = max(1, len(constraints.get("trigger_lengths", (30, 36))))
+        n_lengths = max(1, len(constraints.get("trigger_lengths", (30, 33, 36))))
         designs = n_lengths * n_families
         confidence = "very rough"
     else:

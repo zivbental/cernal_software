@@ -89,7 +89,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.5.0"
+    version = "0.6.0"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -307,9 +307,10 @@ class ToeholdGate(GateFamily):
             and the architecture parameters recorded in ``architecture`` so a design can
             be traced back to how it was built.
 
-            **Yields rather than returns.** Three toehold lengths across thousands of
-            trigger sets is tens of thousands of designs, and the validator will discard
-            most of them.
+            **Yields rather than returns.** An exact scanned candidate carries its mapped
+            gate footprint and yields one matching variant. A manual direct candidate has
+            no mapping and retains the legacy sweep across every fitting toehold length;
+            across thousands of trigger sets, the validator will discard most designs.
 
         Construction (Step 5):
             1. **Binding region** — ``sequences.reverse_complement(trigger.sequence)``.
@@ -348,16 +349,18 @@ class ToeholdGate(GateFamily):
                into. The validator compares against it, so a design without one cannot be
                checked.
 
-            Vary ``toehold_lengths`` (and, for ``"trailing"``, ``TRAILING_LOOP_LENGTHS``
-            x ``KOZAK_LINKER_LENGTHS`` too) and yield one design per combination.
-            Widening any of these multiplies the whole search space — the cheapest knob
-            for trading runtime against quality. Ranking the results, across layouts
-            included, is ``engine.scoring``'s job (``CLAUDE.md`` §3): this method emits
-            every combination it can build, not the ones it judges best.
+            For a manual direct candidate (``trigger.gate_toehold_length is None``), vary
+            ``toehold_lengths`` (and, for ``"trailing"``, ``TRAILING_LOOP_LENGTHS`` x
+            ``KOZAK_LINKER_LENGTHS`` too) and yield one design per combination. For an
+            exact scanned candidate, use only its mapped length; widening any of these
+            tuples does not multiply that candidate's designs. Ranking the results, across
+            layouts included, is ``engine.scoring``'s job (``CLAUDE.md`` §3): this method
+            emits every combination it can build, not the ones it judges best.
 
         Note:
-            Designs from the same trigger differ only in these swept parameters, so they
-            share most of their sequence. That is precisely why ``FoldEngine`` caches:
+            Legacy/manual variants from the same trigger differ only in these swept
+            parameters, so they share most of their sequence. That is precisely why
+            ``FoldEngine`` caches:
             the validator will fold overlapping sequences repeatedly.
 
         Deviations from the source generator (see the port's open questions):
@@ -388,7 +391,15 @@ class ToeholdGate(GateFamily):
 
         layouts = self.kozak_layouts if self.host.track is Track.EUKARYOTIC else ("loop",)
 
-        for toehold_length in self.toehold_lengths:
+        # Scanned stage-2 candidates name one exact gate footprint and therefore one
+        # toehold variant. Legacy/manual direct candidates leave the field unset and
+        # retain the historical sweep across every variant that fits their sequence.
+        toehold_lengths = (
+            (trigger.gate_toehold_length,)
+            if trigger.gate_toehold_length is not None
+            else self.toehold_lengths
+        )
+        for toehold_length in toehold_lengths:
             footprint = toehold_length + self.STEM_PRE_BULGE_LEN + 3 + self.STEM_POST_BULGE_LEN
             if footprint > len(binding_region):
                 continue
@@ -415,6 +426,8 @@ class ToeholdGate(GateFamily):
                     if len(switch) > constraints.max_switch_length:
                         continue
                     architecture["toehold_length"] = toehold_length
+                    architecture["trigger_footprint_length"] = footprint
+                    architecture["trigger_orientation"] = "transcript_forward"
                     design_id = (
                         f"{self.design_prefix}-{trigger.trigger_id}-{toehold_length}-{layout}"
                     )

@@ -449,7 +449,7 @@ Content-Type: application/json
     "input_mode": "direct", "gate_families": ["toehold"],
     "scoring_profile": "default-v1", "seed": null,
     "constraints": {"max_triggers": 2, "min_separation": 0.5, "max_p_adj": 0.05,
-                    "trigger_lengths": [30, 36], "max_switch_length": 200,
+                    "trigger_lengths": [30, 33, 36], "max_switch_length": 200,
                     "standard": "RFC10"}
   }
 }
@@ -540,7 +540,7 @@ POST /api/design
     "max_triggers":      2,            // circuit arity ceiling
     "min_separation":    1.0,          // min |log2 fold change| for a usable gene
     "max_p_adj":         0.01,         // significance threshold
-    "trigger_lengths":   [30, 36],     // window sizes to scan, nt
+    "trigger_lengths":   [30, 33, 36],     // window sizes to scan, nt
     "max_switch_length": 200,          // synthesis ceiling, nt
     "forbidden_motifs":  ["GGTCTC", "GAATTC"],
     "standard":          "RFC10"       // RFC10 | RFC1000 → which sites are banned
@@ -753,7 +753,7 @@ job = c.design(
         max_triggers=2,
         min_separation=1.0,
         max_p_adj=0.01,
-        trigger_lengths=[30, 36],
+        trigger_lengths=[30, 33, 36],
         standard="RFC10",
     ),
     scoring=dict(

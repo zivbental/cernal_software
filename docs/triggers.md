@@ -184,15 +184,32 @@ windows usable (>=1) : 339
 windows unusable     : 337
 ```
 
-### 4.1 The ranking formula is a declared placeholder
+### 4.1 Gate-aware RNAplfold selection (`rnaplfold_gate_aware_joint_opening_v2`)
 
-`score=accessibility * segment_specificity` (`triggers.py:188`), and the code says so
-itself — *"a simple, explicitly-labelled placeholder combination … has not been reviewed by
-the scientific team yet"*. Two consequences:
+The scanned footprints are exactly 30, 33 and 36 nt, mapping one-to-one to exposed
+toeholds of 12, 15 and 18 nt plus the fixed 18-nt branch-migration body. For each window,
+the structural hypothesis is anchored to the transcript-forward terminal 20 nt (the part
+nearest the target 3′ end). RNAplfold follows the ViennaRNA 2.7.2 benchmark protocol at
+37 °C with `W=min(n,200)`, `L=min(n,150)` and `u=min(n,20)`. Coordinates are 0-based,
+start-inclusive/end-exclusive in CERNAL; the Vienna pU table lookup uses the 1-based
+interval end and interval length.
 
-- `mfe` and `gc_content` are **computed and then unused** in ranking.
-- With off-target stubbed, `segment_specificity` is a constant, so ranking collapses to
-  **accessibility alone**.
+The evidence retained for every exact candidate is: joint P20; the arithmetic mean of 20
+one-base marginal pU values; and `ΔG_open/nt = -RT ln(max(P20, 1e-12))/20` in
+kcal mol⁻¹ nt⁻¹ (`R=0.00198720425864083 kcal mol⁻¹ K⁻¹`, `T=310.15 K`). P20 and
+ΔG are monotonic transforms and are not counted as independent evidence. Within the
+exposed toehold, every contiguous 8-nt contactable seed is evaluated with joint P8: 5, 8
+or 11 placements for 12, 15 or 18 nt. The maximum P8 is selected, with the earliest
+transcript-forward start winning exact ties; every trial and coordinate is retained.
+
+Candidates are ranked separately within each exact-footprint bucket, lexicographically by
+higher selected joint P8, lower P20-derived ΔG/nt, higher terminal-20 mean marginal
+openness, then stable coordinate/sequence tie-breakers. The per-gene top-50 shortlist is
+a deterministic round-robin union of the buckets, so the 18-nt variant gets neither an
+automatic advantage from 11 seed trials nor permission to eliminate a footprint class.
+Mean marginal openness remains diagnostic evidence and currently has the strongest
+observed probing correlation; joint P8/P20 opening is a mechanistic hypothesis. None of
+these quantities is called or interpreted as a biological-success probability.
 
 ---
 
@@ -262,8 +279,8 @@ without its provenance.
 > was proposed above; it is not what shipped. Scanning unconditionally was measured, at
 > implementation time, to take the existing `direct`-path reference scenario (the fixed
 > 36 nt trigger every test and `smoke-run.md` itself uses) from **3 candidate designs to
-> 7** — because even an exact, deliberately-sized 36 nt paste has seven 30 nt sub-windows
-> once `constraints.trigger_lengths = (30, 36)` is swept over it. That directly
+> 12** — seven exact 30-nt windows, four exact 33-nt windows and one exact 36-nt window
+> once `constraints.trigger_lengths = (30, 33, 36)` is swept over it. That directly
 > contradicts an existing, already-shipped principle in
 > [smoke-run.md §5](smoke-run.md): *"Three designs from one trigger at default
 > constraints — which is exactly what a smoke run wants. Do not widen trigger_lengths to
@@ -325,40 +342,35 @@ multi-candidate run can produce real 2-activator trigger sets, which would have 
 `pipeline._UNBUILDABLE_FAMILIES`, the same "skip and say why" mechanism already used for
 `antisense` — no `engine/gates/` edit needed.
 
-### T4 · Make the length classes follow the gates — still open
+### T4 · Make the length classes follow the gates — ✅ built
 
-`Constraints.trigger_lengths` is `(30, 36)`; `ToeholdGate`'s footprints are
-`toehold + 18 = (30, 33, 36)`. Measured:
+`Constraints.trigger_lengths` defaults to the exact gate footprints `(30, 33, 36)`,
+mapping to toeholds `(12, 15, 18)`. A candidate produced by this exact-footprint scan
+records its matching toehold length, and `ToeholdGate.generate_designs` emits only that
+variant instead of redundantly generating shorter designs from a longer candidate. A
+manually supplied direct candidate leaves the mapping unset and retains the historical
+"generate every fitting variant" compatibility behaviour.
 
-```
-a 30nt trigger yields 1 design(s)
-a 33nt trigger yields 2 design(s)
-a 36nt trigger yields 3 design(s)
-```
-
-So a 30 nt window silently explores one third of the design space a 36 nt window does, and
-the `toehold_length=15` variant is unreachable from either declared class. Derive the
-scanned lengths from the participating families' actual footprints rather than a constant
-that half-matches.
-
-### T5 · Rank on constructibility, once T1–T4 are in — not needed as built
+### T5 · Rank scanned footprints with gate-aware evidence — ✅ built
 
 Given §5's timings, the cheapest and most predictive filter available is *"can a real
 switch be built from this window?"* — 91% of the failures the current screen misses.
 Because `stages → gates` is a **downward** import ([CLAUDE.md](../CLAUDE.md) §4), a stage may
 legally ask a gate family this.
 
-But prefer the smaller change first: `SwitchDesigner` *already* filters unconstructible
-designs. Once T2 feeds it 1,358 windows instead of 1, its existing filter finds the 630
-that build, and nothing new is needed. Make `TriggerScorer` gate-aware only if ranking —
-not merely surviving — turns out to need it.
+The first implementation relied only on `SwitchDesigner` to filter unconstructible
+designs after scanning. The gate-aware RNAplfold work then updated `TriggerScorer` itself:
+exact 30/33/36-nt footprint buckets are ranked by selected joint P8, terminal-20 opening
+energy per nucleotide, and terminal-20 mean marginal openness, then unioned round-robin.
+Each scanned candidate records the one mapped toehold variant that consumes its exact
+footprint. `SwitchDesigner` still performs the later constructibility and validation
+filters; the two stages now answer different questions rather than duplicating each other.
 
-**Confirmed as built, without touching `TriggerScorer`.** `_direct_trigger` feeds
-`TriggerScorer.score`'s already-ranked, already-top-K output straight into
-`SwitchDesigner.design`, which already discards anything unconstructible on its own — this
-was the actual, only mechanism exercised in the mCherry re-run below. `TriggerScorer`
-itself was never made gate-aware, because *ranking* has not yet needed to be — surviving
-was enough to turn the reported failure into real candidates.
+This is the as-built behavior. The earlier mean-only ranking remains only as an explicitly
+labelled compatibility path for injected marginal-only profiler adapters, not as a fallback
+for a missing or broken ViennaRNA runtime. There is no scientifically valid numerical
+fallback when ViennaRNA is unavailable: real pipeline scoring fails explicitly, as does the
+real `FoldEngine` required later in the same run.
 
 **Done when:** a `direct` run given a full mRNA returns candidates built against a named,
 justified window, and a run that returns none says which rule rejected how many. ✅ —
@@ -393,7 +405,7 @@ candidates, each carrying the scanned window's offset, instead of 0.
 |---|---|---|
 | **Real off-target scanning** | `OffTargetScanner` is four stubs and needs Q1's transcriptome | `off_target_penalty` is unmeasured, and `segment_specificity` with it. Must be **reported as unmeasured**, never as 0.0-means-clean |
 | **`GeneSelector` / the `de` path** | Blocked on Q1 | `direct` only. One transcript at a time, supplied by the researcher |
-| **A reviewed ranking formula** | Q6, and `triggers.py` says its own formula is a placeholder | Windows are ordered by accessibility alone. Good enough to *choose a buildable one*, not to claim the best one |
+| **A calibrated multivariate success model** | No cross-dataset calibration exists for combining the diagnostics | Mean marginal openness has the strongest current probing correlation; joint P8/P20 opening remains a mechanistic hypothesis. Neither is a calibrated biological-success probability |
 | **Paralogue-aware specificity** | No paralogue search exists; the code approximates it from the off-target report | Cannot distinguish a gene from its family. For a `direct` run with one pasted transcript, there is nothing to compare against anyway |
 | **RNA-class-specific rules** | Nobody has decided them — see §9 | An sRNA, a lncRNA and an mRNA are scanned identically today |
 
@@ -406,7 +418,7 @@ missing are not small:
 
 - Off-target is **not measured** on the `direct` path. A window that looks perfectly
   specific has simply never been compared against anything.
-- The ranking is **accessibility**, not a validated composite.
+- The ranking is a deterministic structural shortlist, **not** a functionally calibrated model. Mean marginal openness has the strongest current probing correlation; joint P8/P20 opening is mechanistic evidence that still needs functional calibration.
 - "Constructible" means *this engine's current rules did not reject it* — not that it will
   work in a cell.
 
@@ -423,7 +435,7 @@ For §2, the open questions table:
 | # | Question | Blocks |
 |---|---|---|
 | **Q14** | **Does the RNA class change the rules?** A trigger window inside an mRNA's CDS, its 5′UTR, a lncRNA, or a small RNA are not equivalent choices — an sRNA may be functional only as a whole, and a CDS window is dense with start codons (measured: the #1 cause of design rejection). Should the scan prefer, avoid or weight regions by class? | E2b |
-| **Q15** | **What makes a trigger good, beyond buildable?** `score = accessibility × segment_specificity` is a self-declared placeholder that ignores the MFE and GC it already computes. Needs a reviewed formula before any ranking is presented as a recommendation | E2b, and Q6 |
+| **Q15** | **Answered:** exact-footprint buckets use gate-aware joint P8, P20-derived ΔG/nt and terminal-20 mean marginal openness (`rnaplfold_gate_aware_joint_opening_v2`), with deterministic bucket union. These are structural diagnostics, not a success probability | E2b implemented; functional calibration remains Q6 |
 
 For §5, as a carve-out of E2 in the same shape as E2a and E5a:
 
@@ -437,8 +449,8 @@ call sites currently discard (T3), and derive the scanned lengths from the gate 
 real footprints (T4). Constructibility-aware *ranking* (T5) only if ranking needs it —
 `SwitchDesigner` already filters, and measured, the check costs 0.03 ms/window.
 
-Blocked on **Q14**, **Q15** for a defensible *ranking*; unblocked for *choosing a window
-that builds*.
+Q15 is answered by the gate-aware structural shortlist above. Q14 remains open for
+RNA-class-specific preferences; the current scan treats RNA classes identically.
 
 **Done when:** a `direct` run given a full mRNA returns candidates built against a named
 window at a reported offset, a run that returns none names the rule that rejected how many,
