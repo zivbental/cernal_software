@@ -473,6 +473,28 @@ def test_kozak_rc_in_toehold_forces_worst_case_predicted_leakage():
     assert clean_metrics["predicted_leakage"] != 1.0
 
 
+def test_kozak_rc_in_toehold_does_not_penalize_a_prokaryotic_design():
+    """The worst-case override is an extra step for the eukaryotic track only — a
+    prokaryotic switch's loop carries an RBS, not a Kozak, so kozak_rc_in_toehold
+    (which always checks for KOZAK_EUKARYOTIC's reverse complement, host-independent)
+    flags a motif that is not actually anywhere in a prokaryotic switch to hijack.
+    """
+    flagged_trigger = make_trigger(sequence=TRIGGER_SEQUENCE[:24] + "UUUUUUGCCACC")
+    gate = ToeholdGate(
+        Host.ECOLI, FoldEngine(), TranslationScorer(Host.ECOLI), CodonOptimizer(Host.ECOLI)
+    )
+    design = next(
+        d
+        for d in gate.generate_designs(TriggerSet(activators=(flagged_trigger,)), Constraints())
+        if d.architecture["toehold_length"] == 12
+    )
+    # The flag itself is still computed (host-independent) — only the scoring
+    # consequence is gated on track.
+    assert design.architecture["kozak_rc_in_toehold"] is True
+    metrics = gate.evaluate_design(design)
+    assert metrics["predicted_leakage"] != 1.0
+
+
 # --- payload: folding the real effector gene's head instead of a placeholder -----------
 #
 # Without a payload, evaluate_design folds the switch alone (or with LINKER_SEQUENCE for

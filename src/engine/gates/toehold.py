@@ -89,7 +89,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.8.0"
+    version = "0.8.1"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -709,16 +709,21 @@ class ToeholdGate(GateFamily):
                 if reused unmodified. Read instead at the **toehold+stem region**: how
                 often the blocking hairpin itself fails to stay formed. Unreviewed
                 science — flagged, not silently chosen; see the port's open questions.
-              * Either layout, when ``architecture["kozak_rc_in_toehold"]`` is
-                ``True``: reported as the worst-case ``1.0`` instead of the measured
-                value. ``_mean_unpaired`` sums each footprint position's pairing
-                probability against *every* other position in the switch, Kozak
-                included — so a toehold that closed against the switch's own
-                downstream Kozak copy instead of its intended stem partner reads as
-                *low* (good-looking) accessibility, not high. The proxy cannot tell
-                a properly-closed hairpin from a Kozak-hijacked one; since the flag
-                can, prefer distrust over a number that may only look good because
-                it measured the wrong closure. See ``_kozak_rc_in_toehold``.
+              * **Eukaryotic track only** (either layout), when
+                ``architecture["kozak_rc_in_toehold"]`` is ``True``: reported as the
+                worst-case ``1.0`` instead of the measured value. ``_mean_unpaired``
+                sums each footprint position's pairing probability against *every*
+                other position in the switch, Kozak included — so a toehold that
+                closed against the switch's own downstream Kozak copy instead of its
+                intended stem partner reads as *low* (good-looking) accessibility, not
+                high. The proxy cannot tell a properly-closed hairpin from a
+                Kozak-hijacked one; since the flag can, prefer distrust over a number
+                that may only look good because it measured the wrong closure.
+                Prokaryotic designs are exempt: the flag itself is still computed for
+                them (``_build_loop_kozak_design`` doesn't branch on track), but it
+                checks for ``KOZAK_EUKARYOTIC``'s reverse complement — meaningless
+                against an RBS-carrying loop, since there is no Kozak copy anywhere in
+                a prokaryotic switch to hijack. See ``_kozak_rc_in_toehold``.
             * ``dynamic_range`` — ON over OFF, using whichever region ``predicted_leakage``
               above measured for this design's layout. Derived from the difference
               between the two accessibilities, not the two energies; energy difference is
@@ -768,7 +773,14 @@ class ToeholdGate(GateFamily):
         off_accessibility = _mean_unpaired(off_matrix, region_start, region_end)
         on_accessibility = _mean_unpaired(on_matrix, region_start, region_end)
 
-        if design.architecture.get("kozak_rc_in_toehold"):
+        # Extra step, eukaryotic only: _kozak_rc_in_toehold checks for
+        # KOZAK_EUKARYOTIC's reverse complement specifically, which is meaningless for
+        # a prokaryotic switch — its loop carries an RBS, not a Kozak, so there is no
+        # Kozak copy anywhere downstream for the toehold to hijack. Gating on host
+        # track (not just the flag) keeps this general evaluate_design — shared by
+        # every track and by ProkaryoticToeholdGate/ProkaryoticToeholdAndGate — from
+        # scoring prokaryotic designs against a motif their construction never places.
+        if design.architecture.get("kozak_rc_in_toehold") and self.host.track is Track.EUKARYOTIC:
             # See this method's own docstring: a Kozak-hijacked closure reads as low
             # (good) accessibility here, indistinguishable from a properly-closed
             # hairpin. Report the worst case instead of a number that may only look
