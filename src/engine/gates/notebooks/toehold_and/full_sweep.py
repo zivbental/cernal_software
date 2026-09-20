@@ -6,14 +6,30 @@
 
     # stage 2 -- folds the selection stage 1 wrote
     uv run python src/engine/gates/notebooks/toehold_and/full_sweep.py \\
-        --fasta "path/to/mCherry original.txt" --stage fold --out sweep --fold 400
+        --fasta "path/to/mCherry original.txt" --stage fold --out sweep --fold 5000
 
-**Why it is staged and not a cross product.** The seven axes below multiply to tens of
-thousands of designs per trigger pair, and a four-tube evaluation is ~25 s. Folding the
-product would take weeks. Every axis is therefore scored first with quantities that need no
-switch folding — fixed-alignment duplex energies, GC composition, one MFE of a 50-nt
-subsequence — and only the survivors are folded. This is the funnel in ``SELECTION_SPEC.md``
-§2, and it is the reason the sweep is runnable at all.
+**Why it is staged, with the costs measured rather than guessed.** An earlier version of
+this docstring claimed a four-tube evaluation costs ~25 s and that the sweep would otherwise
+take weeks. **Both were wrong.** Measured on a 161-nt switch with its two triggers:
+
+| operation | cost | scales with |
+|---|---|---|
+| four-tube evaluation, all observables | **1.2 s** | one design |
+| secondary-stem enumeration (3ⁿ, n = 7 to 10 conflicts) | **2.1 s** | one trigger **pair** |
+| the axis grid itself | free | — |
+
+So the bottleneck is **stem enumeration per pair**, not folding per design, and it is paid
+once per pair however many designs are built on it. The practical consequences:
+
+* stage 1 over all 1036 pairs is **~36 minutes**, almost all of it stem enumeration;
+* stage 2 folding 5,000 designs is **~1.7 hours**;
+* folding the *entire* grid — 1036 pairs x 4 stems x 360 combinations, 1.5 M designs — is
+  about **21 days**, which is the only case the "weeks" claim ever applied to and is not
+  something anyone would run.
+
+Staging is still right, but for a much less dramatic reason than first stated: it turns a
+21-day job into a 2-hour one, and it lets the cheap metrics choose *which* designs are worth
+the 1.2 s. The default ``--fold`` is set accordingly — we can afford thousands, not hundreds.
 
 **Output is tidy, one row per design, and re-analysable.** Every axis value is its own
 column beside every metric, and the switch sequence is written out, so any row can be rebuilt
@@ -184,7 +200,12 @@ def main(argv=None) -> int:
     parser.add_argument("--stage", choices=("cheap", "fold"), required=True)
     parser.add_argument("--pairs", type=int, default=20, help="trigger pairs, 0 for all")
     parser.add_argument("--stems", type=int, default=4, help="stems per pair from the front")
-    parser.add_argument("--fold", type=int, default=200, help="designs to fold in stage 2")
+    parser.add_argument(
+        "--fold",
+        type=int,
+        default=5000,
+        help="designs to fold in stage 2; at ~1.2 s each, 5000 is under two hours",
+    )
     parser.add_argument("--out", default="sweep")
     args = parser.parse_args(argv)
 
