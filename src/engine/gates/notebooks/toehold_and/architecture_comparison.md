@@ -14,7 +14,8 @@ ours does not.**
 | design | ascending arm | how much the trigger is complementary to | left free |
 |---|---|---|---|
 | **Ours (A0)** | 18 nt | **18 nt — all of it** | **0 nt** |
-| Kim 2019 | 18 nt (11 + 1×1 loop + 6) | 15 nt | **3 nt**, the 3 bp next to the RBS loop |
+| Kim 2019, primary | 18 nt (11 + 1×1 loop + 6) | 15 nt | **3 nt**, the 3 bp next to the RBS loop |
+| Kim 2019, inhibitory | 20 nt (1×1 bulge at 12) | 17 nt | **3 nt**, filled with `AUA` |
 | Green 2014, 1st gen | 18 nt (9 + 3×3 + 6) | 18 nt — all of it | 0 nt |
 | Green 2014, forward-engineered | 18 nt | 15 nt | **3 nt**, hard-coded to the weak A-U ladder `AUA` |
 | Green 2026 VISTA | 9 + 3×3 + 6 | 6 nt only | **everything above 6 bp**, an invariant cassette |
@@ -61,9 +62,10 @@ forward-engineered switches — which have ON/OFF data for 13 constructs — wit
 | Inputs | 2 triggers | 2 (Fig. 1 AND) | 1 (its 4-input AND is *transcriptional*, layered) | 1 |
 | Hairpins on the switch | 2 | 2 | 1 | 1 + a small 3′ refold hairpin |
 | Exposed toehold `a` on the main hairpin | **0** | 10, 7, **4** (AND works at 4); 15 for the one-hairpin control | 12 (1st gen), 15 (fwd-eng), 24–30 (mRNA sensors) | 30 |
-| Main stem | 9 bp + 3×3 loop + 6 bp = 18 | 11 bp + **1×1** loop + 6 bp = 17 bp | 9 + 3×3 + 6 | 9 + 3×3 + 6 |
-| Inhibitory hairpin stem | 18 − len_x per arm | **19 bp** (G5) — *not* equal to the primary's 17 | — | — |
-| Two stems equal length? | yes, by construction | **no**, in neither family | — | — |
+| Main stem | 9 bp + 3×3 loop + 6 bp, arm **18 nt** | 11 bp + **1×1** loop + 6 bp = 17 paired, arm **18 nt** | 9 + 3×3 + 6, arm 18 nt | 9 + 3×3 + 6 |
+| Inhibitory hairpin arm | 18 nt (= ARM_LEN) | **20 nt**, 1×1 bulge at position 12, `AUA` on top | — | — |
+| Two stems equal length? | yes, by construction | **no** — primary arm 18 nt, inhibitory arm 20 nt | — | — |
+| Trigger invasion into the inhibitory arm | n/a (trigger B binds `k2*` fully) | **17 of 20 nt**, stopping 3 short, with `AUA` filling the top | — | — |
 | Where the `AUG` sits | 3×3 internal loop, descending arm | **1×1 bulge**; only the A is unpaired, U and G are G·U wobbles | 3×3 internal loop | 3×3 internal loop |
 | RBS → AUG spacing | 6 nt | 6 nt | 6 nt | 6 nt |
 | Terminal loop | RBS flank + RBS | 15 nt | 11 nt (1st gen), 15 (fwd-eng) | 11 nt |
@@ -75,6 +77,24 @@ forward-engineered switches — which have ON/OFF data for 13 constructs — wit
 
 ---
 
+## Verified against the sources, 2026-09-20
+
+Three numbers in the first draft of this table were loose, and were checked against Kim's
+supporting information directly:
+
+* **The primary hairpin's arm is 18 nt, not 17.** 17 is the *paired* count — 11 bp + a
+  single bulged nucleotide + 6 bp. The arm is 18 nt long. **So our 18-nt arm already matches
+  Kim's**, and the "18 vs 17" framing in the first draft compared two different quantities.
+* **The inhibitory arm is 20 nt**, with a 1×1 bulge at position 12, and trigger B invades
+  **17 of those 20** — stopping 3 short, exactly as the primary does.
+* **`AUA` sits on top of the inhibitory hairpin too**, not only the main one. So the same
+  pattern — invade to within 3 nt of the loop, fill the remainder with a weak A·U ladder —
+  is applied to *both* hairpins in Kim's design, and we apply it to neither.
+
+The practical consequence is that "19/17 stems" was the wrong way to describe the
+difference. **Both of Kim's arms are longer than the invasion and capped with `AUA`;
+the asymmetry between his two hairpins (18 vs 20) is secondary to that shared rule.**
+
 ## Differences we had not discussed, most consequential first
 
 1. **The 3-nt shift away from the RBS** — above. Sourced, and the single clearest
@@ -84,9 +104,10 @@ forward-engineered switches — which have ON/OFF data for 13 constructs — wit
 3. **Kim's AUG is in a 1×1 bulge, not a 3×3 loop.** Only the adenine is unpaired; the U and
    G are G·U wobbles. Our R7 assumes a 3×3 loop is the norm. Kim's *other* family
    (Sw2Albion, Fig. 2C) does use 3×3, so both exist — but the AND-gate constructs do not.
-4. **Kim's two hairpins are deliberately different lengths** (19 bp inhibitory vs 17 bp
-   primary). Ours are equal by construction. If the inhibitory hairpin must be the more
-   stable of the two to hold its toehold shut, equal lengths may be a design error.
+4. **Kim caps BOTH hairpins with `AUA`, 3 nt short of the loop** — primary arm 18 nt with a
+   15-nt invasion, inhibitory arm 20 nt with a 17-nt invasion. One rule, applied twice; we
+   apply it to neither. The length asymmetry between his two hairpins (18 vs 20) is real but
+   secondary to that shared rule, and our arms already match his primary at 18 nt.
 5. **Kim's triggers are de-novo and unrelated; ours are two windows of one transcript.**
    That is forced by our validation design, but it means our two triggers can pair *each
    other* and share sequence context in ways theirs cannot.
