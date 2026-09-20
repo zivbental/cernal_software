@@ -73,6 +73,25 @@ we have since measured. Keeping it biases the front toward exactly the builds th
 2. `b_site_energy` — **minimise**. Trigger B must still bind.
 3. `a_site_energy` — **maximise** (weaker A binding is better). *Direction inverted.*
 
+**What `a_site_energy` actually measures, since the name hides it.** It is
+`fixed_alignment_energy(x + ext, secondary_z + x*)` — trigger A's overlap **plus its
+extension** against the nucleation site **plus the inhibitory stem's descending arm**. So it
+is not "does trigger A bind its site"; it is **how far past its site trigger A can reach into
+the inhibitory hairpin**. `x` is fixed by the trigger pair, so the only variable part is
+`ext` against `secondary_z` — and `secondary_z` is a domain scheme C designs. The metric
+exists because that design choice directly controls trigger A's over-reach.
+
+Under the original premise (trigger A needs help), more reach was better. Under what we have
+measured it is the mechanism of the leak, one domain over from the main hairpin: `locked(00)`
+is 0.982–0.999 and `locked(10)` collapses to **0.000 on 12 of 14 stems** — trigger A tears
+the lock open, and a stronger `a_site` is exactly what lets it. It is the same phenomenon as
+`engaged_A(10)`, priced before folding.
+
+**It stays an objective, with the direction flipped, rather than being dropped** — because
+there is a floor. Trigger A must still bind `x*` firmly enough in state 11 to open the main
+hairpin. Minimising its reach and keeping its grip are in genuine tension, which is what a
+Pareto axis is for.
+
 **Also to relax, to report-only:**
 
 - **R6** (`ddG_pref = lock − b_site ≥ 0`). It caps lock strength so trigger B can displace
@@ -83,6 +102,39 @@ we have since measured. Keeping it biases the front toward exactly the builds th
   "dominated" under the same inverted premise. Re-enable and let the front decide.
 
 **Hard cut, new:** `lock_energy > 0` is not folded. A positive lock is not a lock.
+
+---
+
+## 3b. Two selection problems, not one front
+
+VISTA's findings are about **which trigger site to pick on the transcript**; the scheme C
+front is about **which stem to build once the pair is fixed**. Putting the first into the
+second would be a category error — once a pair is chosen, its accessibility and GC gradient
+are constants and cannot discriminate between stem builds. So there are two rankings at two
+stages:
+
+**Pair-level front (stage 1b), a new Pareto over three cheap objectives:**
+
+1. **proximal accessibility** — SED at ±10 and ±25 nt, *minimise* (less paired = more
+   reachable). VISTA: *"proximal occlusion of the binding site rather than global folding of
+   the full transcript more strongly determines accessibility and functional response"*, and
+   only ±10 and ±25 were significant.
+2. **GC gradient** — `gc_bottom3 − gc_top3`, *maximise*.
+3. **`dG_RBS-Linker`** — *maximise* (less structured), ρ = +0.334 on 168 measured switches.
+
+Codon usage and the 3′/5′ sub-window pairedness are **reported alongside**, not on the front,
+because their published effects are weaker (r ≈ 0.30 and −0.33) and adding weak axes to a
+front mostly widens it.
+
+**Stem-level front (stage 2):** `lock_energy`, `b_site_energy`, `a_site_energy` as in §3.
+
+> **A caution we should not design past.** VISTA's own conclusion is that *"moderate stem
+> stability — rather than extreme single-strandedness or rigid base pairing — enable robust
+> strand invasion"*, and that high performers carry **balanced** GC/AU. Our measurement says
+> stronger lock is monotonically better (ρ = −0.707 against separation-after-closure), but we
+> sampled `lock_energy` only from −0.2 to −23.1 and may simply not have reached the turn. So
+> **rank on lock strength, but carry the extremes into the panel rather than only the
+> maximum** — if the relationship turns, that is where it turns.
 
 ---
 
@@ -196,5 +248,23 @@ The panel has to discriminate between the two hypotheses, not assume one.
   a stabiliser per design against its toehold; Kim froze one from his best construct. Our
   wet-lab route is a plasmid into BL21 and prior work needed only the GGG. Revisit if
   transcript stability becomes the suspected bottleneck.
-- **Secondary loop.** Ours is already 15 nt, **identical to Kim's**. Whether to optimise it
-  per trigger pair is open; its pairing probability should be reported first.
+- **Secondary loop — measured, and it does not need sweeping.** Ours is already 15 nt,
+  **identical to Kim's**. Its pairing probability over 8 pairs:
+
+  | state | mean ± sd | range |
+  |---|---|---|
+  | 00 | **0.031 ± 0.010** | 0.026 – 0.055 |
+  | 01 | 0.147 ± 0.138 | 0.019 – 0.398 |
+  | 11 | 0.163 ± 0.135 | 0.012 – 0.451 |
+
+  It pairs `r2*` at **0.0000** in every design and the triggers at 0.001–0.064, so it is not
+  interfering with either toehold. In the OFF state — the one state where the loop's own
+  sequence is the only thing acting on it — it is **flat across pairs** (sd 0.010), which is
+  what a well-behaved constant looks like. The 20-fold spread appears only in 01 and 11,
+  *after* trigger binding frees the arms around it, so that variation is a **consequence of
+  the trigger pair, not of the loop**.
+
+  **So: do not sweep it. Report it, and let it discriminate between pairs.** Redesigning a
+  constant per pair multiplies the design space to fix something the constant is not causing.
+  The general rule this is an instance of: **measure first; if a quantity is flat where the
+  design controls it, it is a selection criterion, not a design knob.**
