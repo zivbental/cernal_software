@@ -59,38 +59,45 @@ the cheap proxy and the expensive barrier put the same design top by a wide marg
 
 ---
 
-## 3. The Pareto front — and the sign error to fix
+## 3. The stem-level Pareto front
 
-The front is currently taken over `(lock_energy, a_site_energy, b_site_energy)`, all
-minimised. **`a_site_energy` rewards trigger A binding the secondary stem**, which was
-correct under the original premise that trigger A needs help and is wrong under everything
-we have since measured. Keeping it biases the front toward exactly the builds that leak.
+**A retraction first.** An earlier version of this section claimed `a_site_energy` carried a
+sign error — that it "rewards trigger A binding the secondary stem" and should be inverted.
+**That was wrong, and the front was right as written.** Offer caught it: `a_site` prices
+trigger A against `secondary_z + x*` as a *free duplex*, and those domains are only free
+**after trigger B has bound and opened the inhibitory hairpin**. So it is not the OFF state
+at all — it is the **ON mechanism**, and stronger is better.
 
-**Corrected front, three objectives:**
+**What the metric is.** `fixed_alignment_energy(x + ext, secondary_z + x*)` — trigger A's
+overlap plus its extension, against the nucleation site plus the freed descending arm. `x` is
+fixed by the trigger pair, so the only variable part is `ext` against `secondary_z`, a domain
+scheme C designs.
 
-1. `lock_energy` — **minimise** (more negative = stronger lock). The axis that predicts
-   whether closing the AUG produces a gate at all (ρ = −0.707 against separation-after-closure).
-2. `b_site_energy` — **minimise**. Trigger B must still bind.
-3. `a_site_energy` — **maximise** (weaker A binding is better). *Direction inverted.*
+**Where the leak actually lives.** Trigger A tearing the lock open in state 10 is a
+*competition*: A's grip on that arm against the lock holding it shut. Measured over 20 builds
+spanning four trigger pairs:
 
-**What `a_site_energy` actually measures, since the name hides it.** It is
-`fixed_alignment_energy(x + ext, secondary_z + x*)` — trigger A's overlap **plus its
-extension** against the nucleation site **plus the inhibitory stem's descending arm**. So it
-is not "does trigger A bind its site"; it is **how far past its site trigger A can reach into
-the inhibitory hairpin**. `x` is fixed by the trigger pair, so the only variable part is
-`ext` against `secondary_z` — and `secondary_z` is a domain scheme C designs. The metric
-exists because that design choice directly controls trigger A's over-reach.
+| predictor | vs `locked(10)` | vs separation after closure |
+|---|---|---|
+| **`lock_energy`** | **ρ = −0.938** | **ρ = −0.846** |
+| `lock − a_site` | ρ = −0.874 | ρ = −0.766 |
+| `a_site_energy` | ρ = +0.744 | ρ = +0.658 |
 
-Under the original premise (trigger A needs help), more reach was better. Under what we have
-measured it is the mechanism of the leak, one domain over from the main hairpin: `locked(00)`
-is 0.982–0.999 and `locked(10)` collapses to **0.000 on 12 of 14 stems** — trigger A tears
-the lock open, and a stronger `a_site` is exactly what lets it. It is the same phenomenon as
-`engaged_A(10)`, priced before folding.
+**`lock_energy` alone is the best predictor, and the competition term is worse.** The two are
+anti-correlated across the front — strong locks come with weak `a_site` — so the combination
+adds noise rather than information. But the *sign* of `lock − a_site` is still the mechanism:
+every build with `locked(10) > 0` has it **negative** (lock stronger than A's grip: −7.4,
+−3.4, −11.4, −13.3) and every build with `locked(10) = 0` has it **positive**. Report the
+sign as a mechanistic check; rank on `lock_energy`.
 
-**It stays an objective, with the direction flipped, rather than being dropped** — because
-there is a floor. Trigger A must still bind `x*` firmly enough in state 11 to open the main
-hairpin. Minimising its reach and keeping its grip are in genuine tension, which is what a
-Pareto axis is for.
+**Front, three objectives, all minimised as originally written:**
+
+1. `lock_energy` — the leak axis, and the strongest single predictor we have.
+2. `b_site_energy` — trigger B must bind.
+3. `a_site_energy` — trigger A must grip the freed arm in state 11. This is the ON mechanism,
+   in tension with (1), which is what makes it a Pareto axis rather than a filter.
+
+**Hard cut, new:** `lock_energy > 0` is not folded. A positive lock is not a lock.
 
 **Also to relax, to report-only:**
 
@@ -98,8 +105,10 @@ Pareto axis is for.
   the lock — but B has a 32-nt toehold measured 31–53 % exposed in the OFF state and does not
   need a weak lock, while lock strength is the axis that matters. Keep the invasion-stall cap,
   which guards the real failure.
-- **Scheme C's excluded fourth per-position option** ("serve neither trigger"). Excluded as
-  "dominated" under the same inverted premise. Re-enable and let the front decide.
+- **Scheme C's excluded fourth per-position option** ("serve neither trigger"). It is
+  dominated on the front as written, since it weakens `b_site` and `a_site` without
+  strengthening `lock`. Worth re-enabling only as a reported variant, to confirm it is
+  dominated rather than assumed to be.
 
 **Hard cut, new:** `lock_energy > 0` is not folded. A positive lock is not a lock.
 
@@ -143,11 +152,21 @@ front mostly widens it.
 Every metric below is **reported** for every design that reaches stage 8. Only the two named
 in §1 are **ranked** on. Nothing else gates.
 
-### 4.1 GC gradient — free, pre-fold
-`gc_bottom3 − gc_top3`, as fractions over the 3 bp at the base of the main stem and the 3 bp
-nearest the loop. Green's enrichment analysis: high-performing switches carry G·C at the
-bottom and A·U at the top. Higher is better. **No folding, so it can sort all 1036 pairs
-before anything expensive runs.**
+### 4.1 GC distribution — free, pre-fold
+Reported as **four numbers, not one**, because the two published findings are different
+claims and combining them into a single score would hide which one a design fails:
+
+| reported | Green / VISTA finding |
+|---|---|
+| `gc_bottom3` | **2 of 3 G·C at the stem base is best** — a *target*, not a maximum |
+| `gc_top3` | A·U at the top; `AUA`/`UAU` hard-coded in all 13 forward-engineered switches |
+| `gc_gradient` = `gc_bottom3 − gc_top3` | the gradient the forward-engineering created |
+| `gc_balance` = abs(GC fraction over the bottom 6 nt − 0.5) | VISTA kpLogo: high performers enriched for **balanced** GC/AU; A-rich gives high OFF (leaky), GC-rich gives low ON (too rigid). *Lower is better.* |
+
+**Target, do not maximise.** "2 of 3" and "balanced" are both statements about an optimum in
+the middle, and a score that rewards more G·C without limit would walk straight past it into
+the rigid-stem failure VISTA names. No folding, so all 1036 pairs can be sorted on this
+before anything expensive runs.
 
 ### 4.2 `dG_RBS-Linker` — 1 MFE, the best cheap predictor
 MFE of the switch from the first base of the RBS loop to the last base of the 21-nt linker.
@@ -257,8 +276,12 @@ The panel has to discriminate between the two hypotheses, not assume one.
   | 01 | 0.147 ± 0.138 | 0.019 – 0.398 |
   | 11 | 0.163 ± 0.135 | 0.012 – 0.451 |
 
-  It pairs `r2*` at **0.0000** in every design and the triggers at 0.001–0.064, so it is not
-  interfering with either toehold. In the OFF state — the one state where the loop's own
+  Measured against **everything in the tube** — the switch and both triggers — and then
+  broken out: it pairs `r2*` at **0.0000** in every design and the **triggers** at
+  0.001–0.064. So the bulk of the 0.16 in state 11 is the loop pairing **elsewhere inside the
+  switch**, not the triggers and not either toehold. Which intra-switch partner that is has
+  not been identified and should be, before the number is used to discriminate between
+  pairs. In the OFF state — the one state where the loop's own
   sequence is the only thing acting on it — it is **flat across pairs** (sd 0.010), which is
   what a well-behaved constant looks like. The 20-fold spread appears only in 01 and 11,
   *after* trigger binding frees the arms around it, so that variation is a **consequence of
