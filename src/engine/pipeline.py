@@ -50,6 +50,7 @@ editing something under ``gates/``.
 """
 
 import dataclasses
+import json
 import re
 from collections import Counter
 from collections.abc import Callable, Sequence
@@ -93,6 +94,7 @@ from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.inputs import parse_dge_table
+from engine.safety import fail_closed_release
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
 from engine.scoring.profiles import HardFilter, resolve_profile
 from engine.stages.folding import FoldProfiler
@@ -1074,6 +1076,37 @@ def _write_artifacts(
     ]
 
     for candidate in sorted((c for c in candidates if not c.is_rejected), key=lambda c: c.ref):
+        plasmid = plasmids[candidate.ref]
+        switch_screen = fail_closed_release(
+            f"{candidate.ref}:switch",
+            candidate.design["switch_sequence"],
+            host_context="unconfigured",
+        )
+        plasmid_screen = fail_closed_release(
+            f"{candidate.ref}:plasmid", plasmid.plasmid.sequence, host_context="unconfigured"
+        )
+        artifacts.extend(
+            [
+                write_artifact(
+                    output_dir,
+                    f"safety/{candidate.ref}-switch.json",
+                    json.dumps(switch_screen.audit_manifest(), indent=2, sort_keys=True) + "\n",
+                    kind="safety_audit",
+                    media_type="application/json",
+                    candidate_ref=candidate.ref,
+                ),
+                write_artifact(
+                    output_dir,
+                    f"safety/{candidate.ref}-plasmid.json",
+                    json.dumps(plasmid_screen.audit_manifest(), indent=2, sort_keys=True) + "\n",
+                    kind="safety_audit",
+                    media_type="application/json",
+                    candidate_ref=candidate.ref,
+                ),
+            ]
+        )
+        if not (switch_screen.release_allowed and plasmid_screen.release_allowed):
+            continue
         fasta = (
             f">{candidate.ref} {candidate.gate_family} {candidate.logic_type} "
             f"rank={candidate.rank}\n{candidate.design['switch_sequence']}\n"
@@ -1088,12 +1121,11 @@ def _write_artifacts(
                 candidate_ref=candidate.ref,
             )
         )
-
         artifacts.append(
             write_artifact(
                 output_dir,
                 f"plasmids/{candidate.ref}.gb",
-                to_genbank(plasmids[candidate.ref]),
+                to_genbank(plasmid),
                 kind="genbank",
                 media_type="text/plain",
                 candidate_ref=candidate.ref,
