@@ -31,6 +31,7 @@ circuits with scores, metrics, sequences and downloadable artifacts.
 | [plasmids.md](plasmids.md) | What stage 5 needs to make a circuit orderable — and the part-library questions nobody has asked yet |
 | [triggers.md](triggers.md) | Why a pasted transcript yields no designs: stage 2 is built but never called, and screens the window rather than the switch |
 | [development.md](development.md) | Setup, everyday commands, testing, troubleshooting |
+| [software-development-log.md](software-development-log.md) | iGEM-ready evidence log: future-entry template plus commit-derived historical index |
 | [deployment.md](deployment.md) | Where it runs in production, and why that shape |
 | [attribution.md](attribution.md) | Who did the work, what CERNAL builds on, and how AI tools were used. **The source of truth for the iGEM Attribution Form** — it has `TODO` lines only the team can fill in |
 | [decisions/](decisions/) | Architecture decision records. Adding a service or splitting the repo needs one |
@@ -44,6 +45,7 @@ circuits with scores, metrics, sequences and downloadable artifacts.
   service (Redis, Postgres, Docker, S3) or splitting the repository requires one first.
 - **If a change contradicts [architecture.md](architecture.md), update it in the same
   commit**, with the reason.
+- **Meaningful completed software work is recorded in [software-development-log.md](software-development-log.md)** with its commit and verification evidence; future work still belongs in [ROADMAP.md](ROADMAP.md).
 - Diagrams are Mermaid or ASCII, inline. They render on GitHub, in VS Code and in Obsidian
   without a build step.
 
