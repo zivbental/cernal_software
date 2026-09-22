@@ -81,7 +81,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.1.0"
+    version = "0.2.0"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -218,9 +218,10 @@ class ToeholdGate(GateFamily):
             and the architecture parameters recorded in ``architecture`` so a design can
             be traced back to how it was built.
 
-            **Yields rather than returns.** Three toehold lengths across thousands of
-            trigger sets is tens of thousands of designs, and the validator will discard
-            most of them.
+            **Yields rather than returns.** An exact scanned candidate carries its mapped
+            gate footprint and yields one matching variant. A manual direct candidate has
+            no mapping and retains the legacy sweep across every fitting toehold length;
+            across thousands of trigger sets, the validator will discard most designs.
 
         Construction (Step 5):
             1. **Binding region** — ``sequences.reverse_complement(trigger.sequence)``.
@@ -239,14 +240,14 @@ class ToeholdGate(GateFamily):
                into. The validator compares against it, so a design without one cannot be
                checked.
 
-            Vary ``toehold_lengths`` and yield one design per length. Widening that tuple
-            multiplies the whole search space — it is the cheapest knob for trading
-            runtime against quality.
+            For a manual direct candidate, vary ``toehold_lengths`` and yield one design
+            per fitting length. For an exact scanned candidate, use only its mapped length;
+            widening the tuple does not multiply that candidate's designs.
 
         Note:
-            Two designs from the same trigger differ only in toehold length, so they share
-            most of their sequence. That is precisely why ``FoldEngine`` caches: the
-            validator will fold overlapping sequences repeatedly.
+            Legacy/manual variants from the same trigger differ only in toehold length, so
+            they share most of their sequence. That is precisely why ``FoldEngine`` caches:
+            the validator will fold overlapping sequences repeatedly.
 
         Deviations from the source generator (see the port's open questions):
             * ``STEM_PRE_BULGE_LEN``/``STEM_POST_BULGE_LEN`` stay fixed at the source
@@ -269,7 +270,15 @@ class ToeholdGate(GateFamily):
         binding_region = sq.reverse_complement(trigger.sequence)
         loop = self._loop_element()
 
-        for toehold_length in self.toehold_lengths:
+        # Scanned stage-2 candidates name one exact gate footprint and therefore one
+        # toehold variant. Legacy/manual direct candidates leave the field unset and
+        # retain the historical sweep across every variant that fits their sequence.
+        toehold_lengths = (
+            (trigger.gate_toehold_length,)
+            if trigger.gate_toehold_length is not None
+            else self.toehold_lengths
+        )
+        for toehold_length in toehold_lengths:
             footprint = toehold_length + self.STEM_PRE_BULGE_LEN + 3 + self.STEM_POST_BULGE_LEN
             if footprint > len(binding_region):
                 continue
@@ -328,6 +337,8 @@ class ToeholdGate(GateFamily):
                 dot_bracket=dot_bracket,
                 architecture={
                     "toehold_length": toehold_length,
+                    "trigger_footprint_length": footprint,
+                    "trigger_orientation": "transcript_forward",
                     "stem_pre_bulge_len": self.STEM_PRE_BULGE_LEN,
                     "stem_post_bulge_len": self.STEM_POST_BULGE_LEN,
                     "loop_len": len(loop),

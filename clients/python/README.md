@@ -30,7 +30,7 @@ job = c.design(
         "max_triggers": 2,
         "min_separation": 1.0,
         "max_p_adj": 0.01,
-        "trigger_lengths": [30, 36],
+        "trigger_lengths": [30, 33, 36],
         "standard": "RFC10",
     },
     scoring={

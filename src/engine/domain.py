@@ -285,6 +285,21 @@ class SelectedGene:
 
 
 @dataclass(frozen=True, slots=True)
+class SeedOpeningTrial:
+    """One physically contactable 8-nt toehold seed evaluated by RNAplfold.
+
+    Coordinates are transcript-forward, 0-based, start-inclusive/end-exclusive.
+    ``relative_start`` is measured from the exposed toehold's transcript-forward start.
+    """
+
+    start: int
+    end: int
+    relative_start: int
+    sequence: str
+    probability: float
+
+
+@dataclass(frozen=True, slots=True)
 class TriggerCandidate:
     """Stage 2 output — a sub-segment of a transcript, ranked as a possible input.
 
@@ -334,6 +349,24 @@ class TriggerCandidate:
     stop_indexes: tuple[int, ...] = ()
     ribosome_occupancy: float | None = None
     score: float = 0.0
+    # Gate-aware RNAplfold evidence. ``gate_toehold_length`` is populated only for
+    # exact-footprint scanned candidates; ``None`` preserves legacy/manual direct
+    # candidates, for which gate generation may still sweep every fitting variant.
+    gate_toehold_length: int | None = None
+    hypothesis_start: int | None = None
+    hypothesis_end: int | None = None
+    joint_open_probability_20: float | None = None
+    mean_marginal_openness_20: float | None = None
+    delta_g_open_kcal_per_mol_per_nt: float | None = None
+    selected_seed_start: int | None = None
+    selected_seed_end: int | None = None
+    selected_seed_probability: float | None = None
+    seed_trials: tuple[SeedOpeningTrial, ...] = ()
+    rnaplfold_version: str | None = None
+    rnaplfold_window: int | None = None
+    rnaplfold_max_span: int | None = None
+    rnaplfold_unpaired: int | None = None
+    rnaplfold_temperature_celsius: float | None = None
 
     @property
     def length(self) -> int:
@@ -394,7 +427,7 @@ class Constraints:
     max_triggers: int = 2
     min_separation: float = 0.5
     max_p_adj: float = 0.05
-    trigger_lengths: tuple[int, ...] = (30, 36)
+    trigger_lengths: tuple[int, ...] = (30, 33, 36)
     max_switch_length: int = 200
     forbidden_motifs: tuple[str, ...] = ()
     standard: AssemblyStandard = AssemblyStandard.RFC10
