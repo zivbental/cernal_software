@@ -33,6 +33,15 @@ In a second terminal:
 Run `./do help` for every available command.
 [`docs/development.md`](docs/development.md) covers day-to-day work.
 
+### Trigger/nucleation analysis utility
+
+Reusable offline ranking for marginal trigger/nucleation accessibility lives in
+[`tools/trigger_nucleation_ranking.py`](tools/trigger_nucleation_ranking.py). The preserved
+default is lexicographic nucleation-first ranking; balanced geometric-mean ranking is an
+explicit separate sensitivity mode. See
+[`docs/trigger-nucleation-ranking.md`](docs/trigger-nucleation-ranking.md) for semantics,
+provenance and usage.
+
 ### Building the frontend
 
 `./do dev` builds the React app once if it is missing. To rebuild it explicitly, or to

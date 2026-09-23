@@ -30,6 +30,7 @@ circuits with scores, metrics, sequences and downloadable artifacts.
 | [smoke-run.md](smoke-run.md) | What blocked the first real (non-`MockEngine`) run, and the `direct`-path slice that unblocked it |
 | [plasmids.md](plasmids.md) | What stage 5 needs to make a circuit orderable — and the part-library questions nobody has asked yet |
 | [triggers.md](triggers.md) | Why a pasted transcript yields no designs: stage 2 is built but never called, and screens the window rather than the switch |
+| [trigger-nucleation-ranking.md](trigger-nucleation-ranking.md) | Reusable marginal-accessibility ranking: preserved nucleation-first semantics, explicit balanced geometric-mean mode, provenance and interpretation limits |
 | [development.md](development.md) | Setup, everyday commands, testing, troubleshooting |
 | [deployment.md](deployment.md) | Where it runs in production, and why that shape |
 | [attribution.md](attribution.md) | Who did the work, what CERNAL builds on, and how AI tools were used. **The source of truth for the iGEM Attribution Form** — it has `TODO` lines only the team can fill in |
