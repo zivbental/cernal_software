@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 38 |
 | Public classes | 87 |
-| Public callables (excluding `__init__`) | 172 |
-| — `BUILT` | 139 |
+| Public callables (excluding `__init__`) | 173 |
+| — `BUILT` | 140 |
 | — `STUB` | 26 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 2 |
@@ -61,7 +61,7 @@ layers above it, never the ones below.
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 1 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 0 | 2 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 4 | 3 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 5 | 3 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
@@ -855,6 +855,7 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 | `STUB` | `def ensemble_defect(self, sequence: str, target: str) -> float` | How far the predicted ensemble sits from an intended structure. |
 | `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` | Probability that each pair of positions is bonded, over the whole ensemble. |
 | `STUB` | `def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]` | Every structure within an energy window of the MFE. |
+| `BUILT` | `def layout_coordinates(self, structure: str) -> list[tuple[float, float]]` | Where each nucleotide sits when a structure is drawn, one point per base. |
 | `BUILT` | `def versions(self) -> dict[str, str]` | The tool versions this run was computed with. |
 
 ### `engine.gates.tools.translation` · S9
