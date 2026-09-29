@@ -1,962 +1,829 @@
-# CERNAL — From RNA signals to inspectable toehold candidates
+# CERNAL software wiki
 
-> **Research prototype.** CERNAL turns a direct RNA sequence or a scoped differential-expression signal into inspectable, ranked single-input toehold-switch and plasmid design candidates. It preserves inputs, assumptions, metric decompositions, rejected candidates, warnings, and artifact checksums so that a result can be reviewed rather than accepted as a black-box answer.
->
-> **Evidence boundary.** This page describes merged `main` at commit `417f8385725a99f2d7d4bc835eeedeb5903d399f` unless a feature is explicitly labelled **unmerged**, **uncommitted**, or **planned**. CERNAL has software-test and computational evidence, but no wet-lab validation of its current candidates, scores, or biological performance.
->
-> **Editorial status — 28 September 2026.** This is a competition-page draft for team review. Team members must verify every claim, rewrite and approve the substantive narrative, complete the official Attributions Form and responsible-AI disclosure, and replace every `TODO` before publication.
+> **Implementation status (29 September 2026).** CERNAL is a working web platform with a deterministic mock engine and a partially implemented scientific `LocalEngine`. The direct-sequence path and a scoped differential-expression path for *E. coli* and yeast run through trigger selection, single-input switch generation, scoring, ranking, plasmid assembly, persistence, and downloads. Multi-gene circuit design, two-input AND construction, operational antisense use, CRISPR gates, real off-target matching, generated scientific figures/PDF reports, and wet-lab validation are not complete. This page labels those boundaries rather than presenting planned behavior as current behavior.
 
-<!-- ASSET PLAN — HERO
-Proposed filename: assets/software/cernal-hero-pipeline.svg
-Alt text: "A three-part workflow: RNA sequence or differential-expression table enters CERNAL, a traceable pipeline ranks single-input toehold designs, and the user receives candidate records plus FASTA and GenBank artifacts with checksums."
-Caption: "CERNAL connects a bounded biological input to reviewable computational candidates and build artifacts; the diagram does not imply experimental efficacy."
-Production notes: Team-authored SVG; use text labels and arrows in addition to color; include a static PNG fallback; keep labels legible at 320 px; do not animate unless motion can be paused and respects prefers-reduced-motion.
-Evidence source: merged main at 417f838; architecture and output claims listed in the Source notes.
--->
+## 1. What CERNAL is
 
-## Five-minute judge path
+CERNAL (Compiler-like Engine for RNA Logic) is a research software platform for turning a transcriptomic signal into inspectable RNA-control designs. A user can start with either:
 
-1. **Understand the claim (1 minute):** read [CERNAL in one minute](#cernal-in-one-minute) and the [current capability matrix](#current-capability-matrix).
-2. **Follow one real software path (1 minute):** scan the [worked regression-fixture workflow](#worked-workflow-a-real-test-fixture-not-a-biological-result), including accepted/rejected candidates and checksummed artifacts.
-3. **Check the evidence boundary (1 minute):** review [what was actually verified](#validation-and-evidence) and what has no wet-lab or calibrated-performance evidence.
-4. **Reproduce the judged configuration (1 minute):** use [installation and engine verification](#installation-and-demo), then confirm that `/api/version` and the downloaded run manifest report the same engine version.
-5. **Assess responsibility and continuity (1 minute):** read [safety](#safety-security-and-responsible-use), [limitations](#limitations-and-future-work), and [attribution/AI TODOs](#attribution-licensing-and-ai-disclosure-todos).
+1. a differential-expression table and ask CERNAL to discover usable transcript windows; or
+2. an RNA/DNA sequence and ask CERNAL to treat it as a trigger or scan it for trigger-sized windows.
 
-**Optional deep dives:** expand the implementation sections for [architecture](#architecture-from-click-to-artifact), [inputs/outputs](#inputs-outputs-and-interoperability), [algorithms](#algorithms-and-assumptions), [reuse](#reuse-contribution-and-continuity), and the [media production plan](#media-and-asset-production-plan).
+The software normalizes the input, chooses or constructs trigger candidates, generates compatible RNA gate sequences, predicts selected structural properties, applies explicit filters, ranks candidates under a versioned scoring profile, assembles accepted designs into annotated plasmid records where the required biological parts exist, and exposes every result through a browser UI and an HTTP API.
 
-**Competition record:** the official 2026 iGEM rules require software work to be preserved in the team’s official iGEM Software Tools repository, with reproducible instructions, pinned dependencies, an OSI-approved license, and appropriate AI/model disclosures. The judged wiki record must remain understandable without an external live application. See [Official iGEM 2026 Team Wiki Requirements][igem-wiki-requirements] and [Official iGEM 2026 Project Software Requirements][igem-software-requirements].
+CERNAL is a **design and decision-support system**, not an experimental proof that a circuit will work. It produces computational candidates and traceable artifacts for review. Current predictions are not calibrated against a completed CERNAL wet-lab validation campaign.
 
-<!-- TODO (team): Add the official iGEM Software Tools GitLab URL when assigned and make it the primary source link. Keep the GitHub repository clearly labelled as a development mirror if it remains public. -->
-<!-- TODO (team): Confirm the team’s 2026 Village and selected judging criteria. If the team is in the Software & AI Village, state clearly in the final judging map that this page is the software record and not a Best Software submission, because Software & AI Village teams are not eligible for that award. -->
+### 1.1 The problem
 
-## CERNAL in one minute
+RNA circuit design combines several decisions that are easy to treat inconsistently when performed in separate scripts:
 
-| Question | Answer grounded in the audited release |
+- which transcript is sufficiently condition-specific;
+- which subsequence is accessible and constructible;
+- which gate chemistry is compatible with the host and trigger role;
+- whether the generated switch contains forbidden motifs or structural problems;
+- how unlike measurements such as free energy, leakage proxies, accessibility, and complexity are compared;
+- how a selected gate becomes a plasmid sequence and a reproducible result bundle.
+
+CERNAL makes those decisions explicit in one pipeline. It records input checksums, an immutable run configuration, engine and schema versions, raw and normalized metrics, rejected candidates and reasons, and checksummed output files.
+
+### 1.2 What CERNAL does not claim
+
+CERNAL does not currently claim:
+
+- experimentally measured sensitivity, specificity, dynamic range, leakage, or success rate;
+- validated biological off-target specificity;
+- a finished multi-input Boolean circuit compiler;
+- a production deployment that is publicly available;
+- that the deterministic scientific engine is artificial intelligence.
+
+## 2. Audience and realistic uses
+
+| Audience | Realistic present use |
 |---|---|
-| **Who is it for?** | Synthetic-biology researchers and iGEM teams who can evaluate RNA-switch assumptions, host context, transcriptomic contrasts, plasmid assembly constraints, and biosafety requirements. |
-| **What goes in?** | Either a direct RNA sequence or a normalized differential-expression table. The real end-to-end path is currently scoped to *E. coli* and yeast. |
-| **What happens?** | CERNAL validates the request, sources candidate triggers, performs [ViennaRNA][vienna-paper]/[RNAplfold][rnaplfold-paper] calculations, generates single-input toehold candidates, applies a provisional scoring profile, and constructs sequence artifacts for accepted candidates. |
-| **What comes out?** | Ranked and rejected candidate records, raw and normalized metrics, warnings, stable rejection reasons, a candidate table, FASTA and GenBank artifacts, resolved parameters, and SHA-256 checksums. |
-| **What is the strongest evidence?** | Current-main tests exercise direct RNA and *E. coli*/yeast differential-expression paths, deterministic ranking behavior, rejected-candidate retention, artifact checksums, and GenBank parse-back. The simulated web lifecycle is exercised through the HTTP API with the worker task function invoked inline, not through a live qcluster. |
-| **What is not established?** | Biological efficacy, calibrated specificity, wet-lab performance, human end-to-end support, production AND/NOT/antisense/CRISPR design, a provisioned hazard database, or a validated genome-wide off-target screen. |
+| iGEM and synthetic-biology teams | Compare candidate single-input RNA switches, inspect why candidates were rejected, and export sequence/plasmid records for further review. |
+| Transcriptomics researchers | Upload DESeq2/edgeR/limma-style tables or select a curated public comparison, then obtain candidate trigger windows for supported hosts. |
+| RNA-tool developers | Exercise a stable engine contract, domain model, gate registry, scoring layer, and test suite while extending the scientific stages. |
+| Software integrators | Submit jobs and retrieve results from Python, R, MATLAB, or generic HTTP clients using API keys. |
+| Judges and reviewers | Trace a displayed result back to code, configuration, source data provenance, metrics, and artifacts without relying on a development chronology. |
 
-CERNAL is best understood as a **compiler-like design workflow**. It freezes a request into a versioned `JobRequest`, runs either a real local scientific engine or a clearly simulated engine through the same contract, and returns a versioned `JobResult`. The output is a set of design hypotheses and their provenance—not a construction authorization or a claim that the top-ranked candidate will work in a cell.
+Presently defensible scenarios include a direct *E. coli* trigger-to-toehold run, an *E. coli* or yeast differential-expression-to-candidate run, use of a catalog or custom plasmid backbone, and UI/API evaluation under the deterministic mock engine. A human differential-expression run is not supported because no bundled human transcriptome is available; human plasmid defaults are also absent.
 
-## The design problem
+## 3. Product at a glance
 
-### Disconnected tools hide consequential decisions
-
-A team may begin with an RNA sequence or with evidence that genes separate two biological states. Turning that starting point into a candidate RNA switch requires several different decisions: which signal to use, where a trigger window lies, whether local RNA structure is accessible under recorded settings, which switch architecture is compatible, how candidates are filtered and ranked, and how an accepted design is represented as a plasmid artifact.
-
-When those decisions are made across spreadsheets, scripts, websites, and manual copy-paste, it becomes difficult to answer basic review questions:
-
-- Which exact input bytes produced this candidate?
-- Which parameters, references, and software versions were used?
-- Why was one design ranked above another?
-- Which alternatives were rejected, and why?
-- Does a downloadable sequence correspond to the candidate shown on screen?
-- Which measurements are real calculations, which are provisional scores, and which are still placeholders?
-
-CERNAL’s present contribution is to connect a deliberately narrow slice of that workflow through one inspectable contract. It does not remove the need for scientific judgment; it makes the computational hand-offs easier to audit.
-
-<!-- ASSET PLAN — PROBLEM / BEFORE-AFTER
-Proposed filename: assets/software/cernal-before-after-workflow.svg
-Alt text: "Two horizontal lanes compare a manual workflow with CERNAL. The manual lane passes data among separate spreadsheets, folding tools, ranking notes, and sequence files. The CERNAL lane records the same stages in one versioned run with warnings, rejected candidates, and checksums."
-Caption: "CERNAL’s value is traceability across a bounded workflow, not replacement of expert biological review."
-Production notes: Use identical stage names in both lanes; mark manual hand-offs with a broken-chain symbol and CERNAL records with document/checksum symbols; do not communicate the comparison through color alone.
--->
-
-### One user, one decision, one traceable run
-
-Consider an iGEM researcher who has identified a candidate RNA signal in *E. coli* and wants to explore a single-input toehold switch controlling GFP. The researcher needs a computational starting point, but also needs enough information to challenge that starting point before synthesis.
-
-With CERNAL, the researcher can:
-
-1. choose direct-RNA input or a supported differential-expression path;
-2. select only capabilities exposed by the running engine;
-3. submit a request whose input checksum and resolved parameters are frozen;
-4. inspect progress, warnings, accepted candidates, rejected candidates, and score components;
-5. download candidate tables and current FASTA/GenBank artifacts; and
-6. retain artifact checksums so that the reviewed bytes can be identified later.
-
-The researcher must still review the biological context, off-target risk, host assumptions, assembly constraints, institutional requirements, and wet-lab evidence. CERNAL currently supports that review with provenance and visible limitations; it does not complete the review automatically.
-
-## Current capability matrix
-
-The labels in this table are textual so that status is not conveyed by color alone.
-
-| Capability | Status on merged `main@417f838` | What the status means |
-|---|---|---|
-| Account registration, staff approval, sign-in, queued runs, cancellation, results browsing, annotations, and downloads | **Current** | The web product supports the workflow. A separate worker is required to execute queued runs. |
-| Default `MockEngine` | **Current — simulated** | Deterministic simulated results exercise the complete product contract. Screenshots and demos must say **SIMULATED** inside the visible frame. |
-| `LocalEngine` direct RNA path | **Current — bounded** | Valid RNA can produce real single-input toehold candidates through the current scientific pipeline. |
-| `LocalEngine` differential-expression path | **Current — bounded** | Normalized differential-expression input can be joined to bundled *E. coli* or yeast transcript references and then use the same trigger/toehold path. |
-| Human end-to-end design | **Not available** | Human lacks the bundled transcriptome and host assembly parts needed by the current pipeline. |
-| Single-input toehold design | **Current** | This is the production scientific gate path on merged main. |
-| Multi-input AND logic | **Not production-ready** | `ToeholdAndGate.generate_designs` and circuit-enumeration functions are incomplete; AND families are skipped by the real pipeline. |
-| Antisense/NOT design | **Not production-ready** | Antisense code and tests exist, but the pipeline skips the family because the construction path is not supported by a payload sequence library. |
-| CRISPR logic | **Not production-ready** | Generation and evaluation methods remain stubs. |
-| GFP payload | **Current** | GFP is a configured buildable output. |
-| Reviewed custom coding sequence | **Current — bounded** | A custom CDS can be supplied and validated; CERNAL emits it verbatim. |
-| Codon optimization | **Not available** | No codon optimization is performed. |
-| *E. coli* plasmid construction | **Current — bounded** | Promoter, switch, payload, terminator, and an optional supported backbone can be assembled and exported. |
-| Yeast plasmid construction | **Limited** | Yeast promoter/terminator parts exist, but no verified first-party yeast backbone is bundled; a reviewed circular custom GenBank backbone or an allowed backbone-free route is required. |
-| ViennaRNA/RNAplfold structural calculations | **Current** | Calculations use the separately licensed [ViennaRNA package][vienna-paper] and its [RNAplfold method][rnaplfold-paper]; they are computational predictions under recorded settings, not probabilities of biological success. |
-| Validated biological off-target specificity | **Not available** | The current `OffTargetScanner` has no populated index; off-target and segment-specificity values are placeholders/unmeasured. |
-| Hazard/pathogen/AMR screening database | **Not available** | No validated database or real screening adapter is provisioned on merged main. [PR #35][pr-35] proposes a fail-closed release policy but remains open and unmerged. |
-| Candidate CSV, FASTA, GenBank, checksums | **Current** | Candidate and sequence artifacts are written on merged main; sequence artifacts correspond to accepted candidates. |
-| Scientific PDF report or rendered structure/circuit report | **Not available** | `ReportBuilder` rendering/build methods remain stubbed. |
-| In-product FAQ/help route and expanded accessibility tests | **Not shipped** | Draft changes were observed without a commit or pull request, so they are excluded from judged evidence. |
-
-<!-- ASSET PLAN — CAPABILITY MATRIX
-Proposed filename: assets/software/cernal-capability-matrix-export.csv
-Alt text: Not applicable; this is the machine-readable alternative to the HTML table.
-Caption: "Machine-readable capability status for the judged commit."
-Production notes: Export the visible matrix to CSV; keep the HTML table as the primary accessible representation; if icons are added, pair each icon with the status word Current, Limited, Unmerged, or Not available.
--->
-
-## Worked workflow: a real test fixture, not a biological result
-
-This walkthrough follows the current-main direct-RNA regression fixture in [`tests/engine/test_pipeline.py`][test-pipeline]. It demonstrates software behavior with an intentionally selected test sequence. It is **not** an experimentally validated trigger and must not be presented as a safe, effective, or application-specific design.
-
-### Step 1 — define the bounded request
-
-The fixture supplies this RNA sequence:
-
-```text
-AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA
+```mermaid
+flowchart LR
+    U[Researcher] --> UI[React browser application]
+    U --> CL[Python / R / MATLAB / curl]
+    UI --> API[Django Ninja API]
+    CL --> API
+    API --> DB[(SQLite or configured database)]
+    API --> Q[django-q2 ORM queue]
+    Q --> W[Single worker]
+    W --> EC[EngineClient boundary]
+    EC --> ME[MockEngine]
+    EC --> LE[LocalEngine]
+    LE --> VE[ViennaRNA]
+    LE --> BP[Biopython GenBank adapter]
+    LE --> FS[Run output directory]
+    W --> DB
+    W --> MEDIA[Authorized artifact storage]
 ```
 
-The request selects:
+The default development configuration uses `MockEngine`, which generates deterministic simulated results while exercising the real scoring, lifecycle, persistence, and download paths. Selecting `engine.client.LocalEngine` activates the implemented scientific path. The UI reports which engine is running and labels mock results as simulated.
 
-- input mode: direct RNA;
-- host: *E. coli*;
-- gate family: single-input toehold;
-- output: the configured GFP payload;
-- engine: `LocalEngine`; and
-- scoring profile: the current default profile unless explicitly overridden.
+## 4. Inputs, validation, normalization, and configuration
 
-CERNAL also records the request schema version, run identifier, idempotency key, output directory, parameters, and input checksum in the `JobRequest` boundary.
+### 4.1 Input modes
 
-<!-- ASSET PLAN — WORKED EXAMPLE INPUT
-Proposed filename: assets/software/example-01-direct-rna-input.webp
-Alt text: "CERNAL New Circuit screen with direct RNA selected, the regression-test RNA visible, E. coli selected, single-input toehold selected, and an on-screen label stating TEST FIXTURE — NOT BIOLOGICAL VALIDATION."
-Caption: "The worked example begins with the same direct-RNA fixture used by current-main pipeline tests."
-Production notes: Capture from the judged commit; crop to the form and capability labels; remove usernames, tokens, local paths, and timestamps; include the test-fixture warning inside the screenshot rather than only in the caption.
--->
+| Mode | User supplies | Implemented behavior | Important limits |
+|---|---|---|---|
+| Differential expression (`de`) | Uploaded CSV, TSV, TXT, or XLSX; bundled example; curated public comparison; or inline CSV through the public design endpoint | Platform validates and stores the dataset. The engine parses a DGE table, ranks genes, retrieves bundled transcripts, scans trigger windows, and continues through the shared design path. | LocalEngine has bundled transcriptomes for *E. coli* and yeast, not human. It receives a DGE table, not raw counts, so `InputQualityCheck` is not used. |
+| Direct trigger/transcript (`direct`) | Pasted RNA or DNA sequence | Whitespace and DNA `T` are normalized; a trigger-sized sequence is evaluated directly, while a longer sequence is scanned for trigger windows. | Maximum pasted length is 10,000 nt. Invalid alphabet, empty input, or unusable length fails safely. |
+| Public transcriptomics catalog | Organism → experiment → comparison | A curated, pre-synchronized comparison is materialized into an owned immutable dataset with provider/accession/condition provenance. | Runtime jobs do not call external provider APIs. Catalog refresh is an offline management task. |
+| Specific gene UI route | Organism, gene identifier, optional symbol, then a sequence | The choice is recorded as `params.target_gene`; the user is moved to direct mode to paste the sequence. | Gene-to-sequence resolution is informational only and is not implemented. |
 
-### Step 2 — validate before computing
+Exactly one scientific input source is required. The database constrains a DE run to have a dataset and a direct run to have no dataset. The public `POST /api/design` endpoint extends this rule to exactly one of `trigger_sequence`, `dataset_id`, or inline `dge_csv`.
 
-The pipeline checks the input mode, RNA alphabet and length guards, organism, requested family, payload/backbone configuration, and checksum. Unsupported combinations should fail with an actionable error rather than silently produce an empty or misleading result.
+### 4.2 Dataset validation at the platform boundary
 
-For direct RNA:
+Upload validation is intentionally shallow and synchronous. It establishes whether the file is safe and interpretable enough to queue, without duplicating scientific decisions made in the engine.
 
-- RNA is normalized to uppercase A/C/G/U;
-- the minimum accepted length is 20 nucleotides;
-- the direct-input guard is 10,000 nucleotides;
-- short input is treated as a trigger, while longer input is scanned as a transcript; and
-- engine coordinates are zero-indexed, start-inclusive, and end-exclusive.
+Accepted filename types are `.csv`, `.tsv`, `.txt`, and `.xlsx`. Development defaults allow 100 MB per upload. Validation checks include:
 
-### Step 3 — source and evaluate trigger evidence
+- nonempty file and readable table;
+- header row;
+- a recognized gene identifier column;
+- at least one fold-change or expression column;
+- numeric parsing of recognized measurement columns;
+- a maximum of 200,000 rows;
+- duplicate-gene warnings and detailed sampling of the first 5,000 rows.
 
-`TriggerScorer` profiles the sequence and records structural evidence used by the current ranking path. For transcript scanning, the implemented footprints are 30, 33, and 36 nucleotides, corresponding to 12-, 15-, and 18-nucleotide toehold variants. Motif-violating windows are removed before more expensive stages. The local-opening calculation is implemented through the [RNAplfold method][rnaplfold-paper] in the [commit-pinned folding adapter][source-folding-stage].
+Common aliases are normalized case-, spacing-, punctuation-, and underscore-insensitively. Examples include:
 
-Recorded fields include mean openness, minimum per-base accessibility, minimum free energy, GC content, AUG/stop positions, and provenance for the selection method. Gate-aware ranking also uses an 8-nucleotide seed joint-opening calculation and terminal-window measurements. These are mechanistic structural hypotheses under the recorded ViennaRNA/RNAplfold settings, not calibrated success probabilities.
+| Canonical field | Examples recognized |
+|---|---|
+| `gene_id` | `gene`, `geneid`, `id`, `target_id`, `ensembl_id`, `locus_tag` |
+| `gene_symbol` | `symbol`, `gene_name`, `hgnc_symbol` |
+| `log2fc` | `log2FoldChange`, `logFC`, `fold_change`, `FC` |
+| baseline/target expression | `baseMean`, `control_mean`, `target_mean`, `treatment` |
+| significance | `padj`, `FDR`, `qvalue`, `pvalue`, `pval` |
 
-<!-- ASSET PLAN — TRIGGER WINDOW
-Proposed filename: assets/software/cernal-trigger-window-method.svg
-Alt text: "An RNA transcript is scanned with overlapping 30-, 33-, and 36-nucleotide windows. A selected window shows an 8-nucleotide seed and a terminal 20-nucleotide region, with labels for mean marginal openness, minimum accessibility, joint seed opening, and opening free energy."
-Caption: "CERNAL compares overlapping trigger footprints using recorded structural measurements; none of these values alone predicts cellular efficacy."
-Production notes: Define every coordinate convention in the figure; use patterns or line styles in addition to color; label marginal and joint quantities distinctly; cite the judged commit and method settings in the caption metadata.
--->
+Gene identifiers and display symbols remain separate because symbols are not stable unique identifiers across annotation builds.
 
-### Step 4 — generate and score toehold candidates
+Every stored dataset has a SHA-256 checksum, byte size, schema version, validation status, validation report, owner, and immutable file. The engine re-verifies the checksum before reading a DE input.
 
-`ToeholdGate` constructs a computational hairpin architecture containing a leader, complementary toehold, split stem, RBS context, start-codon sequestration, and linker. This mechanism follows the original single-input toehold-switch work of [Green et al. (2014)][green-toehold-paper], while the exact implemented construction is recorded in the [commit-pinned gate source][source-toehold]. The current implementation sweeps the supported toehold lengths and validates generated designs before scoring.
+### 4.3 Engine-side DGE parsing
 
-The scoring layer exposes raw values, normalization direction, weights, hard-filter outcomes, and ranking. Missing measurements follow the scoring profile’s declared default behavior rather than being invented. The profile is explicitly provisional, so the score is useful for comparing the current candidate set under one recorded configuration—not for claiming an absolute success rate.
+`engine.inputs.parse_dge_table` is the only raw-table edge inside the framework-free engine. It decodes UTF-8/UTF-8-BOM text, chooses comma or tab separation from the filename, maps recognized columns, converts missing or unparseable optional values to `None`, and drops only rows with no usable identifier or no fold-change value. Downstream stages receive frozen typed records rather than paths, pandas data frames, or dictionaries of strings.
 
-<!-- ASSET PLAN — TOEHOLD ANATOMY
-Proposed filename: assets/software/cernal-toehold-anatomy.svg
-Alt text: "A labelled schematic of the computational toehold switch architecture showing leader, complementary toehold, ascending stem, RBS-containing loop, descending stem with start-codon sequestration, linker, and downstream payload."
-Caption: "The implemented single-input toehold architecture. The schematic represents a computational design, not an experimentally verified structure."
-Production notes: Team-drawn schematic based on the implemented source; avoid copying a journal figure; distinguish paired regions with bracket symbols as well as color; include sequence direction labels.
--->
+The engine parser currently handles CSV/TSV text. XLSX is accepted and previewed by the platform, but LocalEngine's DGE parser reads text; this is a boundary that requires care before describing XLSX as a fully supported LocalEngine input.
 
-### Step 5 — preserve accepted and rejected candidates
+### 4.4 Organisms and host normalization
 
-The current-main regression tests establish the expected software behavior for this fixture:
+The product UI exposes *E. coli*, yeast, and human. The host determines:
 
-- the run succeeds and returns a non-empty set of toehold candidates;
-- accepted candidates receive contiguous ranks;
-- rejected candidates remain inspectable, have no rank/overall score, and carry a rejection reason;
-- repeating the same scientific request produces byte-identical candidate identity/rank/score/sequence fields under the tested conditions; and
-- the candidate table contains one row per candidate.
+- prokaryotic versus eukaryotic translation context;
+- gate-family compatibility;
+- promoter and terminator availability;
+- transcriptome availability;
+- codon/translation tool configuration;
+- permitted default plasmid assembly.
 
-A judge or user should therefore be able to inspect not only the winner, but also the alternatives and the reason a design failed a hard filter.
+Current LocalEngine scope:
 
-<!-- ASSET PLAN — RESULTS REVIEW
-Proposed filename: assets/software/example-02-candidate-review.webp
-Alt text: "CERNAL results view with separate accepted and rejected candidate rows, rank and score columns, expandable metric details, warnings, and visible rejection reasons. The screen is labelled COMPUTATIONAL TEST FIXTURE."
-Caption: "Accepted and rejected candidates remain visible so that ranking and filtering decisions can be audited."
-Production notes: Use an actual current-main LocalEngine fixture run; do not substitute MockEngine output; blur no scientific fields; remove account identity; crop closely enough that headers and rejection reasons remain readable.
--->
+| Host | Direct mode | DE mode | Built-in promoter/terminator | Notes |
+|---|---:|---:|---:|---|
+| *E. coli* | Yes | Yes | Yes | Bundled transcriptome and BioBrick-oriented defaults. |
+| Yeast | Yes | Yes | Yes | Bundled transcriptome; no bundled default backbone, so choose none or upload GenBank. |
+| Human | Structurally possible for compatible direct gates | No | No | No bundled transcriptome or mammalian assembly defaults. |
 
-### Step 6 — construct and verify artifacts
+### 4.5 Run configuration
 
-For each accepted candidate, `PlasmidBuilder` assembles promoter, switch, payload, terminator, and an optional backbone. Current-main tests verify that:
+A run freezes the following configuration:
 
-- every artifact path resolves to a real file;
-- each file’s SHA-256 matches the checksum returned in `ArtifactRef`;
-- FASTA artifacts are written for accepted candidates and not rejected candidates;
-- a GenBank artifact is written for every accepted candidate; and
-- the tested GenBank file parses back with circular topology and exactly four features. That regression does **not** assert the names or types of those four features; segment-kind assertions are covered separately.
+- input mode, dataset reference/checksum or normalized trigger sequence;
+- organism;
+- gate-family list;
+- named scoring profile and optional per-run overrides;
+- constraints;
+- desired payload outputs;
+- optional catalog or custom GenBank backbone;
+- seed;
+- idempotency key;
+- free-form notes and selected informational target gene;
+- mock-engine options when the mock is used.
 
-The checksum proves byte identity. It does not prove biological correctness, safety, manufacturability, or efficacy.
+Implemented constraint fields include maximum triggers, minimum/maximum separation, adjusted-p threshold, trigger lengths, maximum switch length, forbidden motifs, assembly standard, maximum genes, baseline-expression bounds, trigger GC range, and direction balancing. Strict public-API mode rejects unknown constraint, scoring, payload, budget, and backbone keys with a structured `422` response.
 
-<!-- ASSET PLAN — ARTIFACTS
-Proposed filename: assets/software/example-03-artifacts-and-checksums.webp
-Alt text: "CERNAL artifact list showing a candidate table, FASTA and GenBank files, candidate references, media types, and SHA-256 checksums."
-Caption: "Artifacts are tied to candidate references and checksums so reviewers can identify the exact exported bytes."
-Production notes: Use a judged-commit fixture; make the full checksum available as selectable text near the image; never expose a local absolute path or authentication token.
--->
+`budget` and dry-run estimates exist at the API layer. Estimates are deliberately described as rough; budget enforcement is not implemented in the scientific pipeline.
 
-### Step 7 — interpret the result honestly
+## 5. End-to-end pipeline
 
-This worked workflow supports the claim that current-main code can move a valid direct-RNA request through structural calculations, single-input toehold generation, provisional scoring, candidate retention, plasmid assembly, and checksummed artifact export.
-
-It does **not** support a claim that the generated switch will function in vivo, discriminate the intended biological state, avoid biologically relevant off-targets, pass a hazard screen, or be safe to synthesize. Those questions require additional validated computational methods, expert review, institutional oversight, and wet-lab evidence.
-
-<details>
-<summary><strong>Optional deep dive: implementation, architecture, inputs, outputs, and algorithms</strong></summary>
-
-## How CERNAL works
-
-### Five stages, one reviewable contract
-
-1. **Define context.** The user selects direct RNA or differential-expression input, organism, gate family, payload, backbone, constraints, and scoring options from the running capability document.
-2. **Source candidate triggers.** Direct input is validated/scanned; differential-expression input is parsed, genes are ranked, bundled *E. coli* or yeast transcripts are loaded, and the same trigger scorer is applied.
-3. **Generate compatible designs.** The current production path dispatches supported triggers to the single-input toehold family and validates generated switch designs.
-4. **Measure, filter, and rank.** Raw measurements become typed metric records, hard filters are applied, and accepted candidates are ranked while rejected candidates remain visible.
-5. **Assemble and export.** Accepted single-switch designs are wrapped as one-gene circuit candidates, assembled into plasmid representations, and written as candidate/sequence artifacts with checksums.
-
-<!-- ASSET PLAN — FIVE-STAGE WORKFLOW
-Proposed filename: assets/software/cernal-five-stage-workflow.svg
-Alt text: "Five numbered stages: define context, source triggers, generate a single-input toehold, measure and rank candidates, then assemble and export artifacts. Each stage lists its input, method, output, and evidence link."
-Caption: "The merged-main scientific path. Grey dashed boxes mark circuit enumeration, validated off-target scanning, hazard screening, and report rendering as unavailable or unmerged."
-Production notes: Make unavailable stages visually distinct with both dashed outlines and explicit text; link each stage in the final wiki to the relevant section; provide the same information as nearby HTML text.
--->
-
-## Architecture: from click to artifact
-
-### Product/data flow
-
-```text
-Browser
-  │
-  ▼
-Django Ninja API ── capability document at GET /api/version
-  │
-  ▼
-Platform services ── accounts, datasets, runs, results
-  │
-  ▼
-django-q2 task queue / worker
-  │
-  ▼
-JobRequest contract
-  ├── MockEngine  ── deterministic simulated science
-  └── LocalEngine ── current bounded scientific pipeline
-          │
-          ▼
-JobResult contract ── candidates, warnings, parameters, artifacts
-  │
-  ▼
-Result import ── browser review and downloads
+```mermaid
+flowchart TD
+    A[Submission] --> B[Validate mode, host, checksum, configuration]
+    B --> C{Input mode}
+    C -->|DE| D[Parse DGE table]
+    D --> E[Select genes]
+    E --> F[Load bundled transcripts]
+    F --> G[Scan and rank trigger windows]
+    C -->|Direct| H{Trigger-sized or longer transcript?}
+    H -->|Trigger-sized| I[Build one trigger candidate]
+    H -->|Longer| G
+    G --> J[Build trigger sets]
+    I --> J
+    J --> K[Check gate compatibility]
+    K --> L[Generate switch designs]
+    L --> M[Validate sequences and motifs]
+    M --> N[Measure raw metrics]
+    N --> O[Normalize and apply hard filters]
+    O --> P[Build single-gene circuit wrapper]
+    P --> Q[Assemble plasmid]
+    Q --> R[Rank accepted candidates]
+    R --> S[Write CSV, FASTA, GenBank]
+    S --> T[Import manifest into Django models]
+    T --> U[UI/API results, annotations, downloads]
 ```
 
-### Layer responsibilities
+### 5.1 Stage 0 — request and tool construction
 
-| Layer | Responsibility | Current source |
+`LocalEngine.run` calls `run_pipeline` through the stable `EngineClient` protocol. The pipeline resolves the host and scoring profile, builds constraints, and constructs each shared tool once per run:
+
+- `FoldEngine` for ViennaRNA MFE, partition functions, and base-pair probabilities;
+- `FoldProfiler` for gate-aware RNAplfold-style opening evidence;
+- `MotifScreener` for restriction sites, extra motifs, and homopolymers;
+- `OffTargetScanner`;
+- `CodonOptimizer` and `TranslationScorer`;
+- `PlasmidBuilder`;
+- instantiated gate families.
+
+One shared folding instance avoids inconsistent temperature/configuration and preserves its cache. Current runs intentionally construct `OffTargetScanner` with an empty transcriptome because populated-index matching is not implemented; a run warning states that off-target and segment-specificity values are placeholders rather than evidence.
+
+### 5.2 Differential-expression gene selection
+
+For DE mode, `GeneSelector` performs implemented deterministic selection:
+
+1. deduplicate rows by gene identifier;
+2. determine significance from adjusted p-values, or apply Benjamini–Hochberg correction when only raw p-values are available;
+3. classify regulation direction from fold change;
+4. apply separation and optional abundance constraints;
+5. remove genes without available transcript sequences;
+6. estimate trigger yield by scanning constructible windows and excluding forbidden start codons/motifs;
+7. combine separation, abundance, condition-specificity, and trigger-yield evidence when available;
+8. reduce redundant expression vectors when count data exists;
+9. optionally balance up- and down-regulated selections;
+10. return at most the configured number of frozen `SelectedGene` records.
+
+In the current product, no count matrix is collected, so count-dependent quality control and expression-vector redundancy information are normally absent. Missing evidence is kept missing rather than replaced with a favorable number.
+
+### 5.3 Trigger selection and accessibility
+
+`TriggerScorer` scans each selected transcript in the configured length classes, currently centered on 30, 33, and 36 nt. It:
+
+- profiles transcript opening once;
+- rejects prohibited motifs and incompatible windows;
+- records RNAplfold provenance and selected nucleation-seed evidence;
+- computes trigger MFE, GC content, AUG/stop positions, accessibility/openness, and the current off-target placeholder;
+- ranks deterministically within length buckets;
+- allocates candidates across requested lengths so one bucket does not consume the complete quota.
+
+The gate-aware path stores hypothesis-window and seed coordinates, 20-nt joint opening probability, mean marginal openness, opening-energy proxy, seed probability, and RNAplfold parameters/version. The implemented ranking is computational and provisional; it is not experimentally calibrated as a universal “best trigger” model.
+
+A direct sequence that already fits a trigger footprint takes a fast path and receives structural/accessibility measurements. A longer direct sequence reuses the same scanner used by DE mode rather than truncating the input.
+
+### 5.4 Trigger sets and gate compatibility
+
+`SwitchDesigner` turns triggers into activator/repressor sets and asks each gate family whether it is compatible. Compatibility checks are cheap and explain failures; sequence generation and validation happen only after compatibility passes. Rejection summaries distinguish incompatible trigger sets from invalid generated designs.
+
+The current production pipeline is effectively single-input. `CircuitDesigner`, `ConfusionEvaluator`, and multi-gene Boolean enumeration remain unimplemented. The pipeline wraps each accepted gate in a one-gene `CircuitCandidate` so plasmid construction and the product UI can operate without pretending that a real multi-gene circuit was synthesized.
+
+### 5.5 Toehold generation
+
+`ToeholdGate` is the active pipeline chemistry. It supports *E. coli*, yeast, and human through generic and host-specific registered names. For each trigger, it sweeps toehold lengths of 12, 15, and 18 nt where the trigger footprint permits.
+
+Construction uses:
+
+- a leader sequence;
+- a reverse-complement trigger-binding toehold;
+- a designed stem around the translation-initiation region;
+- a bulge and loop;
+- an *E. coli* ribosome-binding site or eukaryotic Kozak context;
+- an AUG start codon;
+- a fixed linker.
+
+The design records boundaries and parameters in `architecture`, allowing later code and users to relocate the toehold, stem, loop, and start codon without re-deriving them. Generated sequences are RNA, deterministic, and checked against maximum switch length.
+
+Raw toehold measurements currently include gate folding energy, predicted leakage proxy, dynamic-range proxy, trigger accessibility carried from trigger selection, and GC content. They are derived from ViennaRNA MFE/base-pair probabilities and deterministic formulas. Some planned translation/codon and ensemble-defect measurements remain unavailable.
+
+### 5.6 Other registered gate families
+
+| Family | Registry/API state | Pipeline state |
 |---|---|---|
-| React frontend | Wizard, status, candidate inspection, downloads, settings, API documentation | [`frontend/`][source-frontend] |
-| HTTP/API | Typed schemas, authentication, capability discovery, run/result endpoints | [`src/api/`][source-api] |
-| Platform/domain services | Accounts, datasets, analyses, results, lifecycle and persistence | [`src/apps/`][source-apps] |
-| Task execution | Queue submission and separate worker execution | [`tasks.py`][source-tasks] and [`services.py`][source-analysis-services] |
-| Engine boundary | Framework-free request/result/capability contracts | [`contract.py`][source-contract] and [`client.py`][source-client] |
-| Scientific engine | Input, trigger, folding, gate, scoring, plasmid, artifact stages | [`src/engine/`][source-engine] |
-| Runtime state | SQLite database, uploads, artifacts, and logs | `var/` at runtime; not source-controlled |
+| `toehold`, `prokaryotic_toehold`, `eukaryotic_toehold` | Available | Implemented single-input path. |
+| `toehold_and` and host-specific AND variants | Inherit an available flag and are advertised | Explicitly skipped because two-input sequence construction/evaluation is not implemented. |
+| `antisense` | Family implementation and family tests exist; advertised available | Explicitly skipped because normal pipeline construction lacks the required payload-aware wiring/library. It must not be presented as an operational UI path. |
+| `crispr` | Registered with `available=false` | Planned; generation/evaluation stubs remain. |
 
-### The boundary that protects scientific code
+The antisense family is scientifically distinct: it is ON without trigger and predicts residual expression when a repressor trigger is bound. It sweeps UTR-arm length, spacer length, and trigger offset; evaluates initiation-region ensemble accessibility, switch–trigger hybridization energy, and a success proxy. This code is useful implemented groundwork, but the pipeline guard prevents it from being marketed as a completed product feature.
 
-[`src/engine/`][source-engine] must not import Django, `apps`, or `api`. Platform code may import [`engine.contract`][source-contract] and [`engine.client`][source-client], but not engine internals. [`tests/test_boundary.py`][test-boundary] enforces this rule.
+### 5.7 Validation
 
-This separation matters because it keeps scientific stages testable without the web framework. It also means a future out-of-process engine could preserve the same serialized contract instead of rewriting the scientific pipeline around deployment concerns.
+`SwitchValidator` collects violations rather than silently discarding a design. Implemented checks include sequence validity, length, AUG/stop behavior, forbidden motifs/restriction sites/homopolymers, and selected gate-specific structural rules. Some intended structure-ensemble and translation-placement checks depend on still-unimplemented tool methods and are therefore not complete.
 
-<!-- ASSET PLAN — ARCHITECTURE
-Proposed filename: assets/software/cernal-user-data-flow.svg
-Alt text: "Browser requests pass through the Django Ninja API, platform services, a task queue and worker, then a versioned JobRequest reaches either MockEngine or LocalEngine. A JobResult returns candidates and checksummed artifacts for import and download. User uploads and mutable runtime storage are marked as a trust boundary."
-Caption: "Product architecture and trust boundaries from browser action to downloadable artifact."
-Production notes: Show MockEngine and LocalEngine as separate branches; label MockEngine SIMULATED; mark user uploads, mutable storage, and any external dataset acquisition as trust boundaries; link boxes to source directories.
--->
+`MotifScreener` supports linear and circular screening. Circular screening pads across the origin so a restriction site created at the plasmid join is not missed.
 
-<!-- ASSET PLAN — ENGINE PIPELINE
-Proposed filename: assets/software/cernal-engine-pipeline.svg
-Alt text: "Typed input moves through validation, optional gene selection, trigger scoring, toehold design, metric normalization and ranking, one-gene circuit wrapping, plasmid assembly, and artifact writing. Off-target scanning, multi-gene circuit design, and report rendering are labelled incomplete."
-Caption: "The current engine pipeline and the stages that remain incomplete."
-Production notes: Keep this separate from the product/data-flow diagram; use solid borders for implemented stages, dotted borders plus text for incomplete stages; include source paths below each implemented box.
--->
+### 5.8 Scoring, filtering, and ranking
 
-## Inputs, outputs, and interoperability
+Gate families return **raw measurements only**. The scoring layer owns normalization, weighting, hard filters, and ranking.
 
-### Direct RNA input
+The default versioned profile is `default-v1`:
 
-- Alphabet: RNA A/C/G/U after uppercase normalization.
-- Minimum accepted length: 20 nucleotides.
-- Direct-input maximum guard: 10,000 nucleotides.
-- Short input is treated as a trigger; longer input is scanned as a transcript.
-- Internal engine coordinates are zero-indexed, start-inclusive, and end-exclusive.
-- Invalid or unsupported input must fail rather than be silently converted into a different biological sequence.
+| Metric | Better direction | Weight | Declared range | Current evidence caveat |
+|---|---:|---:|---:|---|
+| `state_separation` | Higher | 3.0 | 0–10 log2 fold | Missing on the present single-trigger gate path. |
+| `trigger_accessibility` | Higher | 2.0 | 0–1 | Computed from structural profiling. |
+| `gate_folding_energy` | Lower | 2.0 | −60–0 kcal/mol | ViennaRNA-derived. |
+| `predicted_leakage` | Lower | 2.5 | 0–1 | Deterministic structural proxy, not measured leakage. |
+| `orthogonality` | Higher | 1.5 | 0–1 | Not presently measured. |
+| `gc_content` | Higher | 0.5 | 30–70 percent | Sequence-derived. |
+| `dynamic_range` | Higher | 2.0 | 1–500 linear fold | Structural proxy, not calibrated expression fold-change. |
+| `predicted_success_rate` | Higher | 1.0 | 0–1 | Available for antisense family evaluation, not the active toehold path. |
+| `circuit_complexity` | Lower | 1.0 | 1–10 components | Missing until real circuit design is implemented. |
 
-### Differential-expression input
+Normalization is min–max with clamping, inverted for lower-is-better metrics so `1.0` is always best. Missing metrics follow their profile rule; in the default profile they contribute the worst normalized value rather than being invented. The weighted mean is on 0–1.
 
-The web upload surface accepts CSV, TSV/TXT, and XLSX, but the scientific parser consumes normalized UTF-8 CSV/TSV. Required concepts are a gene identifier and an effect-size column. Common aliases are supported for gene identifiers and log2-fold-change-like fields; optional symbol, significance, abundance, and contrast fields may also be present.
+Default hard filters reject:
 
-A current integration defect must remain visible: XLSX and semicolon-delimited files can pass platform validation and then fail the scientific parser. In addition, aliases such as `FC` or `fold_change` populate a log2 field, so the uploader must verify the units and contrast direction rather than assuming that a header proves the scale.
+- `predicted_leakage > 0.85`;
+- `state_separation < 0.5` when that measurement exists.
 
-A current-main differential-expression regression fixture is:
+A missing value does not automatically fail a hard filter. Rejected candidates remain in the result manifest and database, carry a reason, have no rank, and can be requested in the UI/API. Accepted candidates receive contiguous one-based ranks. Custom API scoring can change weights, add/replace per-metric hard filters, and replace tie-breakers; metric directions and valid ranges cannot be changed.
 
-```csv
-gene_id,gene_symbol,log2fc,padj
-b3908,sodA,3.2,0.001
-b0033,carA,-2.8,0.002
+### 5.9 Plasmid construction
+
+For every generated design, the current pipeline builds a one-gene circuit wrapper and asks `PlasmidBuilder` to assemble:
+
+1. host promoter;
+2. switch/gate sequence;
+3. payload CDS;
+4. host terminator;
+5. optional opaque backbone segment.
+
+Current built-in parts include *E. coli* J23119/B0015, yeast GPD/ADH1 regulatory parts, GFPmut3b as the only built-in payload, and a catalog of real iGEM BioBrick vectors. The UI can choose no backbone, a catalog vector, or upload a custom GenBank record. Custom payload sequence is supported through the `other` output and is validated as a complete CDS. Other named UI outputs are skipped if no payload sequence exists; the warning is preserved.
+
+`PlasmidBuilder` checks payload start/stop/frame properties, motif/restriction compliance, circular-origin joins, and segment/frame relationships. Assembly uses CERNAL domain records; Biopython is confined to custom-GenBank parsing and GenBank export. Codon optimization is not implemented, so payloads are emitted verbatim.
+
+### 5.10 Artifacts and platform import
+
+The engine writes files through one artifact helper that records SHA-256. LocalEngine currently writes:
+
+- `candidates.csv`, including accepted and rejected candidates;
+- one switch FASTA per accepted candidate;
+- one annotated circular GenBank file per accepted candidate.
+
+The engine returns an immutable `JobResult` manifest containing schema/engine versions, status, candidates, artifact references, warnings, input checksum, and parameters. Platform import verifies manifest identity/checksums, creates candidates and metric rows transactionally, copies artifacts to protected media storage, and exposes files only through ownership-checked download endpoints.
+
+## 6. System architecture
+
+### 6.1 Boundaries
+
+```mermaid
+flowchart TB
+    subgraph Browser
+      R[React 19 + TanStack Router]
+      Q[React Query state/cache]
+    end
+    subgraph Platform
+      N[Django Ninja routers]
+      S[Application services]
+      M[Django ORM models]
+      T[django-q2 task shell]
+    end
+    subgraph Engine
+      C[engine.contract + engine.client]
+      P[pipeline]
+      ST[stages]
+      G[gates]
+      TOOLS[scientific tools]
+      D[domain records]
+    end
+    subgraph ExternalLibraries
+      V[ViennaRNA]
+      B[Biopython]
+    end
+
+    R --> N
+    Q --> N
+    N --> S
+    S --> M
+    S --> T
+    T --> C
+    C --> P
+    P --> ST
+    ST --> G
+    G --> TOOLS
+    TOOLS --> D
+    TOOLS --> V
+    ST --> B
 ```
 
-This fixture demonstrates the software path against bundled references. It is not presented here as a biological dataset or experimental result.
+The architectural rule is machine-checked:
 
-The bundled CDS FASTA files are generated by the [commit-pinned transcriptome sync script][source-sync-transcriptome] from NCBI RefSeq records. The exact audited inputs are *E. coli* K-12 MG1655 `NC_000913.3` ([NCBI record][ncbi-ecoli]) and *S. cerevisiae* S288C chromosomes `NC_001133.9`, `NC_001134.8`, `NC_001135.5`, `NC_001136.10`, `NC_001137.3`, `NC_001138.5`, `NC_001139.9`, `NC_001140.6`, `NC_001141.2`, `NC_001142.9`, `NC_001143.9`, `NC_001144.5`, `NC_001145.3`, `NC_001146.8`, `NC_001147.6`, `NC_001148.4`, plus mitochondrial `NC_001224.1` ([NCBI S288C assembly][ncbi-yeast]). The script extracts annotated CDS by `locus_tag`; these are CDS references, not complete mature transcriptomes with UTRs.
+- `src/engine/` never imports Django, API, or application modules;
+- platform code imports only `engine.contract` and `engine.client`, not engine internals;
+- cross-boundary values are frozen dataclasses;
+- engine selection is a dotted `CERNAL_ENGINE` setting.
 
-### Host, payload, and backbone assumptions
+This keeps the present in-process design reversible: a future remote engine can implement the same client/contract without rewriting the web product.
 
-- Bundled CDS reference sets are available for *E. coli* and yeast from the versioned NCBI accessions above.
-- Human is deliberately unavailable end to end.
-- GFP is the configured catalog payload on merged main, sourced as Registry part [BBa_E0040][registry-e0040].
-- A reviewed custom coding sequence can be supplied; it is emitted verbatim because codon optimization is not implemented.
-- The current parts table declares Registry records [BBa_J23119][registry-j23119], [BBa_K124002][registry-k124002], [BBa_B0015][registry-b0015], and [BBa_K1486025][registry-k1486025] as promoter/terminator sources; the exact sequences used are visible in the [commit-pinned plasmid source][source-plasmids].
-- Catalog backbones and reviewed circular custom GenBank input are supported by the plasmid stage. The ten catalog backbones are the cited Registry pSB records listed in the bibliography.
-- No verified first-party yeast backbone is bundled.
+### 6.2 Web/backend runtime
 
-### Outputs
+The backend is Django 5.2 with Django Ninja, one database, and a django-q2 ORM-backed queue. Default SQLite settings use WAL, foreign keys, a busy timeout, and a single worker. A queued task is a thin call into the analysis service; lifecycle transitions, progress, cancellation, manifest verification, and result import remain in services rather than the task wrapper.
 
-| User need | Current output | Important boundary |
+Run states are `DRAFT`, `QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`, and `CANCELLED`. Legal transitions are explicit. Cancellation is cooperative: the worker callback checks `cancel_requested` at stage and batch boundaries. Expected scientific errors become safe terminal results; unexpected programming errors are logged without exposing tracebacks or filesystem paths to users.
+
+### 6.3 Persistence model
+
+| Model | Purpose |
+|---|---|
+| `User` | Django account; new self-registrations are inactive until staff approval. |
+| `ApiKey` | Hashed long-lived non-browser credential with scopes, quotas, expiry, revocation, and last-used time. |
+| `Dataset` | Immutable owned input, checksum, validation report, and optional public-source provenance. |
+| `AnalysisRun` | Immutable submission snapshot plus controlled lifecycle, progress, engine version, warnings, and safe errors. |
+| `Candidate` | Accepted or rejected design, engine reference, rank/score, trigger/design JSON, warnings, and rejection reason. |
+| `CandidateMetric` | Queryable raw/normalized metric, weight, and direction. |
+| `Artifact` | Protected file, kind/category/label, checksum, size, and optional candidate link. |
+| `Annotation` | User decision/note: none, pinned, shortlisted, rejected, or synthesize. |
+
+Ownership is enforced by query construction. Non-staff users see only their resources; unauthorized object access is returned as not found to avoid revealing existence.
+
+## 7. Codebase and module map
+
+| Area | Principal paths | Responsibility |
 |---|---|---|
-| Compare candidates | Ranked and rejected `CandidateResult` records | Rank is relative to the current candidate set and provisional profile. |
-| Understand scores | Raw/normalized values, direction, weight, hard-filter outcome | Several profile metrics may be absent or placeholders; missing values follow declared defaults. |
-| Review failures | Warnings and stable rejection reasons | A failed filter is useful evidence, not a hidden row. |
-| Build from accepted candidates | FASTA and GenBank artifacts | Export does not authorize synthesis or establish safety. |
-| Reproduce bytes | Input checksum, resolved parameters, artifact SHA-256 | Checksums establish byte identity only. |
-| Automate | Versioned request/result objects and HTTP API surfaces | Capability metadata currently over-advertises some class-level combinations; clients must still handle clean failures. |
-| Produce a scientific report | **No implemented report on merged main** | `ReportBuilder` remains incomplete. |
+| Settings and routing | `src/config/` | Environment settings, URL order, WSGI/ASGI, static/media configuration. |
+| API | `src/api/` | Auth, schemas, capability/version endpoint, runs, design endpoint, datasets, results, public catalog, error envelopes. |
+| Accounts | `src/apps/accounts/` | Registration/approval and API-key lifecycle. |
+| Datasets | `src/apps/datasets/` | Upload storage, validation, previews, bundled example. |
+| Public expression data | `src/apps/expression/` | Offline provider adapters, normalized catalog, provenance, materialization. |
+| Analysis lifecycle | `src/apps/analyses/` | Run model, submission, queueing, progress, cancellation, worker execution. |
+| Results | `src/apps/results/` | Manifest import, candidate/metric/artifact persistence, annotations, CSV export. |
+| Engine boundary | `src/engine/contract.py`, `src/engine/client.py` | Versioned request/result dataclasses and mock/local client implementations. |
+| Engine orchestration | `src/engine/pipeline.py` | Tool construction and current direct/DE execution path. |
+| Domain model | `src/engine/domain.py` | Frozen records/enums for hosts, genes, triggers, gates, circuits, plasmids, folding, validation. |
+| Scientific stages | `src/engine/stages/` | Genes, trigger structure, motifs, off-targets, switches, circuits, plasmids, reporting. |
+| Gate chemistries | `src/engine/gates/` | Registry, base contract, toehold, antisense, CRISPR, gate-specific tools/notebooks. |
+| Scoring | `src/engine/scoring/` | Profiles, normalization, hard filters, weighted scores, ranking. |
+| Frontend | `frontend/src/` | Routes, compile wizard, results UI, docs, settings, API client, state/query hooks. |
+| Automation clients | `clients/` | Python, R, MATLAB clients and cross-client fixtures/tests. |
+| Tests/tools | `tests/`, `tools/` | Unit/integration/E2E tests, architecture rules, API-surface generator, transcriptome sync. |
 
-CERNAL currently exports FASTA, GenBank, CSV, and JSON-shaped API records. It does not claim SBOL support or standards compliance beyond the formats actually implemented.
+### 7.1 Core engine records
 
-<!-- ASSET PLAN — ARTIFACT BUNDLE
-Proposed filename: assets/software/cernal-artifact-bundle.svg
-Alt text: "An annotated file tree groups candidates.csv and warnings for inspection, FASTA and GenBank files for build review, and parameters plus checksums for reproducibility. A missing scientific PDF is explicitly marked not implemented."
-Caption: "Current artifact groups and the report output that is not yet implemented."
-Production notes: Generate the tree from an actual judged-commit output directory; do not invent filenames; include a downloadable text version; remove runtime absolute paths.
--->
+The engine uses immutable `dataclass(frozen=True, slots=True)` records. Major records include:
 
-## Algorithms and assumptions
+- `DgeRow`, `DgeTable`, `CountMatrix`, `SampleMetadata`;
+- `SelectedGene`, `TriggerCandidate`, `SeedOpeningTrial`, `TriggerSet`;
+- `Constraints`, `Compatibility`, `ValidationResult`, `Rejection`;
+- `GateDesign`, `BooleanExpression`, `LogicGraph`, `CircuitCandidate`;
+- `Segment`, `Plasmid`, `PlasmidDesign`;
+- `FoldResult`, `StructureMatch`, `OffTargetReport`, `QcReport`;
+- contract-level `JobRequest`, `CandidateResult`, `ArtifactRef`, and `JobResult`.
 
-### Gene selection
+Coordinates are zero-based with an inclusive start and exclusive end. RNA is uppercase `ACGU`; DNA is normalized explicitly. Free energies are kcal/mol, GC is percent 0–100, most accessibilities are fractions 0–1, state separation is log2 fold, and dynamic range is linear fold.
 
-`GeneSelector.select` deduplicates gene identifiers, applies absolute log2-separation bounds, uses the best available significance tier, applies optional directional abundance limits, can compute control/condition percentiles, evaluates trigger yield when transcript sequences are available, balances regulation direction, and returns at most the configured number of genes.
+## 8. Browser product and user experience
 
-The stage-level provisional weights are separation 3.0, abundance 2.0, trigger yield 2.0, non-redundancy 1.5, and condition specificity 1.0. Condition-specificity atlas evidence is currently unmeasured because no producer supplies it. These numbers are design heuristics, not calibrated biological coefficients.
+### 8.1 Route tree and navigation
 
-### Trigger selection and accessibility
+| Route | Function |
+|---|---|
+| `/` | Redirects to dashboard. |
+| `/login` | Session login, including pending-approval state and generic invalid-credential error. |
+| `/register` | Requests an account; shows the staff-approval boundary. |
+| `/dashboard` | Recent runs and empty-state entry into a new circuit. |
+| `/compile` | Four-step compiler wizard. |
+| `/runs/:runId` | Live progress/cancellation, then candidate exploration and downloads. |
+| `/settings` | API-key creation, one-time secret reveal, regeneration, revocation, scope and expiry display. |
+| `/guide` | Product quick guide. |
+| `/api-docs` | Human-readable API/client/scoring reference. |
+| `/use-cases` | Example use cases; current text includes placeholders and must not be cited as implemented evidence. |
+| `/about` | Engine capabilities and project description. |
 
-`TriggerScorer` scans the supported footprints, removes motif-violating windows, and records structural/sequence evidence. Every transcript is profiled once, then windows slice the resulting profile. Candidates are compared within length buckets and allocated round-robin, with a cap of 50 candidates per gene.
+The authenticated shell provides links to New Circuit, Dashboard, Quick Guide, Use Cases, API Reference, About Us, and Settings. It displays the app/engine state in the footer and explicitly identifies MockEngine results as simulated.
 
-The implemented evidence includes:
+### 8.2 Compile wizard
 
-- mean marginal unpaired probability across a window;
-- minimum per-base accessibility;
-- window minimum free energy;
-- GC content and AUG/stop positions;
-- an 8-nucleotide seed joint-opening calculation;
-- terminal-window opening free energy per nucleotide; and
-- terminal-window mean marginal openness.
+The compiler has four visible steps:
 
-The current off-target fields do not represent a validated genome-wide screen. `OffTargetScanner` has no populated index in the merged pipeline.
+1. **Inputs** — choose organism; select DE upload/existing dataset/public dataset, direct trigger, or specific gene; inspect validation and expression previews.
+2. **Logic** — configure desired marker logic and choose a gate mechanism from live engine capabilities; unavailable mechanisms are disabled.
+3. **Payload** — choose one or more downstream outputs or provide a custom CDS.
+4. **Vector** — choose no backbone, a capability-advertised catalog vector, or upload a custom `.gb` GenBank file.
 
-### RNA folding
+The route derives a blocking explanation before submission. It prevents invalid combinations such as no dataset in DE mode, an underspecified direct sequence, unavailable gate mechanism, no output, missing custom CDS, or too-short custom GenBank content. Submission includes an idempotency key so a retry does not create duplicate computation.
 
-`FoldProfiler` wraps the local-opening algorithm published with [RNAplfold][rnaplfold-paper], while `FoldEngine` centralizes folding through the [ViennaRNA package][vienna-paper]. Provenance records should include the effective ViennaRNA/RNAplfold versions and settings. A shared tool instance reduces the risk that different stages silently use inconsistent temperatures or caches.
+The public dataset picker follows organism → experiment → comparison and shows provider, conditions, gene counts, significance coverage, retrieval time, analysis method, DOI when present, and source provenance before materialization. Dataset preview ranks rows by absolute log2 fold-change and caps browser rendering.
 
-Predicted structures and opening values describe an equilibrium computational model for the supplied sequence/context. They do not model all kinetic, cellular, concentration, interaction, or expression effects.
+### 8.3 Run monitoring and error states
 
-### Single-input toehold construction
+The run page polls every three seconds until a terminal state. While active it shows stage, percentage, progress, and a cooperative cancel action. Failure and cancellation have distinct states with safe messages and a route back to the dashboard. Root-level 404 and unexpected-page errors have reload/home recovery paths.
 
-The implemented `ToeholdGate` follows the single-input architecture reported by [Green et al. (2014)][green-toehold-paper] and is described in source as a ViennaRNA-based port of an earlier NUPACK generator. The public file matching the named `prokaryotic_switch_generator.py` is available at a [commit-pinned project source][nupack-generator-source]. That repository exposes no license file, and GitHub reported no license metadata when checked on 28 September 2026; a closely related packaged implementation, [ToeGen][toegen-source], carries an [MIT license][toegen-license]. Because the audited CERNAL repository does not document which public copy supplied the reused code, the team must verify the exact origin and retain the correct copyright/license notice before publication. NUPACK `tube_design`, sequence optimization, and the generator’s ensemble-defect/concentration outputs were not ported; the current real pipeline uses the single-input CERNAL family only.
+### 8.4 Result exploration
 
-<!-- TODO (team): Confirm the exact reused generator repository/commit and copyright holder, then add the required license/attribution text to NOTICE and the official iGEM Attributions Form. Do not infer that the exact `prokaryotic_switch_generator.py` snapshot is MIT-licensed from the separate ToeGen package. -->
+Completed runs provide:
 
-### Scoring and filtering
+- ranked candidate list;
+- output filter for multi-output runs;
+- precision filters and rejected-candidate visibility;
+- candidate selection and detailed metric decomposition;
+- plasmid-ring and logic-circuit views;
+- trigger and design sequence/structure details;
+- accepted/rejected status and rejection reasons;
+- artifact downloads by file, category, selected IDs, or whole-run ZIP;
+- flat candidate/metric CSV export;
+- candidate annotations and decision tags.
 
-The `DEFAULT_V1` profile is explicitly provisional. It names nine metrics:
+The plasmid ring is proportional to segment lengths in the stored design. The logic view tolerates variable gene counts, including an empty graph, and has a server-render regression test. Current LocalEngine logic graphs are single-gene wrappers, not completed multi-gene Boolean designs.
 
-1. state separation;
-2. trigger accessibility;
-3. gate folding energy;
-4. predicted leakage;
-5. orthogonality;
-6. GC content;
-7. dynamic range;
-8. predicted success rate; and
-9. circuit complexity.
+### 8.5 State and API handling
 
-Not every metric is currently measured. Missing metrics follow the profile’s declared behavior, generally a worst-case default. The names `orthogonality` and `predicted_success_rate` must not be interpreted as calibrated specificity or success evidence.
+The frontend is a static React 19 SPA using TanStack Router and React Query. Query keys separate session, capabilities, datasets, public catalog levels, runs, candidates, artifacts, annotations, and API keys. Run polling stops automatically at terminal status. Session writes include CSRF; API errors are normalized into a typed `ApiError` carrying status, code, message, and detail.
 
-Current hard filters require predicted leakage no greater than 0.85 and state separation at least 0.5. Tie-breakers use state separation and then predicted leakage. Units must remain visible: GC is percent from 0–100, probability-like values are fractions from 0–1, state separation is log2 fold, dynamic range is linear fold, and energy is kcal/mol.
+### 8.6 Accessibility and responsiveness
 
-<!-- ASSET PLAN — SCORE DECOMPOSITION
-Proposed filename: assets/software/cernal-score-decomposition.svg
-Alt text: "A candidate’s raw metrics pass through direction-aware normalization, provisional weights, hard filters, and deterministic tie-breakers to produce a relative rank. Unmeasured orthogonality and predicted-success fields are marked unavailable rather than shown as data."
-Caption: "CERNAL exposes how a relative rank is assembled and which measurements are missing."
-Production notes: Populate only with a test fixture from the judged commit; label raw units and normalization direction; use hatching plus text for missing values; include the underlying CSV/JSON beside the figure.
--->
+Implemented accessibility practices include semantic headings/forms, labels, required fields, `role="alert"`/`role="status"`, descriptive button labels, keyboard-capable Radix UI primitives, text alternatives for logos, and disabled states. The layout uses responsive utility classes and hides the full desktop navigation on small screens.
 
-### Plasmid construction
+This is not equivalent to a completed WCAG audit. No repository evidence demonstrates formal screen-reader, contrast, keyboard-only, or mobile-device certification.
 
-`PlasmidBuilder.build` assembles the host promoter, switch, payload, terminator, and optional backbone, then checks assembly-standard and motif constraints. `to_genbank` and `parse_custom_backbone` are the isolated Biopython-touching functions. No codon optimization occurs, and no complete human host-parts path exists.
+## 9. API and automation
 
-</details>
+### 9.1 Authentication
 
-## Installation and demo
+The same-origin browser uses Django session cookies and CSRF protection. Non-browser clients use `X-API-Key`.
 
-### Requirements
+API keys:
 
-- Python `>=3.13,<3.14`;
-- [`uv`](https://docs.astral.sh/uv/);
-- Node.js 22 or newer for the frontend;
-- Git; and
-- network access for the first dependency installation.
+- start with a recognizable `cern_live_` prefix;
+- are shown only when created or regenerated;
+- are stored only as SHA-256 digests with a short lookup/display prefix;
+- can expire, be revoked, or be regenerated;
+- carry `read` and/or `design` scopes (`design` implies `read`);
+- default to two concurrent runs and 60 requests per minute;
+- cannot create, list, regenerate, or revoke API keys themselves;
+- cannot delete datasets, even with design scope.
 
-[`pyproject.toml`][source-pyproject] declares `viennarna>=2.7.2`, and the audited [`uv.lock`][source-uv-lock] resolves ViennaRNA `2.7.2` from PyPI. `./do install` runs `uv sync --extra dev`, so ViennaRNA is retrieved as part of the normal Python environment installation—**not** as a separate manual installation step. ViennaRNA remains separately licensed under its [upstream terms][vienna-license] and is not vendored or relicensed as CERNAL code. Frontend packages are installed from [`frontend/package-lock.json`][source-frontend-lock] by `./do install-frontend`.
+Rate counters use Django's database cache so they are shared across web workers. Session users are exempt from API-key quotas.
 
-### Local installation
+### 9.2 Main HTTP surface
 
-Run these commands from the official CERNAL source checkout:
+| Area | Endpoints |
+|---|---|
+| Meta | `GET /api/health`, `GET /api/version`, `GET /api/openapi.json`, interactive `/api/docs` |
+| Session/auth | `GET /api/auth/csrf`, `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` |
+| API keys | list/create/revoke/regenerate under `/api/auth/keys`; `GET /api/auth/whoami` for key verification |
+| Datasets | list/upload/get/preview/delete; bundled example listing/materialization |
+| Public catalog | organisms, experiments, comparisons, comparison detail, materialization |
+| Runs | list, submit, status, detail, cancel |
+| Fast design API | `POST /api/design`, `GET /api/design/{id}`, `GET /api/design/{id}/results` |
+| Results | paginated/filterable candidates, candidate detail, artifacts, protected download, ZIP, CSV export |
+| Decisions | list/create candidate annotations; delete annotation |
+
+All API errors use one envelope with code, message, and structured detail. The public design API supports asynchronous `202`, optional server-side wait up to 300 seconds, dry-run estimate without persistence, strict typo detection, custom scoring, selected artifact kinds, top-N results, and idempotency.
+
+### 9.3 Versioning and provenance
+
+`GET /api/version` advertises app version, selected engine class/version, engine schema version, registered gate families and availability, scoring profiles, metric vocabulary/units, hard filters, and available backbones. The engine contract has a schema version. Scoring profiles and gate families have their own versions. Each run stores engine version, scoring configuration, seed, parameters, warnings, and input checksum.
+
+`docs/api-surface.md` is generated from the actual Python engine surface. A freshness test regenerates it and fails if the committed document differs.
+
+### 9.4 Client libraries
+
+| Client | Implemented surface | Validation status |
+|---|---|---|
+| Python | `Client.design/status/results/artifact/capabilities`; `Job.wait/best/to_dicts/to_dataframe/artifact`; typed exceptions | Conformance tests run against a live Django test server. |
+| R | `cernal_client`, design/wait/results/artifact/capabilities; typed S3 errors; tibble output | Code and conformance tests exist; README states it was not independently verified because an R interpreter was unavailable at authorship time. |
+| MATLAB | `cernal.Client` and `cernal.Job`, request/error translation, table conversion and tests | Code/tests exist; runtime verification depends on a MATLAB environment. |
+| curl/generic HTTP | Complete REST surface documented by OpenAPI | Works with `X-API-Key`; users must manage polling and downloads. |
+
+Cross-client fixtures define a common design request and expected result columns. A downloadable Jupyter quickstart demonstrates capabilities, submission, waiting, custom scoring, dry-run sweeps, plotting, and artifact download; it contains placeholders for deployment URL/key and is not an executed benchmark.
+
+## 10. Outputs and reproducibility
+
+### 10.1 Candidate records
+
+A candidate contains:
+
+- engine reference and database UUID;
+- rank and 0–1 overall score when accepted;
+- gate family, logic type, and selected output;
+- trigger features and structural provenance;
+- switch sequence, structure, toehold length, trigger offset;
+- plasmid segments and total length;
+- logic graph representation;
+- full metric decomposition;
+- warnings;
+- rejection flag and reason.
+
+Rejected candidates are first-class output. Database constraints require a rejection reason and prohibit a rejected candidate from having a rank.
+
+### 10.2 Files
+
+| File/artifact | Contents |
+|---|---|
+| Candidate export CSV | Candidate identity, rank, family, logic, score, rejection status/reason; platform CSV expands metric columns. |
+| FASTA | Accepted switch sequence with candidate metadata. |
+| GenBank | Annotated circular plasmid record for each accepted candidate. |
+| ZIP | Server-generated archive of all, one category, or selected artifacts. |
+| Mock artifacts | Deterministic files used to exercise product paths; not scientific evidence. |
+| Planned report/figures | Artifact kinds and stubs exist, but LocalEngine does not yet produce PDF reports or structure/logic image artifacts. |
+
+Every engine artifact has a kind, relative path, media type, SHA-256 checksum, and optional candidate reference. The platform records byte size, protects downloads with ownership checks, sanitizes storage paths, and uses `X-Content-Type-Options: nosniff`.
+
+### 10.3 Determinism
+
+The mock engine seeds generation from idempotency key and optional seed. The real engine avoids mutable global scientific state, uses stable identifiers/orderings, and records configuration. Reproducibility still depends on the exact engine version, ViennaRNA/Biopython versions, bundled transcriptome/catalog revisions, and selected/custom biological parts. A seed cannot compensate for changed scientific code or reference data.
+
+## 11. AI, machine learning, and scientific-model boundary
+
+### 11.1 Runtime AI/ML
+
+There is **no runtime generative AI, large language model, neural network, trained classifier, or remote inference service** in the implemented application. The Python and JavaScript dependency manifests contain no AI inference SDK. Runs do not send biological data to an AI provider.
+
+### 11.2 What is deterministic computation
+
+The following are deterministic software algorithms, not AI:
+
+- column normalization and validation;
+- Benjamini–Hochberg adjustment and rule-based gene filtering;
+- sliding-window trigger enumeration;
+- motif/restriction/homopolymer screening;
+- gate sequence templates and reverse complements;
+- min–max normalization, weighted means, hard filters, and ranking;
+- plasmid concatenation and GenBank serialization;
+- lifecycle, quotas, authentication, persistence, and UI filtering.
+
+### 11.3 What is a scientific model/tool
+
+ViennaRNA secondary-structure thermodynamics, partition functions, MFE structures, and base-pair probabilities are scientific computational models. Structural leakage/dynamic-range/success quantities built from them are **proxies**. They should be described as predictions or heuristics, not as measured biology and not as AI.
+
+The mock engine is deterministic simulated output. It is a testing fixture, not a scientific model.
+
+### 11.4 AI-assisted development/documentation
+
+The repository records AI-assisted design/development provenance in `docs/attribution.md` and preserves the Lovable-origin frontend design reference. AI assistance in coding, drafting, or documentation does not make AI part of the runtime system. The final iGEM attribution must state the tools used, the human review performed, and which retained work was AI-assisted.
+
+## 12. Installation, operation, and deployment
+
+### 12.1 Requirements
+
+- Python 3.13 (the project excludes 3.14);
+- `uv` for locked Python environments;
+- Node.js 22+ for frontend build/development;
+- ViennaRNA and Biopython installed through the Python environment;
+- a worker process in addition to the web process.
+
+### 12.2 Local operation
 
 ```bash
 ./do install
-./do install-frontend
 ./do migrate
 ./do superuser
 ./do build-frontend
+./do dev
 ```
 
-### Choose one engine for both processes
-
-The web server and task worker are separate processes. They must receive the **same** `CERNAL_ENGINE` value or `/api/version` can describe one engine while queued jobs execute another.
-
-For the real bounded scientific pipeline, run:
+In another terminal:
 
 ```bash
-# Terminal 1 — web server
-CERNAL_ENGINE=engine.client.LocalEngine ./do dev
+./do worker
 ```
+
+Without the worker, submissions remain queued. The production frontend is built into Django static assets; production does not require a Node server.
+
+To run the scientific path, set:
 
 ```bash
-# Terminal 2 — task worker
-CERNAL_ENGINE=engine.client.LocalEngine ./do worker
+CERNAL_ENGINE=engine.client.LocalEngine
 ```
 
-For a deterministic simulated demonstration, replace `LocalEngine` with `MockEngine` in **both** terminals:
-
-```bash
-CERNAL_ENGINE=engine.client.MockEngine ./do dev
-CERNAL_ENGINE=engine.client.MockEngine ./do worker
-```
+The safe development default is `engine.client.MockEngine`. Production requires an explicit secret key and allowed hosts; optional settings include trusted CSRF origins, database URL, media root, upload limit, and log level. Secrets must not be committed.
 
-Run those two MockEngine commands in separate terminals. Without the worker, submitted runs remain queued. A MockEngine demonstration must say **simulated** in the UI, screenshot, video, and caption.
+### 12.3 Deployment status
 
-### Verify the API and result manifest agree
-
-First record the active capability document:
+The repository currently tracks only `deploy/.gitkeep`; no Dockerfile, systemd unit, Nginx/Caddy configuration, or deployment automation is implemented under `deploy/`. `docs/deployment.md` describes a proposed VPS/cloud separation and runbook, not verified deployed infrastructure. Production Django settings include TLS/security assumptions, but operators must provide and test the actual reverse proxy, services, backups, monitoring, static collection, worker supervision, and upgrade process.
 
-```bash
-curl --fail --silent http://127.0.0.1:8000/api/version > version.json
-python3 -m json.tool version.json
-```
+SQLite plus one ORM-queue worker is the accepted v1 architecture. PostgreSQL and another broker are possible configuration changes, but multi-machine worker scaling and independent engine scaling are not implemented.
 
-Then complete a run and download its `run_manifest` artifact as `manifest.json`. Compare the version advertised by [`GET /api/version`][source-api-meta] with the version written from the actual `JobResult` into the [run manifest][source-results-services]:
+## 13. Testing and validation evidence
 
-```bash
-python3 - <<'PY'
-import json
+### 13.1 Test map
 
-version = json.load(open("version.json", encoding="utf-8"))
-manifest = json.load(open("manifest.json", encoding="utf-8"))
+| Suite | What it validates |
+|---|---|
+| `tests/engine/` | Domain records, contract, inputs, gene/trigger selection, RNA tools, toehold/antisense families, switches, plasmids, scoring, pipeline, store, transcriptomes, and house rules. |
+| `tests/api/` | Authentication, registration, API keys/scopes/quotas, datasets, public datasets, input modes, runs, fast design API, results, artifacts, CSV/ZIP, annotations. |
+| Top-level backend tests | Models, lifecycle/cancellation, result import, expression providers/services, admin, seed demo, architecture boundary, scaffold, API-surface freshness. |
+| `tests/e2e/test_full_workflow.py` | Researcher workflow and failed-run presentation through backend/API layers. |
+| `frontend/e2e/render-logic.mjs` | Server-renders logic diagrams for varying activator/repressor counts and empty graphs. |
+| `frontend/e2e/smoke.mjs` | Browser workflow against a live server/worker; parts of this script still reference obsolete project routes and require maintenance before being treated as current evidence. |
+| Python client conformance | Live-server submission, capabilities, auth errors, typo suggestions. |
+| R/MATLAB client tests | Source-level conformance suites requiring their respective runtimes. |
+| `tests/test_api_surface_is_fresh.py` | Generated API-surface document matches the engine. |
+| `tests/test_boundary.py` | Engine/platform import boundary. |
+| `tests/engine/test_house_rules.py` | Shared tools, metric vocabulary, raw-value rules, forbidden imports, and construction discipline. |
 
-expected_engine = "LocalEngine"
-version_prefix = {"LocalEngine": "local-", "MockEngine": "mock-"}[expected_engine]
-assert version["engine"] == expected_engine, version
-assert manifest["engine_version"].startswith(version_prefix), manifest
-assert version["engine_version"] == manifest["engine_version"], (version, manifest)
-print(version["engine"], version["engine_version"], "matches manifest")
-PY
-```
+### 13.2 What tests demonstrate
 
-For a simulated run, change `expected_engine` to `MockEngine`. The API identifies the configured engine class and version; the manifest’s version prefix identifies the engine family and its full `engine_version` must exactly match the API. Do not use a screenshot or artifact as judged evidence unless this comparison passes.
+The tests substantiate software behavior: deterministic transformations, validation, lifecycle transitions, authorization, API response shapes, checksum/import behavior, mathematical normalization, and selected scientific computations against fixtures/golden cases.
 
-### Verify a checkout
+They do **not** demonstrate:
 
-```bash
-./do check
-./do lint
-./do test
-./do build-frontend
-```
+- wet-lab function of generated constructs;
+- predictive accuracy across organisms or conditions;
+- validated off-target specificity;
+- clinical safety or fitness for diagnostic/therapeutic use;
+- production reliability of an undeployed public service.
 
-When the web server and worker are running with the same engine selection, `./do smoke` drives a browser flow. The final judging release should publish the exact commands, operating system/container details, dependency lockfiles, and expected fixture artifacts.
+Repository test counts and historical README numbers can become stale; the relevant claim is the result of the exact verification commands run against the published revision.
 
-### Demo availability
+### 13.3 Verification snapshot for this wiki revision
 
-**No public deployment URL was established by the audited repository evidence.** Deployment documentation is planning material and must not be treated as proof that a production service exists.
+On 29 September 2026, the branch revision documented by this page was checked with the repository's locked Python environment and Node.js 22.23.3:
 
-<!-- TODO (team): Add either (1) a verified iGEM-hosted/static demonstration path plus a separately linked live service, or (2) a clearly labelled “No public live service” statement. The judged wiki must retain a captioned recording, static screenshot walkthrough, example input, and expected artifact bundle even if an external service is unavailable. -->
+- `pytest -q`: **1,148 tests passed** in 61.54 seconds;
+- `ruff check .`: passed;
+- `ruff format --check .`: 206 files already formatted;
+- Django `manage.py check`: passed after the frontend production assets were generated;
+- Vite production build: 2,533 modules transformed and the static application bundle generated;
+- frontend `npm run check`: TypeScript, ESLint, and all seven logic-diagram render cases passed;
+- wiki validation: clean Git whitespace diff, balanced code fences, required sections present, and all 67 relative Markdown links resolved.
 
-<!-- ASSET PLAN — DEMO VIDEO
-Proposed filename: video-universe/cernal-75-second-walkthrough.mp4
-Alt text: Not applicable to video; provide captions and a full transcript.
-Caption: "A release-pinned walkthrough from input selection to candidate and artifact review. Demo data and engine mode remain visible throughout."
-Production notes: Host on iGEM Video Universe; 60–90 seconds; no autoplay audio; burned-in release/commit label; human-edited captions; transcript directly below the player; include a static fallback sequence; never use a fabricated successful result.
--->
+These checks verify the software and documentation behavior represented in the repository. They do not substitute for biological experiments, production-service monitoring, or independent accessibility/security assessment.
 
-## Validation and evidence
+## 14. Security, safety, and responsible use
 
-### What has been verified
+### 14.1 Security controls
 
-| Evidence type | Verified behavior | Scope boundary |
-|---|---|---|
-| Direct `LocalEngine` regression path | A valid direct-RNA fixture completes with non-empty toehold candidates through the real current pipeline. | Software/computational behavior only; no wet-lab claim. |
-| Differential-expression regression paths | Real bundled *E. coli* and yeast identifiers can reach accepted toehold candidates. Human fails cleanly. | Test fixtures and bundled references; not a claim of generalization to all datasets. |
-| Candidate auditability | Accepted candidates are ranked contiguously; rejected candidates keep reasons and no misleading rank. | Ranking remains relative and uses a provisional profile. |
-| Determinism | Repeated tested requests preserve candidate identity/rank/score/sequence fields. | Applies to the tested configuration, not every future dependency/platform. |
-| Artifact integrity | Files exist and their SHA-256 values match `ArtifactRef`; candidate table row counts match candidate records. | Hashes prove identity, not biological validity. |
-| Sequence export | FASTA is limited to accepted candidates; GenBank is produced per accepted candidate. The parse-back regression asserts circular topology and `len(record.features) == 4`—not four named feature types. | Does not prove synthesis, assembly, expression, or safety. |
-| Engine/platform boundary | [`tests/test_boundary.py`][test-boundary] enforces the allowed dependency direction. | Architectural test, not scientific validation. |
-| Web lifecycle | [`tests/e2e/test_full_workflow.py`][test-e2e] covers authentication, capability discovery, upload, queueing, candidate review, rejection reasons, download, annotation, export, and idempotency with simulated engine output. | It invokes `apps.analyses.tasks.run_analysis(run_id)` inline through the worker task function; it does **not** launch or prove a live qcluster worker. |
+Implemented controls include:
 
-### What has not been verified
+- same-origin session cookies with CSRF protection;
+- HttpOnly Django session design rather than browser-stored JWTs;
+- API-key hashing, expiry, revocation, scopes, concurrency ceilings, and rate limits;
+- inactive-by-default self-registration with staff approval;
+- owner-scoped queries and protected artifact downloads;
+- safe error envelopes without tracebacks/paths;
+- upload size/row limits and sanitized artifact paths;
+- production secure cookies, HTTPS redirect, HSTS, frame denial, MIME sniffing protection, and same-origin referrer policy;
+- no automatic retry of expensive worker jobs.
 
-- No wet-lab validation was found for current candidates, scoring, leakage, dynamic range, specificity, or efficacy.
-- No calibrated relationship has been established between rank and experimental success.
-- No validated genome-wide off-target scan is implemented.
-- No real hazard database/tool adapter is provisioned.
-- No human end-to-end workflow is supported.
-- No independent usability study or accessibility conformance audit was found.
-- No production deployment, service-level objective, retention policy, or public-demo uptime was established by the audited evidence.
+Remaining operational security work includes threat modeling and review of a real deployment, dependency scanning/update policy, backup/restore drills, log/privacy policy, incident contact, and independent penetration testing.
 
-### Required evidence bundle for every wiki result
+### 14.2 Biological safety
 
-Before a result is shown as evidence, preserve:
+CERNAL generates nucleotide sequences and therefore must be used under institutional and competition biosafety processes. Computational motif/restriction checks are not a hazard screen. The code has no validated pathogen/toxin database, sequence-order risk classifier, or biological containment assessment.
 
-- exact Git commit/tag and engine/schema/application versions;
-- a captured `/api/version` document plus a downloaded result manifest whose `engine_version` matches it;
-- original input bytes and SHA-256;
-- input mode, host, gate, payload, and backbone;
-- resolved constraints and scoring profile/overrides;
-- seed and idempotency information where applicable;
-- ViennaRNA/RNAplfold and reference-data versions;
-- warnings and rejected candidates;
-- result manifest and artifact checksums; and
-- exact UI route, command, or API payload used to reproduce it.
+Users must independently review:
 
-`CandidateStore` supports audit-oriented records, but `snapshot` and `load_snapshot` remain unimplemented on merged main. Do not claim complete per-stage replayability.
+- host, payload, vector, selectable marker, promoter, and terminator;
+- unintended open reading frames and regulatory elements;
+- organism-specific off-targets;
+- assembly standard and laboratory protocol;
+- local biosafety, synthesis-provider, and legal requirements.
 
-<!-- ASSET PLAN — VALIDATION SUMMARY
-Proposed filename: assets/software/cernal-validation-evidence.svg
-Alt text: "A four-column evidence map separates software tests, analytical computations, user evidence, and wet-lab evidence. Software tests and analytical computations contain documented items; user evidence is limited; wet-lab evidence is marked not completed."
-Caption: "Evidence types are separated so computational checks cannot be mistaken for experimental validation."
-Production notes: Do not use a green-to-red color scale alone; print the labels Verified, Limited, and Not completed; link every verified item to a test, artifact, or Results/Engineering page.
--->
+The `SYNTHESIZE` annotation is a user decision label, not automated safety approval.
 
-## Safety, security, and responsible use
+### 14.3 Scientific limitations
 
-### Intended-use boundary
+- Real off-target matching is stubbed; current specificity fields are placeholders with warnings.
+- The active pipeline designs single-input/single-gene candidates, not general Boolean circuits.
+- AND toehold generation and CRISPR gates are not implemented.
+- Antisense is implemented at family level but not operationally wired into normal runs.
+- Human DE and default human plasmid assembly are unsupported.
+- Only GFP is a built-in payload; other outputs require a custom validated CDS.
+- No codon optimization is performed.
+- Several scoring metrics are missing on current candidates and therefore depress scores under the default missing-value rule.
+- Scoring ranges, weights, filters, and structural proxies are provisional.
+- No current candidate set has CERNAL-specific wet-lab validation.
 
-CERNAL is research and design-support software. Its output is a computational hypothesis. It is not:
+## 15. Licensing, attribution, citation, and reuse
 
-- clinical, diagnostic, or therapeutic advice;
-- automated biosafety or biosecurity approval;
-- authorization to synthesize or construct a sequence;
-- evidence that a candidate is non-hazardous, specific, effective, or manufacturable; or
-- a substitute for institutional, legal, ethical, host-context, assembly, and experimental review.
+CERNAL source is licensed under Apache License 2.0. Redistributors must preserve the license and NOTICE obligations. `CITATION.cff` provides the software citation but still contains a team task to replace collective authorship and add the final repository-code URL.
 
-Users must independently review every candidate and follow the current [iGEM Safety and Security Requirements][igem-safety-requirements], [iGEM Safety Policies][igem-safety-policies], local institutional rules, and applicable law.
+Third-party components have their own licenses. Of particular importance, ViennaRNA is installed by the user and is not under an OSI-approved license; a distributed CERNAL bundle must not be described as wholly open source without that qualification. Biopython, Django, Django Ninja, React, TanStack, Radix, and other dependencies must be attributed according to `docs/attribution.md` and their licenses.
 
-### Current merged-main safeguards and gaps
+The frontend originates from a Lovable design export that was substantially adapted into a static SPA; the preserved design reference and ADR document that provenance. Public expression datasets retain provider/accession/condition/retrieval/publication fields where available.
 
-Merged main performs motif/restriction and structural checks during design and assembly. It does **not** contain a validated hazard database or a validated biological off-target screen. `build_tools` constructs `OffTargetScanner({})`; current off-target and segment-specificity fields are unmeasured placeholders, and the result includes warnings rather than pretending they are evidence.
+Teams reusing CERNAL should preserve the engine/platform boundary, version scientific profiles and gate rules when behavior changes, keep raw measurements, record missing evidence as missing, and add tests before enabling a family in capabilities.
 
-The product also handles accounts and uploaded files. Any public deployment therefore needs explicit ownership for access control, retention, deletion, incident response, logs, backups, post-competition account handling, and restrictions on confidential or controlled data. Those operational policies were not established by the audited evidence.
+## 16. Implemented, optional, and planned summary
 
-### PR #35 is open and unmerged
-
-[Pull request #35 — fail-closed output sequence release gate][pr-35] is **open, unmerged, and not part of current main**. Its head is `8347e8aeff0a255cb6a0931cc377008bc52a56dc` on `feat/output-sequence-safety-screening`.
-
-The branch proposes:
-
-- an offline-first local screening-adapter contract;
-- fail-closed sequence-release decisions;
-- audit manifests and signed review tokens; and
-- withholding FASTA/GenBank while preserving non-sequence metadata when screening evidence is unavailable.
-
-It does **not** provision or validate a real hazard database/tool adapter. Until such an adapter, evidence base, operating procedure, and validation are established, PR #35 is a release-policy prototype that holds output—not a hazard-identification service. Screenshots or prose must label it **UNMERGED PROTOTYPE**.
-
-### Before any build or synthesis decision
-
-1. Confirm the exact input, parameters, engine version, warnings, and artifact checksum.
-2. Review whether the organism, payload, backbone, and biological context are actually supported.
-3. Treat all current specificity/off-target fields as unvalidated unless separately supported by reviewed evidence.
-4. Perform independent biological, biosafety, biosecurity, ethics, and assembly review.
-5. Obtain all required iGEM, institutional, national, supplier, and other approvals before beginning regulated work.
-6. Design and document appropriate experimental controls; do not infer efficacy from rank or visualization.
-7. Do not upload restricted, confidential, patient-derived, or otherwise sensitive data without an approved lawful basis and deployment policy.
-
-<!-- ASSET PLAN — SAFETY BOUNDARY
-Proposed filename: assets/software/cernal-safety-boundary.svg
-Alt text: "Current main performs input, motif, structural, and assembly checks, but validated biological off-target and hazard screening are absent. A separate box labelled PR #35 — OPEN, UNMERGED PROTOTYPE shows a fail-closed sequence-release policy without a provisioned database."
-Caption: "Current safeguards, missing biological screens, and the exact boundary of unmerged PR #35."
-Production notes: Put OPEN and UNMERGED inside the figure; do not use a shield/checkmark that implies safety certification; link the PR box to the exact pull request and commit.
--->
-
-## Accessibility and user support
-
-### Evidence on merged main
-
-Inspected frontend routes include labelled form fields, `role="alert"` and `role="status"` regions, image `alt` attributes, and visible `focus-visible` rings in several controls. These are useful implementation details, but they do not establish comprehensive accessibility or WCAG conformance.
-
-### Uncommitted FAQ/help work is not shipped
-
-An evidence audit observed uncommitted FAQ, usage-guide, help-route, component, and browser-test changes, including proposed semantic controls, keyboard behavior, focus styling, landmarks, headings, labelled search, table captions, stable IDs, an `aria-live` result count, and named mobile controls.
-
-Because no commit or pull request provides a stable judge-facing record, this page treats that material only as editorial/accessibility work in progress. It is not current-main evidence and must not be shown as shipped until reviewed and merged.
-
-### Publication accessibility checklist
-
-The final wiki implementation should target WCAG 2.2 AA as a practical baseline without claiming conformance until it is tested. At minimum:
-
-- keep one page-level H1 and a logical heading hierarchy;
-- add a skip link and keyboard-visible focus;
-- make every interactive control reachable and operable without a pointer;
-- provide meaningful alt text for informative images and empty alt text for decoration;
-- provide nearby tables/text alternatives for complex figures;
-- caption videos and publish transcripts;
-- avoid autoplay audio and respect reduced-motion settings;
-- meet text/control contrast requirements;
-- never use color alone for status, ranking, warnings, or data series;
-- make tables responsive while preserving header associations;
-- verify 200% zoom, narrow-width reflow, keyboard order, visible errors, and screen-reader names; and
-- test with users outside the implementation team where possible.
-
-<!-- ASSET PLAN — ACCESSIBLE SCREENSHOT ANNOTATION
-Proposed filename: assets/software/cernal-accessibility-callouts.webp
-Alt text: "A CERNAL form screenshot annotated with labelled fields, keyboard focus, error summary, status announcement, and descriptive button names."
-Caption: "Examples of semantic and keyboard-visible behavior to verify before the wiki freeze."
-Production notes: Capture only after the relevant behavior is merged; annotations must identify real DOM behavior, not design intentions; publish a text checklist beside the image.
--->
-
-## Reuse, contribution, and continuity
-
-### What a future team can reuse now
-
-A future team can inspect and extend:
-
-- the versioned `JobRequest`, `EngineCapabilities`, `CandidateResult`, `ArtifactRef`, and `JobResult` contracts;
-- the framework-free scientific-engine boundary;
-- the direct and scoped differential-expression paths;
-- trigger/folding/toehold/scoring/plasmid stages;
-- regression fixtures and architectural boundary tests;
-- API/web product patterns for asynchronous scientific jobs; and
-- provenance patterns for candidate, warning, rejection, and artifact records.
-
-The development source currently lives in the [CERNAL GitHub repository][cernal-github]. For iGEM evaluation, the official iGEM Software Tools repository must become the authoritative competition source.
-
-### License and dependency boundary
-
-CERNAL code is licensed under Apache-2.0. ViennaRNA `2.7.2` is a separately licensed dependency resolved in [`uv.lock`][source-uv-lock] and retrieved by `./do install`; it is not manually installed as an extra standard step, vendored in the CERNAL repository, or covered by CERNAL’s Apache-2.0 license. The upstream [ViennaRNA license][vienna-license] permits use and modification under conditions that are not represented as an OSI-approved license here. The final publication must also verify and state the applicable Biopython and all other third-party notices accurately.
-
-The reused toehold-generator provenance also needs closure: cite the exact [generator source][nupack-generator-source], confirm its applicable copyright/license, and do not substitute the separate [ToeGen MIT license][toegen-license] unless the team verifies that ToeGen is the actual source of the reused code.
-
-Do not describe the entire runnable stack as “fully open source” without this dependency boundary. Preserve `LICENSE`, `NOTICE`, lockfiles, and a generated third-party license report in the official repository.
-
-### Contributor handoff
-
-A useful continuation package should include:
-
-- the official iGEM repository and exact judging tag/commit;
-- an OSI-approved project license and third-party notices;
-- clean-environment installation and verification commands;
-- the test-fixture input and expected artifact manifest;
-- system requirements and measured runtime/memory for the judged example;
-- API and Python-client status, including unsupported combinations;
-- architecture and engine-boundary documentation;
-- test commands and contribution conventions;
-- changelog/migration notes;
-- issue, security, and contact routes; and
-- a completed `CITATION.cff` with individual citation authors.
-
-<!-- TODO (team): Add official repository URL, judging tag, release date, archive/DOI if available, measured example runtime/memory, issue URL, security contact, maintainer/contact after the competition, and support expectations. -->
-
-<!-- ASSET PLAN — REUSE CARD
-Proposed filename: assets/software/cernal-reuse-map.svg
-Alt text: "A future team can start from the versioned contract, replace or extend a scientific stage behind the engine boundary, run regression tests, and produce the same candidate and artifact record types."
-Caption: "Reuse path for extending CERNAL without coupling scientific stages to the web framework."
-Production notes: Link each step to a source directory or documentation page; include the Apache-2.0 label and a separate ViennaRNA dependency/licensing note; do not imply that unfinished stages are reusable production modules.
--->
-
-## Limitations and future work
-
-### Limitations visible to users now
-
-| Limitation | User impact | Current mitigation | Evidence needed before a stronger claim |
+| Capability | Current | Configuration-dependent | Planned/incomplete |
 |---|---|---|---|
-| `MockEngine` is the default | A complete-looking run may be simulated | Persistent simulated label and explicit engine selection | Verified public demo configuration and screenshot audit |
-| Real pipeline is single-gene/single-input toehold only | Users cannot build production multi-input logic | Capability-driven selection and clean failure | Implemented circuit enumeration plus tests and biological validation |
-| Human path is unavailable | Human datasets cannot run end to end | Fail cleanly; expose supported hosts | Curated transcript references, host parts, privacy review, tests, validation |
-| No validated off-target scanner | Specificity cannot be claimed | Warnings and unmeasured placeholders | Reference index, algorithm validation, benchmarks, reviewed thresholds |
-| No provisioned hazard screen | “Safe” output cannot be claimed | Independent review; PR #35 proposes fail-closed withholding | Validated local adapter/database, governance, audit procedure, test cases |
-| Provisional scoring profile | Rank is not a calibrated outcome probability | Show components, units, directions, and missing values | Pre-specified benchmark and wet-lab comparison with uncertainty |
-| Incomplete codon/translation methods | Payload manufacturability/expression is not optimized | Emit reviewed payload verbatim | Implemented methods, host-specific validation, explicit output contract |
-| No verified bundled yeast backbone | Yeast assembly choices require extra work | Reviewed custom circular GenBank or permitted omission | First-party backbone provenance and assembly validation |
-| File-format mismatch | Some uploads validate but fail scientific parsing | Prefer normalized UTF-8 CSV/TSV; show clear errors | One canonical normalization layer plus contract tests |
-| Capability metadata over-advertises combinations | UI/API may expose combinations that later fail | Treat `/api/version` as necessary but not sufficient; preserve clean errors | Mode × host × gate × payload × reference capability matrix generated from executable probes |
-| No scientific PDF/structure renderer | Users must inspect tables and sequence artifacts directly | Export current machine-readable artifacts | Implemented renderer, tests, accessible alternatives, provenance |
-| No complete stage snapshot/replay | Full per-stage replay cannot be claimed | Preserve request/result/artifact checksums and parameters | Implement and test `CandidateStore.snapshot/load_snapshot` |
-| No wet-lab evidence | Biological performance is unknown | Label outputs computational and require experiments | Pre-registered experiments, controls, raw data, analysis, negative results |
-| No proven production deployment | Availability, privacy, retention, and operations are unknown | Local reproducible operation; archive the wiki record | Deployment verification, owner, policies, monitoring, incident process |
-| No comprehensive accessibility audit | Some users may encounter barriers | Semantic implementation checklist and testing plan | Keyboard, zoom, contrast, screen-reader, caption, user testing evidence |
+| Browser accounts, runs, results, downloads | Implemented | Staff approval, worker running | — |
+| Mock engine | Implemented and default | Candidate count/delay/failure test options | — |
+| Local direct path | Implemented for compatible hosts/families | `CERNAL_ENGINE=LocalEngine`, valid parts/output | Broader gate support/calibration |
+| Local DE path | Implemented for *E. coli*/yeast | Bundled transcriptome and accepted table | Human transcriptome/count-based QC |
+| Toehold single-input | Implemented | Host-specific variants | Experimental calibration |
+| Toehold AND | Registry-visible | — | Generation and evaluation |
+| Antisense NOT | Family implementation/tests | Not constructible through normal pipeline | Payload-aware pipeline integration |
+| CRISPR | Registered unavailable | — | Scientific implementation and genomic off-target model |
+| Plasmid assembly | Implemented for available parts | No/catalog/custom backbone; GFP/custom payload | Additional validated host parts/payloads/protocols |
+| API and keys | Implemented | Session or key scope/quota | Delegated auth/webhooks if ever required |
+| Python client | Implemented/tested | Deployment URL/key | Packaging/release operations |
+| R/MATLAB clients | Implemented source/tests | Runtime environments/live server | Independent runtime verification |
+| Deployment | Development operation documented | Operator-provided infrastructure | Committed deployment artifacts and public service |
+| Wet-lab validation | None in repository | — | Experimental campaign and model recalibration |
 
-### Work outside merged main
+## 17. Future work
 
-| Work surface | Exact state | What exists | How the wiki may describe it |
-|---|---|---|---|
-| [PR #35][pr-35] | Open and unmerged on 28 September 2026; head `8347e8aeff0a255cb6a0931cc377008bc52a56dc` | Fail-closed release policy, local-adapter contract, audit manifests, sequence withholding | **Under review; no real adapter/database provisioned.** |
-| [PR #32][pr-32] | Open and unmerged on 28 September 2026; head `2e8af637c6a3509c27d2d41dbe7bfad25477600b` | Experimental eukaryotic/trailing layout, payload-aware work, notebooks/report generation, AND-fusion research | **Experimental pull request only; not current product support.** |
-| [PR #15][pr-15] | Open with a conflicting/dirty merge state on 28 September 2026; head `04bbe394fe0307a4c40da8d090ed9eeba5896f17` | Alternative parallel toehold implementation | Do not feature as a capability; resolve or close independently. |
+Priority technical work follows directly from present boundaries:
 
-Branch-only analyses and uncommitted work without a stable pull request or commit link are intentionally omitted from this judge-facing table; they are not evidence for merged capabilities.
+1. implement and validate populated off-target search with reference-build provenance;
+2. complete `CircuitDesigner`/`ConfusionEvaluator` and multi-gene logic;
+3. implement two-input toehold generation and intermediate-state evaluation;
+4. wire payload-aware antisense into the normal pipeline and keep its inverted safety semantics visible;
+5. decide and implement any CRISPR mechanism with a genomic, not transcriptomic, off-target model;
+6. calibrate scoring metrics/thresholds against experimental measurements;
+7. expand verified host parts, payloads, transcriptomes, and assembly protocols;
+8. implement report/figure generation and per-stage snapshots;
+9. execute R/MATLAB conformance in CI and update the stale live browser smoke flow;
+10. add real deployment artifacts, operations documentation, monitoring, and public-service status only after deployment exists.
 
-Future work should be ordered by evidence and risk: first make capability reporting executable and exact; resolve input normalization; finish and validate safety/off-target boundaries; calibrate or replace provisional scoring; complete accessible user support; then expand hosts, gates, reporting, and deployment. New modalities should not be presented as production features merely because a class, notebook, or pull request exists.
+## 18. Source and provenance appendix
 
-## Attribution, licensing, and AI disclosure TODOs
+This appendix maps the main claims above to repository evidence. Source code and tests are authoritative when prose documents describe older states.
 
-### People and institutions
+| Subject | Authoritative paths |
+|---|---|
+| Repository rules and current scope | [`../CLAUDE.md`](../CLAUDE.md), [`../README.md`](../README.md), [`ROADMAP.md`](ROADMAP.md) |
+| Project metadata/dependencies/config | [`../pyproject.toml`](../pyproject.toml), [`../.env.example`](../.env.example) |
+| Architecture and decisions | [`architecture.md`](architecture.md), [`decisions/0001-single-repo-in-process-engine.md`](decisions/0001-single-repo-in-process-engine.md), [`decisions/0002-sqlite-and-orm-task-queue.md`](decisions/0002-sqlite-and-orm-task-queue.md), [`decisions/0003-same-origin-spa-session-auth.md`](decisions/0003-same-origin-spa-session-auth.md), [`decisions/0004-django-ninja-over-drf.md`](decisions/0004-django-ninja-over-drf.md) |
+| Engine contract/clients | [`../src/engine/contract.py`](../src/engine/contract.py), [`../src/engine/client.py`](../src/engine/client.py) |
+| Pipeline and configuration | [`../src/engine/pipeline.py`](../src/engine/pipeline.py), [`../src/engine/inputs.py`](../src/engine/inputs.py), [`../src/engine/transcriptome.py`](../src/engine/transcriptome.py) |
+| Domain records | [`../src/engine/domain.py`](../src/engine/domain.py), [`domain-model.md`](domain-model.md) |
+| Genes and triggers | [`../src/engine/stages/genes.py`](../src/engine/stages/genes.py), [`../src/engine/stages/triggers.py`](../src/engine/stages/triggers.py), [`../src/engine/stages/folding.py`](../src/engine/stages/folding.py), [`genes.md`](genes.md), [`triggers.md`](triggers.md) |
+| Gate implementations | [`../src/engine/gates/base.py`](../src/engine/gates/base.py), [`../src/engine/gates/registry.py`](../src/engine/gates/registry.py), [`../src/engine/gates/toehold.py`](../src/engine/gates/toehold.py), [`../src/engine/gates/antisense.py`](../src/engine/gates/antisense.py), [`../src/engine/gates/crispr.py`](../src/engine/gates/crispr.py) |
+| Scientific tools and validation | [`../src/engine/gates/tools/`](../src/engine/gates/tools/), [`../src/engine/stages/switches.py`](../src/engine/stages/switches.py), [`../src/engine/stages/motifs.py`](../src/engine/stages/motifs.py), [`../src/engine/stages/off_target.py`](../src/engine/stages/off_target.py) |
+| Scoring | [`../src/engine/scoring/profiles.py`](../src/engine/scoring/profiles.py), [`../src/engine/scoring/normalize.py`](../src/engine/scoring/normalize.py) |
+| Plasmids/artifacts | [`../src/engine/stages/plasmids.py`](../src/engine/stages/plasmids.py), [`../src/engine/artifacts.py`](../src/engine/artifacts.py), [`plasmids.md`](plasmids.md), [`decisions/0007-biopython-for-genbank-export.md`](decisions/0007-biopython-for-genbank-export.md) |
+| Platform models/services | [`../src/apps/accounts/`](../src/apps/accounts/), [`../src/apps/datasets/`](../src/apps/datasets/), [`../src/apps/expression/`](../src/apps/expression/), [`../src/apps/analyses/`](../src/apps/analyses/), [`../src/apps/results/`](../src/apps/results/) |
+| API | [`../src/api/`](../src/api/), [`api.md`](api.md), [`public-api.md`](public-api.md), [`api-surface.md`](api-surface.md) |
+| Public datasets | [`../src/apps/expression/catalog/manifest.json`](../src/apps/expression/catalog/manifest.json), [`public-datasets.md`](public-datasets.md) |
+| Frontend routes/UI | [`../frontend/src/routes/`](../frontend/src/routes/), [`../frontend/src/components/compile/`](../frontend/src/components/compile/), [`../frontend/src/components/results/`](../frontend/src/components/results/), [`../frontend/src/api/`](../frontend/src/api/) |
+| Automation clients/notebook | [`../clients/python/`](../clients/python/), [`../clients/r/`](../clients/r/), [`../clients/matlab/`](../clients/matlab/), [`../clients/fixtures/`](../clients/fixtures/), [`../frontend/public/downloads/cernal-quickstart.ipynb`](../frontend/public/downloads/cernal-quickstart.ipynb) |
+| Deployment status/design | [`../deploy/`](../deploy/), [`deployment.md`](deployment.md), [`development.md`](development.md) |
+| Tests and generated surface | [`../tests/`](../tests/), [`../frontend/e2e/`](../frontend/e2e/), [`../tools/gen_api_surface.py`](../tools/gen_api_surface.py) |
+| Licensing/citation/AI attribution | [`../LICENSE`](../LICENSE), [`../NOTICE`](../NOTICE), [`../CITATION.cff`](../CITATION.cff), [`attribution.md`](attribution.md) |
+| Supporting gate/trigger audits | `/home/zivbental/workspace/reports/cernal-gates/`, `/home/zivbental/workspace/reports/cernal-trigger-selection/` (development-machine reports; source/tests above remain authoritative) |
 
-The official 2026 Attributions Form—not a custom prose page—is the authoritative record of who did what. Before publication, the team must supply and verify:
+## 19. Publication checklist
 
-- individual authors for architecture/backend/API, scientific engine, frontend, scientific direction, validation, documentation, visual design, and wiki implementation;
-- instructors, advisors, PIs, and outside contributors with their exact contributions;
-- former members or contributors outside the frozen roster in the correct external-contribution fields;
-- the timing of major project phases;
-- use or non-use of iGEM and partner offers; and
-- the owner of public-deployment privacy, retention, deletion, and post-competition account handling.
+Before copying this page to the final iGEM wiki, the team should complete one concise review:
 
-<!-- TODO (team): Replace collective authorship in CITATION.cff with individual citation authors and add the official repository-code URL. -->
-<!-- TODO (team): Add example-dataset accession/publication or consistently label the data synthetic/test-only. -->
-<!-- TODO (team): Record logo origin/license, permission for team photographs, and source/license for every icon, font, image, diagram, and video asset. -->
-<!-- TODO (team): Credit the Lovable design origin and preserved design reference accurately. AI systems are tools, not team members. -->
-
-### Responsible AI disclosure for this draft
-
-This document was prepared with drafting assistance from **Hermes Agent by Nous Research using OpenAI Codex `gpt-5.6-sol` on 28 September 2026**, based on the evidence sources listed below. This statement documents the drafting event; it does not make model-authored scientific narrative acceptable for the final competition submission.
-
-Before publication, human team members must:
-
-1. review every sentence against primary code, tests, artifacts, official iGEM rules, and cited literature;
-2. rewrite and take responsibility for the substantive scientific/project narrative in accordance with the 2026 iGEM responsible-AI boundary;
-3. verify every link, number, caption, alt text, and capability status;
-4. identify all other AI systems and versions used in coding, research, translation, design, administration, or media work;
-5. describe the purpose and scope of each use; and
-6. document human review, fact-checking, code review, testing, and scientific validation in the official Attributions Form and visible wiki disclosure.
-
-<!-- TODO (team): Replace this draft disclosure with the team-approved complete AI-use record. Do not delete the drafting event if any of this draft is retained. -->
-
-### Wiki and software licensing
-
-- Team-authored wiki text, figures, and photographs must be released under CC BY 4.0 with the required footer link.
-- CERNAL source code is Apache-2.0 and must retain `LICENSE` and `NOTICE`.
-- Third-party assets require licenses that permit the intended reuse, redistribution, and modification, with inline credit.
-- ViennaRNA must be described as a separately licensed dependency retrieved by the environment installer, with its actual upstream redistribution conditions—not as manually installed CERNAL code.
-- Biopython and all other dependencies require accurate notice/licensing review.
-- Decorative AI-generated images, if any, require model credit and must not be used as scientific evidence.
-
-## Judge evidence map
-
-| Judge question | Fastest evidence on this page | Deeper record to link before freeze |
-|---|---|---|
-| What problem does CERNAL address? | [The design problem](#the-design-problem) | Project Description and Human Practices TODO links |
-| Who is the user and what decision do they make? | [One user, one decision, one traceable run](#one-user-one-decision-one-traceable-run) | User interviews/testing TODO links |
-| What works now? | [Current capability matrix](#current-capability-matrix) | Judged-commit release notes and `/api/version` artifact |
-| Can I follow one workflow? | [Worked workflow](#worked-workflow-a-real-test-fixture-not-a-biological-result) | Captioned video and downloadable fixture bundle |
-| Is the system understandable? | [Architecture](#architecture-from-click-to-artifact) and [Algorithms](#algorithms-and-assumptions) | Model and Engineering page anchors |
-| Was it validated? | [Validation and evidence](#validation-and-evidence) | Results page, test logs, benchmark artifacts, wet-lab status |
-| Is it safe and responsible? | [Safety, security, and responsible use](#safety-security-and-responsible-use) | Safety and Security page plus official Safety Form |
-| Can another team run and extend it? | [Installation and demo](#installation-and-demo) and [Reuse](#reuse-contribution-and-continuity) | Official iGEM repository, judging tag, release/archive |
-| Are limitations visible? | [Limitations and future work](#limitations-and-future-work) | Roadmap, issues, open PRs, engineering cycles |
-| Are contributions credited? | [Attribution and AI disclosure TODOs](#attribution-licensing-and-ai-disclosure-todos) | Official Attributions Form and completed `CITATION.cff` |
-
-<!-- TODO (team): Replace all “TODO links” with canonical lowercase 2026 wiki paths, including /description, /engineering, /model, /results, /safety-and-security, /contribution, /human-practices, and dated notebook anchors where applicable. -->
-
-<details>
-<summary><strong>Optional deep dive: media and asset production plan</strong></summary>
-
-## Media and asset production plan
-
-All substantive wiki content must remain on iGEM infrastructure. Images/documents/fonts belong in the iGEM CDN workflow; video/audio belong on iGEM Video Universe. External source, literature, and live-service links may supplement the record, but no external runtime dependency or embed may be required to understand the page.
-
-| ID | Proposed asset | Format | Evidence/status rule | Accessibility and caption requirement |
-|---|---|---|---|---|
-| M1 | `assets/software/cernal-hero-pipeline.svg` | SVG + PNG fallback | Merged-main capabilities only | One-sentence alt; legible at mobile width; caption states computational boundary |
-| M2 | `assets/software/cernal-before-after-workflow.svg` | SVG | Team-authored comparison, no invented timings | Same stage labels in both lanes; no color-only meaning |
-| M3 | `video-universe/cernal-75-second-walkthrough.mp4` | MP4/WebM + VTT + transcript | Pin commit, fixture, run ID, and engine mode | Captions, transcript, no autoplay, static fallback |
-| M4 | `assets/software/cernal-five-stage-workflow.svg` | SVG | Implemented stages solid; unavailable/unmerged stages explicit | Nearby text duplicate; linked stage labels |
-| M5 | `assets/software/example-01-direct-rna-input.webp` | WebP/PNG | Current-main test fixture; not biological evidence | Visible test-fixture label; descriptive alt and takeaway caption |
-| M6 | `assets/software/example-02-candidate-review.webp` | WebP/PNG | LocalEngine result only; no MockEngine substitution | Accepted/rejected distinction in text and symbols |
-| M7 | `assets/software/example-03-artifacts-and-checksums.webp` | WebP/PNG | Actual current-main artifact list | Full checksums available as text; no local paths/tokens |
-| M8 | `assets/software/cernal-trigger-window-method.svg` | SVG | Exact implemented footprints and metric semantics | Marginal vs joint measurements distinguished in words/patterns |
-| M9 | `assets/software/cernal-toehold-anatomy.svg` | SVG | Team drawing from implemented source | Direction labels; paired regions not color-only; computational caption |
-| M10 | `assets/software/cernal-user-data-flow.svg` | SVG | Product architecture and trust boundaries | Logical reading order; source links; plain-text alternative |
-| M11 | `assets/software/cernal-engine-pipeline.svg` | SVG | Grey/dotted incomplete stages | Explicit Not implemented/Unmerged text |
-| M12 | `assets/software/cernal-score-decomposition.svg` | SVG + CSV/JSON | Populate from test fixture only | Units/direction/missing values visible; accessible data alternative |
-| M13 | `assets/software/cernal-validation-evidence.svg` | SVG + HTML table | Separate software, analytical, user, and wet-lab evidence | Status words printed; every item links to evidence |
-| M14 | `assets/software/cernal-safety-boundary.svg` | SVG | PR #35 labelled open/unmerged; no safety certification symbol | Text equivalent and exact PR/commit link |
-| M15 | `assets/software/cernal-artifact-bundle.svg` | SVG + text tree | Generate from actual judged-release bundle | File roles explained; missing PDF marked absent |
-| M16 | `assets/software/cernal-reuse-map.svg` | SVG | Current interfaces only | Source paths as link text; license boundary visible |
-| M17 | `assets/software/cernal-accessibility-callouts.webp` | WebP/PNG | Capture only after behavior is merged | Text checklist beside image; callouts describe real behavior |
-| M18 | `assets/software/cernal-capability-matrix-export.csv` | CSV | Generated from final visible matrix | Machine-readable alternative; version/commit columns |
-
-### Screenshot and figure rules
-
-- Capture every screenshot against one pinned judging release and record commit/tag, viewport, dataset or fixture, engine mode, and run ID.
-- Remove personal data, secrets, tokens, local paths, and non-reproducible timestamps.
-- Keep UI text readable at page width; prefer focused crops over full-browser screenshots.
-- Put **SIMULATED** inside every MockEngine image and **UNMERGED PROTOTYPE** inside every PR #35 image.
-- Do not stage UI states or scientific results the software cannot produce.
-- Label mockups **CONCEPT — NOT IMPLEMENTED**.
-- For every scientific plot, state commit, input, method, units, sample size, and whether values are observed, simulated, or predicted.
-- Make each caption answer “What should the reader notice?” rather than repeat the alt text.
-- Credit every third-party source and license inline; prefer team-authored diagrams derived from primary code and data.
-
-</details>
-
-## References and source notes
-
-### Official iGEM requirements and design references
-
-1. [Official iGEM 2026 Team Wiki Requirements][igem-wiki-requirements] — hosting/runtime constraints, CI/CD build, licensing, fixed judging paths, scientific integrity, responsible AI, and repository footer link.
-2. [Official iGEM 2026 Team Wiki Recommendations][igem-wiki-recommendations] — content-first design, honest iteration, compressed media, descriptive commits, and early build testing.
-3. [Official iGEM 2026 Project Software Requirements][igem-software-requirements] — official software repository, README, OSI license, reproducible instructions, pinned dependencies, repository size, and AI-software disclosures.
-4. [Official iGEM 2026 Medal Criteria][igem-medals] and [Special Awards][igem-special-awards] — 2026 judging structure and award eligibility.
-5. [Official iGEM 2026 Attributions Requirements][igem-attributions] — standardized attribution record and AI-use disclosure.
-6. [Official iGEM Safety and Security Requirements][igem-safety-requirements] and [Safety Policies][igem-safety-policies].
-7. [WCAG 2.2][wcag-22] — practical accessibility baseline proposed for implementation/testing; no conformance claim is made here.
-8. [TAU-Israel 2025 Software page][tau-2025-software] — studied for judge-first navigation, audience/workflow/FAQ structure, and explicit limitations; no prose copied.
-9. [Munich 2025 Software page][munich-2025-software], [Marburg 2025 Software page][marburg-2025-software], [Vilnius-Lithuania 2024 Software page][vilnius-2024-software], and [Fudan 2023 Software page][fudan-2023-software] — studied for workflow-first explanation, architecture, validation, screenshots, installation, and reuse patterns; no prose copied.
-
-### Scientific methods, reused software, reference data, and parts
-
-- **Original toehold-switch method:** Green, Silver, Collins, and Yin, “Toehold Switches: De-Novo-Designed Regulators of Gene Expression,” *Cell* 159(4), 925–939 (2014), [doi:10.1016/j.cell.2014.10.002][green-toehold-paper].
-- **ViennaRNA:** Lorenz *et al.*, “ViennaRNA Package 2.0,” *Algorithms for Molecular Biology* 6 (2011), [doi:10.1186/1748-7188-6-26][vienna-paper]. The installed `2.7.2` dependency remains subject to the [upstream ViennaRNA license][vienna-license].
-- **RNAplfold:** Bernhart, Hofacker, and Stadler, “Local RNA base pairing probabilities in large sequences,” *Bioinformatics* 22(5), 614–615 (2006), [doi:10.1093/bioinformatics/btk014][rnaplfold-paper].
-- **Reused NUPACK-generator provenance:** the public file matching the source comment’s `prokaryotic_switch_generator.py` is the [commit-pinned generator source][nupack-generator-source]. The cited repository has no license file, and GitHub reported no license metadata when checked on 28 September 2026. The closely related [ToeGen source][toegen-source] has a separate [MIT license][toegen-license]; this is evidence for ToeGen only, not proof of the exact generator snapshot’s license.
-- **Bundled CDS references:** NCBI RefSeq [`NC_000913.3`][ncbi-ecoli] for *E. coli* K-12 MG1655 and the [S288C reference assembly][ncbi-yeast] whose exact chromosome/mitochondrial accession versions are enumerated in the [sync script][source-sync-transcriptome].
-- **Registry expression parts:** [BBa_J23119][registry-j23119], [BBa_K124002][registry-k124002], [BBa_B0015][registry-b0015], [BBa_K1486025][registry-k1486025], and GFP payload [BBa_E0040][registry-e0040].
-- **Registry backbones:** [pSB1A3][registry-psb1a3], [pSB1C3][registry-psb1c3], [pSB1K3][registry-psb1k3], [pSB1T3][registry-psb1t3], [pSB1AK3][registry-psb1ak3], [pSB1AT3][registry-psb1at3], [pSB3C5][registry-psb3c5], [pSB3K3][registry-psb3k3], [pSB3T5][registry-psb3t5], and [pSB4C5][registry-psb4c5]. The [commit-pinned plasmid table][source-plasmids] is the exact record of sequences used by the audited code.
-
-### CERNAL source-of-truth notes
-
-- **Audited merged baseline:** [`417f8385725a99f2d7d4bc835eeedeb5903d399f`][cernal-audited-commit] on `main`.
-- **Current development repository:** [CERNAL on GitHub][cernal-github]. The final iGEM Software Tools repository URL remains a team TODO.
-- **Installation behavior:** [`do`][source-do], [`pyproject.toml`][source-pyproject], and [`uv.lock`][source-uv-lock] at the audited commit.
-- **Primary request/result boundary:** [`src/engine/contract.py`][source-contract].
-- **Engine selection and pipeline:** [`src/engine/client.py`][source-client] and [`src/engine/pipeline.py`][source-pipeline].
-- **Algorithms:** [`genes.py`][source-genes], [`triggers.py`][source-triggers], [`folding.py`][source-folding-stage], [`switches.py`][source-switches], [`plasmids.py`][source-plasmids], [`toehold.py`][source-toehold], and [`src/engine/scoring/`][source-scoring].
-- **Regression evidence:** [`tests/engine/test_pipeline.py`][test-pipeline], [`tests/test_boundary.py`][test-boundary], and [`tests/e2e/test_full_workflow.py`][test-e2e].
-- **Open pull requests:** [PR #15][pr-15], [PR #32][pr-32], and [PR #35][pr-35], with status verified on 28 September 2026.
-- **Evidence precedence:** claims phrased as “CERNAL does” refer only to the audited merged commit. Open pull requests and uncommitted work are labelled separately and are not merged-product evidence.
-
-[igem-wiki-requirements]: https://teams.igem.org/go/deliverables/wiki/requirements
-[igem-wiki-recommendations]: https://teams.igem.org/go/deliverables/wiki/recommendations
-[igem-software-requirements]: https://teams.igem.org/go/deliverables/software/requirements
-[igem-medals]: https://competition.igem.org/judging/awards/medals
-[igem-special-awards]: https://competition.igem.org/judging/awards/special
-[igem-attributions]: https://teams.igem.org/go/deliverables/attributions/requirements
-[igem-safety-requirements]: https://teams.igem.org/go/safety/requirements
-[igem-safety-policies]: https://responsibility.igem.org/safety-policies
-[wcag-22]: https://www.w3.org/TR/WCAG22/
-[tau-2025-software]: https://2025.igem.wiki/tau-israel/software
-[munich-2025-software]: https://2025.igem.wiki/munich/software
-[marburg-2025-software]: https://2025.igem.wiki/marburg/software
-[vilnius-2024-software]: https://2024.igem.wiki/vilnius-lithuania/software
-[fudan-2023-software]: https://2023.igem.wiki/fudan/software
-[cernal-github]: https://github.com/zivbental/cernal_software
-[cernal-audited-commit]: https://github.com/zivbental/cernal_software/tree/417f8385725a99f2d7d4bc835eeedeb5903d399f
-[source-do]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/do
-[source-pyproject]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/pyproject.toml
-[source-uv-lock]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/uv.lock#L458-L465
-[source-frontend]: https://github.com/zivbental/cernal_software/tree/417f8385725a99f2d7d4bc835eeedeb5903d399f/frontend
-[source-frontend-lock]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/frontend/package-lock.json
-[source-api]: https://github.com/zivbental/cernal_software/tree/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/api
-[source-apps]: https://github.com/zivbental/cernal_software/tree/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/apps
-[source-tasks]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/apps/analyses/tasks.py
-[source-analysis-services]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/apps/analyses/services.py
-[source-api-meta]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/api/routers/meta.py#L27-L42
-[source-results-services]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/apps/results/services.py#L256-L284
-[source-contract]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine/contract.py
-[source-client]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine/client.py#L170-L225
-[source-pipeline]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine/pipeline.py
-[source-engine]: https://github.com/zivbental/cernal_software/tree/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine
-[source-genes]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine/stages/genes.py
-[source-triggers]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine/stages/triggers.py
-[source-folding-stage]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine/stages/folding.py
-[source-switches]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine/stages/switches.py
-[source-plasmids]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine/stages/plasmids.py#L56-L209
-[source-toehold]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine/gates/toehold.py#L1-L151
-[source-scoring]: https://github.com/zivbental/cernal_software/tree/417f8385725a99f2d7d4bc835eeedeb5903d399f/src/engine/scoring
-[source-sync-transcriptome]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/tools/sync_transcriptome.py#L45-L80
-[test-pipeline]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/tests/engine/test_pipeline.py
-[test-boundary]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/tests/test_boundary.py
-[test-e2e]: https://github.com/zivbental/cernal_software/blob/417f8385725a99f2d7d4bc835eeedeb5903d399f/tests/e2e/test_full_workflow.py#L1-L93
-[green-toehold-paper]: https://doi.org/10.1016/j.cell.2014.10.002
-[vienna-paper]: https://doi.org/10.1186/1748-7188-6-26
-[rnaplfold-paper]: https://doi.org/10.1093/bioinformatics/btk014
-[vienna-license]: https://github.com/ViennaRNA/ViennaRNA/blob/v2.7.2/COPYING
-[nupack-generator-source]: https://github.com/Talshem/software/blob/c5e327a49324e6e6010a4972c71915ec4e6b75e8/tool/prokaryotic_switch_generator.py
-[toegen-source]: https://github.com/Orezbm/toegen/blob/b4983ca1da03c752fe88626f30a4162f3a0eaf80/toegen/switch_generator.py
-[toegen-license]: https://github.com/Orezbm/toegen/blob/b4983ca1da03c752fe88626f30a4162f3a0eaf80/LICENSE.md
-[ncbi-ecoli]: https://www.ncbi.nlm.nih.gov/nuccore/NC_000913.3
-[ncbi-yeast]: https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000146045.2/
-[registry-j23119]: https://registry.igem.org/parts/bba-j23119
-[registry-k124002]: https://registry.igem.org/parts/bba-k124002
-[registry-b0015]: https://registry.igem.org/parts/BBa_B0015
-[registry-k1486025]: https://registry.igem.org/parts/bba-k1486025
-[registry-e0040]: https://registry.igem.org/parts/BBa_E0040
-[registry-psb1a3]: https://registry.igem.org/parts/psb1a3
-[registry-psb1c3]: https://registry.igem.org/parts/psb1c3
-[registry-psb1k3]: https://registry.igem.org/parts/psb1k3
-[registry-psb1t3]: https://registry.igem.org/parts/psb1t3
-[registry-psb1ak3]: https://registry.igem.org/parts/psb1ak3
-[registry-psb1at3]: https://registry.igem.org/parts/psb1at3
-[registry-psb3c5]: https://registry.igem.org/parts/psb3c5
-[registry-psb3k3]: https://registry.igem.org/parts/psb3k3
-[registry-psb3t5]: https://registry.igem.org/parts/psb3t5
-[registry-psb4c5]: https://registry.igem.org/parts/psb4c5
-[pr-15]: https://github.com/zivbental/cernal_software/pull/15
-[pr-32]: https://github.com/zivbental/cernal_software/pull/32
-[pr-35]: https://github.com/zivbental/cernal_software/pull/35
+- record the final repository/release/archive URL and individual citation authors;
+- confirm the public deployment statement with an actual tested service or state clearly that no public service exists;
+- run and record the exact test/check matrix on the publication revision;
+- replace placeholder use-case/demo material with captioned results that clearly label MockEngine versus LocalEngine;
+- complete the official human/AI/third-party/data attribution and asset permissions;
+- add wet-lab evidence only if experiments were actually performed, with methods, controls, failures, and uncertainty.
