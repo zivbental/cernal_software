@@ -1,0 +1,966 @@
+{
+  "schema_version": 3,
+  "scientific_identity": {
+    "identity_version": 1,
+    "manifest_fingerprint": "5daa1d4acdf4bc6f6a174b790a2ba8d7b8ea1165e4fb85efdb2b8aa31b8254c3",
+    "config_fingerprint": "5daa1d4acdf4bc6f6a174b790a2ba8d7b8ea1165e4fb85efdb2b8aa31b8254c3",
+    "inputs": {
+      "dms_yeast_invitro": "c57030ab163194aa42860f929de3a98c165143873cddbe00e4801930425edea0",
+      "dms_yeast_invivo": "68aac9584439c22b618ff8d60c515e20efe6b3da43e2a0a16cf7185b82999a14",
+      "icshape_mouse_invitro": "d93e7ee216ca8a8be3f732b7bbdd9d864854437e25ac2460b2df2a06f82708f9",
+      "icshape_mouse_invivo": "80ebd4aa136d6068f86d22d64ab8ad95a686c787f5f02f1e75d44715d333d014",
+      "pars_yeast_invitro": "f122043d6977c5a6f37497b333e0c8c30213e78c659d7b5a003fd1038b28bbd7",
+      "shape_ecoli_cellfree": "904c1a887b00a964340db3065d88ea1b9b7997a54eb99ffcea528ddb438bf02c",
+      "shape_ecoli_incell": "622328e0aeb3da8a75821508b089067e4f9251ce9844fa8af78e1960e70d120b"
+    },
+    "prepared": {
+      "dms_yeast_invivo": {
+        "records": "dms_yeast_invivo.jsonl.gz",
+        "sha256": "68aac9584439c22b618ff8d60c515e20efe6b3da43e2a0a16cf7185b82999a14"
+      },
+      "icshape_mouse_invivo": {
+        "records": "icshape_mouse_invivo.jsonl.gz",
+        "sha256": "80ebd4aa136d6068f86d22d64ab8ad95a686c787f5f02f1e75d44715d333d014"
+      },
+      "shape_ecoli_incell": {
+        "records": "shape_ecoli_incell.jsonl.gz",
+        "sha256": "622328e0aeb3da8a75821508b089067e4f9251ce9844fa8af78e1960e70d120b"
+      }
+    },
+    "selected_dataset_ids": [
+      "dms_yeast_invivo",
+      "icshape_mouse_invivo",
+      "shape_ecoli_incell"
+    ],
+    "prediction": {
+      "temperature": 37.0,
+      "window_size": 200,
+      "max_bp_span": 150,
+      "footprint": 20,
+      "seed_length": 8,
+      "step": 1,
+      "robustness": false,
+      "length_robustness": false,
+      "global_max_length": 6000,
+      "tools": [
+        "rnaplfold",
+        "rnafold"
+      ],
+      "inventory": {
+        "rnaplfold": {
+          "available": true,
+          "version": "ViennaRNA 2.7.2"
+        },
+        "rnafold": {
+          "available": true,
+          "version": "ViennaRNA 2.7.2"
+        }
+      },
+      "implementation": {
+        "rnavail/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rnavail/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+        "rnavail/adapters/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rnavail/adapters/_contrafold_family.py": "0404290579a7fd9788d2a9e62886cb095cdcef3a8eb2c400e79f11ebe471c40e",
+        "rnavail/adapters/_vienna.py": "acff8942323cf2375f6c73f28ba639084a36d5ce5324aad241da08e0c49dc1c3",
+        "rnavail/adapters/base.py": "b96806972e0faa7e558004f7f250a08ebb81801bc273ca9192f1803ecfe4e9b7",
+        "rnavail/adapters/contrafold.py": "50382a679c9e64eaf555043d1118cb2148fdc9515404831afc71b752c79b6552",
+        "rnavail/adapters/eternafold.py": "f6e01515fcb9c236173748894a7e94afe9b7daff267de0503c32d1c0a8abd00e",
+        "rnavail/adapters/external.py": "47fd2a3ab8a7b1ea9a4de778dc8ea525c3a4c40224ec08c50a9dfe57a3f226f3",
+        "rnavail/adapters/gquad.py": "9488cc0c766592234a7a173df77f350f70f8902842e925241343602e67bb1ca1",
+        "rnavail/adapters/kinwalker.py": "2019e6bcf11a4ebe4c9591e7f47ce4d3f1af6b5c590f3bbf35d9c7dd16778a51",
+        "rnavail/adapters/linearfold.py": "f832ff7867facf478a9db88698983d91e342af53d4590db5d24c0439e3fd2909",
+        "rnavail/adapters/probknot.py": "bd621c72d5e4a1a3eae80166e2666ebb30f22c2a5b608199456c40fd3364b44d",
+        "rnavail/adapters/registry.py": "e326ac5a9b3e9b646fc5844dbb1082bd9f347bd89d5280e2dda46fc1f09bd3ff",
+        "rnavail/adapters/rnastructure.py": "9ab2876863d0b67503b7fbeb6e69196c22692dffea95a9f1bd5ae2368e5b2a23",
+        "rnavail/adapters/vienna_exact.py": "2f8300a318f2feedf49aff51fecb21397db111741e889631ed1834abcce144e3",
+        "rnavail/adapters/vienna_fold.py": "1c2af8459baa1dbb537c7a9d2d14a2558cf6c482560a994ac71d3df0d5a0ff56",
+        "rnavail/adapters/vienna_plfold.py": "979cb89baaab79a2c4288f4966d3339672da510a7cc57bb13bab1ffe078dc813",
+        "rnavail/adapters/vienna_sample.py": "3b27a1dda29f572e967c01c1528fdcca8d6f949dfe97cdc0e4724a7001d4a47f",
+        "rnavail/cli.py": "04be43798f5683f6f0183f950cb4dfc36a308ab4178dc8e624300ff9cc849df0",
+        "rnavail/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rnavail/core/evidence.py": "54e7cdf9e2e6e0d1cf1ece4cf39a4dfe061191faae875f63b5b83f8763897abb",
+        "rnavail/core/model.py": "7f9150a0e426f61fcb7d853f934be81195a3a193ed83f9ebcb4422b9da2b5c1e",
+        "rnavail/core/result.py": "c045d31e964859950b391f43e1969f65134fad9f8dc74d283131af8b7d0198b0",
+        "rnavail/core/sequence.py": "eaaaba889316b3ed762cf7bdfe2d92c170b94e527cb538d57e8f8621451c8350",
+        "rnavail/core/thermo.py": "dbcf0d7c5da13e5e82e8e67b32c0e029b5bcb7e88b2399c62604c063f43aa727",
+        "rnavail/io/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rnavail/io/evidence.py": "fd116dcd17f8383a7642ffef1a1ed2c00751e734fe8e664897b890f25e0be64e",
+        "rnavail/io/fasta.py": "4c4581714a37e000fc351220fbbd4c98f021b98e63313b3c73363f221a814bf9",
+        "rnavail/io/html_report.py": "b2f697a995b784502c6651222fce2ed3fe126876f2cef8b4d845b447b0ace29f",
+        "rnavail/io/report.py": "e1da5300482658f3f399abe5e3426b1eaa9deb801f37c3cf7ad6c28da793f082",
+        "rnavail/io/rundir.py": "0eb52ef931d5ca6951d086606c565495171628dac1e3a459067127c85765c7a9",
+        "rnavail/pipeline/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rnavail/pipeline/run.py": "459f4c066c74c6aabe81b57fa0599c423c04bacb1f85c6006ca9b1784714bbca",
+        "rnavail/pipeline/score.py": "7d0d27c49ad9bdf73d9d2c25428e77d53776feecebb12dd79e3929e9dfeb43e1",
+        "rnavail/viz/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rnavail/viz/dotplot.py": "5800465a0c8f8f2670b612cb4fa1f242727eaacee5fa54f118a0dcc1fbc1b1f3",
+        "rnavail/viz/generate.py": "bbf379ce8802e2b9acaa9c28b8452dd8a0bc5ad3395c141614313bdccf7fdb73",
+        "rnavail/viz/landscape.py": "ac6ed53d05c0dd48651e1d649fe290918c3ea0e26ca1329807576839cfaf3214",
+        "rnavail/viz/mpl.py": "54fd339021172e7caa89b892f4fbbcff91ba91b04fdfb0d91c9961337bd5ccdd",
+        "rnavail/viz/structure.py": "d7924350220535d17c2f5ab3e26a781f0fe25993bb19724a37c859a4cca710ed",
+        "validation/controls_2010/compare_all_genes.py": "5012836b83a11f055c16dc803e5deff9a2d53496c3e122ec14acfc8390d732d7",
+        "validation/multi_dataset/benchmark.py": "8de87ab41e0f5cec9cc7fba9c21c3c12def166c539cb44cba22ff00bb1ac2579",
+        "validation/multi_dataset/benchmark_parallel.py": "69cc4410e18383e65f642f6e830671f3cea0a8ef0bfb8ff2b1feba28e9da832f",
+        "validation/multi_dataset/common.py": "62b00ec8131dde8ddb99e98151656cba9fbb380f17a54e6c4b4bf7bd57697f85",
+        "validation/multi_dataset/prepare.py": "c3673070cf64d6176a38f3350decd8445de2d2b81140f1018f50ff1df5ea8b27",
+        "rnavail/adapters/data/README.md": "b63faa02feaf992d33dfca928c8ddb86e9cd5d0f15574683c29667ab097cd54a",
+        "rnavail/adapters/data/EternaFoldParams.v1": "1421e89cc8df24b53a320eff6c72b8acfdb2771faba29ab9c798f7bdfc853a8a"
+      }
+    },
+    "predictors": {
+      "pipeline_score": {
+        "source": "candidate.pipeline_score",
+        "cohort": "candidates with score_coverage and exact-position RNAplfold availability"
+      },
+      "mean_observed_base_rnaplfold": {
+        "source": "prediction.per_base.rnaplfold",
+        "reconstruction": "arithmetic mean marginal P(unpaired) at exact one-based assay-observed positions",
+        "cohort": "same matched candidates as pipeline_score"
+      }
+    },
+    "report_schema": {
+      "schema_version": 3,
+      "seed_bins": [
+        0.0,
+        0.05,
+        0.1,
+        0.15,
+        0.2,
+        0.25,
+        0.3,
+        0.35,
+        0.4,
+        0.45,
+        0.5,
+        0.55,
+        0.6,
+        0.65,
+        0.7,
+        0.75,
+        0.8,
+        0.85,
+        0.9,
+        0.95,
+        1.0
+      ],
+      "binning": "best 8-nt seed_p_unpaired",
+      "experimental": "direction-normalized arithmetic mean at assay-observed positions passing canonical coverage",
+      "correlation": "within-dataset window-level Pearson; datasets never pooled",
+      "pearson_axis": [
+        -0.2,
+        0.5
+      ],
+      "plots": 2
+    },
+    "identity_sha256": "439376cae1c946a307e0980db2705084f3eea134ca894ebb89b737be48fd9ed2"
+  },
+  "processed_total": 66736,
+  "records_total": 66736,
+  "edges": [
+    0.0,
+    0.05,
+    0.1,
+    0.15,
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.6,
+    0.65,
+    0.7,
+    0.75,
+    0.8,
+    0.85,
+    0.9,
+    0.95,
+    1.0
+  ],
+  "binning": "best 8-nt seed_p_unpaired",
+  "pearson_semantics": "within-dataset window-level Pearson; datasets never pooled",
+  "experimental_semantics": "direction-normalized arithmetic mean at assay-observed positions passing canonical coverage",
+  "predictors": {
+    "pipeline_score": {
+      "label": "Pipeline score",
+      "datasets": [
+        {
+          "dataset": "dms_yeast_invivo",
+          "records_processed": 7036,
+          "records_total": 7036,
+          "valid_records": 4297,
+          "bins": [
+            {
+              "low": 0.0,
+              "high": 0.05,
+              "n_windows": 1163757,
+              "pearson": 0.04218677087651993
+            },
+            {
+              "low": 0.05,
+              "high": 0.1,
+              "n_windows": 747032,
+              "pearson": -0.036404369210515465
+            },
+            {
+              "low": 0.1,
+              "high": 0.15,
+              "n_windows": 483670,
+              "pearson": -0.0673647873309193
+            },
+            {
+              "low": 0.15,
+              "high": 0.2,
+              "n_windows": 343175,
+              "pearson": -0.07058148010585895
+            },
+            {
+              "low": 0.2,
+              "high": 0.25,
+              "n_windows": 253472,
+              "pearson": -0.0751439609280634
+            },
+            {
+              "low": 0.25,
+              "high": 0.3,
+              "n_windows": 197603,
+              "pearson": -0.08563127821460001
+            },
+            {
+              "low": 0.3,
+              "high": 0.35,
+              "n_windows": 159738,
+              "pearson": -0.1026591231160206
+            },
+            {
+              "low": 0.35,
+              "high": 0.4,
+              "n_windows": 128818,
+              "pearson": -0.10701326305375053
+            },
+            {
+              "low": 0.4,
+              "high": 0.45,
+              "n_windows": 106697,
+              "pearson": -0.10311677648454029
+            },
+            {
+              "low": 0.45,
+              "high": 0.5,
+              "n_windows": 89092,
+              "pearson": -0.10805614236051857
+            },
+            {
+              "low": 0.5,
+              "high": 0.55,
+              "n_windows": 74899,
+              "pearson": -0.11572758731306473
+            },
+            {
+              "low": 0.55,
+              "high": 0.6,
+              "n_windows": 63460,
+              "pearson": -0.11836644610411677
+            },
+            {
+              "low": 0.6,
+              "high": 0.65,
+              "n_windows": 52140,
+              "pearson": -0.1338262934343392
+            },
+            {
+              "low": 0.65,
+              "high": 0.7,
+              "n_windows": 44225,
+              "pearson": -0.11145167939936847
+            },
+            {
+              "low": 0.7,
+              "high": 0.75,
+              "n_windows": 37537,
+              "pearson": -0.14212607549163747
+            },
+            {
+              "low": 0.75,
+              "high": 0.8,
+              "n_windows": 31214,
+              "pearson": -0.08892229446252338
+            },
+            {
+              "low": 0.8,
+              "high": 0.85,
+              "n_windows": 25102,
+              "pearson": -0.10531431961140994
+            },
+            {
+              "low": 0.85,
+              "high": 0.9,
+              "n_windows": 21044,
+              "pearson": -0.09275052879512245
+            },
+            {
+              "low": 0.9,
+              "high": 0.95,
+              "n_windows": 14332,
+              "pearson": -0.1509263272311098
+            },
+            {
+              "low": 0.95,
+              "high": 1.0,
+              "n_windows": 5874,
+              "pearson": -0.1531964836227038
+            }
+          ]
+        },
+        {
+          "dataset": "icshape_mouse_invivo",
+          "records_processed": 55203,
+          "records_total": 55203,
+          "valid_records": 9626,
+          "bins": [
+            {
+              "low": 0.0,
+              "high": 0.05,
+              "n_windows": 6791152,
+              "pearson": 0.15469580856404544
+            },
+            {
+              "low": 0.05,
+              "high": 0.1,
+              "n_windows": 3101899,
+              "pearson": 0.11114962348508832
+            },
+            {
+              "low": 0.1,
+              "high": 0.15,
+              "n_windows": 1873308,
+              "pearson": 0.10826447244432219
+            },
+            {
+              "low": 0.15,
+              "high": 0.2,
+              "n_windows": 1275655,
+              "pearson": 0.10534160394433417
+            },
+            {
+              "low": 0.2,
+              "high": 0.25,
+              "n_windows": 930327,
+              "pearson": 0.10461918183957038
+            },
+            {
+              "low": 0.25,
+              "high": 0.3,
+              "n_windows": 712051,
+              "pearson": 0.0967061599072429
+            },
+            {
+              "low": 0.3,
+              "high": 0.35,
+              "n_windows": 562069,
+              "pearson": 0.09789133400924974
+            },
+            {
+              "low": 0.35,
+              "high": 0.4,
+              "n_windows": 453084,
+              "pearson": 0.09732113418571336
+            },
+            {
+              "low": 0.4,
+              "high": 0.45,
+              "n_windows": 369021,
+              "pearson": 0.09490989779131925
+            },
+            {
+              "low": 0.45,
+              "high": 0.5,
+              "n_windows": 303621,
+              "pearson": 0.09396133848340131
+            },
+            {
+              "low": 0.5,
+              "high": 0.55,
+              "n_windows": 254881,
+              "pearson": 0.09464727847148882
+            },
+            {
+              "low": 0.55,
+              "high": 0.6,
+              "n_windows": 211561,
+              "pearson": 0.08102634624402717
+            },
+            {
+              "low": 0.6,
+              "high": 0.65,
+              "n_windows": 179142,
+              "pearson": 0.08606484448825526
+            },
+            {
+              "low": 0.65,
+              "high": 0.7,
+              "n_windows": 149237,
+              "pearson": 0.08633641652546581
+            },
+            {
+              "low": 0.7,
+              "high": 0.75,
+              "n_windows": 123570,
+              "pearson": 0.08167162139344913
+            },
+            {
+              "low": 0.75,
+              "high": 0.8,
+              "n_windows": 106036,
+              "pearson": 0.08120427789836462
+            },
+            {
+              "low": 0.8,
+              "high": 0.85,
+              "n_windows": 87631,
+              "pearson": 0.08661823161861587
+            },
+            {
+              "low": 0.85,
+              "high": 0.9,
+              "n_windows": 68722,
+              "pearson": 0.07769953027903849
+            },
+            {
+              "low": 0.9,
+              "high": 0.95,
+              "n_windows": 49616,
+              "pearson": 0.13021864006981324
+            },
+            {
+              "low": 0.95,
+              "high": 1.0,
+              "n_windows": 22512,
+              "pearson": 0.09402795651254572
+            }
+          ]
+        },
+        {
+          "dataset": "shape_ecoli_incell",
+          "records_processed": 4497,
+          "records_total": 4497,
+          "valid_records": 450,
+          "bins": [
+            {
+              "low": 0.0,
+              "high": 0.05,
+              "n_windows": 191894,
+              "pearson": 0.16142084721492425
+            },
+            {
+              "low": 0.05,
+              "high": 0.1,
+              "n_windows": 59726,
+              "pearson": 0.14887779527810768
+            },
+            {
+              "low": 0.1,
+              "high": 0.15,
+              "n_windows": 30560,
+              "pearson": 0.15882254488810404
+            },
+            {
+              "low": 0.15,
+              "high": 0.2,
+              "n_windows": 19669,
+              "pearson": 0.15033992510638994
+            },
+            {
+              "low": 0.2,
+              "high": 0.25,
+              "n_windows": 13407,
+              "pearson": 0.2358583802931228
+            },
+            {
+              "low": 0.25,
+              "high": 0.3,
+              "n_windows": 10484,
+              "pearson": 0.191072504913079
+            },
+            {
+              "low": 0.3,
+              "high": 0.35,
+              "n_windows": 7408,
+              "pearson": 0.2268355294455147
+            },
+            {
+              "low": 0.35,
+              "high": 0.4,
+              "n_windows": 6474,
+              "pearson": 0.2512235010750912
+            },
+            {
+              "low": 0.4,
+              "high": 0.45,
+              "n_windows": 5190,
+              "pearson": 0.2974568434159154
+            },
+            {
+              "low": 0.45,
+              "high": 0.5,
+              "n_windows": 3800,
+              "pearson": 0.31031757361211715
+            },
+            {
+              "low": 0.5,
+              "high": 0.55,
+              "n_windows": 3062,
+              "pearson": 0.23299915731533266
+            },
+            {
+              "low": 0.55,
+              "high": 0.6,
+              "n_windows": 3128,
+              "pearson": 0.22804309389001484
+            },
+            {
+              "low": 0.6,
+              "high": 0.65,
+              "n_windows": 2520,
+              "pearson": 0.3230489570179402
+            },
+            {
+              "low": 0.65,
+              "high": 0.7,
+              "n_windows": 2168,
+              "pearson": 0.28419215714758467
+            },
+            {
+              "low": 0.7,
+              "high": 0.75,
+              "n_windows": 1925,
+              "pearson": 0.25288214762940875
+            },
+            {
+              "low": 0.75,
+              "high": 0.8,
+              "n_windows": 1643,
+              "pearson": 0.2962871915950094
+            },
+            {
+              "low": 0.8,
+              "high": 0.85,
+              "n_windows": 1694,
+              "pearson": 0.301093220908646
+            },
+            {
+              "low": 0.85,
+              "high": 0.9,
+              "n_windows": 1580,
+              "pearson": 0.31676918459264364
+            },
+            {
+              "low": 0.9,
+              "high": 0.95,
+              "n_windows": 1068,
+              "pearson": 0.27046164802743655
+            },
+            {
+              "low": 0.95,
+              "high": 1.0,
+              "n_windows": 672,
+              "pearson": 0.3271113007838938
+            }
+          ]
+        }
+      ]
+    },
+    "mean_observed_base_rnaplfold": {
+      "label": "RNAplfold mean marginal P(unpaired) at assay-observed positions",
+      "datasets": [
+        {
+          "dataset": "dms_yeast_invivo",
+          "records_processed": 7036,
+          "records_total": 7036,
+          "valid_records": 4297,
+          "bins": [
+            {
+              "low": 0.0,
+              "high": 0.05,
+              "n_windows": 1163757,
+              "pearson": 0.21135431780050404
+            },
+            {
+              "low": 0.05,
+              "high": 0.1,
+              "n_windows": 747032,
+              "pearson": 0.1544305753477017
+            },
+            {
+              "low": 0.1,
+              "high": 0.15,
+              "n_windows": 483670,
+              "pearson": 0.12776929919855956
+            },
+            {
+              "low": 0.15,
+              "high": 0.2,
+              "n_windows": 343175,
+              "pearson": 0.11743505595746256
+            },
+            {
+              "low": 0.2,
+              "high": 0.25,
+              "n_windows": 253472,
+              "pearson": 0.11396359370626818
+            },
+            {
+              "low": 0.25,
+              "high": 0.3,
+              "n_windows": 197603,
+              "pearson": 0.09447771111354292
+            },
+            {
+              "low": 0.3,
+              "high": 0.35,
+              "n_windows": 159738,
+              "pearson": 0.07698027234954671
+            },
+            {
+              "low": 0.35,
+              "high": 0.4,
+              "n_windows": 128818,
+              "pearson": 0.07882746026736341
+            },
+            {
+              "low": 0.4,
+              "high": 0.45,
+              "n_windows": 106697,
+              "pearson": 0.0580898602612381
+            },
+            {
+              "low": 0.45,
+              "high": 0.5,
+              "n_windows": 89092,
+              "pearson": 0.04432631751286584
+            },
+            {
+              "low": 0.5,
+              "high": 0.55,
+              "n_windows": 74899,
+              "pearson": 0.054269866854640865
+            },
+            {
+              "low": 0.55,
+              "high": 0.6,
+              "n_windows": 63460,
+              "pearson": 0.02604242621222149
+            },
+            {
+              "low": 0.6,
+              "high": 0.65,
+              "n_windows": 52140,
+              "pearson": 0.018574773921274965
+            },
+            {
+              "low": 0.65,
+              "high": 0.7,
+              "n_windows": 44225,
+              "pearson": 0.019575594948896758
+            },
+            {
+              "low": 0.7,
+              "high": 0.75,
+              "n_windows": 37537,
+              "pearson": -0.01636409080607676
+            },
+            {
+              "low": 0.75,
+              "high": 0.8,
+              "n_windows": 31214,
+              "pearson": 0.030633934099884942
+            },
+            {
+              "low": 0.8,
+              "high": 0.85,
+              "n_windows": 25102,
+              "pearson": 0.030322191759989615
+            },
+            {
+              "low": 0.85,
+              "high": 0.9,
+              "n_windows": 21044,
+              "pearson": 0.02350672335634175
+            },
+            {
+              "low": 0.9,
+              "high": 0.95,
+              "n_windows": 14332,
+              "pearson": -0.02605870853833766
+            },
+            {
+              "low": 0.95,
+              "high": 1.0,
+              "n_windows": 5874,
+              "pearson": -0.04450154570692542
+            }
+          ]
+        },
+        {
+          "dataset": "icshape_mouse_invivo",
+          "records_processed": 55203,
+          "records_total": 55203,
+          "valid_records": 9626,
+          "bins": [
+            {
+              "low": 0.0,
+              "high": 0.05,
+              "n_windows": 6791152,
+              "pearson": 0.19207674201396535
+            },
+            {
+              "low": 0.05,
+              "high": 0.1,
+              "n_windows": 3101899,
+              "pearson": 0.1196774214189043
+            },
+            {
+              "low": 0.1,
+              "high": 0.15,
+              "n_windows": 1873308,
+              "pearson": 0.10600644413594013
+            },
+            {
+              "low": 0.15,
+              "high": 0.2,
+              "n_windows": 1275655,
+              "pearson": 0.1005878517444263
+            },
+            {
+              "low": 0.2,
+              "high": 0.25,
+              "n_windows": 930327,
+              "pearson": 0.09562285045897749
+            },
+            {
+              "low": 0.25,
+              "high": 0.3,
+              "n_windows": 712051,
+              "pearson": 0.09363742363545496
+            },
+            {
+              "low": 0.3,
+              "high": 0.35,
+              "n_windows": 562069,
+              "pearson": 0.08625992734439085
+            },
+            {
+              "low": 0.35,
+              "high": 0.4,
+              "n_windows": 453084,
+              "pearson": 0.09437005114589612
+            },
+            {
+              "low": 0.4,
+              "high": 0.45,
+              "n_windows": 369021,
+              "pearson": 0.09176379501134888
+            },
+            {
+              "low": 0.45,
+              "high": 0.5,
+              "n_windows": 303621,
+              "pearson": 0.08617033763523174
+            },
+            {
+              "low": 0.5,
+              "high": 0.55,
+              "n_windows": 254881,
+              "pearson": 0.08207713528146889
+            },
+            {
+              "low": 0.55,
+              "high": 0.6,
+              "n_windows": 211561,
+              "pearson": 0.07118301267494934
+            },
+            {
+              "low": 0.6,
+              "high": 0.65,
+              "n_windows": 179142,
+              "pearson": 0.07460126664854845
+            },
+            {
+              "low": 0.65,
+              "high": 0.7,
+              "n_windows": 149237,
+              "pearson": 0.07925822355420152
+            },
+            {
+              "low": 0.7,
+              "high": 0.75,
+              "n_windows": 123570,
+              "pearson": 0.06588160038205378
+            },
+            {
+              "low": 0.75,
+              "high": 0.8,
+              "n_windows": 106036,
+              "pearson": 0.06457088541559143
+            },
+            {
+              "low": 0.8,
+              "high": 0.85,
+              "n_windows": 87631,
+              "pearson": 0.0773150619961239
+            },
+            {
+              "low": 0.85,
+              "high": 0.9,
+              "n_windows": 68722,
+              "pearson": 0.05629674544910559
+            },
+            {
+              "low": 0.9,
+              "high": 0.95,
+              "n_windows": 49616,
+              "pearson": 0.10397195359423779
+            },
+            {
+              "low": 0.95,
+              "high": 1.0,
+              "n_windows": 22512,
+              "pearson": 0.08303967540094145
+            }
+          ]
+        },
+        {
+          "dataset": "shape_ecoli_incell",
+          "records_processed": 4497,
+          "records_total": 4497,
+          "valid_records": 450,
+          "bins": [
+            {
+              "low": 0.0,
+              "high": 0.05,
+              "n_windows": 191894,
+              "pearson": 0.24015230712957947
+            },
+            {
+              "low": 0.05,
+              "high": 0.1,
+              "n_windows": 59726,
+              "pearson": 0.1882807794343386
+            },
+            {
+              "low": 0.1,
+              "high": 0.15,
+              "n_windows": 30560,
+              "pearson": 0.22113945495237033
+            },
+            {
+              "low": 0.15,
+              "high": 0.2,
+              "n_windows": 19669,
+              "pearson": 0.20635022657572996
+            },
+            {
+              "low": 0.2,
+              "high": 0.25,
+              "n_windows": 13407,
+              "pearson": 0.23104788736883128
+            },
+            {
+              "low": 0.25,
+              "high": 0.3,
+              "n_windows": 10484,
+              "pearson": 0.1957558617464323
+            },
+            {
+              "low": 0.3,
+              "high": 0.35,
+              "n_windows": 7408,
+              "pearson": 0.2562949343140647
+            },
+            {
+              "low": 0.35,
+              "high": 0.4,
+              "n_windows": 6474,
+              "pearson": 0.2652524356757135
+            },
+            {
+              "low": 0.4,
+              "high": 0.45,
+              "n_windows": 5190,
+              "pearson": 0.2835882938250383
+            },
+            {
+              "low": 0.45,
+              "high": 0.5,
+              "n_windows": 3800,
+              "pearson": 0.3111265333025847
+            },
+            {
+              "low": 0.5,
+              "high": 0.55,
+              "n_windows": 3062,
+              "pearson": 0.2531728168215894
+            },
+            {
+              "low": 0.55,
+              "high": 0.6,
+              "n_windows": 3128,
+              "pearson": 0.2273682030168522
+            },
+            {
+              "low": 0.6,
+              "high": 0.65,
+              "n_windows": 2520,
+              "pearson": 0.26252306241898793
+            },
+            {
+              "low": 0.65,
+              "high": 0.7,
+              "n_windows": 2168,
+              "pearson": 0.2925150275310853
+            },
+            {
+              "low": 0.7,
+              "high": 0.75,
+              "n_windows": 1925,
+              "pearson": 0.29952944795752107
+            },
+            {
+              "low": 0.75,
+              "high": 0.8,
+              "n_windows": 1643,
+              "pearson": 0.28035293612008844
+            },
+            {
+              "low": 0.8,
+              "high": 0.85,
+              "n_windows": 1694,
+              "pearson": 0.3340128522356819
+            },
+            {
+              "low": 0.85,
+              "high": 0.9,
+              "n_windows": 1580,
+              "pearson": 0.3719824692808872
+            },
+            {
+              "low": 0.9,
+              "high": 0.95,
+              "n_windows": 1068,
+              "pearson": 0.2835891648029218
+            },
+            {
+              "low": 0.95,
+              "high": 1.0,
+              "n_windows": 672,
+              "pearson": 0.4449789560722337
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "bundle_generation": "27204385f20e4f51a34abf0d78859d71"
+}

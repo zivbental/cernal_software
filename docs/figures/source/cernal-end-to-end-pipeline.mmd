@@ -1,0 +1,23 @@
+flowchart TD
+    A[Submission] --> B[Validate mode, host, checksum, configuration]
+    B --> C{Input mode}
+    C -->|DE| D[Parse DGE table]
+    D --> E[Select genes]
+    E --> F[Load bundled transcripts]
+    F --> G[Scan and rank trigger windows]
+    C -->|Direct| H{Trigger-sized or longer transcript?}
+    H -->|Trigger-sized| I[Build one trigger candidate]
+    H -->|Longer| G
+    G --> J[Build trigger sets]
+    I --> J
+    J --> K[Check gate compatibility]
+    K --> L[Generate switch designs]
+    L --> M[Validate sequences and motifs]
+    M --> N[Measure raw metrics]
+    N --> O[Normalize and apply hard filters]
+    O --> P[Build single-gene circuit wrapper]
+    P --> Q[Assemble plasmid]
+    Q --> R[Rank accepted candidates]
+    R --> S[Write CSV, FASTA, GenBank]
+    S --> T[Import manifest into Django models]
+    T --> U[UI/API results, annotations, downloads]

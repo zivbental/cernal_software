@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">CERNAL runtime AI and scientific-model boundary</title>
+  <desc id="desc">CERNAL has no runtime generative AI, large language model, neural network, trained classifier, or remote inference service. Its application logic is deterministic software. ViennaRNA is a scientific computational model whose derived leakage, dynamic-range, and success quantities are proxies. AI-assisted development and documentation provenance is separate from runtime behavior.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#17324d" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 36px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .subtitle { font: 400 18px Inter, "Segoe UI", Arial, sans-serif; fill: #526777; }
+      .card-title { font: 700 22px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .card-kicker { font: 700 13px Inter, "Segoe UI", Arial, sans-serif; letter-spacing: 1.4px; }
+      .body { font: 400 15px Inter, "Segoe UI", Arial, sans-serif; fill: #405767; }
+      .body-strong { font: 700 15px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .large { font: 800 42px Inter, "Segoe UI", Arial, sans-serif; }
+      .footer-title { font: 700 18px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .runtime-card { fill: #eef3f7; stroke: #31546f; stroke-width: 2.5; }
+      .deterministic-card { fill: #edf8f7; stroke: #0f766e; stroke-width: 2.5; }
+      .science-card { fill: #f5f0ff; stroke: #6d28d9; stroke-width: 2.5; }
+      .dev-band { fill: #fff8e8; stroke: #b45309; stroke-width: 2.5; }
+      .divider { stroke: #d2dde5; stroke-width: 1.5; }
+      .runtime { fill: #31546f; }
+      .deterministic { fill: #0f766e; }
+      .science { fill: #6d28d9; }
+      .development { fill: #b45309; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="1000"/>
+  <g id="header">
+    <text class="title" x="60" y="60">AI, deterministic computation, and scientific models</text>
+    <text class="subtitle" x="60" y="92">Three distinct runtime categories — plus development provenance kept outside the runtime boundary</text>
+  </g>
+
+  <g id="runtime-ai" filter="url(#shadow)">
+    <rect class="runtime-card" x="50" y="135" width="465" height="610" rx="24"/>
+    <text class="card-kicker runtime" x="82" y="176">RUNTIME AI / ML</text>
+    <text class="large runtime" x="82" y="228">NONE IMPLEMENTED</text>
+    <line class="divider" x1="82" y1="252" x2="483" y2="252"/>
+
+    <circle cx="96" cy="292" r="7" fill="#31546f"/>
+    <text class="body-strong" x="118" y="297">No runtime:</text>
+    <text class="body" x="118" y="326"><tspan x="118">generative AI, large language model,</tspan><tspan x="118" dy="22">neural network, trained classifier,</tspan><tspan x="118" dy="22">or remote inference service.</tspan></text>
+
+    <circle cx="96" cy="424" r="7" fill="#31546f"/>
+    <text class="body-strong" x="118" y="429">No AI inference SDK</text>
+    <text class="body" x="118" y="457"><tspan x="118">in the implemented Python or</tspan><tspan x="118" dy="22">JavaScript dependency manifests.</tspan></text>
+
+    <circle cx="96" cy="526" r="7" fill="#31546f"/>
+    <text class="body-strong" x="118" y="531">No biological-data transfer</text>
+    <text class="body" x="118" y="559"><tspan x="118">Runs do not send biological data</tspan><tspan x="118" dy="22">to an AI provider.</tspan></text>
+
+    <rect x="82" y="635" width="401" height="76" rx="16" fill="#ffffff" stroke="#9fb1bf" stroke-width="1.5"/>
+    <text class="body-strong" x="106" y="666">Boundary statement</text>
+    <text class="body" x="106" y="691">The deterministic engine is not artificial intelligence.</text>
+  </g>
+
+  <g id="deterministic-computation" filter="url(#shadow)">
+    <rect class="deterministic-card" x="550" y="135" width="500" height="610" rx="24"/>
+    <text class="card-kicker deterministic" x="582" y="176">DETERMINISTIC SOFTWARE</text>
+    <text class="card-title" x="582" y="215">Algorithms and product logic — not AI</text>
+    <line class="divider" x1="582" y1="238" x2="1018" y2="238"/>
+
+    <circle cx="596" cy="278" r="6" fill="#0f766e"/>
+    <text class="body" x="616" y="283">Column normalization and validation</text>
+
+    <circle cx="596" cy="326" r="6" fill="#0f766e"/>
+    <text class="body" x="616" y="321"><tspan x="616">Benjamini–Hochberg adjustment and</tspan><tspan x="616" dy="21">rule-based gene filtering</tspan></text>
+
+    <circle cx="596" cy="390" r="6" fill="#0f766e"/>
+    <text class="body" x="616" y="395">Sliding-window trigger enumeration</text>
+
+    <circle cx="596" cy="438" r="6" fill="#0f766e"/>
+    <text class="body" x="616" y="433"><tspan x="616">Motif, restriction-site, and</tspan><tspan x="616" dy="21">homopolymer screening</tspan></text>
+
+    <circle cx="596" cy="502" r="6" fill="#0f766e"/>
+    <text class="body" x="616" y="507">Gate templates and reverse complements</text>
+
+    <circle cx="596" cy="550" r="6" fill="#0f766e"/>
+    <text class="body" x="616" y="545"><tspan x="616">Min–max normalization, weighted means,</tspan><tspan x="616" dy="21">hard filters, and ranking</tspan></text>
+
+    <circle cx="596" cy="614" r="6" fill="#0f766e"/>
+    <text class="body" x="616" y="619">Plasmid concatenation and GenBank serialization</text>
+
+    <circle cx="596" cy="662" r="6" fill="#0f766e"/>
+    <text class="body" x="616" y="657"><tspan x="616">Lifecycle, quotas, authentication, persistence,</tspan><tspan x="616" dy="21">and UI filtering</tspan></text>
+  </g>
+
+  <g id="scientific-models" filter="url(#shadow)">
+    <rect class="science-card" x="1085" y="135" width="465" height="610" rx="24"/>
+    <text class="card-kicker science" x="1117" y="176">SCIENTIFIC MODEL / TOOL</text>
+    <text class="card-title" x="1117" y="215">ViennaRNA computation</text>
+    <line class="divider" x1="1117" y1="238" x2="1518" y2="238"/>
+
+    <circle cx="1131" cy="282" r="7" fill="#6d28d9"/>
+    <text class="body-strong" x="1153" y="287">Scientific computational models</text>
+    <text class="body" x="1153" y="315"><tspan x="1153">Secondary-structure thermodynamics,</tspan><tspan x="1153" dy="22">partition functions, MFE structures,</tspan><tspan x="1153" dy="22">and base-pair probabilities.</tspan></text>
+
+    <circle cx="1131" cy="419" r="7" fill="#6d28d9"/>
+    <text class="body-strong" x="1153" y="424">Derived quantities are proxies</text>
+    <text class="body" x="1153" y="452"><tspan x="1153">Structural leakage, dynamic-range,</tspan><tspan x="1153" dy="22">and success quantities are predictions</tspan><tspan x="1153" dy="22">or heuristics — not measured biology.</tspan></text>
+
+    <rect x="1117" y="536" width="401" height="82" rx="16" fill="#ffffff" stroke="#b8a1e3" stroke-width="1.5"/>
+    <text class="body-strong" x="1141" y="567">Wording rule</text>
+    <text class="body" x="1141" y="593">Scientific model ≠ measured biology ≠ AI.</text>
+
+    <rect x="1117" y="637" width="401" height="74" rx="16" fill="#ffffff" stroke="#b8a1e3" stroke-width="1.5"/>
+    <text class="body-strong" x="1141" y="667">MockEngine</text>
+    <text class="body" x="1141" y="692">Testing fixture, not a scientific model.</text>
+  </g>
+
+  <g id="development-provenance" filter="url(#shadow)">
+    <rect class="dev-band" x="50" y="780" width="1500" height="165" rx="24"/>
+    <text class="card-kicker development" x="82" y="820">AI-ASSISTED DEVELOPMENT AND DOCUMENTATION — OUTSIDE THE RUNTIME SYSTEM</text>
+
+    <circle cx="96" cy="860" r="7" fill="#b45309"/>
+    <text class="footer-title" x="118" y="866">Provenance recorded</text>
+    <text class="body" x="118" y="894">docs/attribution.md and the preserved Lovable-origin frontend design reference.</text>
+
+    <circle cx="720" cy="860" r="7" fill="#b45309"/>
+    <text class="footer-title" x="742" y="866">Boundary preserved</text>
+    <text class="body" x="742" y="894">Coding or drafting assistance does not make AI part of the runtime application.</text>
+
+    <circle cx="1290" cy="860" r="7" fill="#b45309"/>
+    <text class="footer-title" x="1312" y="866">Final attribution</text>
+    <text class="body" x="1312" y="894"><tspan x="1312">State tools, human review,</tspan><tspan x="1312" dy="21">and retained AI-assisted work.</tspan></text>
+  </g>
+
+  <text class="body" x="60" y="980">Runtime behavior, scientific modeling, and development provenance are separate claims and should remain separate in publication text.</text>
+</svg>

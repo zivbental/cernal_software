@@ -18,6 +18,7 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/guide", label: "Quick Guide" },
   { to: "/use-cases", label: "Use Cases" },
+  { to: "/faq", label: "FAQ" },
   { to: "/api-docs", label: "API Reference" },
   { to: "/about", label: "About Us" },
 ] as const;
@@ -36,8 +37,8 @@ function Nav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-8">
-        <div className="flex items-center gap-10">
+      <div className="mx-auto flex min-h-16 max-w-[1400px] items-center justify-between gap-3 px-4 py-2 sm:px-8">
+        <div className="flex min-w-0 items-center gap-4 lg:gap-8">
           <Link to="/dashboard" className="flex items-center gap-2.5">
             <img
               src={cernalLogo}
@@ -45,14 +46,14 @@ function Nav() {
               className="h-9 w-auto"
             />
           </Link>
-          <nav className="hidden items-center gap-1 md:flex">
+          <nav aria-label="Primary navigation" className="hidden min-w-0 flex-wrap items-center gap-1 lg:flex">
             {NAV.map((item) => {
               const active = pathname.startsWith(item.to);
               return (
                 <Link
                   key={item.to}
                   to={item.to}
-                  className={`rounded-md px-3 py-1.5 text-sm transition ${
+                  className={`rounded-md px-2 py-1.5 text-sm transition xl:px-3 ${
                     active
                       ? "bg-secondary font-medium text-foreground"
                       : "text-muted-foreground hover:text-foreground"
@@ -106,6 +107,25 @@ function Nav() {
           </button>
         </div>
       </div>
+      <nav
+        aria-label="Primary navigation"
+        className="flex flex-wrap gap-1 border-t border-border px-4 py-2 sm:px-8 lg:hidden"
+      >
+        {NAV.map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            aria-current={pathname.startsWith(item.to) ? "page" : undefined}
+            className={`rounded-md px-2 py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint ${
+              pathname.startsWith(item.to)
+                ? "bg-secondary font-medium text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
     </header>
   );
 }
@@ -133,7 +153,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Nav />
-      <main className="mx-auto w-full max-w-[1400px] flex-1 px-8 py-10">{children}</main>
+      <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8 sm:px-8 sm:py-10">{children}</main>
       <Footer />
     </div>
   );

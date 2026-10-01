@@ -74,6 +74,14 @@ class ToeholdGate(GateFamily):
             everyone shares one instance.
         translation: Shared ``TranslationScorer``, for initiation strength.
         codons: Shared ``CodonOptimizer``, for linker and payload rewriting.
+        payload: Optional — the effector gene's own CDS (DNA or RNA, a full ORF
+            starting with a start codon). When given, the real payload's own first
+            ``PAYLOAD_HEAD_LENGTH`` nucleotides are folded into every generated switch
+            (same idea as ``AntisenseNotGate.payload``, which requires one), so
+            ``evaluate_design`` measures the molecule a ribosome would actually see
+            once this gene is fused on — not a fixed placeholder standing in for any
+            gene. Unlike ``AntisenseNotGate``, optional: a toehold switch is useful to
+            design and rank before an effector gene is chosen.
 
     Reference: Green et al., "Toehold switches: de-novo-designed regulators of gene
     expression" (2014), and the pipeline map's Switches Design stage.
@@ -81,7 +89,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.2.0"
+    version = "0.8.1"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -92,9 +100,18 @@ class ToeholdGate(GateFamily):
     #: Toehold lengths to explore per trigger. Widening this multiplies the search space.
     toehold_lengths: ClassVar[tuple[int, ...]] = (12, 15, 18)
 
-    #: Unstructured 5' leader ahead of the toehold. Matches the source generator's default
-    #: (``leader_sequence="GGG"``) — a fixed, unengineered spacer, not swept.
-    LEADER_SEQUENCE: ClassVar[str] = "GGG"
+    #: Unstructured 5' leader ahead of the toehold, dispatched on ``self.host.track`` by
+    #: ``_leader_sequence`` the same way ``_loop_element`` dispatches the RBS/Kozak
+    #: choice — these are not interchangeable defaults, they are two different upstream
+    #: contexts. ``LEADER_SEQUENCE_PROKARYOTIC`` ("GGG") is the source generator's own
+    #: default (``leader_sequence="GGG"``) — a T7-in-vitro-transcription convention (T7
+    #: initiates most efficiently on a leading G run), not a eukaryotic construct
+    #: concern. ``LEADER_SEQUENCE_EUKARYOTIC`` is the actual plasmid sequence the team
+    #: supplied that attaches immediately before the toehold in the human construct
+    #: (``plasmid_prefix`` in the team's own scripts) — not a placeholder, so it is not
+    #: swept the way ``TRAILING_LOOP_LENGTHS``/``KOZAK_LINKER_LENGTHS`` are.
+    LEADER_SEQUENCE_PROKARYOTIC: ClassVar[str] = "GGG"
+    LEADER_SEQUENCE_EUKARYOTIC: ClassVar[str] = "GUCAGAUC"
 
     #: Ascending-stem length either side of the 3-nt bulge, matching the source
     #: generator's defaults (``a_domain_size``'s neighbours ``b_domain_size_pre_bulge`` /
@@ -128,12 +145,61 @@ class ToeholdGate(GateFamily):
     #: ``linker_pattern`` default.
     LINKER_SEQUENCE: ClassVar[str] = "AACCUGGCGGCAGCGCAAAAG"
 
+    #: Which Kozak placement(s) ``generate_designs`` builds, for a eukaryotic host.
+    #: ``"loop"`` is the layout above — RBS-in-loop, borrowed unmodified from the
+    #: prokaryotic mechanism (steric occlusion of the start codon). ``"trailing"`` is a
+    #: second, biologically distinct layout: Kozak and AUG sit *after* the closed
+    #: hairpin rather than inside its loop, so the hairpin blocks a scanning ribosome
+    #: (docs/modalities.md's "scanning ribosome model") rather than caging the start
+    #: codon directly. A prokaryotic host always builds ``"loop"`` only — Shine-Dalgarno
+    #: initiation has no scanning phase for a downstream hairpin to block — regardless
+    #: of this setting; see ``generate_designs``.
+    #:
+    #: Not a subclass split (docs/engine.md §2.4's "host: a parameter, not a subclass" —
+    #: the same reasoning applies here): both layouts share every method except the
+    #: switch construction and the leakage proxy in ``evaluate_design``. Pass a narrower
+    #: tuple to ``__init__`` to restrict generation to one layout; the default sweeps
+    #: both and leaves ``engine.scoring`` to rank across them, per ``CLAUDE.md`` §3 — a
+    #: gate never picks its own winner.
+    KOZAK_LAYOUTS: ClassVar[tuple[str, ...]] = ("loop", "trailing")
+
+    #: Loop lengths swept for the ``"trailing"`` layout. Once Kozak leaves the loop, the
+    #: loop is no longer sized or filled by a fixed conserved element — it is free, and
+    #: needs its own length sweep the way ``toehold_lengths`` sweeps the toehold. The
+    #: actual nucleotides are still ``_filler``'s deterministic placeholder; no sequence-
+    #: design optimizer exists in this port (see ``_filler``).
+    TRAILING_LOOP_LENGTHS: ClassVar[tuple[int, ...]] = (10, 12)
+
+    #: Optional spacer between the closed hairpin and the Kozak element, for the
+    #: ``"trailing"`` layout only. ``0`` (no spacer, Kozak immediately follows the
+    #: stem) and a short non-zero option, swept the same way — whether *some* distance
+    #: from the hairpin's base helps the scanning ribosome re-initiate, or whether it
+    #: just adds unstructured length for no benefit, is exactly the kind of question
+    #: ``engine.scoring`` settles across designs, not a constant to guess once here.
+    KOZAK_LINKER_LENGTHS: ClassVar[tuple[int, ...]] = (0, 3)
+
+    #: Nucleotides of the payload's own CDS, immediately after its start codon, that get
+    #: folded into every switch when ``payload`` is supplied. Same figure and rationale
+    #: as ``AntisenseNotGate.PAYLOAD_HEAD_LENGTH``: Kudla et al. 2009 (*Science*,
+    #: "Coding-sequence determinants of gene expression in E. coli") found mRNA folding
+    #: strength in roughly this window around the start codon to be the strongest
+    #: predictor of expression level in their assay — bigger than codon usage. Without a
+    #: payload, ``evaluate_design`` folds the switch alone (or with ``LINKER_SEQUENCE``
+    #: for ``"loop"``) — a different molecule from what a real ribosome would see once a
+    #: specific gene is fused on, and the two can rank designs differently: a candidate
+    #: whose stem looks clean in isolation can pick up new base-pairing partners once the
+    #: real downstream sequence is folded in, or vice versa.
+    PAYLOAD_HEAD_LENGTH: ClassVar[int] = 30
+
     def __init__(
         self,
         host: Host,
         folder: FoldEngine,
         translation: TranslationScorer,
         codons: CodonOptimizer,
+        *,
+        kozak_layouts: tuple[str, ...] | None = None,
+        payload: str | None = None,
     ) -> None:
         # Tools are handed in, never constructed here: FoldEngine's cache only helps if
         # every caller shares one instance (docs/engine.md §2.4).
@@ -141,6 +207,29 @@ class ToeholdGate(GateFamily):
         self.folder = folder
         self.translation = translation
         self.codons = codons
+        # None means "use the class default sweep" rather than "sweep nothing" — a
+        # caller narrowing to one layout passes an explicit one-element tuple instead.
+        self.kozak_layouts = kozak_layouts if kozak_layouts is not None else self.KOZAK_LAYOUTS
+
+        # Optional, unlike AntisenseNotGate's required `payload` — a toehold switch is
+        # useful to design and rank before an effector gene is chosen, so `None` falls
+        # back to today's placeholder behaviour (LINKER_SEQUENCE for "loop", nothing for
+        # "trailing") rather than forcing every caller to supply one.
+        self.payload: str | None = None
+        self.payload_head: str | None = None
+        if payload is not None:
+            payload_rna = sq.to_rna(payload)
+            if not sq.is_valid_rna(payload_rna):
+                raise ValueError("payload must be a non-empty RNA or DNA sequence.")
+            if payload_rna[:3] != sq.START_CODON:
+                raise ValueError(
+                    "payload must be a full CDS starting with a start codon, got "
+                    f"{payload_rna[:3]!r}."
+                )
+            self.payload = payload_rna
+            # Computed once, not per design: it never varies across generate_designs'
+            # sweep, same reasoning as AntisenseNotGate's own payload_head.
+            self.payload_head = payload_rna[3 : 3 + self.PAYLOAD_HEAD_LENGTH]
 
     def required_tools(self) -> list[ToolRequirement]:
         """External tools this family needs, checked before a run starts.
@@ -218,10 +307,13 @@ class ToeholdGate(GateFamily):
             and the architecture parameters recorded in ``architecture`` so a design can
             be traced back to how it was built.
 
-            **Yields rather than returns.** An exact scanned candidate carries its mapped
-            gate footprint and yields one matching variant. A manual direct candidate has
-            no mapping and retains the legacy sweep across every fitting toehold length;
-            across thousands of trigger sets, the validator will discard most designs.
+            **Yields rather than returns.** A prokaryotic exact scanned candidate carries
+            its mapped gate footprint and yields one matching variant. A manual direct
+            candidate, and every eukaryotic candidate regardless of scan status, retain
+            the sweep across every fitting toehold length — each variant's
+            ``architecture["gate_toehold_length_match"]`` flags whether it is the one the
+            RNAplfold scan actually verified, for downstream ranking to weigh. Across
+            thousands of trigger sets, the validator will discard most designs.
 
         Construction (Step 5):
             1. **Binding region** — ``sequences.reverse_complement(trigger.sequence)``.
@@ -229,10 +321,30 @@ class ToeholdGate(GateFamily):
                of the stem.
             2. **Split it.** The first ``toehold_len`` nucleotides stay single-stranded
                as the toehold; the rest forms the ascending side of the stem.
-            3. **Loop.** Insert the RBS (prokaryotic) or leave the Kozak context
-               (eukaryotic) in the loop, where it is accessible in the OFF state.
-            4. **Descending stem.** Complementary to the ascending side, and containing
-               the start codon so it is sequestered until the stem opens.
+            3. **Loop and Kozak/RBS placement — two layouts, swept via
+               ``self.kozak_layouts``:**
+
+               * ``"loop"`` — insert the RBS (prokaryotic) or Kozak context
+                 (eukaryotic) in the loop itself, where it is accessible in the OFF
+                 state. Borrowed unmodified from the prokaryotic steric-occlusion
+                 mechanism; see ``KOZAK_LAYOUTS``'s own docstring for why it is marked
+                 unvalidated for a eukaryotic toehold specifically.
+               * ``"trailing"`` (eukaryotic only) — the loop carries no conserved
+                 element and is free-length (``TRAILING_LOOP_LENGTHS``); Kozak and the
+                 start codon are appended *after* the fully closed hairpin instead,
+                 optionally behind a short spacer (``KOZAK_LINKER_LENGTHS``). The
+                 mechanism this models is scanning-ribosome blockage
+                 (docs/modalities.md): the hairpin, not the AUG's own accessibility,
+                 is what a trigger has to open.
+
+               A prokaryotic host always builds ``"loop"`` only, regardless of
+               ``self.kozak_layouts`` — Shine-Dalgarno initiation has no scanning
+               phase for a downstream hairpin to block.
+            4. **Descending stem.** Complementary to the ascending side. For
+               ``"loop"``, it contains the start codon so it is sequestered until the
+               stem opens; for ``"trailing"``, the equivalent bulge position carries
+               the trigger-derived complement instead, since the start codon has moved
+               downstream of the whole hairpin.
             5. **Linker.** In frame, joining the switch to the payload. Keep it low in
                structure and free of stop codons; ``codons`` can rewrite it if it
                interferes.
@@ -240,13 +352,22 @@ class ToeholdGate(GateFamily):
                into. The validator compares against it, so a design without one cannot be
                checked.
 
-            For a manual direct candidate, vary ``toehold_lengths`` and yield one design
-            per fitting length. For an exact scanned candidate, use only its mapped length;
-            widening the tuple does not multiply that candidate's designs.
+            For a manual direct candidate, or any eukaryotic candidate, vary
+            ``toehold_lengths`` (and, for ``"trailing"``, ``TRAILING_LOOP_LENGTHS`` x
+            ``KOZAK_LINKER_LENGTHS`` too) and yield one design per combination — a
+            RNAplfold-verified footprint narrows *which* trigger window was scanned, not
+            which built toehold length will initiate best once Kozak/the leader and the
+            payload are attached, so eukaryotic hosts keep exploring the whole tuple. Only
+            a prokaryotic exact scanned candidate uses its one mapped length; widening
+            ``toehold_lengths`` does not multiply that candidate's designs. Ranking the
+            results, across layouts included, is ``engine.scoring``'s job (``CLAUDE.md``
+            §3): this method emits every combination it can build, not the ones it judges
+            best.
 
         Note:
-            Legacy/manual variants from the same trigger differ only in toehold length, so
-            they share most of their sequence. That is precisely why ``FoldEngine`` caches:
+            Legacy/manual variants from the same trigger differ only in these swept
+            parameters, so they share most of their sequence. That is precisely why
+            ``FoldEngine`` caches:
             the validator will fold overlapping sequences repeatedly.
 
         Deviations from the source generator (see the port's open questions):
@@ -256,10 +377,16 @@ class ToeholdGate(GateFamily):
               ``toehold_length + STEM_PRE_BULGE_LEN + 3 + STEM_POST_BULGE_LEN`` are simply
               unused for that variant, rather than the stem scaling to consume the whole
               binding region the way the source generator's single fixed-length trigger did.
-            * The loop's undesigned filler (when ``LOOP_LEN`` exceeds the RBS/Kozak
-              length — zero nucleotides at the class defaults) is a fixed, non-repeating
-              placeholder, not solved by a sequence-design optimizer the way the source
-              generator's NUPACK ``tube_design`` call would.
+            * The loop's undesigned nucleotides (the ``"loop"`` layout's filler beyond
+              the RBS/Kozak length, and the whole loop for ``"trailing"``) are a fixed,
+              non-repeating placeholder, not solved by a sequence-design optimizer the
+              way the source generator's NUPACK ``tube_design`` call would.
+            * The ``"trailing"`` layout itself is not part of the source generator at
+              all — it was not in scope for this port until the discrepancy against the
+              team's own eukaryotic scripts (``plasmid_prefix + trg_bind_region + loop +
+              stem_down + kozak``, Kozak last) surfaced it. It is new, unreviewed
+              science — see this method's own construction notes above and
+              ``evaluate_design``'s note on the leakage proxy it needs.
             * The construct stops at the linker. The source generator fused a specific
               downstream gene onto the same output string; ``ToeholdGate.__init__`` is
               given no payload (unlike ``AntisenseNotGate``, which takes one), and
@@ -268,14 +395,19 @@ class ToeholdGate(GateFamily):
         """
         trigger = trigger_set.activators[0]
         binding_region = sq.reverse_complement(trigger.sequence)
-        loop = self._loop_element()
 
-        # Scanned stage-2 candidates name one exact gate footprint and therefore one
-        # toehold variant. Legacy/manual direct candidates leave the field unset and
-        # retain the historical sweep across every variant that fits their sequence.
+        layouts = self.kozak_layouts if self.host.track is Track.EUKARYOTIC else ("loop",)
+
+        # A prokaryotic scanned stage-2 candidate names one exact gate footprint, so it
+        # yields one matching toehold variant. Legacy/manual direct candidates, and every
+        # eukaryotic candidate regardless of scan status, keep the full sweep: the
+        # scanned footprint identifies the trigger window RNAplfold verified as open, not
+        # which toehold length will fold and initiate best against Kozak/the leader once
+        # built — that is still an open question the eukaryotic layouts are meant to
+        # explore, not one this evidence has settled.
         toehold_lengths = (
             (trigger.gate_toehold_length,)
-            if trigger.gate_toehold_length is not None
+            if trigger.gate_toehold_length is not None and self.host.track is not Track.EUKARYOTIC
             else self.toehold_lengths
         )
         for toehold_length in toehold_lengths:
@@ -291,63 +423,235 @@ class ToeholdGate(GateFamily):
             post_start = bulge_start + 3
             b_post = binding_region[post_start : post_start + self.STEM_POST_BULGE_LEN]
 
-            switch = (
-                self.LEADER_SEQUENCE
-                + a_domain
+            for layout in layouts:
+                if layout == "loop":
+                    variants = [self._build_loop_kozak_design(a_domain, b_pre, b_bulge, b_post)]
+                elif layout == "trailing":
+                    variants = list(
+                        self._build_trailing_kozak_designs(a_domain, b_pre, b_bulge, b_post)
+                    )
+                else:
+                    raise ValueError(f"Unknown kozak_layouts entry: {layout!r}")
+
+                for switch, dot_bracket, architecture in variants:
+                    if len(switch) > constraints.max_switch_length:
+                        continue
+                    architecture["toehold_length"] = toehold_length
+                    architecture["trigger_footprint_length"] = footprint
+                    architecture["trigger_orientation"] = "transcript_forward"
+                    architecture["gate_toehold_length_match"] = (
+                        toehold_length == trigger.gate_toehold_length
+                        if trigger.gate_toehold_length is not None
+                        else None
+                    )
+                    design_id = (
+                        f"{self.design_prefix}-{trigger.trigger_id}-{toehold_length}-{layout}"
+                    )
+                    if layout == "trailing":
+                        design_id += (
+                            f"-{architecture['loop_len']}-{architecture['kozak_linker_len']}"
+                        )
+                    yield GateDesign(
+                        design_id=design_id,
+                        gate_kind=self.kind,
+                        host=self.host,
+                        trigger_set=trigger_set,
+                        sequence=switch,
+                        dot_bracket=dot_bracket,
+                        architecture=architecture,
+                    )
+
+    def _build_loop_kozak_design(
+        self, a_domain: str, b_pre: str, b_bulge: str, b_post: str
+    ) -> tuple[str, str, dict]:
+        """The ``"loop"`` layout: RBS/Kozak in the loop, start codon in the stem.
+
+        Construction unchanged from before ``"trailing"`` existed, except the tail
+        after the start codon: the real payload's own first ``PAYLOAD_HEAD_LENGTH``
+        nucleotides when ``self.payload`` is set, else the unengineered
+        ``LINKER_SEQUENCE`` placeholder as before — see ``PAYLOAD_HEAD_LENGTH``'s
+        docstring and ``generate_designs``'s construction notes.
+        """
+        leader = self._leader_sequence()
+        loop = self._loop_element()
+        tail = self.payload_head if self.payload_head is not None else self.LINKER_SEQUENCE
+
+        switch = (
+            leader
+            + a_domain
+            + b_pre
+            + b_bulge
+            + b_post
+            + loop
+            + sq.reverse_complement(b_post)
+            + sq.START_CODON
+            + sq.reverse_complement(b_pre)
+            + tail
+        )
+
+        aug_index = (
+            len(leader)
+            + len(a_domain)
+            + self.STEM_PRE_BULGE_LEN
+            + 3
+            + self.STEM_POST_BULGE_LEN
+            + len(loop)
+            + self.STEM_POST_BULGE_LEN
+        )
+        dot_bracket = (
+            "." * len(leader)
+            + "." * len(a_domain)
+            + "(" * self.STEM_PRE_BULGE_LEN
+            + "." * 3
+            + "(" * self.STEM_POST_BULGE_LEN
+            + "." * len(loop)
+            + ")" * self.STEM_POST_BULGE_LEN
+            + "." * 3
+            + ")" * self.STEM_PRE_BULGE_LEN
+            + "." * len(tail)
+        )
+        architecture = {
+            "stem_pre_bulge_len": self.STEM_PRE_BULGE_LEN,
+            "stem_post_bulge_len": self.STEM_POST_BULGE_LEN,
+            "loop_len": len(loop),
+            "leader_len": len(leader),
+            "linker_len": len(tail),
+            "payload_head_length": len(self.payload_head) if self.payload_head else 0,
+            "aug_index": aug_index,
+            "track": self.host.track.value,
+            "kozak_layout": "loop",
+            "kozak_rc_in_toehold": self._kozak_rc_in_toehold(a_domain),
+        }
+        return switch, dot_bracket, architecture
+
+    def _build_trailing_kozak_designs(
+        self, a_domain: str, b_pre: str, b_bulge: str, b_post: str
+    ) -> Iterator[tuple[str, str, dict]]:
+        """The ``"trailing"`` layout: Kozak and the start codon after the closed hairpin.
+
+        Yields one variant per ``TRAILING_LOOP_LENGTHS`` x ``KOZAK_LINKER_LENGTHS``
+        combination — see ``generate_designs``'s construction notes and
+        ``KOZAK_LAYOUTS``'s docstring for the mechanism this models and why these two
+        are swept rather than fixed.
+
+        Deliberately **no `LINKER_SEQUENCE`** after the start codon, unlike ``"loop"``.
+        ``LINKER_SEQUENCE`` is an unengineered spacer inherited unchanged from the
+        prokaryotic source generator (its own docstring: "matches the source
+        generator's ``linker_pattern`` default") — not something either mechanism
+        requires biologically, but harmless to leave in for a layout ported unmodified.
+        For eukaryotic cap-dependent scanning specifically, the 40S subunit initiates
+        the moment it meets Kozak+AUG; nothing after the AUG plays a role in *finding*
+        it, so there is no reason to hold this layout to a leftover prokaryotic
+        default. **When ``self.payload`` is set**, the real payload's own first
+        ``PAYLOAD_HEAD_LENGTH`` nucleotides are folded in after the start codon instead
+        — see ``PAYLOAD_HEAD_LENGTH``'s docstring for why this can change which design
+        ranks best. Without one, the switch still stops exactly at the start codon
+        (``GateDesign.sequence[aug_index:]`` is just ``"AUG"``); the full payload
+        attaches later regardless (``PlasmidBuilder._frame_violations``, which fuses
+        from ``aug_index`` onward using the *complete* payload either way — folding in
+        only the head here is for realistic evaluation, not a change to what actually
+        gets assembled).
+
+        Open question this leaves, not resolved here: ``validate_payload_cds``
+        (``stages/plasmids.py``) requires every payload to itself start with a start
+        codon, so the fused ORF reads switch-AUG, then the payload's *own* leading AUG
+        as an ordinary internal codon — an N-terminal Met before the payload's
+        intended sequence. Whether that is acceptable (translation start codons are
+        near-universally Met regardless, and N-terminal Met is often cleaved
+        post-translationally anyway) or whether the switch's own placeholder AUG
+        should instead be dropped in favour of the payload's is a scientific call for
+        the team, not decided here.
+        """
+        leader = self._leader_sequence()
+        tail = self.payload_head if self.payload_head is not None else ""
+        kozak_rc_in_toehold = self._kozak_rc_in_toehold(a_domain)
+        for loop_len in self.TRAILING_LOOP_LENGTHS:
+            loop = _filler(loop_len)
+            hairpin = (
+                a_domain
                 + b_pre
                 + b_bulge
                 + b_post
                 + loop
                 + sq.reverse_complement(b_post)
-                + sq.START_CODON
+                + sq.reverse_complement(b_bulge)
                 + sq.reverse_complement(b_pre)
-                + self.LINKER_SEQUENCE
             )
-            if len(switch) > constraints.max_switch_length:
-                continue
-
-            aug_index = (
-                len(self.LEADER_SEQUENCE)
-                + toehold_length
-                + self.STEM_PRE_BULGE_LEN
-                + 3
-                + self.STEM_POST_BULGE_LEN
-                + len(loop)
-                + self.STEM_POST_BULGE_LEN
-            )
-            dot_bracket = (
-                "." * len(self.LEADER_SEQUENCE)
-                + "." * toehold_length
-                + "(" * self.STEM_PRE_BULGE_LEN
-                + "." * 3
-                + "(" * self.STEM_POST_BULGE_LEN
-                + "." * len(loop)
-                + ")" * self.STEM_POST_BULGE_LEN
-                + "." * 3
-                + ")" * self.STEM_PRE_BULGE_LEN
-                + "." * len(self.LINKER_SEQUENCE)
-            )
-
-            yield GateDesign(
-                design_id=f"{self.design_prefix}-{trigger.trigger_id}-{toehold_length}",
-                gate_kind=self.kind,
-                host=self.host,
-                trigger_set=trigger_set,
-                sequence=switch,
-                dot_bracket=dot_bracket,
-                architecture={
-                    "toehold_length": toehold_length,
-                    "trigger_footprint_length": footprint,
-                    "trigger_orientation": "transcript_forward",
+            for kozak_linker_len in self.KOZAK_LINKER_LENGTHS:
+                kozak_linker = _filler(kozak_linker_len)
+                switch = (
+                    leader + hairpin + kozak_linker + self.KOZAK_EUKARYOTIC + sq.START_CODON + tail
+                )
+                aug_index = (
+                    len(leader) + len(hairpin) + kozak_linker_len + len(self.KOZAK_EUKARYOTIC)
+                )
+                dot_bracket = (
+                    "." * len(leader)
+                    + "." * len(a_domain)
+                    + "(" * self.STEM_PRE_BULGE_LEN
+                    + "." * 3
+                    + "(" * self.STEM_POST_BULGE_LEN
+                    + "." * loop_len
+                    + ")" * self.STEM_POST_BULGE_LEN
+                    + "." * 3
+                    + ")" * self.STEM_PRE_BULGE_LEN
+                    + "." * kozak_linker_len
+                    + "." * len(self.KOZAK_EUKARYOTIC)
+                    + "." * len(sq.START_CODON)
+                    + "." * len(tail)
+                )
+                architecture = {
                     "stem_pre_bulge_len": self.STEM_PRE_BULGE_LEN,
                     "stem_post_bulge_len": self.STEM_POST_BULGE_LEN,
-                    "loop_len": len(loop),
-                    "leader_len": len(self.LEADER_SEQUENCE),
-                    "linker_len": len(self.LINKER_SEQUENCE),
+                    "loop_len": loop_len,
+                    "kozak_linker_len": kozak_linker_len,
+                    "leader_len": len(leader),
+                    "linker_len": len(tail),
+                    "payload_head_length": len(self.payload_head) if self.payload_head else 0,
                     "aug_index": aug_index,
                     "track": self.host.track.value,
-                },
-            )
+                    "kozak_layout": "trailing",
+                    "kozak_rc_in_toehold": kozak_rc_in_toehold,
+                }
+                yield switch, dot_bracket, architecture
+
+    def _leader_sequence(self) -> str:
+        """The unstructured 5' leader ahead of the toehold, dispatched on
+        ``self.host.track`` — same pattern as ``_loop_element``'s RBS/Kozak dispatch.
+
+        Not a scientific computation. ``LEADER_SEQUENCE_EUKARYOTIC`` is the actual
+        plasmid sequence the human construct attaches before the toehold, so unlike
+        ``_loop_element``'s filler it must not be treated as swappable placeholder
+        text — see ``LEADER_SEQUENCE_PROKARYOTIC``/``LEADER_SEQUENCE_EUKARYOTIC``'s own
+        docstring for why the two are not interchangeable defaults.
+        """
+        return (
+            self.LEADER_SEQUENCE_PROKARYOTIC
+            if self.host.track is Track.PROKARYOTIC
+            else self.LEADER_SEQUENCE_EUKARYOTIC
+        )
+
+    def _kozak_rc_in_toehold(self, a_domain: str) -> bool:
+        """Whether the toehold (``a_domain``) contains the reverse complement of
+        ``KOZAK_EUKARYOTIC`` — a self-complementarity risk specific to this gate's own
+        construction, not a general folding-energy question ``predicted_leakage`` (a
+        summary accessibility average) is built to catch reliably at arbitrary position.
+
+        Both layouts place a real Kozak copy somewhere in the switch (loop or trailing
+        tail); if the trigger-derived toehold happens to carry Kozak's reverse
+        complement, that stretch of toehold is a direct Watson-Crick match for the
+        switch's own Kozak and can hybridize to it intramolecularly — competing with (or
+        replacing) the designed stem/toehold structure regardless of what the OFF-state
+        MFE or accessibility numbers report for the folded ensemble as a whole. Flagged
+        here as a structural fact on ``architecture`` (checked wherever the switch's own
+        Kozak copy actually is: the loop, or the trailing tail), not folded into
+        ``evaluate_design``'s canonical metrics — none of the nine ``DEFAULT_V1`` names
+        (``engine/scoring/profiles.py``) represent a self-complementarity flag, and
+        that vocabulary is shared by every gate family, not this one's to extend
+        unilaterally. Surfaced as data for ``engine.scoring`` (or a human) to act on,
+        same as this class's other open questions.
+        """
+        return sq.reverse_complement(self.KOZAK_EUKARYOTIC) in a_domain
 
     def _loop_element(self) -> str:
         """The loop's translation-initiation element: RBS (prokaryotic) or Kozak
@@ -390,13 +694,40 @@ class ToeholdGate(GateFamily):
               open.
             * ``gate_folding_energy`` — ``mfe_off``, the metric the profile already
               declares.
-            * ``predicted_leakage`` — a proxy for OFF-state translation. The accessible
-              fraction of the start codon in the OFF ensemble is the natural measure:
-              base-pair probabilities from ``folder``, read at the AUG. A start codon
-              never quite sequestered is a leaky switch.
-            * ``dynamic_range`` — ON over OFF. Derived from the difference between the two
-              accessibilities, not the two energies; energy difference is not linear in
-              expression.
+            * ``predicted_leakage`` — a proxy for OFF-state translation, **and the proxy
+              itself depends on ``design.architecture["kozak_layout"]``** (same metric
+              name, two different biological events, per ``CLAUDE.md`` §6's own warning
+              about this metric specifically):
+
+              * ``"loop"`` — the accessible fraction of the **start codon** in the OFF
+                ensemble: base-pair probabilities from ``folder``, read at the AUG. A
+                start codon never quite sequestered is a leaky switch.
+              * ``"trailing"`` — the AUG sits *outside* the hairpin here (see
+                ``generate_designs``), so AUG-region accessibility does not discriminate
+                ON from OFF — it stays roughly accessible either way, which is a stops-
+                discriminating failure of exactly the kind ``CLAUDE.md`` §2 warns about
+                if reused unmodified. Read instead at the **toehold+stem region**: how
+                often the blocking hairpin itself fails to stay formed. Unreviewed
+                science — flagged, not silently chosen; see the port's open questions.
+              * **Eukaryotic track only** (either layout), when
+                ``architecture["kozak_rc_in_toehold"]`` is ``True``: reported as the
+                worst-case ``1.0`` instead of the measured value. ``_mean_unpaired``
+                sums each footprint position's pairing probability against *every*
+                other position in the switch, Kozak included — so a toehold that
+                closed against the switch's own downstream Kozak copy instead of its
+                intended stem partner reads as *low* (good-looking) accessibility, not
+                high. The proxy cannot tell a properly-closed hairpin from a
+                Kozak-hijacked one; since the flag can, prefer distrust over a number
+                that may only look good because it measured the wrong closure.
+                Prokaryotic designs are exempt: the flag itself is still computed for
+                them (``_build_loop_kozak_design`` doesn't branch on track), but it
+                checks for ``KOZAK_EUKARYOTIC``'s reverse complement — meaningless
+                against an RBS-carrying loop, since there is no Kozak copy anywhere in
+                a prokaryotic switch to hijack. See ``_kozak_rc_in_toehold``.
+            * ``dynamic_range`` — ON over OFF, using whichever region ``predicted_leakage``
+              above measured for this design's layout. Derived from the difference
+              between the two accessibilities, not the two energies; energy difference is
+              not linear in expression.
             * ``trigger_accessibility`` — already measured in stage 2 and carried on the
               trigger. Read it, do not recompute it, or the two disagree.
             * ``translation_score`` — ``self.translation.score(...)`` at the start codon.
@@ -418,13 +749,43 @@ class ToeholdGate(GateFamily):
         """
         switch = design.sequence
         trigger = design.trigger_set.activators[0]
-        aug_index = design.architecture["aug_index"]
+        layout = design.architecture.get("kozak_layout", "loop")
 
         off_matrix = self.folder.base_pair_probabilities(switch)
-        off_accessibility = _mean_unpaired(off_matrix, aug_index, aug_index + 3)
-
         on_matrix = self.folder.base_pair_probabilities(f"{switch}&{trigger.sequence}")
-        on_accessibility = _mean_unpaired(on_matrix, aug_index, aug_index + 3)
+
+        if layout == "trailing":
+            # The blocked-scanning mechanism: what matters is whether the *hairpin*
+            # stays closed, not the (always-accessible) AUG downstream of it. Measured
+            # over the toehold+stem span — the region generate_designs actually folds
+            # into a hairpin for this layout.
+            region_start = design.architecture["leader_len"]
+            region_end = region_start + (
+                design.architecture["toehold_length"]
+                + design.architecture["stem_pre_bulge_len"]
+                + 3
+                + design.architecture["stem_post_bulge_len"]
+            )
+        else:
+            aug_index = design.architecture["aug_index"]
+            region_start, region_end = aug_index, aug_index + 3
+
+        off_accessibility = _mean_unpaired(off_matrix, region_start, region_end)
+        on_accessibility = _mean_unpaired(on_matrix, region_start, region_end)
+
+        # Extra step, eukaryotic only: _kozak_rc_in_toehold checks for
+        # KOZAK_EUKARYOTIC's reverse complement specifically, which is meaningless for
+        # a prokaryotic switch — its loop carries an RBS, not a Kozak, so there is no
+        # Kozak copy anywhere downstream for the toehold to hijack. Gating on host
+        # track (not just the flag) keeps this general evaluate_design — shared by
+        # every track and by ProkaryoticToeholdGate/ProkaryoticToeholdAndGate — from
+        # scoring prokaryotic designs against a motif their construction never places.
+        if design.architecture.get("kozak_rc_in_toehold") and self.host.track is Track.EUKARYOTIC:
+            # See this method's own docstring: a Kozak-hijacked closure reads as low
+            # (good) accessibility here, indistinguishable from a properly-closed
+            # hairpin. Report the worst case instead of a number that may only look
+            # good because it measured the wrong partner.
+            off_accessibility = 1.0
 
         return {
             "gate_folding_energy": self.folder.mfe(switch).energy,

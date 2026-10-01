@@ -15,6 +15,11 @@ circuits with scores, metrics, sequences and downloadable artifacts.
 | Understand the biology the software computes over | **[modalities.md](modalities.md)** |
 | Work on the scientific engine | **[engine.md](engine.md)** |
 | Just run the thing | **[development.md](development.md)** |
+| Maintain the authenticated user guide and FAQ | **[user-help.md](user-help.md)** |
+
+The end-user workflow help is rendered inside the signed-in React application at
+`/use-cases`, `/guide`, and `/faq`; it is not a MkDocs/Sphinx site. Its source is under
+`frontend/src/routes/`. This folder remains the engineering documentation index.
 
 ## Everything
 
@@ -30,7 +35,9 @@ circuits with scores, metrics, sequences and downloadable artifacts.
 | [smoke-run.md](smoke-run.md) | What blocked the first real (non-`MockEngine`) run, and the `direct`-path slice that unblocked it |
 | [plasmids.md](plasmids.md) | What stage 5 needs to make a circuit orderable — and the part-library questions nobody has asked yet |
 | [triggers.md](triggers.md) | Why a pasted transcript yields no designs: stage 2 is built but never called, and screens the window rather than the switch |
+| [trigger-nucleation-ranking.md](trigger-nucleation-ranking.md) | Reusable marginal-accessibility ranking: preserved nucleation-first semantics, explicit balanced geometric-mean mode, provenance and interpretation limits |
 | [development.md](development.md) | Setup, everyday commands, testing, troubleshooting |
+| [user-help.md](user-help.md) | Route ownership, claim-to-source map, regression command, and browser verification for in-app help |
 | [software-development-log.md](software-development-log.md) | iGEM-ready evidence log: future-entry template plus commit-derived historical index |
 | [deployment.md](deployment.md) | Where it runs in production, and why that shape |
 | [attribution.md](attribution.md) | Who did the work, what CERNAL builds on, and how AI tools were used. **The source of truth for the iGEM Attribution Form** — it has `TODO` lines only the team can fill in |

@@ -225,16 +225,17 @@ def test_the_design_table_has_one_row_per_candidate(direct_request, always_conti
     assert len(rows) - 1 == len(result.candidates)  # header + one row each
 
 
-def test_fasta_is_written_only_for_accepted_candidates(direct_request, always_continue):
+def test_unprovisioned_screening_withholds_fasta_for_all_candidates(
+    direct_request, always_continue
+):
     request = direct_request()
     result = LocalEngine().run(request, always_continue)
 
     fasta_refs = {a.candidate_ref for a in result.artifacts if a.kind == "sequence_fasta"}
     accepted_refs = {c.ref for c in result.candidates if not c.is_rejected}
-    rejected_refs = {c.ref for c in result.candidates if c.is_rejected}
 
-    assert fasta_refs == accepted_refs
-    assert not (fasta_refs & rejected_refs)
+    assert not fasta_refs
+    assert accepted_refs
 
 
 # --- Determinism ----------------------------------------------------------------------
@@ -280,26 +281,15 @@ def test_a_direct_run_populates_real_plasmid_segments(direct_request, always_con
         assert candidate.design["logic_graph"]["output"] == "GFP"
 
 
-def test_a_genbank_artifact_is_written_per_accepted_candidate(direct_request, always_continue):
+def test_unprovisioned_screening_writes_audits_and_withholds_sequence_exports(
+    direct_request, always_continue
+):
     result = LocalEngine().run(direct_request(), always_continue)
 
     accepted = [c for c in result.candidates if not c.is_rejected]
-    genbank_refs = {a.candidate_ref for a in result.artifacts if a.kind == "genbank"}
-    assert genbank_refs == {c.ref for c in accepted}
-
-
-def test_the_genbank_artifact_parses_back_as_a_circular_plasmid(direct_request, always_continue):
-    from Bio import SeqIO
-
-    request = direct_request(idempotency_key="genbank-parse-back")
-    result = LocalEngine().run(request, always_continue)
-    genbank = next(a for a in result.artifacts if a.kind == "genbank")
-
-    with open(os.path.join(request.output_dir, genbank.path)) as handle:
-        record = SeqIO.read(handle, "genbank")
-
-    assert record.annotations.get("topology") == "circular"
-    assert len(record.features) == 4
+    audit_refs = [a for a in result.artifacts if a.kind == "safety_audit"]
+    assert len(audit_refs) == 2 * len(accepted)
+    assert not [a for a in result.artifacts if a.kind in {"sequence_fasta", "genbank"}]
 
 
 def test_an_unconfigured_output_fails_the_whole_run_cleanly(direct_request, always_continue):
@@ -413,27 +403,18 @@ def test_an_unknown_catalog_key_fails_the_whole_run_cleanly(direct_request, alwa
     assert "not-a-real-backbone" in result.error
 
 
-def test_a_custom_genbank_backbone_is_assembled_into_the_plasmid(direct_request, always_continue):
-    """A real backbone built and exported once, then handed back in as if a researcher
-    uploaded it — the same round-trip discipline test_plasmids.py applies directly to
-    parse_custom_backbone, exercised here through the whole pipeline instead."""
-    source_request = direct_request(
-        params={"backbone": {"catalog_key": "psb1c3"}}, idempotency_key="custom-backbone-src"
-    )
-    baseline = LocalEngine().run(source_request, always_continue)
-    genbank_artifact = next(a for a in baseline.artifacts if a.kind == "genbank")
-    with open(os.path.join(source_request.output_dir, genbank_artifact.path)) as handle:
-        gb_text = handle.read()
-
-    custom_request = direct_request(
-        params={"backbone": {"custom_genbank": gb_text}}, idempotency_key="custom-backbone-use"
-    )
-    result = LocalEngine().run(custom_request, always_continue)
+def test_a_catalog_backbone_is_built_but_not_exported_without_local_screening(
+    direct_request, always_continue
+):
+    request = direct_request(params={"backbone": {"catalog_key": "psb1c3"}})
+    result = LocalEngine().run(request, always_continue)
 
     assert result.status == "succeeded"
-    for candidate in result.candidates:
-        kinds = [s["kind"] for s in candidate.design["plasmid_segments"]]
-        assert kinds[-1] == "backbone"
+    assert all(
+        candidate.design["plasmid_segments"][-1]["kind"] == "backbone"
+        for candidate in result.candidates
+    )
+    assert not [artifact for artifact in result.artifacts if artifact.kind == "genbank"]
 
 
 def test_providing_both_catalog_key_and_custom_genbank_fails_cleanly(

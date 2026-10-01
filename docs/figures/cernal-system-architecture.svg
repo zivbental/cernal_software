@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">CERNAL system architecture and dependency boundaries</title>
+  <desc id="desc">The React browser and React Query call Django Ninja routers. Platform services write Django ORM models and enqueue a django-q2 task shell. The task calls only engine.contract and engine.client. Inside the engine, dependencies flow from the client boundary through pipeline, stages, gates, scientific tools, and domain records. Scientific tools use ViennaRNA and stages use Biopython.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10Z" fill="#31546f"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#17324d" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 36px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .subtitle { font: 400 18px Inter, "Segoe UI", Arial, sans-serif; fill: #526777; }
+      .lane-title { font: 700 15px Inter, "Segoe UI", Arial, sans-serif; letter-spacing: 1.5px; fill: #526777; }
+      .node-title { font: 700 18px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .node-text { font: 400 14px Inter, "Segoe UI", Arial, sans-serif; fill: #405767; }
+      .rule-title { font: 700 15px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .rule-text { font: 400 14px Inter, "Segoe UI", Arial, sans-serif; fill: #405767; }
+      .lane { fill: #ffffff; stroke: #d2dde5; stroke-width: 2; }
+      .browser { fill: #eef5ff; stroke: #2f6bff; stroke-width: 2; }
+      .platform { fill: #edf8f7; stroke: #0f766e; stroke-width: 2; }
+      .engine { fill: #f5f0ff; stroke: #6d28d9; stroke-width: 2; }
+      .external { fill: #fff8e8; stroke: #b45309; stroke-width: 2; }
+      .domain { fill: #eef3f7; stroke: #31546f; stroke-width: 2; }
+      .engine-boundary { fill: #fcfaff; stroke: #6d28d9; stroke-width: 3; stroke-dasharray: 10 7; }
+      .connector { fill: none; stroke: #31546f; stroke-width: 3; marker-end: url(#arrow); }
+      .dependency { fill: none; stroke: #6d28d9; stroke-width: 3; marker-end: url(#arrow); }
+      .library { fill: none; stroke: #b45309; stroke-width: 3; stroke-dasharray: 8 6; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="1000"/>
+  <g id="header">
+    <text class="title" x="60" y="60">CERNAL system architecture</text>
+    <text class="subtitle" x="60" y="92">Machine-checked platform ⇄ engine separation with downward-only dependencies inside the engine</text>
+  </g>
+
+  <g id="lanes">
+    <rect class="lane" x="40" y="125" width="280" height="680" rx="24"/>
+    <text class="lane-title" x="66" y="158">BROWSER</text>
+    <rect class="lane" x="350" y="125" width="410" height="680" rx="24"/>
+    <text class="lane-title" x="376" y="158">DJANGO PLATFORM</text>
+    <rect class="engine-boundary" x="790" y="125" width="500" height="680" rx="24"/>
+    <text class="lane-title" x="816" y="158">FRAMEWORK-FREE ENGINE</text>
+    <rect class="lane" x="1320" y="125" width="240" height="680" rx="24"/>
+    <text class="lane-title" x="1346" y="158">EXTERNAL LIBRARIES</text>
+  </g>
+
+  <g id="connections">
+    <path class="connector" d="M280 250C330 250 330 230 390 230"/>
+    <path class="connector" d="M280 410C330 410 330 250 390 250"/>
+    <path class="connector" d="M555 275V315"/>
+    <path class="connector" d="M555 405C555 440 470 440 470 485"/>
+    <path class="connector" d="M555 405C555 440 640 440 640 485"/>
+    <path class="connector" d="M740 530H775V235H830"/>
+
+    <path class="dependency" d="M1040 275V315"/>
+    <path class="dependency" d="M1040 395V435"/>
+    <path class="dependency" d="M1040 515V555"/>
+    <path class="dependency" d="M1040 635V675"/>
+    <path class="dependency" d="M1040 755V760"/>
+
+    <path class="library" d="M1210 710C1270 710 1270 650 1360 650"/>
+    <path class="library" d="M1210 475C1270 475 1270 420 1360 420"/>
+  </g>
+
+  <g id="browser-layer" filter="url(#shadow)">
+    <rect class="browser" x="80" y="200" width="200" height="100" rx="16"/>
+    <text class="node-title" x="104" y="238">React 19</text>
+    <text class="node-text" x="104" y="265">TanStack Router</text>
+    <text class="node-text" x="104" y="286">Static single-page app</text>
+
+    <rect class="browser" x="80" y="360" width="200" height="100" rx="16"/>
+    <text class="node-title" x="104" y="398">React Query</text>
+    <text class="node-text" x="104" y="425">Server state and cache</text>
+    <text class="node-text" x="104" y="446">Polling and mutations</text>
+  </g>
+
+  <g id="platform-layer" filter="url(#shadow)">
+    <rect class="platform" x="390" y="195" width="330" height="90" rx="16"/>
+    <text class="node-title" x="414" y="232">Django Ninja routers</text>
+    <text class="node-text" x="414" y="259">Typed HTTP boundary and error envelopes</text>
+
+    <rect class="platform" x="390" y="315" width="330" height="90" rx="16"/>
+    <text class="node-title" x="414" y="352">Application services</text>
+    <text class="node-text" x="414" y="379">Lifecycle, authorization, import, cancellation</text>
+
+    <rect class="platform" x="390" y="485" width="160" height="90" rx="16"/>
+    <text class="node-title" x="414" y="521">Django ORM</text>
+    <text class="node-text" x="414" y="548">models</text>
+
+    <rect class="platform" x="580" y="485" width="160" height="90" rx="16"/>
+    <text class="node-title" x="604" y="521">django-q2</text>
+    <text class="node-text" x="604" y="548">task shell</text>
+
+    <rect x="390" y="630" width="330" height="105" rx="16" fill="#f7fbfb" stroke="#8abbb6" stroke-width="1.5"/>
+    <text class="rule-title" x="414" y="663">Platform import rule</text>
+    <text class="rule-text" x="414" y="689">Imports only engine.contract and engine.client.</text>
+    <text class="rule-text" x="414" y="713">No direct access to engine internals.</text>
+  </g>
+
+  <g id="engine-layer" filter="url(#shadow)">
+    <rect class="engine" x="830" y="195" width="380" height="80" rx="16"/>
+    <text class="node-title" x="854" y="228">engine.contract + engine.client</text>
+    <text class="node-text" x="854" y="253">Versioned frozen cross-boundary records</text>
+
+    <rect class="engine" x="830" y="315" width="380" height="80" rx="16"/>
+    <text class="node-title" x="854" y="348">pipeline</text>
+    <text class="node-text" x="854" y="373">Orchestration and shared tool construction</text>
+
+    <rect class="engine" x="830" y="435" width="380" height="80" rx="16"/>
+    <text class="node-title" x="854" y="468">stages</text>
+    <text class="node-text" x="854" y="493">Genes · triggers · switches · plasmids · reporting</text>
+
+    <rect class="engine" x="830" y="555" width="380" height="80" rx="16"/>
+    <text class="node-title" x="854" y="588">gates</text>
+    <text class="node-text" x="854" y="613">Registry and chemistry-specific generation/evaluation</text>
+
+    <rect class="engine" x="830" y="675" width="380" height="80" rx="16"/>
+    <text class="node-title" x="854" y="708">scientific tools</text>
+    <text class="node-text" x="854" y="733">Folding · motifs · off-targets · translation</text>
+
+    <rect class="domain" x="930" y="760" width="180" height="40" rx="14"/>
+    <text class="node-title" x="956" y="787">domain records</text>
+  </g>
+
+  <g id="external-libraries" filter="url(#shadow)">
+    <rect class="external" x="1360" y="375" width="160" height="90" rx="16"/>
+    <text class="node-title" x="1384" y="411">Biopython</text>
+    <text class="node-text" x="1384" y="438">GenBank adapter</text>
+
+    <rect class="external" x="1360" y="605" width="160" height="90" rx="16"/>
+    <text class="node-title" x="1384" y="641">ViennaRNA</text>
+    <text class="node-text" x="1384" y="668">Scientific model</text>
+  </g>
+
+  <g id="architecture-rules">
+    <rect x="40" y="815" width="1520" height="145" rx="22" fill="#ffffff" stroke="#d2dde5" stroke-width="2"/>
+    <text class="lane-title" x="66" y="848">MACHINE-CHECKED BOUNDARY RULES</text>
+
+    <circle cx="78" cy="886" r="11" fill="#2f6bff"/><text class="step" x="74" y="891">1</text>
+    <text class="rule-title" x="100" y="890">Engine isolation</text>
+    <text class="rule-text" x="100" y="915">src/engine never imports Django, API, or application modules.</text>
+
+    <circle cx="470" cy="886" r="11" fill="#0f766e"/><text class="step" x="466" y="891">2</text>
+    <text class="rule-title" x="492" y="890">Narrow platform access</text>
+    <text class="rule-text" x="492" y="915">Platform code sees only contract and client.</text>
+
+    <circle cx="840" cy="886" r="11" fill="#6d28d9"/><text class="step" x="836" y="891">3</text>
+    <text class="rule-title" x="862" y="890">Immutable exchange</text>
+    <text class="rule-text" x="862" y="915">Cross-boundary values are frozen dataclasses.</text>
+
+    <circle cx="1190" cy="886" r="11" fill="#b45309"/><text class="step" x="1186" y="891">4</text>
+    <text class="rule-title" x="1212" y="890">Reversible selection</text>
+    <text class="rule-text" x="1212" y="915">CERNAL_ENGINE selects the engine by dotted setting.</text>
+  </g>
+</svg>

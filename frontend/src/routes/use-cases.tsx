@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Lightbulb } from "lucide-react";
-
+import { Caveat, HelpNav } from "@/components/docs/HelpNav";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
 import { Panel } from "@/components/layout/Primitives";
@@ -9,34 +9,67 @@ export const Route = createFileRoute("/use-cases")({
   component: () => (
     <RequireAuth>
       <AppShell>
-        <UseCasesPage />
+        <UseCasesContent />
       </AppShell>
     </RequireAuth>
   ),
 });
 
-/**
- * Placeholder content.
- *
- * The Lovable export listed "Use Cases" in the navigation but shipped no content for it,
- * so these are illustrative rather than authored (docs/architecture.md §8).
- */
-const CASES = [
+const WORKFLOWS = [
   {
-    title: "Inflammation-gated reporter",
-    body: "Fire only where inflammatory transcripts are elevated and regulatory markers are absent, so the readout tracks disease state rather than cell count.",
+    id: "explore-mock",
+    title: "Explore the interface with simulated results",
+    goal: "Learn the submission, status, ranking, rejection, and download screens without treating the output as science.",
+    input:
+      "A public dataset or a pasted transcript, using the default MockEngine installation.",
+    output:
+      "Deterministic, simulated candidates and artifacts shaped like real results.",
+    limit:
+      "MockEngine output is fake science. It demonstrates the interface only and is seeded by the idempotency key and optional seed.",
+    href: "/guide#before-running",
+    next: "Check which engine is running",
   },
   {
-    title: "Stress-response biosensor",
-    body: "Detect the transition from normal metabolism to oxidative stress in a bacterial culture, and report it fluorescently.",
+    id: "de-comparison",
+    title: "Start from a differential-expression comparison",
+    goal: "Rank single-gene trigger candidates from an existing target-versus-control comparison.",
+    input:
+      "A catalog comparison or a UTF-8 CSV/TSV table with a gene identifier and an explicit log2FoldChange column.",
+    output:
+      "Ranked candidates, rejection reasons, warnings, and the artifacts actually emitted by the run.",
+    limit:
+      "LocalEngine DE processing is currently scoped to E. coli and yeast. Upload acceptance does not prove the engine can parse or scientifically use a file.",
+    href: "/guide#choose-input",
+    next: "Prepare a DE input",
   },
   {
-    title: "Selective kill-switch",
-    body: "Couple a two-input AND gate to an apoptosis inducer so that only cells matching both conditions are removed.",
+    id: "known-transcript",
+    title: "Start from a known transcript",
+    goal: "Skip gene discovery and scan one transcript for candidate trigger windows.",
+    input: "The exact trigger mRNA sequence pasted into Direct Trigger mRNA.",
+    output:
+      "Candidate switches for that transcript, with scores, filters, warnings, and available sequence artifacts.",
+    limit:
+      "Specific Gene records a label only; it does not resolve a gene to a sequence. Direct input is a single-transcript workflow, not a multi-gene Boolean compiler.",
+    href: "/guide#choose-input",
+    next: "Use direct input",
   },
-];
+  {
+    id: "api-runs",
+    title: "Repeat and inspect runs through the API",
+    goal: "Submit, poll, compare, and download runs from Python, R, MATLAB, or curl.",
+    input:
+      "An API key plus the same frozen input and parameters used for the browser workflow.",
+    output:
+      "A run ID, status, candidates, errors, and downloadable artifacts exposed by that run.",
+    limit:
+      "Idempotency prevents duplicate submission; it does not guarantee byte-identical output across different engines, versions, profiles, or environments.",
+    href: "/api-docs",
+    next: "Open the API Reference",
+  },
+] as const;
 
-function UseCasesPage() {
+export function UseCasesContent() {
   return (
     <>
       <PageHeader
@@ -45,23 +78,62 @@ function UseCasesPage() {
             <Lightbulb className="h-3 w-3" /> Use Cases
           </>
         }
-        title="What people build with CERNAL"
-        description="Illustrative circuits, to show the shape of problems CERNAL is designed for."
+        title="Choose a supported workflow"
+        description="Start with the input you have and the kind of inspection you need."
       />
-
-      <div className="mb-6 rounded-xl border border-dashed border-border bg-surface p-4 text-sm text-muted-foreground">
-        These examples are placeholders. Replace them with real circuits from the team
-        once the wet lab has results to point at.
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        {CASES.map((item) => (
-          <Panel key={item.title}>
-            <h2 className="text-base font-semibold text-foreground">{item.title}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{item.body}</p>
+      <HelpNav current="/use-cases" />
+      <Caveat>
+        <strong>Scope:</strong> the current LocalEngine designs from one
+        transcript or selects single-gene triggers from DE data. Multi-gene
+        Boolean circuit design is future work.
+      </Caveat>
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        {WORKFLOWS.map((item) => (
+          <Panel key={item.id}>
+            <div id={item.id} className="scroll-mt-48 lg:scroll-mt-24">
+              <h2 className="text-lg font-semibold text-foreground">
+                {item.title}
+              </h2>
+              <dl className="mt-4 space-y-3 text-sm">
+                {[
+                  ["Goal", item.goal],
+                  ["Required input", item.input],
+                  ["Observable output", item.output],
+                  ["Limitation", item.limit],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="font-mono text-[11px] uppercase tracking-wider text-mint">
+                      {label}
+                    </dt>
+                    <dd className="mt-1 text-muted-foreground">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <a
+                href={item.href}
+                className="mt-5 inline-block text-sm font-medium text-mint underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint"
+              >
+                {item.next} →
+              </a>
+            </div>
           </Panel>
         ))}
       </div>
+      <Panel className="mt-6">
+        <div id="not-established" className="scroll-mt-48 lg:scroll-mt-24">
+          <h2 className="text-lg font-semibold text-foreground">
+            What CERNAL does not establish
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            A ranking is not experimental validation, a success probability, a
+            clinical or therapeutic claim, proof of safety, proof of
+            specificity, or an orderable complete vector. LocalEngine does not
+            perform real off-target scanning; human DE processing, arbitrary A
+            AND NOT B logic, multi-gene construction, PDF reports, and partner
+            ordering are not complete pipelines.
+          </p>
+        </div>
+      </Panel>
     </>
   );
 }

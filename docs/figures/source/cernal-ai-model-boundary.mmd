@@ -1,0 +1,25 @@
+flowchart TB
+    RUNTIME[Runtime AI/ML: none implemented]
+    RUNTIME --> NONE[No generative AI, LLM, neural network, trained classifier, or remote inference service]
+    RUNTIME --> PRIVACY[Runs do not send biological data to an AI provider]
+
+    DETERMINISTIC[Deterministic software algorithms — not AI]
+    DETERMINISTIC --> D1[Column normalization and validation]
+    DETERMINISTIC --> D2[Benjamini-Hochberg adjustment and rule-based gene filtering]
+    DETERMINISTIC --> D3[Sliding-window trigger enumeration]
+    DETERMINISTIC --> D4[Motif/restriction/homopolymer screening]
+    DETERMINISTIC --> D5[Gate sequence templates and reverse complements]
+    DETERMINISTIC --> D6[Min-max normalization, weighted means, hard filters, and ranking]
+    DETERMINISTIC --> D7[Plasmid concatenation and GenBank serialization]
+    DETERMINISTIC --> D8[Lifecycle, quotas, authentication, persistence, and UI filtering]
+
+    SCIENCE[Scientific computational model/tool]
+    SCIENCE --> V[ViennaRNA thermodynamics, partition functions, MFE structures, and base-pair probabilities]
+    SCIENCE --> PROXY[Structural leakage/dynamic-range/success quantities are proxies]
+    SCIENCE --> WORDING[Describe as predictions or heuristics, not measured biology and not AI]
+    SCIENCE --> MOCK[MockEngine is deterministic simulated output: a testing fixture, not a scientific model]
+
+    DEVELOPMENT[AI-assisted development/documentation]
+    DEVELOPMENT --> PROVENANCE[Recorded in docs/attribution.md and the Lovable-origin frontend design reference]
+    DEVELOPMENT --> BOUNDARY[Development assistance does not make AI part of the runtime system]
+    DEVELOPMENT --> ATTRIBUTION[Final attribution must state tools, human review, and retained AI-assisted work]
