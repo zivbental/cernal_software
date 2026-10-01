@@ -29,6 +29,7 @@ this module computes is in service of predicting whether that actually happens.
 Bodies land in Step 5 (docs/ROADMAP.md E1).
 """
 
+from collections.abc import Sequence
 from functools import cache
 
 import RNA
@@ -224,6 +225,63 @@ class FoldEngine:
                     matrix[j - 1][i - 1] = probability
         return tuple(tuple(row) for row in matrix)
 
+    def sample_structures(
+        self,
+        strands: str,
+        n_samples: int,
+        forced_pairs: Sequence[tuple[int, int]] = (),
+    ) -> list[str]:
+        """Structures drawn from the real Boltzmann ensemble, not just the best one.
+
+        Why it matters: :meth:`mfe` returns the *single* most stable structure, and a
+        design can have a perfectly good MFE while spending most of its time in other
+        conformations. Sampling is also the only way to ask a **joint** question — are
+        two regions open in the *same* structure — which no pair of per-region marginals
+        can answer, however they are combined: two regions can each be open in 90% of
+        structures and never be open together in one.
+
+        Args:
+            strands: RNA, uppercase. One sequence, or several joined with ``&`` to fold
+                as a complex — the same syntax and the same resulting indexing as
+                :meth:`base_pair_probabilities`: positions run over the concatenation
+                with the ``&`` removed, first strand first.
+            n_samples: How many structures to draw.
+            forced_pairs: ``(i, j)`` positions, **0-indexed into the same concatenated
+                frame**, that every returned structure must contain. Use this to ask
+                conditional questions: force a trigger's duplex to exist and see what
+                the rest of the molecule then does. Converted to ViennaRNA's 1-indexed
+                ``hc_add_bp`` with ``CONSTRAINT_CONTEXT_ENFORCE`` here, so no caller has
+                to rediscover either convention. An empty sequence (the default) folds
+                unconstrained.
+
+        Returns:
+            Dot-bracket strings, one per drawn structure. **May be shorter than
+            ``n_samples``**: ViennaRNA's stochastic backtracking can fail on
+            numerically awkward multiloops (it prints ``backtracking failed for qm2``
+            and drops that draw), so callers must normalise by ``len(samples)`` and
+            never by ``n_samples`` — dividing by the number *requested* silently
+            understates every fraction when draws are lost.
+
+        Not cached, unlike every other method here: these draws are stochastic, so
+        handing a second caller the first caller's samples would make two measurements
+        that are supposed to be independent silently identical.
+
+        ``uniq_ML`` is required for stochastic backtracking and is set on a compound
+        built here rather than in :meth:`_compound`, deliberately: turning it on for
+        every caller would change the model behind :meth:`mfe`, :meth:`partition` and
+        :meth:`base_pair_probabilities`, and every number already stored from them.
+        """
+        model = RNA.md()
+        model.temperature = self.temperature
+        model.uniq_ML = 1  # precondition for pbacktrack; scoped to sampling only
+        fold_compound = RNA.fold_compound(strands, model)
+        if forced_pairs:
+            option = RNA.CONSTRAINT_CONTEXT_ALL_LOOPS | RNA.CONSTRAINT_CONTEXT_ENFORCE
+            for i, j in forced_pairs:
+                fold_compound.hc_add_bp(i + 1, j + 1, option)
+        fold_compound.pf()
+        return list(fold_compound.pbacktrack(n_samples))
+
     def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]:
         """Every structure within an energy window of the MFE.
 
@@ -281,8 +339,17 @@ class FoldEngine:
         Returns:
             e.g. ``{"ViennaRNA": "2.7.2", "temperature_c": "37.0"}``. Include anything
             that changes the numbers, not only the library version.
+
+        ``sampling_uniq_ml`` records that :meth:`sample_structures` folds with
+        ``uniq_ML=1`` while every other method here does not — the two see slightly
+        different models, and a stored result should say so rather than leave someone
+        to discover it from a disagreement later.
         """
-        return {"ViennaRNA": RNA.__version__, "temperature_c": str(self.temperature)}
+        return {
+            "ViennaRNA": RNA.__version__,
+            "temperature_c": str(self.temperature),
+            "sampling_uniq_ml": "1",
+        }
 
 
 def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:

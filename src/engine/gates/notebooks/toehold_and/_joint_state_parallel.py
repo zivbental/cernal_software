@@ -6,12 +6,19 @@ the "spawn" start method: a worker process re-imports the target function from i
 which only works for a function defined in an actual importable file -- a function defined
 by ``exec()`` inside a notebook cell has no module a spawned child can import it from.
 
-Each job is fully self-contained (sequences, temperature, footprint spans as plain
-tuples/strings) so a worker never needs the shared ``FoldEngine`` instance or its cache --
-consistent with ``joint_state()``'s own docstring: this check already builds its own
-``fold_compound`` per call, so it was already independent of the shared cache before this
-file existed. Splitting the work across processes changes nothing about what is computed,
-only how many candidates get checked per second.
+Each job is fully self-contained (sequences, footprint spans as plain tuples/strings),
+so a worker needs nothing from the notebook's namespace. Splitting the work across
+processes changes nothing about what is computed, only how many candidates get checked
+per second.
+
+**All folding goes through the one shared ``FoldEngine``** (``CLAUDE.md`` sec 1/sec 5:
+it is the only place a gate family may fold, and exactly one instance exists per run).
+This module does not ``import RNA`` and does not construct an engine: the notebook
+publishes the engine ``pipeline``-style with :func:`use_fold_engine` before submitting
+any jobs, and the pools run under the "fork" start method, so every worker inherits
+that *same* instance -- verified by object identity and temperature inside a worker,
+not assumed. One engine, one temperature, one recorded ViennaRNA version, exactly as
+if the work had stayed in-process.
 """
 
 from __future__ import annotations
@@ -24,6 +31,45 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import NamedTuple
 
 from engine.sequences import gc_content, reverse_complement
+
+# The one shared FoldEngine, published by the notebook (or a pipeline) before any pool
+# is started. Deliberately not constructed here: CLAUDE.md sec 5 reserves building
+# tools for pipeline.build_tools(), and a second instance would mean a second cold
+# cache and a second chance to fold at a different temperature.
+_FOLD_ENGINE = None
+
+
+def use_fold_engine(engine) -> None:
+    """Publish the single shared ``FoldEngine`` for the workers to fold through.
+
+    Call once, from the process that owns the engine, BEFORE submitting any jobs: the
+    pools fork, so a child inherits whatever was set at fork time. Setting it after a
+    pool has started does not reach the already-forked workers.
+    """
+    global _FOLD_ENGINE
+    _FOLD_ENGINE = engine
+
+
+def _engine(temperature: float):
+    """The shared engine, with the job's temperature checked against it.
+
+    A job carrying a different temperature than the engine folds at is exactly the
+    split-brain ``FoldEngine``'s own docstring warns about -- two designs folded at
+    different temperatures whose energies then get normalised onto one axis as though
+    comparable. Raising here makes that impossible to do by accident; silently
+    preferring either value would not.
+    """
+    if _FOLD_ENGINE is None:
+        raise RuntimeError(
+            "No FoldEngine published: call use_fold_engine(folder) before running any "
+            "parallel job (and before the pool forks)."
+        )
+    if abs(_FOLD_ENGINE.temperature - temperature) > 1e-9:
+        raise ValueError(
+            f"job temperature {temperature} != shared FoldEngine temperature "
+            f"{_FOLD_ENGINE.temperature} -- one folding temperature per run"
+        )
+    return _FOLD_ENGINE
 
 
 def _partner_table(structure: str) -> list[int | None]:
@@ -112,18 +158,11 @@ class JointStateJob(NamedTuple):
 
 
 def _worker(job: JointStateJob) -> dict:
-    """Runs in a separate process -- imports RNA locally, same precondition
-    (``uniq_ML=1``) as the serial ``joint_state()`` this mirrors."""
-    import RNA
-
-    model = RNA.md()
-    model.temperature = job.temperature
-    model.uniq_ML = 1
-    fold_compound = RNA.fold_compound(
-        f"{job.fused}&{job.trigger_5p}&{job.trigger_3p}", model
+    """Runs in a separate process, folding through the inherited shared ``FoldEngine``
+    (``sample_structures`` sets the ``uniq_ML=1`` that stochastic backtracking needs)."""
+    samples = _engine(job.temperature).sample_structures(
+        f"{job.fused}&{job.trigger_5p}&{job.trigger_3p}", job.n_samples
     )
-    fold_compound.pf()
-    samples = fold_compound.pbacktrack(job.n_samples)
 
     # "Open" = paired to an EXTERNAL strand, not to anything -- see
     # _frac_paired_to_external's own docstring for the measured reason why.
@@ -176,16 +215,9 @@ class SingleStateJob(NamedTuple):
 
 
 def _single_worker(job: SingleStateJob) -> dict:
-    """Runs in a separate process, same ``uniq_ML=1`` precondition as ``_worker``."""
-    import RNA
-
-    model = RNA.md()
-    model.temperature = job.temperature
-    model.uniq_ML = 1
+    """Runs in a separate process, folding through the inherited shared ``FoldEngine``."""
     strands = f"{job.switch}&{job.trigger}" if job.trigger else job.switch
-    fold_compound = RNA.fold_compound(strands, model)
-    fold_compound.pf()
-    samples = fold_compound.pbacktrack(job.n_samples)
+    samples = _engine(job.temperature).sample_structures(strands, job.n_samples)
 
     # Two different, deliberate meanings, picked by whether a second strand exists:
     #
@@ -277,22 +309,15 @@ FAKE_SWEEP_MATRIX_STATES = frozenset({"+A", "+B", "+A+B"})
 
 
 def _fake_sweep_worker(job: FakeSweepJob) -> dict:
-    """Runs in a separate process -- same ``uniq_ML=1`` precondition as ``_worker``.
+    """Runs in a separate process, folding through the inherited shared ``FoldEngine``.
 
-    Recomputes accessibility from a raw ``fc.bpp()`` call rather than importing
-    ``engine.gates.toehold._mean_unpaired`` / ``FoldEngine.base_pair_probabilities``:
-    this worker is deliberately self-contained (see this module's own docstring on why
-    -- a forked worker never touches the shared ``FoldEngine`` cache), so it mirrors the
-    same 1-indexed-upper-triangular-to-0-indexed-symmetric conversion
-    ``base_pair_probabilities`` documents, inline, the same way ``frac_paired`` already
-    mirrors the sampling logic in every other worker in this file instead of importing
-    it from the notebook's own helpers cell (which a forked child cannot import from).
+    Accessibility now comes from ``FoldEngine.base_pair_probabilities`` rather than a
+    hand-rolled ``fc.bpp()`` conversion: that method already returns the 0-indexed
+    symmetric matrix this wants, over the same ``&``-joined frame, so mirroring its
+    1-indexed-upper-triangular unpacking inline here was a second copy of one
+    conversion -- exactly the duplication ``CLAUDE.md`` sec 1 is about.
     """
-    import RNA
-
-    model = RNA.md()
-    model.temperature = job.temperature
-    model.uniq_ML = 1
+    engine = _engine(job.temperature)
 
     sequences = {
         "trigger_a": job.trigger_a,
@@ -314,9 +339,7 @@ def _fake_sweep_worker(job: FakeSweepJob) -> dict:
     for name, extra_keys in FAKE_SWEEP_STATES:
         extra = [sequences[k] for k in extra_keys]
         strands = "&".join([job.fused, *extra]) if extra else job.fused
-        fold_compound = RNA.fold_compound(strands, model)
-        fold_compound.pf()
-        samples = fold_compound.pbacktrack(job.n_samples)
+        samples = engine.sample_structures(strands, job.n_samples)
         n_samples = len(samples) or 1
         # Per-structure classification, not two independent marginals -- min(a_open,
         # b_open) from separately-counted fractions would still be right even if A and
@@ -343,15 +366,10 @@ def _fake_sweep_worker(job: FakeSweepJob) -> dict:
             **_sample_coverage(samples),
         }
         if name in FAKE_SWEEP_MATRIX_STATES:
-            raw = fold_compound.bpp()  # 1-indexed, upper-triangular
-            matrix = [[0.0] * n for _ in range(n)]
-            for i in range(1, n + 1):
-                row = raw[i]
-                for j in range(i + 1, min(len(row), n + 1)):
-                    p = row[j]
-                    if p:
-                        matrix[i - 1][j - 1] = p
-                        matrix[j - 1][i - 1] = p
+            # Already 0-indexed and symmetric over the &-joined frame; mean_unpaired
+            # clips to len(matrix), so the footprint spans (which index the fused
+            # molecule, the first strand) stay valid for any number of extra strands.
+            matrix = engine.base_pair_probabilities(strands)
             state_out["marginal_a_access"] = mean_unpaired(matrix, fp5[0], fp5[1])
             state_out["marginal_b_access"] = mean_unpaired(matrix, fp3[0], fp3[1])
         out[name] = state_out
@@ -571,32 +589,20 @@ def _constrained_bind_worker(job: ConstrainedBindJob) -> dict:
     ``hc_add_bp(i, j, CONSTRAINT_CONTEXT_ALL_LOOPS | CONSTRAINT_CONTEXT_ENFORCE)`` --
     verified directly (not assumed) to both (a) actually force the pair into the
     MFE structure and (b) have real ``pbacktrack`` samples respect it with zero
-    violations. ViennaRNA's C API is 1-indexed for this call; the conversion happens
-    here so nothing else in this module needs to know that.
+    violations. ``FoldEngine.sample_structures`` takes those pairs 0-indexed and owns
+    the conversion to ViennaRNA's 1-indexed ``hc_add_bp``, so no caller here repeats
+    it.
 
     Step 3: real Boltzmann sampling of the resulting constrained ensemble, the same
     >=threshold-of-the-whole-footprint criterion as every other check in this
     module, to see how often ``footprint_check`` reads as bound to ``trigger_check``
     given the forced duplex.
     """
-    import RNA
-
-    model = RNA.md()
-    model.temperature = job.temperature
-    model.uniq_ML = 1
+    engine = _engine(job.temperature)
 
     # ---- step 1: real base pairs of the forced duplex, from an actual fold ----
-    bind_only_fc = RNA.fold_compound(f"{job.fused}&{job.trigger_bound}", model)
-    bind_structure, _ = bind_only_fc.mfe()
-    stack: list[int] = []
-    partner: list[int | None] = [None] * len(bind_structure)
-    for i, ch in enumerate(bind_structure):
-        if ch == "(":
-            stack.append(i)
-        elif ch == ")":
-            j = stack.pop()
-            partner[i] = j
-            partner[j] = i
+    bind_structure = engine.mfe(f"{job.fused}&{job.trigger_bound}").structure
+    partner = _partner_table(bind_structure)
     fp_start, fp_end = job.footprint_bound
     forced_pairs = [
         (pos, partner[pos])
@@ -608,12 +614,9 @@ def _constrained_bind_worker(job: ConstrainedBindJob) -> dict:
     strands = [job.fused, job.trigger_bound, job.trigger_check]
     if job.fake:
         strands.append(job.fake)
-    fold_compound = RNA.fold_compound("&".join(strands), model)
-    option = RNA.CONSTRAINT_CONTEXT_ALL_LOOPS | RNA.CONSTRAINT_CONTEXT_ENFORCE
-    for i, j in forced_pairs:
-        fold_compound.hc_add_bp(i + 1, j + 1, option)  # 1-indexed per the C API
-    fold_compound.pf()
-    samples = fold_compound.pbacktrack(job.n_samples)
+    samples = engine.sample_structures(
+        "&".join(strands), job.n_samples, forced_pairs=forced_pairs
+    )
 
     # External-strand rule (see _frac_paired_to_external): "the checked footprint got
     # opened by a strand from outside the molecule", not "is paired to anything" --
