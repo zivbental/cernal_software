@@ -734,6 +734,35 @@ yStreX was unreachable this session), 5 *E. coli* (BV-BRC biosets).
 
 ---
 
+## 12. Phase S — Synthetic biology standards
+
+Answers the *first* of iGEM's six Best Software Tool aspects (2025 Judge Handbook p.83):
+*"How well is the software compatible with, and does it leverage, existing synthetic
+biology standards (e.g. SBOL, other RFCs, data formats)?"* Phase X above answers the
+*fourth* aspect (external tools, APIs, packages) and is not duplicated here — the two are
+separate questions and were separately scored.
+
+Before this phase the RFC half was already strong — `AssemblyStandard.RFC10`/`RFC1000`,
+`MotifScreener`'s BioBrick site tables, GenBank in and out (ADR 0007) — and the SBOL half
+was empty. The parts table was also *claimed* to be Registry-verified in its own comment,
+with nothing keeping that true.
+
+**S1–S3 are done.** S4 is deliberately not built.
+
+| # | Task | Where | Size | Status |
+|---|---|---|---|---|
+| **S1** | ADR 0008 + `to_sbol3`: native SBOL 3 export, SO roles per segment, Registry provenance, deterministic `SORTED_NTRIPLES`. Emitted inside the release gate beside FASTA/GenBank | `docs/decisions/0008-*`, `engine/stages/plasmids.py`, `engine/pipeline.py` | M | **Done** |
+| **S2** | `REGISTRY_PARTS` mapping + `tools/sync_registry_parts.py` + bundled `data/registry/parts.json` (identity and digests, never sequences) | `engine/stages/plasmids.py`, `tools/`, `engine/data/registry/` | M | **Done.** All 15 parts verified against the live Registry; the tool refuses to write on drift |
+| **S3** | Offline drift test so the table's "verified against the iGEM Registry" comment is enforced, not asserted | `tests/engine/test_registry_parts.py` | S | **Done.** No network in CI |
+| **S4** | *(deliberately not built)* Publishing parts to the Registry | — | — | **Not built.** Needs credentials and would push sequences to an external service, which collides with the fail-closed release gate (`engine/safety.py`). Read-only is the whole point |
+
+**Also open:** the Registry rate-limits at roughly five parts issued back to back, so
+`tools/sync_registry_parts.py` paces itself; if the table grows much past 15 parts that
+pacing is the thing to revisit, not the request count. `sbol3` is supported on Python 3.13
+by measurement — its PyPI classifiers stop at 3.12 (ADR 0008).
+
+---
+
 ## How to use this file
 
 - **Starting something?** Check its blockers in §2 first.

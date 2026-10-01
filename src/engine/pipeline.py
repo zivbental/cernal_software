@@ -109,6 +109,7 @@ from engine.stages.plasmids import (
     PlasmidBuilder,
     parse_custom_backbone,
     to_genbank,
+    to_sbol3,
     validate_payload_cds,
 )
 from engine.stages.switches import SwitchDesigner, SwitchValidator
@@ -1128,6 +1129,19 @@ def _write_artifacts(
                 to_genbank(plasmid),
                 kind="genbank",
                 media_type="text/plain",
+                candidate_ref=candidate.ref,
+            )
+        )
+        # SBOL 3 alongside GenBank (ADR 0008). Deliberately inside this block, below the
+        # release check above: an SBOL document carries the full construct sequence, so
+        # emitting it before the gate would hand out exactly what the gate withholds.
+        artifacts.append(
+            write_artifact(
+                output_dir,
+                f"sbol/{candidate.ref}.nt",
+                to_sbol3(plasmid),
+                kind="sbol",
+                media_type="application/n-triples",
                 candidate_ref=candidate.ref,
             )
         )

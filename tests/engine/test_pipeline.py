@@ -289,7 +289,10 @@ def test_unprovisioned_screening_writes_audits_and_withholds_sequence_exports(
     accepted = [c for c in result.candidates if not c.is_rejected]
     audit_refs = [a for a in result.artifacts if a.kind == "safety_audit"]
     assert len(audit_refs) == 2 * len(accepted)
-    assert not [a for a in result.artifacts if a.kind in {"sequence_fasta", "genbank"}]
+    # Every sequence-bearing export, not just the two that existed when the gate was
+    # written: SBOL carries the whole construct too, so leaving it out of this set would
+    # let a new export quietly become the one way sequences escape a blocked release.
+    assert not [a for a in result.artifacts if a.kind in {"sequence_fasta", "genbank", "sbol"}]
 
 
 def test_an_unconfigured_output_fails_the_whole_run_cleanly(direct_request, always_continue):
@@ -414,7 +417,7 @@ def test_a_catalog_backbone_is_built_but_not_exported_without_local_screening(
         candidate.design["plasmid_segments"][-1]["kind"] == "backbone"
         for candidate in result.candidates
     )
-    assert not [artifact for artifact in result.artifacts if artifact.kind == "genbank"]
+    assert not [artifact for artifact in result.artifacts if artifact.kind in {"genbank", "sbol"}]
 
 
 def test_providing_both_catalog_key_and_custom_genbank_fails_cleanly(
@@ -845,3 +848,40 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
 def test_gate_aware_trigger_ranking_bumps_engine_version():
     assert LocalEngine.ENGINE_VERSION == "local-0.5.0-direct-and-de-ecoli-yeast"
+
+
+def test_a_released_run_exports_fasta_genbank_and_sbol_together(
+    direct_request, always_continue, monkeypatch
+):
+    """The positive half of the release gate.
+
+    Every other test here runs with screening unprovisioned, so the gate blocks and no
+    sequence-bearing artifact is written at all — which means the export code below the
+    gate is never actually executed by the suite. Patching the gate open is the only way
+    to prove the SBOL export is wired in rather than dead, and that it travels with
+    FASTA and GenBank rather than on some separate path of its own.
+    """
+    import dataclasses
+
+    import engine.pipeline as pipeline_module
+
+    real = pipeline_module.fail_closed_release
+
+    def allow(reference, sequence, *, host_context):
+        # Flip only release_allowed on the real result, so the audit manifest and the
+        # recomputed result_sha256 stay exactly what the gate produced.
+        return dataclasses.replace(
+            real(reference, sequence, host_context=host_context), release_allowed=True
+        )
+
+    monkeypatch.setattr(pipeline_module, "fail_closed_release", allow)
+    result = LocalEngine().run(direct_request(), always_continue)
+
+    kinds = {a.kind for a in result.artifacts}
+    assert {"sequence_fasta", "genbank", "sbol"} <= kinds
+
+    accepted = [c for c in result.candidates if not c.is_rejected]
+    sbol = [a for a in result.artifacts if a.kind == "sbol"]
+    assert len(sbol) == len(accepted)
+    assert all(a.media_type == "application/n-triples" for a in sbol)
+    assert all(a.path.startswith("sbol/") and a.path.endswith(".nt") for a in sbol)

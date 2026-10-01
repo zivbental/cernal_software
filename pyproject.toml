@@ -18,6 +18,10 @@ dependencies = [
     "gunicorn>=23.0",
     "viennarna>=2.7.2",
     "biopython>=1.85",
+    # SBOL 3 export, confined to stages/plasmids.py (ADR 0008) exactly as biopython is
+    # by ADR 0007. sbol-utilities is deliberately NOT used: its GenBank converter calls
+    # SeqFeature.strand, removed in the biopython above, and it costs 36 packages.
+    "sbol3>=1.2",
     # Platform-side only: apps/expression's provider adapters, run offline by
     # manage.py sync_expression_catalog. Never imported by src/engine/.
     "requests>=2.31",
