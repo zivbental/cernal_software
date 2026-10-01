@@ -50,24 +50,9 @@ Presently defensible scenarios include a direct *E. coli* trigger-to-toehold run
 
 ## 3. Product at a glance
 
-```mermaid
-flowchart LR
-    U[Researcher] --> UI[React browser application]
-    U --> CL[Python / R / MATLAB / curl]
-    UI --> API[Django Ninja API]
-    CL --> API
-    API --> DB[(SQLite or configured database)]
-    API --> Q[django-q2 ORM queue]
-    Q --> W[Single worker]
-    W --> EC[EngineClient boundary]
-    EC --> ME[MockEngine]
-    EC --> LE[LocalEngine]
-    LE --> VE[ViennaRNA]
-    LE --> BP[Biopython GenBank adapter]
-    LE --> FS[Run output directory]
-    W --> DB
-    W --> MEDIA[Authorized artifact storage]
-```
+![CERNAL product and software overview showing researcher access through the browser or automation clients, the Django platform and worker, and the selectable MockEngine or LocalEngine paths.](figures/cernal-product-overview.svg)
+
+*Figure 1. Product and software overview. The stable `EngineClient` boundary separates the web platform from deterministic mock execution and the implemented LocalEngine scientific path. [Mermaid source](figures/source/cernal-product-overview.mmd).*
 
 The default development configuration uses `MockEngine`, which generates deterministic simulated results while exercising the real scoring, lifecycle, persistence, and download paths. Selecting `engine.client.LocalEngine` activates the implemented scientific path. The UI reports which engine is running and labels mock results as simulated.
 
@@ -159,31 +144,9 @@ Implemented constraint fields include maximum triggers, minimum/maximum separati
 
 ## 5. End-to-end pipeline
 
-```mermaid
-flowchart TD
-    A[Submission] --> B[Validate mode, host, checksum, configuration]
-    B --> C{Input mode}
-    C -->|DE| D[Parse DGE table]
-    D --> E[Select genes]
-    E --> F[Load bundled transcripts]
-    F --> G[Scan and rank trigger windows]
-    C -->|Direct| H{Trigger-sized or longer transcript?}
-    H -->|Trigger-sized| I[Build one trigger candidate]
-    H -->|Longer| G
-    G --> J[Build trigger sets]
-    I --> J
-    J --> K[Check gate compatibility]
-    K --> L[Generate switch designs]
-    L --> M[Validate sequences and motifs]
-    M --> N[Measure raw metrics]
-    N --> O[Normalize and apply hard filters]
-    O --> P[Build single-gene circuit wrapper]
-    P --> Q[Assemble plasmid]
-    Q --> R[Rank accepted candidates]
-    R --> S[Write CSV, FASTA, GenBank]
-    S --> T[Import manifest into Django models]
-    T --> U[UI/API results, annotations, downloads]
-```
+![CERNAL end-to-end pipeline from validated differential-expression or direct-sequence input through trigger formation, gate design, scoring, plasmid assembly, artifacts, and UI or API delivery.](figures/cernal-end-to-end-pipeline.svg)
+
+*Figure 2. End-to-end execution path. Differential-expression and direct-sequence inputs converge before compatibility checks, design, raw measurement, versioned scoring, single-gene wrapping, plasmid assembly, and artifact import. [Mermaid source](figures/source/cernal-end-to-end-pipeline.mmd).*
 
 ### 5.1 Stage 0 — request and tool construction
 
@@ -327,45 +290,9 @@ The engine returns an immutable `JobResult` manifest containing schema/engine ve
 
 ### 6.1 Boundaries
 
-```mermaid
-flowchart TB
-    subgraph Browser
-      R[React 19 + TanStack Router]
-      Q[React Query state/cache]
-    end
-    subgraph Platform
-      N[Django Ninja routers]
-      S[Application services]
-      M[Django ORM models]
-      T[django-q2 task shell]
-    end
-    subgraph Engine
-      C[engine.contract + engine.client]
-      P[pipeline]
-      ST[stages]
-      G[gates]
-      TOOLS[scientific tools]
-      D[domain records]
-    end
-    subgraph ExternalLibraries
-      V[ViennaRNA]
-      B[Biopython]
-    end
+![CERNAL system architecture with browser, Django platform, framework-free engine, and external-library lanes, including the machine-checked platform-to-engine boundary.](figures/cernal-system-architecture.svg)
 
-    R --> N
-    Q --> N
-    N --> S
-    S --> M
-    S --> T
-    T --> C
-    C --> P
-    P --> ST
-    ST --> G
-    G --> TOOLS
-    TOOLS --> D
-    TOOLS --> V
-    ST --> B
-```
+*Figure 3. System architecture and dependency boundaries. Platform code reaches the engine only through `engine.contract` and `engine.client`; dependencies then point downward through pipeline, stages, gates, tools, and domain records. [Mermaid source](figures/source/cernal-system-architecture.mmd).*
 
 The architectural rule is machine-checked:
 
@@ -586,6 +513,10 @@ The mock engine seeds generation from idempotency key and optional seed. The rea
 
 ## 11. AI, machine learning, and scientific-model boundary
 
+![CERNAL boundary visual separating absent runtime AI and machine learning, deterministic software algorithms, ViennaRNA scientific modeling and structural proxies, and AI-assisted development provenance.](figures/cernal-ai-model-boundary.svg)
+
+*Figure 4. Runtime and provenance boundary. CERNAL has no implemented runtime AI/ML; deterministic application logic and ViennaRNA scientific models are separate categories, while AI-assisted development attribution remains outside the runtime system. [Mermaid source](figures/source/cernal-ai-model-boundary.mmd).*
+
 ### 11.1 Runtime AI/ML
 
 There is **no runtime generative AI, large language model, neural network, trained classifier, or remote inference service** in the implemented application. The Python and JavaScript dependency manifests contain no AI inference SDK. Runs do not send biological data to an AI provider.
@@ -757,6 +688,10 @@ The frontend originates from a Lovable design export that was substantially adap
 Teams reusing CERNAL should preserve the engine/platform boundary, version scientific profiles and gate rules when behavior changes, keep raw measurements, record missing evidence as missing, and add tests before enabling a family in capabilities.
 
 ## 16. Implemented, optional, and planned summary
+
+![CERNAL capability maturity matrix covering current implementation, configuration-dependent operation, and planned or incomplete work for fourteen product and scientific capabilities.](figures/cernal-capability-maturity.svg)
+
+*Figure 5. Capability maturity matrix. The visual mirrors the detailed table below and keeps registry/source availability distinct from normal operational pipeline support. [Mermaid source](figures/source/cernal-capability-maturity.mmd).*
 
 | Capability | Current | Configuration-dependent | Planned/incomplete |
 |---|---|---|---|

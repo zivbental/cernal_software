@@ -1,0 +1,37 @@
+flowchart TB
+    subgraph Browser
+      R[React 19 + TanStack Router]
+      Q[React Query state/cache]
+    end
+    subgraph Platform
+      N[Django Ninja routers]
+      S[Application services]
+      M[Django ORM models]
+      T[django-q2 task shell]
+    end
+    subgraph Engine
+      C[engine.contract + engine.client]
+      P[pipeline]
+      ST[stages]
+      G[gates]
+      TOOLS[scientific tools]
+      D[domain records]
+    end
+    subgraph ExternalLibraries
+      V[ViennaRNA]
+      B[Biopython]
+    end
+
+    R --> N
+    Q --> N
+    N --> S
+    S --> M
+    S --> T
+    T --> C
+    C --> P
+    P --> ST
+    ST --> G
+    G --> TOOLS
+    TOOLS --> D
+    TOOLS --> V
+    ST --> B
