@@ -1,0 +1,236 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1180" viewBox="0 0 1600 1180" role="img" aria-labelledby="title desc">
+  <title id="title">CERNAL end-to-end pipeline</title>
+  <desc id="desc">The pipeline validates a submission, branches between differential-expression and direct-sequence inputs, converges on trigger sets, checks gate compatibility, generates and validates switch designs, measures and scores raw metrics, builds a single-gene circuit wrapper, assembles a plasmid, ranks candidates, writes files, imports the manifest, and exposes results through the user interface and API.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10Z" fill="#31546f"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#17324d" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 36px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .subtitle { font: 400 18px Inter, "Segoe UI", Arial, sans-serif; fill: #526777; }
+      .phase { font: 700 14px Inter, "Segoe UI", Arial, sans-serif; letter-spacing: 1.6px; fill: #526777; }
+      .node-title { font: 700 17px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .node-text { font: 400 14px Inter, "Segoe UI", Arial, sans-serif; fill: #405767; }
+      .step { font: 700 12px Inter, "Segoe UI", Arial, sans-serif; fill: #ffffff; }
+      .branch-label { font: 700 13px Inter, "Segoe UI", Arial, sans-serif; fill: #31546f; }
+      .band { fill: #ffffff; stroke: #d2dde5; stroke-width: 2; }
+      .input { fill: #eef5ff; stroke: #2f6bff; stroke-width: 2; }
+      .selection { fill: #fff8e8; stroke: #b45309; stroke-width: 2; }
+      .design { fill: #edf8f7; stroke: #0f766e; stroke-width: 2; }
+      .score { fill: #f5f0ff; stroke: #6d28d9; stroke-width: 2; }
+      .output { fill: #eef3f7; stroke: #31546f; stroke-width: 2; }
+      .decision { fill: #ffffff; stroke: #2f6bff; stroke-width: 2.5; }
+      .connector { fill: none; stroke: #31546f; stroke-width: 3; marker-end: url(#arrow); }
+      .route { fill: none; stroke: #78909f; stroke-width: 2.5; stroke-dasharray: 8 6; marker-end: url(#arrow); }
+      .step-input { fill: #2f6bff; }
+      .step-selection { fill: #b45309; }
+      .step-design { fill: #0f766e; }
+      .step-score { fill: #6d28d9; }
+      .step-output { fill: #31546f; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="1180"/>
+  <g id="header">
+    <text class="title" x="60" y="60">CERNAL end-to-end pipeline</text>
+    <text class="subtitle" x="60" y="92">Validated inputs converge on one deterministic design, scoring, assembly, and publication path</text>
+  </g>
+
+  <g id="phase-bands">
+    <rect class="band" x="40" y="125" width="1520" height="405" rx="24"/>
+    <text class="phase" x="66" y="157">01 · INPUT VALIDATION AND TRIGGER FORMATION</text>
+    <rect class="band" x="40" y="555" width="1520" height="260" rx="24"/>
+    <text class="phase" x="66" y="587">02 · GATE DESIGN AND SCORING</text>
+    <rect class="band" x="40" y="840" width="1520" height="270" rx="24"/>
+    <text class="phase" x="66" y="872">03 · ASSEMBLY, ARTIFACTS, AND PRODUCT DELIVERY</text>
+  </g>
+
+  <g id="connections">
+    <path class="connector" d="M230 255H275"/>
+    <path class="connector" d="M485 255H530"/>
+    <path class="connector" d="M670 225C700 225 700 195 730 195"/>
+    <path class="connector" d="M920 195H950"/>
+    <path class="connector" d="M1140 195H1170"/>
+    <path class="connector" d="M1360 195H1390"/>
+    <path class="connector" d="M670 285C700 285 700 380 730 380"/>
+    <path class="connector" d="M890 380C925 380 925 330 960 330"/>
+    <path class="route" d="M890 410C1010 475 1300 455 1390 250"/>
+    <path class="connector" d="M1150 330C1195 330 1205 420 1250 420"/>
+    <path class="connector" d="M1480 245V380"/>
+    <path class="connector" d="M1365 460C1365 520 1530 520 1530 605H152V625"/>
+
+    <path class="connector" d="M250 675H285"/>
+    <path class="connector" d="M490 675H525"/>
+    <path class="connector" d="M730 675H765"/>
+    <path class="connector" d="M970 675H1005"/>
+    <path class="connector" d="M1230 675H1265"/>
+    <path class="connector" d="M1367 725C1367 785 1530 785 1530 890H165V915"/>
+
+    <path class="connector" d="M275 965H310"/>
+    <path class="connector" d="M490 965H525"/>
+    <path class="connector" d="M745 965H780"/>
+    <path class="connector" d="M1010 965H1045"/>
+  </g>
+
+  <g id="input-stage" filter="url(#shadow)">
+    <rect class="input" x="70" y="205" width="160" height="100" rx="15"/>
+    <circle class="step-input" cx="92" cy="227" r="15"/>
+    <text class="step" x="84" y="232">01</text>
+    <text class="node-title" x="96" y="258">Submission</text>
+    <text class="node-text" x="96" y="282">Run request</text>
+
+    <rect class="input" x="275" y="195" width="210" height="120" rx="15"/>
+    <circle class="step-input" cx="297" cy="217" r="15"/>
+    <text class="step" x="289" y="222">02</text>
+    <text class="node-title" x="321" y="241">Validate</text>
+    <text class="node-text" x="321" y="266">Mode · host · checksum</text>
+    <text class="node-text" x="321" y="289">Frozen configuration</text>
+
+    <polygon class="decision" points="600,180 670,255 600,330 530,255"/>
+    <text class="node-title" x="559" y="250">Input</text>
+    <text class="node-title" x="560" y="273">mode</text>
+    <text class="branch-label" x="690" y="188">DE</text>
+    <text class="branch-label" x="690" y="270">DIRECT</text>
+
+    <rect class="selection" x="730" y="155" width="190" height="80" rx="14"/>
+    <circle class="step-selection" cx="752" cy="177" r="15"/>
+    <text class="step" x="744" y="182">03</text>
+    <text class="node-title" x="776" y="188">Parse DGE table</text>
+    <text class="node-text" x="776" y="214">Typed engine records</text>
+
+    <rect class="selection" x="950" y="155" width="190" height="80" rx="14"/>
+    <circle class="step-selection" cx="972" cy="177" r="15"/>
+    <text class="step" x="964" y="182">04</text>
+    <text class="node-title" x="996" y="188">Select genes</text>
+    <text class="node-text" x="996" y="214">Deterministic filters</text>
+
+    <rect class="selection" x="1170" y="155" width="190" height="80" rx="14"/>
+    <circle class="step-selection" cx="1192" cy="177" r="15"/>
+    <text class="step" x="1184" y="182">05</text>
+    <text class="node-title" x="1216" y="188">Load bundled</text>
+    <text class="node-title" x="1216" y="211">transcripts</text>
+
+    <rect class="selection" x="1390" y="155" width="140" height="130" rx="14"/>
+    <circle class="step-selection" cx="1412" cy="177" r="15"/>
+    <text class="step" x="1404" y="182">06</text>
+    <text class="node-title" x="1434" y="192">Scan and</text>
+    <text class="node-title" x="1434" y="215">rank trigger</text>
+    <text class="node-title" x="1434" y="238">windows</text>
+    <text class="node-text" x="1434" y="263">Shared path</text>
+
+    <polygon class="decision" points="810,300 890,380 810,460 730,380"/>
+    <text class="node-title" x="765" y="366">Trigger-sized</text>
+    <text class="node-title" x="776" y="389">or longer</text>
+    <text class="node-title" x="778" y="412">transcript?</text>
+    <text class="branch-label" x="906" y="270">TRIGGER-SIZED</text>
+    <text class="branch-label" x="912" y="490">LONGER</text>
+
+    <rect class="selection" x="960" y="285" width="190" height="90" rx="14"/>
+    <circle class="step-selection" cx="982" cy="307" r="15"/>
+    <text class="step" x="974" y="312">07</text>
+    <text class="node-title" x="1006" y="322">Build one trigger</text>
+    <text class="node-title" x="1006" y="346">candidate</text>
+
+    <rect class="design" x="1250" y="380" width="230" height="80" rx="14"/>
+    <circle class="step-design" cx="1272" cy="402" r="15"/>
+    <text class="step" x="1264" y="407">08</text>
+    <text class="node-title" x="1296" y="413">Build trigger sets</text>
+    <text class="node-text" x="1296" y="439">Converged input path</text>
+  </g>
+
+  <g id="design-and-scoring" filter="url(#shadow)">
+    <rect class="design" x="55" y="625" width="195" height="100" rx="15"/>
+    <circle class="step-design" cx="77" cy="647" r="15"/>
+    <text class="step" x="69" y="652">09</text>
+    <text class="node-title" x="101" y="662">Check gate</text>
+    <text class="node-title" x="101" y="685">compatibility</text>
+    <text class="node-text" x="101" y="708">Explain failures</text>
+
+    <rect class="design" x="285" y="625" width="205" height="100" rx="15"/>
+    <circle class="step-design" cx="307" cy="647" r="15"/>
+    <text class="step" x="299" y="652">10</text>
+    <text class="node-title" x="331" y="662">Generate switch</text>
+    <text class="node-title" x="331" y="685">designs</text>
+    <text class="node-text" x="331" y="708">Compatible families</text>
+
+    <rect class="design" x="525" y="625" width="205" height="100" rx="15"/>
+    <circle class="step-design" cx="547" cy="647" r="15"/>
+    <text class="step" x="539" y="652">11</text>
+    <text class="node-title" x="571" y="662">Validate sequences</text>
+    <text class="node-title" x="571" y="685">and motifs</text>
+    <text class="node-text" x="571" y="708">Collect violations</text>
+
+    <rect class="score" x="765" y="625" width="205" height="100" rx="15"/>
+    <circle class="step-score" cx="787" cy="647" r="15"/>
+    <text class="step" x="779" y="652">12</text>
+    <text class="node-title" x="811" y="662">Measure raw</text>
+    <text class="node-title" x="811" y="685">metrics</text>
+    <text class="node-text" x="811" y="708">Missing remains missing</text>
+
+    <rect class="score" x="1005" y="615" width="225" height="120" rx="15"/>
+    <circle class="step-score" cx="1027" cy="637" r="15"/>
+    <text class="step" x="1019" y="642">13</text>
+    <text class="node-title" x="1051" y="654">Normalize and apply</text>
+    <text class="node-title" x="1051" y="677">hard filters</text>
+    <text class="node-text" x="1051" y="704">Versioned scoring profile</text>
+    <text class="node-text" x="1051" y="725">Accepted + rejected retained</text>
+
+    <rect class="score" x="1265" y="625" width="205" height="100" rx="15"/>
+    <circle class="step-score" cx="1287" cy="647" r="15"/>
+    <text class="step" x="1279" y="652">14</text>
+    <text class="node-title" x="1311" y="662">Build single-gene</text>
+    <text class="node-title" x="1311" y="685">circuit wrapper</text>
+    <text class="node-text" x="1311" y="708">Current pipeline scope</text>
+  </g>
+
+  <g id="assembly-and-output" filter="url(#shadow)">
+    <rect class="output" x="55" y="915" width="220" height="100" rx="15"/>
+    <circle class="step-output" cx="77" cy="937" r="15"/>
+    <text class="step" x="69" y="942">15</text>
+    <text class="node-title" x="101" y="952">Assemble plasmid</text>
+    <text class="node-text" x="101" y="978">Available biological parts</text>
+    <text class="node-text" x="101" y="999">and selected backbone</text>
+
+    <rect class="output" x="310" y="925" width="180" height="80" rx="15"/>
+    <circle class="step-output" cx="332" cy="947" r="15"/>
+    <text class="step" x="324" y="952">16</text>
+    <text class="node-title" x="356" y="963">Rank accepted</text>
+    <text class="node-title" x="356" y="986">candidates</text>
+
+    <rect class="output" x="525" y="915" width="220" height="100" rx="15"/>
+    <circle class="step-output" cx="547" cy="937" r="15"/>
+    <text class="step" x="539" y="942">17</text>
+    <text class="node-title" x="571" y="952">Write artifacts</text>
+    <text class="node-text" x="571" y="978">CSV · FASTA · GenBank</text>
+    <text class="node-text" x="571" y="999">Checksummed files</text>
+
+    <rect class="output" x="780" y="915" width="230" height="100" rx="15"/>
+    <circle class="step-output" cx="802" cy="937" r="15"/>
+    <text class="step" x="794" y="942">18</text>
+    <text class="node-title" x="826" y="952">Import manifest</text>
+    <text class="node-text" x="826" y="978">Verify and create Django</text>
+    <text class="node-text" x="826" y="999">models transactionally</text>
+
+    <rect class="input" x="1045" y="900" width="430" height="130" rx="18"/>
+    <circle class="step-input" cx="1069" cy="924" r="16"/>
+    <text class="step" x="1061" y="929">19</text>
+    <text class="node-title" x="1097" y="941">UI / API results</text>
+    <text class="node-text" x="1097" y="970">Ranked candidates · rejected reasons · annotations</text>
+    <text class="node-text" x="1097" y="995">Protected downloads · CSV/ZIP export</text>
+    <text class="node-text" x="1097" y="1018">Traceable run configuration and provenance</text>
+  </g>
+
+  <g id="legend">
+    <rect x="60" y="1130" width="1480" height="30" rx="10" fill="#ffffff" stroke="#d2dde5"/>
+    <circle cx="88" cy="1145" r="6" fill="#2f6bff"/><text class="branch-label" x="102" y="1150">Input</text>
+    <circle cx="178" cy="1145" r="6" fill="#b45309"/><text class="branch-label" x="192" y="1150">Selection</text>
+    <circle cx="292" cy="1145" r="6" fill="#0f766e"/><text class="branch-label" x="306" y="1150">Design</text>
+    <circle cx="390" cy="1145" r="6" fill="#6d28d9"/><text class="branch-label" x="404" y="1150">Scoring</text>
+    <circle cx="492" cy="1145" r="6" fill="#31546f"/><text class="branch-label" x="506" y="1150">Output</text>
+    <text class="node-text" x="720" y="1150">Dashed route: a longer direct transcript joins the shared trigger-window scanner.</text>
+  </g>
+</svg>

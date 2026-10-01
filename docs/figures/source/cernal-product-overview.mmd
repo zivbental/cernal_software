@@ -1,0 +1,16 @@
+flowchart LR
+    U[Researcher] --> UI[React browser application]
+    U --> CL[Python / R / MATLAB / curl]
+    UI --> API[Django Ninja API]
+    CL --> API
+    API --> DB[(SQLite or configured database)]
+    API --> Q[django-q2 ORM queue]
+    Q --> W[Single worker]
+    W --> EC[EngineClient boundary]
+    EC --> ME[MockEngine]
+    EC --> LE[LocalEngine]
+    LE --> VE[ViennaRNA]
+    LE --> BP[Biopython GenBank adapter]
+    LE --> FS[Run output directory]
+    W --> DB
+    W --> MEDIA[Authorized artifact storage]
