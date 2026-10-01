@@ -1,0 +1,34 @@
+pair x@260 len_x=8: 55 stems on the front, folding 9 across lock -14.6 to -0.2
+
+     lock scheme          baseline   aug_pair1   aug_pair2  aug_paired     (separation)
+    -14.6 B-anchored         -0.00        0.66        2.05        5.91   best: aug_paired
+    -10.1 mixed               0.00        0.00        0.00        0.79   best: aug_paired
+     -8.3 B-anchored          0.00       -0.00        0.00        0.00   best: aug_paired
+     -7.0 mixed               0.00       -0.00        0.00        0.00   best: baseline
+     -6.2 B-anchored          0.00        0.00        0.00       -0.00   best: aug_pair1
+     -5.2 mixed               0.00       -0.00        0.00        0.00   best: aug_pair2
+     -4.8 B-anchored         -0.00        0.00        0.00       -0.00   best: aug_pair1
+     -3.3 A-anchored          0.00       -0.00        0.00        0.00   best: baseline
+     -0.2 A-anchored          0.00       -0.00       -0.00        0.00   best: aug_paired
+
+36 rows -> C:\Users\Dell\source\repos\cernal_software\src\engine\gates\notebooks\toehold_and\results\factorisation.csv
+
+Q1. Which closure wins, counted over stems:
+  aug_paired     wins on 4 of 9 stems
+  baseline       wins on 2 of 9 stems
+  aug_pair1      wins on 2 of 9 stems
+  aug_pair2      wins on 1 of 9 stems
+  -> the winning closure DEPENDS on the stem; they do not factorise
+
+Q2. Is lock energy enough, or does the scheme add information?
+  baseline       separation vs lock energy: rho -0.098  n 9
+  aug_pair1      separation vs lock energy: rho -0.428  n 9
+  aug_pair2      separation vs lock energy: rho -0.722  n 9
+  aug_paired     separation vs lock energy: rho -0.610  n 9
+
+  separation by scheme, at each closure (medians):
+    closure          A-anchored   B-anchored        mixed
+    baseline               0.00         0.00         0.00
+    aug_pair1             -0.00         0.00        -0.00
+    aug_pair2              0.00         0.00         0.00
+    aug_paired             0.00         0.00         0.00
