@@ -8,6 +8,10 @@ ranking from transcriptomic differential-expression data. Built for iGEM.
 > the system is built; [`docs/ROADMAP.md`](docs/ROADMAP.md) is what is left to do. This
 > README only covers getting the thing running.
 
+Signed-in users can choose a supported workflow at `/use-cases`, follow the practical
+guide at `/guide`, and troubleshoot at `/faq`. These authenticated React pages live in
+`frontend/src/routes/`; [the maintainer map](docs/user-help.md) ties their claims to source.
+
 ## Requirements
 
 - Python **3.13** — not 3.14; scientific wheels lag new CPython releases by months
@@ -50,19 +54,15 @@ work on it with hot reload:
 ./do test         # the full pytest suite
 ```
 
-Both run in CI on every push — see [`.gitlab-ci.yml`](.gitlab-ci.yml).
+GitHub CI runs for pull requests and pushes to `main`; it does not run for every
+feature-branch push. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Current state
 
-**Steps 0–4 are complete.** The full product works end to end in the browser: register,
-log in, create a project, upload a dataset (or paste a trigger), configure a run, watch it
-progress, and explore ranked candidates with metric decompositions and downloadable
-artifacts. 415 tests pass.
-
-**The science is not written.** `CERNAL_ENGINE` defaults to `MockEngine`, which produces
-deterministic fake results in exactly the shape the real engine will. The engine's classes,
-methods and signatures all exist as documented stubs — see
-[`docs/ROADMAP.md`](docs/ROADMAP.md).
+`CERNAL_ENGINE` defaults to `MockEngine`, which produces deterministic simulated results.
+`LocalEngine` implements scoped direct-transcript and E. coli/yeast DE paths, but several
+scientific stages remain partial. Capability availability is not evidence that a complete
+pipeline exists; consult current source, run warnings, and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Layout
 
