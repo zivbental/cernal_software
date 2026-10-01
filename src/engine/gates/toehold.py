@@ -1064,7 +1064,7 @@ class ToeholdAndGate(ToeholdGate):
         rbs_loop = self.RBS_FLANK + self.RBS_PROKARYOTIC
         main_z = self._repair_main_z(k1, rbs_loop)
         pieces = [
-            ("cap", self.LEADER_SEQUENCE),
+            ("cap", self._leader_sequence()),
             ("r2_star", sq.reverse_complement(r2)),
             ("sw_x", x),
             ("k2_star", stem.k2_star),
@@ -1089,7 +1089,7 @@ class ToeholdAndGate(ToeholdGate):
             sequence += piece
 
         expected = (
-            len(self.LEADER_SEQUENCE)
+            len(self._leader_sequence())
             + self.TOEHOLD_B_LEN
             + 2 * arm
             + len(self.SECONDARY_LOOP)
