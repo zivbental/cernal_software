@@ -38,12 +38,12 @@ so that convention is the only rule there is.
 | | Count |
 | --- | ---: |
 | Modules | 38 |
-| Public classes | 100 |
-| Public callables (excluding `__init__`) | 182 |
-| — `BUILT` | 148 |
+| Public classes | 87 |
+| Public callables (excluding `__init__`) | 172 |
+| — `BUILT` | 139 |
 | — `STUB` | 26 |
 | — `ABSTRACT` | 5 |
-| — `PROTOCOL` | 3 |
+| — `PROTOCOL` | 2 |
 | `__init__` constructors | 20 |
 
 ## Index
@@ -70,6 +70,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
 | gates | `engine.gates.toehold` |  | 5 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
+| gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
 | stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
@@ -88,7 +89,6 @@ layers above it, never the ones below.
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``. |
 | top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
-| top | `engine.safety` |  | 12 | 0 | Offline-first, fail-closed release control for output sequences. |
 | top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
 | top | `engine.transcriptome` |  | 2 | 0 | Reference transcript sequences, by organism — Q1's first real answer. |
 
@@ -1011,7 +1011,7 @@ Single-input toehold switch.
 | --- | --- | --- |
 | `name` |  | `'toehold'` |
 | `design_prefix` |  | `'toehold'` |
-| `version` |  | `'0.2.0'` |
+| `version` |  | `'0.8.1'` |
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
 | `description` |  | `'Translational control · pre-mRNA'` |
@@ -1019,17 +1019,22 @@ Single-input toehold switch.
 | `max_inputs` |  | `1` |
 | `available` |  | `True` |
 | `toehold_lengths` | `ClassVar[tuple[int, ...]]` | `(12, 15, 18)` |
-| `LEADER_SEQUENCE` | `ClassVar[str]` | `'GGG'` |
+| `LEADER_SEQUENCE_PROKARYOTIC` | `ClassVar[str]` | `'GGG'` |
+| `LEADER_SEQUENCE_EUKARYOTIC` | `ClassVar[str]` | `'GUCAGAUC'` |
 | `STEM_PRE_BULGE_LEN` | `ClassVar[int]` | `9` |
 | `STEM_POST_BULGE_LEN` | `ClassVar[int]` | `6` |
 | `LOOP_LEN` | `ClassVar[int]` | `11` |
 | `RBS_PROKARYOTIC` | `ClassVar[str]` | `'AACAGAGGAGA'` |
 | `KOZAK_EUKARYOTIC` | `ClassVar[str]` | `'GCCACC'` |
 | `LINKER_SEQUENCE` | `ClassVar[str]` | `'AACCUGGCGGCAGCGCAAAAG'` |
+| `KOZAK_LAYOUTS` | `ClassVar[tuple[str, ...]]` | `('loop', 'trailing')` |
+| `TRAILING_LOOP_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(10, 12)` |
+| `KOZAK_LINKER_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(0, 3)` |
+| `PAYLOAD_HEAD_LENGTH` | `ClassVar[int]` | `30` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer) -> None` |  |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer, *, kozak_layouts: tuple[str, ...] \| None = None, payload: str \| None = None) -> None` |  |
 | `BUILT` | `def required_tools(self) -> list[ToolRequirement]` | External tools this family needs, checked before a run starts. |
 | `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | Can this family build anything for this trigger set? |
 | `BUILT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build candidate switches for one trigger set. |
@@ -1138,6 +1143,17 @@ A stand-in for :class:`~engine.gates.tools.folding.FoldEngine`.
 | `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` |  |
 | `BUILT` | `def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]` |  |
 | `BUILT` | `def versions(self) -> dict[str, str]` |  |
+
+### `engine.gates.notebooks.toehold.render_pdf`
+
+`src/engine/gates/notebooks/toehold/render_pdf.py`
+
+Render an HTML report to PDF via headless Chromium (Playwright).
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def render_pdf(html_path: Path, pdf_path: Path, *, landscape: bool = True) -> None` |  |
+| `BUILT` | `def main() -> None` |  |
 
 ## Layer 6 · Stages — the six steps of a run
 
@@ -1713,187 +1729,6 @@ The real scientific pipeline.
 | --- | --- | --- |
 | `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
 | `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`- or `de`-mode job. |
-
-### `engine.safety`
-
-`src/engine/safety.py`
-
-Offline-first, fail-closed release control for output sequences.
-
-| Status | Function | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def fail_closed_release(sequence_id: str, sequence: str, *, host_context: str) -> SafetyScreenResult` | Return auditable HOLD_SYSTEM evidence when no local screening stack is provisioned. |
-
-#### `class Decision(StrEnum)`
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `PASS` |  | `'PASS'` |
-| `REVIEW` |  | `'REVIEW'` |
-| `BLOCK` |  | `'BLOCK'` |
-| `HOLD_SYSTEM` |  | `'HOLD_SYSTEM'` |
-
-#### `class AdapterStatus(StrEnum)`
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `COMPLETE` |  | `'COMPLETE'` |
-| `UNAVAILABLE` |  | `'UNAVAILABLE'` |
-| `STALE` |  | `'STALE'` |
-| `FAILED` |  | `'FAILED'` |
-| `TIMEOUT` |  | `'TIMEOUT'` |
-
-#### `class FindingKind(StrEnum)`
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `AMR` |  | `'AMR'` |
-| `OTHER_HAZARD` |  | `'OTHER_HAZARD'` |
-
-#### `class DeclaredSelectableMarker`
-
-`@dataclass(frozen=True, slots=True)`
-
-A specific intended selectable marker; never a general AMR bypass.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `gene_identity` | `str` |  |
-| `role` | `str` |  |
-| `host_context` | `str` |  |
-| `plasmid_context` | `str` |  |
-| `justification` | `str` |  |
-| `approval_reference` | `str` |  |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def is_complete(self) -> bool` |  |
-
-#### `class SequenceSubmission`
-
-`@dataclass(frozen=True, slots=True)`
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `sequence_id` | `str` |  |
-| `sequence` | `str` |  |
-| `delivery_method` | `str` |  |
-| `host_context` | `str` |  |
-| `declared_markers` | `tuple[DeclaredSelectableMarker, ...]` | `()` |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `@property def sequence_sha256(self) -> str` |  |
-| `BUILT` | `def validation_errors(self) -> tuple[str, ...]` |  |
-
-#### `class LocalScreeningManifest`
-
-`@dataclass(frozen=True, slots=True)`
-
-Immutable identity and validation window for a local screening deployment.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `adapter_name` | `str` |  |
-| `adapter_version` | `str` |  |
-| `database_id` | `str` |  |
-| `database_sha256` | `str` |  |
-| `validated_at` | `datetime` |  |
-| `expires_at` | `datetime` |  |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def is_valid_at(self, now: datetime) -> bool` |  |
-
-#### `class Finding`
-
-`@dataclass(frozen=True, slots=True)`
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `kind` | `FindingKind` |  |
-| `identity` | `str` |  |
-| `confidence` | `str` |  |
-| `evidence_reference` | `str` |  |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `@property def is_ambiguous(self) -> bool` |  |
-
-#### `class ScreeningEvidence`
-
-`@dataclass(frozen=True, slots=True)`
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `manifest` | `LocalScreeningManifest` |  |
-| `adapter_status` | `AdapterStatus` |  |
-| `findings` | `tuple[Finding, ...]` | `()` |
-
-#### `class LocalScreeningAdapter(Protocol)`
-
-Local-only adapter contract. Implementations must not transmit the sequence.
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `PROTOCOL` | `def screen(self, submission: SequenceSubmission) -> ScreeningEvidence` |  |
-
-#### `class UnavailableLocalAdapter`
-
-`@dataclass(frozen=True, slots=True)`
-
-Safe default when a validated local tool/database has not been provisioned.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `manifest` | `LocalScreeningManifest` |  |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def screen(self, submission: SequenceSubmission) -> ScreeningEvidence` |  |
-
-#### `class ReviewTokenSigner`
-
-`@dataclass(frozen=True, slots=True)`
-
-Signs review-only release tokens bound to one exact screening result.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `secret` | `bytes` |  |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def issue(self, result: SafetyScreenResult, *, approver: str, expires_at: datetime) -> str` |  |
-| `BUILT` | `def authorizes(self, token: str \| None, result: SafetyScreenResult, *, now: datetime) -> bool` |  |
-
-#### `class SafetyScreenResult`
-
-`@dataclass(frozen=True, slots=True)`
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `decision` | `Decision` |  |
-| `sequence_sha256` | `str` |  |
-| `manifest` | `LocalScreeningManifest` |  |
-| `findings` | `tuple[Finding, ...]` |  |
-| `declared_marker_findings` | `tuple[Finding, ...]` |  |
-| `unexpected_marker_findings` | `tuple[Finding, ...]` |  |
-| `reasons` | `tuple[str, ...]` |  |
-| `release_allowed` | `bool` | `False` |
-| `result_sha256` | `str` | `field(init=False)` |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def audit_manifest(self) -> dict` |  |
-
-#### `class SafetyGate`
-
-Deterministic policy evaluator: no evidence gap can become a release.
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def evaluate(self, submission: SequenceSubmission, evidence: ScreeningEvidence, *, now: datetime, review_token: str \| None = None, signer: ReviewTokenSigner \| None = None) -> SafetyScreenResult` |  |
 
 ### `engine.store` · S11, S13
 
