@@ -52,6 +52,66 @@ This notebook is CERNAL's contest-ready, evidence-first record of meaningful sof
 - <PR, issue, CI run, test artifact, dataset accession, notebook, ADR, release, or screenshot link>
 ```
 
+## 2026-10-01 — Improve the in-app guide, use cases, and FAQ
+
+- **Contributor(s):** OpenAI Codex (authorized by the maintainer)
+- **Task / issue / PR:** Improve the authenticated use-cases page and quick guide, add FAQ; no PR opened
+- **Commit reference(s):** This change; exact commit discoverable in file history. Work was based on [`417f838`](https://github.com/zivbental/cernal_software/commit/417f8385725a99f2d7d4bc835eeedeb5903d399f).
+- **Status:** Not merged; maintainer review pending
+
+### Motivation
+
+Replace placeholder or misleading help with source-grounded workflows, limitations,
+setup guidance, result interpretation, provenance, and contribution links.
+
+### Files / components changed
+
+- `frontend/src/routes/guide.tsx`, `use-cases.tsx`, and `faq.tsx` — authenticated help content
+- `frontend/e2e/help-content.mjs` — rendered-content and offline link regression checks
+- [user-help.md](user-help.md) — maintainer claim-to-source and verification map
+
+### Implementation details
+
+The review corrected an earlier false assumption: successful result import creates
+platform-owned `summary.csv` and `manifest.json` in addition to engine artifacts. The
+help now distinguishes per-run candidate tables from per-accepted-candidate sequences,
+documents the manifest's actual fields and omissions, adds the payload/vector step, and
+makes API retrieval of warnings and frozen configuration actionable.
+
+### Tests / verification
+
+- `cd frontend && npm run build:fast` — passed; generated routes and production assets
+- `cd frontend && npm run test:help` — passed; 3 rendered pages, 52 links, and 7 negative controls
+- `cd frontend && npm run check` — passed; TypeScript, ESLint, render-logic cases, and help checks
+- `cd frontend && npm run build` — passed; TypeScript and production Vite build
+- `git diff --check` — passed
+- `uv run ruff check .` and `uv run ruff format --check .` — passed
+- `uv run python manage.py check` — passed
+- `uv run pytest -q` — 1,148 passed
+- `uv run --with requests --with 'cernal @ ./clients/python' pytest clients/python/tests -c clients/python/tests/pytest.ini -q` — 4 passed
+- `npm audit --json` — 3 pre-existing high-severity findings; dependencies were not changed
+
+### Results
+
+The guide, FAQ, and use-case pages remain inside the authenticated application and now
+describe the implemented platform/engine boundary without promising unsupported science,
+reports, figures, ordering, Boolean logic, or human-host completeness.
+
+### Problems / decisions
+
+Source code was treated as authoritative over the original documentation plan. No backend
+logic or scientific behavior was changed.
+
+### Review / approval
+
+- **Reviewed by:** Maintainer review pending
+- **Approval / merge evidence:** Not merged
+
+### Links / evidence
+
+- [Maintainer source map and validation instructions](user-help.md)
+- [Immutable baseline `417f838`](https://github.com/zivbental/cernal_software/commit/417f8385725a99f2d7d4bc835eeedeb5903d399f)
+
 ## Generated historical index (commit-derived)
 
 Generated from all **119** commits reachable from `origin/main` at `b8e20f5d6148720a2de60e05d94b792eaacff71d`. Rows are ordered oldest to newest by Git committer timestamp. The changed-path column lists up to four paths reported by Git; the linked commit is the complete primary evidence.
