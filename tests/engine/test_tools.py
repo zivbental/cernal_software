@@ -15,6 +15,12 @@ import pytest
 
 from engine import sequences as sq
 from engine.domain import AssemblyStandard
+from engine.gates.toehold import _mean_unpaired
+from engine.gates.tools.binding import (
+    alignment_pairs,
+    fixed_alignment_energy,
+    longest_complementary_run,
+)
 from engine.gates.tools.folding import FoldEngine
 from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
@@ -232,6 +238,174 @@ def test_mfe_folds_a_complex_as_a_dimer_not_a_concatenated_strand():
     assert dimer.energy != concatenated.energy
 
 
+# --- Joint accessibility: p_open (S2) -----------------------------------------------
+
+# An 18-bp stem closed by Kim's inhibitory loop, padded so the arms have real context.
+STEM = "GGACAGGAUGUCCCAUGC"
+HAIRPIN = "GGG" + STEM + "CAAGAACUUAGACAA" + sq.reverse_complement(STEM) + "AAAA"
+ARM = (3, 21)  # the 18-nt ascending arm, 0-based half-open
+
+
+def test_p_open_collapses_over_a_paired_stem_arm():
+    """The whole point of the joint form: an arm locked in a stem is not merely
+    unlikely to be open, it is astronomically unlikely, and the average over bases
+    (0.0013 here) hides that by twelve orders of magnitude."""
+    assert FoldEngine().p_open(HAIRPIN, ARM) == pytest.approx(3.4e-22, rel=0.25)
+
+
+def test_p_open_is_far_below_one_even_for_a_completely_unstructured_span():
+    """Holding N named bases open at once costs entropy even with nothing to pair
+    against, which is why `p_open` must never be compared against a threshold that was
+    calibrated for a per-base average."""
+    unstructured = "A" * 20 + STEM + "A" * 20
+    folder = FoldEngine()
+
+    wide = folder.p_open(unstructured, (20, 38))
+    narrow = folder.p_open(unstructured, (20, 24))
+
+    assert wide == pytest.approx(1.6e-4, rel=0.3)
+    assert narrow == pytest.approx(1.4e-3, rel=0.3)
+    assert wide < narrow < 0.01
+
+
+def test_p_open_constrains_the_window_of_the_first_strand_not_the_concatenation():
+    """The only thing that catches an off-by-one, because a shifted window still folds
+    and still scores. Opening the switch's own stem must cost more than opening a span
+    of the same length that is already unpaired."""
+    switch, trigger = HAIRPIN, "GGGUUUCCC"
+    folder = FoldEngine()
+
+    complex_ = f"{switch}&{trigger}"
+    assert folder.p_open(complex_, ARM) < folder.p_open(complex_, (54, 58))
+
+    with pytest.raises(ValueError):
+        folder.p_open(f"{switch}&{trigger}", (0, len(switch) + 5))
+    with pytest.raises(ValueError):
+        folder.p_open(switch, (10, 10))
+
+
+def test_p_open_is_invariant_to_rotating_the_strand_order():
+    """ViennaRNA's multi-strand ensemble depends on strand order only up to rotation, so
+    `_strand_orders` may enumerate one representative per circular class."""
+    switch, a, b = HAIRPIN, "GGGUUUCCC", "AUGCAUGCAUGC"
+    folder = FoldEngine()
+
+    assert folder.partition(f"{switch}&{a}&{b}") == pytest.approx(
+        folder.partition(f"{a}&{b}&{switch}"), abs=1e-6
+    )
+
+
+def test_p_open_sums_over_every_strand_ordering():
+    """Summed, so the answer does not depend on the order the caller happened to pass —
+    and the spread between orderings is real (2.75 kcal/mol on a realistic triple), so
+    picking one silently would be picking a number."""
+    switch, a, b = HAIRPIN, "GGGUUUCCC", "AUGCAUGCAUGC"
+    folder = FoldEngine()
+
+    assert folder.p_open(f"{switch}&{a}&{b}", ARM) == pytest.approx(
+        folder.p_open(f"{switch}&{b}&{a}", ARM), rel=1e-9
+    )
+    assert len(folder.p_open_by_order(f"{switch}&{a}&{b}", ARM)[0]) == 2
+    assert len(folder.p_open_by_order(switch, ARM)[0]) == 1
+
+
+# --- Ensemble defect (S2) ------------------------------------------------------------
+
+
+def test_ensemble_defect_is_small_against_the_structure_the_sequence_actually_folds_into():
+    folder = FoldEngine()
+    sequence = "GGGGAAAACCCC"
+
+    defect = folder.ensemble_defect(sequence, folder.mfe(sequence).structure)
+
+    assert 0.0 <= defect < 0.2 * len(sequence)
+
+
+def test_ensemble_defect_is_a_raw_count_not_a_fraction():
+    """ViennaRNA's own function divides by length despite its name; this method's
+    contract is the count, because callers normalise it themselves for
+    `structure_deviation` and would otherwise divide twice."""
+    sequence = "GGGGAAAACCCC"
+
+    defect = FoldEngine().ensemble_defect(sequence, "." * len(sequence))
+
+    assert defect == pytest.approx(0.6395 * len(sequence), rel=0.05)
+    assert defect > 1.0
+
+
+def test_ensemble_defect_rejects_a_target_of_the_wrong_length():
+    with pytest.raises(ValueError):
+        FoldEngine().ensemble_defect("GGGGAAAACCCC", "((((....)))")
+
+
+# --- Fixed-alignment duplex energy (S3) ----------------------------------------------
+
+DUPLEX_A = "GGGAAACCCUUUAG"
+DUPLEX_B = "CUAAAGGGUUUCCC"  # exact reverse complement of DUPLEX_A
+
+
+def test_fixed_alignment_energy_matches_the_free_fold_when_the_alignment_is_the_best_one():
+    """The known answer. A perfect duplex has nothing better to do than pair straight
+    through, so forcing that register must agree with letting ViennaRNA choose it."""
+    folder = FoldEngine(temperature=37.0)
+
+    forced = fixed_alignment_energy(DUPLEX_A, DUPLEX_B, folder)
+
+    assert forced == pytest.approx(-22.8, abs=0.05)
+    assert forced == pytest.approx(folder.mfe(f"{DUPLEX_A}&{DUPLEX_B}").energy, abs=0.05)
+
+
+def test_fixed_alignment_energy_weakens_as_mismatches_are_added():
+    folder = FoldEngine()
+
+    perfect = fixed_alignment_energy(DUPLEX_A, DUPLEX_B, folder)
+    one_off = fixed_alignment_energy(DUPLEX_A, "CUAAAGGGUUACCC", folder)
+    ragged = fixed_alignment_energy(DUPLEX_A, "CAUAGGCGUAACGC", folder)
+
+    assert perfect < one_off < ragged
+
+
+def test_fixed_alignment_energy_never_returns_viennarnas_sentinel():
+    """ViennaRNA signals an unevaluable structure by *returning* 1e5 rather than raising,
+    so a try/except catches nothing and two such values subtract to 0.00 — which passes a
+    `>= 0` gate. Every stem energy in the upstream scripts reads as a pass for this
+    reason. `None` is the only safe answer."""
+    folder = FoldEngine()
+
+    for probe in (DUPLEX_A, "AAAAAAAAAAAAAA", "GUGUGUGUGUGUGU"):
+        value = fixed_alignment_energy(probe, DUPLEX_B, folder)
+        assert value is None or abs(value) < 1e4
+
+
+def test_fixed_alignment_energy_is_zero_when_no_position_can_pair():
+    """A real answer — the strands simply do not interact — and distinct from `None`,
+    which means the model could not tell us."""
+    assert fixed_alignment_energy("AAAA", "AAAA", FoldEngine()) == 0.0
+
+
+def test_fixed_alignment_energy_requires_equal_lengths():
+    """Truncating silently would score a shorter duplex than the design describes."""
+    with pytest.raises(ValueError):
+        fixed_alignment_energy("AAAA", "AAA", FoldEngine())
+
+
+def test_alignment_pairs_counts_gu_wobbles():
+    """A duplex scored on Watson-Crick pairs alone reads as broken while it still holds;
+    on this project that produced a knockout retaining a fully wobble-paired run."""
+    assert alignment_pairs("GGGG", "UUUU") == [True, True, True, True]
+
+
+def test_structure_energy_rejects_a_structure_that_still_carries_the_separator():
+    """The one-character mistake behind the sentinel: `eval_structure` wants the
+    separator-free structure even though the compound was built with `&`."""
+    folder = FoldEngine()
+    strands = f"{DUPLEX_A}&{DUPLEX_B}"
+
+    assert folder.structure_energy(strands, "(" * 14 + ")" * 14) == pytest.approx(-22.8, abs=0.05)
+    with pytest.raises(ValueError):
+        folder.structure_energy(strands, "(" * 14 + "&" + ")" * 14)
+
+
 # --- Accessibility profiling (stages/folding.py, S1) --------------------------------
 
 PROFILER_SEQUENCE = "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAAGCUAGCUAGCUAGC"
@@ -274,3 +448,168 @@ def test_openness_window_covers_the_whole_sequence_for_a_direct_trigger():
     profile = profiler.profile(PROFILER_SEQUENCE)
 
     assert whole == pytest.approx(sum(profile) / len(profile))
+
+
+def test_longest_complementary_run_counts_wobbles():
+    """A knockout scored on Watson-Crick pairs alone produced, on this project, a variant
+    that read as disabled while retaining a fully wobble-paired 8-nt run — a negative
+    control that was not one, and that could not be recognised as such from the
+    experimental result."""
+    assert longest_complementary_run("GGGG", "UUUU") == 4
+    assert longest_complementary_run("GGGG", "CCCC") == 4
+
+
+def test_longest_complementary_run_finds_the_longest_unbroken_stretch():
+    """Contiguity is the point: scattered pairs do not let a trigger nucleate. Here four
+    of five positions pair, but the break in the middle leaves a longest run of two — a
+    total count would have reported four and called this trigger viable."""
+    assert longest_complementary_run("GGAGG", "CCACC") == 2
+    assert longest_complementary_run("AAAA", "AAAA") == 0
+
+
+# --- p_open against answers that are known without folding ---------------------------
+
+
+def test_p_open_is_exactly_one_where_pairing_is_impossible():
+    """A poly-A stretch has nothing to pair with, so the joint probability that a window
+    inside it is open is 1 and the opening cost is 0. If this drifts, the constrained and
+    unconstrained partition functions are no longer being compared on the same ensemble."""
+    folder = FoldEngine(temperature=37.0)
+
+    assert folder.p_open("A" * 40, (5, 35)) == pytest.approx(1.0, abs=1e-9)
+
+
+def test_p_open_prices_a_stem_and_not_its_loop():
+    """The same molecule, two windows: opening ten base pairs is expensive, opening the
+    hairpin loop they close is free. A p_open that ignored its window argument, or indexed
+    it wrongly, would return the same number for both."""
+    folder = FoldEngine(temperature=37.0)
+    hairpin = "GGGGGGGGGGAAAACCCCCCCCCC"
+
+    on_stem = folder.p_open(hairpin, (0, 10))
+    on_loop = folder.p_open(hairpin, (10, 14))
+
+    assert on_stem < 1e-12
+    assert on_loop == pytest.approx(1.0, abs=1e-6)
+
+
+def test_p_open_enumerates_one_ordering_per_circular_class():
+    """(n-1)! orderings: one for a dimer, two for a three-strand tube. The switch is kept
+    first so a window into it never needs remapping — if that changed, the constraint would
+    land on a trigger instead."""
+    folder = FoldEngine(temperature=37.0)
+    switch, trigger_a, trigger_b = "GGGAAACCCAAAGGGUUUCCC", "GGGAAACCC", "AAAGGGUUU"
+    window = (2, 8)
+
+    assert len(folder.p_open_by_order(f"{switch}&{trigger_a}", window)[0]) == 1
+    assert len(folder.p_open_by_order(f"{switch}&{trigger_a}&{trigger_b}", window)[0]) == 2
+    for order in FoldEngine._strand_orders(f"{switch}&{trigger_a}&{trigger_b}"):
+        assert order.split("&")[0] == switch
+
+
+def test_mean_unpaired_matches_a_raw_pair_probability_sum():
+    """`_mean_unpaired` reads the shared matrix; this recomputes the same quantity straight
+    from ViennaRNA's 1-indexed upper-triangular output. They must agree exactly, because a
+    disagreement would mean the matrix conversion has an off-by-one."""
+    folder = FoldEngine(temperature=37.0)
+    strands = "GGGGGGGGGGAAAACCCCCCCCCC&GGGGGGGGGG"
+    span = (0, 10)
+
+    from_shared = _mean_unpaired(folder.base_pair_probabilities(strands), *span)
+
+    compound = folder._compound(strands)
+    compound.pf()
+    raw = compound.bpp()
+    total = len(raw) - 1
+    expected = [
+        max(
+            0.0,
+            1.0 - sum(raw[min(i + 1, j)][max(i + 1, j)] for j in range(1, total + 1) if j != i + 1),
+        )
+        for i in range(*span)
+    ]
+    assert from_shared == pytest.approx(sum(expected) / len(expected), abs=1e-12)
+
+
+# --- Strand ordering in pair probabilities (S2) ---------------------------------------
+#
+# A three-strand complex has (n-1)! orderings and ViennaRNA counts only structures that
+# are non-crossing in the order written, so the orderings are NOT interchangeable. The
+# gate hits this on every state-11 tube.
+
+_SITE_A = "GCGCAUGCAUGC"
+_SITE_B = "GGCCAUUGGCCA"
+# Two binding sites at opposite ends, so a binder for each. Written "S&A&B" the two
+# binders' arcs nest; written "S&B&A" they cross, and ViennaRNA then forbids the
+# both-bound structure entirely -- the same geometry as the AND gate's state 11.
+_TWO_SITE_SWITCH = sq.reverse_complement(_SITE_B) + "AUAUAUAUAU" + sq.reverse_complement(_SITE_A)
+
+
+def test_writing_the_same_three_molecules_in_another_order_changes_the_bare_matrix():
+    """The defect `pooled_pair_probabilities` exists to fix, pinned so it cannot be
+    quietly reintroduced. `base_pair_probabilities` reports whichever ordering the caller
+    happened to type, and the two answers here differ by nearly a whole base."""
+    folder = FoldEngine()
+    switch = _TWO_SITE_SWITCH
+    nested = folder.base_pair_probabilities(f"{switch}&{_SITE_A}&{_SITE_B}")
+    crossed = folder.base_pair_probabilities(f"{switch}&{_SITE_B}&{_SITE_A}")
+
+    over_switch = [abs(sum(nested[i]) - sum(crossed[i])) for i in range(len(switch))]
+    assert max(over_switch) > 0.5, "the ordering should matter enormously here"
+
+
+def test_pooled_pair_probabilities_do_not_depend_on_how_the_caller_writes_the_strands():
+    """The invariant the fix buys. Both writings enumerate the same set of orderings and
+    weight each by its own population, so the switch's own pairing comes out identical --
+    the caller no longer has to know which ordering is the physical one."""
+    folder = FoldEngine()
+    switch = _TWO_SITE_SWITCH
+    nested = folder.pooled_pair_probabilities(f"{switch}&{_SITE_A}&{_SITE_B}")
+    crossed = folder.pooled_pair_probabilities(f"{switch}&{_SITE_B}&{_SITE_A}")
+
+    for i in range(len(switch)):
+        assert sum(nested[i]) == pytest.approx(sum(crossed[i]), abs=1e-12)
+
+
+def test_pooling_is_weighted_by_population_not_a_flat_average():
+    """A forbidden ordering must not get half the answer. When one ordering dominates,
+    the pooled matrix is that ordering's; a flat mean would drag every entry halfway to an
+    ensemble in which one binder cannot bind at all."""
+    folder = FoldEngine()
+    strands = f"{_TWO_SITE_SWITCH}&{_SITE_A}&{_SITE_B}"
+    orders = folder._strand_orders(strands)
+    energies = [folder.partition(order) for order in orders]
+    dominant = orders[energies.index(min(energies))]
+
+    pooled = folder.pooled_pair_probabilities(strands)
+    best = folder.base_pair_probabilities(dominant)
+    if dominant == strands:  # only then are the two indexed the same way
+        worst = folder.base_pair_probabilities(orders[energies.index(max(energies))])
+        flat = [
+            [(b + w) / 2 for b, w in zip(row_b, row_w, strict=True)]
+            for row_b, row_w in zip(best, worst, strict=True)
+        ]
+        assert (
+            max(abs(pooled[i][j] - best[i][j]) for i in range(len(best)) for j in range(len(best)))
+            < 1e-9
+        )
+        assert (
+            max(abs(pooled[i][j] - flat[i][j]) for i in range(len(best)) for j in range(len(best)))
+            > 1e-3
+        )
+
+
+def test_pooling_is_a_no_op_below_three_strands():
+    """One and two strands have a single ordering, so there is nothing to pool and the
+    result must be the ordinary matrix -- not a copy that has drifted."""
+    folder = FoldEngine()
+    for strands in (_TWO_SITE_SWITCH, f"{_TWO_SITE_SWITCH}&{_SITE_A}"):
+        assert folder.pooled_pair_probabilities(strands) == folder.base_pair_probabilities(strands)
+
+
+def test_the_position_map_gives_each_repeated_strand_its_own_copy():
+    """Two identical triggers in one tube must not both map onto the first copy's
+    positions, which would pile both strands' pairing onto one half of the matrix."""
+    mapping = FoldEngine._position_map(["AAA", "GG", "AAA"], ["AAA", "AAA", "GG"])
+    assert mapping == [0, 1, 2, 6, 7, 3, 4, 5]
+    assert sorted(mapping) == list(range(8)), "every position is used exactly once"

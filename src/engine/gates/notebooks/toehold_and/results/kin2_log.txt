@@ -1,0 +1,37 @@
+  design                   free x*|00  free x*|01   toe 00   toe 01   rate 01/00  equil sep  r2* free|00
+  x@260 baseline             0.0043      0.2839     0.03     2.27       10^2.2      -0.00        0.406
+  x@260 aug_paired           0.0043      0.2839     0.03     2.27       10^2.2       5.91        0.406
+  x@117 baseline             0.0013      0.3215     0.01     2.25       10^2.2       0.00        0.426
+  x@117 aug_paired           0.0013      0.3214     0.01     2.25       10^2.2      12.00        0.426
+  x@448 baseline             0.0057      0.5738     0.04     4.02       10^4.0       0.00        0.531
+  x@448 aug_paired           0.0057      0.5738     0.04     4.02       10^4.0       6.77        0.531
+  x@522 baseline             0.0017      0.1412     0.01     0.99       10^1.0       0.00        0.305
+  x@522 aug_paired           0.0017      0.1412     0.01     0.99       10^1.0       2.42        0.305
+  x@176 baseline             0.0006      0.4944     0.00     3.46       10^3.5       0.00        0.514
+  x@176 aug_paired           0.0006      0.4944     0.00     3.46       10^3.5      10.43        0.514
+  x@620 baseline             0.0018      0.5067     0.01     3.55       10^3.5       0.00        0.649
+  x@620 aug_paired           0.0018      0.5067     0.01     3.55       10^3.5       4.99        0.649
+  x@281 baseline             0.0007      0.6397     0.00     4.48       10^4.5       0.00        0.500
+  x@281 aug_paired           0.0007      0.6397     0.00     4.48       10^4.5      10.16        0.500
+  x@485 baseline             0.0009      0.4178     0.01     2.92       10^2.9       0.00        0.567
+  x@485 aug_paired           0.0009      0.4178     0.01     2.92       10^2.9      10.50        0.567
+  x@566 baseline             0.0024      0.5350     0.02     3.75       10^3.7       0.01        0.524
+  x@566 aug_paired           0.0024      0.5350     0.02     3.75       10^3.7      10.36        0.524
+  x@269 baseline             0.0017      0.5838     0.01     4.09       10^4.1       0.00        0.453
+  x@269 aug_paired           0.0017      0.5838     0.01     4.09       10^4.1       7.31        0.453
+  x@515 baseline             0.0010      0.3082     0.01     2.16       10^2.2       0.00        0.572
+  x@515 aug_paired           0.0010      0.3064     0.01     2.14       10^2.1       4.23        0.572
+  x@394 baseline             0.0031      0.4645     0.02     3.25       10^3.2       0.00        0.414
+  x@394 aug_paired           0.0031      0.4645     0.02     3.25       10^3.2       4.62        0.414
+
+24 rows -> C:\Users\Dell\source\repos\cernal_software\src\engine\gates\notebooks\toehold_and\results\kinetic_v2.csv
+
+Baseline designs -- the ones our equilibrium model rejects outright:
+  largest kinetic advantage 29,753x (x@281), with equilibrium separation 0.00 kcal/mol.
+
+r2*|00 is trigger B's own toehold in the OFF state. If it is high, B binds first
+because it is the only trigger that can, which is what makes the ordering above a
+mechanism rather than an assumption.
+
+Slope and saturation borrowed from Zhang & Winfree 2009: DNA, 25 C, 1 M Na+.
+We fold RNA at 37 C. Ratios are more defensible than absolute rates. Not scored.
