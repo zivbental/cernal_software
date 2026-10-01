@@ -37,13 +37,13 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 37 |
-| Public classes | 87 |
-| Public callables (excluding `__init__`) | 170 |
-| — `BUILT` | 137 |
+| Modules | 38 |
+| Public classes | 100 |
+| Public callables (excluding `__init__`) | 182 |
+| — `BUILT` | 148 |
 | — `STUB` | 26 |
 | — `ABSTRACT` | 5 |
-| — `PROTOCOL` | 2 |
+| — `PROTOCOL` | 3 |
 | `__init__` constructors | 20 |
 
 ## Index
@@ -88,6 +88,7 @@ layers above it, never the ones below.
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``. |
 | top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
+| top | `engine.safety` |  | 12 | 0 | Offline-first, fail-closed release control for output sequences. |
 | top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
 | top | `engine.transcriptome` |  | 2 | 0 | Reference transcript sequences, by organism — Q1's first real answer. |
 
@@ -1712,6 +1713,187 @@ The real scientific pipeline.
 | --- | --- | --- |
 | `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
 | `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`- or `de`-mode job. |
+
+### `engine.safety`
+
+`src/engine/safety.py`
+
+Offline-first, fail-closed release control for output sequences.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def fail_closed_release(sequence_id: str, sequence: str, *, host_context: str) -> SafetyScreenResult` | Return auditable HOLD_SYSTEM evidence when no local screening stack is provisioned. |
+
+#### `class Decision(StrEnum)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `PASS` |  | `'PASS'` |
+| `REVIEW` |  | `'REVIEW'` |
+| `BLOCK` |  | `'BLOCK'` |
+| `HOLD_SYSTEM` |  | `'HOLD_SYSTEM'` |
+
+#### `class AdapterStatus(StrEnum)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `COMPLETE` |  | `'COMPLETE'` |
+| `UNAVAILABLE` |  | `'UNAVAILABLE'` |
+| `STALE` |  | `'STALE'` |
+| `FAILED` |  | `'FAILED'` |
+| `TIMEOUT` |  | `'TIMEOUT'` |
+
+#### `class FindingKind(StrEnum)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `AMR` |  | `'AMR'` |
+| `OTHER_HAZARD` |  | `'OTHER_HAZARD'` |
+
+#### `class DeclaredSelectableMarker`
+
+`@dataclass(frozen=True, slots=True)`
+
+A specific intended selectable marker; never a general AMR bypass.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `gene_identity` | `str` |  |
+| `role` | `str` |  |
+| `host_context` | `str` |  |
+| `plasmid_context` | `str` |  |
+| `justification` | `str` |  |
+| `approval_reference` | `str` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def is_complete(self) -> bool` |  |
+
+#### `class SequenceSubmission`
+
+`@dataclass(frozen=True, slots=True)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `sequence_id` | `str` |  |
+| `sequence` | `str` |  |
+| `delivery_method` | `str` |  |
+| `host_context` | `str` |  |
+| `declared_markers` | `tuple[DeclaredSelectableMarker, ...]` | `()` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def sequence_sha256(self) -> str` |  |
+| `BUILT` | `def validation_errors(self) -> tuple[str, ...]` |  |
+
+#### `class LocalScreeningManifest`
+
+`@dataclass(frozen=True, slots=True)`
+
+Immutable identity and validation window for a local screening deployment.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `adapter_name` | `str` |  |
+| `adapter_version` | `str` |  |
+| `database_id` | `str` |  |
+| `database_sha256` | `str` |  |
+| `validated_at` | `datetime` |  |
+| `expires_at` | `datetime` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def is_valid_at(self, now: datetime) -> bool` |  |
+
+#### `class Finding`
+
+`@dataclass(frozen=True, slots=True)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `kind` | `FindingKind` |  |
+| `identity` | `str` |  |
+| `confidence` | `str` |  |
+| `evidence_reference` | `str` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def is_ambiguous(self) -> bool` |  |
+
+#### `class ScreeningEvidence`
+
+`@dataclass(frozen=True, slots=True)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `manifest` | `LocalScreeningManifest` |  |
+| `adapter_status` | `AdapterStatus` |  |
+| `findings` | `tuple[Finding, ...]` | `()` |
+
+#### `class LocalScreeningAdapter(Protocol)`
+
+Local-only adapter contract. Implementations must not transmit the sequence.
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `PROTOCOL` | `def screen(self, submission: SequenceSubmission) -> ScreeningEvidence` |  |
+
+#### `class UnavailableLocalAdapter`
+
+`@dataclass(frozen=True, slots=True)`
+
+Safe default when a validated local tool/database has not been provisioned.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `manifest` | `LocalScreeningManifest` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def screen(self, submission: SequenceSubmission) -> ScreeningEvidence` |  |
+
+#### `class ReviewTokenSigner`
+
+`@dataclass(frozen=True, slots=True)`
+
+Signs review-only release tokens bound to one exact screening result.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `secret` | `bytes` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def issue(self, result: SafetyScreenResult, *, approver: str, expires_at: datetime) -> str` |  |
+| `BUILT` | `def authorizes(self, token: str \| None, result: SafetyScreenResult, *, now: datetime) -> bool` |  |
+
+#### `class SafetyScreenResult`
+
+`@dataclass(frozen=True, slots=True)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `decision` | `Decision` |  |
+| `sequence_sha256` | `str` |  |
+| `manifest` | `LocalScreeningManifest` |  |
+| `findings` | `tuple[Finding, ...]` |  |
+| `declared_marker_findings` | `tuple[Finding, ...]` |  |
+| `unexpected_marker_findings` | `tuple[Finding, ...]` |  |
+| `reasons` | `tuple[str, ...]` |  |
+| `release_allowed` | `bool` | `False` |
+| `result_sha256` | `str` | `field(init=False)` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def audit_manifest(self) -> dict` |  |
+
+#### `class SafetyGate`
+
+Deterministic policy evaluator: no evidence gap can become a release.
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def evaluate(self, submission: SequenceSubmission, evidence: ScreeningEvidence, *, now: datetime, review_token: str \| None = None, signer: ReviewTokenSigner \| None = None) -> SafetyScreenResult` |  |
 
 ### `engine.store` · S11, S13
 
