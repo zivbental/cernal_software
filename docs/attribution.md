@@ -83,6 +83,7 @@ authoritative pins are [`uv.lock`](../uv.lock) and
 | numpy | BSD-3-Clause |
 | pydantic / pydantic-core | MIT |
 | asgiref, sqlparse | BSD |
+| sbol3 | MIT |
 
 ### Python — development
 

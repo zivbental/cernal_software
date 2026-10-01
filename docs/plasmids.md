@@ -441,6 +441,34 @@ Emit through `engine.artifacts.write_artifact` with `kind="genbank"` — a kind
 [`reporting.py`](../src/engine/stages/reporting.py) already names — so it flows through
 the existing checksum and download path with no new storage anywhere.
 
+### P4b · And export SBOL 3 — *built, [ADR 0008](decisions/0008-sbol3-for-sbol-export.md)*
+
+`to_sbol3(design)` emits the same construct as SBOL 3, built natively from
+`PlasmidDesign` rather than converted from the GenBank above: one `Component` for the
+plasmid, one `SubComponent` with a `Range` per segment. Each segment carries a real
+Sequence Ontology role, and for the 15 parts copied from the iGEM Registry that role is
+the part's own Registry accession, with its Registry URL attached as `derived_from`
+provenance. The switch, which is designed per run and exists in no registry, gets
+`SO:0000804` (`engineered_region`) rather than borrowing an accession for a part it is
+not.
+
+Three things are load-bearing and have tests of their own:
+
+- **It goes out inside the release gate**, beside FASTA and GenBank. SBOL carries the
+  whole construct sequence, so emitting it above the gate would hand out exactly what
+  [`safety.py`](../src/engine/safety.py) withholds.
+- **The bytes are stable across runs.** `write_artifact` checksums them and CLAUDE.md §6
+  bans a clock or a uuid in anything reaching output, so serialization is
+  `SORTED_NTRIPLES` and identities are derived from the design.
+- **SBOL `Range` is 1-based inclusive**; CERNAL coordinates are 0-indexed exclusive-end.
+  A test asserts the SBOL and GenBank files place every feature at the same bases, which
+  is the only cheap way to keep that conversion honest.
+
+The parts table's claim that it was verified against the Registry is enforced rather than
+asserted: `tools/sync_registry_parts.py` refreshes `data/registry/parts.json` (identity
+and digests — never a second copy of the sequences), and
+`tests/engine/test_registry_parts.py` fails offline if any part drifts.
+
 ### P5 · Wire it into the direct pipeline
 
 Synthesise the one-gene `CircuitCandidate` (§3), call `build` once per requested output,

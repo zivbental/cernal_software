@@ -28,10 +28,19 @@ but never called here — every payload is emitted verbatim from the table in
 docs/plasmids.md Q13/ROADMAP E5b) are the only two functions here that touch it; a
 ``SeqRecord`` is built and discarded inside each, never crossing back into engine or
 Platform code.
+
+**``sbol3`` is confined the same way** (ADR 0008). ``to_sbol3`` is the only function
+that imports it, builds a ``Document`` and discards it; no SBOL type reaches engine or
+Platform code either. ``sbol-utilities`` is deliberately absent — its GenBank converter
+calls ``SeqFeature.strand``, which the Biopython above removed.
 """
 
 import io
+import json
+from functools import cache
+from pathlib import Path
 
+import sbol3
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqFeature import SeqFeature, SimpleLocation
@@ -63,6 +72,36 @@ from engine.stages.motifs import MotifScreener
 # ``PlasmidBuilder`` itself. A host or outcome with no entry raises a clear
 # ``InputValidationError`` naming what is missing, rather than silently assembling a
 # promoter-less or payload-less plasmid.
+
+#: The iGEM Registry part each table entry below is a copy of, keyed by the local part
+#: name. The naming is irregular and that is exactly why this is declared rather than
+#: derived: the basic parts carry a ``BBa_`` prefix, the payload's registry name
+#: (``BBa_E0040``) says nothing about its local name (``GFP``), and the plasmid
+#: backbones are registered under their bare names with no prefix at all.
+#:
+#: This is identity only — never sequence. The tables below stay the single source of
+#: truth for what CERNAL builds (CLAUDE.md §1); storing the sequences a second time,
+#: here or in the bundled catalog, is how two copies of one part drift apart.
+#: ``tools/sync_registry_parts.py`` refreshes ``data/registry/parts.json`` from this
+#: mapping, and ``tests/engine/test_registry_parts.py`` fails if a table sequence stops
+#: matching the Registry part it claims to be.
+REGISTRY_PARTS: dict[str, str] = {
+    "J23119": "BBa_J23119",
+    "K124002": "BBa_K124002",
+    "B0015": "BBa_B0015",
+    "K1486025": "BBa_K1486025",
+    "GFP": "BBa_E0040",
+    "pSB1A3": "pSB1A3",
+    "pSB1C3": "pSB1C3",
+    "pSB1K3": "pSB1K3",
+    "pSB1T3": "pSB1T3",
+    "pSB1AK3": "pSB1AK3",
+    "pSB1AT3": "pSB1AT3",
+    "pSB3C5": "pSB3C5",
+    "pSB3K3": "pSB3K3",
+    "pSB3T5": "pSB3T5",
+    "pSB4C5": "pSB4C5",
+}
 
 #: (part name, DNA sequence) per host. *E. coli* and yeast today — human deliberately
 #: absent (docs/ROADMAP.md Q12): a mammalian expression plasmid is not assembled by
@@ -542,3 +581,152 @@ def to_genbank(design: PlasmidDesign) -> bytes:
         position = end
 
     return record.format("genbank").encode("utf-8")
+
+
+# --- SBOL 3 export (ADR 0008) -------------------------------------------------------
+
+#: Bundled iGEM Registry metadata, written by ``tools/sync_registry_parts.py``. Identity
+#: and provenance only — never sequences; the tables above stay the single source of
+#: truth for what CERNAL builds (CLAUDE.md §1).
+_REGISTRY_CATALOG_PATH = Path(__file__).resolve().parent.parent / "data" / "registry" / "parts.json"
+
+#: Sequence Ontology role per segment kind, for a part with no Registry entry of its own.
+#: The switch is the case that matters: it is designed by CERNAL for this run and exists
+#: in no registry, so it gets ``engineered_region`` rather than being mislabelled as a
+#: catalogued part. Standard SO terms only, the same rule ``_GENBANK_FEATURE_TYPE``
+#: follows for GenBank feature keys.
+_SBOL_ROLE: dict[SegmentKind, str] = {
+    SegmentKind.PROMOTER: "SO:0000167",  # promoter
+    SegmentKind.SWITCH: "SO:0000804",  # engineered_region
+    SegmentKind.PAYLOAD: "SO:0000316",  # CDS
+    SegmentKind.TERMINATOR: "SO:0000141",  # terminator
+    SegmentKind.BACKBONE: "SO:0000755",  # plasmid_vector
+}
+
+#: Namespace for every identity CERNAL mints. Fixed, not derived from a hostname or a
+#: run id: an SBOL identity that moved with the deployment would make two exports of the
+#: same design non-identical, and ``write_artifact`` checksums what this function returns.
+SBOL_NAMESPACE = "https://cernal.igem.org/2026"
+
+#: The ontology prefixes this module is prepared to turn into a URI. The Registry serves
+#: a few parts with an ``IGEM:`` role — BBa_K124002's ``IGEM:0000006`` is one — which is
+#: not a Sequence Ontology term and must not be emitted as though it were. Those fall
+#: back to the kind-based SO role, which is a true statement about the part's function
+#: rather than a fabricated accession.
+_ONTOLOGY_URI = {"SO": "https://identifiers.org/SO:{accession}"}
+
+
+@cache
+def load_registry_catalog() -> dict[str, dict]:
+    """The bundled Registry metadata, keyed by local part name. Empty if never synced.
+
+    Cached per process: a small JSON file that cannot change between requests. Missing
+    is not an error — SBOL export still works, it just falls back to the kind-based SO
+    role and emits no Registry provenance.
+    """
+    if not _REGISTRY_CATALOG_PATH.is_file():
+        return {}
+    return json.loads(_REGISTRY_CATALOG_PATH.read_text(encoding="utf-8"))
+
+
+def _role_uri(segment: Segment, entry: dict | None) -> str:
+    """The SO role URI for one segment, preferring the Registry's own accession."""
+    accession = (entry or {}).get("role_accession", "")
+    prefix, _, number = accession.partition(":")
+    if prefix in _ONTOLOGY_URI and number:
+        return _ONTOLOGY_URI[prefix].format(accession=accession)
+    return _ONTOLOGY_URI["SO"].format(accession=_SBOL_ROLE[segment.kind])
+
+
+def _safe_id(text: str) -> str:
+    """``text`` as a legal SBOL display id.
+
+    SBOL requires alphanumeric-or-underscore and forbids a leading digit. Every CERNAL
+    identifier is otherwise illegal here: ``plas-000001``, ``circ-000001`` and the
+    gate-designed segment names all carry a hyphen, and a part name may start with a
+    digit. Normalising is not cosmetic — ``sbol3`` raises on an invalid display id, so
+    an unnormalised id fails the export outright rather than producing a bad file.
+    """
+    safe = "".join(character if character.isalnum() else "_" for character in text)
+    return f"_{safe}" if safe and safe[0].isdigit() else safe
+
+
+def _display_id(segment: Segment, index: int) -> str:
+    """A stable, SBOL-legal display id for one segment.
+
+    The positional index keeps two segments of the same part distinct without a counter
+    or a uuid, and keeps the id stable for a given design.
+    """
+    return f"s{index}_{_safe_id(segment.name)}"
+
+
+def to_sbol3(design: PlasmidDesign) -> bytes:
+    """Render a ``PlasmidDesign`` as an SBOL 3 document (sorted N-Triples).
+
+    The only place in this module that imports ``sbol3`` (ADR 0008), following the same
+    containment rule ``to_genbank`` follows for Biopython: a ``Document`` is built and
+    discarded here and never crosses back into engine or Platform code.
+
+    Answers iGEM's "compatible with, and does it leverage, existing synthetic biology
+    standards" by emitting the construct in the standard the question names, with each
+    segment carrying a real Sequence Ontology role and — where the part came from the
+    iGEM Registry — that part's own accession and URL as provenance.
+
+    **Byte-identical across runs**, which ``write_artifact``'s SHA-256 depends on and
+    CLAUDE.md §6 requires: identities are derived from the design, serialization is
+    ``SORTED_NTRIPLES``, and nothing here reads a clock or generates a uuid.
+
+    Args:
+        design: The assembled construct to export.
+
+    Returns:
+        The SBOL 3 document as UTF-8 encoded sorted N-Triples.
+    """
+    catalog = load_registry_catalog()
+    sbol3.set_namespace(SBOL_NAMESPACE)
+    document = sbol3.Document()
+
+    sequence = sbol3.Sequence(
+        f"{_safe_id(design.plasmid_id)}_sequence",
+        elements=design.plasmid.sequence,
+        encoding=sbol3.IUPAC_DNA_ENCODING,
+    )
+    construct = sbol3.Component(
+        _safe_id(design.plasmid_id),
+        sbol3.SBO_DNA,
+        roles=[_ONTOLOGY_URI["SO"].format(accession="SO:0000755")],
+        sequences=[sequence],
+        name=design.plasmid_id,
+        description=(
+            f"CERNAL computationally assembled construct {design.plasmid_id} "
+            f"for circuit {design.circuit_id}, {design.standard.value} compliant. "
+            "Computationally assembled, not wet-lab validated (docs/plasmids.md §9)."
+        ),
+    )
+    document.add(sequence)
+
+    position = 0
+    for index, segment in enumerate(design.plasmid.segments):
+        entry = catalog.get(segment.name)
+        part = sbol3.Component(
+            _display_id(segment, index),
+            sbol3.SBO_DNA,
+            roles=[_role_uri(segment, entry)],
+            name=segment.name,
+        )
+        if entry:
+            # Provenance, not a second copy of the part: the Registry's own identifier
+            # for the thing this segment is, so a reader can go and look it up.
+            part.description = f"iGEM Registry part {entry['registry_name']} — {entry['url']}"
+            part.derived_from = [entry["url"]]
+
+        feature = sbol3.SubComponent(part)
+        # SBOL Range is 1-based inclusive on both ends; CERNAL coordinates are 0-indexed
+        # with an exclusive end (CLAUDE.md §6), so start shifts by one and end does not.
+        feature.locations = [sbol3.Range(sequence, position + 1, position + segment.length_bp)]
+        construct.features.append(feature)
+        document.add(part)
+        position += segment.length_bp
+
+    document.add(construct)
+    return document.write_string(sbol3.SORTED_NTRIPLES).encode("utf-8")

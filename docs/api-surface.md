@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 63 |
 | Public classes | 101 |
-| Public callables (excluding `__init__`) | 322 |
-| — `BUILT` | 289 |
+| Public callables (excluding `__init__`) | 324 |
+| — `BUILT` | 291 |
 | — `STUB` | 25 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -101,7 +101,7 @@ layers above it, never the ones below.
 | stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
 | stages | `engine.stages.off_target` | S5 | 0 | 4 | S5 — off-target scanning, in both directions. |
-| stages | `engine.stages.plasmids` |  | 5 | 0 | Stage 5 — plasmid construction. |
+| stages | `engine.stages.plasmids` |  | 7 | 0 | Stage 5 — plasmid construction. |
 | stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
 | stages | `engine.stages.switches` |  | 3 | 0 | Stage 3 — switch design and validation. |
@@ -1821,16 +1821,20 @@ Stage 5 — plasmid construction.
 
 | Constant | Type | Value |
 | --- | --- | --- |
+| `REGISTRY_PARTS` | `dict[str, str]` | `{'J23119': 'BBa_J23119', 'K124002': 'BBa_K124002', 'B0015': 'BBa_B0015', 'K1486025': 'B…` |
 | `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.YEAST: ('K124002',…` |
 | `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |
+| `SBOL_NAMESPACE` |  | `'https://cernal.igem.org/2026'` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def validate_payload_cds(name: str, sequence: str) -> str` | Validate a payload coding sequence and return it as uppercase DNA. |
 | `BUILT` | `def parse_custom_backbone(genbank_text: str) -> Segment` | Parse a researcher-supplied backbone from raw GenBank text (docs/plasmids.md Q13, docs/ROADMAP.md E5b) — the second and last function in this module that touches Biopython (ADR 0007), confined here for the same reason ``to_genbank`` is: a… |
 | `BUILT` | `def to_genbank(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an annotated circular GenBank file. |
+| `BUILT` | `@cache def load_registry_catalog() -> dict[str, dict]` | The bundled Registry metadata, keyed by local part name. Empty if never synced. |
+| `BUILT` | `def to_sbol3(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an SBOL 3 document (sorted N-Triples). |
 
 #### `class PlasmidBuilder`
 
