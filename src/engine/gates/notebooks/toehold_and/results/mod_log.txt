@@ -1,0 +1,120 @@
+1036 pairs survive stage 1
+
+=== x@260 len_x=8 B-anchored lock -14.6 · AUG bulge 3x3 ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline             -0.00   13.50    0.000  0.461  0.461  0.342   7.59   4.47e-06
+  upper3               -0.00    9.63    0.000  0.537  0.537  0.392   6.46   2.79e-05
+  upper6                0.00   14.34    0.000  0.441  0.441  0.370   6.86   1.47e-05
+  aug_paired            5.91   21.81    0.219  0.384  0.009  0.229   7.84   2.99e-06
+  stop_before_bulge     3.78   21.68    0.257  0.463  0.009  0.361   6.77   1.70e-05
+  stabiliser            0.00   13.50    0.000  0.461  0.461  0.342   7.59   4.47e-06
+
+=== x@117 len_x=7 B-anchored lock -18.4 · AUG bulge 3x3 ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline              0.00   16.65    0.000  0.703  0.703  0.942   3.83   1.99e-03
+  upper3                0.02   15.66    0.010  0.809  0.793  0.911   2.82   1.02e-02
+  upper6                0.37   11.31    0.088  0.640  0.425  0.981   7.39   6.21e-06
+  aug_paired           12.00   21.66    0.063  0.111  0.007  0.002   7.92   2.62e-06
+  stop_before_bulge    10.91   14.90    0.062  0.105  0.001  0.001  14.03   1.31e-10
+  stabiliser            0.00   16.85    0.000  0.703  0.703  0.942   3.83   1.99e-03
+
+=== x@448 len_x=7 B-anchored lock -20.5 · AUG bulge 2x2 ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline              0.00   13.47    0.000  0.506  0.506  0.502   6.22   4.15e-05
+  upper3                0.00   12.20    0.000  0.421  0.421  0.408   8.43   1.15e-06
+  upper6                2.11   12.72    0.129  0.322  0.114  0.825  10.44   4.39e-08
+  aug_paired            6.77   19.22    0.189  0.479  0.004  0.476   6.25   3.93e-05
+  stop_before_bulge     8.58   17.16    0.007  0.012  0.001  0.007  13.84   1.78e-10
+  stabiliser            0.00   13.47    0.000  0.506  0.505  0.502   6.22   4.15e-05
+
+=== x@522 len_x=7 B-anchored lock -23.1 · AUG bulge 1x1 ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline              0.00   18.00    0.000  0.416  0.416  0.461   8.58   9.04e-07
+  upper3                0.07   15.33    0.008  0.376  0.342  0.404   7.79   3.25e-06
+  upper6                2.54   11.77    0.125  0.271  0.062  0.440  10.48   4.10e-08
+  aug_paired            2.42   22.16    0.244  0.404  0.012  0.444   8.60   8.71e-07
+  stop_before_bulge     4.45   13.72    0.043  0.076  0.001  0.002  14.21   9.65e-11
+  stabiliser            0.00   17.53    0.000  0.416  0.416  0.461   8.58   9.04e-07
+
+=== x@176 len_x=7 B-anchored lock -23.6 · AUG bulge 2x2 ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline              0.00   13.09    0.000  0.414  0.414  0.798   7.51   5.09e-06
+  upper3                0.56    9.68    0.103  0.490  0.274  0.424   6.77   1.71e-05
+  upper6                3.23   11.20    0.057  0.217  0.118  0.452  11.88   4.23e-09
+  aug_paired           10.43   20.51    0.098  0.411  0.006  0.792   7.52   5.05e-06
+  stop_before_bulge    13.46   15.80    0.009  0.021  0.006  0.006  13.77   1.99e-10
+  stabiliser            0.00   13.09    0.000  0.414  0.414  0.798   7.51   5.09e-06
+
+
+########## AUG bulge-class survey ##########
+
+class 0 pairable -> 3x3 loop: 214 pairs
+
+=== x@260 len_x=8 B-anchored lock -14.6 · AUG bulge 3x3 [survey] ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline             -0.00   13.50    0.000  0.461  0.461  0.342   7.59   4.47e-06
+  upper3               -0.00    9.63    0.000  0.537  0.537  0.392   6.46   2.79e-05
+  upper6                0.00   14.34    0.000  0.441  0.441  0.370   6.86   1.47e-05
+  aug_paired            5.91   21.81    0.219  0.384  0.009  0.229   7.84   2.99e-06
+  stop_before_bulge     3.78   21.68    0.257  0.463  0.009  0.361   6.77   1.70e-05
+  stabiliser            0.00   13.50    0.000  0.461  0.461  0.342   7.59   4.47e-06
+
+=== x@117 len_x=7 B-anchored lock -18.4 · AUG bulge 3x3 [survey] ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline              0.00   16.65    0.000  0.703  0.703  0.942   3.83   1.99e-03
+  upper3                0.02   15.66    0.010  0.809  0.793  0.911   2.82   1.02e-02
+  upper6                0.37   11.31    0.088  0.640  0.425  0.981   7.39   6.21e-06
+  aug_paired           12.00   21.66    0.063  0.111  0.007  0.002   7.92   2.62e-06
+  stop_before_bulge    10.91   14.90    0.062  0.105  0.001  0.001  14.03   1.31e-10
+  stabiliser            0.00   16.85    0.000  0.703  0.703  0.942   3.83   1.99e-03
+
+class 1 pairable -> 2x2 loop: 504 pairs
+
+=== x@448 len_x=7 B-anchored lock -20.5 · AUG bulge 2x2 [survey] ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline              0.00   13.47    0.000  0.506  0.506  0.502   6.22   4.15e-05
+  upper3                0.00   12.20    0.000  0.421  0.421  0.408   8.43   1.15e-06
+  upper6                2.11   12.72    0.129  0.322  0.114  0.825  10.44   4.39e-08
+  aug_paired            6.77   19.22    0.189  0.479  0.004  0.476   6.25   3.93e-05
+  stop_before_bulge     8.58   17.16    0.007  0.012  0.001  0.007  13.84   1.78e-10
+  stabiliser            0.00   13.47    0.000  0.506  0.505  0.502   6.22   4.15e-05
+
+=== x@176 len_x=7 B-anchored lock -23.6 · AUG bulge 2x2 [survey] ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline              0.00   13.09    0.000  0.414  0.414  0.798   7.51   5.09e-06
+  upper3                0.56    9.68    0.103  0.490  0.274  0.424   6.77   1.71e-05
+  upper6                3.23   11.20    0.057  0.217  0.118  0.452  11.88   4.23e-09
+  aug_paired           10.43   20.51    0.098  0.411  0.006  0.792   7.52   5.05e-06
+  stop_before_bulge    13.46   15.80    0.009  0.021  0.006  0.006  13.77   1.99e-10
+  stabiliser            0.00   13.09    0.000  0.414  0.414  0.798   7.51   5.09e-06
+
+class 2 pairable -> 1x1 loop: 280 pairs
+
+=== x@522 len_x=7 B-anchored lock -23.1 · AUG bulge 1x1 [survey] ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline              0.00   18.00    0.000  0.416  0.416  0.461   8.58   9.04e-07
+  upper3                0.07   15.33    0.008  0.376  0.342  0.404   7.79   3.25e-06
+  upper6                2.54   11.77    0.125  0.271  0.062  0.440  10.48   4.10e-08
+  aug_paired            2.42   22.16    0.244  0.404  0.012  0.444   8.60   8.71e-07
+  stop_before_bulge     4.45   13.72    0.043  0.076  0.001  0.002  14.21   9.65e-11
+  stabiliser            0.00   17.53    0.000  0.416  0.416  0.461   8.58   9.04e-07
+
+=== x@566 len_x=7 B-anchored lock -20.7 · AUG bulge 1x1 [survey] ===
+  variant                sep  sep-10  meanSep  A_M11  A_M10  AUG11   dG11   P_open11
+  baseline              0.01   14.05    0.005  0.585  0.575  0.525   4.83   3.94e-04
+  upper3                1.94   11.73    0.257  0.580  0.110  0.452   4.55   6.20e-04
+  upper6                5.19   12.83    0.195  0.460  0.083  0.623   7.14   9.30e-06
+  aug_paired           10.36   13.62    0.007  0.027  0.014  0.001   8.97   4.80e-07
+  stop_before_bulge     7.78    7.78    0.006  0.027  0.014  0.001  15.51   1.18e-11
+  stabiliser            0.00   14.05    0.002  0.585  0.581  0.525   4.83   3.94e-04
+
+66 rows -> C:\Users\Dell\source\repos\cernal_software\src\engine\gates\notebooks\toehold_and\results\modifications.csv
+
+Per-variant medians across every base candidate:
+  variant                 sep   sep-10   meanSep   A_M11   A_M10   AUG11
+  baseline               0.00    13.50     0.000   0.461   0.461   0.502
+  upper3                 0.02    12.20     0.008   0.490   0.421   0.408
+  upper6                 2.11    11.77     0.088   0.322   0.118   0.452
+  aug_paired             6.77    21.66     0.189   0.404   0.007   0.444
+  stop_before_bulge      8.58    15.80     0.043   0.076   0.001   0.006
+  stabiliser             0.00    13.50     0.000   0.461   0.461   0.502

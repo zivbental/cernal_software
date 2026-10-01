@@ -1,0 +1,21 @@
+  design                   free x*|00  free x*|01   toe 00   toe 01   rate 01/00  equil sep  r2* free|00
+  x@260 baseline             0.0043      0.2839     0.03     2.27       10^2.2      -0.00        0.406
+  x@260 aug_paired           0.0043      0.2839     0.03     2.27       10^2.2       5.91        0.406
+  x@117 baseline             0.0013      0.3215     0.01     2.25       10^2.2       0.00        0.426
+  x@117 aug_paired           0.0013      0.3214     0.01     2.25       10^2.2      12.00        0.426
+  x@448 baseline             0.0057      0.5738     0.04     4.02       10^4.0       0.00        0.531
+  x@448 aug_paired           0.0057      0.5738     0.04     4.02       10^4.0       6.77        0.531
+  x@522 baseline             0.0017      0.1412     0.01     0.99       10^1.0       0.00        0.305
+  x@522 aug_paired           0.0017      0.1412     0.01     0.99       10^1.0       2.42        0.305
+
+8 rows -> C:\Users\Dell\source\repos\cernal_software\src\engine\gates\notebooks\toehold_and\results\kinetic_pathway.csv
+
+Baseline designs -- the ones our equilibrium model rejects outright:
+  largest kinetic advantage 9,470x (x@448), with equilibrium separation 0.00 kcal/mol.
+
+r2*|00 is trigger B's own toehold in the OFF state. If it is high, B binds first
+because it is the only trigger that can, which is what makes the ordering above a
+mechanism rather than an assumption.
+
+Slope and saturation borrowed from Zhang & Winfree 2009: DNA, 25 C, 1 M Na+.
+We fold RNA at 37 C. Ratios are more defensible than absolute rates. Not scored.
