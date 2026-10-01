@@ -35,6 +35,7 @@ The end-user workflow help is rendered inside the signed-in React application at
 | [smoke-run.md](smoke-run.md) | What blocked the first real (non-`MockEngine`) run, and the `direct`-path slice that unblocked it |
 | [plasmids.md](plasmids.md) | What stage 5 needs to make a circuit orderable — and the part-library questions nobody has asked yet |
 | [triggers.md](triggers.md) | Why a pasted transcript yields no designs: stage 2 is built but never called, and screens the window rather than the switch |
+| [trigger-nucleation-ranking.md](trigger-nucleation-ranking.md) | Reusable marginal-accessibility ranking: preserved nucleation-first semantics, explicit balanced geometric-mean mode, provenance and interpretation limits |
 | [development.md](development.md) | Setup, everyday commands, testing, troubleshooting |
 | [user-help.md](user-help.md) | Route ownership, claim-to-source map, regression command, and browser verification for in-app help |
 | [software-development-log.md](software-development-log.md) | iGEM-ready evidence log: future-entry template plus commit-derived historical index |

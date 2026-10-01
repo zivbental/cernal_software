@@ -455,3 +455,17 @@ RNA-class-specific preferences; the current scan treats RNA classes identically.
 **Done when:** a `direct` run given a full mRNA returns candidates built against a named
 window at a reported offset, a run that returns none names the rule that rejected how many,
 and off-target is reported as unmeasured rather than clean.
+
+## 11. Reusable marginal trigger/nucleation analysis
+
+The dated report-run scripts for dense trigger windows and nested nucleation windows have
+a reusable repository implementation in
+[`tools/trigger_nucleation_ranking.py`](../tools/trigger_nucleation_ranking.py), documented
+in [`trigger-nucleation-ranking.md`](trigger-nucleation-ranking.md). Its default remains
+the report analyses' lexicographic nucleation-first rule. The balanced geometric-mean
+question is exposed only as an explicitly named separate mode and preserves each row's
+original nucleation-first rank.
+
+This utility consumes `FoldProfiler.profile(...)` marginal values and is not the production
+`TriggerScorer` ranking described in §6. It does not use joint probabilities, motif or
+off-target evidence, and it does not replace gate-aware trigger selection.
