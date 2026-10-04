@@ -440,7 +440,72 @@ def _fake_sweep_worker(job: FakeSweepJob) -> dict:
     return out
 
 
-def pick_fake_design(design_5p, design_3p, exclude_ranks, pool, start_offset=0):
+def _is_complementary(x: str, y: str, *, allow_wobble: bool) -> tuple[bool, bool]:
+    """``(is_match, is_wobble)`` for one antiparallel base pair -- Watson-Crick always
+    matches; G*U/U*G matches only when ``allow_wobble``. Used by
+    :func:`_longest_complementary_run_wobble`, the Trap-3 fix below.
+    """
+    wc = {("A", "U"), ("U", "A"), ("G", "C"), ("C", "G")}
+    if (x, y) in wc:
+        return True, False
+    if allow_wobble and (x, y) in {("G", "U"), ("U", "G")}:
+        return True, True
+    return False, False
+
+
+def _longest_complementary_run_wobble(
+    a: str, b: str, wobble_max_fraction: float
+) -> tuple[int, int]:
+    """Longest antiparallel-complementary run between ``a`` and ``b``, same DP shape as
+    :func:`_longest_complementary_run` (longest common substring of ``a`` against
+    ``reverse_complement(b)``) but tolerating G*U/U*G wobble matches -- Trap 3 in
+    ``and_eu_report_spec.md``: a real, ViennaRNA-confirmed 12bp helix scored as only 4nt
+    under exact-complement-only matching because four of its positions were wobbles.
+
+    Returns ``(run_length, n_wobble_positions_in_that_run)``.
+
+    Every DP cell carries the full, uncapped ``(length, wobble_count)`` of the run
+    ending there, so a run can keep growing through a locally wobble-heavy stretch (the
+    fraction can still recover if later positions are plain Watson-Crick, since adding a
+    non-wobble match grows the denominator without the numerator). The cap is applied
+    when reading out the best answer: at every cell, a candidate only updates the global
+    best if ITS OWN ``wobble_count / length`` is within ``wobble_max_fraction`` --
+    so the reported run is always one that, taken as a whole, satisfies the cap, even
+    though the DP underneath explored runs that temporarily did not.
+    """
+    b_rc = reverse_complement(b)
+    n, m = len(a), len(b_rc)
+    prev = [(0, 0)] * (m + 1)
+    best_len, best_wobble = 0, 0
+    for i in range(1, n + 1):
+        curr = [(0, 0)] * (m + 1)
+        ai = a[i - 1]
+        for j in range(1, m + 1):
+            bj = b_rc[j - 1]
+            match, wobble = _is_complementary(ai, bj, allow_wobble=True)
+            if match:
+                prev_len, prev_wobble = prev[j - 1]
+                length = prev_len + 1
+                n_wobble = prev_wobble + (1 if wobble else 0)
+                curr[j] = (length, n_wobble)
+                if n_wobble / length <= wobble_max_fraction and length > best_len:
+                    best_len, best_wobble = length, n_wobble
+            # else curr[j] stays (0, 0): a mismatch always breaks the run, same as the
+            # exact-match DP this generalises.
+        prev = curr
+    return best_len, best_wobble
+
+
+def pick_fake_design(
+    design_5p,
+    design_3p,
+    exclude_ranks,
+    pool,
+    start_offset=0,
+    *,
+    max_overlap_nt=None,
+    wobble_max_fraction=None,
+):
     """Pool design with no meaningful sequence complementarity to EITHER A's or B's own
     footprint (toehold+stem_up) -- a real off-target trigger picked by actual sequence
     dissimilarity, not by genomic position.
@@ -456,6 +521,19 @@ def pick_fake_design(design_5p, design_3p, exclude_ranks, pool, start_offset=0):
     footprint, it cannot meaningfully bind it regardless of where it came from on the
     transcript -- position becomes irrelevant once sequence similarity is the actual
     thing being screened for.
+
+    ``max_overlap_nt``/``wobble_max_fraction`` (both ``None`` by default): optional,
+    additive screening used by ``and_eu_report.ipynb``'s richer fake-selection rule
+    (``and_eu_report_spec.md`` Step 2) -- a candidate also fails when its longest
+    complementary run against either footprint exceeds ``max_overlap_nt`` (an absolute
+    cap, not just "less than the real trigger"), and wobble matches count toward that
+    run up to ``wobble_max_fraction`` of it (:func:`_longest_complementary_run_wobble`,
+    the Trap-3 fix). Leaving both ``None`` preserves this function's ORIGINAL behaviour
+    bit-for-bit -- the predecessor notebook's own calls are unaffected by this addition.
+    When wobble screening is on, the returned dict carries an extra
+    ``wobble_positions_used`` key (the larger of the two footprints' wobble counts in
+    the accepted candidate's own best run) so a wobble-driven accept decision is visible
+    on every reported fake, never silent.
 
     A candidate qualifies only when its longest exact complementary run
     (``_longest_complementary_run``) against EACH footprint is STRICTLY LESS than that
@@ -478,19 +556,33 @@ def pick_fake_design(design_5p, design_3p, exclude_ranks, pool, start_offset=0):
         start, end = design["domains"]["toehold"][0], design["domains"]["stem_up"][1]
         return design["switch"][start:end]
 
+    use_wobble = wobble_max_fraction is not None
+
+    def _run(seq_a, seq_b):
+        if use_wobble:
+            return _longest_complementary_run_wobble(seq_a, seq_b, wobble_max_fraction)
+        return _longest_complementary_run(seq_a, seq_b), 0
+
     footprint_5p, footprint_3p = _footprint(design_5p), _footprint(design_3p)
-    real_run_5p = _longest_complementary_run(footprint_5p, design_5p["trigger"])
-    real_run_3p = _longest_complementary_run(footprint_3p, design_3p["trigger"])
+    real_run_5p, _ = _run(footprint_5p, design_5p["trigger"])
+    real_run_3p, _ = _run(footprint_3p, design_3p["trigger"])
 
     n = len(pool)
     for step in range(n):
         candidate = pool[(start_offset + step) % n]
         if candidate["rank"] in exclude_ranks:
             continue
-        run_5p = _longest_complementary_run(footprint_5p, candidate["trigger"])
-        run_3p = _longest_complementary_run(footprint_3p, candidate["trigger"])
-        if run_5p < real_run_5p and run_3p < real_run_3p:
+        run_5p, wobble_5p = _run(footprint_5p, candidate["trigger"])
+        run_3p, wobble_3p = _run(footprint_3p, candidate["trigger"])
+        if run_5p >= real_run_5p or run_3p >= real_run_3p:
+            continue
+        if max_overlap_nt is not None and (run_5p > max_overlap_nt or run_3p > max_overlap_nt):
+            continue
+        if not use_wobble:
             return candidate
+        result = dict(candidate)
+        result["wobble_positions_used"] = max(wobble_5p, wobble_3p)
+        return result
     return None
 
 
@@ -712,5 +804,174 @@ def run_parallel_constrained_bind(
     context = multiprocessing.get_context("fork")
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=context) as pool:
         for outcome in pool.map(_constrained_bind_worker, jobs):
+            results[outcome["key"]] = outcome
+    return results
+
+
+# ======================================================================================
+# Three-way state decomposition (and_eu_report_spec.md Step 2) -- built for
+# and_eu_report.ipynb. Every job here samples real structures and reads off all three
+# of stem_closed_fraction / misfolded_fraction / _frac_paired_to_external per footprint,
+# instead of the single bound/unbound bit the older job types above report: with
+# triggers present, "footprint is paired" alone cannot tell "the trigger bound it" apart
+# from "it cross-hybridised with something else", which is exactly the conflation that
+# made the predecessor notebook's leak metric wrong (see _frac_paired_to_external's own
+# docstring). One job = one state (one fixed set of extra strands); the caller (the
+# notebook) submits every state of every candidate -- real, alone, and every fake draw
+# -- as ONE list to ONE pool.map call per batch (CLAUDE.md sec 5 / Trap 6), then
+# averages whatever needs averaging (the fake draws) itself, after the pool returns.
+# ======================================================================================
+
+
+class SingleDecompJob(NamedTuple):
+    """One state of one single-input switch: ``extra`` is the second strand (the real
+    trigger, or a fake), or ``""`` for the switch alone -- same convention as
+    ``SingleStateJob``. ``footprint`` is toehold+stem_up (what a trigger binds, and what
+    ``_frac_paired_to_external``/``misfolded_fraction`` are asked about); ``stem_up`` is
+    just the ascending arm (what ``stem_closed_fraction`` is asked about, paired against
+    ``stem_down``).
+    """
+
+    key: str
+    switch: str
+    extra: str  # "" => switch alone
+    footprint: tuple[int, int]
+    stem_up: tuple[int, int]
+    stem_down: tuple[int, int]
+    temperature: float
+    n_samples: int = 1200
+    threshold: float = 0.70
+
+
+def _single_decomp_worker(job: SingleDecompJob) -> dict:
+    """Runs in a separate process, folding through the inherited shared ``FoldEngine``.
+
+    Per sampled structure: ``trigger_bound`` (``_frac_paired_to_external`` over
+    ``footprint``), ``stem_closed`` (``stem_closed_fraction`` over ``stem_up``/
+    ``stem_down``), ``misfolded`` (``misfolded_fraction`` over ``footprint``/
+    ``stem_down``) -- the same three metrics, the same partner-table stack walk,
+    whichever state this job represents. "Open" means ``trigger_bound >= threshold``
+    (Trap 1 -- never "paired to anything"); ``frac_open`` is the fraction of samples
+    that clear it, which is what the ON/OFF ratio is built from (a frequency, so Trap
+    4's floor at ``1/n_samples`` is meaningful on it, unlike a continuous mean).
+    """
+    engine = _engine(job.temperature)
+    strands = f"{job.switch}&{job.extra}" if job.extra else job.switch
+    samples = engine.sample_structures(strands, job.n_samples)
+    n_self = len(job.switch)
+    f0, f1 = job.footprint
+
+    n_open = 0
+    sum_trigger_bound = sum_stem_closed = sum_misfolded = 0.0
+    for structure in samples:
+        trigger_bound = _frac_paired_to_external(structure, f0, f1, n_self)
+        sum_trigger_bound += trigger_bound
+        sum_stem_closed += stem_closed_fraction(structure, job.stem_up, job.stem_down)
+        sum_misfolded += misfolded_fraction(structure, job.footprint, job.stem_down, n_self)
+        if trigger_bound >= job.threshold:
+            n_open += 1
+
+    n = len(samples) or 1
+    return {
+        "key": job.key,
+        "frac_open": n_open / n,
+        "n_open": n_open,
+        "mean_trigger_bound": sum_trigger_bound / n,
+        "mean_stem_closed": sum_stem_closed / n,
+        "mean_misfolded": sum_misfolded / n,
+        "n_samples": n,
+        **_sample_coverage(samples),
+    }
+
+
+def run_parallel_single_decomp(
+    jobs: list[SingleDecompJob], max_workers: int = 6
+) -> dict[str, dict]:
+    """Same fork-context reasoning as every other ``run_parallel*`` in this module."""
+    results: dict[str, dict] = {}
+    context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=context) as pool:
+        for outcome in pool.map(_single_decomp_worker, jobs):
+            results[outcome["key"]] = outcome
+    return results
+
+
+class AndDecompJob(NamedTuple):
+    """One state of one AND pair: ``extra`` lists whichever trigger/fake strands ride
+    along with ``fused`` for this state (``()`` = alone). Both footprints get the full
+    three-way decomposition every sample, from ONE set of sampled structures -- "both
+    open" is read per-structure (``is_a_open and is_b_open`` on the SAME draw), not from
+    two independent marginals (the same joint-vs-marginal gap ``JointStateJob`` exists
+    to close for the plain open/not-open case).
+    """
+
+    key: str
+    fused: str
+    extra: tuple[str, ...]
+    footprint_a: tuple[int, int]
+    stem_up_a: tuple[int, int]
+    stem_down_a: tuple[int, int]
+    footprint_b: tuple[int, int]
+    stem_up_b: tuple[int, int]
+    stem_down_b: tuple[int, int]
+    temperature: float
+    n_samples: int = 1200
+    threshold: float = 0.70
+
+
+def _and_decomp_worker(job: AndDecompJob) -> dict:
+    """Runs in a separate process, folding through the inherited shared ``FoldEngine``.
+    Same three metrics as :func:`_single_decomp_worker`, computed independently for
+    each side (A/B) on every sampled structure, plus the per-structure joint "both
+    open" fraction the AND ON/OFF ratio is built from.
+    """
+    engine = _engine(job.temperature)
+    strands = "&".join([job.fused, *job.extra]) if job.extra else job.fused
+    samples = engine.sample_structures(strands, job.n_samples)
+    n_self = len(job.fused)
+    fa0, fa1 = job.footprint_a
+    fb0, fb1 = job.footprint_b
+
+    n_a_open = n_b_open = n_both_open = 0
+    sum_tb_a = sum_sc_a = sum_mf_a = 0.0
+    sum_tb_b = sum_sc_b = sum_mf_b = 0.0
+    for structure in samples:
+        tb_a = _frac_paired_to_external(structure, fa0, fa1, n_self)
+        tb_b = _frac_paired_to_external(structure, fb0, fb1, n_self)
+        sum_tb_a += tb_a
+        sum_tb_b += tb_b
+        sum_sc_a += stem_closed_fraction(structure, job.stem_up_a, job.stem_down_a)
+        sum_sc_b += stem_closed_fraction(structure, job.stem_up_b, job.stem_down_b)
+        sum_mf_a += misfolded_fraction(structure, job.footprint_a, job.stem_down_a, n_self)
+        sum_mf_b += misfolded_fraction(structure, job.footprint_b, job.stem_down_b, n_self)
+        a_open = tb_a >= job.threshold
+        b_open = tb_b >= job.threshold
+        n_a_open += a_open
+        n_b_open += b_open
+        n_both_open += a_open and b_open
+
+    n = len(samples) or 1
+    return {
+        "key": job.key,
+        "frac_both_open": n_both_open / n,
+        "frac_a_open": n_a_open / n,
+        "frac_b_open": n_b_open / n,
+        "mean_trigger_bound_a": sum_tb_a / n,
+        "mean_stem_closed_a": sum_sc_a / n,
+        "mean_misfolded_a": sum_mf_a / n,
+        "mean_trigger_bound_b": sum_tb_b / n,
+        "mean_stem_closed_b": sum_sc_b / n,
+        "mean_misfolded_b": sum_mf_b / n,
+        "n_samples": n,
+        **_sample_coverage(samples),
+    }
+
+
+def run_parallel_and_decomp(jobs: list[AndDecompJob], max_workers: int = 6) -> dict[str, dict]:
+    """Same fork-context reasoning as every other ``run_parallel*`` in this module."""
+    results: dict[str, dict] = {}
+    context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=context) as pool:
+        for outcome in pool.map(_and_decomp_worker, jobs):
             results[outcome["key"]] = outcome
     return results
