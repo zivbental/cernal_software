@@ -388,7 +388,13 @@ class Constraints:
         min_separation: Minimum absolute log2 fold change for a gene to be usable. A gene
             that barely moves cannot drive a switch however well it folds.
         max_p_adj: Significance threshold, conventionally 0.05.
-        trigger_lengths: Window sizes to scan, in nucleotides. A tuple because different
+        trigger_lengths: Window sizes to scan, in nucleotides. The one-input footprints
+            only; ``build_tools`` **widens this per requested gate family** rather than
+            carrying every family's needs by default. A two-input family needs a 50-nt
+            window for trigger B (``SECONDARY_INVASION_LEN + TOEHOLD_B_LEN``), and adding
+            it here unconditionally would rescan every one-input run and move its top-K
+            shortlist -- a change in numbers that buys those runs nothing. See
+            ``ToeholdAndGate.role_footprints``. A tuple because different
             chemistries need different footprints, and each length scanned multiplies the
             candidate count.
         max_switch_length: Ceiling on a switch construct. Bounded by what synthesis
@@ -410,6 +416,20 @@ class Constraints:
             abundance column at all, docs/genes.md §2).
         max_base_expression: Ceiling on a gene's expression in whichever group is the
             "OFF" state for its direction — too high and the switch leaks.
+        stems_per_pair: How many secondary stems a two-input family may take per trigger
+            pair, best lock energy first. **A budget, and it has to be declared here rather
+            than chosen inside a gate family.** The axis grid is 16 closures x 3 upper3 x 2
+            lower3 = 96 designs per stem per pair per role assignment, so this number
+            multiplies the whole sweep; an undeclared default would be an invisible
+            per-family filter, which CLAUDE.md section 3 is explicit about.
+        min_window_gap: Nucleotides required between the two trigger windows when both come
+            from one transcript. ``ToeholdAndGate.MIN_WINDOW_GAP``'s own comment says "This
+            belongs in ``Constraints`` and there is no field for it yet" -- it does now.
+            Irrelevant when the two triggers come from different genes, where the windows
+            cannot collide.
+        overlap_range: Smallest and largest shared domain between the two triggers, in
+            nucleotides. The floor is what ``MIN_OVERLAP`` enforced; the ceiling is the
+            secondary invasion length, past which the arm cannot hold it.
         trigger_gc_range: GC% band a trigger window must fall inside to count as usable
             in stage 1's trigger-yield screen (docs/genes.md §4.2). Separate from
             ``engine.scoring``'s ``gc_content`` metric range: this is a coarse,
@@ -436,6 +456,9 @@ class Constraints:
     min_base_expression: float | None = None
     max_base_expression: float | None = None
     trigger_gc_range: tuple[float, float] = (30.0, 70.0)
+    stems_per_pair: int = 2
+    min_window_gap: int = 50
+    overlap_range: tuple[int, int] = (4, 18)
     direction_balance: bool = True
 
 

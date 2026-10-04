@@ -26,7 +26,7 @@ import re
 from bisect import bisect_right
 from collections.abc import Iterator
 from dataclasses import dataclass
-from itertools import product
+from itertools import combinations, product
 from typing import ClassVar
 
 from engine import sequences as sq
@@ -38,6 +38,7 @@ from engine.domain import (
     Host,
     ToolRequirement,
     Track,
+    TriggerCandidate,
     TriggerSet,
 )
 from engine.gates.base import GateFamily
@@ -1062,7 +1063,15 @@ class ToeholdAndGate(ToeholdGate):
         bulge = rna_a[post_bulge : post_bulge + self.BULGE_LEN]
         main_pre = rna_a[post_bulge + self.BULGE_LEN : arm]
         x = rna_a[arm : arm + len_x]
-        r2 = rna_b[len_k2 + len_x :]
+        # Bounded to `TOEHOLD_B_LEN`, not "whatever is left of trigger B". The open slice
+        # made the switch's length a function of the trigger WINDOW's length: a 50-nt
+        # window in Kim geometry (which wants 49) produced a 33-nt r2 and a 166-nt switch
+        # against the 165 the assertion below expects, so a scanner offering one window
+        # size for both geometries crashed on one of them. `len_k2 + len_x` is
+        # `SECONDARY_INVASION_LEN`, so for an exactly-sized trigger B this slice is a
+        # no-op and no existing design changes; it only discards bases a longer window
+        # supplied and this architecture has no domain for.
+        r2 = rna_b[len_k2 + len_x :][: self.TOEHOLD_B_LEN]
 
         rbs_loop = self.RBS_FLANK + self.RBS_PROKARYOTIC
         main_z = self._repair_main_z(k1, rbs_loop)
@@ -2001,6 +2010,90 @@ class ToeholdAndGate(ToeholdGate):
             objectives.append((lock, a_site, b_site))
         return [stems[i] for i in _pareto_front(objectives)]
 
+    def role_footprints(self) -> tuple[int, int]:
+        """The minimum length of trigger A and of trigger B, in that order.
+
+        Straight off ``_TriggerPair.window_a``/``window_b``, which document the same two
+        numbers as the footprints the pair finder cuts:
+
+            A: ``arm_len + len_x + len_k2``       == ``ARM_LEN + SECONDARY_INVASION_LEN``
+            B: ``len_k2 + len_x + toehold_b_len`` == ``SECONDARY_INVASION_LEN + TOEHOLD_B_LEN``
+
+        Both are independent of ``len_x`` because ``len_k2 = invasion_len - len_x`` cancels
+        it, which is why a pair's windows are a constant size whatever overlap it shares.
+        Naive geometry: 36 and 50. Kim's 17-nt invasion: 35 and 49.
+
+        Derived from the class constants rather than written down, so a subclass that
+        changes the geometry (``TrimmedToeholdAndGate``, ``KimSecondaryArmToeholdAndGate``)
+        gets the right pair of numbers without editing this method.
+        """
+        return (
+            self.ARM_LEN + self.SECONDARY_INVASION_LEN,
+            self.SECONDARY_INVASION_LEN + self.TOEHOLD_B_LEN,
+        )
+
+    def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility:
+        """Arity, host and the **two-input** footprints.
+
+        ``ToeholdGate``'s version is a one-input check, and inheriting it unchanged is a
+        crash rather than a rejection: its footprint is
+        ``min(toehold_lengths) + STEM_PRE_BULGE_LEN + 3 + STEM_POST_BULGE_LEN``, well under
+        the 36 and 50 nt two inputs need, so a pair of 30-nt windows passed it and then
+        raised ``ValueError: fixed alignment needs equal lengths, got 10 and 4`` from inside
+        ``secondary_stems``. That is the failure this override exists to turn back into a
+        reported reason -- CLAUDE.md §3: a family rejects a trigger set with
+        ``Compatibility.no(reason)``, and a silent drop or a traceback is not that.
+
+        **Either role assignment is enough.** ``generate_designs`` tries both orders, so a
+        pair is usable when one of the two assignments has a long enough A *and* a long
+        enough B. Requiring it of both orders would reject pairs that build.
+        """
+        inherited = super().is_compatible(trigger_set, constraints)
+        if not inherited.ok:
+            return inherited
+
+        min_a, min_b = self.role_footprints()
+        first, second = trigger_set.activators
+        if not any(
+            len(sq.to_rna(role_a.sequence)) >= min_a and len(sq.to_rna(role_b.sequence)) >= min_b
+            for role_a, role_b in ((first, second), (second, first))
+        ):
+            lengths = ", ".join(f"{t.trigger_id} {t.length} nt" for t in trigger_set.activators)
+            return Compatibility.no(
+                f"No role assignment fits {self.label}'s footprints: trigger A needs "
+                f"{min_a} nt (arm {self.ARM_LEN} + invasion {self.SECONDARY_INVASION_LEN}) "
+                f"and trigger B needs {min_b} nt (invasion "
+                f"{self.SECONDARY_INVASION_LEN} + toehold {self.TOEHOLD_B_LEN}), but the "
+                # No "add 50 to trigger_lengths" here: `build_tools` adds a requested
+                # family's own footprints already, so that advice was printed in runs
+                # where it had been followed. What is left is the fact, which is that
+                # these two windows cannot fill the two roles -- on a short transcript
+                # that is simply true and no setting fixes it.
+                f"set is {lengths}."
+            )
+
+        # **The shared overlap, asked here so that its absence is a REPORTED reason.**
+        # A pair can clear the footprints and still share no complementary run at the
+        # offsets this architecture binds at, and then `generate_designs` yields nothing:
+        # a silent drop, which CLAUDE.md §3 bans. For two windows picked independently it
+        # is also the common outcome rather than a rare one -- the two triggers have to be
+        # reverse-complementary over at least `MIN_OVERLAP` positions at fixed offsets, and
+        # ranking single windows by accessibility does nothing to arrange that. Pure string
+        # work, no folding, so it is free to ask.
+        if not any(
+            self._overlap_lengths(sq.to_rna(role_a.sequence), sq.to_rna(role_b.sequence))
+            for role_a, role_b in ((first, second), (second, first))
+        ):
+            return Compatibility.no(
+                f"{first.trigger_id} and {second.trigger_id} share no reverse-complementary "
+                f"run of at least {self.MIN_OVERLAP} nt at the offsets {self.label} binds "
+                f"at (trigger A's x begins at {self.ARM_LEN}, trigger B's x* at "
+                f"{self.SECONDARY_INVASION_LEN} - len_x), so there is no secondary stem to "
+                f"build. Use `find_trigger_pairs` on the transcript to enumerate the "
+                f"windows that do share one, rather than pairing windows ranked singly."
+            )
+        return Compatibility.yes()
+
     def generate_designs(
         self, trigger_set: TriggerSet, constraints: Constraints
     ) -> Iterator[GateDesign]:
@@ -2035,7 +2128,450 @@ class ToeholdAndGate(ToeholdGate):
             Both triggers may come from one gene. Nothing here may deduplicate by
             ``gene_id`` — the pipeline map calls this out explicitly.
         """
-        raise NotImplementedError("Step 5")
+        if len(trigger_set.activators) != 2 or trigger_set.repressors:
+            # `is_compatible` checks arity first and the designer calls it first, so this is
+            # a guard against a direct caller rather than a path the pipeline takes.
+            return
+        first, second = trigger_set.activators
+
+        # Both role assignments. Trigger A opens the main stem and trigger B frees the
+        # secondary lock, so A-with-B is a different construct from B-with-A and the two do
+        # not perform the same -- the docstring above says to generate both and let scoring
+        # decide, and that is what the loop does.
+        for role_a, role_b in ((first, second), (second, first)):
+            trigger_a, trigger_b = sq.to_rna(role_a.sequence), sq.to_rna(role_b.sequence)
+            for len_x in self._overlap_lengths(trigger_a, trigger_b):
+                yield from self._designs_for_overlap(
+                    trigger_set, role_a, role_b, trigger_a, trigger_b, len_x, constraints
+                )
+
+    #: Levels for the AUG bulge's closure, patched into ``bulge_star``. All sixteen, because
+    #: the (depth, G+C) grid is the axis and leaving cells out makes the sweep uneven.
+    #:
+    #: **They must all stay, and the scoring must not be fooled by them.** Measured over the
+    #: gating population, ``closed_*`` is 4.7% of designs and holds **89 of the top 100** by
+    #: A_M ratio, with worst-OFF denominators down to 0.0011 -- the extreme ratios are a
+    #: collapsed denominator, not a better ON state, and on the bounded measures those same
+    #: designs are the weakest. Green's own S6.2 calls extra pairs in the AUG bulge a defect
+    #: that "occurred often in the forward-engineered toehold switches", and no measured
+    #: library can arbitrate it. So: keep the levers, and never let the ratio rank alone.
+    CLOSURES: ClassVar[tuple[tuple[str, str | None], ...]] = (
+        ("open_3x3", None),
+        ("closed_UAU", "UAU"),
+        ("closed_CAU", "CAU"),
+        ("closed_CGU", "CGU"),
+        ("pair2_CCU", "CCU"),
+        ("pair1_CCC", "CCC"),
+        ("d2_gc3_CGC", "CGC"),
+        ("d2_gc1_AGU", "AGU"),
+        ("d2_gc0_AAU", "AAU"),
+        ("d1_gc2_AGC", "AGC"),
+        ("d1_gc1_AAC", "AAC"),
+        ("d1_gc0_AAA", "AAA"),
+        ("d0_gc3_GCC", "GCC"),
+        ("d0_gc2_ACC", "ACC"),
+        ("d0_gc1_ACA", "ACA"),
+        ("d0_gc0_AUA", "AUA"),
+    )
+
+    #: Top three base pairs of the main stem. ``None`` leaves them trigger-derived.
+    #:
+    #: Only the two all-weak overrides, because those are the ones asked for. The sweep also
+    #: carried ``WWS_AUG`` and ``WSW_AGA``; they are left out rather than silently retained,
+    #: and whether any override earns its place is an open measurement -- count how often each
+    #: level reaches a cell's argmin before widening this.
+    UPPER3: ClassVar[tuple[tuple[str, str | None], ...]] = (
+        ("trigger_derived", None),
+        ("WWW_UAU", "UAU"),
+        ("WWW_AUA", "AUA"),
+    )
+
+    #: Bottom three base pairs. ``WOBBLE`` is a target, not a sequence -- see ``_apply_lower3``.
+    #:
+    #: Measured: only ``trigger_derived`` and ``wobble_GU`` leave trigger A's grip on the stem
+    #: base intact -- 0 mismatches across 368 designs -- while the fixed levels break it, and
+    #: ``WSS``/``AGG`` was dropped 100% of the time by the rare-codon screen. ``grip_broken``
+    #: is what permits at most one broken pair, which is how a forced level can still reach a
+    #: 2S1W arrangement without losing the trigger.
+    LOWER3_WOBBLE: ClassVar[str] = "<wobble>"
+    LOWER3: ClassVar[tuple[tuple[str, str | None], ...]] = (
+        ("trigger_derived", None),
+        ("wobble_GU", LOWER3_WOBBLE),
+    )
+
+    #: Stop codons, so the lower3 rescue can refuse to create one.
+    STOP_CODONS: ClassVar[frozenset[str]] = frozenset({"UAA", "UAG", "UGA"})
+
+    @property
+    def geometry_name(self) -> str:
+        """A label for this family's secondary geometry, recorded on every design.
+
+        Two subclasses differ only in three class constants, so the label is derived from
+        them rather than declared -- a geometry cannot then be mislabelled by forgetting to
+        update a string.
+        """
+        cap = self.SECONDARY_CAP or "none"
+        return f"arm{self.SECONDARY_ARM_LEN}/inv{self.SECONDARY_INVASION_LEN}/cap{cap}"
+
+    def _axis_grid(self):
+        """Every (closure, upper3, lower3) point. A generator, so nothing is held at once."""
+        for closure in self.CLOSURES:
+            for upper3 in self.UPPER3:
+                for lower3 in self.LOWER3:
+                    yield closure, upper3, lower3
+
+    def _apply_axes(self, base, closure, upper3, lower3):
+        """Patch one assembled switch by domain NAME, never changing a length.
+
+        Returns the patched switch and a dict of notes, or ``None`` when an axis cannot be
+        applied without creating a fault that cannot be repaired.
+
+        **Patching by name and never by length is what keeps the domain map valid.** Every
+        write below replaces exactly as many bases as it removes, so ``base.domains`` still
+        describes the result and every downstream measurement reads the right span.
+
+        **Order matters, and this is the subtle part.** ``assemble`` already ran
+        ``_repair_main_z``, which removes an out-of-frame AUG that trigger A's first six
+        nucleotides would otherwise put in the 5' UTR -- 93 of 867 candidates on mCherry. But
+        the ``upper3`` lever OVERWRITES ``main_z``, so applying it undoes that repair and
+        brings the second start codon straight back. So the repair is re-run here, after the
+        patches, and a design that still carries one is dropped with a reason rather than
+        emitted. Two levers each correct alone, wrong in combination.
+        """
+        sequence = list(base.sequence)
+        notes: dict[str, object] = {}
+
+        def put(name: str, text: str, at_end: bool = False) -> None:
+            lo, hi = base.domains[name]
+            if at_end:
+                sequence[hi - len(text) : hi] = list(text)
+            else:
+                sequence[lo : lo + len(text)] = list(text)
+
+        if closure[1] is not None:
+            put("bulge_star", closure[1])
+
+        if upper3[1] is not None:
+            put("k1_star", upper3[1], at_end=True)
+            put("main_z", sq.reverse_complement(upper3[1]))
+
+        if lower3[1] is not None:
+            applied = self._apply_lower3(sequence, base, lower3[1])
+            if applied is None:
+                return None
+            notes.update(applied)
+
+        repaired = self._repair_patched_main_z(sequence, base)
+        if repaired is None:
+            notes["aug_utr_unrepairable"] = True
+            return None
+        notes["main_z_repaired"] = repaired
+
+        switch = _AssembledSwitch(
+            sequence="".join(sequence),
+            dot_bracket=base.dot_bracket,
+            domains=base.domains,
+            len_x=base.len_x,
+        )
+        notes["rare_codons_after_aug"] = self._rare_codons_after_aug(switch)
+        return switch, notes
+
+    def _apply_lower3(self, sequence: list[str], base, level: str):
+        """The bottom three pairs. ``WOBBLE`` is a strength target reached through G-U pairs.
+
+        A G-U wobble moves the stem's strength WITHOUT trigger A losing the position:
+
+            trigger U -> star is normally A, pair A-U (weak). Put G: the trigger keeps a G-U
+                         wobble and the stem pair becomes G-C. STRONGER.
+            trigger G -> star is normally C, pair C-G (strong). Put U: the trigger keeps a
+                         G-U wobble and the pair becomes U-A. WEAKER.
+
+        The target is Green's two-strong-one-weak, and the ARRANGEMENT is left to the data:
+        over 12 pair-stems WSS opened 59 times against SSW's 28 at the same leak, so forcing
+        a position would convert away from the arrangement that opens most.
+
+        **And this is where a stem lever can cost a design its reading frame.** The writes
+        land in ``main_pre_star`` and, pairing with them, in ``main_pre`` -- nine coding
+        nucleotides immediately after the AUG, exactly three codons in frame. All three
+        writes fall in the LAST of those, so the lever rewrites one whole codon: the third
+        after the start, which is inside the three the rare-codon screen reads. Unguarded it
+        can create an in-frame stop, and ``SwitchValidator`` then rejects the design for a
+        side effect of a stem-strength choice rather than for anything about its gate.
+
+        There is choice available to rescue it. Reaching two-of-three needs one or two
+        conversions out of three available positions, so several SUBSETS reach the same
+        strength with different resulting codons. They are ranked: no stop codon first (a
+        hard requirement), then no rare codon, then the original left-to-right order so a
+        design whose first-fit choice was already clean is unchanged. A design with no clean
+        subset keeps the first fit and is FLAGGED, never dropped -- rare codons are counted,
+        not filtered.
+        """
+        if level != self.LOWER3_WOBBLE:
+            put_star = sq.reverse_complement(level)
+            lo, hi = base.domains["main_pre_star"]
+            sequence[lo : lo + 3] = list(put_star)
+            lo, hi = base.domains["main_pre"]
+            sequence[hi - 3 : hi] = list(level)
+            return {"lower3_forced": True}
+
+        star_start = base.domains["main_pre_star"][0]
+        pre_end = base.domains["main_pre"][1]
+        strong = sum(1 for i in range(3) if sequence[star_start + i] in "GC")
+        # Which positions CAN move, and to what. Only star A (trigger U) and star C
+        # (trigger G) have a G-U to reach for; star G and star U are left alone rather than
+        # forced into a mismatch.
+        movable = []
+        for offset in range(3):
+            here = sequence[star_start + offset]
+            if strong < 2 and here == "A":
+                movable.append((offset, "G", "C", +1))
+            elif strong > 2 and here == "C":
+                movable.append((offset, "U", "A", -1))
+        if not movable or strong == 2:
+            return {"wobble_applied": 0}
+
+        need = 2 - strong
+        want = abs(need)
+        choices = [
+            subset
+            for size in range(1, len(movable) + 1)
+            for subset in combinations(movable, size)
+            if size == want
+        ] or [tuple(movable[:1])]
+
+        def codon_after(subset) -> str:
+            trial = list(sequence)
+            for offset, star_base, pre_base, _ in subset:
+                trial[star_start + offset] = star_base
+                trial[pre_end - 1 - offset] = pre_base
+            return "".join(trial[pre_end - 3 : pre_end])
+
+        ranked = sorted(
+            choices,
+            key=lambda subset: (
+                codon_after(subset) in self.STOP_CODONS,
+                codon_after(subset) in self.RARE_CODONS,
+                tuple(offset for offset, *_ in subset),
+            ),
+        )
+        best = ranked[0]
+        codon = codon_after(best)
+        for offset, star_base, pre_base, _ in best:
+            sequence[star_start + offset] = star_base
+            sequence[pre_end - 1 - offset] = pre_base
+        return {
+            "wobble_applied": len(best),
+            "wobble_codon": codon,
+            "wobble_made_stop": codon in self.STOP_CODONS,
+            "wobble_made_rare": codon in self.RARE_CODONS,
+            "wobble_rescued": len(ranked) > 1
+            and codon not in self.STOP_CODONS
+            and codon_after(choices[0]) in self.STOP_CODONS,
+        }
+
+    def _repair_patched_main_z(self, sequence: list[str], base) -> int | None:
+        """Remove an out-of-frame AUG from the 5' UTR after the axes have been patched.
+
+        Same policy as ``_repair_main_z``, which ``assemble`` already applied and which the
+        ``upper3`` lever can undo: a position may move to any base that still PAIRS with its
+        partner in ``k1*``, wobbles included, so the stem stays closed and one pair merely
+        becomes a wobble. Fewest substitutions win.
+
+        Returns how many bases it changed, or ``None`` when no repair removes the AUG -- the
+        caller then drops the design with a reason rather than emitting one whose ribosome
+        starts in the wrong frame.
+        """
+        rl_lo, rl_hi = base.domains["rbs_loop"]
+        mz_lo, mz_hi = base.domains["main_z"]
+        ks_lo, ks_hi = base.domains["k1_star"]
+
+        def utr() -> str:
+            return "".join(sequence[rl_lo:rl_hi]) + "".join(sequence[mz_lo:mz_hi])
+
+        if "AUG" not in utr():
+            return 0
+
+        width = mz_hi - mz_lo
+        # k1* runs antiparallel to main_z, so main_z position i pairs with k1* position
+        # (width - 1 - i) counted from k1*'s 3' end.
+        partners = ["".join(sequence[ks_lo:ks_hi])[width - 1 - i] for i in range(width)]
+        options = [[b for b in "ACGU" if can_pair(b, partners[i])] for i in range(width)]
+        current = [sequence[mz_lo + i] for i in range(width)]
+
+        best: tuple[int, list[str]] | None = None
+        for combination in product(*options):
+            trial = list(combination)
+            if "AUG" in "".join(sequence[rl_lo:rl_hi]) + "".join(trial):
+                continue
+            edits = sum(1 for a, b in zip(trial, current, strict=True) if a != b)
+            if best is None or edits < best[0]:
+                best = (edits, trial)
+        if best is None:
+            return None
+        for i, letter in enumerate(best[1]):
+            sequence[mz_lo + i] = letter
+        return best[0]
+
+    def _rare_codons_after_aug(self, switch) -> int:
+        """How many of the three codons after the start are rare in this host.
+
+        **Counted and reported, never filtered.** They are enriched among the designs the
+        folding score likes -- AGG and CGG are G-rich, so they strengthen pairing and the
+        model rewards what the cell punishes -- which is a reason to see the number beside a
+        design, not to drop it silently.
+        """
+        start = switch.domains["aug"][1]
+        codons = [switch.sequence[start + 3 * i : start + 3 * i + 3] for i in range(3)]
+        return sum(1 for codon in codons if len(codon) == 3 and codon in self.RARE_CODONS)
+
+    def _overlap_lengths(self, trigger_a: str, trigger_b: str) -> tuple[int, ...]:
+        """Overlap lengths at which these two triggers actually share a duplex, longest first.
+
+        **The overlap has to be re-derived here, and this is the only place it can be.**
+        ``find_trigger_pairs`` discovers it while scanning ONE transcript and reports it as
+        ``_TriggerPair``, but a ``TriggerSet`` arrives as two independent
+        ``TriggerCandidate`` records and that record has no field for ``len_x`` or for the
+        overlap coordinates. It cannot have a sensible one either: the overlap is a property
+        of the PAIR, not of either trigger.
+
+        So it is recomputed from the sequences, and the architecture fixes where to look
+        rather than leaving it to a search. Trigger A reads ``k1 · bulge · main_pre · xA ·
+        extA``, so ``x`` begins at ``ARM_LEN``; trigger B reads ``k2 · xB · r2``, so ``x*``
+        begins at ``len_k2 = invasion_len - len_x``. Both offsets are exactly the ones
+        ``secondary_stems`` and ``_secondary_domains`` slice at, so a length returned here
+        is one those two will agree with.
+
+        **This works across two transcripts, which the mCherry path never needed.** Nothing
+        below reads a transcript or a coordinate -- only the two sequences -- so a trigger
+        from one gene pairs with a trigger from another exactly as two windows of one
+        transcript do. That is what the PFAS targets require.
+
+        Longest first, because a shorter overlap is strictly dominated: both triggers'
+        footprints on the stem arm are the same regardless, so trimming ``x`` only moves
+        positions out of the conflict-free core into the contested region and degrades
+        trigger A's site, trigger B's site and the lock at once.
+        """
+        min_a, min_b = self.role_footprints()
+        if len(trigger_a) < min_a or len(trigger_b) < min_b:
+            # `is_compatible` reports this with a reason and the designer calls it first,
+            # so reaching here means a direct caller. Returning no overlap rather than
+            # trusting the gate: a short trigger does NOT fail the overlap test -- the
+            # offsets it slices at are all near the 5' end -- it passes, and then
+            # `secondary_stems` raises `fixed alignment needs equal lengths` because
+            # trigger A was too short to supply an `ext` as long as trigger B's `k2`.
+            return ()
+        invasion = self.SECONDARY_INVASION_LEN
+        for len_x in range(invasion, self.MIN_OVERLAP - 1, -1):
+            len_k2 = invasion - len_x
+            x = trigger_a[self.ARM_LEN : self.ARM_LEN + len_x]
+            x_star = trigger_b[len_k2 : len_k2 + len_x]
+            if len(x) != len_x or len(x_star) != len_x:
+                # The window is too short to carry the overlap at that offset. Not an error:
+                # `trigger_lengths` is a constraint and a 30-nt window cannot hold a 36-nt
+                # footprint, which `is_compatible` is the one to report.
+                continue
+            if x == sq.reverse_complement(x_star):
+                # The MAXIMAL run only, and then stop. `find_trigger_pairs` gives the
+                # reasoning: truncating an overlap is strictly dominated, because both
+                # triggers' footprints on the stem arm are the same length regardless, so a
+                # shorter x only moves positions out of the conflict-free core into the
+                # contested region and degrades trigger A's site, trigger B's site and the
+                # lock at once. Returning the sub-overlaps as well multiplied the design
+                # space fivefold with nothing but dominated designs in it.
+                return (len_x,)
+        return ()
+
+    def _designs_for_overlap(
+        self,
+        trigger_set: TriggerSet,
+        role_a: TriggerCandidate,
+        role_b: TriggerCandidate,
+        trigger_a: str,
+        trigger_b: str,
+        len_x: int,
+        constraints: Constraints,
+    ) -> Iterator[GateDesign]:
+        """Every architecture variant for one role assignment at one overlap length."""
+        stems = [
+            stem
+            for stem in self.secondary_stems(trigger_a, trigger_b, len_x)
+            # A positive lock is not a lock. Dropping these is not a hidden filter: an
+            # unlocked secondary stem means trigger B has nothing to free, so the construct
+            # is not the architecture being built.
+            if stem.lock_energy <= 0.0
+        ]
+        if not stems:
+            return
+        stems.sort(key=lambda stem: stem.lock_energy)
+        for stem_index, stem in enumerate(stems[: constraints.stems_per_pair]):
+            # Only the schemes that gate. A-anchored is measured dead -- 0 of 4,330 ever
+            # gated, with opening SEP identically 0.000 and an A_M ratio of exactly 1.000
+            # across all 392 that pass every other test, which is a trigger pair that does
+            # not change the switch at all. `unlocked` cannot gate by construction.
+            if stem.scheme not in ("B-anchored", "mixed"):
+                continue
+            base = self.assemble(trigger_a, trigger_b, len_x, stem)
+            for closure, upper3, lower3 in self._axis_grid():
+                built = self._apply_axes(base, closure, upper3, lower3)
+                if built is None:
+                    continue
+                switch, notes = built
+                rbs_start = switch.domains["rbs_loop"][0]
+                aug_end = switch.domains["aug"][1]
+                outside = [i for i in sq.find_augs(switch.sequence) if not rbs_start <= i < aug_end]
+                augs_outside = len(outside)
+                augs_upstream = sum(1 for i in outside if i < rbs_start)
+                architecture = {
+                    "geometry": self.geometry_name,
+                    "scheme": stem.scheme,
+                    "len_x": len_x,
+                    "stem_index": stem_index,
+                    "closure": closure[0],
+                    "upper3": upper3[0],
+                    "lower3": lower3[0],
+                    "trigger_a_id": role_a.trigger_id,
+                    "trigger_b_id": role_b.trigger_id,
+                    "gene_a": role_a.gene_id,
+                    "gene_b": role_b.gene_id,
+                    # `SwitchValidator.validate` reads this and SILENTLY SKIPS the
+                    # exactly-one-AUG and in-frame-stop checks when it is absent, so it is
+                    # not optional -- a design without it loses two checks with no sign.
+                    "aug_index": switch.domains["aug"][0],
+                    # Where a ribosome on THIS switch can choose a start codon: the
+                    # first base of the RBS loop through the real AUG. `_repair_main_z`
+                    # already treats exactly `rbs_loop + main_z` as the region an
+                    # out-of-frame AUG must be kept out of, so the window handed to the
+                    # validator is the same span the architecture already polices, not a
+                    # second and looser opinion about it.
+                    "initiation_window": (
+                        switch.domains["rbs_loop"][0],
+                        switch.domains["aug"][1],
+                    ),
+                    # The AUGs the window excludes, counted rather than dropped. They sit
+                    # in the trigger-derived 5' domains, which are a reverse complement of
+                    # the sensed gene and not ours to edit, so this is a property of the
+                    # target, reported for the record and never a filter.
+                    "augs_outside_window": augs_outside,
+                    "augs_upstream_of_rbs": augs_upstream,
+                    "lock_energy": stem.lock_energy,
+                    "ddg_pref": stem.ddg_pref,
+                    "a_site_energy": stem.a_site_energy,
+                    "b_site_energy": stem.b_site_energy,
+                    **notes,
+                }
+                yield GateDesign(
+                    design_id=(
+                        f"{self.design_prefix}-{role_a.trigger_id}-{role_b.trigger_id}"
+                        f"-x{len_x}-s{stem_index}"
+                        f"-{closure[0]}-{upper3[0]}-{lower3[0]}"
+                    ),
+                    gate_kind=self.kind,
+                    host=self.host,
+                    trigger_set=trigger_set,
+                    sequence=switch.sequence,
+                    dot_bracket=switch.dot_bracket,
+                    architecture=architecture,
+                )
 
 
 class ProkaryoticToeholdGate(ToeholdGate):

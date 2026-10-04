@@ -39,9 +39,9 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 102 |
 | Public classes | 104 |
-| Public callables (excluding `__init__`) | 513 |
-| — `BUILT` | 480 |
-| — `STUB` | 25 |
+| Public callables (excluding `__init__`) | 516 |
+| — `BUILT` | 484 |
+| — `STUB` | 24 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
 | `__init__` constructors | 22 |
@@ -68,7 +68,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.base` |  | 8 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
-| gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
+| gates | `engine.gates.toehold` |  | 24 | 0 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
 | gates | `engine.gates.notebooks.toehold_and.access_vs_vista` |  | 5 | 0 | Do Green 2014's local single-strandedness and VISTA's flanked MFE pick the same trigger pairs? |
@@ -429,6 +429,9 @@ The researcher's limits, carried into every stage that has to respect them.
 | `min_base_expression` | `float \| None` | `None` |
 | `max_base_expression` | `float \| None` | `None` |
 | `trigger_gc_range` | `tuple[float, float]` | `(30.0, 70.0)` |
+| `stems_per_pair` | `int` | `2` |
+| `min_window_gap` | `int` | `50` |
+| `overlap_range` | `tuple[int, int]` | `(4, 18)` |
 | `direction_balance` | `bool` | `True` |
 
 #### `class Compatibility`
@@ -1150,6 +1153,11 @@ Two-input AND toehold.
 | `SECONDARY_INVASION_LEN` | `ClassVar[int]` | `18` |
 | `SECONDARY_CAP` | `ClassVar[str]` | `''` |
 | `MAX_INVASION_STALL` | `ClassVar[int]` | `2` |
+| `CLOSURES` | `ClassVar[tuple[tuple[str, str \| None], ...]]` | `(('open_3x3', None), ('closed_UAU', 'UAU'), ('closed_CAU', 'CAU'), ('closed_CGU', 'CGU'…` |
+| `UPPER3` | `ClassVar[tuple[tuple[str, str \| None], ...]]` | `(('trigger_derived', None), ('WWW_UAU', 'UAU'), ('WWW_AUA', 'AUA'))` |
+| `LOWER3_WOBBLE` | `ClassVar[str]` | `'<wobble>'` |
+| `LOWER3` | `ClassVar[tuple[tuple[str, str \| None], ...]]` | `(('trigger_derived', None), ('wobble_GU', LOWER3_WOBBLE))` |
+| `STOP_CODONS` | `ClassVar[frozenset[str]]` | `frozenset({'UAA', 'UAG', 'UGA'})` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -1168,7 +1176,10 @@ Two-input AND toehold.
 | `BUILT` | `def main_stem_energies(self, trigger_a: str, len_x: int, main_z: str) -> tuple[float \| None, float \| None, float \| None]` | The three energies that decide whether the AND is thermodynamic or only kinetic. |
 | `BUILT` | `def find_trigger_pairs(self, transcript: str, *, min_window_gap: int \| None = None) -> Iterator['_TriggerPair']` | Every pair of windows in one transcript that can serve as triggers A and B. |
 | `BUILT` | `def secondary_stems(self, trigger_a: str, trigger_b: str, len_x: int) -> list['_SecondaryStem']` | Every secondary stem worth folding, for one trigger pair and overlap length. |
-| `STUB` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build a switch that opens only when **both** triggers are present. |
+| `BUILT` | `def role_footprints(self) -> tuple[int, int]` | The minimum length of trigger A and of trigger B, in that order. |
+| `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | Arity, host and the **two-input** footprints. |
+| `BUILT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build a switch that opens only when **both** triggers are present. |
+| `BUILT` | `@property def geometry_name(self) -> str` | A label for this family's secondary geometry, recorded on every design. |
 
 #### `class ProkaryoticToeholdGate(ToeholdGate)`
 
@@ -2849,7 +2860,7 @@ Scan transcripts and deterministically shortlist candidates per gate footprint.
 | `TOP_K_PER_GENE` |  | `50` |
 | `SELECTION_METHOD` |  | `'rnaplfold_gate_aware_joint_opening_v2'` |
 | `LEGACY_SELECTION_METHOD` |  | `'rnaplfold_mean_base_unpaired_v1'` |
-| `FOOTPRINT_TO_TOEHOLD` |  | `{30: 12, 33: 15, 36: 18}` |
+| `FOOTPRINT_TO_TOEHOLD` |  | `{30: 12, 33: 15, 36: 18, 50: 32}` |
 | `ALLOWED_SCANNED_LENGTHS` |  | `frozenset(FOOTPRINT_TO_TOEHOLD)` |
 | `HYPOTHESIS_LENGTH` |  | `20` |
 | `SEED_LENGTH` |  | `8` |

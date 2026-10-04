@@ -482,21 +482,35 @@ def test_requesting_only_antisense_fails_cleanly_naming_q11(direct_request, alwa
     assert "antisense" in result.error.lower() or "payload" in result.error.lower()
 
 
-def test_requesting_only_toehold_and_fails_cleanly_not_a_crash(direct_request, always_continue):
-    """ToeholdAndGate.available is inherited True, but generate_designs is an
-    unconditional NotImplementedError. Dormant with one trigger (arity always rejects
-    first); a scanned paste (docs/triggers.md E2b) can produce real 2-input trigger
-    sets that would otherwise reach it. Must fail as data, never propagate raw
-    (docs/triggers.md, blocking bug found during review)."""
+def test_requesting_only_toehold_and_reports_why_rather_than_crashing(
+    direct_request, always_continue
+):
+    """`generate_designs` has a body now, so the family is no longer blocklisted.
+
+    This used to assert ``status == "failed"``, because `ToeholdAndGate.generate_designs`
+    raised `NotImplementedError` and `_UNBUILDABLE_FAMILIES` skipped it to keep the crash
+    out of a run. What must be true instead: a single direct trigger cannot form a 2-input
+    set, so the run SUCCEEDS with no candidates and a stated reason -- never a crash, and
+    never an empty result with nothing said about it.
+    """
     result = LocalEngine().run(direct_request(gate_families=["toehold_and"]), always_continue)
-    assert result.status == "failed"
-    assert "toehold_and" in result.error.lower() or "and" in result.error.lower()
+
+    assert result.status == "succeeded"
+    assert result.candidates == []
+    assert any("activating input(s)" in w for w in result.warnings), result.warnings
 
 
-def test_a_long_paste_never_reaches_the_broken_and_family_uncaught(direct_request, always_continue):
-    """The actual crash scenario: mixing a working family with the broken AND one,
-    against a paste long enough to scan into multiple, non-overlapping trigger
-    candidates — build_trigger_sets will genuinely pair some of them."""
+def test_a_long_paste_reaches_the_and_family_without_an_uncaught_crash(
+    direct_request, always_continue
+):
+    """The scenario that was the crash: a working family mixed with the two-input one,
+    against a paste long enough that `build_trigger_sets` genuinely pairs candidates.
+
+    The AND family is reached now rather than skipped, so the point of the test moves from
+    "it was kept away from the run" to "it ran and nothing escaped". The one-input family
+    still supplies the candidates on this paste: 330 nt is not enough for two 50-nt
+    windows plus the gap between them, and the rejections say exactly that.
+    """
     long_trigger = (
         "AUGGUGAGCAAGGGCGAGGAGGAUAACAUGGCCAUCAUCAAGGAGUUCAUGCGCUUCAAGGUGCAC"
         "AUGGAGGGCUCCGUGAACGGCCACGAGUUCGAGAUCGAGGGCGAGGGCGAGGGCCGCCCCUACGAG"
@@ -509,7 +523,8 @@ def test_a_long_paste_never_reaches_the_broken_and_family_uncaught(direct_reques
     assert result.status == "succeeded"
     assert result.candidates
     assert all(c.gate_family == "toehold" for c in result.candidates)
-    assert any("toehold_and" in w for w in result.warnings)
+    # Every AND rejection carries a reason. The footprint one is the reason on this paste.
+    assert any("trigger B needs 50 nt" in w for w in result.warnings), result.warnings
 
 
 def test_cancellation_before_the_run_starts(direct_request):
@@ -557,7 +572,11 @@ def test_long_direct_scan_rejects_non_exact_footprints(
     assert result.status == "failed"
     assert result.error is not None
     assert "trigger_lengths" in result.error
-    assert "30, 33, and 36" in result.error
+    # The offending length is named; the supported set is derived from
+    # `TriggerScorer.FOOTPRINT_TO_TOEHOLD` rather than spelled out in the message, so
+    # this does not have to be edited every time a chemistry adds a footprint.
+    assert "31" in result.error
+    assert "exact supported footprints" in result.error
 
 
 @pytest.mark.parametrize("trigger_lengths", [[31], [30, 31, 33]])
@@ -569,7 +588,11 @@ def test_de_scan_rejects_non_exact_footprints(trigger_lengths, de_request, alway
     assert result.status == "failed"
     assert result.error is not None
     assert "trigger_lengths" in result.error
-    assert "30, 33, and 36" in result.error
+    # The offending length is named; the supported set is derived from
+    # `TriggerScorer.FOOTPRINT_TO_TOEHOLD` rather than spelled out in the message, so
+    # this does not have to be edited every time a chemistry adds a footprint.
+    assert "31" in result.error
+    assert "exact supported footprints" in result.error
 
 
 def test_manual_direct_trigger_retains_legacy_fitting_variant_sweep(

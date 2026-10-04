@@ -257,7 +257,10 @@ def test_marginal_only_profiler_uses_documented_legacy_fallback():
 @pytest.mark.parametrize("lengths", [(31,), (30, 31, 33)])
 def test_joint_capable_scorer_rejects_non_exact_footprints(lengths):
     scorer = TriggerScorer(GateAwareProfiler(), EmptyOffTarget(), MotifScreener(), FoldEngine())
-    with pytest.raises(ValueError, match=r"30, 33, and 36"):
+    # Asserts the REJECTION, not the wording of the supported set. Pinning the exact list
+    # is what made the old message stale when 50 nt became a scannable footprint: the
+    # message named a set that lives on `FOOTPRINT_TO_TOEHOLD`, one attribute away.
+    with pytest.raises(ValueError, match=r"exact supported footprints.*unsupported: 31"):
         list(scorer.score([gene()], {"g": "ACGU" * 20}, Constraints(trigger_lengths=lengths)))
 
 

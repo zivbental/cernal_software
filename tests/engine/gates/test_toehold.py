@@ -116,8 +116,15 @@ def test_incompatible_with_two_activators(gate, constraints):
 
 
 def test_and_gate_needs_exactly_two_activators():
-    """`is_compatible` is inherited from `ToeholdGate` unchanged, and generalises via
-    `self.max_inputs` rather than a hardcoded arity."""
+    """Arity generalises via `self.max_inputs` rather than a hardcoded number.
+
+    `ToeholdAndGate` now OVERRIDES `is_compatible` instead of inheriting it: the inherited
+    one-input footprint is far smaller than two inputs need, and a pair that cleared it
+    reached `secondary_stems` and raised `fixed alignment needs equal lengths`. So two
+    36-nt triggers are no longer compatible -- trigger B needs 50 -- and the arity claim is
+    checked on its own terms here: the one-activator set is rejected, and the two-activator
+    set is not rejected *for arity*, whatever else it fails.
+    """
     gate = ToeholdAndGate(
         Host.ECOLI, FoldEngine(), TranslationScorer(Host.ECOLI), CodonOptimizer(Host.ECOLI)
     )
@@ -125,8 +132,43 @@ def test_and_gate_needs_exactly_two_activators():
         activators=(make_trigger(trigger_id="trig-a"), make_trigger(trigger_id="trig-b"))
     )
     one = TriggerSet(activators=(make_trigger(trigger_id="trig-a"),))
-    assert gate.is_compatible(two, Constraints()) == Compatibility.yes()
-    assert not gate.is_compatible(one, Constraints()).ok
+
+    one_verdict = gate.is_compatible(one, Constraints())
+    assert not one_verdict.ok
+    assert "exactly 2 activating input(s)" in one_verdict.reason
+
+    # Not rejected for arity. It IS rejected, for the footprint, and says which.
+    two_verdict = gate.is_compatible(two, Constraints())
+    assert "activating input(s)" not in two_verdict.reason
+    assert "trigger B needs 50 nt" in two_verdict.reason
+
+
+def test_and_gate_reports_a_reason_for_every_rejection_it_makes():
+    """No silent drops. Each of the three ways a pair can fail names itself.
+
+    A pair sharing no reverse-complementary run used to pass `is_compatible` and then make
+    `generate_designs` yield nothing, which is the silent drop CLAUDE.md §3 bans. Measured
+    on a real scanned run, 12 of 578 trigger sets took that path.
+    """
+    gate = ToeholdAndGate(
+        Host.ECOLI, FoldEngine(), TranslationScorer(Host.ECOLI), CodonOptimizer(Host.ECOLI)
+    )
+    min_a, min_b = gate.role_footprints()
+    assert (min_a, min_b) == (36, 50)
+
+    # Long enough for both roles, but deliberately sharing no overlap: all-A against all-C
+    # cannot be reverse-complementary anywhere.
+    no_overlap = TriggerSet(
+        activators=(
+            make_trigger(trigger_id="trig-a", sequence="A" * min_b),
+            make_trigger(trigger_id="trig-b", sequence="C" * min_b),
+        )
+    )
+    verdict = gate.is_compatible(no_overlap, Constraints())
+    assert not verdict.ok
+    assert "share no reverse-complementary run" in verdict.reason
+    # And the generator agrees, rather than the two disagreeing about the same pair.
+    assert list(gate.generate_designs(no_overlap, Constraints())) == []
 
 
 def test_toehold_variants_are_registered_by_track_and_arity():

@@ -244,6 +244,27 @@ class SwitchValidator:
               translated itself — its ``architecture`` has no ``aug_index`` key at all),
               and both rules are skipped for it rather than guessed.
 
+              The AUG count is taken over ``architecture["initiation_window"]`` when the
+              family declares one, and over the whole switch when it does not. **This is
+              the same deferral the paragraph below makes for the RBS rule, for the same
+              reason.** A one-input toehold's 5' UTR is short and synthetic, so "exactly
+              one AUG anywhere in the switch" and "exactly one AUG a ribosome could start
+              at" are the same statement, and nothing changes for it. They stop being the
+              same statement for a two-input gate, whose 5' UTR is ~104 nt of three
+              — trigger-derived — domains (``main_pre_star``, ``k1_star``,
+              ``bulge_star``): those bases are a reverse complement of the gene being
+              sensed and are not ours to edit, so an AUG that lands in them is not a
+              design choice. Measured over 2,176 two-input designs: 1,508 carry 2—6
+              AUGs and **0 carry one anywhere between the RBS and the real start**, while
+              0 carry an in-frame stop. Counting over the whole switch therefore failed
+              every one of them for triplets sitting 60—100 nt upstream of the
+              Shine—Dalgarno sequence, where prokaryotic initiation does not occur.
+
+              A family that declares a window is asserting where its ribosome loads, and
+              the count is exact inside it — a narrower claim than the old one, not a
+              weaker one. An AUG outside the window is still reported: the family counts
+              them into ``architecture`` so the number is on the record, not discarded.
+
         Deliberately not implemented here (docs/smoke-run.md §3, S4):
             * **"Structure matches intent"** needs ``FoldEngine.ensemble_defect``, which
               is itself a stub, and the only two modules allowed to fold
@@ -275,9 +296,20 @@ class SwitchValidator:
 
         aug_index = design.architecture.get("aug_index")
         if aug_index is not None:
-            augs = sq.find_augs(design.sequence)
-            if len(augs) != 1:
-                violations.append(f"expected exactly one AUG, found {len(augs)} at {list(augs)}")
+            window = design.architecture.get("initiation_window")
+            if window is None:
+                scanned, where = sq.find_augs(design.sequence), "the switch"
+            else:
+                # The family's own declaration of where its ribosome loads. Kept in
+                # absolute positions so the message points into the switch and not at an
+                # offset inside a window the reader cannot see.
+                lo, hi = window
+                scanned = tuple(i for i in sq.find_augs(design.sequence) if lo <= i < hi)
+                where = f"the initiation window [{lo}, {hi})"
+            if len(scanned) != 1:
+                violations.append(
+                    f"expected exactly one AUG in {where}, found {len(scanned)} at {list(scanned)}"
+                )
 
             stops = sq.find_stops(design.sequence, frame=aug_index)
             if stops:

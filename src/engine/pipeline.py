@@ -146,18 +146,6 @@ _UNBUILDABLE_FAMILIES: dict[str, str] = {
         "AntisenseNotGate cannot be constructed without one. Request a toehold "
         "family instead."
     ),
-    # available=True is inherited from ToeholdGate, but generate_designs is an
-    # unconditional NotImplementedError (docs/triggers.md E2b) — dormant while a
-    # direct run only ever supplies one trigger (is_compatible's arity check rejects
-    # every attempt first), but trigger scanning (E2b) can now produce real 2-input
-    # trigger sets, which would reach generate_designs and crash the run uncaught.
-    "toehold_and": "the two-input AND construction is not yet implemented for this chemistry.",
-    "prokaryotic_toehold_and": (
-        "the two-input AND construction is not yet implemented for this chemistry."
-    ),
-    "eukaryotic_toehold_and": (
-        "the two-input AND construction is not yet implemented for this chemistry."
-    ),
 }
 
 
@@ -236,6 +224,44 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
             continue
 
         families.append(family_class(host, folder, tools["translation"], tools["codons"]))
+
+    # Gate-aware trigger lengths. A two-input family can use NONE of the one-input
+    # footprints: `ToeholdAndGate.role_footprints()` wants 36 nt for trigger A and 50 for
+    # trigger B, and measured on real pairs, 0 of 40 reach a design at 36 nt while 38 of
+    # 40 do at 50. Widening the `Constraints` DEFAULT instead would rescan every one-input
+    # run and move its top-K shortlist, so the footprints are added here, only for the
+    # families actually requested, and reported rather than applied silently.
+    wanted: set[int] = set()
+    for family in families:
+        role_footprints = getattr(family, "role_footprints", None)
+        if callable(role_footprints):
+            wanted.update(role_footprints())
+    missing = sorted(wanted - set(constraints.trigger_lengths))
+    scannable = [n for n in missing if n in TriggerScorer.ALLOWED_SCANNED_LENGTHS]
+    unscannable = [n for n in missing if n not in TriggerScorer.ALLOWED_SCANNED_LENGTHS]
+    if scannable:
+        constraints = dataclasses.replace(
+            constraints,
+            trigger_lengths=tuple(sorted(set(constraints.trigger_lengths) | set(scannable))),
+        )
+        tools["constraints"] = constraints
+        warnings.append(
+            "Added trigger window length(s) "
+            + ", ".join(f"{n} nt" for n in scannable)
+            + " because a requested gate family needs them as an exact footprint; "
+            "without them every trigger pair is rejected before a design is attempted."
+        )
+    if unscannable:
+        # Never silently: a family whose footprint the scanner cannot rank is a real gap,
+        # and `None`/a warning is the honest answer rather than a window scored by a
+        # toehold length guessed for it.
+        warnings.append(
+            "Gate family footprint(s) "
+            + ", ".join(f"{n} nt" for n in unscannable)
+            + " are not scannable (no entry in TriggerScorer.FOOTPRINT_TO_TOEHOLD), so no "
+            "candidate of that length will be produced and designs needing one cannot be "
+            "built from a scanned run."
+        )
 
     tools["families"] = families
     tools["warnings"] = warnings
@@ -398,20 +424,41 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         raise JobCancelled("Writing report")
     artifacts = _write_artifacts(request.output_dir, candidates, plasmids)
 
-    if not candidates and trigger_candidates:
-        # trigger_candidates was non-empty, so the loop above genuinely tried and
-        # failed — report why, rather than the old one-size-fits-all message. When
-        # trigger_candidates is already empty, _direct_trigger's own warning (above)
-        # already explains it; adding this too would double-report the same failure.
+    if trigger_candidates:
+        # trigger_candidates was non-empty, so the loop above genuinely tried. When it is
+        # empty, _direct_trigger's own warning (above) already explains it and adding this
+        # too would double-report the same failure.
         summary = _summarize_rejections(incompatible_counts, incompatible_examples, "trigger set")
         summary += _summarize_rejections(invalid_counts, invalid_examples, "generated design")
-        if summary:
-            warnings.append("No candidate designs passed validation." + summary)
-        else:
+        if not candidates:
             warnings.append(
-                "No candidate designs passed validation for this trigger — see "
+                "No candidate designs passed validation." + summary
+                if summary
+                else "No candidate designs passed validation for this trigger — see "
                 "docs/smoke-run.md §5 for why a validated design is not guaranteed."
             )
+        else:
+            # **A requested family that produced NOTHING, while another produced
+            # something.** This branch used to not exist: the summary fired only when the
+            # whole run was empty, so a run asking for a working family alongside one that
+            # rejects every trigger set reported the first family's candidates and said
+            # nothing whatsoever about the second. Measured on `["toehold",
+            # "toehold_and"]` over a 330-nt paste: 6 toehold candidates, and not one word
+            # about the AND family building none -- although the same request for the AND
+            # family alone explained it in full. CLAUDE.md §3 bans exactly that.
+            produced = {candidate.gate_family for candidate in candidates}
+            silent = [family.kind for family in families if family.kind not in produced]
+            if silent:
+                warnings.append(
+                    "Gate family "
+                    + ", ".join(f"'{kind}'" for kind in silent)
+                    + " produced no designs, while other requested families did."
+                    + (
+                        summary
+                        or " No rejection reason was recorded, which is itself a defect — "
+                        "a family that builds nothing should say why."
+                    )
+                )
 
     on_progress(100, "Writing report")
 
@@ -627,7 +674,11 @@ def _validate_scanned_trigger_lengths(constraints: Constraints) -> None:
     if unsupported:
         raise InputValidationError(
             "trigger_lengths for transcript scanning may contain only the exact supported "
-            "footprints 30, 33, and 36 nt; unsupported: " + ", ".join(map(str, unsupported)) + "."
+            "footprints "
+            + ", ".join(str(n) for n in sorted(TriggerScorer.ALLOWED_SCANNED_LENGTHS))
+            + " nt; unsupported: "
+            + ", ".join(map(str, unsupported))
+            + "."
         )
 
 
@@ -760,7 +811,9 @@ def _direct_trigger(
     return candidates, [
         f"The pasted sequence is {len(sequence)} nt, longer than one trigger window "
         f"(up to {max_window} nt) — scanned {windows_considered} window(s) and kept "
-        f"{len(candidates)} candidate(s) after screening. Exact 30/33/36-nt footprints "
+        f"{len(candidates)} candidate(s) after screening. Exact "
+        + "/".join(str(n) for n in sorted(constraints.trigger_lengths))
+        + "-nt footprints "
         "were ranked within footprint buckets by selected joint P8, then RNAplfold "
         "terminal-20 opening energy and mean marginal openness; buckets were unioned "
         "round-robin."

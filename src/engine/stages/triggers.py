@@ -38,7 +38,14 @@ class TriggerScorer:
     TOP_K_PER_GENE = 50
     SELECTION_METHOD = "rnaplfold_gate_aware_joint_opening_v2"
     LEGACY_SELECTION_METHOD = "rnaplfold_mean_base_unpaired_v1"
-    FOOTPRINT_TO_TOEHOLD = {30: 12, 33: 15, 36: 18}
+    #: Footprint -> the length of the window's FREE toehold, the part not paired into a
+    #: stem. The one-input entries are ``footprint - ARM_LEN`` (36 - 18 = 18). The 50-nt
+    #: entry is trigger B of a two-input AND gate, whose paired part is the secondary
+    #: invasion domain rather than the main arm: ``50 - SECONDARY_INVASION_LEN(18) = 32``,
+    #: which is ``ToeholdAndGate.TOEHOLD_B_LEN`` exactly -- the free ``r2`` domain that
+    #: nucleates against the switch's ``r2*``. The mapping's rule is unchanged; only the
+    #: domain that does the pairing differs between the two chemistries.
+    FOOTPRINT_TO_TOEHOLD = {30: 12, 33: 15, 36: 18, 50: 32}
     ALLOWED_SCANNED_LENGTHS = frozenset(FOOTPRINT_TO_TOEHOLD)
     HYPOTHESIS_LENGTH = 20
     SEED_LENGTH = 8
@@ -69,8 +76,13 @@ class TriggerScorer:
         unsupported = sorted(set(constraints.trigger_lengths) - self.ALLOWED_SCANNED_LENGTHS)
         if callable(joint_probability) and unsupported:
             raise ValueError(
+                # Derived from the mapping, never spelled out: the old message named
+                # "30, 33, and 36" while the set it describes lives one attribute away,
+                # so adding a footprint silently made the message wrong.
                 "Gate-aware transcript scanning requires trigger_lengths to contain only "
-                "the exact supported footprints 30, 33, and 36 nt; unsupported: "
+                "the exact supported footprints "
+                + ", ".join(str(n) for n in sorted(self.ALLOWED_SCANNED_LENGTHS))
+                + " nt; unsupported: "
                 + ", ".join(map(str, unsupported))
                 + "."
             )
