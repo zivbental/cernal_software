@@ -2010,6 +2010,253 @@ class ToeholdAndGate(ToeholdGate):
             objectives.append((lock, a_site, b_site))
         return [stems[i] for i in _pareto_front(objectives)]
 
+    #: Gas constant times 310.15 K, in kcal/mol: the factor converting an opening cost in
+    #: kcal/mol to the probability that the window is open, and back. ``_opening_cost`` is
+    #: ``-RT ln P_open``, so ``P_open = exp(-dG / RT)``.
+    RT_KCAL: ClassVar[float] = 0.0019872042586408 * 310.15
+
+    def _switch_from_design(self, design: GateDesign) -> "_AssembledSwitch":
+        """Rebuild the assembled switch from a finished design, without re-running assemble.
+
+        Everything ``_AssembledSwitch`` holds is already on the design: the sequence and
+        structure are fields, and ``architecture["domain_map"]`` is the map ``assemble``
+        itself returned, stored at generation time precisely so that no later stage has to
+        re-derive it from the string. Rebuilding beats re-assembling because the axis
+        patches (closure, upper3, lower3) are applied AFTER assembly -- re-running assemble
+        would hand back the unpatched switch and measure a design nobody asked for.
+        """
+        return _AssembledSwitch(
+            sequence=design.sequence,
+            dot_bracket=design.dot_bracket,
+            domains={name: tuple(span) for name, span in design.architecture["domain_map"].items()},
+            len_x=design.architecture["len_x"],
+        )
+
+    def measure_design(
+        self,
+        design: GateDesign,
+        *,
+        on_ceiling: float | None = None,
+        transcript: str | None = None,
+        site_a: tuple[int, int] | None = None,
+        site_b: tuple[int, int] | None = None,
+    ) -> dict[str, float | None]:
+        """Every raw measurement this family can make on one design, in one pass.
+
+        **This is the single measurement pass.** The numbers used to be computed across
+        four layers -- `four_tube_observables` here, `score_design` in the notebook's
+        objective, a 40-column pass in its panel builder, and a further set that existed
+        only once a report card was built -- and every one of those boundaries dropped a
+        column at some point. Six times in this work a measured column stopped at a layer
+        boundary and read as absent downstream while sitting at full coverage two layers
+        down. One pass, one dict, and the panel and report become readers of it.
+
+        Args:
+            design: A design from ``generate_designs``, carrying the coordinate sets it
+                stored at generation time.
+            on_ceiling: Stop after the ON tube when its opening cost exceeds this, and say
+                so in ``skipped``. A ``None`` beside a ``skipped`` reason means **not
+                attempted**, which is a different thing from a measurement that failed --
+                the two must not be confused, which is why the key exists.
+            transcript, site_a, site_b: The endogenous context. Given all three, the two
+                accessibility terms are priced from the transcript; otherwise they are
+                ``None``, and nothing downstream may read them as zero.
+
+        Returns:
+            Raw measurements, each in the unit its own analysis quotes it in. A measurement
+            that could not be made is ``None`` and never ``0.0`` -- on every
+            lower-is-better quantity here zero reads as perfect and clears every threshold.
+            **Nothing normalised, nothing weighted, no total.** The notebook's objective
+            sums four of these into a `score`; that sum is a ranking choice and belongs to
+            whoever is ranking, not to the measurement.
+
+        Order:
+            Cheapest first, which is worth a measured 5.2-5.7x and is not cosmetic. Free
+            string measures, then the ON tube (whose ceiling rejects 88% of designs), then
+            the three OFF tubes, then the four-tube ensemble set, and the refolding barrier
+            last because it alone is 52% of the cost of a fully measured design.
+        """
+        switch = self._switch_from_design(design)
+        arms = tuple(tuple(span) for span in design.architecture["main_stem_arms"])
+        role_a, role_b = design.trigger_set.activators
+        trigger_a, trigger_b = sq.to_rna(role_a.sequence), sq.to_rna(role_b.sequence)
+
+        out: dict[str, float | None] = {}
+
+        # ---- free: no folding at all --------------------------------------------------
+        out["gc_content"] = sq.gc_content(switch.sequence)
+        out["switch_length"] = float(len(switch.sequence))
+        # `longest_homopolymer` returns (base, length); only the length is a measurement.
+        out["longest_homopolymer"] = float(sq.longest_homopolymer(switch.sequence)[1])
+        # The count behind the `circuit_complexity` axis, stored and NOT scored -- see
+        # `evaluate_design`'s note on why emitting the scored name here would re-rank the
+        # one-input family rather than describe this one. Two trigger inputs plus the two
+        # hairpins they open: a property of the architecture, identical for every design of
+        # this family, which is exactly what a component-count penalty is for (it
+        # discriminates between CHEMISTRIES, not between designs within one).
+        out["component_count"] = float(len(design.trigger_set.activators) + 2)
+
+        # ---- the ON tube, first, because its ceiling is what makes the sweep affordable
+        out["open_11"] = self.folder.open_penalty(
+            f"{switch.sequence}&{trigger_a}&{trigger_b}", arms
+        )
+        if on_ceiling is not None and (out["open_11"] is None or out["open_11"] > on_ceiling):
+            out["skipped"] = "on_ceiling"
+            return out
+
+        # ---- the three OFF tubes ------------------------------------------------------
+        for state, strands in (
+            ("00", switch.sequence),
+            ("01", f"{switch.sequence}&{trigger_b}"),
+            ("10", f"{switch.sequence}&{trigger_a}"),
+        ):
+            out[f"open_{state}"] = self.folder.open_penalty(strands, arms)
+
+        off = [out["open_00"], out["open_01"], out["open_10"]]
+        out["andness"] = (
+            None
+            if out["open_11"] is None or any(v is None for v in off)
+            else out["open_11"] - min(v for v in off if v is not None)
+        )
+
+        # ---- the four-tube ensemble set, over the ribosome footprint ------------------
+        # A different window from `open_*` above and therefore a different measurement;
+        # see this method's own note. Folds hit `FoldEngine`'s instance cache for the
+        # tubes already folded, so the overlap is not paid twice.
+        out.update(self.four_tube_observables(switch, trigger_a, trigger_b))
+
+        # ---- derived ratios, no further folding ---------------------------------------
+        # A_M_ratio: the ON state's main-stem accessibility against the worst OFF state's.
+        # Its denominator collapses for the closed-bulge geometries -- 4.7% of designs hold
+        # 89 of the top 100 by this ratio, with worst-OFF denominators down to 0.0011 -- so
+        # it is carried, and it must not be allowed to rank on its own.
+        a_m_off = [out.get(f"A_M_{s}") for s in ("00", "01", "10")]
+        a_m_on = out.get("A_M_11")
+        if a_m_on is None or any(v is None for v in a_m_off):
+            out["A_M_ratio"] = None
+            out["A_M_gain"] = None
+        else:
+            worst = max(v for v in a_m_off if v is not None)
+            out["A_M_ratio"] = a_m_on / worst if worst > 0.0 else None
+            out["A_M_gain"] = a_m_on - worst
+
+        # P_open for each state: the same information as `dG_open_*` on a 0-1 scale, which
+        # is the scale `predicted_leakage` and `dynamic_range` are declared on. Carried
+        # explicitly rather than recomputed by each reader from the energy.
+        for state in ("00", "01", "10", "11"):
+            cost = out.get(f"dG_open_{state}")
+            out[f"P_open_{state}"] = None if cost is None else math.exp(-cost / self.RT_KCAL)
+
+        # ---- the refolding barrier, LAST: 52% of the cost of a measured design --------
+        # OFF structure -> the same structure with the main stem's arms released. `saddle`
+        # takes one strand, so this is the switch's own refolding cost rather than the
+        # trigger-bound path: the wall the molecule clears once the trigger has committed,
+        # and an upper bound on it.
+        folded = self.folder.mfe(switch.sequence)
+        target = list(folded.structure)
+        partner: dict[int, int] = {}
+        stack: list[int] = []
+        for index, char in enumerate(folded.structure):
+            if char == "(":
+                stack.append(index)
+            elif char == ")":
+                opened = stack.pop()
+                partner[index] = opened
+                partner[opened] = index
+        for lo, hi in arms:
+            for index in range(lo, min(hi, len(target))):
+                if index in partner:
+                    target[partner[index]] = "."
+                target[index] = "."
+        out["barrier"] = self.folder.saddle(switch.sequence, folded.structure, "".join(target))
+
+        # ---- the endogenous context, when it was supplied -----------------------------
+        if transcript is not None and site_a is not None and site_b is not None:
+            out["access_a"] = self.folder.open_penalty(transcript, (site_a,))
+            out["access_b"] = self.folder.open_penalty(transcript, (site_b,))
+        else:
+            # Not measurable without the transcript the triggers came from. `None`, and
+            # every reader has to treat it as absent -- a 0.0 here is a free perfect score.
+            out["access_a"] = out["access_b"] = None
+        return out
+
+    def evaluate_design(self, design: GateDesign) -> dict[str, float | None]:
+        """The nine declared metrics, projected from the one measurement pass.
+
+        ``ToeholdGate``'s version folds against ``trigger_set.activators[0]`` only, which
+        is a one-input evaluation of a two-input gate: it would score this family on a
+        single trigger and never look at the second, so the AND behaviour -- the whole
+        point of the chemistry -- would not appear in any number it returned. The class
+        docstring says whoever fills ``generate_designs`` must override this too.
+
+        Returns:
+            Only the names in ``DEFAULT_V1``, raw. ``None`` for anything unmeasurable; a
+            ``0.0`` stand-in would score ``predicted_leakage`` as a perfect 1.0 and clear
+            its own 0.85 hard filter. Everything else this family measures is in
+            ``measure_design``, which this calls -- so the two can never disagree about a
+            design, and the folds are shared through ``FoldEngine``'s instance cache.
+
+        What each name means for THIS chemistry:
+            * ``predicted_leakage`` -- CLAUDE.md §6 requires a family to state which
+              biological event it means by this name. Here it is **the probability that the
+              ribosome footprint is open in the WORST of the three OFF states**: any OFF
+              state that opens is a leak for an AND gate, so the worst one is the honest
+              summary rather than a mean over the three. Measured, that worst state is
+              state 10 -- trigger A alone -- in 400 of 400 designs.
+            * ``state_separation`` -- log2 of the ON/worst-OFF opening ratio, which is
+              ``separation`` (kcal/mol) divided by ``RT ln 2``. The profile declares this
+              axis as log2, and the four tubes measure an energy; the conversion is here
+              rather than left to a reader who might hand the energy over directly.
+            * ``dynamic_range`` -- the **linear** ON/OFF fold change, as the profile
+              declares (1.0-500.0). ``state_separation`` immediately above it is log2 of
+              the same comparison, and handing the log to this one costs a hundredfold.
+            * ``trigger_accessibility`` -- the bottleneck of the two triggers, **read off
+              the candidates** and never recomputed (CLAUDE.md §5): a second measurement
+              with a slightly different window produces two numbers for one quantity and
+              both get persisted.
+            * ``orthogonality`` -- ``None``. It is independence from the OTHER gates in a
+              circuit, which is not a property of one design; computing it from whatever
+              designs happen to share a batch is the batch-relative scoring CLAUDE.md §3
+              bans outright.
+            * ``predicted_success_rate`` -- ``None``. ``TranslationScorer.score`` still
+              raises ``NotImplementedError``, so there is nothing to report and a guess
+              would be indistinguishable from a measurement.
+            * ``circuit_complexity`` -- ``None``, deliberately, and this one is a trap.
+              A two-input gate genuinely is more complex than a one-input one, and the
+              count is in ``measure_design`` as ``component_count``. But ``ToeholdGate``
+              emits no ``circuit_complexity`` either, and a missing metric scores as the
+              WORST value at full weight. Emitting it here while the sibling family does
+              not would therefore not record that this gate is more complex -- it would
+              quietly re-rank the one-input family as maximally complex against it.
+              Both families should emit it, in one change that bumps both versions; until
+              then symmetry is the honest state. See the handover note.
+        """
+        raw = self.measure_design(design)
+        role_a, role_b = design.trigger_set.activators
+
+        separation = raw.get("separation")
+        p_on = raw.get("P_open_11")
+        worst_off = [raw.get(f"P_open_{state}") for state in ("00", "01", "10")]
+        leakage = None if any(v is None for v in worst_off) else max(worst_off)
+
+        return {
+            # The OFF hairpin's MFE. Cached, so this is the same fold `measure_design`
+            # already took for the barrier rather than a second one.
+            "gate_folding_energy": self.folder.mfe(design.sequence).energy,
+            "predicted_leakage": leakage,
+            "state_separation": (
+                None if separation is None else separation / (self.RT_KCAL * math.log(2.0))
+            ),
+            "dynamic_range": (
+                None if p_on is None or leakage is None or leakage <= 0.0 else p_on / leakage
+            ),
+            "trigger_accessibility": min(role_a.accessibility, role_b.accessibility),
+            "gc_content": raw.get("gc_content"),
+            "orthogonality": None,
+            "predicted_success_rate": None,
+            "circuit_complexity": None,
+        }
+
     def role_footprints(self) -> tuple[int, int]:
         """The minimum length of trigger A and of trigger B, in that order.
 
@@ -2274,6 +2521,7 @@ class ToeholdAndGate(ToeholdGate):
             len_x=base.len_x,
         )
         notes["rare_codons_after_aug"] = self._rare_codons_after_aug(switch)
+        notes["codons_after_aug"] = self._codons_after_aug(switch)
         return switch, notes
 
     def _apply_lower3(self, sequence: list[str], base, level: str):
@@ -2412,6 +2660,25 @@ class ToeholdAndGate(ToeholdGate):
             sequence[mz_lo + i] = letter
         return best[0]
 
+    def _codons_after_aug(self, switch) -> tuple[str, ...]:
+        """The three codons after the start codon, verbatim.
+
+        **Carried as sequence, not as a verdict, because the rare-codon SET is contested.**
+        Two definitions exist -- this class's five (AGG AGA CGA AUA CUA, the classic rare
+        E. coli codons) and the notebook objective's eight (those plus CGG, CCC, UCG) --
+        and the difference is not cosmetic. Measured over 2,176 designs per geometry: the
+        five flag 32.4%, the eight flag 50.0%, and **17.6% are flagged only by the extras**
+        (CCC 192, CGG 192, UCG never). When that screen was a filter, those 384 designs per
+        geometry were being dropped by the choice of set.
+
+        Which set is correct is a question about E. coli codon usage, so it is not settled
+        in passing here. With the codons themselves on the design, the count under any set
+        is one comprehension away and neither existing set has to change.
+        """
+        start = switch.domains["aug"][1]
+        codons = tuple(switch.sequence[start + 3 * i : start + 3 * i + 3] for i in range(3))
+        return tuple(codon for codon in codons if len(codon) == 3)
+
     def _rare_codons_after_aug(self, switch) -> int:
         """How many of the three codons after the start are rare in this host.
 
@@ -2419,10 +2686,11 @@ class ToeholdAndGate(ToeholdGate):
         folding score likes -- AGG and CGG are G-rich, so they strengthen pairing and the
         model rewards what the cell punishes -- which is a reason to see the number beside a
         design, not to drop it silently.
+
+        Under THIS class's ``RARE_CODONS``. ``_codons_after_aug`` carries the codons
+        themselves for a reader who means the other set; see its note for the 17.6%.
         """
-        start = switch.domains["aug"][1]
-        codons = [switch.sequence[start + 3 * i : start + 3 * i + 3] for i in range(3)]
-        return sum(1 for codon in codons if len(codon) == 3 and codon in self.RARE_CODONS)
+        return sum(1 for codon in self._codons_after_aug(switch) if codon in self.RARE_CODONS)
 
     def _overlap_lengths(self, trigger_a: str, trigger_b: str) -> tuple[int, ...]:
         """Overlap lengths at which these two triggers actually share a duplex, longest first.
@@ -2553,6 +2821,15 @@ class ToeholdAndGate(ToeholdGate):
                     # target, reported for the record and never a filter.
                     "augs_outside_window": augs_outside,
                     "augs_upstream_of_rbs": augs_upstream,
+                    # The real domain map, as `assemble` built it. See this patch's note:
+                    # the notebook re-derives it from the string, 3'-anchored, which is a
+                    # second definition of the same thing.
+                    "domain_map": {name: tuple(span) for name, span in switch.domains.items()},
+                    # The two opening windows, named apart because they measure different
+                    # things: the stem's arms, and the ribosome's footprint.
+                    "main_stem_arms": (switch.domains["main_z"], switch.domains["main_pre"]),
+                    "w_rank": switch.span(-17, 13),
+                    "w_flank": switch.span(-24, 13),
                     "lock_energy": stem.lock_energy,
                     "ddg_pref": stem.ddg_pref,
                     "a_site_energy": stem.a_site_energy,
