@@ -1144,7 +1144,8 @@ Two-input AND toehold.
 | `SECONDARY_LOOP` | `ClassVar[str]` | `'CAAGAACUUAGACAA'` |
 | `BULGE_LEN` | `ClassVar[int]` | `3` |
 | `FORBIDDEN_MOTIFS` | `ClassVar[dict[str, str]]` | `{'RNase_E': '[AG]AUGA', 'G_quadruplex': 'G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,…` |
-| `RARE_CODONS` | `ClassVar[frozenset[str]]` | `frozenset({'AGG', 'AGA', 'CGA', 'AUA', 'CUA'})` |
+| `RARE_CODONS` | `ClassVar[frozenset[str]]` | `frozenset({'AGG', 'AGA', 'CGA', 'AUA', 'CUA', 'CGG'})` |
+| `RBS_CORE` | `ClassVar[str]` | `'AGGAGA'` |
 | `THRESHOLDS` | `ClassVar[tuple[tuple[str, str, float], ...]]` | `(('A_S_00', '<', 0.2), ('A_M_00', '<', 0.2), ('A_S_10', '<', 0.2), ('A_M_10', '<', 0.2)…` |
 | `STEM_INDEPENDENT` | `ClassVar[frozenset[str]]` | `frozenset({'dG_open_00', 'dG_open_10', 'dG_open_11', 'dG_open_flank_00', 'flank_penalty…` |
 | `ARM_LEN` | `ClassVar[int]` | `18` |
@@ -1910,7 +1911,7 @@ The energy-sum objective function for the A0 two-input toehold AND gate.
 
 | Constant | Type | Value |
 | --- | --- | --- |
-| `RARE_CODONS` |  | `frozenset({'AGG', 'AGA', 'CGA', 'CGG', 'CUA', 'AUA', 'CCC', 'UCG'})` |
+| `RARE_CODONS` |  | `ToeholdAndGate.RARE_CODONS` |
 | `CODONS_SCREENED` |  | `3` |
 | `ON_CEILING` |  | `4.0` |
 

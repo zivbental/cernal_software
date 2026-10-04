@@ -908,7 +908,30 @@ class ToeholdAndGate(ToeholdGate):
 
     #: *E. coli* rare codons. A negative control may not introduce one: it has to differ
     #: from the real construct in whether the trigger works, not in how well it translates.
-    RARE_CODONS: ClassVar[frozenset[str]] = frozenset({"AGG", "AGA", "CGA", "AUA", "CUA"})
+    #: Codons rare enough in *E. coli* to stall a ribosome, **arbitrated by the bundled
+    #: usage table rather than by preference** (``notebooks/toehold_and/data/
+    #: ecoli_codon_usage_table.csv``). Two sets existed -- these five, and the notebook
+    #: objective's eight -- so the table was asked which codons actually qualify. The five
+    #: span fraction 0.04-0.11 of their own amino acid and 2.1-6.8 occurrences per 1000.
+    #: Applying that same threshold (fraction <= 0.11 AND <= 6.8 per 1000) to all 64 codons
+    #: returns exactly these five plus **CGG** (0.11, 5.9) and nothing else. Of the other
+    #: two contested codons, CCC (0.13, 5.4) is outside on fraction and UCG (0.14, 8.5) is
+    #: outside on both -- and UCG fired on 0 of 4,352 designs. Four of the six are arginine,
+    #: which is the classically troublesome amino acid in *E. coli*.
+    #:
+    #: **Flagged and counted, never filtered.** They are enriched among the designs the
+    #: folding score likes, because AGG and CGG are G-rich and so strengthen pairing: the
+    #: model rewards what the cell punishes. That is a reason to see the number beside a
+    #: design, not to drop it.
+    RARE_CODONS: ClassVar[frozenset[str]] = frozenset({"AGG", "AGA", "CGA", "AUA", "CUA", "CGG"})
+
+    #: The Shine-Dalgarno core screened for OUTSIDE the main loop. A second ribosome
+    #: binding site anywhere else would recruit initiation away from the designed one.
+    #: Six nucleotides by decision: measured over 2,176 designs, the full
+    #: ``AACAGAGGAGA`` and this 6-mer each occur outside the loop in **0**, while the
+    #: 5-mer ``GGAGG`` occurs in **704 (32.4%)** -- a 5-mer appears by chance in a GC-rich
+    #: switch, so screening on it rejects a third of the population and measures nothing.
+    RBS_CORE: ClassVar[str] = "AGGAGA"
 
     def screen_trigger_window(self, window_a: str, main_pre: str) -> tuple[str, ...]:
         """Sequence restrictions on trigger A's window. Empty means clean.
@@ -2339,6 +2362,23 @@ class ToeholdAndGate(ToeholdGate):
                 f"build. Use `find_trigger_pairs` on the transcript to enumerate the "
                 f"windows that do share one, rather than pairing windows ranked singly."
             )
+
+        # **The eukaryotic track cannot build this architecture yet.** `assemble` sets
+        # `rbs_loop = RBS_FLANK + RBS_PROKARYOTIC` with no branch on host track, although
+        # the cap directly below it is host-dispatched. Verified by building one: a
+        # eukaryotic AND design comes out with a eukaryotic leader and a PROKARYOTIC
+        # Shine-Dalgarno in its loop, and no Kozak anywhere -- a switch that cannot
+        # initiate translation in yeast or a human cell. Caught here as well as on the
+        # pipeline's blocklist because the blocklist keys on family NAME, and the base
+        # `toehold_and` name carries no track: requested with a eukaryotic host it would
+        # otherwise reach `assemble` and build the same chimera.
+        if self.host.track is Track.EUKARYOTIC:
+            return Compatibility.no(
+                f"{self.label} is not buildable for {self.host.value}: the loop's ribosome "
+                "binding site is hardcoded to the prokaryotic Shine-Dalgarno sequence, so "
+                "a eukaryotic design would carry no Kozak and could not initiate. Making "
+                "the loop host-dispatched is a deliberate declaration, not a default."
+            )
         return Compatibility.yes()
 
     def generate_designs(
@@ -2805,20 +2845,21 @@ class ToeholdAndGate(ToeholdGate):
                     # exactly-one-AUG and in-frame-stop checks when it is absent, so it is
                     # not optional -- a design without it loses two checks with no sign.
                     "aug_index": switch.domains["aug"][0],
-                    # Where a ribosome on THIS switch can choose a start codon: the
-                    # first base of the RBS loop through the real AUG. `_repair_main_z`
-                    # already treats exactly `rbs_loop + main_z` as the region an
-                    # out-of-frame AUG must be kept out of, so the window handed to the
-                    # validator is the same span the architecture already polices, not a
-                    # second and looser opinion about it.
-                    "initiation_window": (
-                        switch.domains["rbs_loop"][0],
-                        switch.domains["aug"][1],
-                    ),
-                    # The AUGs the window excludes, counted rather than dropped. They sit
-                    # in the trigger-derived 5' domains, which are a reverse complement of
-                    # the sensed gene and not ours to edit, so this is a property of the
-                    # target, reported for the record and never a filter.
+                    # **Where the ribosome loads.** Everything downstream of this is
+                    # scanned for a competing start codon; everything upstream of it is
+                    # 5' of the Shine-Dalgarno sequence, where prokaryotic initiation does
+                    # not occur. The three domains up there (`main_pre_star`, `k1_star`,
+                    # `bulge_star`) are a reverse complement of the sensed gene and are not
+                    # ours to edit, so an AUG landing in one of them is a property of the
+                    # target rather than a design choice -- measured, 3,716 of them across
+                    # 2,176 designs, none of them reachable.
+                    "rbs_span": switch.domains["rbs_loop"],
+                    # The motif that must appear ONLY inside that loop. Named here because
+                    # which sequence counts as a ribosome binding site is the family's
+                    # knowledge, not the shared validator's -- the eukaryotic track would
+                    # name a Kozak instead.
+                    "rbs_core_motif": self.RBS_CORE,
+                    # Counted, not dropped: see `rbs_span` above.
                     "augs_outside_window": augs_outside,
                     "augs_upstream_of_rbs": augs_upstream,
                     # The real domain map, as `assemble` built it. See this patch's note:

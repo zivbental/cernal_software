@@ -141,6 +141,19 @@ MAX_TRIGGER_LENGTH = 10_000
 #: Families skipped even when requested, with why — never silently, always into
 #: JobResult.warnings so a researcher who asked for one learns why it is absent.
 _UNBUILDABLE_FAMILIES: dict[str, str] = {
+    # Two inputs work, but only on the prokaryotic track. `ToeholdAndGate.assemble` sets
+    # `rbs_loop = RBS_FLANK + RBS_PROKARYOTIC` with no branch on host track, although the
+    # cap directly below it IS host-dispatched. Verified by building one: a eukaryotic AND
+    # design comes out with a eukaryotic leader (GUCAGAUC) and a prokaryotic Shine-Dalgarno
+    # in its loop, with no Kozak at all -- a switch that cannot initiate in yeast or a
+    # human cell. `ToeholdAndGate.is_compatible` refuses the eukaryotic track too, because
+    # this list keys on family NAME and the base `toehold_and` name carries no track.
+    "eukaryotic_toehold_and": (
+        "the two-input AND construction hardcodes the prokaryotic Shine-Dalgarno sequence "
+        "in its loop, so a eukaryotic design would carry no Kozak and could not initiate "
+        "translation. Request `prokaryotic_toehold_and`, or make the loop host-dispatched "
+        "as a deliberate declaration."
+    ),
     "antisense": (
         "no payload sequence library exists yet (docs/ROADMAP.md Q11) — "
         "AntisenseNotGate cannot be constructed without one. Request a toehold "

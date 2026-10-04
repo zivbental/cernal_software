@@ -74,6 +74,7 @@ if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 from engine import sequences as sq  # noqa: E402
+from engine.gates.toehold import ToeholdAndGate  # noqa: E402
 from engine.gates.tools.folding import FoldEngine  # noqa: E402
 
 #: Offsets of every domain from ``sws_end = len(switch) - 75``, taken from the assembly order
@@ -101,7 +102,13 @@ _OFFSETS: dict[str, tuple[int, int]] = {
 #: The screen lives in the scorer rather than only in the panel because it is **free**: it reads
 #: three codons off a string. Measured on 43,378 scored designs, 46.1% carry one, and 41.6% carry
 #: one without also being excluded by scheme -- designs that were being fully folded for nothing.
-RARE_CODONS = frozenset({"AGG", "AGA", "CGA", "CGG", "CUA", "AUA", "CCC", "UCG"})
+#: Imported, not redefined. This module carried its own eight-codon set, and the difference
+#: from the engine's mattered: measured over 2,176 designs, the engine's five flagged 32.4%
+#: and these eight flagged 50.0%, with **17.6% flagged only by the extras** (CCC 192,
+#: CGG 192, UCG 0). The bundled usage table then arbitrated -- CGG belongs (fraction 0.11,
+#: 5.9 per 1000, inside the agreed five's range on both measures) while CCC and UCG do not
+#: -- so the engine's set is now six and this is the single definition.
+RARE_CODONS = ToeholdAndGate.RARE_CODONS
 
 #: How many codons after the AUG to screen. Codons 4-10 are the fixed linker and always clean.
 CODONS_SCREENED = 3

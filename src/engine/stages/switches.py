@@ -236,34 +236,36 @@ class SwitchValidator:
             * **Length.** Within ``self.constraints.max_switch_length``.
             * **No prohibited motifs.** ``screener.violations`` — restriction sites for
               the chosen standard, and homopolymers over the limit.
-            * **Exactly one AUG**, and **zero in-frame STOP codons** downstream of it —
-              ``sequences.find_augs``/``find_stops``, in the frame ``design.architecture``
-              declares via ``"aug_index"``. A family whose ``architecture`` carries no
-              ``aug_index`` is a chemistry with no embedded start codon of its own (an
-              antisense design silences post-transcriptionally rather than being
-              translated itself — its ``architecture`` has no ``aug_index`` key at all),
-              and both rules are skipped for it rather than guessed.
+            * **Three initiation rules**, each exactly as the architecture specifies it
+              and no wider, taking the coordinates the generating family declares:
 
-              The AUG count is taken over ``architecture["initiation_window"]`` when the
-              family declares one, and over the whole switch when it does not. **This is
-              the same deferral the paragraph below makes for the RBS rule, for the same
-              reason.** A one-input toehold's 5' UTR is short and synthetic, so "exactly
-              one AUG anywhere in the switch" and "exactly one AUG a ribosome could start
-              at" are the same statement, and nothing changes for it. They stop being the
-              same statement for a two-input gate, whose 5' UTR is ~104 nt of three
-              — trigger-derived — domains (``main_pre_star``, ``k1_star``,
-              ``bulge_star``): those bases are a reverse complement of the gene being
-              sensed and are not ours to edit, so an AUG that lands in them is not a
-              design choice. Measured over 2,176 two-input designs: 1,508 carry 2—6
-              AUGs and **0 carry one anywhere between the RBS and the real start**, while
-              0 carry an in-frame stop. Counting over the whole switch therefore failed
-              every one of them for triplets sitting 60—100 nt upstream of the
-              Shine—Dalgarno sequence, where prokaryotic initiation does not occur.
+              1. **No out-of-frame AUG downstream of the RBS**, for a family that
+                 declares ``architecture["rbs_span"]``. That span says where the ribosome
+                 loads, and every AUG from there to the 3' end must be in frame with
+                 ``architecture["aug_index"]``. In frame is legal -- that is a Met codon.
+                 A family that declares no ``rbs_span`` keeps the stricter **exactly one
+                 AUG in the switch**: without an RBS position there is nothing to say
+                 which AUGs are reachable, and the frame-aware rule is strictly looser,
+                 so applying it unasked relaxes a family it was not written for.
+                 Upstream of the RBS is not scanned, because prokaryotic initiation needs
+                 a Shine-Dalgarno sequence and a triplet 60-100 nt 5' of one is not a
+                 start codon; measured, a two-input design carries one or two such
+                 triplets in its trigger-derived 5' domains, which are a reverse
+                 complement of the gene being sensed and not ours to edit.
+              2. **No second ribosome binding site outside the loop.**
+                 ``architecture["rbs_core_motif"]`` names the sequence, and it may occur
+                 only within ``rbs_span``.
+              3. **No in-frame stop codon after the planned start.** The switch ends at
+                 its linker and the reporter follows it, so an in-frame stop truncates the
+                 protein before the reporter is reached.
 
-              A family that declares a window is asserting where its ribosome loads, and
-              the count is exact inside it — a narrower claim than the old one, not a
-              weaker one. An AUG outside the window is still reported: the family counts
-              them into ``architecture`` so the number is on the record, not discarded.
+              A family carrying no ``aug_index`` is a chemistry with no embedded start
+              codon of its own -- an antisense design silences post-transcriptionally
+              rather than being translated -- and rules 1 and 3 are skipped for it rather
+              than guessed. A family carrying no ``rbs_core_motif`` skips rule 2 the same
+              way. **This is the same deferral the paragraph below makes** for geometry the
+              validator must not learn: the offsets and the motif belong to the family,
+              the rules belong here.
 
         Deliberately not implemented here (docs/smoke-run.md §3, S4):
             * **"Structure matches intent"** needs ``FoldEngine.ensemble_defect``, which
@@ -295,24 +297,74 @@ class SwitchValidator:
         violations.extend(str(site) for site in self.screener.violations(design.sequence))
 
         aug_index = design.architecture.get("aug_index")
+        rbs_span = design.architecture.get("rbs_span")
         if aug_index is not None:
-            window = design.architecture.get("initiation_window")
-            if window is None:
-                scanned, where = sq.find_augs(design.sequence), "the switch"
+            # RULE 1. No out-of-frame AUG downstream of the ribosome binding site.
+            #
+            # Downstream of the RBS and *all the way to the 3' end*, not merely up to the
+            # planned start: measured, 192 of 2,176 two-input designs (8.8%) carry one
+            # inside `main_pre`, after the real AUG, and a window that stopped at the AUG
+            # missed every one of them. And **in frame is not a violation** -- an in-frame
+            # AUG is a plain Met codon and makes the intended protein, so counting AUGs
+            # instead of checking their frame rejects correct designs.
+            #
+            # Upstream of the RBS is not scanned at all. Prokaryotic initiation needs a
+            # Shine-Dalgarno sequence, and a triplet 60-100 nt 5' of one is not a start
+            # codon. The family declares where its RBS is, because that offset is geometry
+            # only it knows -- the same deferral rule 2 below makes.
+            if rbs_span is None:
+                # **No declaration of where the ribosome loads, so the conservative rule
+                # stands.** Without an RBS position there is no way to say which AUGs are
+                # reachable, and the frame-aware rule below would be strictly looser: it
+                # permits every in-frame AUG, which for a family whose 5' UTR is short and
+                # synthetic is a relaxation bought for nothing. Measured when the
+                # frame-aware rule was briefly applied to everything: a one-input run whose
+                # paste was `"AUG" * 9` -- all those AUGs being in frame with one another --
+                # went from 0 candidates to 19.
+                augs = sq.find_augs(design.sequence)
+                if len(augs) != 1:
+                    violations.append(
+                        f"expected exactly one AUG, found {len(augs)} at {list(augs)}"
+                    )
             else:
-                # The family's own declaration of where its ribosome loads. Kept in
-                # absolute positions so the message points into the switch and not at an
-                # offset inside a window the reader cannot see.
-                lo, hi = window
-                scanned = tuple(i for i in sq.find_augs(design.sequence) if lo <= i < hi)
-                where = f"the initiation window [{lo}, {hi})"
-            if len(scanned) != 1:
-                violations.append(
-                    f"expected exactly one AUG in {where}, found {len(scanned)} at {list(scanned)}"
-                )
+                out_of_frame = [
+                    index
+                    for index in sq.find_augs(design.sequence)
+                    if index >= rbs_span[0] and (index - aug_index) % 3 != 0
+                ]
+                if out_of_frame:
+                    violations.append(
+                        f"out-of-frame AUG(s) downstream of the RBS at {out_of_frame} "
+                        f"(the planned start is at {aug_index})"
+                    )
 
+            # RULE 3. No in-frame stop codon after the planned start. The switch ends at
+            # its linker and the reporter follows it, so an in-frame stop anywhere here
+            # truncates the protein before the reporter is reached.
             stops = sq.find_stops(design.sequence, frame=aug_index)
             if stops:
                 violations.append(f"in-frame stop codon(s) at {list(stops)}")
+
+        # RULE 2. The ribosome binding site appears ONLY inside the main loop.
+        #
+        # This method's notes below deferred this rule for want of the loop's offset,
+        # which is geometry only the generating family knows. The family now declares both
+        # the loop span and the motif, so the rule lands here without the validator
+        # learning any one chemistry's layout: a eukaryotic family would declare a Kozak
+        # and the same code would screen for that instead.
+        motif = design.architecture.get("rbs_core_motif")
+        if motif and rbs_span:
+            low, high = rbs_span
+            stray = [
+                index
+                for index in range(len(design.sequence) - len(motif) + 1)
+                if design.sequence[index : index + len(motif)] == motif
+                and not (low <= index and index + len(motif) <= high)
+            ]
+            if stray:
+                violations.append(
+                    f"ribosome binding site {motif!r} occurs outside the loop "
+                    f"[{low}, {high}) at {stray}"
+                )
 
         return ValidationResult.failed(*violations) if violations else ValidationResult.passed()
