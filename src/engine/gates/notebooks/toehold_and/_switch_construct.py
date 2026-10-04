@@ -19,8 +19,6 @@ import csv
 import json
 from pathlib import Path
 
-from _joint_state_parallel import _partner_table
-
 from engine.gates.toehold import _mean_unpaired  # same accessibility helper measure() uses
 from engine.sequences import hamming, is_valid_rna, reverse_complement, to_rna, windows
 
@@ -66,66 +64,6 @@ def motif_self_bind_score(sequence, motif_seq):
         1.0 - hamming(window, target) / window_len
         for _start, window in windows(sequence, window_len)
     )
-
-
-def stem_closed_fraction(structure, stem_up_span, stem_down_span):
-    """Fraction of ``stem_up_span`` paired SPECIFICALLY to ``stem_down_span`` in one
-    sampled structure -- the intended OFF hairpin actually closing, not just "paired to
-    something". One of three state-decomposition metrics (``and_eu_report_spec.md``
-    Step 2); the other two are :func:`misfolded_fraction` below and
-    ``_frac_paired_to_external`` (``_joint_state_parallel.py`` -- already written,
-    already the fix for "open" meaning "paired to anything" rather than "paired to an
-    external strand"; reused here as-is for ``trigger_bound``, not reimplemented).
-
-    Built on the same :func:`_partner_table` stack-walk every other partner-tracing
-    check in this project uses, so a stem that closes with a bulge or an off-register
-    shift is read the same way everywhere, not approximated differently here.
-    """
-    partner = _partner_table(structure)
-    su0, su1 = stem_up_span
-    sd0, sd1 = stem_down_span
-    n = su1 - su0
-    if n == 0:
-        return 0.0
-    closed = sum(
-        1 for i in range(su0, su1) if partner[i] is not None and sd0 <= partner[i] < sd1
-    )
-    return closed / n
-
-
-def misfolded_fraction(structure, footprint_span, stem_down_span, n_self):
-    """Fraction of ``footprint_span`` paired INTRAMOLECULARLY but NOT to its own
-    ``stem_down_span`` -- paired to something other than what either the OFF hairpin
-    (``stem_closed_fraction``) or a real binding event (``_frac_paired_to_external``,
-    ``trigger_bound``) would call correct. This is the metric that would have caught the
-    80-90% false "open" the AND construct read with zero triggers present: that was
-    footprint paired to the OTHER hairpin's toehold, not to an external strand and not to
-    its own stem_down -- exactly this category, previously invisible because nothing
-    distinguished it from "open".
-
-    Low everywhere is the goal; unlike ``trigger_bound``, there is no state in which a
-    high value here is correct.
-
-    ``n_self``: length of the fused/switch molecule alone -- a partner index at or past
-    this is external (``_frac_paired_to_external``'s territory, not misfolding) and is
-    excluded here so the three metrics partition the footprint's possible partners
-    without double-counting any of them.
-    """
-    partner = _partner_table(structure)
-    f0, f1 = footprint_span
-    sd0, sd1 = stem_down_span
-    n = f1 - f0
-    if n == 0:
-        return 0.0
-    misfolded = 0
-    for i in range(f0, f1):
-        p = partner[i]
-        if p is None or p >= n_self:  # unpaired, or paired externally -- not misfolding
-            continue
-        if sd0 <= p < sd1:  # paired to its own stem_down -- the intended OFF hairpin
-            continue
-        misfolded += 1
-    return misfolded / n
 
 
 def _toehold_self_fold(toehold_seq, folder):

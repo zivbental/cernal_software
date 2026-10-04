@@ -144,16 +144,18 @@ Report all three. Do **not** collapse them into one number: with triggers presen
 cross-hybridised with the other hairpin", and that conflation is what made the
 predecessor's leak metric wrong.
 
-**Implementation note — only one of these three exists today.** `trigger_bound` is
-exactly `_frac_paired_to_external(structure, start, end, n_self)` in
-`_joint_state_parallel.py`, already written and already the fix for the bug above —
-reuse it directly. `stem_closed` and `misfolded` do **not** exist anywhere yet; nobody
-has needed "which specific partner" before, only "external or not". Both are a few lines
-over the same `_partner_table(structure)` the existing function already uses (check
-whether `stem_up`'s partner index falls inside `stem_down`'s span, vs. falls inside the
-molecule but outside it). Write them as named functions in `_switch_construct.py`
-alongside `fuse`/`measure` — not inlined per-worker — so a later notebook reuses them
-too instead of writing a fourth near-copy of partner-table logic.
+**Implementation note — all three now exist, in `_joint_state_parallel.py`.**
+`trigger_bound` is `_frac_paired_to_external(structure, start, end, n_self)`, already
+written before this spec and already the fix for the bug above. `stem_closed_fraction`
+and `misfolded_fraction` were added for this spec, built on the same `_partner_table`
+stack-walk, right next to `_frac_paired_to_external` — **not** in `_switch_construct.py`
+as this spec originally said: that module imports `_partner_table` *from*
+`_joint_state_parallel.py`, so defining these two the other way round would be
+circular. All three live where the parallel workers that call them also live.
+Verified against this session's own hand-traced ground truth (rank 100+111, no_spacer):
+`misfolded_fraction` reproduces 13/15=0.87 (A toehold, paired to exp_gene + B's toehold)
+and 2/15=0.13 (B toehold) exactly; `stem_closed_fraction` reads 1.00 for both hairpins'
+own stems.
 
 **Fake-trigger selection** — a real trigger from the same CSV qualifies as a fake only if
 its longest complementary run against the footprint is both (a)
