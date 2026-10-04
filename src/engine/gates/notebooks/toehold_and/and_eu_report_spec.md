@@ -104,7 +104,7 @@ this migration must be behaviour-neutral by construction.
 | `N_SAMPLES` | `1200` | Boltzmann samples per state |
 | `OPEN_THRESHOLD` | `0.70` | Fraction of footprint bound externally to call a state open |
 | `SINGLE_N_FAKES` | `10` | Distinct fake triggers checked per single-switch candidate, **averaged** into its OFF term — matches the original ask ("10 different fake triggers... the mean will be the result"), do not reuse this count for AND |
-| `AND_N_FAKES` | `2` | Fixed fakes per AND pair — `fake1` (checked against A-side states) and `fake2` (B-side) — used once each, **not averaged**. This is a different question from `SINGLE_N_FAKES` and the predecessor notebook's own param names (`MEGA_N_SAMPLES` etc.) reflect that split; do not collapse the two into one `N_FAKES` |
+| `AND_N_FAKES` | `10` | Distinct fakes drawn **per side** for each AND pair — 10 for the A-side states, 10 for the B-side states (20 fake-involving folds total per pair, two independent pools) — each side's result is the **mean** over its 10, same averaging shape as `SINGLE_N_FAKES`. Two separate parameters only because they're drawn from, and screened against, two different footprints — not because the counts differ (they're both 10) |
 | `FAKE_MAX_SEQ_OVERLAP_NT` | `8` | Max shared/complementary run a fake may have |
 | `WOBBLE_MAX_FRACTION` | `0.50` | Max share of a matched run that may be G·U |
 | `SPACER_VARIANTS` | `("no_spacer", "spacer")` | Both are run and reported separately |
@@ -167,15 +167,16 @@ never randomly.
 within one:
 
 - Single: `ON = trigger_bound(+real trigger)`;
-  `OFF = max(open fraction over: alone, each of SINGLE_N_FAKES fakes)` — the max is itself
-  taken over a mean-of-10 draw per fake position, per the original ask
+  `OFF = max(open fraction over: alone, mean over SINGLE_N_FAKES fakes)`
 - AND: `ON = P(both open | +A+B)`;
-  `OFF = max(P(both open) over: alone, +A, +B, +fake1, +fake2, +A+fake1, +B+fake2)` — one
-  draw each of `fake1`/`fake2` (`AND_N_FAKES = 2`), not averaged. The predecessor
-  notebook later re-draws these particular states 10x and averages, but only for the
-  already-selected top 20, as a separate refinement cell run after initial selection —
-  decide explicitly whether this notebook does that too, or ships the single-draw number;
-  do not add it silently.
+  `OFF = max(P(both open) over: alone, +A, +B, mean(+fakeA over AND_N_FAKES draws),
+  mean(+fakeB over AND_N_FAKES draws), mean(+A+fakeA over AND_N_FAKES draws),
+  mean(+B+fakeB over AND_N_FAKES draws))` — `fakeA` is drawn from a pool screened
+  against *both* real triggers (reuse `pick_fake_design` as-is; it already checks both
+  footprints in one call), independently per pair, 10 distinct draws averaged, same shape
+  as `fakeB`. Resolved: this notebook computes the mean from the start — there is no
+  separate single-draw screen followed by a later refinement pass, unlike the
+  predecessor notebook's two-stage history. One pass, already averaged.
 
 Floor `OFF` at `1/N_SAMPLES`. When `OFF` is genuinely zero, display **`>=1200`** (a bound,
 not a measurement). Show `ON - OFF` in the adjacent column.
@@ -197,8 +198,18 @@ number):
    Three-way decomposition each. Rank by ON/OFF.
 3. **Single Switch report** — top `SINGLE_REPORT_N`.
 4. **AND grid** — `AND_GRID_N` x itself, self-pairs excluded, both spacer variants. States:
-   alone, +A, +B, +A+B, +fake1, +fake2, +A+fake1, +B+fake2. Rank by ON/OFF.
+   `alone`, `+A`, `+B`, `+A+B`, `+fakeA` (mean of `AND_N_FAKES`), `+fakeB` (mean of
+   `AND_N_FAKES`), `+A+fakeA` (mean), `+B+fakeB` (mean) — 8 states, the fake-involving
+   four each already averaged in this one pass. Rank by ON/OFF.
 5. **AND report** — top `AND_REPORT_N`.
+
+   **Cost consequence of `AND_N_FAKES = 10` per side:** each pair now folds/samples 4
+   fake-involving states x 10 draws = 40 extra jobs, on top of the 4 base states
+   (`alone`/`+A`/`+B`/`+A+B`). At `AND_GRID_N = 20` that is 380 pairs x 2 spacer
+   variants x 40 = ~30,400 fake-related jobs, each `N_SAMPLES` Boltzmann draws — well
+   above the 2-per-pair this was costed at earlier. Benchmark one pair's full job count
+   before launching the whole grid (same benchmark-first pattern the predecessor
+   notebook uses for its NUPACK calls), not after.
 6. **Snapshot export** (opt-in cell, timestamped JSON) and **snapshot load**
    (`SNAPSHOT_TO_LOAD`, `None` by default). Every heavy cell checks that flag at its top
    and prints a one-line skip notice instead of running. Copy this pattern from the
