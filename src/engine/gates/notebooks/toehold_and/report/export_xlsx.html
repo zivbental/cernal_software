@@ -1,0 +1,600 @@
+<!-- The ordering sheet, built in the browser from whatever the filters are showing.
+
+Layout copied from "AND set 1.xlsx": a group-header row 1, a column-header row 2, one row per
+candidate, a notes row, then the four mCherry transcripts and a block of sanity checks.
+
+Every sanity check is a FORMULA. The point of the block is to catch a bug in the FILLING -- these
+constructs get ordered -- and a value this script computed and wrote as text would be checking the
+writer against itself. A formula recomputes from the cells on the page, so a wrong cell fails the
+check in the reader's own Excel.
+
+The revcomp checks are array-free -- one SWITCH per position, concatenated in reverse -- so they
+work in any Excel and, more importantly, Excel does not rewrite them. The array form that used
+SEQUENCE inside TEXTJOIN had to be stored with dynamic-array metadata that ExcelJS cannot write, so
+Excel inserted the implicit-intersection `@` and the check then read one cell of an array. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script>
+(function(){
+const BOLD = {bold: true};
+// The group header row and the column header row, verbatim from the reference workbook. The one
+// change is AI's note: the template says "constant AGU 3nt" where the cell holds AUG, and a
+// generated file must not carry a note its own column contradicts.
+// --- the columns, by NAME ----------------------------------------------------------------------
+// Every column is declared once as [key, header, width] and its letter is DERIVED from its
+// position. Nothing below writes a letter literally.
+//
+// **The first version hardcoded them**, and the first request to add a column in the middle broke
+// it: two columns inserted after G shift every letter from H to AK by two, and the ~40 formulas
+// that name those letters -- the concatenate check, both revcomp checks, every sanity check's
+// range -- would have gone on referencing the old positions and silently checked the wrong cells.
+// A generated sheet whose checks point at the wrong columns is worse than one with no checks.
+const COLUMNS = [
+  ["n", "candidate", 11.8],
+  ["arm", 'arm ("objective funtcion")', 34.1],
+  ["pair", "trigger pair", 11.8],
+  ["aSeq", "A sequence", 30.2],
+  ["aStart", "A start #", 7.7],
+  ["aEnd", "A end #", 6.9],
+  ["aToe", "effective trigger A toehold (gap=0/gap=1/gap=2)", 40.8],
+  // The same runs restricted to the stretch trigger A actually nucleates on -- `secondaryZ + x*`,
+  // the part trigger B frees. The column beside it is the duplex A forms ANYWHERE on the switch,
+  // which on these designs runs 14-22 nt and crosses out of the landing site onto the main stem;
+  // this one says how much of it is the toehold. Measured already, by `complete_panel`, as
+  // `land_run_g*` over the same antiparallel diagonals -- not a second definition.
+  ["landToe", "toehold on the landing site only, secondaryZ+x* (gap=0/gap=1/gap=2)", 34],
+  ["landNt", "landing site nt", 11],
+  ["bSeq", "B sequence", 10.4],
+  ["bStart", "B start #", 7.7],
+  ["bEnd", "B last #", 6.9],
+  ["xSeq", "x sequence", 10.2],
+  ["xStart", "x start #", 7.4],
+  ["xEnd", "x end #", 6.7],
+  ["xReal", "overlap is real", 12.6],
+  ["concat", "full=concatenate?", 16],
+  ["seq", "full sequence", 12],
+  ["len", "sequence length", 14.6],
+  ["cap", "CAP", 11.2],
+  ["r2star", "B's toehold", 10.1],
+  ["swx", "sw_x", 4.9],
+  ["k2star", "k2*", 4],
+  ["secLoop", "Secondary loop", 13.9],
+  ["secZ", "Secondary Z", 11.1],
+  ["xstar", "x*", 2.9],
+  ["swxCheck", "sw_x=revcomp(x*)", 16.6],
+  ["xCheck", "x=revcomp(x*)", 13.6],
+  ["mainPreStar", "Main_pre*", 9.6],
+  ["bulge", "bulge", 5.6],
+  ["asc46", "ascending upper4-6", 17.6],
+  ["asc3", " ascending upper3", 16.1],
+  ["rbsFlank", "RBS loops flank", 13.8],
+  ["rbs", "RBS sequence", 12.7],
+  ["desc3", "descending upper3", 16.9],
+  ["desc46", "descending upper 4-6", 19],
+  ["aug", "AUG", 15.3],
+  ["mainPre", "lower 9 descending", 16.9],
+  ["linker", "Linker", 12.4],
+];
+function letter(index){
+  let n = index + 1, out = "";
+  while (n > 0){
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(65 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
+}
+const C = {};
+COLUMNS.forEach(([key], i) => { C[key] = letter(i); });
+
+// The merged group headers, named by the column each spans FROM and TO, so they move with the
+// columns. "Trigger A" now covers the landing-site pair as well, which is where it belongs.
+const GROUPS = [
+  ["n", "5'->3'", null],
+  ["aSeq", "Trigger A", "landNt"],
+  ["bSeq", "Trigger B", "bEnd"],
+  ["xSeq", "overlap (x)", "xEnd"],
+  ["xReal", "Sanity checks", "concat"],
+  ["seq", "Switch", "len"],
+  ["swx", "Secondary Hairpin", "xstar"],
+  ["swxCheck", "sanity checks", "xCheck"],
+  ["mainPreStar", "Main Hairpin", "mainPre"],
+];
+const NOTES = {
+  aSeq: "36nt", aToe: "format : X/Y/Z", landToe: "format : X/Y/Z",
+  bSeq: "50/49nt", xSeq: "4-7nt", len: "161/165 nt",
+  cap: "constant 3nt", secLoop: "constant 15nt", rbsFlank: "constant 7nt",
+  rbs: "constant 11nt", aug: "constant AUG 3nt", linker: "Constant 21nt",
+};
+
+// --- the domain split the sheet asks for -------------------------------------------------------
+// Four of the sheet's columns are HALVES of one domain: `k1_star` splits into "ascending upper
+// 4-6" and "ascending upper3", and `main_z` into "descending upper3" and "descending upper 4-6".
+// Which half is which follows from where the RBS loop sits: the half ADJACENT to the loop is
+// "upper3", so for k1_star (which precedes the loop) that is the second half, and for main_z
+// (which follows it) the first. Same rule, opposite halves, which is why they are written out
+// rather than sliced by a shared helper that would have to carry the exception anyway.
+function part(c, name){
+  const d = (c.alld || []).find(x => x.name === name);
+  return d ? c.seq.slice(d.s, d.e) : "";
+}
+function half(c, name, which){
+  const d = (c.alld || []).find(x => x.name === name);
+  if (!d) return "";
+  const mid = d.s + Math.floor((d.e - d.s) / 2);
+  return which === "first" ? c.seq.slice(d.s, mid) : c.seq.slice(mid, d.e);
+}
+function rbsSplit(c, which){
+  // 7 nt of flank then the 11 nt Shine-Dalgarno, which is what the two column headers declare.
+  const d = (c.alld || []).find(x => x.name === "rbs_loop");
+  if (!d) return "";
+  return which === "flank" ? c.seq.slice(d.s, d.s + 7) : c.seq.slice(d.s + 7, d.e);
+}
+function landingTriple(c){
+  // The same three gap tolerances as `toeholdTriple`, restricted to the landing site -- measured
+  // by `complete_panel.effective_toehold` as `land_run_g*` over the same antiparallel diagonals,
+  // so this reads a number rather than defining a second one. `land_site_nt` is how many
+  // nucleotides that site is, which is what the runs should be read against.
+  const e = c.extras || {};
+  const blank = v => v === undefined || v === null || v === "" ? "?" : v;
+  return {
+    runs: ["land_run_g0", "land_run_g1", "land_run_g2"].map(k => blank(e[k])).join("/"),
+    nt: e.land_site_nt === undefined || e.land_site_nt === null || e.land_site_nt === ""
+      ? null : Number(e.land_site_nt),
+  };
+}
+function toeholdTriple(c){
+  const e = c.extras || {};
+  const parts = ["eff_run_a_g0", "eff_run_a_g1", "eff_run_a_g2"].map(k =>
+    e[k] === undefined || e[k] === null || e[k] === "" ? "?" : e[k]);
+  return parts.join("/");
+}
+
+// --- formulas ----------------------------------------------------------------------------------
+// Reverse complement of a cell, as a formula. There is no non-array way to do this for a string
+// whose length is not fixed, so this needs Excel 2021/365 -- and writing the answer as a literal
+// would mean the sanity check was checking this script against itself.
+function RC(ref){
+  // Array-FREE, one SWITCH per position, concatenated from the last position to the first.
+  //
+  // **The earlier version used SEQUENCE inside TEXTJOIN, and Excel rewrote it.** A formula that
+  // returns an array has to be stored with dynamic-array metadata, which ExcelJS cannot write, so
+  // Excel opened the file, decided the formula was a legacy one referring to an array, and
+  // inserted the implicit-intersection operator `@` -- which then evaluates one cell of the array
+  // instead of the whole thing. That is the stray @ in the x revcomp check.
+  //
+  // `MID` past the end of the string returns "" and SWITCH's trailing default turns that into "",
+  // so a fixed chain of MAX_X positions handles every overlap length. It also works in Excel
+  // versions without SEQUENCE at all, which the array form did not.
+  const parts = [];
+  for (let k = MAX_X; k >= 1; k--){
+    parts.push('SWITCH(MID(' + ref + "," + k + ',1),"A","U","U","A","G","C","C","G","")');
+  }
+  return parts.join("&");
+}
+// The longest overlap the architecture allows -- the notes row says 4-7nt. One extra position
+// costs a term in a formula and nothing else, so this is deliberately generous.
+const MAX_X = 8;
+function ok(test, fail){ return "=IF(" + test + ',"OK","' + fail + '")'; }
+// Elementwise MIN/MAX of two ranges, which Excel's MIN and MAX do not do -- they collapse to a
+// scalar. The identity min(a,b)=(a+b-|a-b|)/2 is the usual way round it inside SUMPRODUCT.
+function emin(a, b){ return "((" + a + "+" + b + "-ABS(" + a + "-" + b + "))/2)"; }
+function emax(a, b){ return "((" + a + "+" + b + "+ABS(" + a + "-" + b + "))/2)"; }
+function acguOnly(ref){
+  return "LEN(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(" + ref
+    + ',"A",""),"C",""),"G",""),"U",""))';
+}
+
+function buildWorkbook(rows, meta){
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "A0 panel report";
+  const ws = wb.addWorksheet("AND set");
+  COLUMNS.forEach(([key, , width]) => { ws.getColumn(C[key]).width = width; });
+
+  GROUPS.forEach(([from, text, upto]) => {
+    const cell = ws.getCell(C[from] + "1");
+    cell.value = text;
+    cell.font = BOLD;
+    if (upto) ws.mergeCells(C[from] + "1:" + C[upto] + "1");
+  });
+  COLUMNS.forEach(([, text], i) => {
+    const cell = ws.getRow(2).getCell(i + 1);
+    cell.value = text;
+    cell.font = BOLD;
+    cell.alignment = {wrapText: true, vertical: "bottom"};
+  });
+
+  const FIRST = 3;
+  rows.forEach((c, i) => {
+    const r = FIRST + i;
+    const row = ws.getRow(r);
+    // `at(key)` is this row's cell reference for a named column, and `put` writes it. Together
+    // they are why a column can be inserted anywhere in COLUMNS without touching anything below.
+    const at = key => C[key] + r;
+    const put = (key, value) => { ws.getCell(at(key)).value = value; };
+    const land = landingTriple(c);
+    put("n", i + 1);
+    put("arm", c.arm);
+    put("pair", c.pair);
+    put("aSeq", c.trigA);
+    put("aStart", c.wa ? c.wa[0] : null);
+    put("aEnd", c.wa ? c.wa[1] : null);
+    put("aToe", toeholdTriple(c));
+    put("landToe", land.runs);
+    put("landNt", land.nt);
+    put("bSeq", c.trigB);
+    put("bStart", c.wb ? c.wb[0] : null);
+    put("bEnd", c.wb ? c.wb[1] : null);
+    put("xSeq", c.xseq || "");
+    put("xStart", c.wx ? c.wx[0] : null);
+    put("xEnd", c.wx ? c.wx[1] : null);
+    // "overlap is real" asks whether the stem that has to form CAN: x is where the sheet says
+    // it is inside trigger A, and the switch's own sw_x is that same sequence. It deliberately
+    // does NOT require x in trigger B -- scheme C assigns a disagreeing position to one trigger
+    // or to the lock, so a correct design often has x in A only. Measured: absent from B on one
+    // of the two panel pairs and present at an unrelated offset on the other.
+    put("xReal", {formula: ok(
+      "AND(MID(" + at("aSeq") + "," + at("xStart") + "-" + at("aStart") + "+1,"
+        + at("xEnd") + "-" + at("xStart") + ")=" + at("xSeq")
+        + "," + at("swx") + "=" + at("xSeq") + ")",
+      "x is not at its stated place in trigger A").slice(1)});
+    const PARTS = ["cap", "r2star", "swx", "k2star", "secLoop", "secZ", "xstar", "mainPreStar",
+                   "bulge", "asc46", "asc3", "rbsFlank", "rbs", "desc3", "desc46", "aug",
+                   "mainPre", "linker"];
+    put("concat", {formula: ok(
+      at("seq") + "=" + PARTS.map(at).join("&"),
+      "the parts do not rebuild the switch").slice(1)});
+    put("seq", c.seq);
+    put("len", {formula: "LEN(" + at("seq") + ")"});
+    put("cap", part(c, "cap"));
+    put("r2star", part(c, "r2*"));
+    put("swx", part(c, "sw_x"));
+    put("k2star", part(c, "k2*"));
+    put("secLoop", part(c, "sec_loop"));
+    put("secZ", part(c, "sec_z"));
+    put("xstar", part(c, "x*"));
+    put("swxCheck", {formula: ok(
+      at("swx") + "=" + RC(at("xstar")), "sw_x is not revcomp(x*)").slice(1)});
+    put("xCheck", {formula: ok(
+      at("xSeq") + "=" + RC(at("xstar")), "x is not revcomp(x*)").slice(1)});
+    put("mainPreStar", part(c, "main_pre_star"));
+    put("bulge", part(c, "bulge_star"));
+    put("asc46", half(c, "k1_star", "first"));
+    put("asc3", half(c, "k1_star", "second"));
+    put("rbsFlank", rbsSplit(c, "flank"));
+    put("rbs", rbsSplit(c, "rbs"));
+    put("desc3", half(c, "main_z", "first"));
+    put("desc46", half(c, "main_z", "second"));
+    put("aug", part(c, "aug"));
+    put("mainPre", part(c, "main_pre"));
+    put("linker", part(c, "linker"));
+    row.font = {name: "Consolas", size: 10};
+    // The columns that are numbers or verdicts rather than sequence keep the proportional face.
+    ["n", "arm", "pair", "aStart", "aEnd", "aToe", "landToe", "landNt", "bStart", "bEnd",
+     "xStart", "xEnd", "xReal", "concat", "len", "swxCheck", "xCheck"].forEach(key => {
+      ws.getCell(at(key)).font = {size: 10};
+    });
+  });
+  const LAST = FIRST + rows.length - 1;
+
+  const noteRow = LAST + 1;
+  Object.keys(NOTES).forEach(key => {
+    ws.getCell(C[key] + noteRow).value = NOTES[key];
+    ws.getCell(C[key] + noteRow).font = BOLD;
+  });
+
+  // --- the four mCherry transcripts -----------------------------------------------------------
+  const T_TITLE = noteRow + 2;
+  ws.getCell("A" + T_TITLE).value = "mCherry";
+  ws.getCell("A" + T_TITLE).font = BOLD;
+  ws.mergeCells("A" + T_TITLE + ":D" + T_TITLE);
+  const T_HEAD = T_TITLE + 1;
+  ["pair 1 state", "pair 2 state", "changed", "full sequence with bolded windows"]
+    .forEach((text, i) => {
+      const cell = ws.getRow(T_HEAD).getCell(i + 1);
+      cell.value = text;
+      cell.font = BOLD;
+    });
+  // Which panel the reader is looking at, from the ACTIVE VIEW.
+  //
+  // **This was read off the first row's `panelname` and that is wrong**, because a design chosen
+  // by more than one panel carries every name that chose it, in load order. 414/361/4 is in both
+  // panel_best and panel_assign2, so its name begins "panel_best" whichever view is selected --
+  // and the sheet then took panel_best's role-named transcripts for an assign2 export, labelled
+  // them 01/01 and 10/10, and the realisation matrix correctly said they realise nothing. The
+  // view is the only thing that knows.
+  const view = String(window.VIEW || "");
+  const wanted = view.indexOf("panel: ") === 0
+    ? "panel_" + view.slice(7)
+    : String((rows[0] || {}).panelname || "").split(" + ")[0];
+  const all = meta.transcripts || [];
+  const transcripts = all.filter(t => t.panelset === wanted).length
+    ? all.filter(t => t.panelset === wanted)
+    : all.filter(t => (t.panelset || "default") === "default");
+  // `T0=11 T1=10 ...` per design, which is how a pair reads its own state off a shared transcript
+  // once the role swap is in play. Empty for a panel that needed no swap, where the state is a
+  // property of the transcript and `t.states` carries it.
+  const stateOf = (row, name) => {
+    const map = {};
+    // The states of the panel being exported. A design shared with another panel carries one
+    // entry per panel, and reading the wrong one labels the tube wrongly on an ordered construct.
+    const mine = (row.swap_by_panel || {})[wanted] || row.swap_states || "";
+    String(mine).split(/\s+/).forEach(part => {
+      const [k, v] = part.split("=");
+      if (k && v) map[k] = v;
+    });
+    return map[name] || "";
+  };
+  const original = transcripts.find(t => t.variant === "original");
+  transcripts.forEach((t, i) => {
+    const r = T_HEAD + 1 + i;
+    // One column per PAIR, which is what the reference template asks for and what the swap makes
+    // necessary: the same transcript is 01 for one pair and 10 for the other. Read off each
+    // pair's own `swap_states`, and equal to the transcript's own state when no swap was needed.
+    const pairsHere = [];
+    rows.forEach(c => { if (pairsHere.indexOf(c.pair) < 0) pairsHere.push(c.pair); });
+    pairsHere.slice(0, 2).forEach((pair, column) => {
+      const mine = rows.filter(c => c.pair === pair)[0];
+      ws.getCell((column ? "B" : "A") + r).value =
+        (mine && stateOf(mine, t.variant)) || t.states || null;
+    });
+    ws.getCell("C" + r).value = t.variant === "original"
+      ? "original " + t.length + "nt"
+      : t.variant + ", " + t.changed_nt + " nt changed";
+    // Rich text, so the changed stretches are visible IN the sequence rather than described beside
+    // it. `changed` is a run list from the recoder, which moves whole codons.
+    const runs = String(t.changed || "").split(" ").filter(Boolean)
+      .map(s => s.split("-").map(Number));
+    if (!runs.length){
+      ws.getCell("D" + r).value = t.seq;
+    } else {
+      const pieces = [];
+      let at = 0;
+      runs.forEach(([lo, hi]) => {
+        if (lo > at) pieces.push({text: t.seq.slice(at, lo), font: {name: "Consolas", size: 9}});
+        pieces.push({text: t.seq.slice(lo, hi),
+          font: {name: "Consolas", size: 9, bold: true, color: {argb: "FFB00020"}}});
+        at = hi;
+      });
+      if (at < t.seq.length) {
+        pieces.push({text: t.seq.slice(at), font: {name: "Consolas", size: 9}});
+      }
+      ws.getCell("D" + r).value = {richText: pieces};
+    }
+    ws.getCell("D" + r).alignment = {wrapText: false};
+  });
+  const T_FIRST = T_HEAD + 1;
+  const byVariant = {};
+  transcripts.forEach((t, i) => { byVariant[t.variant] = T_FIRST + i; });
+  // The untouched transcript, by what it IS rather than by its name: with a swap it is called T0
+  // and `byVariant.original` is undefined, which silently made every `$D$undefined` reference in
+  // the sanity block point at nothing.
+  const baseName = transcripts.reduce(
+    (best, t) => (Number(t.changed_nt || 0) === 0 ? t.variant : best),
+    transcripts.length ? transcripts[0].variant : "");
+  const origRow = byVariant[baseName];
+
+  // --- the sanity checks, every one a formula --------------------------------------------------
+  const S = T_FIRST + transcripts.length + 1;
+  ws.getCell("A" + S).value = "sanity checks";
+  ws.getCell("A" + S).font = BOLD;
+  // `range` is declared BEFORE the ranges that call it. `const` is not hoisted, so declaring it
+  // after them threw "Cannot access 'range' before initialization" and the export failed with
+  // nothing written -- the one failure path that produces no file at all.
+  const range = key => C[key] + FIRST + ":" + C[key] + LAST;
+  const D_ = range("aSeq"), H_ = range("bSeq");
+  const E_ = range("aStart"), F_ = range("aEnd");
+  const I_ = range("bStart"), J_ = range("bEnd");
+  const P_ = range("seq"), K_ = range("xSeq");
+  // The mCherry block has its OWN four columns starting at A -- state, state, changed, sequence --
+  // and they do not move when table 1 gains a column. `C.aSeq` is also "D" today, which is a
+  // coincidence of both being the fourth column of their own block; writing the transcript's
+  // reference as `C.aSeq` would silently point the sanity checks at a trigger column the first
+  // time either block changed width.
+  const T_SEQ = "D";
+  const orig = "$" + T_SEQ + "$" + origRow;
+  // MID is 1-based and our starts are 0-based, so every window start gains 1 here. That offset is
+  // the single most likely place for this sheet to be wrong, which is why these checks exist.
+  const cut = (seqRef, start, len) => "MID(" + seqRef + "," + start + "+1," + len + ")";
+  const checks = [
+    ["Trigger A sequence is in original mCherry",
+     "SUMPRODUCT(--ISNUMBER(SEARCH(" + D_ + "," + orig + ")))=COUNTA(" + D_ + ")",
+     "a trigger A sequence is not in the original transcript"],
+    ["Trigger B sequence is in original mCherry",
+     "SUMPRODUCT(--ISNUMBER(SEARCH(" + H_ + "," + orig + ")))=COUNTA(" + H_ + ")",
+     "a trigger B sequence is not in the original transcript"],
+    ["no more than 2 overlaps between triggers",
+     "SUMPRODUCT(--((" + emin(F_, J_) + "-" + emax(E_, I_) + ")>2))=0",
+     "two trigger windows share more than 2 nt"],
+    // Keyed by NAME like everything else. **It was the one block still naming letters**, so when
+    // the two landing-site columns went in after G it checked the columns two to the left of the
+    // ones it meant -- CAP against B's toehold, AUG against lower-9-descending. Every other
+    // formula had already moved to `C[key]`; this one was missed, which is exactly the failure the
+    // keyed-column rewrite was for.
+    ["all constant subsequences are constant",
+     "AND(" + [
+       'COUNTIF(' + range("cap") + ',"GGG")=COUNTA(' + range("cap") + ")",
+       'COUNTIF(' + range("aug") + ',"AUG")=COUNTA(' + range("aug") + ")",
+       ...["secLoop", "rbsFlank", "rbs", "linker"].map(key =>
+         "COUNTIF(" + range(key) + "," + C[key] + FIRST + ")=COUNTA(" + range(key) + ")"),
+       "LEN(" + C.secLoop + FIRST + ")=15",
+       "LEN(" + C.rbsFlank + FIRST + ")=7",
+       "LEN(" + C.rbs + FIRST + ")=11",
+       "LEN(" + C.linker + FIRST + ")=21",
+     ].join(",") + ")",
+     "a column declared constant is not"],
+    ["every sequence is A/C/G/U only",
+     "SUMPRODUCT(" + acguOnly(P_) + ")+SUMPRODUCT(" + acguOnly(D_) + ")+SUMPRODUCT("
+       + acguOnly(H_) + ")+SUMPRODUCT(" + acguOnly(K_) + ")=0",
+     "a sequence holds a letter that is not A, C, G or U"],
+    ["window length matches start and end",
+     "SUMPRODUCT(--(LEN(" + D_ + ")<>" + F_ + "-" + E_ + "))+SUMPRODUCT(--(LEN(" + H_ + ")<>"
+       + J_ + "-" + I_ + "))=0",
+     "a trigger's length disagrees with its coordinates"],
+    ["trigger sequences are the transcript at those coordinates",
+     "SUMPRODUCT(--(" + cut(orig, E_, F_ + "-" + E_) + "<>" + D_ + "))+SUMPRODUCT(--("
+       + cut(orig, I_, J_ + "-" + I_) + "<>" + H_ + "))=0",
+     "a trigger does not match the original transcript at its own coordinates"],
+    ["switch length is 161 or 165",
+     "SUMPRODUCT(--(LEN(" + P_ + ")<>161))*SUMPRODUCT(--(LEN(" + P_ + ")<>165))=0",
+     "a switch is neither 161 nor 165 nt"],
+  ];
+  checks.push(["the four transcripts are all the same length",
+    "SUMPRODUCT(--(LEN(" + T_SEQ + T_FIRST + ":" + T_SEQ + (T_FIRST + transcripts.length - 1) + ")<>LEN("
+      + orig + ")))=0",
+    "a recoded transcript is not the length of the original"]);
+
+  checks.forEach(([label, test, fail], i) => {
+    const r = S + i;
+    ws.getCell("B" + r).value = label;
+    // AND(...) needs wrapping when the test is a comma-joined pair; a single test does not.
+    const expr = test.indexOf(",") >= 0 && test.indexOf("AND(") !== 0
+      ? "AND(" + test + ")" : test;
+    ws.getCell("C" + r).value = {formula: ok(expr, fail).slice(1)};
+  });
+
+  // --- the thresholds table, so "all thresholds" has cells to read --------------------------
+  const M0 = S + checks.length + 2;
+  ws.getCell("A" + M0).value = "thresholds";
+  ws.getCell("A" + M0).font = BOLD;
+  const MHEAD = ["candidate", "arm", "trigger pair", "opening SEP (f1)", "ON opening cost (11)",
+                 "Barrier", "A_M ratio", "IED gain", "worst A_M"];
+  MHEAD.forEach((text, i) => {
+    const cell = ws.getRow(M0 + 1).getCell(i + 1);
+    cell.value = text;
+    cell.font = BOLD;
+  });
+  rows.forEach((c, i) => {
+    const r = M0 + 2 + i;
+    [i + 1, c.arm, c.pair, c.f1, c.op ? c.op["11"] : null, c.barrier, c.f2, c.ied_gain,
+     c.f2_worst].forEach((v, j) => { ws.getRow(r).getCell(j + 1).value = v; });
+  });
+  const MF = M0 + 2, ML = M0 + 1 + rows.length;
+  const limitRow = ML + 1;
+  ws.getCell("B" + limitRow).value = "limit";
+  ws.getCell("B" + limitRow).font = BOLD;
+  ws.getCell("D" + limitRow).value = -2.0;
+  ws.getCell("E" + limitRow).value = 4.0;
+  ws.getCell("C" + limitRow).value = "<= limit:";
+  const allThresholds = "AND(MAX(D" + MF + ":D" + ML + ")<=D" + limitRow
+    + ",MAX(E" + MF + ":E" + ML + ")<=E" + limitRow + ")";
+  ws.getCell("B" + (limitRow + 1)).value = "all thresholds";
+  ws.getCell("B" + (limitRow + 1)).font = BOLD;
+  ws.getCell("C" + (limitRow + 1)).value = {
+    formula: ok(allThresholds, "a candidate is outside the declared limits").slice(1)};
+  ws.getCell("B" + (limitRow + 2)).value =
+    "opening SEP is the gating floor and the ON opening cost the feasibility ceiling; both are "
+    + "editable above, and the check reads the cells rather than a number written into it.";
+
+  // --- does each transcript realise the state it is labelled with --------------------------
+  //
+  // One cell per (design, transcript), because with the role swap the expectation is not a
+  // property of the transcript: T1 removes trigger A for one pair and trigger B for the other, so
+  // a single check per transcript cannot express it. Each cell asks the only question that
+  // matters for an order -- the windows this design's state says are gone are changed, and the
+  // ones it says are intact are byte-identical.
+  //
+  // This replaces three checks named after "A-recoded" / "B-recoded" / "AB-recoded", which do not
+  // exist on a swapped panel at all.
+  const R0 = limitRow + 4;
+  ws.getCell("A" + R0).value = "does each transcript realise its state";
+  ws.getCell("A" + R0).font = BOLD;
+  ["candidate", "pair", "state per transcript"].forEach((text, i) => {
+    const cell = ws.getRow(R0 + 1).getCell(i + 1);
+    cell.value = text;
+    cell.font = BOLD;
+  });
+  transcripts.forEach((t, i) => {
+    const cell = ws.getRow(R0 + 1).getCell(4 + i);
+    cell.value = t.variant;
+    cell.font = BOLD;
+  });
+  rows.forEach((c, i) => {
+    const r = R0 + 2 + i;
+    const design = FIRST + i;
+    ws.getCell("A" + r).value = i + 1;
+    ws.getCell("B" + r).value = c.pair;
+    ws.getCell("C" + r).value = transcripts
+      .map(t => t.variant + "=" + (stateOf(c, t.variant) || t.states || "?")).join(" ");
+    transcripts.forEach((t, k) => {
+      const state = stateOf(c, t.variant) || t.states || "";
+      if (state.length !== 2){
+        ws.getRow(r).getCell(4 + k).value = "no state";
+        return;
+      }
+      // Left digit is trigger A. "1" means present, so the window must be UNCHANGED.
+      const aGone = state[0] === "0";
+      const bGone = state[1] === "0";
+      const seq = "$" + T_SEQ + "$" + byVariant[t.variant];
+      const windowA = cut(seq, C.aStart + design, C.aEnd + design + "-" + C.aStart + design);
+      const windowB = cut(seq, C.bStart + design, C.bEnd + design + "-" + C.bStart + design);
+      const test = "AND((" + windowA + "<>" + C.aSeq + design + ")=" + (aGone ? "TRUE" : "FALSE")
+        + ",(" + windowB + "<>" + C.bSeq + design + ")=" + (bGone ? "TRUE" : "FALSE") + ")";
+      ws.getRow(r).getCell(4 + k).value = {
+        formula: ok(test, "does not realise " + state).slice(1)};
+    });
+  });
+
+  return wb;
+}
+
+// --- the button ------------------------------------------------------------------------------
+function mount(){
+  const host = document.getElementById("xlsx");
+  if (!host) return;
+  host.innerHTML = '<button id="xlsxBtn" class="btn">Export the shown rows to Excel</button>'
+    + '<span class="dimv" id="xlsxNote" style="margin-left:10px"></span>';
+  const note = document.getElementById("xlsxNote");
+  document.getElementById("xlsxBtn").addEventListener("click", async () => {
+    const rows = (window.SHOWN || []).slice();
+    if (!rows.length){ note.textContent = "nothing is shown -- adjust the filters"; return; }
+    if (typeof ExcelJS === "undefined"){
+      note.textContent = "the spreadsheet library did not load (needs the network)";
+      return;
+    }
+    note.textContent = "building " + rows.length + " row(s)…";
+    try {
+      const wb = buildWorkbook(rows, {transcripts: (window.DATA || {}).transcripts || []});
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf],
+        {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+      const filename = "AND set " + rows.length + " rows.xlsx";
+      const done = "written: " + rows.length + " candidates, "
+        + (((window.DATA || {}).transcripts || []).length) + " transcripts, formula checks included";
+      // Two hosts, two ways to hand over a file. Opened as a local file, the ordinary anchor
+      // works. In the published report the page runs in a sandbox that never grants a page the
+      // right to start a download, so an anchor there builds the workbook and drops it -- the
+      // `downloads` capability is the only route, and it asks the viewer first.
+      const downloads = window.claude ? await window.claude.use("downloads") : null;
+      if (downloads){
+        try {
+          await downloads.save({filename: filename, data: blob});
+          note.textContent = done;
+        } catch (refused) {
+          // A viewer saying no is not an error, and nothing here is worth a retry.
+          note.textContent = refused && refused.code === "declined"
+            ? "not saved -- you declined the download"
+            : "could not save here (" + ((refused && refused.code) || "unavailable")
+              + ") -- open report/panel.html locally and use the button there";
+        }
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      note.textContent = done;
+    } catch (err) {
+      note.textContent = "failed: " + err.message;
+      throw err;
+    }
+  });
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", mount);
+} else {
+  mount();
+}
+})();
+</script>

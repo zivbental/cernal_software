@@ -37,14 +37,14 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 63 |
-| Public classes | 101 |
-| Public callables (excluding `__init__`) | 324 |
-| — `BUILT` | 291 |
+| Modules | 102 |
+| Public classes | 104 |
+| Public callables (excluding `__init__`) | 513 |
+| — `BUILT` | 480 |
 | — `STUB` | 25 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
-| `__init__` constructors | 21 |
+| `__init__` constructors | 22 |
 
 ## Index
 
@@ -61,7 +61,7 @@ layers above it, never the ones below.
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 5 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 0 | 2 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 13 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 18 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
@@ -71,30 +71,69 @@ layers above it, never the ones below.
 | gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
+| gates | `engine.gates.notebooks.toehold_and.access_vs_vista` |  | 5 | 0 | Do Green 2014's local single-strandedness and VISTA's flanked MFE pick the same trigger pairs? |
+| gates | `engine.gates.notebooks.toehold_and.accessibility_s1` |  | 2 | 0 | Accessibility in VISTA's validated form: full-transcript ensemble, flanked window. |
+| gates | `engine.gates.notebooks.toehold_and.aug_rescue` |  | 4 | 0 | Silence an out-of-frame AUG by editing ``main_z``, which is a free design choice. |
+| gates | `engine.gates.notebooks.toehold_and.augz_vs_libraries` |  | 2 | 0 | The main_z + aug window -- ON, OFF and GAIN -- on all three measured libraries. |
+| gates | `engine.gates.notebooks.toehold_and.barrier_additivity` |  | 2 | 0 | Does the barrier ADD to another arm, and what does an epsilon-constraint on it buy? |
 | gates | `engine.gates.notebooks.toehold_and.build_report` |  | 1 | 0 | Assemble the architecture decision report, inlining the eight structure figures. |
 | gates | `engine.gates.notebooks.toehold_and.bulge_geometry` |  | 6 | 0 | What the AUG bulge actually is, which side is designable, and what the two hairpins weigh. |
+| gates | `engine.gates.notebooks.toehold_and.candidates` |  | 2 | 0 | Pick an orderable panel, and say what each row is there to find out. |
+| gates | `engine.gates.notebooks.toehold_and.codon_variants` |  | 8 | 0 | Four mCherry transcripts that realise the four logic states with one switch. |
+| gates | `engine.gates.notebooks.toehold_and.combos_vs_green` |  | 5 | 0 | Which combinations of terms predict a measured switch, across all three libraries? |
+| gates | `engine.gates.notebooks.toehold_and.complete_panel` |  | 7 | 0 | The three measurements the panel is still missing, in one resumable pass. |
 | gates | `engine.gates.notebooks.toehold_and.design_panel` |  | 4 | 0 | The whole A0 pipeline, end to end, for a wet-lab panel. One command, no hand-holding. |
+| gates | `engine.gates.notebooks.toehold_and.dgbind_vs_libraries` |  | 2 | 0 | Is ``dG_bind`` -- how hard the trigger grips the switch -- predictive on measured switches? |
+| gates | `engine.gates.notebooks.toehold_and.drift_fold` |  | 5 | 0 | Fold the drift-repaired switches so the panel can actually see them. |
+| gates | `engine.gates.notebooks.toehold_and.drift_regenerate` |  | 4 | 0 | Regenerate the drift-affected designs a patch cannot fix, from their axis columns. |
+| gates | `engine.gates.notebooks.toehold_and.drift_repair` |  | 5 | 0 | Repair designs built against a transcript base that has since been corrected. |
+| gates | `engine.gates.notebooks.toehold_and.ensemble_vs_mfe` |  | 3 | 0 | Does replacing every MFE with the ensemble free energy improve the correlations? |
 | gates | `engine.gates.notebooks.toehold_and.factorisation` |  | 3 | 0 | Can the AUG-closure choice be made separately from the secondary-stem choice? |
 | gates | `engine.gates.notebooks.toehold_and.find_candidates` |  | 3 | 0 | Stage 1 for the A0 two-input AND gate: find usable trigger pairs in one transcript. |
+| gates | `engine.gates.notebooks.toehold_and.fold_analysis` |  | 1 | 0 | Read stage 2's folded designs and say which axis settings actually won. |
 | gates | `engine.gates.notebooks.toehold_and.folding_barriers` |  | 3 | 0 | Real refolding barriers, from ViennaRNA's findpath, for the step kinetics turns on. |
 | gates | `engine.gates.notebooks.toehold_and.four_state_figures` |  | 5 | 0 | One candidate, four separate nucleotide plots — the switch alone and with each trigger. |
-| gates | `engine.gates.notebooks.toehold_and.full_sweep` |  | 5 | 0 | The full design sweep, staged so the expensive half only ever sees survivors. |
-| gates | `engine.gates.notebooks.toehold_and.green_calibration` |  | 4 | 0 | Does our ranking observable rank switches that were actually measured? |
+| gates | `engine.gates.notebooks.toehold_and.full_sweep` |  | 6 | 0 | The full design sweep, staged so the expensive half only ever sees survivors. |
+| gates | `engine.gates.notebooks.toehold_and.green_calibration` |  | 5 | 0 | Does our ranking observable rank switches that were actually measured? |
 | gates | `engine.gates.notebooks.toehold_and.kim2019_benchmark` |  | 3 | 0 | Benchmark: put Kim 2019's bench-tested constructs through our own scoring. |
 | gates | `engine.gates.notebooks.toehold_and.kinetic_pathway` |  | 4 | 0 | The kinetic test done properly: what foothold does trigger A see *before* it binds? |
 | gates | `engine.gates.notebooks.toehold_and.kinetic_proxy` |  | 4 | 0 | A kinetic proxy, reported beside the equilibrium numbers and never scored. |
+| gates | `engine.gates.notebooks.toehold_and.metric_correlations` |  | 7 | 0 | Every metric against every measured library, Spearman and Pearson, with its window. |
 | gates | `engine.gates.notebooks.toehold_and.modification_panel` |  | 6 | 0 | Measure every proposed architecture modification side by side, on the same candidates. |
 | gates | `engine.gates.notebooks.toehold_and.narrate` |  | 5 | 0 | Progress bars, running commentary and closing findings for the long-running drivers. |
 | gates | `engine.gates.notebooks.toehold_and.nucleation_state` |  | 4 | 0 | Who is holding trigger A's nucleation site: the switch, trigger A, or nobody? |
+| gates | `engine.gates.notebooks.toehold_and.objective_energy` |  | 12 | 0 | The energy-sum objective function for the A0 two-input toehold AND gate. |
+| gates | `engine.gates.notebooks.toehold_and.objective_panel` |  | 30 | 0 | Pick an orderable panel: four objective functions, two geometries, one trigger pair each. |
+| gates | `engine.gates.notebooks.toehold_and.objective_vs_green` |  | 10 | 0 | Rank the five objective functions against every measured toehold library we have. |
+| gates | `engine.gates.notebooks.toehold_and.off_target_scan` |  | 2 | 0 | Can the rest of the transcript fire the gate, or block it? |
+| gates | `engine.gates.notebooks.toehold_and.order_check` |  | 5 | 0 | Everything that must be true before a sequence is ordered, asserted rather than assumed. |
+| gates | `engine.gates.notebooks.toehold_and.pick_leaders` |  | 1 | 0 | Carve the leading pair-stems out of finished folds into a fresh stage-1 file. |
 | gates | `engine.gates.notebooks.toehold_and.population_survey` |  | 4 | 0 | The four tubes across many trigger pairs, for a distribution instead of an anecdote. |
+| gates | `engine.gates.notebooks.toehold_and.proposal_on_green` |  | 5 | 0 | The proposed function on Green's two libraries, and a check of its S4 against Green's own claim. |
+| gates | `engine.gates.notebooks.toehold_and.proposal_validation` |  | 8 | 0 | Measure the proposed six-component objective function against VISTA's 189 measured switches. |
 | gates | `engine.gates.notebooks.toehold_and.rank_candidates` |  | 6 | 0 | Stages 3-5 for the A0 AND gate: assemble, fold four tubes, gate, and rank. |
+| gates | `engine.gates.notebooks.toehold_and.rare_codon_rescue` |  | 3 | 0 | Rescue designs the rare-codon screen drops, without letting go of trigger A. |
+| gates | `engine.gates.notebooks.toehold_and.recode_quality` |  | 2 | 0 | How well does each eligible trigger pair's window actually recode? |
+| gates | `engine.gates.notebooks.toehold_and.role_swap` |  | 3 | 0 | Can two trigger pairs with overlapping windows still be addressed by four transcripts? |
+| gates | `engine.gates.notebooks.toehold_and.score_rescued` |  | 2 | 0 | Score the rare-codon-rescued designs, in the shape the panel already reads. |
+| gates | `engine.gates.notebooks.toehold_and.sequence_screen` |  | 5 | 0 | Green 2014's sequence screens, measured on our population before any of them becomes a filter. |
 | gates | `engine.gates.notebooks.toehold_and.state_diagrams` |  | 9 | 0 | Schematics of the four logic states — what the gate is *meant* to do, and what it does. |
+| gates | `engine.gates.notebooks.toehold_and.stem_opens_mfe` |  | 1 | 0 | Does the main hairpin open in the MFE of the ON tube, and what would filtering on it cost? |
 | gates | `engine.gates.notebooks.toehold_and.strand_occupancy` |  | 3 | 0 | Where does each strand actually go, in each of the four tubes? |
 | gates | `engine.gates.notebooks.toehold_and.strength_window` |  | 7 | 0 | Generate the experiment that asks whether a thermodynamic AND is reachable at all. |
 | gates | `engine.gates.notebooks.toehold_and.structure_figures` |  | 7 | 0 | Nucleotide-level plots of each design's folded OFF state, with its own four-tube results. |
 | gates | `engine.gates.notebooks.toehold_and.survey_summary` |  | 3 | 0 | Read the population survey's shards and report distributions, not headlines. |
+| gates | `engine.gates.notebooks.toehold_and.sweep_analysis` |  | 1 | 0 | Query the full sweep without loading it — and say plainly what it cannot tell you. |
+| gates | `engine.gates.notebooks.toehold_and.toehold_metric` |  | 1 | 0 | How structured is trigger B's toehold, and especially its 3' end? |
+| gates | `engine.gates.notebooks.toehold_and.transcript_drift` |  | 2 | 0 | Which designs were built against a transcript base that has since been corrected. |
 | gates | `engine.gates.notebooks.toehold_and.trigger_accessibility` |  | 8 | 0 | Stage 1b — accessibility scores for every trigger pair, in Green's and VISTA's terms. |
+| gates | `engine.gates.notebooks.toehold_and.variant_leak` |  | 2 | 0 | The AND-ness the BENCH will measure, on the four recoded transcripts rather than four tubes. |
+| gates | `engine.gates.notebooks.toehold_and.vista_metrics` |  | 1 | 0 | The VISTA-style metrics, computed on finished folds and joined back by design key. |
 | gates | `engine.gates.notebooks.toehold_and.window_probabilities` |  | 4 | 0 | The ribosome window as probabilities, base by base, in all four tubes. |
+| gates | `engine.gates.notebooks.toehold_and.window_vs_green` |  | 2 | 0 | Does the main_z + aug window beat f1 on Green's 168 measured switches? |
+| gates | `engine.gates.notebooks.toehold_and.report.check_order_sheet` |  | 7 | 0 | Evaluate the ordering sheet's sanity checks in Python, on the data the sheet is built from. |
+| gates | `engine.gates.notebooks.toehold_and.report.panel_data` |  | 12 | 0 | Build the report JSON for the panel, from ``results/panel_three.csv``. |
+| gates | `engine.gates.notebooks.toehold_and.report.panel_page` |  | 1 | 0 | Assemble the panel report page from ``head.html``, ``script.html`` and ``panel_data.json``. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
 | stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
@@ -878,16 +917,21 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, temperature: float = 37.0, cache_size: int = 100000) -> None` |  |
-| `BUILT` | `@cache def mfe(self, strands: str) -> FoldResult` | Fold a sequence — or a multi-strand complex — and return its most stable predicted structure. |
-| `BUILT` | `@cache def structure_energy(self, strands: str, structure: str) -> float \| None` | Energy of one **given** structure, rather than the best one. |
-| `BUILT` | `@cache def partition(self, sequence: str) -> float` | Ensemble free energy over all structures, not just the most stable one. |
+| `BUILT` | `def __init__(self, temperature: float = 37.0, cache_size: int \| None = 100000) -> None` |  |
+| `BUILT` | `def cache_report(self) -> dict[str, tuple[int, int, int]]` | ``{method: (hits, misses, entries)}`` — for checking a long run's cache health. |
+| `BUILT` | `def mfe(self, strands: str) -> FoldResult` | Fold a sequence — or a multi-strand complex — and return its most stable predicted structure. |
+| `BUILT` | `def centroid(self, strands: str) -> FoldResult` | The structure with the smallest expected base-pair distance to the ensemble. |
+| `BUILT` | `def structure_energy(self, strands: str, structure: str) -> float \| None` | Energy of one **given** structure, rather than the best one. |
+| `BUILT` | `def partition(self, sequence: str) -> float` | Ensemble free energy over all structures, not just the most stable one. |
 | `BUILT` | `@property def rt(self) -> float` | ``RT`` in kcal/mol at this engine's temperature. |
 | `BUILT` | `def p_open(self, strands: str, window: tuple[int, int]) -> float \| None` | Joint probability that **every** base in ``window`` is unpaired at once. |
 | `BUILT` | `def p_open_by_order(self, strands: str, window: tuple[int, int]) -> tuple[list[float], list[float], list[float]] \| None` | ``p_open`` resolved per strand ordering, for auditing the spread above. |
+| `BUILT` | `def open_penalty(self, strands: str, spans: tuple[tuple[int, int], ...]) -> float \| None` | Free energy cost of forcing every base in ``spans`` unpaired, in kcal/mol. |
+| `BUILT` | `def saddle(self, sequence: str, start: str, end: str, *, max_energy: float = 200.0) -> float \| None` | Activation barrier between two structures, in kcal/mol above ``start``. |
 | `BUILT` | `def ensemble_defect(self, sequence: str, target: str) -> float` | How far the predicted ensemble sits from an intended structure. |
 | `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` | Probability that each pair of positions is bonded, over the whole ensemble. |
 | `BUILT` | `def pooled_pair_probabilities(self, strands: str) -> list[list[float]]` | ``base_pair_probabilities`` Boltzmann-averaged over all strand orderings. |
+| `BUILT` | `def pooled_partition(self, strands: str) -> float` | ``partition`` Boltzmann-summed over all strand orderings. |
 | `STUB` | `def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]` | Every structure within an energy window of the MFE. |
 | `BUILT` | `def mfe_with_window_open(self, strands: str, window: tuple[int, int]) -> tuple[str, float]` | The most stable structure that leaves ``window`` single-stranded. |
 | `BUILT` | `def refolding_saddle(self, strands: str, start: str, target: str, *, width: int = 20) -> float \| None` | Highest energy on a direct refolding path from ``start`` to ``target``. |
@@ -1085,7 +1129,7 @@ Two-input AND toehold.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'toehold_and'` |
-| `version` |  | `'0.1.0-stub'` |
+| `version` |  | `'0.2.0-stub'` |
 | `kind` |  | `GateKind.TOEHOLD_AND` |
 | `label` |  | `'AND Toehold'` |
 | `description` |  | `'Two-input translational AND'` |
@@ -1101,6 +1145,10 @@ Two-input AND toehold.
 | `THRESHOLDS` | `ClassVar[tuple[tuple[str, str, float], ...]]` | `(('A_S_00', '<', 0.2), ('A_M_00', '<', 0.2), ('A_S_10', '<', 0.2), ('A_M_10', '<', 0.2)…` |
 | `STEM_INDEPENDENT` | `ClassVar[frozenset[str]]` | `frozenset({'dG_open_00', 'dG_open_10', 'dG_open_11', 'dG_open_flank_00', 'flank_penalty…` |
 | `ARM_LEN` | `ClassVar[int]` | `18` |
+| `TOEHOLD_TRIM` | `ClassVar[int]` | `0` |
+| `SECONDARY_ARM_LEN` | `ClassVar[int]` | `18` |
+| `SECONDARY_INVASION_LEN` | `ClassVar[int]` | `18` |
+| `SECONDARY_CAP` | `ClassVar[str]` | `''` |
 | `MAX_INVASION_STALL` | `ClassVar[int]` | `2` |
 
 | Status | Method | Purpose |
@@ -1170,6 +1218,26 @@ Two-input AND toehold family for eukaryotic translation.
 | `description` |  | `'Eukaryotic two-input translational AND'` |
 | `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.YEAST, Host.HUMAN})` |
 
+#### `class TrimmedToeholdAndGate(ProkaryoticToeholdAndGate)`
+
+A0 with a shortened toehold, for testing whether a shorter ``r2*`` binds better.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `version` |  | `'trimmed-toehold-2'` |
+| `TOEHOLD_TRIM` | `ClassVar[int]` | `8` |
+
+#### `class KimSecondaryArmToeholdAndGate(ProkaryoticToeholdAndGate)`
+
+A0 with Kim 2019's verified inhibitory geometry on the secondary hairpin.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `version` |  | `'kim-secondary-2'` |
+| `SECONDARY_ARM_LEN` | `ClassVar[int]` | `20` |
+| `SECONDARY_INVASION_LEN` | `ClassVar[int]` | `17` |
+| `SECONDARY_CAP` | `ClassVar[str]` | `'AUA'` |
+
 ### `engine.gates.notebooks._fixtures`
 
 `src/engine/gates/notebooks/_fixtures.py`
@@ -1219,6 +1287,95 @@ Render an HTML report to PDF via headless Chromium (Playwright).
 | `BUILT` | `def render_pdf(html_path: Path, pdf_path: Path, *, landscape: bool = True) -> None` |  |
 | `BUILT` | `def main() -> None` |  |
 
+### `engine.gates.notebooks.toehold_and.access_vs_vista`
+
+`src/engine/gates/notebooks/toehold_and/access_vs_vista.py`
+
+Do Green 2014's local single-strandedness and VISTA's flanked MFE pick the same trigger pairs?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `FLANKS` |  | `(0, 10, 25, 50, 100)` |
+| `MEASURES` |  | `('l_green', 'mfe_w0', 'mfe_w10', 'mfe_w25', 'mfe_w50', 'mfe_w100')` |
+| `METRICS` |  | `(('combined', 'best_combined', False), ('A_M ratio', 'best_f2', False), ('A_M gain', 'b…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def ranks(values: list[float]) -> list[float]` |  |
+| `BUILT` | `def spearman(xs: list[float], ys: list[float]) -> float \| None` |  |
+| `BUILT` | `def window_table(results: Path) -> dict[tuple[int, str], dict]` | ``(window start, role) -> every accessibility column``, the key the panel already uses. |
+| `BUILT` | `def number(row: dict, key: str) -> float \| None` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.accessibility_s1`
+
+`src/engine/gates/notebooks/toehold_and/accessibility_s1.py`
+
+Accessibility in VISTA's validated form: full-transcript ensemble, flanked window.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `FLANKS` |  | `(0, 10, 25, 50)` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def unpaired_profile(folder: FoldEngine, transcript: str) -> list[float]` | Per-base probability of being unpaired, from ONE fold of the whole transcript. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.aug_rescue`
+
+`src/engine/gates/notebooks/toehold_and/aug_rescue.py`
+
+Silence an out-of-frame AUG by editing ``main_z``, which is a free design choice.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `FIELDS` |  | `('switch', 'switch_before', 'edit', 'pair', 'geom', 'closure', 'len_x', 'a_start', 'a_e…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def a_m_per_tube(folder: FoldEngine, switch: str, trig_a: str, trig_b: str) -> dict[str, float]` |  |
+| `BUILT` | `def ratio(values: dict[str, float]) -> float \| None` |  |
+| `BUILT` | `def candidate_edits(switch: str) -> list[tuple[int, str, str]]` | Single-base edits inside ``main_z`` that remove every out-of-frame AUG. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.augz_vs_libraries`
+
+`src/engine/gates/notebooks/toehold_and/augz_vs_libraries.py`
+
+The main_z + aug window -- ON, OFF and GAIN -- on all three measured libraries.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `GREEN_2014` |  | `Path('C:\\Users\\Dell\\OneDrive - mail.tau.ac.il\\IGEM\\Toehold\\Green 2014')` |
+| `GREEN_2026` |  | `Path('C:\\Users\\Dell\\OneDrive - mail.tau.ac.il\\IGEM\\Toehold\\Green 2026')` |
+| `LIBRARIES` |  | `(('g168', 'g168.csv', gc.TABLE_S1, 'xlsx'), ('g13', 'g13.csv', str(GREEN_2014 / 'Table…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def noise_for(n: int) -> float` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.barrier_additivity`
+
+`src/engine/gates/notebooks/toehold_and/barrier_additivity.py`
+
+Does the barrier ADD to another arm, and what does an epsilon-constraint on it buy?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `GREEN_ARMS` |  | `(('A_M_gain', 'A_M gain', False), ('dG_rbs_linker', 'dG_rbs_linker', False), ('A_M_rati…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def percentile(values: list[float], lower_is_better: bool) -> list[float]` | Rank each value in [0, 100] with 100 = best, the same transform the panel uses. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
 ### `engine.gates.notebooks.toehold_and.build_report`
 
 `src/engine/gates/notebooks/toehold_and/build_report.py`
@@ -1257,6 +1414,108 @@ What the AUG bulge actually is, which side is designable, and what the two hairp
 | `BUILT` | `def spearman(pairs: list[tuple[float, float]]) -> tuple[float, int]` |  |
 | `BUILT` | `def main(argv = None) -> int` |  |
 
+### `engine.gates.notebooks.toehold_and.candidates`
+
+`src/engine/gates/notebooks/toehold_and/candidates.py`
+
+Pick an orderable panel, and say what each row is there to find out.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `RESULTS` |  | `Path(__file__).resolve().parent / 'results'` |
+| `PINNED` | `dict[tuple[int, int], str]` | `{}` |
+| `SECONDARY_LOOP` |  | `'CAAGAACUUAGACAA'` |
+| `PAIR` |  | `'x_start, xstar_start, a_start, a_end, b_start, b_end'` |
+| `DESIGN` |  | `'closure, upper3, lower3, island, scheme, stem_index'` |
+| `RARE_CODONS` |  | `frozenset({'AGG', 'AGA', 'CGA', 'CGG', 'CUA', 'AUA', 'CCC', 'UCG'})` |
+| `STOP_CODONS` |  | `frozenset({'UAA', 'UAG', 'UGA'})` |
+| `SD_LIKE` |  | `('AGGAGG', 'GGAGG', 'AGGAG')` |
+| `OBJECTIVE_ROLES` |  | `('consensus', 'onoff-only', 'pareto-only', 'product-only')` |
+| `OBJECTIVE_ROLE_OF` | `dict[str, str]` | `{}` |
+| `OBJECTIVE_PICKS` | `dict[str, list[str]]` | `{}` |
+| `AUG_FLOOR` |  | `0.2` |
+| `LOCK_FLOOR` |  | `0.3` |
+| `OBJECTIVE_RANKS` | `dict[str, dict[str, int]]` | `{}` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def print(*args, **kwargs)` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.codon_variants`
+
+`src/engine/gates/notebooks/toehold_and/codon_variants.py`
+
+Four mCherry transcripts that realise the four logic states with one switch.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `HERE` |  | `Path(__file__).resolve().parent` |
+| `MAX_HOMOPOLYMER` |  | `4` |
+| `MAX_UNTOUCHED` |  | `6` |
+| `ORF_FRAME` |  | `0` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def load_codon_table(path: Path) -> tuple[dict[str, str], dict[str, float]]` | codon -> amino acid, and codon -> E. coli usage fraction. |
+| `BUILT` | `def synonyms(amino: dict[str, str]) -> dict[str, list[str]]` |  |
+| `BUILT` | `def verify_frame(rna: str, amino: dict[str, str]) -> int` | Confirm the ORF is in frame 0 and return its codon count. |
+| `BUILT` | `def codon_starts(lo: int, hi: int) -> list[int]` | Starts of the codons lying entirely inside ``[lo, hi)``, in frame 0. |
+| `BUILT` | `def recode_windows(rna: str, windows: list[tuple[int, int]], amino: dict[str, str], fraction: dict[str, float], groups: dict[str, list[str]]) -> tuple[str, dict]` | Recode every codon in every window to its nearest-abundance synonym. |
+| `BUILT` | `def a_m_terms(folder: FoldEngine, switch: str, trig_a: str, trig_b: str) -> tuple[float \| None, float \| None, float \| None]` | ``(ratio, gain)``: ``A_M(11)/max(A_M OFF)`` and ``A_M(11) - max(A_M OFF)``, on this transcript's triggers. |
+| `BUILT` | `def parse_swap(recipe: str) -> tuple[list[str], list[tuple[str, list[str]]]] \| None` | ``pairs=P1;P2\|T0=\|T1=1A\|T2=1B,2A`` -> the two pair labels and each transcript's windows. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.combos_vs_green`
+
+`src/engine/gates/notebooks/toehold_and/combos_vs_green.py`
+
+Which combinations of terms predict a measured switch, across all three libraries?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `TERMS` | `dict[str, bool]` | `{'f1': False, 'A_M_ratio': True, 'A_M_gain': True, 'access': False, 'ied_on': False, 'i…` |
+| `LIBRARIES` | `tuple[tuple[str, str], ...]` | `(('g168', 'on_off'), ('g13', 'on_off'), ('vista', 'on_off'))` |
+| `SOURCE` | `dict[str, object]` | `{'f1': ('dG_open_on', 'dG_open_off'), 'A_M_ratio': 'A_M_ratio', 'A_M_gain': 'A_M_gain',…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def noise_for(n: int) -> float` | Sampling noise on a Spearman rho over ``n`` switches, as ``1/sqrt(n)``. |
+| `BUILT` | `def percentiles(values: list[float], higher_is_better: bool) -> list[float]` | Each value's percentile inside this set, 100 = best. |
+| `BUILT` | `def read_library(path: Path, on_off_column: str) -> list[dict]` | One row per switch carrying every term, dropping any switch missing one of them. |
+| `BUILT` | `def report(label: str, rows: list[dict]) -> dict[str, float]` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.complete_panel`
+
+`src/engine/gates/notebooks/toehold_and/complete_panel.py`
+
+The three measurements the panel is still missing, in one resumable pass.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `HERE` |  | `Path(__file__).resolve().parent` |
+| `RBS_FLANK_LEN` |  | `7` |
+| `DISQUALIFYING` |  | `('FIRES',)` |
+| `AUG_Z_COLUMNS` |  | `frozenset({f'aug_z_open_{state}' for state in ('00', '01', '10', '11')} \| {'aug_z_sep'})` |
+| `LANDING_COLUMNS` |  | `frozenset({'land_site_nt'} \| {f'land_run_g{gap}' for gap in (0, 1, 2)})` |
+| `TOEHOLD_COLUMNS` |  | `frozenset({'eff_toehold_a', 'eff_run_lo', 'eff_run_hi'} \| {f'eff_run_a_g{gap}' for gap…` |
+| `METRIC_SETS` |  | `{'rbs_open': ('rbs11_open',), 'rbs_aug': ('rbs_aug_open_11', 'rbs_aug_open_00'), 'aug_z…` |
+| `FIELDS` |  | `('switch', 'rbs_aug_open_11', 'rbs_aug_open_00', 'aug_z_open_00', 'aug_z_open_01', 'aug…` |
+| `CONTACT_P` |  | `0.5` |
+| `RUN_GAPS` |  | `(0, 1, 2)` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def secondary_arm_domains(switch: str) -> dict[str, tuple[int, int]]` | ``sec_z`` and ``x*`` -- the stretch trigger B's binding frees for trigger A to land on. |
+| `BUILT` | `def rbs_span(switch: str) -> tuple[int, int]` | The Shine-Dalgarno itself: ``rbs_loop`` is ``RBS_FLANK`` (7 nt) then the 11-nt site. |
+| `BUILT` | `def load_offtarget(path: Path) -> dict[tuple[int, int, int], dict]` | (a_start, b_start, len_x) -> verdict. Keyed on STARTS, so both geometries match. |
+| `BUILT` | `def load_l_green(path: Path) -> dict[tuple[int, str], float]` | (window start, role) -> l_green, shared by both geometries. |
+| `BUILT` | `def effective_toehold(folder: FoldEngine, strands: str, switch_len: int, trig_a_len: int, switch: str \| None = None) -> dict[str, int \| None]` | How long a duplex trigger A actually forms with the switch in the ON tube. |
+| `BUILT` | `def status(results: Path, out: str) -> int` | How far the shards have got, against the feasible set they are completing. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
 ### `engine.gates.notebooks.toehold_and.design_panel`
 
 `src/engine/gates/notebooks/toehold_and/design_panel.py`
@@ -1272,6 +1531,100 @@ The whole A0 pipeline, end to end, for a wet-lab panel. One command, no hand-hol
 | `BUILT` | `def read_fasta(path: str) -> str` |  |
 | `BUILT` | `def select_pairs(gate, transcript, *, lab_filter: bool, wanted: int, verbose: bool)` | Stage 1, then the longest overlaps. Long overlaps come first because `x*` is the one domain scheme C cannot design, so its length is the only lever on how firmly trigger A's nucleation site is held shut. |
 | `BUILT` | `def pick_by_family(stems, per_family: int)` | Up to ``per_family`` builds from each scheme, strongest lock first. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.dgbind_vs_libraries`
+
+`src/engine/gates/notebooks/toehold_and/dgbind_vs_libraries.py`
+
+Is ``dG_bind`` -- how hard the trigger grips the switch -- predictive on measured switches?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def dg_bind(folder: FoldEngine, switch: str, trigger: str) -> float \| None` | ``e(switch&trigger) - e(switch) - e(trigger)``, the grip of one trigger on one switch. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.drift_fold`
+
+`src/engine/gates/notebooks/toehold_and/drift_fold.py`
+
+Fold the drift-repaired switches so the panel can actually see them.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `STATES` |  | `('00', '01', '10', '11')` |
+| `FIELDS` |  | `('switch', 'drift_repaired', *(f'A_M_{s}' for s in STATES), *(f'aug_{s}' for s in STATE…` |
+| `OBJ_FIELDS` |  | `('switch', 'a_start', 'a_end', 'b_start', 'b_end', 'len_x', 'open_00', 'open_01', 'open…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def xstar_span(switch: str, len_x: int) -> tuple[int, int]` | ``x*`` is the last ``len_x`` nt of the secondary hairpin, which closes on ``sws_end``. |
+| `BUILT` | `def mean_unpaired(matrix, lo: int, hi: int) -> float` |  |
+| `BUILT` | `def observables(folder: FoldEngine, switch: str, trig_a: str, trig_b: str, len_x: int) -> dict` | The folded half, over the same spans the sweep used. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+| `BUILT` | `def emit_obj(results: Path, repaired: str, rows: list[dict], transcript: str, folder: FoldEngine) -> None` | The energy half, under a name `load` will glob. |
+
+### `engine.gates.notebooks.toehold_and.drift_regenerate`
+
+`src/engine/gates/notebooks/toehold_and/drift_regenerate.py`
+
+Regenerate the drift-affected designs a patch cannot fix, from their axis columns.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `OBJ_FIELDS` |  | `('switch', 'a_start', 'a_end', 'b_start', 'b_end', 'len_x', 'open_00', 'open_01', 'open…` |
+| `EXTRA` |  | `('switch_before', 'identity', 'stem_index_before', 'stem_index_after', 'front_size', 'o…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def axis_columns(results: Path) -> dict[str, dict]` | ``switch -> {closure, upper3, lower3, island, stem_index}`` off the folded shards. |
+| `BUILT` | `def identity(left: str, right: str) -> float` |  |
+| `BUILT` | `def write_one(writer, handle, obj_rows: dict, made: tuple, transcript: str, folder) -> None` | Fold, score and write ONE design, flushing as it goes. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.drift_repair`
+
+`src/engine/gates/notebooks/toehold_and/drift_repair.py`
+
+Repair designs built against a transcript base that has since been corrected.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `MIN_BLOCK` |  | `12` |
+| `FIELDS` |  | `('switch', 'switch_before', 'patched_positions', 'a_start', 'a_end', 'b_start', 'b_end'…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def map_position(switch: str, window: str, start: int, position: int) -> int \| None` | Switch index pairing with transcript ``position``, or ``None`` if not determined. |
+| `BUILT` | `def repair(switch: str, row: dict, before: str, after: str) -> tuple[str \| None, list[int], str]` | The patched switch, the switch positions touched, and why if it could not be done. |
+| `BUILT` | `def status(results: Path, out: str, targets: list[dict], before: str, after: str) -> int` | How far the repair has got, against what it can actually reach. |
+| `BUILT` | `def verify(results: Path, out: str, before: str, after: str) -> int` | Check each written row against the two transcripts, without trusting this module's mapping. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.ensemble_vs_mfe`
+
+`src/engine/gates/notebooks/toehold_and/ensemble_vs_mfe.py`
+
+Does replacing every MFE with the ensemble free energy improve the correlations?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `GREEN_2014` |  | `Path('C:\\Users\\Dell\\OneDrive - mail.tau.ac.il\\IGEM\\Toehold\\Green 2014')` |
+| `RBS` |  | `'AACAGAGGAGA'` |
+| `LINKER_AFTER_AUG` |  | `9` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def find_table(directory: Path, prefix: str) -> Path \| None` |  |
+| `BUILT` | `def report(label: str, xs: list[float], ys: list[float], flip: bool) -> float \| None` | Signed Spearman, with the metric's own direction applied so positive means 'right'. |
 | `BUILT` | `def main(argv = None) -> int` |  |
 
 ### `engine.gates.notebooks.toehold_and.factorisation`
@@ -1301,6 +1654,23 @@ Stage 1 for the A0 two-input AND gate: find usable trigger pairs in one transcri
 | `BUILT` | `def bootstrap() -> Path` | Put ``<repo>/src`` on ``sys.path``, as the notebooks beside this one do. |
 | `BUILT` | `def read_fasta(path: str) -> str` | The first record of a FASTA, as RNA. Accepts a bare sequence file too. |
 | `BUILT` | `def main(argv: list[str] \| None = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.fold_analysis`
+
+`src/engine/gates/notebooks/toehold_and/fold_analysis.py`
+
+Read stage 2's folded designs and say which axis settings actually won.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `RESULTS` |  | `Path(__file__).resolve().parent / 'results'` |
+| `STEM` |  | `'x_start, xstar_start, a_start, a_end, b_start, b_end, stem_index'` |
+| `AXES` |  | `('closure', 'upper3', 'lower3', 'island')` |
+| `STATISTICS` |  | `('mean_separation', 'A_M_gain', 'separation', 'log10_rate_advantage', 'A_M_11')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def main(argv = None) -> int` |  |
 
 ### `engine.gates.notebooks.toehold_and.folding_barriers`
 
@@ -1348,9 +1718,12 @@ The full design sweep, staged so the expensive half only ever sees survivors.
 | --- | --- | --- |
 | `CLOSURES` | `tuple[tuple[str, str], ...]` | `(('open_3x3', None), ('closed_UAU', 'UAU'), ('closed_CAU', 'CAU'), ('closed_CGU', 'CGU'…` |
 | `UPPER3` | `tuple[tuple[str, str], ...]` | `(('trigger_derived', None), ('WWW_AUA', 'AUA'), ('WWW_UAU', 'UAU'), ('WWS_AUG', 'AUG'),…` |
+| `WOBBLE` |  | `'<wobble>'` |
 | `LOWER3` | `tuple[tuple[str, str], ...]` | `(('trigger_derived', None), ('SSW', 'GGA'), ('SWS', 'GAG'), ('WSS', 'AGG'), ('SSS', 'GG…` |
 | `ISLAND` | `tuple[tuple[str, str], ...]` | `(('trigger_derived', None), ('WWW', 'AUA'))` |
 | `PENDING_LENGTH_AXES` |  | `('toehold_trim', 'rbs_loop_len', 'secondary_arm')` |
+| `PAIR_KEY_COLUMNS` |  | `('x_start', 'xstar_start', 'a_start', 'a_end', 'b_start', 'b_end')` |
+| `DESIGN_KEY_COLUMNS` |  | `(*PAIR_KEY_COLUMNS, 'stem_index', 'closure', 'upper3', 'lower3', 'island')` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
@@ -1359,6 +1732,7 @@ The full design sweep, staged so the expensive half only ever sees survivors.
 | `BUILT` | `def cheap_metrics(gate, trigger_a: str, trigger_b: str, pair) -> dict` | Everything about a trigger PAIR that needs no switch folding. |
 | `BUILT` | `def build(base, axes: dict)` | Apply one point of the axis grid to an assembled switch. |
 | `BUILT` | `def main(argv = None) -> int` |  |
+| `BUILT` | `def pair_key(pair) -> tuple[int, ...]` | The identity of a trigger pair, matching ``PAIR_KEY_COLUMNS`` order. |
 
 ### `engine.gates.notebooks.toehold_and.green_calibration`
 
@@ -1375,6 +1749,7 @@ Does our ranking observable rank switches that were actually measured?
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def load_switches(path: str) -> list[dict]` | Every row of Table S1 sections A and B that carries a sequence pair and a ratio. |
+| `BUILT` | `def load_vista_csv(path: str) -> list[dict]` | Robson/Green 2026 Supplementary Table 4 -- the ~190-switch VISTA library. |
 | `BUILT` | `def spearman(pairs: list[tuple[float, float]]) -> tuple[float, int]` | Rank correlation, average ranks for ties. Returns ``(rho, n)``. |
 | `BUILT` | `def score(folder: FoldEngine, row: dict) -> dict \| None` | Our four-tube observables, reduced to the two tubes a one-input switch has. |
 | `BUILT` | `def main(argv = None) -> int` |  |
@@ -1434,6 +1809,29 @@ A kinetic proxy, reported beside the equilibrium numbers and never scored.
 | `BUILT` | `def decades(toehold_nt: float) -> float` | Rate contribution of a foothold of this length, in orders of magnitude. |
 | `BUILT` | `def main(argv = None) -> int` |  |
 
+### `engine.gates.notebooks.toehold_and.metric_correlations`
+
+`src/engine/gates/notebooks/toehold_and/metric_correlations.py`
+
+Every metric against every measured library, Spearman and Pearson, with its window.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `METRICS` | `dict[str, tuple[bool, str, str]]` | `{'dG_open_off': (False, 'W_rank, 31 nt', 'cost to force W_rank open, OFF state'), 'dG_o…` |
+| `REPAIR_META` |  | `{'A_M_ratio_floor0.01': (False, 'arm, 18 nt', 'A_M_on / max(A_M_off, 0.01)'), 'A_M_rati…` |
+| `LIBRARIES` |  | `(('G168', 'g168.csv', 'Green 2014 Table S1, 168 measured switches', 'on_off'), ('G13',…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def repairs(row: dict[str, float \| None]) -> dict[str, float \| None]` |  |
+| `BUILT` | `def ranks(values: list[float]) -> list[float]` | Average ranks, so ties do not fabricate an ordering. |
+| `BUILT` | `def pearson(xs: list[float], ys: list[float]) -> float \| None` |  |
+| `BUILT` | `def spearman(xs: list[float], ys: list[float]) -> float \| None` |  |
+| `BUILT` | `def load(path: Path, measured: str = 'on_off') -> list[dict[str, float \| None]]` |  |
+| `BUILT` | `def correlate(rows: list[dict], key: str, lower: bool, measured: str = 'on_off')` | Signed Spearman and Pearson, plus the leave-one-out range of the Spearman. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
 ### `engine.gates.notebooks.toehold_and.modification_panel`
 
 `src/engine/gates/notebooks/toehold_and/modification_panel.py`
@@ -1490,6 +1888,198 @@ Who is holding trigger A's nucleation site: the switch, trigger A, or nobody?
 | `BUILT` | `def spearman(pairs)` |  |
 | `BUILT` | `def main(argv = None) -> int` |  |
 
+### `engine.gates.notebooks.toehold_and.objective_energy`
+
+`src/engine/gates/notebooks/toehold_and/objective_energy.py`
+
+The energy-sum objective function for the A0 two-input toehold AND gate.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `RARE_CODONS` |  | `frozenset({'AGG', 'AGA', 'CGA', 'CGG', 'CUA', 'AUA', 'CCC', 'UCG'})` |
+| `CODONS_SCREENED` |  | `3` |
+| `ON_CEILING` |  | `4.0` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def early_codons(switch: str) -> list[str]` | The first ``CODONS_SCREENED`` codons after the AUG. |
+| `BUILT` | `def domains(switch: str) -> dict[str, tuple[int, int]]` | Absolute ``(start, end)`` of each domain in this switch, 0-based, end exclusive. |
+| `BUILT` | `def mfe_partners(folder, strands: str) -> dict[int, int]` | Position -> its partner in this tube's MFE structure, with the ``&`` removed. |
+| `BUILT` | `def a_contacts(folder, strands: str, switch_len: int, trig_a_len: int) -> set[int]` | Which SWITCH positions trigger A is paired to, in the MFE of this tube. |
+| `BUILT` | `def ascending_arm(switch: str) -> set[int]` | The main stem's ascending arm: ``main_pre* + bulge* + k1*``, as switch positions. |
+| `BUILT` | `def engages_stem_mfe(folder, switch: str, trig_a: str, trig_b: str \| None = None) -> float \| None` | Share of trigger A's MFE contacts that land on the ascending arm. ``None`` if it has none. |
+| `BUILT` | `def main_stem_arms(switch: str) -> tuple[tuple[int, int], ...]` | The descending arms of the main stem: ``main_z`` and ``main_pre``. |
+| `BUILT` | `def intended_duplexes(switch: str, len_x: int) -> dict[str, tuple[range, range]]` | The four duplexes the two hairpins are supposed to form, as index ranges to be zipped. |
+| `BUILT` | `def hairpin_fidelity(folder: FoldEngine, switch: str, len_x: int) -> dict[str, float \| None]` | How much of each intended duplex actually forms in the OFF state, 0 to 1. |
+| `BUILT` | `def accessibility_table(folder: FoldEngine, transcript: str, windows: set[tuple[int, int]], path: Path) -> dict[tuple[int, int], float \| None]` | Cost of opening each trigger window on the transcript, computed once and cached. |
+| `BUILT` | `def score_design(folder: FoldEngine, switch: str, trigger_a: str, trigger_b: str, *, transcript: str \| None = None, site_a: tuple[int, int] \| None = None, site_b: tuple[int, int] \| None = None, access: dict[tuple[int, int], float \| None] \| None = None, on_ceiling: float \| None = None) -> dict[str, float \| None]` | Every term of the objective for one design, plus the total. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.objective_panel`
+
+`src/engine/gates/notebooks/toehold_and/objective_panel.py`
+
+Pick an orderable panel: four objective functions, two geometries, one trigger pair each.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `GEOMETRY` |  | `{161: 'naive 18nt', 165: 'Kim 20/17/AUA'}` |
+| `AUG_FLOOR` |  | `0.2` |
+| `LOCK_FLOOR` |  | `0.3` |
+| `L_GREEN_FLOOR` |  | `0.483` |
+| `L_FULL_W25_FLOOR` |  | `0.3482` |
+| `L_LOCAL_FLOOR` |  | `0.3369` |
+| `LOCK01_FLOOR` |  | `0.2` |
+| `GATING` |  | `-2.0` |
+| `VARIANT_GATING` | `float \| None` | `None` |
+| `DEAD_SCHEMES` |  | `('A-anchored', 'unlocked')` |
+| `HAIRPIN_FLOOR` |  | `0.3` |
+| `COMPLETION_COLUMNS` |  | `('rbs11_open', 'dG_rbs_linker', 'r2_star_00', 'hairpin_worst', 'engaged_arm_11', 'ied_r…` |
+| `ACCESS_COLUMNS` |  | `('l_green', 'l_full_w0', 'l_full_w10', 'l_full_w25', 'l_full_w50', 'l_local')` |
+| `GRIP_BREAK_MAX` |  | `1` |
+| `LOWER3_KEEP` | `frozenset[str]` | `frozenset()` |
+| `DRIFTED_POSITIONS` |  | `frozenset({62, 356, 434, 482, 578, 590})` |
+| `COMBINED_WEIGHT` |  | `0.6` |
+| `EPSILON` |  | `0.8` |
+| `ARMS` | `dict[str, object]` | `{'opening SEP': lambda r: r['f1'], 'A_M ratio': lambda r: -r['f2'] if r['f2'] is not No…` |
+| `CELL_RELATIVE` |  | `frozenset({'combined'})` |
+| `RANKING_ARMS` | `dict[str, object]` | `{name: ARMS[name] for name in ('A_M ratio', 'A_M gain', 'IED rbs-linker', 'dG rbs-linke…` |
+| `PANEL_ARMS` |  | `('IED gain', 'A_M ratio', 'dG arm (ON)')` |
+| `DISTINCT_ARMS` |  | `False` |
+| `ARM4` |  | `''` |
+| `PAIR_ARMS` | `tuple[tuple[str, ...], ...]` | `()` |
+| `PINNED_FOR_RECIPE` | `tuple[str, ...]` | `()` |
+| `ARM4_PAIRS` |  | `3` |
+| `ARM_TIE` |  | `0.02` |
+| `MIN_NT_APART` |  | `3` |
+| `ANY_GEOMETRY` |  | `False` |
+| `ARM_COLUMNS` |  | `{'IED gain': 'ied_gain', 'opening SEP': 'f1', 'IED gain (worst OFF)': 'ied_gain_worst',…` |
+| `REQUIRE_BOTH_GEOMETRIES` |  | `False` |
+| `RECODE_FLOOR` |  | `0.5` |
+| `ARM_FLOOR` |  | `0.3` |
+| `STEM_MFE_FLOOR` |  | `0.0` |
+| `LONG_LENX` |  | `(6, 7)` |
+| `DISTINCT_TRIGGER_A` |  | `True` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def load(results: Path) -> list[dict]` | Energy scores joined to design axes, one row per switch. |
+| `BUILT` | `def add_offtarget(rows: list[dict], results: Path) -> dict[str, int]` | Attach the off-target verdict, keyed on ``(a_start, b_end, len_x)`` so both geometries match. |
+| `BUILT` | `def add_ied_gain(rows: list[dict]) -> int` | ``ied_rbs_linker_00 - ied_rbs_linker_11``: IED's own ON/OFF separation. |
+| `BUILT` | `def add_completions(rows: list[dict], results: Path) -> int` | Attach ``rbs11_open`` from ``complete_panel.py``, if it has been run. |
+| `BUILT` | `def grip_broken(switch: str, trigger_a: str) -> int \| None` | How many of the stem's bottom 3 base pairs trigger A cannot form on this design. |
+| `BUILT` | `def add_grip(rows: list[dict], transcript: str) -> int` | Attach ``lower3_broken`` to every row. Pure string work -- no folding, no side table. |
+| `BUILT` | `def lower3_ok(row: dict) -> bool` | Is this design's lower3 acceptable? |
+| `BUILT` | `def add_accessibility(rows: list[dict], results: Path) -> int` | Attach ``l_green`` from ``trigger_accessibility.py``, keyed so both geometries share it. |
+| `BUILT` | `def covers_drift(row: dict) -> list[int]` | Corrected positions inside either trigger window of this design, 0-based. |
+| `BUILT` | `def out_of_frame_augs(switch: str) -> int` | AUGs between the RBS loop and the real start that are NOT in the real start's frame. |
+| `BUILT` | `def feasible(rows: list[dict]) -> list[dict]` | The one filter set every objective ranks inside, so the arms differ only in ranking. |
+| `BUILT` | `def add_variant_leak(rows: list[dict], results: Path) -> int` | Join ``andness_variant`` and the three leaks from ``variant_leak.csv``. |
+| `BUILT` | `def add_stem_mfe(rows: list[dict], results: Path) -> int` | Join ``engages_stem_mfe`` from ``stem_opens_mfe.csv``, keyed on the switch sequence. |
+| `BUILT` | `def population(results: Path, *, quiet: bool = True) -> list[dict]` | Load, join every side table, filter to feasible and add percentiles. The one definition. |
+| `BUILT` | `def add_percentiles(rows: list[dict]) -> None` | Percentile of each term inside this feasible set, 100 = best; f4 and f5 are their means. |
+| `BUILT` | `def epsilon_combined(cell: list[dict]) -> object` | ``combined``: lowest barrier among designs holding EPSILON of the cell's best A_M ratio. |
+| `BUILT` | `def real_measurements(cell: list[dict], arm_rows: dict[str, dict]) -> int` | How many of the arm rows are measurements the others do not already carry. |
+| `BUILT` | `def controlled_pairs(rows: list[dict], per_cell: int) -> list[str]` | Pairs carrying at least ``per_cell`` feasible designs in BOTH geometries, best first. |
+| `BUILT` | `def gating(rows: list[dict]) -> list[dict]` | The floor f1 is kept for: a design has to separate the ON tube from the best OFF tube. |
+| `BUILT` | `def cell_picks(cell: list[dict], arms: dict \| None = None) -> dict[str, list[str]]` | switch -> the objectives that chose it, for one (pair, geometry) cell. |
+| `BUILT` | `def by_cell(rows: list[dict], per_cell: int) -> dict[tuple[str, str], list[dict]]` |  |
+| `BUILT` | `def swap_solves(by_pair: dict, pair: str, taken: list[str]) -> list[dict] \| None` | The four transcripts that address both pairs despite their clash, or ``None``. |
+| `BUILT` | `def recodes_ok(by_pair: dict, pair: str) -> bool` | Can BOTH of this pair's windows be recoded into a knockout? |
+| `BUILT` | `def windows_of(by_pair: dict, pair: str) -> dict[str, tuple[int, int]]` | This pair's two trigger windows, widest form, as spans on the transcript. |
+| `BUILT` | `def shares_trigger(by_pair: dict, pair: str, other: str) -> bool` | Do these two pairs reach the transcript through the same trigger-A window? |
+| `BUILT` | `def cross_role_clash(by_pair: dict, pair: str, other: str) -> int` | Overlapping nucleotides between one pair's A and the other's B, either direction. |
+| `BUILT` | `def recipe() -> str` | One line saying how this panel was built, carried on every row of it. |
+| `BUILT` | `def pick_six(rows: list[dict], geometry: str = '', pin: tuple[str, ...] = ()) -> list[dict]` | Six constructs: two base arms on two trigger pairs, and arm 3 split between them. |
+| `BUILT` | `def pick(rows: list[dict], pairs: int, per_cell: int, pin: tuple[str, ...] = ()) -> list[dict]` | Two trigger pairs x two geometries x three objectives, pairs chosen by **quality**. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.objective_vs_green`
+
+`src/engine/gates/notebooks/toehold_and/objective_vs_green.py`
+
+Rank the five objective functions against every measured toehold library we have.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `AUG_BEFORE` |  | `6` |
+| `AUG_AFTER` |  | `12` |
+| `OBJECTIVES` |  | `(('f5', 'f5', False, 'pct(f2, Barrier, access)'), ('f2', 'f2', False, 'A_M ratio'), ('B…` |
+| `MATCHED_BAND` |  | `(0.229, 0.601)` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def pairs_of(structure: str) -> dict[int, int]` | Index -> partner index, for a dot-bracket string. |
+| `BUILT` | `def aug_open_target(structure: str, aug: int) -> str` | ``structure`` with the AUG neighbourhood, and whatever it pairs with, set unpaired. |
+| `BUILT` | `def ranks(values: list[float]) -> list[float]` | Average ranks, so ties do not fabricate an ordering. |
+| `BUILT` | `def pearson(xs: list[float], ys: list[float]) -> float \| None` |  |
+| `BUILT` | `def spearman(xs: list[float], ys: list[float]) -> float \| None` |  |
+| `BUILT` | `def percentiles(values: list[float], lower_is_better: bool) -> list[float]` | Percentile inside this population, 100 = best -- the same construction the panel uses. |
+| `BUILT` | `def measure(g168: Path, switches: dict[str, str], folder: FoldEngine, verbose: bool = True) -> list[dict]` | One row per switch with all five objectives and the measured ON/OFF. |
+| `BUILT` | `def report(rows: list[dict], label: str = "Green's measured switches") -> None` |  |
+| `BUILT` | `def compare(mine: list[dict], other: list[dict], other_label: str) -> None` | Correlate both libraries inside the toehold-accessibility band they share. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.off_target_scan`
+
+`src/engine/gates/notebooks/toehold_and/off_target_scan.py`
+
+Can the rest of the transcript fire the gate, or block it?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NOTABLE` |  | `10` |
+| `FLANK` |  | `6` |
+| `MOVED` |  | `0.05` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def longest_elsewhere(motif: str, transcript: str, exclude: tuple[int, int]) -> tuple[int, int]` | The longest stretch of ``motif`` that also occurs OUTSIDE ``exclude``. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.order_check`
+
+`src/engine/gates/notebooks/toehold_and/order_check.py`
+
+Everything that must be true before a sequence is ordered, asserted rather than assumed.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `PAIRED` |  | `frozenset({('A', 'U'), ('U', 'A'), ('G', 'C'), ('C', 'G'), ('G', 'U'), ('U', 'G')})` |
+| `RBS_FLANK` |  | `'AGACAAG'` |
+| `RBS_PROKARYOTIC` |  | `'AACAGAGGAGA'` |
+| `STOPS` |  | `('UAA', 'UAG', 'UGA')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def check_switch(rep: Report, switch: str, transcript: str, row: dict) -> None` | The switch sequence itself: alphabet, layout, frame, and no hidden start or stop. |
+| `BUILT` | `def check_variant(rep: Report, row: dict, base: dict, transcript: str) -> None` | A recoded transcript: same protein, and a knockout that actually knocks out. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+#### `class Report`
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def __init__(self) -> None` |  |
+| `BUILT` | `def check(self, ok: bool, label: str, detail: str = '') -> bool` |  |
+| `BUILT` | `def note(self, label: str, detail: str) -> None` |  |
+
+### `engine.gates.notebooks.toehold_and.pick_leaders`
+
+`src/engine/gates/notebooks/toehold_and/pick_leaders.py`
+
+Carve the leading pair-stems out of finished folds into a fresh stage-1 file.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `RESULTS` |  | `Path(__file__).resolve().parent / 'results'` |
+| `STEM` |  | `'x_start, xstar_start, a_start, a_end, b_start, b_end, stem_index'` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
 ### `engine.gates.notebooks.toehold_and.population_survey`
 
 `src/engine/gates/notebooks/toehold_and/population_survey.py`
@@ -1505,6 +2095,52 @@ The four tubes across many trigger pairs, for a distribution instead of an anecd
 | `BUILT` | `def read_fasta(path: str) -> str` |  |
 | `BUILT` | `def surviving_pairs(gate, transcript: str) -> list` | Stage 1, in a fixed order, so a slice means the same thing on every run. |
 | `BUILT` | `def survey_one(gate, transcript: str, pair, stem_index: int) -> dict \| None` | One trigger pair, one build, every raw number. ``None`` if it will not assemble. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.proposal_on_green`
+
+`src/engine/gates/notebooks/toehold_and/proposal_on_green.py`
+
+The proposed function on Green's two libraries, and a check of its S4 against Green's own claim.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `GREEN_2014` |  | `Path('C:\\Users\\Dell\\OneDrive - mail.tau.ac.il\\IGEM\\Toehold\\Green 2014')` |
+| `RBS` |  | `'AACAGAGGAGA'` |
+| `LINKER_AFTER_AUG` |  | `9` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def find_table(directory: Path, prefix: str) -> Path \| None` |  |
+| `BUILT` | `def stem_pairs(switch: str) -> tuple[int, int] \| None` | ``(strong pairs in the bottom 3, strong pairs in the top 3)`` of the RBS hairpin's stem. |
+| `BUILT` | `def score_s4_from(bottom: int, top: int) -> float` |  |
+| `BUILT` | `def report(label: str, xs: list[float], ys: list[float]) -> None` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.proposal_validation`
+
+`src/engine/gates/notebooks/toehold_and/proposal_validation.py`
+
+Measure the proposed six-component objective function against VISTA's 189 measured switches.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `DEFAULT_DATA` |  | `Path('C:\\Users\\Dell\\OneDrive - mail.tau.ac.il\\IGEM\\Toehold\\Green 2026')` |
+| `WEIGHTS` |  | `{'S1_target_access': 0.25, 'S2_off_mfe': 0.2, 'S3_joint_open_ON': 0.2, 'S4_stem_archite…` |
+| `RARE_CODONS` |  | `{'AGG', 'AGA', 'CGA', 'CGG', 'CTA', 'ATA', 'CCC', 'TCG'}` |
+| `RBS` |  | `'AACAGAGGAGA'` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def logistic(value: float, midpoint: float, steepness: float, higher_is_better: bool) -> float` |  |
+| `BUILT` | `def unpaired_profile(path: Path) -> dict[int, float]` | Per-base unpaired probability from Table 7, converted to 0-based indices. |
+| `BUILT` | `def score_s1(profile: dict[int, float], start: int, end: int, flank: int, rt: float) -> tuple` | S1: target accessibility over the site plus ``flank`` nt each side. |
+| `BUILT` | `def score_s2(off_mfe: float, ned: float) -> float` | S2: OFF-state closure. Midpoint -35 for an AND gate, -30 otherwise; VISTA is single-input. |
+| `BUILT` | `def score_s4(switch: str, rbs_at: int) -> tuple[float, str]` | S4: the 2S/1W bottom and 3-WWW top rules, read off the switch sequence. |
+| `BUILT` | `def score_s6(linker_mfe: float, downstream: str, codons: int) -> float` | S6: linker energy and a rare-codon scan over ``codons`` codons downstream of the site. |
+| `BUILT` | `def report(label: str, xs: list[float], ys: list[float]) -> None` |  |
 | `BUILT` | `def main(argv = None) -> int` |  |
 
 ### `engine.gates.notebooks.toehold_and.rank_candidates`
@@ -1524,6 +2160,97 @@ Stages 3-5 for the A0 AND gate: assemble, fold four tubes, gate, and rank.
 | `BUILT` | `def stage_one(gate, transcript)` | Trigger pairs whose windows fit, are motif-clean, and can be knocked out. |
 | `BUILT` | `def pass_one(gate, transcript, limit, verbose = True)` | Generate, fold and gate. Returns survivors and a census of what killed the rest. |
 | `BUILT` | `def score(survivors, w = DEFAULT_W)` | The population boundary, then pass 2. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.rare_codon_rescue`
+
+`src/engine/gates/notebooks/toehold_and/rare_codon_rescue.py`
+
+Rescue designs the rare-codon screen drops, without letting go of trigger A.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `WC` |  | `frozenset({('A', 'U'), ('U', 'A'), ('G', 'C'), ('C', 'G')})` |
+| `WOBBLE` |  | `frozenset({('G', 'U'), ('U', 'G')})` |
+| `HOLDS` |  | `WC \| WOBBLE` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def star_base_for(new_base: str, trigger_base: str) -> str \| None` | A ``main_pre_star`` base that pairs with BOTH the new codon base and trigger A's base. |
+| `BUILT` | `def rescue(switch: str, trigger_a: str, amino: dict[str, str], fraction: dict[str, float], groups: dict[str, list[str]], *, most_abundant: bool = False) -> tuple[str, dict] \| None` | A switch with no rare codon in its first three codons, or ``None`` with no change possible. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.recode_quality`
+
+`src/engine/gates/notebooks/toehold_and/recode_quality.py`
+
+How well does each eligible trigger pair's window actually recode?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `FIELDS` |  | `('pair', 'pair_label', 'len_x', 'a_start', 'a_end', 'b_start', 'b_end', 'a_subs', 'a_br…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def recode_window(transcript: str, lo: int, hi: int, amino: dict, fraction: dict, groups: dict) -> tuple[int, int]` | ``(substitutions, substitutions that break a pair)`` for one window. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.role_swap`
+
+`src/engine/gates/notebooks/toehold_and/role_swap.py`
+
+Can two trigger pairs with overlapping windows still be addressed by four transcripts?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `STATES` |  | `{(True, True): '11', (False, True): '01', (True, False): '10', (False, False): '00'}` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def changed_positions(transcript: str, lo: int, hi: int, amino: dict, fraction: dict, groups: dict) -> set[int]` | Transcript positions the recoder would actually substitute inside ``[lo, hi)``. |
+| `BUILT` | `def solve(windows: dict[str, tuple[int, int]], changes: dict[str, set[int]]) -> list[dict] \| None` | Four window-sets giving both pairs all four states, or ``None`` if none exists. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.score_rescued`
+
+`src/engine/gates/notebooks/toehold_and/score_rescued.py`
+
+Score the rare-codon-rescued designs, in the shape the panel already reads.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `FIELDS` |  | `('switch', 'scheme', 'closure', 'upper3', 'lower3', 'len_x', 'xstar_start', 'a_start',…` |
+| `OBJ_FIELDS` |  | `('switch', 'andness', 'separation', 'barrier', 'open_00', 'open_01', 'open_10', 'open_1…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def a_m_states(folder: FoldEngine, switch: str, trig_a: str, trig_b: str) -> dict[str, float]` | ``A_M`` in all four tubes, plus the gain against the worst OFF state. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.sequence_screen`
+
+`src/engine/gates/notebooks/toehold_and/sequence_screen.py`
+
+Green 2014's sequence screens, measured on our population before any of them becomes a filter.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `IUPAC` |  | `{'K': '[GU]', 'M': '[AC]', 'R': '[AG]', 'S': '[GC]', 'W': '[AU]', 'Y': '[CU]'}` |
+| `GREEN_PATTERNS` |  | `('AAAA', 'CCCC', 'GGGG', 'UUUU', 'KKKKKK', 'MMMMMM', 'RRRRRR', 'SSSSSS', 'WWWWWW', 'YYY…` |
+| `STOP_CODONS` |  | `('UAA', 'UAG', 'UGA')` |
+| `PATTERNS` |  | `compiled()` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def compiled() -> dict[str, re.Pattern]` |  |
+| `BUILT` | `def designed_spans(switch: str) -> list[tuple[str, int, int]]` | The regions we actually choose, excluding every fixed one. |
+| `BUILT` | `def out_of_frame_augs(switch: str) -> int` | AUGs upstream of the real start that are NOT in its frame. |
+| `BUILT` | `def screen(switch: str) -> dict[str, list[str]]` | Every violation, by category. Never the first one only -- all of them. |
 | `BUILT` | `def main(argv = None) -> int` |  |
 
 ### `engine.gates.notebooks.toehold_and.state_diagrams`
@@ -1559,6 +2286,21 @@ Schematics of the four logic states — what the gate is *meant* to do, and what
 | `BUILT` | `def highlight(d, colour, width = 7)` |  |
 | `BUILT` | `def panel(state, top)` | One logic state. Returns the SVG fragments for the panel at vertical offset ``top``. |
 | `BUILT` | `def build_svg() -> str` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.stem_opens_mfe`
+
+`src/engine/gates/notebooks/toehold_and/stem_opens_mfe.py`
+
+Does the main hairpin open in the MFE of the ON tube, and what would filtering on it cost?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `FIELDS` |  | `('switch', 'pair', 'geom', 'engages_stem_mfe', 'n_contacts', 'n_on_arm')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
 | `BUILT` | `def main(argv = None) -> int` |  |
 
 ### `engine.gates.notebooks.toehold_and.strand_occupancy`
@@ -1632,6 +2374,56 @@ Read the population survey's shards and report distributions, not headlines.
 | `BUILT` | `def quantiles(values: list[float]) -> str` |  |
 | `BUILT` | `def main(argv = None) -> int` |  |
 
+### `engine.gates.notebooks.toehold_and.sweep_analysis`
+
+`src/engine/gates/notebooks/toehold_and/sweep_analysis.py`
+
+Query the full sweep without loading it — and say plainly what it cannot tell you.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `RESULTS` |  | `Path(__file__).resolve().parent / 'results'` |
+| `PAIR_KEY` |  | `'x_start, xstar_start, a_start, a_end, b_start, b_end'` |
+| `AXES` |  | `('closure', 'upper3', 'lower3', 'island')` |
+| `STEM_METRICS` |  | `('lock_energy', 'a_site_energy', 'b_site_energy', 'ddg_pref')` |
+| `MAIN_METRICS` |  | `('stem_dG', 'grip_alone', 'grip_with_x')` |
+| `GC_METRICS` |  | `('gc_bottom3', 'gc_top3', 'gc_gradient', 'gc_balance')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.toehold_metric`
+
+`src/engine/gates/notebooks/toehold_and/toehold_metric.py`
+
+How structured is trigger B's toehold, and especially its 3' end?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `TRIM_WINDOW` |  | `8` |
+| `THREE_PRIME_SPANS` |  | `(3, 6)` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.transcript_drift`
+
+`src/engine/gates/notebooks/toehold_and/transcript_drift.py`
+
+Which designs were built against a transcript base that has since been corrected.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `BEFORE` |  | `'7748668'` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def previous(path: Path) -> str` | The transcript as of ``BEFORE``, read out of git rather than kept as a second file. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
 ### `engine.gates.notebooks.toehold_and.trigger_accessibility`
 
 `src/engine/gates/notebooks/toehold_and/trigger_accessibility.py`
@@ -1654,6 +2446,38 @@ Stage 1b — accessibility scores for every trigger pair, in Green's and VISTA's
 | `BUILT` | `def score_window(folder: FoldEngine, transcript: str, global_paired: list[float], start: int, end: int, fractions: dict[str, float]) -> dict` |  |
 | `BUILT` | `def main(argv = None) -> int` |  |
 
+### `engine.gates.notebooks.toehold_and.variant_leak`
+
+`src/engine/gates/notebooks/toehold_and/variant_leak.py`
+
+The AND-ness the BENCH will measure, on the four recoded transcripts rather than four tubes.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `FIELDS` |  | `('switch', 'pair', 'geom', 'open_orig', 'open_var_01', 'open_var_10', 'open_var_00', 'a…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def recoded_pair(transcript: str, row: dict, tables: tuple) -> tuple[str, str]` | This pair's two recoded transcripts: A's windows recoded, and B's. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.vista_metrics`
+
+`src/engine/gates/notebooks/toehold_and/vista_metrics.py`
+
+The VISTA-style metrics, computed on finished folds and joined back by design key.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `RESULTS` |  | `Path(__file__).resolve().parent / 'results'` |
+| `SPAN_BOUNDS` |  | `{'whole': None, 'rbs_linker': ('rbs_loop', 0, 'linker', 1), 'rbs_stem': ('main_pre_star…` |
+| `BASE6` |  | `{'loopside': ('main_z', 0, +6), 'linkerside': ('main_pre', 1, -6)}` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
 ### `engine.gates.notebooks.toehold_and.window_probabilities`
 
 `src/engine/gates/notebooks/toehold_and/window_probabilities.py`
@@ -1670,6 +2494,103 @@ The ribosome window as probabilities, base by base, in all four tubes.
 | `BUILT` | `def unpaired_profile(matrix: list[list[float]], start: int, end: int) -> list[float]` | ``P(unpaired)`` per position over ``[start, end)``. |
 | `BUILT` | `def domain_at(switch, index: int) -> str` |  |
 | `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.window_vs_green`
+
+`src/engine/gates/notebooks/toehold_and/window_vs_green.py`
+
+Does the main_z + aug window beat f1 on Green's 168 measured switches?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent` |
+| `BEFORE_AUG` |  | `6` |
+| `WORKBOOK` |  | `gc.TABLE_S1` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def window_separation(folder: FoldEngine, switch: str, trigger: str, aug: int) -> tuple[float \| None, float \| None, float \| None]` | ``(off, on, off - on)`` for the window's joint opening cost, in kcal/mol. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.report.check_order_sheet`
+
+`src/engine/gates/notebooks/toehold_and/report/check_order_sheet.py`
+
+Evaluate the ordering sheet's sanity checks in Python, on the data the sheet is built from.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `HERE` |  | `Path(__file__).resolve().parent` |
+| `COMPLEMENT` |  | `{'A': 'U', 'U': 'A', 'G': 'C', 'C': 'G'}` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def revcomp(seq: str) -> str` |  |
+| `BUILT` | `def part(cand: dict, name: str) -> str` |  |
+| `BUILT` | `def halves(cand: dict, name: str) -> tuple[str, str]` |  |
+| `BUILT` | `def rbs_split(cand: dict) -> tuple[str, str]` |  |
+| `BUILT` | `def build_checks() -> list[tuple[str, Callable[[list[dict], dict], bool]]]` |  |
+| `BUILT` | `def corruptions() -> dict[str, Callable[[list[dict], dict], tuple[list[dict], dict]]]` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.report.panel_data`
+
+`src/engine/gates/notebooks/toehold_and/report/panel_data.py`
+
+Build the report JSON for the panel, from ``results/panel_three.csv``.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `NB` |  | `Path(__file__).resolve().parent.parent` |
+| `REPO` |  | `NB.parents[4]` |
+| `OUT` |  | `Path(__file__).resolve().parent` |
+| `REFERENCES` |  | `(('Green sensor A', 378, 408), ('Green sensor B', 531, 567), ('Green sensor C', 592, 62…` |
+| `SEC_FIXED` |  | `(('cap', 3), ('r2*', 32))` |
+| `RBS_FLANK_LEN` |  | `7` |
+| `STAT_SOURCE` |  | `{'ied11': 'ied_rbs_linker_11', 'dgarm11': 'dG_arm_11', 'am11': 'A_M_11'}` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def secondary_domains(switch: str, len_x: int) -> list[dict]` |  |
+| `BUILT` | `def unpaired(folder: FoldEngine, strands: str) -> list[float]` | Per-base probability of being unpaired. |
+| `BUILT` | `def engaged_by_a(folder: FoldEngine, strands: str, xstar: tuple[int, int], arm: tuple[int, int], block: tuple[int, int]) -> dict[str, float]` | Does trigger A take the freed x* **and** open the main stem? Both shares, and their min. |
+| `BUILT` | `def lock_term(folder: FoldEngine, strands: str, xstar: tuple[int, int], block: tuple[int, int] \| None) -> float` | What x* must be doing in this tube, as the term ``candidates.py`` scores. |
+| `BUILT` | `def rbs_span(switch: str) -> tuple[int, int]` |  |
+| `BUILT` | `def xstar_partners(folder: FoldEngine, strands: str, xstar: tuple[int, int], spans: dict[str, tuple[int, int]]) -> dict[str, float]` | What x* is paired to in this tube, by domain -- only partners above 1%. |
+| `BUILT` | `def boltzmann_share(folder: FoldEngine, strands: str, structure: str) -> float \| None` | What share of the ensemble sits in exactly this structure: ``exp(-(E - G) / RT)``. |
+| `BUILT` | `def state_block(folder: FoldEngine, strands: str, xstar: tuple[int, int]) -> dict` | One tube: the ensemble strip, and the TWO structures worth drawing. |
+| `BUILT` | `def mechanism(folder: FoldEngine, switch: str, trig_a: str, trig_b: str) -> dict` | Binding energies, where trigger A actually binds, and why ``coop`` is not cooperativity. |
+| `BUILT` | `def reference_overlap(label: str, start: int, stop: int, a_span: tuple[int, int], b_span: tuple[int, int]) -> dict \| None` | How many nt of a published sensor land on each trigger window, and on which. |
+| `BUILT` | `def describe(values: list[float]) -> dict` | Mean, sd and max beside the median -- a median alone has argued both sides before. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.report.panel_page`
+
+`src/engine/gates/notebooks/toehold_and/report/panel_page.py`
+
+Assemble the panel report page from ``head.html``, ``script.html`` and ``panel_data.json``.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `HERE` |  | `Path(__file__).resolve().parent` |
+| `head` |  | `(HERE / 'head.html').read_text(encoding='utf-8')` |
+| `script` |  | `(HERE / 'script.html').read_text(encoding='utf-8')` |
+| `data` |  | `json.loads((HERE / 'panel_data.json').read_text(encoding='utf-8'))` |
+| `head` |  | `swap(head, '<p class="sub">Sixteen A0 two-input AND gates arranged so that <strong>each…` |
+| `OLD` |  | `head[head.index(' <h3>The grid</h3>'):head.index('<div class="panel" style="margin-top:…` |
+| `NEW` |  | `' <h3>Which objective is right &mdash; measured, not argued</h3>\n <p class="note" styl…` |
+| `head` |  | `head.replace(OLD, NEW, 1)` |
+| `head` |  | `swap(head, '<h2>The designs</h2>', '<h2>The designs, one card each</h2>', 'panel headin…` |
+| `head` |  | `swap(head, '<span class="lbl">objective</span>', '<span class="lbl">chosen by</span>',…` |
+| `head` |  | `re.sub('Keeping all four gave 4 distinct designs out of 8 rows; these two give 16 of 16…` |
+| `head` |  | `head.replace('__N_FEASIBLE__', f"{data['n_population']:,}")` |
+| `head` |  | `head.replace('__N_JOINED__', f"{data.get('n_joined') or 0:,}")` |
+| `head` |  | `head.replace('__N_GATING__', f"{data.get('n_gating') or 0:,}")` |
+| `out` |  | `head + script.replace('/*__DATA__*/{}', json.dumps(data, separators=(',', ':'))) + (HER…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def swap(text, old, new, label)` |  |
 
 ## Layer 6 · Stages — the six steps of a run
 
@@ -1769,8 +2690,11 @@ S7 — prohibited motif screening.
 | `RFC10_SITES` | `dict[str, str]` | `{'EcoRI': 'GAATTC', 'XbaI': 'TCTAGA', 'SpeI': 'ACTAGT', 'PstI': 'CTGCAG', 'NotI': 'GCGG…` |
 | `RFC1000_SITES` | `dict[str, str]` | `{'BsaI': 'GGTCTC', 'BsaI_rc': 'GAGACC', 'SapI': 'GCTCTTC', 'SapI_rc': 'GAAGAGC'}` |
 | `RNASE_SITES` | `dict[str, str]` | `{}` |
-| `RBP_MOTIFS` | `dict[str, str]` | `{}` |
+| `RBP_MOTIFS` | `dict[str, str]` | `{'CsrA_core': 'A.GGA', 'Hfq_Urich': 'T{4,}'}` |
+| `G_QUADRUPLEX` |  | `'(?:G{3,}\\w{1,7}){3,}G{3,}'` |
+| `STOP_CODONS` | `tuple[str, ...]` | `('TAA', 'TAG', 'TGA')` |
 | `MAX_HOMOPOLYMER` |  | `5` |
+| `HOMOPOLYMER_LIMITS` | `dict[str, int]` | `{'T': 3}` |
 
 #### `class Violation`
 
@@ -1791,8 +2715,8 @@ Rejects or penalises sequences carrying prohibited motifs.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, standard: AssemblyStandard = AssemblyStandard.RFC10, *, extra_motifs: dict[str, str] \| None = None, max_homopolymer: int = MAX_HOMOPOLYMER) -> None` |  |
-| `BUILT` | `def violations(self, sequence: str, *, circular: bool = False) -> tuple[Violation, ...]` | Every prohibited motif in this sequence. Empty means compliant. |
+| `BUILT` | `def __init__(self, standard: AssemblyStandard = AssemblyStandard.RFC10, *, extra_motifs: dict[str, str] \| None = None, max_homopolymer: int = MAX_HOMOPOLYMER, rbp_motifs: bool = False, quadruplex: bool = False, per_base_homopolymer: bool = False) -> None` |  |
+| `BUILT` | `def violations(self, sequence: str, *, circular: bool = False, reading_frame: int \| None = None) -> tuple[Violation, ...]` | Every prohibited motif in this sequence. Empty means compliant. |
 | `BUILT` | `def is_compliant(self, sequence: str) -> bool` | True when nothing prohibited is present. A yes/no wrapper over ``violations``. |
 
 ### `engine.stages.off_target` · S5

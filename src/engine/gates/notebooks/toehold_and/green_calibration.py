@@ -79,7 +79,13 @@ def load_switches(path: str) -> list[dict]:
     """Every row of Table S1 sections A and B that carries a sequence pair and a ratio."""
     import openpyxl
 
-    sheet = openpyxl.load_workbook(path, data_only=True)["Table S1"]
+    # The sheet name was hard-coded to "Table S1", which quietly limited every calibration
+    # to Green's 168 FIRST-GENERATION switches. Table S3's forward-engineered set carries
+    # the same four columns and is a different architecture generation, so it is a genuine
+    # second test rather than more of the same. Any "Table S…" sheet is accepted.
+    book = openpyxl.load_workbook(path, data_only=True)
+    names = [n for n in book.sheetnames if n.strip().lower().startswith("table s")]
+    sheet = book[names[0] if names else book.sheetnames[0]]
     rows = []
     for index in range(1, sheet.max_row + 1):
         number, ratio, switch, trigger = (sheet.cell(index, c).value for c in range(1, 5))
@@ -103,6 +109,62 @@ def load_switches(path: str) -> list[dict]:
                 "trigger": trigger.strip(),
             }
         )
+    return rows
+
+
+def load_vista_csv(path: str) -> list[dict]:
+    """Robson/Green 2026 Supplementary Table 4 -- the ~190-switch VISTA library.
+
+    A different file shape from Table S1, so a separate reader rather than a flag inside
+    ``load_switches``: this one is a CSV with named columns and it carries TWO measured
+    ratios per switch, for the truncated and the full-length reporter mRNA.
+
+    **The T7 promoter is stripped here.** Every ``Switch Sequence`` in this table is the
+    DNA template including ``…TAATACGACTCACTATA`` upstream of the +1, so the transcript
+    begins at the ``GGG`` that follows it. Scoring the template as if it were the RNA would
+    fold 22 nt of promoter into the OFF state and shift every window by 22, which folds and
+    scores and reports a plausible number -- exactly the class of error that does not raise.
+    After stripping, all 189 rows are 119 nt, which is the check that the offset is right.
+
+    ``on_off`` is the FULL-length ratio, because that is the construct the paper treats as
+    the real one; the truncated ratio travels beside it as ``on_off_trunc`` so neither has
+    to be re-derived later.
+    """
+    promoter = "TAATACGACTCACTATA"
+    rows = []
+    with open(path, encoding="utf-8-sig") as handle:
+        for record in csv.DictReader(handle):
+            raw = (record.get("Switch Sequence") or "").strip().upper()
+            trigger = (record.get("Target Sequence") or "").strip().upper()
+            if not raw or not trigger:
+                continue
+            cut = raw.find(promoter)
+            if cut < 0:
+                continue
+            switch = sq.to_rna(raw[cut + len(promoter) :])
+            trigger = sq.to_rna(trigger)
+            if not sq.is_valid_rna(switch) or not sq.is_valid_rna(trigger):
+                continue
+
+            def number(key: str, source: dict = record) -> float | None:
+                value = (source.get(key) or "").strip()
+                try:
+                    return float(value)
+                except ValueError:
+                    return None
+
+            full, trunc = number("ON OFF Full"), number("ON OFF Truncated")
+            if full is None:
+                continue
+            rows.append(
+                {
+                    "switch_number": record.get("Index"),
+                    "on_off": full,
+                    "on_off_trunc": trunc,
+                    "switch": switch,
+                    "trigger": trigger,
+                }
+            )
     return rows
 
 
@@ -170,6 +232,48 @@ def score(folder: FoldEngine, row: dict) -> dict | None:
     arm = (aug - 6, aug + 3 + 9)
     off_matrix = folder.pooled_pair_probabilities(switch)
     on_matrix = folder.pooled_pair_probabilities(f"{switch}&{trigger}")
+
+    # The same IED identity applied to the TOEHOLD -- the switch's own single-stranded 5'
+    # end, which is what A(r2*|00) measures on our gate. Green's first generation used a
+    # 12-nt toehold and tsgen2 15, and this table mixes both, so three lengths are reported
+    # rather than one guess being made load-bearing.
+    ied_toe = {}
+    for L in (12, 15, 18):
+        if L <= len(switch):
+            ied_toe[f"ied_toehold{L}_off"] = 1.0 - _mean_unpaired(off_matrix, 0, L)
+            # ``k_analogue`` -- and it IS an analogue, not the same quantity. On our
+            # two-input gate K is CONDITIONAL: free(x*|01) - free(x*|00), how much the
+            # OTHER trigger liberates the site trigger A needs to nucleate on. A
+            # single-input switch has no other trigger, so nothing conditions it; the
+            # nearest quantity is the UNCONDITIONAL one, how open the switch's own
+            # toehold is in the OFF state. Same physical question -- is the nucleation
+            # foothold available when the trigger arrives -- with the conditioning
+            # dropped, which is exactly what makes it an analogue rather than a
+            # measurement of K.
+            #
+            # Measured, it predicts nothing. Against ON/OFF: Spearman +0.023 / -0.032 /
+            # -0.037 for L = 12 / 15 / 18 on the 168-switch table, leave-one-out stable
+            # to +/-0.02, so that null is solid rather than underpowered. On the 13
+            # forward-engineered switches it is -0.15 to -0.30, the wrong sign and not
+            # stable under leave-one-out. This is not a no-variance artefact: the
+            # analogue spans 0.39 to 0.97 with sd 0.09-0.13.
+            #
+            # So it is reported, not ranked on -- and any objective built on K inherits
+            # that null, since this is the only set where K's analogue can be tested.
+            ied_toe[f"k_analogue{L}"] = _mean_unpaired(off_matrix, 0, L)
+
+    # VISTA ranks on Ideal Ensemble Defect, and its specified structure for a region that
+    # must be free is "completely unpaired" -- so over such a region the IED collapses to
+    # the MEAN BASE-PAIRING probability, 1 - mean_unpaired. That identity is what makes
+    # this testable here without NUPACK and without inventing a target structure.
+    #
+    # VISTA takes it over the toehold-linker; Green's own predictor folds the same stretch
+    # and reports its MFE. Both are computed over the identical span, so the comparison is
+    # between the two STATISTICS rather than between two regions.
+    ied_off = ied_on = None
+    if rbs_linker is not None:
+        ied_off = 1.0 - _mean_unpaired(off_matrix, loop_start, linker_end)
+        ied_on = 1.0 - _mean_unpaired(on_matrix, loop_start, linker_end)
     a_m_off = _mean_unpaired(off_matrix, *arm)
     a_m_on = _mean_unpaired(on_matrix, *arm)
 
@@ -181,10 +285,27 @@ def score(folder: FoldEngine, row: dict) -> dict | None:
     mean_wrank_on = _mean_unpaired(on_matrix, start, end)
     aug_off = _mean_unpaired(off_matrix, aug, aug + 3)
     aug_on = _mean_unpaired(on_matrix, aug, aug + 3)
+    # --- the OFF cluster ---------------------------------------------------------------
+    # dG_OFF: the closed switch's own folding energy, one value per switch and NOT a
+    # per-state quantity -- there is only one OFF structure to have an energy.
+    folded = folder.mfe(switch)
+    dg_off_mfe = folded.energy
+    # d_OFF: the ensemble defect of the OFF state. Green's switches come with no INTENDED
+    # dot-bracket, so there is no target to measure against the way our own generator has
+    # one. Scored against the switch's OWN MFE structure instead, which makes it "how
+    # concentrated is the ensemble on its single most likely fold" rather than "did we build
+    # what we meant to". Different question, so it is named apart from structure_deviation,
+    # and it is NORMALISED by length -- the raw defect is a length bias, and this table
+    # mixes 119-nt and 145-nt switches.
+    d_off_norm = None
+    if folded.structure and len(folded.structure) == len(switch):
+        raw = folder.ensemble_defect(switch, folded.structure)
+        d_off_norm = None if raw is None else raw / len(switch)
+
     narrow_off = folder.p_open(switch, (aug - 6, aug + 3))
     narrow_on = folder.p_open(f"{switch}&{trigger}", (aug - 6, aug + 3))
     return {
-        **{k: row[k] for k in ("switch_number", "on_off")},
+        **{k: row[k] for k in ("switch_number", "on_off", "on_off_trunc") if k in row},
         "aug_index": aug,
         "p_open_off": off,
         "p_open_on": on,
@@ -194,7 +315,15 @@ def score(folder: FoldEngine, row: dict) -> dict | None:
         "A_M_off": a_m_off,
         "A_M_on": a_m_on,
         "A_M_gain": None if a_m_on is None or a_m_off is None else a_m_on - a_m_off,
+        # The ratio beside the difference, because the objectives rank on the ratio and it
+        # was never a column here -- every comparison of the two forms so far was done by
+        # hand on the CSV afterwards, and only ever for Table S1.
+        "A_M_ratio": None if a_m_on is None or not a_m_off else a_m_on / a_m_off,
+        **ied_toe,
         "dG_rbs_linker": rbs_linker,
+        "ied_rbs_linker_off": ied_off,
+        "ied_rbs_linker_on": ied_on,
+        "ied_rbs_linker_gain": None if ied_on is None or ied_off is None else ied_off - ied_on,
         "mean_wrank_off": mean_wrank_off,
         "mean_wrank_on": mean_wrank_on,
         "mean_wrank_gain": None
@@ -206,6 +335,8 @@ def score(folder: FoldEngine, row: dict) -> dict | None:
         "narrow_sep": None
         if not narrow_off or not narrow_on
         else -rt * math.log(narrow_off) + rt * math.log(narrow_on),
+        "dG_OFF": dg_off_mfe,
+        "d_OFF": d_off_norm,
         "switch_len": len(switch),
     }
 
@@ -213,6 +344,12 @@ def score(folder: FoldEngine, row: dict) -> dict | None:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--table", default=TABLE_S1)
+    parser.add_argument(
+        "--csv",
+        default="",
+        help="score Robson/Green 2026 Supplementary Table 4 instead of an xlsx Table S "
+        "sheet -- the VISTA library, read by load_vista_csv (which strips the T7 promoter)",
+    )
     parser.add_argument("--limit", type=int, default=0, help="score only the first N")
     parser.add_argument("--out", default="green_calibration")
     args = parser.parse_args(argv)
@@ -221,7 +358,7 @@ def main(argv=None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     folder = FoldEngine(37.0)
 
-    switches = load_switches(args.table)
+    switches = load_vista_csv(args.csv) if args.csv else load_switches(args.table)
     print(f"{len(switches)} switches with a sequence pair and a measured ON/OFF")
     if args.limit:
         switches = switches[: args.limit]
@@ -253,7 +390,17 @@ def main(argv=None) -> int:
         "dG_open_on",
         "A_M_on",
         "A_M_gain",
+        "A_M_ratio",
         "A_M_off",
+        "ied_toehold12_off",
+        "ied_toehold15_off",
+        "ied_toehold18_off",
+        "k_analogue12",
+        "k_analogue15",
+        "k_analogue18",
+        "ied_rbs_linker_off",
+        "ied_rbs_linker_on",
+        "ied_rbs_linker_gain",
         "mean_wrank_on",
         "mean_wrank_gain",
         "aug_on",

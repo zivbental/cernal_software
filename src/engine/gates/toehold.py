@@ -837,7 +837,7 @@ class ToeholdAndGate(ToeholdGate):
     """
 
     name = "toehold_and"
-    version = "0.1.0-stub"
+    version = "0.2.0-stub"
     kind = GateKind.TOEHOLD_AND
     label = "AND Toehold"
     description = "Two-input translational AND"
@@ -1051,7 +1051,10 @@ class ToeholdAndGate(ToeholdGate):
             with its intended OFF structure and the coordinates of every domain. The
             reporter CDS is appended later, at plasmid assembly.
         """
-        arm, len_k2 = self.ARM_LEN, self.ARM_LEN - len_x
+        # `arm` slices the MAIN hairpin out of trigger A; `len_k2` is trigger B's
+        # invasion domain on the SECONDARY arm, which is where r2 begins. One constant
+        # served both while the two hairpins were the same length.
+        arm, len_k2 = self.ARM_LEN, self.SECONDARY_INVASION_LEN - len_x
         pre_bulge, post_bulge = self.STEM_PRE_BULGE_LEN, self.STEM_POST_BULGE_LEN
         rna_a, rna_b = sq.to_rna(trigger_a), sq.to_rna(trigger_b)
 
@@ -1064,8 +1067,14 @@ class ToeholdAndGate(ToeholdGate):
         rbs_loop = self.RBS_FLANK + self.RBS_PROKARYOTIC
         main_z = self._repair_main_z(k1, rbs_loop)
         pieces = [
+            # Main's host-dispatched leader, and this branch's trim, because the two sides of
+            # this conflict were each right about a different line. `_leader_sequence()` picks the
+            # prokaryotic or eukaryotic leader off `host.track`, which the class constant could
+            # not; and the `TOEHOLD_TRIM` slice is what `TrimmedToeholdAndGate` (TOEHOLD_TRIM = 8)
+            # relies on -- the length assertion below already subtracts it, so dropping the slice
+            # would make the assembled length disagree with the expected one for that subclass.
             ("cap", self._leader_sequence()),
-            ("r2_star", sq.reverse_complement(r2)),
+            ("r2_star", sq.reverse_complement(r2)[self.TOEHOLD_TRIM :]),
             ("sw_x", x),
             ("k2_star", stem.k2_star),
             ("secondary_loop", self.SECONDARY_LOOP),
@@ -1091,7 +1100,12 @@ class ToeholdAndGate(ToeholdGate):
         expected = (
             len(self._leader_sequence())
             + self.TOEHOLD_B_LEN
-            + 2 * arm
+            - self.TOEHOLD_TRIM
+            # The SECONDARY hairpin's two arms: sw_x + k2_star and secondary_z + sw_xs, each
+            # summing to SECONDARY_ARM_LEN because len_x + len_k2 + len(cap) = invasion + cap
+            # = arm. The MAIN hairpin's arms are the pre_bulge/bulge/post_bulge terms below,
+            # spelled out separately -- which is why this one must not read ARM_LEN.
+            + 2 * self.SECONDARY_ARM_LEN
             + len(self.SECONDARY_LOOP)
             + pre_bulge
             + self.BULGE_LEN
@@ -1310,8 +1324,13 @@ class ToeholdAndGate(ToeholdGate):
         toehold and the reporter region are identical to every real build's, and those are
         what a pair is screened on.
         """
-        ext, k2 = _secondary_domains(trigger_a, trigger_b, len_x, self.ARM_LEN)
+        ext, k2 = _secondary_domains(
+            trigger_a, trigger_b, len_x, self.ARM_LEN, self.SECONDARY_INVASION_LEN
+        )
         k2_star, secondary_z = _build_arms(ext, k2, {})
+        if self.SECONDARY_CAP:
+            k2_star += self.SECONDARY_CAP
+            secondary_z = sq.reverse_complement(self.SECONDARY_CAP) + secondary_z
         untraded = _SecondaryStem(k2_star, secondary_z, (), 0.0, 0.0, 0.0, 0.0)
         return self.assemble(trigger_a, trigger_b, len_x, untraded)
 
@@ -1438,9 +1457,16 @@ class ToeholdAndGate(ToeholdGate):
         # trigger A: measured against the *bare* switch it rewards A opening the main
         # hairpin on its own, which is exactly the state-10 leak the gates exist to catch,
         # so the score and the gate would pull against each other. A is conditioned on B.
-        g = {state: self.folder.partition(strands) for state, strands in tubes.items()}
-        observables["dG_bind_B"] = g["01"] - g["00"] - self.folder.partition(rna_b)
-        observables["dG_bind_A_given_B"] = g["11"] - g["01"] - self.folder.partition(rna_a)
+        # `pooled_partition`, not `partition`: state 11 has three strands and therefore two
+        # orderings, and ViennaRNA only counts structures non-crossing in the order written.
+        # Measured on a real pair, the two orderings of this tube are **12.66 kcal/mol**
+        # apart, and on a second pair the same switch came out 5.03 apart with the opposite
+        # ordering favoured -- so there is no order a caller can just prefer. Unpooled,
+        # `dG_bind_A_given_B` subtracts a two-strand term from a three-strand term folded
+        # under a constraint the two-strand term never had, and inherits the whole spread.
+        g = {state: self.folder.pooled_partition(strands) for state, strands in tubes.items()}
+        observables["dG_bind_B"] = g["01"] - g["00"] - self.folder.pooled_partition(rna_b)
+        observables["dG_bind_A_given_B"] = g["11"] - g["01"] - self.folder.pooled_partition(rna_a)
         return observables
 
     def _opening_cost(self, strands: str, window: tuple[int, int]) -> float | None:
@@ -1827,7 +1853,7 @@ class ToeholdAndGate(ToeholdGate):
                 start_x, start_xs, length = i, j, self.MIN_OVERLAP
                 # Extending x 3'-ward walks its partner 5'-ward: they pair antiparallel.
                 while (
-                    length < self.ARM_LEN
+                    length < self.SECONDARY_INVASION_LEN
                     and start_x + length < n
                     and start_xs > 0
                     and rna[start_xs - 1] == sq.reverse_complement(rna[start_x + length])
@@ -1835,7 +1861,7 @@ class ToeholdAndGate(ToeholdGate):
                     start_xs -= 1
                     length += 1
                 while (
-                    length < self.ARM_LEN
+                    length < self.SECONDARY_INVASION_LEN
                     and start_x > 0
                     and start_xs + length < n
                     and rna[start_xs + length] == sq.reverse_complement(rna[start_x - 1])
@@ -1845,14 +1871,48 @@ class ToeholdAndGate(ToeholdGate):
                 seen.add((start_x, start_xs, length))
 
         for start_x, start_xs, length in sorted(seen):
-            pair = _TriggerPair(start_x, start_xs, length, self.ARM_LEN, self.TOEHOLD_B_LEN)
+            pair = _TriggerPair(
+                start_x,
+                start_xs,
+                length,
+                self.ARM_LEN,
+                self.TOEHOLD_B_LEN,
+                self.SECONDARY_INVASION_LEN,
+            )
             if pair.fits(n) and pair.disjoint() and pair.gap() >= gap:
                 yield pair
 
     #: Both stem arms span 18 nt (R1), so ``len_k2 = ARM_LEN - len_x``: every nucleotide
     #: the overlap takes is one fewer for trigger B to invade with. That is the trade the
     #: overlap length is chosen against.
+    #:
+    #: ``ARM_LEN`` is the **main** hairpin's arm and also the default for the secondary one.
+    #: The three constants below let the secondary hairpin differ, which is Kim 2019's
+    #: verified inhibitory geometry: a 20-nt arm that trigger B invades only 17 of, capped
+    #: with the weak ``AUA`` ladder. Their defaults reproduce this architecture exactly --
+    #: arm 18, full 18-nt invasion, no cap -- so nothing moves until a caller changes them.
     ARM_LEN: ClassVar[int] = 18
+
+    #: Nucleotides trimmed from the **5' end** of ``r2_star``, the switch's toehold. Trigger
+    #: B keeps its full ``r2``; the switch simply complements less of it, so the trigger-pair
+    #: set is unchanged and only the assembled switch shortens. Trimmed from the 5' end
+    #: because the 3' end is the part adjacent to the inhibitory hairpin, where structure
+    #: blocks binding from becoming invasion -- that end is what we want to keep and report.
+    #: 0 is this architecture's current behaviour.
+    TOEHOLD_TRIM: ClassVar[int] = 0
+
+    #: The secondary (inhibitory) hairpin's arm, ``sw_x`` plus ``k2_star``. Kim: 20.
+    SECONDARY_ARM_LEN: ClassVar[int] = 18
+
+    #: How much of that arm trigger B invades. The remainder is the cap. Kim: 17 of 20, so
+    #: B stops 3 short of the loop. **Must not exceed** ``SECONDARY_ARM_LEN``.
+    SECONDARY_INVASION_LEN: ClassVar[int] = 18
+
+    #: The uninvaded top of the ascending arm, written 5'->3' and sitting against the loop.
+    #: Kim and Green's forward-engineered generation both use ``AUA`` -- deliberately weak,
+    #: so the three pairs trigger B cannot reach are also the three easiest to melt. Empty
+    #: means no cap, which is this architecture's current behaviour.
+    SECONDARY_CAP: ClassVar[str] = ""
 
     #: Consecutive positions trigger B may be left unable to pair at before the stem is
     #: rejected. Three in a row is enough to stall branch migration.
@@ -1886,7 +1946,16 @@ class ToeholdAndGate(ToeholdGate):
             R6 — a real outcome for a pair whose extension fights its partner everywhere,
             and the caller's signal to move on rather than to relax the rule.
         """
-        ext, k2 = _secondary_domains(trigger_a, trigger_b, len_x, self.ARM_LEN)
+        cap = self.SECONDARY_CAP
+        if self.SECONDARY_INVASION_LEN + len(cap) != self.SECONDARY_ARM_LEN:
+            raise ValueError(
+                f"secondary geometry does not close: invasion {self.SECONDARY_INVASION_LEN} "
+                f"+ cap {len(cap)} != arm {self.SECONDARY_ARM_LEN}. The uninvaded top of the "
+                f"arm is exactly what the cap fills, so these must sum."
+            )
+        ext, k2 = _secondary_domains(
+            trigger_a, trigger_b, len_x, self.ARM_LEN, self.SECONDARY_INVASION_LEN
+        )
         x = trigger_a[self.ARM_LEN : self.ARM_LEN + len_x]
         conflicts = _arm_conflicts(ext, k2)
 
@@ -1897,11 +1966,22 @@ class ToeholdAndGate(ToeholdGate):
             k2_star, secondary_z = _build_arms(ext, k2, states)
             if not _invasion_runs_ok(ext, k2, k2_star, self.MAX_INVASION_STALL):
                 continue
-            lock = fixed_alignment_energy(k2_star, secondary_z, self.folder)
+            # The triggers reach only the INVADED arm, so their two site energies are
+            # measured on it. `fixed_alignment_energy` forces first[i] against
+            # second[n-1-i] and takes n from `first` alone, so handing it arms of unequal
+            # length would build a structure string the wrong size for the compound and
+            # return ViennaRNA's 1e5 sentinel -- the exact failure that guard exists for.
             b_site = fixed_alignment_energy(k2, k2_star, self.folder)
             a_site = fixed_alignment_energy(
                 x + ext, secondary_z + sq.reverse_complement(x), self.folder
             )
+            # The LOCK is the whole stem that has to be torn open, so the cap belongs in it.
+            # Kim's three uninvaded pairs still hold the hairpin shut; they are simply pairs
+            # trigger B never gets to break.
+            if cap:
+                k2_star = k2_star + cap
+                secondary_z = sq.reverse_complement(cap) + secondary_z
+            lock = fixed_alignment_energy(k2_star, secondary_z, self.folder)
             if lock is None or b_site is None or a_site is None:
                 continue  # unevaluable, not zero — see fixed_alignment_energy
             ddg_pref = lock - b_site
@@ -2051,6 +2131,54 @@ def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float | N
 # that choice rather than resolving it with a global rule, because which pair to serve is
 # a different answer at different positions.
 
+
+class TrimmedToeholdAndGate(ProkaryoticToeholdAndGate):
+    """A0 with a shortened toehold, for testing whether a shorter ``r2*`` binds better.
+
+    A long toehold gives trigger B more to grip, and also more to fold against itself.
+    ``toehold.csv`` measures how unpaired the 3' end is; this changes it. Trigger B is
+    untouched -- it keeps its full ``r2`` and the trigger-pair set is identical -- so the
+    only difference is that the switch complements less of it.
+
+    The switch shortens by ``TOEHOLD_TRIM``, which moves every domain downstream of the
+    toehold. Anything holding a hard-coded offset will be wrong, which is why
+    ``vista_metrics`` derives its spans from a real assembly rather than listing them.
+    """
+
+    version = "trimmed-toehold-2"
+    TOEHOLD_TRIM: ClassVar[int] = 8
+
+
+class KimSecondaryArmToeholdAndGate(ProkaryoticToeholdAndGate):
+    """A0 with Kim 2019's verified inhibitory geometry on the secondary hairpin.
+
+    Three constants, nothing else. The parent stays at this project's own geometry -- an
+    18-nt secondary arm that trigger B invades completely -- so both are runnable and a
+    result at one can be diffed against the other on the same trigger pairs, which is the
+    only way to tell whether Kim's rule helps *here*.
+
+    **What changes.** The arm grows to 20 nt while trigger B's invasion domain shrinks to
+    17, so B stops 3 nt short of the loop and those 3 pairs are supplied by the design
+    rather than by the transcript. They are ``AUA``: deliberately the weakest ladder
+    available, so the pairs B cannot reach are also the easiest to melt.
+    ``architecture_comparison.md`` records that Kim applies this rule to **both** hairpins
+    and that we applied it to neither; this closes half that gap.
+
+    **What it costs.** Trigger B's window is 3 nt shorter, and the overlap is now bounded
+    by the invasion length rather than the arm, so ``find_trigger_pairs`` returns a
+    slightly different candidate set and stage 1 must be re-run before anything folds.
+    The assembled switch is 167 nt rather than 161, which moves every domain downstream of
+    the secondary hairpin -- any hard-coded offset will be wrong, which is why
+    ``vista_metrics`` verifies its own against a real assembly instead of trusting them.
+    """
+
+    version = "kim-secondary-2"
+
+    SECONDARY_ARM_LEN: ClassVar[int] = 20
+    SECONDARY_INVASION_LEN: ClassVar[int] = 17
+    SECONDARY_CAP: ClassVar[str] = "AUA"
+
+
 #: Per-position assignments worth making at a conflict. A fourth (serve neither trigger,
 #: close the lock against A's base while B needs another) satisfies nothing and is
 #: dominated, so it is never generated.
@@ -2127,11 +2255,19 @@ class _TriggerPair:
     len_x: int
     arm_len: int
     toehold_b_len: int
+    invasion_len: int | None = None
+    """How much of the secondary arm trigger B invades. ``None`` means ``arm_len``, which
+    is this architecture's default and what made the two indistinguishable."""
 
     @property
     def len_k2(self) -> int:
-        """Trigger B's invasion domain. Every nucleotide the overlap takes is one fewer."""
-        return self.arm_len - self.len_x
+        """Trigger B's invasion domain. Every nucleotide the overlap takes is one fewer.
+
+        Sized by the **invasion** length, not the arm: with Kim's 20-nt arm invaded to 17,
+        trigger B's window shrinks by the 3 nt it never reaches, and those 3 come from the
+        cap instead of from the transcript.
+        """
+        return (self.arm_len if self.invasion_len is None else self.invasion_len) - self.len_x
 
     def window_a(self) -> tuple[int, int]:
         """Trigger A: the 18-nt stem arm, the overlap, then the extension facing
@@ -2214,16 +2350,26 @@ class _SecondaryStem:
         return "unlocked"
 
 
-def _secondary_domains(trigger_a: str, trigger_b: str, len_x: int, arm_len: int) -> tuple[str, str]:
+def _secondary_domains(
+    trigger_a: str, trigger_b: str, len_x: int, main_arm_len: int, invasion_len: int | None = None
+) -> tuple[str, str]:
     """Trigger A's extension past the overlap, and trigger B's invasion domain.
 
     Trigger A reads ``k1 · bulge · main_pre · xA · extA`` and trigger B reads
     ``k2 · xB · r2``, so both wanted domains are slices of sequences already in hand.
     This is the adapter between a chosen trigger pair and the stem builder; the builder's
     own two-transcript entry point is for a case this architecture does not use.
+
+    The two lengths are separate because they describe different hairpins. ``main_arm_len``
+    places trigger A's extension -- it begins past the main arm and the overlap -- while
+    ``invasion_len`` sizes trigger B's invasion domain on the *secondary* arm. They were one
+    parameter while both hairpins were 18 nt, which is why a 20-nt secondary arm could not
+    be expressed. ``invasion_len`` defaults to ``main_arm_len``, reproducing that.
     """
-    len_k2 = arm_len - len_x
-    ext_start = arm_len + len_x
+    if invasion_len is None:
+        invasion_len = main_arm_len
+    len_k2 = invasion_len - len_x
+    ext_start = main_arm_len + len_x
     return trigger_a[ext_start : ext_start + len_k2], trigger_b[:len_k2]
 
 

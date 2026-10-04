@@ -1,0 +1,1134 @@
+PS C:\Users\Dell\source\repos\cernal_software> uv run python src/engine/gates/notebooks/toehold_and/fold_analysis.py --out p1
+>>
+  querying 6 file(s): p1_folded_0.csv, p1_folded_1.csv, p1_folded_2.csv, p1_folded_3.csv, p1_folded_4.csv, p1_folded_5.csv
+
+==============================================================================
+  WHAT IS IN THE FILE
+==============================================================================
+  91,908 folded designs, 2553 pair-stems, 1014 trigger pairs
+
+==============================================================================
+  DOES IT OPEN AT ALL? -- everything below depends on this
+==============================================================================
+  * A_M(11) is the ON-state availability of the RBS/AUG region. Where it is
+    near zero the switch is shut in every state, and a large `separation` is
+    then the difference between two dead states rather than a working gate.
+
+  threshold      designs  share
+  -------------  -------  -----
+  A_M(11) > 0.1  30,888   33.6%
+  A_M(11) > 0.2  13,946   15.2%
+  A_M(11) > 0.3  12,106   13.2%
+  A_M(11) > 0.5  5,425    5.9%
+  A_M(11) > 0.7  867      0.9%
+
+  `--opens` is set to 0.3; the rows above are why that choice is reported,
+  not hidden. Nothing is filtered out of the file or out of any ranking.
+
+==============================================================================
+  DO THE RANKING STATISTICS AGREE?
+==============================================================================
+  * Two statistics correlating near +/-1 carry one fact between them. Two near
+    zero are measuring different things, and ranking on either alone silently
+    discards the other.
+
+  statistic A           statistic B           pearson r
+  --------------------  --------------------  ---------
+  mean_separation       A_M_gain              0.95
+  A_M_gain              A_M_11                0.693
+  mean_separation       A_M_11                0.672
+  A_M_gain              separation            0.273
+  mean_separation       separation            0.262
+  separation            log10_rate_advantage  0.103
+  mean_separation       log10_rate_advantage  0.037
+  A_M_gain              log10_rate_advantage  0.034
+  separation            A_M_11                0.031
+  log10_rate_advantage  A_M_11                0.023
+
+==============================================================================
+  AXIS: closure
+==============================================================================
+  closure     n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ----------  -----  --------  --------  ---------  ------  -----
+  open_3x3    15318  0.007     0.0175    0.76       0.4053  9580
+  pair1_CCC   15318  -0.0006   -0.0003   1.54       0.1223  1565
+  pair2_CCU   15318  -0.001    -0.0005   1.69       0.0664  785
+  closed_CGU  15318  -0.0016   -0.0008   2.08       0.0072  85
+  closed_UAU  15318  -0.0016   -0.0008   2.27       0.0072  76
+  closed_CAU  15318  -0.0017   -0.0009   2.12       0.0071  15
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   open_3x3 11384,  pair1_CCC 1720,  closed_CAU 1000,  pair2_CCU 701,  closed_CGU 277,  closed_UAU 236   (of 15318)
+
+  among designs that open (A_M(11) > 0.3) only:
+  closure     n     mean_sep  joint_sep
+  ----------  ----  --------  ---------
+  closed_UAU  76    0.2347    4.84
+  closed_CAU  15    0.2266    4.86
+  closed_CGU  85    0.2174    5.87
+  pair2_CCU   785   0.1254    3.64
+  pair1_CCC   1565  0.1188    3.45
+  open_3x3    9580  0.0687    0.49
+
+==============================================================================
+  AXIS: upper3
+==============================================================================
+  upper3   n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  -------  -----  --------  --------  ---------  ------  -----
+  WWW_UAU  45954  -0.0005   -0.0003   1.77       0.0627  6158
+  WWW_AUA  45954  -0.0005   -0.0003   1.69       0.0627  5948
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   WWW_UAU 24933,  WWW_AUA 21021   (of 45954)
+
+  among designs that open (A_M(11) > 0.3) only:
+  upper3   n     mean_sep  joint_sep
+  -------  ----  --------  ---------
+  WWW_UAU  6158  0.1043    1.08
+  WWW_AUA  5948  0.0654    0.92
+
+==============================================================================
+  AXIS: lower3
+==============================================================================
+  lower3  n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ------  -----  --------  --------  ---------  ------  -----
+  WSS     30636  -0.0002   -0.0001   1.59       0.0626  3845
+  SWS     30636  -0.0003   -0.0003   1.74       0.0627  3892
+  SSW     30636  -0.0022   -0.0024   1.89       0.0638  4369
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   SSW 11983,  WSS 10440,  SWS 8213   (of 30636)
+
+  among designs that open (A_M(11) > 0.3) only:
+  lower3  n     mean_sep  joint_sep
+  ------  ----  --------  ---------
+  SWS     3892  0.0969    1.1
+  WSS     3845  0.088     1.15
+  SSW     4369  0.0743    0.86
+
+==============================================================================
+  AXIS: island
+==============================================================================
+  island           n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------------  -----  --------  --------  ---------  ------  -----
+  trigger_derived  91908  -0.0005   -0.0003   1.73       0.0627  12106
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   trigger_derived 91908   (of 91908)
+
+  among designs that open (A_M(11) > 0.3) only:
+  island           n      mean_sep  joint_sep
+  ---------------  -----  --------  ---------
+  trigger_derived  12106  0.0858    0.99
+
+==============================================================================
+  DESIGNS THAT BOTH OPEN AND SEPARATE (A_M(11) > 0.3), TOP 12
+==============================================================================
+  closure     upper3   lower3  island           scheme      x@   stem  mean_sep  A_M_gain  A_M_11  joint_sep  log10_kin
+  ----------  -------  ------  ---------------  ----------  ---  ----  --------  --------  ------  ---------  ---------
+  closed_CGU  WWW_UAU  WSS     trigger_derived  B-anchored  118  1     0.4624    0.7654    0.772   5.34       2.81
+  closed_CGU  WWW_UAU  WSS     trigger_derived  B-anchored  118  0     0.4624    0.7654    0.772   5.34       2.8
+  closed_CGU  WWW_UAU  WSS     trigger_derived  B-anchored  118  2     0.4623    0.7653    0.772   7.49       2.01
+  closed_CGU  WWW_UAU  WSS     trigger_derived  B-anchored  118  1     0.4622    0.7651    0.772   9.04       1.93
+  closed_CGU  WWW_UAU  WSS     trigger_derived  B-anchored  118  3     0.4618    0.7645    0.772   5.58       2.34
+  closed_CGU  WWW_UAU  WSS     trigger_derived  B-anchored  118  2     0.4611    0.7632    0.77    7.15       2.93
+  closed_CGU  WWW_UAU  WSS     trigger_derived  B-anchored  118  1     0.461     0.763     0.769   7.24       2.18
+  closed_CGU  WWW_UAU  WSS     trigger_derived  B-anchored  118  0     0.46      0.7609    0.768   8.45       1.73
+  open_3x3    WWW_UAU  SSW     trigger_derived  B-anchored  525  0     0.4595    0.7896    0.876   2.65       2.86
+  closed_CGU  WWW_UAU  WSS     trigger_derived  B-anchored  118  0     0.4564    0.7555    0.762   5.9        1.95
+  closed_CGU  WWW_UAU  WSS     trigger_derived  B-anchored  118  0     0.4562    0.7552    0.762   8.79       3.12
+  open_3x3    WWW_UAU  SWS     trigger_derived  B-anchored  111  1     0.4562    0.7593    0.825   3.35       0.3
+
+  those 12 rows come from 6 distinct pair-stem(s).
+PS C:\Users\Dell\source\repos\cernal_software> uv run python src/engine/gates/notebooks/toehold_and/fold_analysis.py --out p2
+>>
+  querying 6 file(s): p2_folded_0.csv, p2_folded_1.csv, p2_folded_2.csv, p2_folded_3.csv, p2_folded_4.csv, p2_folded_5.csv
+
+==============================================================================
+  WHAT IS IN THE FILE
+==============================================================================
+  57,276 folded designs, 1591 pair-stems, 924 trigger pairs
+
+==============================================================================
+  DOES IT OPEN AT ALL? -- everything below depends on this
+==============================================================================
+  * A_M(11) is the ON-state availability of the RBS/AUG region. Where it is
+    near zero the switch is shut in every state, and a large `separation` is
+    then the difference between two dead states rather than a working gate.
+
+  threshold      designs  share
+  -------------  -------  -----
+  A_M(11) > 0.1  20,281   35.4%
+  A_M(11) > 0.2  10,347   18.1%
+  A_M(11) > 0.3  9,117    15.9%
+  A_M(11) > 0.5  4,542    7.9%
+  A_M(11) > 0.7  882      1.5%
+
+  `--opens` is set to 0.3; the rows above are why that choice is reported,
+  not hidden. Nothing is filtered out of the file or out of any ranking.
+
+==============================================================================
+  DO THE RANKING STATISTICS AGREE?
+==============================================================================
+  * Two statistics correlating near +/-1 carry one fact between them. Two near
+    zero are measuring different things, and ranking on either alone silently
+    discards the other.
+
+  statistic A           statistic B           pearson r
+  --------------------  --------------------  ---------
+  mean_separation       A_M_gain              0.955
+  A_M_gain              A_M_11                0.728
+  mean_separation       A_M_11                0.706
+  A_M_gain              separation            0.233
+  mean_separation       separation            0.224
+  separation            log10_rate_advantage  0.084
+  A_M_gain              log10_rate_advantage  0.027
+  separation            A_M_11                -0.023
+  log10_rate_advantage  A_M_11                0.021
+  mean_separation       log10_rate_advantage  0.019
+
+==============================================================================
+  AXIS: closure
+==============================================================================
+  closure     n     mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ----------  ----  --------  --------  ---------  ------  -----
+  open_3x3    9546  0.0184    0.044     0.91       0.4547  6821
+  pair1_CCC   9546  -0.0002   -0.0002   2.28       0.1237  1365
+  pair2_CCU   9546  -0.0004   -0.0003   2.53       0.0669  720
+  closed_CGU  9546  -0.0009   -0.0007   3.07       0.0072  94
+  closed_UAU  9546  -0.0009   -0.0007   3.23       0.0073  91
+  closed_CAU  9546  -0.0011   -0.0007   3.08       0.0071  26
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   open_3x3 7220,  pair1_CCC 1120,  pair2_CCU 532,  closed_CAU 405,  closed_CGU 139,  closed_UAU 130   (of 9546)
+
+  among designs that open (A_M(11) > 0.3) only:
+  closure     n     mean_sep  joint_sep
+  ----------  ----  --------  ---------
+  closed_CGU  94    0.1916    6.26
+  closed_UAU  91    0.1719    5.3
+  closed_CAU  26    0.1652    6.46
+  pair2_CCU   720   0.1363    4.62
+  pair1_CCC   1365  0.1093    3.53
+  open_3x3    6821  0.0804    0.6
+
+==============================================================================
+  AXIS: upper3
+==============================================================================
+  upper3   n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  -------  -----  --------  --------  ---------  ------  -----
+  WWW_UAU  28638  -0.0001   -0.0002   2.56       0.063   4624
+  WWW_AUA  28638  -0.0002   -0.0002   2.46       0.063   4493
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   WWW_UAU 16210,  WWW_AUA 12428   (of 28638)
+
+  among designs that open (A_M(11) > 0.3) only:
+  upper3   n     mean_sep  joint_sep
+  -------  ----  --------  ---------
+  WWW_UAU  4624  0.1112    1.36
+  WWW_AUA  4493  0.0814    1.18
+
+==============================================================================
+  AXIS: lower3
+==============================================================================
+  lower3  n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ------  -----  --------  --------  ---------  ------  -----
+  WSS     19092  -0.0001   -0.0001   2.29       0.0628  2901
+  SWS     19092  -0.0001   -0.0002   2.55       0.0629  2930
+  SSW     19092  -0.0009   -0.0009   2.71       0.065   3286
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   SSW 7938,  WSS 6256,  SWS 4898   (of 19092)
+
+  among designs that open (A_M(11) > 0.3) only:
+  lower3  n     mean_sep  joint_sep
+  ------  ----  --------  ---------
+  SWS     2930  0.106     1.36
+  WSS     2901  0.1053    1.39
+  SSW     3286  0.0799    1.06
+
+==============================================================================
+  AXIS: island
+==============================================================================
+  island           n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------------  -----  --------  --------  ---------  ------  -----
+  trigger_derived  57276  -0.0002   -0.0002   2.51       0.063   9117
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   trigger_derived 57276   (of 57276)
+
+  among designs that open (A_M(11) > 0.3) only:
+  island           n     mean_sep  joint_sep
+  ---------------  ----  --------  ---------
+  trigger_derived  9117  0.0973    1.25
+
+==============================================================================
+  DESIGNS THAT BOTH OPEN AND SEPARATE (A_M(11) > 0.3), TOP 12
+==============================================================================
+  closure     upper3   lower3  island           scheme  x@   stem  mean_sep  A_M_gain  A_M_11  joint_sep  log10_kin
+  ----------  -------  ------  ---------------  ------  ---  ----  --------  --------  ------  ---------  ---------
+  open_3x3    WWW_UAU  SWS     trigger_derived  mixed   525  2     0.4668    0.8201    0.891   4.55       1.07
+  open_3x3    WWW_UAU  SWS     trigger_derived  mixed   525  1     0.4668    0.82      0.891   4.55       2.28
+  open_3x3    WWW_UAU  SWS     trigger_derived  mixed   525  0     0.4664    0.8194    0.891   4.51       1.15
+  open_3x3    WWW_UAU  SSW     trigger_derived  mixed   525  2     0.4649    0.7989    0.877   3.61       1.05
+  open_3x3    WWW_UAU  SSW     trigger_derived  mixed   525  0     0.4638    0.797     0.877   3.25       1.09
+  closed_CGU  WWW_UAU  WSS     trigger_derived  mixed   118  1     0.4624    0.7655    0.772   7.27       3.69
+  closed_CGU  WWW_UAU  WSS     trigger_derived  mixed   118  2     0.4624    0.7655    0.772   7.33       3.6
+  open_3x3    WWW_UAU  WSS     trigger_derived  mixed   525  2     0.4624    0.7804    0.851   5.45       1.07
+  closed_CGU  WWW_UAU  WSS     trigger_derived  mixed   118  3     0.4624    0.7654    0.772   7.34       3.63
+  open_3x3    WWW_UAU  WSS     trigger_derived  mixed   525  1     0.4624    0.7803    0.851   5.44       2.28
+  open_3x3    WWW_UAU  SSW     trigger_derived  mixed   525  3     0.4622    0.7946    0.877   3.59       1.85
+  closed_CGU  WWW_UAU  WSS     trigger_derived  mixed   118  3     0.4619    0.7645    0.772   4.05       1.86
+
+  those 12 rows come from 7 distinct pair-stem(s).
+PS C:\Users\Dell\source\repos\cernal_software> uv run python src/engine/gates/notebooks/toehold_and/fold_analysis.py --out p3
+>>
+  querying 6 file(s): p3_folded_0.csv, p3_folded_1.csv, p3_folded_2.csv, p3_folded_3.csv, p3_folded_4.csv, p3_folded_5.csv
+
+==============================================================================
+  WHAT IS IN THE FILE
+==============================================================================
+  54,000 folded designs, 150 pair-stems, 53 trigger pairs
+
+==============================================================================
+  DOES IT OPEN AT ALL? -- everything below depends on this
+==============================================================================
+  * A_M(11) is the ON-state availability of the RBS/AUG region. Where it is
+    near zero the switch is shut in every state, and a large `separation` is
+    then the difference between two dead states rather than a working gate.
+
+  threshold      designs  share
+  -------------  -------  -----
+  A_M(11) > 0.1  21,337   39.5%
+  A_M(11) > 0.2  12,052   22.3%
+  A_M(11) > 0.3  10,423   19.3%
+  A_M(11) > 0.5  7,186    13.3%
+  A_M(11) > 0.7  2,571    4.8%
+
+  `--opens` is set to 0.3; the rows above are why that choice is reported,
+  not hidden. Nothing is filtered out of the file or out of any ranking.
+
+==============================================================================
+  DO THE RANKING STATISTICS AGREE?
+==============================================================================
+  * Two statistics correlating near +/-1 carry one fact between them. Two near
+    zero are measuring different things, and ranking on either alone silently
+    discards the other.
+
+  statistic A           statistic B           pearson r
+  --------------------  --------------------  ---------
+  mean_separation       A_M_gain              0.983
+  A_M_gain              A_M_11                0.876
+  mean_separation       A_M_11                0.864
+  separation            A_M_11                -0.167
+  separation            log10_rate_advantage  0.105
+  mean_separation       log10_rate_advantage  0.018
+  A_M_gain              log10_rate_advantage  0.018
+  mean_separation       separation            0.013
+  A_M_gain              separation            0.01
+  log10_rate_advantage  A_M_11                0.002
+
+==============================================================================
+  AXIS: closure
+==============================================================================
+  closure     n     mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ----------  ----  --------  --------  ---------  ------  -----
+  open_3x3    9000  0.153     0.3044    4.07       0.5576  6374
+  pair1_CCC   9000  0.0022    0.0044    5.14       0.1341  2368
+  pair2_CCU   9000  0.0002    0.0004    5.57       0.0716  1089
+  closed_CAU  9000  0.0001    0.0002    5.73       0.0113  79
+  closed_CGU  9000  0.0001    0.0002    5.96       0.0119  360
+  closed_UAU  9000  0.0001    0.0002    5.79       0.0116  153
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   open_3x3 7394,  pair1_CCC 1130,  pair2_CCU 198,  closed_CGU 129,  closed_UAU 81,  closed_CAU 68   (of 9000)
+
+  among designs that open (A_M(11) > 0.3) only:
+  closure     n     mean_sep  joint_sep
+  ----------  ----  --------  ---------
+  closed_CGU  360   0.2701    6.49
+  closed_UAU  153   0.2268    5.06
+  open_3x3    6374  0.2228    3.3
+  closed_CAU  79    0.2004    4.38
+  pair1_CCC   2368  0.1801    5.23
+  pair2_CCU   1089  0.1602    6.9
+
+==============================================================================
+  AXIS: upper3
+==============================================================================
+  upper3           n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------------  -----  --------  --------  ---------  ------  -----
+  WWW_UAU          10800  0.0017    0.003     5.33       0.0688  2200
+  trigger_derived  10800  0.0014    0.0025    5.58       0.0709  2672
+  WWW_AUA          10800  0.0007    0.0013    5.43       0.0659  1927
+  WSW_AGA          10800  0.0006    0.0013    5.27       0.0645  1923
+  WWS_AUG          10800  0.0005    0.0009    5.36       0.0603  1701
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   WWW_UAU 4809,  trigger_derived 4538,  WWW_AUA 913,  WWS_AUG 345,  WSW_AGA 195   (of 10800)
+
+  among designs that open (A_M(11) > 0.3) only:
+  upper3           n     mean_sep  joint_sep
+  ---------------  ----  --------  ---------
+  WWW_AUA          1927  0.2793    4.6
+  WWS_AUG          1701  0.25      4.89
+  WWW_UAU          2200  0.2142    4.08
+  trigger_derived  2672  0.1816    3.32
+  WSW_AGA          1923  0.1633    4.49
+
+==============================================================================
+  AXIS: lower3
+==============================================================================
+  lower3           n     mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------------  ----  --------  --------  ---------  ------  -----
+  trigger_derived  9000  0.074     0.1327    6.45       0.2087  3890
+  WSS              9000  0.0005    0.0009    5.09       0.0627  1627
+  SWW              9000  0.0002    0.0004    4.8        0.0704  1424
+  SWS              9000  0.0002    0.0003    5.56       0.0603  1271
+  SSS              9000  0.0002    0.0004    5.63       0.0399  1012
+  SSW              9000  0.0       0.0002    5.26       0.0588  1199
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   trigger_derived 7835,  SSW 275,  SWS 271,  SWW 243,  WSS 205,  SSS 171   (of 9000)
+
+  among designs that open (A_M(11) > 0.3) only:
+  lower3           n     mean_sep  joint_sep
+  ---------------  ----  --------  ---------
+  SWS              1271  0.2314    4.48
+  WSS              1627  0.2312    4.58
+  SSS              1012  0.2255    4.86
+  SSW              1199  0.2178    4.2
+  SWW              1424  0.2132    3.62
+  trigger_derived  3890  0.1744    4.09
+
+==============================================================================
+  AXIS: island
+==============================================================================
+  island           n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------------  -----  --------  --------  ---------  ------  -----
+  trigger_derived  27000  0.0014    0.0024    5.62       0.0683  6572
+  WWW              27000  0.0006    0.0011    5.19       0.0648  3851
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   trigger_derived 17620,  WWW 9380   (of 27000)
+
+  among designs that open (A_M(11) > 0.3) only:
+  island           n     mean_sep  joint_sep
+  ---------------  ----  --------  ---------
+  trigger_derived  6572  0.226     3.8
+  WWW              3851  0.1837    4.84
+
+==============================================================================
+  DESIGNS THAT BOTH OPEN AND SEPARATE (A_M(11) > 0.3), TOP 12
+==============================================================================
+  closure     upper3   lower3           island           scheme  x@   stem  mean_sep  A_M_gain  A_M_11  joint_sep  log10_kin
+  ----------  -------  ---------------  ---------------  ------  ---  ----  --------  --------  ------  ---------  ---------
+  open_3x3    WWW_UAU  SSS              trigger_derived  mixed   525  2     0.4672    0.803     0.874   5.17       1.07 
+  open_3x3    WWW_UAU  SSS              trigger_derived  mixed   525  1     0.4672    0.8029    0.874   5.16       2.28 
+  open_3x3    WWW_UAU  SWS              trigger_derived  mixed   525  2     0.4668    0.8201    0.891   4.55       1.07 
+  open_3x3    WWW_UAU  SWS              trigger_derived  mixed   525  1     0.4668    0.82      0.891   4.55       2.28 
+  open_3x3    WWW_UAU  SWS              trigger_derived  mixed   525  0     0.4664    0.8194    0.891   4.51       1.15 
+  open_3x3    WWW_UAU  SSS              trigger_derived  mixed   525  0     0.4661    0.8012    0.874   4.94       1.15 
+  open_3x3    WWW_UAU  SSW              trigger_derived  mixed   525  2     0.4649    0.7989    0.877   3.61       1.05 
+  open_3x3    WWW_UAU  SSW              trigger_derived  mixed   525  0     0.4638    0.797     0.877   3.25       1.09 
+  open_3x3    WWW_UAU  SSS              trigger_derived  mixed   525  3     0.4633    0.7962    0.867   5.42       2.0  
+  closed_CGU  WWW_UAU  trigger_derived  trigger_derived  mixed   118  1     0.4624    0.7655    0.772   7.27       3.69 
+  closed_CGU  WWW_UAU  WSS              trigger_derived  mixed   118  1     0.4624    0.7655    0.772   7.27       3.69 
+  closed_CGU  WWW_UAU  trigger_derived  trigger_derived  mixed   118  2     0.4624    0.7655    0.772   7.33       3.6  
+
+  those 12 rows come from 6 distinct pair-stem(s).
+
+    querying 6 file(s): k1_folded_0.csv, k1_folded_1.csv, k1_folded_2.csv, k1_folded_3.csv, k1_folded_4.csv, k1_folded_5.csv
+
+==============================================================================
+  WHAT IS IN THE FILE
+==============================================================================
+  200,064 folded designs, 4168 pair-stems, 1042 trigger pairs
+
+==============================================================================
+  DOES IT OPEN AT ALL? -- everything below depends on this
+==============================================================================
+  * A_M(11) is the ON-state availability of the RBS/AUG region. Where it is
+    near zero the switch is shut in every state, and a large `separation` is
+    then the difference between two dead states rather than a working gate.
+
+  threshold      designs  share
+  -------------  -------  -----
+  A_M(11) > 0.1  86,715   43.3%
+  A_M(11) > 0.2  52,891   26.4%
+  A_M(11) > 0.3  45,465   22.7%
+  A_M(11) > 0.5  22,458   11.2%
+  A_M(11) > 0.7  3,989    2.0%
+
+  `--opens` is set to 0.3; the rows above are why that choice is reported,
+  not hidden. Nothing is filtered out of the file or out of any ranking.
+
+==============================================================================
+  DO THE RANKING STATISTICS AGREE?
+==============================================================================
+  * Two statistics correlating near +/-1 carry one fact between them. Two near
+    zero are measuring different things, and ranking on either alone silently
+    discards the other.
+
+  statistic A           statistic B           pearson r
+  --------------------  --------------------  ---------
+  mean_separation       A_M_gain              0.947
+  A_M_gain              A_M_11                0.652
+  mean_separation       A_M_11                0.624
+  A_M_gain              separation            0.268
+  mean_separation       separation            0.256
+  separation            log10_rate_advantage  0.091
+  separation            A_M_11                -0.058
+  A_M_gain              log10_rate_advantage  0.044
+  mean_separation       log10_rate_advantage  0.043
+  log10_rate_advantage  A_M_11                0.018
+
+==============================================================================
+  AXIS: closure
+==============================================================================
+  closure     n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ----------  -----  --------  --------  ---------  ------  -----
+  open_3x3    33344  0.003     0.0072    0.1        0.4805  26159
+  pair2_CCU   33344  0.0       0.0       2.42       0.0701  5875
+  pair1_CCC   33344  0.0       0.0001    1.96       0.1306  9575
+  closed_CGU  33344  -0.0001   -0.0001   3.06       0.0099  1632
+  closed_UAU  33344  -0.0001   -0.0001   3.12       0.01    1550
+  closed_CAU  33344  -0.0001   -0.0001   3.12       0.0095  674
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  closure     mean    sd      best    p99     in top 500
+  ----------  ------  ------  ------  ------  ----------
+  open_3x3    0.0602  0.107   0.4669  0.3927  381
+  closed_CGU  0.0109  0.0525  0.4626  0.2669  57
+  closed_UAU  0.0103  0.0477  0.444   0.2376  11
+  closed_CAU  0.0059  0.0376  0.444   0.1726  10
+  pair1_CCC   0.0273  0.0721  0.4175  0.2883  39
+  pair2_CCU   0.0209  0.0633  0.3863  0.2702  2
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   open_3x3 20350,  pair1_CCC 6016,  pair2_CCU 2718,  closed_CAU 1503,  closed_UAU 1426,  closed_CGU 1331   (of 33344)
+
+  among designs that open (A_M(11) > 0.3) only:
+  closure     n      mean_sep  joint_sep
+  ----------  -----  --------  ---------
+  closed_CGU  1632   0.1684    4.08
+  closed_CAU  674    0.1682    4.48
+  closed_UAU  1550   0.1587    4.45
+  pair2_CCU   5875   0.1132    2.9
+  pair1_CCC   9575   0.0986    2.41
+  open_3x3    26159  0.0084    0.03
+
+==============================================================================
+  AXIS: upper3
+==============================================================================
+  upper3   n       mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  -------  ------  --------  --------  ---------  ------  -----
+  WWW_AUA  100032  0.0       0.0       2.2        0.0674  22524
+  WWW_UAU  100032  0.0       0.0       2.28       0.0678  22941
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  upper3   mean    sd      best    p99     in top 500
+  -------  ------  ------  ------  ------  ----------
+  WWW_UAU  0.0245  0.0732  0.4669  0.3135  319
+  WWW_AUA  0.0206  0.0658  0.4538  0.292   181
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   WWW_UAU 56424,  WWW_AUA 43608   (of 100032)
+
+  among designs that open (A_M(11) > 0.3) only:
+  upper3   n      mean_sep  joint_sep
+  -------  -----  --------  ---------
+  WWW_UAU  22941  0.0786    0.61
+  WWW_AUA  22524  0.0504    0.56
+
+==============================================================================
+  AXIS: lower3
+==============================================================================
+  lower3     n      mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------  -----  --------  --------  ---------  ------  -----
+  wobble_GU  50016  0.0166    0.0371    3.31       0.2153  21585
+  SWS        50016  -0.0001   -0.0002   2.02       0.0629  7701
+  WSS        50016  -0.0001   -0.0001   1.86       0.0628  7633
+  SSW        50016  -0.0005   -0.0005   2.11       0.0653  8546
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  lower3     mean    sd      best    p99     in top 500
+  ---------  ------  ------  ------  ------  ----------
+  SWS        0.0121  0.0637  0.4669  0.2997  137
+  SSW        0.0127  0.0584  0.4652  0.2748  57
+  wobble_GU  0.0536  0.0813  0.4626  0.3317  177
+  WSS        0.0119  0.0636  0.4626  0.2946  129
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   wobble_GU 30646,  WSS 8079,  SWS 5856,  SSW 5435   (of 50016)
+
+  among designs that open (A_M(11) > 0.3) only:
+  lower3     n      mean_sep  joint_sep
+  ---------  -----  --------  ---------
+  SWS        7701   0.0846    0.76
+  WSS        7633   0.0811    0.75
+  SSW        8546   0.053     0.48
+  wobble_GU  21585  0.053     0.46
+
+==============================================================================
+  AXIS: island
+==============================================================================
+  island           n       mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------------  ------  --------  --------  ---------  ------  -----
+  trigger_derived  200064  0.0       0.0       2.24       0.0676  45465
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  island           mean    sd      best    p99     in top 500
+  ---------------  ------  ------  ------  ------  ----------
+  trigger_derived  0.0226  0.0696  0.4669  0.3047  500
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   trigger_derived 200064   (of 200064)
+
+  among designs that open (A_M(11) > 0.3) only:
+  island           n      mean_sep  joint_sep
+  ---------------  -----  --------  ---------
+  trigger_derived  45465  0.0621    0.58
+
+==============================================================================
+  DOES EACH RULE IMPROVE A DESIGN? -- paired effect, not share of winners
+==============================================================================
+  * Share-of-winners says how often a level comes first; it does not say by
+    how much, and a level that wins narrowly everywhere is worth less than one
+    that wins rarely but hugely. This holds the pair-stem and the other three
+    axes fixed and reports the median CHANGE in mean_separation from switching
+    that one level to its best alternative -- the improvement the rule
+    actually buys.
+
+  closure -- 0.0 means this level IS the best of its group:
+  closure     n      median gap  mean gap  times best
+  ----------  -----  ----------  --------  ----------
+  open_3x3    33344  0.0         -0.0331   20390
+  pair1_CCC   33344  -0.0196     -0.0659   6295
+  pair2_CCU   33344  -0.0266     -0.0723   3348
+  closed_UAU  33344  -0.0371     -0.083    1426
+  closed_CGU  33344  -0.0383     -0.0824   1682
+  closed_CAU  33344  -0.0453     -0.0874   1530
+
+  upper3 -- 0.0 means this level IS the best of its group:
+  upper3   n       median gap  mean gap  times best
+  -------  ------  ----------  --------  ----------
+  WWW_UAU  100032  0.0         -0.0041   56429
+  WWW_AUA  100032  0.0         -0.008    43608
+
+  lower3 -- 0.0 means this level IS the best of its group:
+  lower3     n      median gap  mean gap  times best
+  ---------  -----  ----------  --------  ----------
+  wobble_GU  50016  0.0         -0.0181   34663
+  WSS        50016  -0.0265     -0.0597   8082
+  SSW        50016  -0.0276     -0.059    5436
+  SWS        50016  -0.0282     -0.0596   5856
+
+  island -- 0.0 means this level IS the best of its group:
+  (no rows)
+
+
+==============================================================================
+  WHICH COMBINATIONS WIN? -- what the pipeline should actually keep
+==============================================================================
+  * Axes are reported one at a time everywhere above, which cannot show an
+    interaction: a level can be mediocre alone and essential in company. This
+    ranks the full (closure, upper3, lower3, island) points, which is what a
+    funnel would keep.
+
+  closure     upper3   lower3     island           n     median   best    opens
+  ----------  -------  ---------  ---------------  ----  -------  ------  -----
+  open_3x3    WWW_UAU  SWS        trigger_derived  4168  0.0142   0.4669  2928
+  open_3x3    WWW_UAU  SSW        trigger_derived  4168  0.0102   0.4652  3142
+  closed_CGU  WWW_UAU  WSS        trigger_derived  4168  -0.0003  0.4626  71
+  closed_CGU  WWW_UAU  wobble_GU  trigger_derived  4168  0.02     0.4626  688
+  open_3x3    WWW_UAU  WSS        trigger_derived  4168  0.0123   0.4623  2918
+  open_3x3    WWW_UAU  wobble_GU  trigger_derived  4168  0.0001   0.4582  4133
+  open_3x3    WWW_AUA  SSW        trigger_derived  4168  0.0053   0.4538  3109
+  open_3x3    WWW_AUA  wobble_GU  trigger_derived  4168  0.0      0.4535  4098
+  open_3x3    WWW_AUA  WSS        trigger_derived  4168  0.0082   0.4535  2896
+  open_3x3    WWW_AUA  SWS        trigger_derived  4168  0.0082   0.4451  2935
+  closed_UAU  WWW_UAU  wobble_GU  trigger_derived  4168  0.0224   0.444   641
+  closed_CAU  WWW_UAU  wobble_GU  trigger_derived  4168  0.0131   0.444   304
+
+  the same, ranked on the median instead -- a different set means the best
+  combinations are not the most reliable ones:
+  closure     upper3   lower3     island           n     median  best    opens
+  ----------  -------  ---------  ---------------  ----  ------  ------  -----
+  pair1_CCC   WWW_UAU  wobble_GU  trigger_derived  4168  0.0619  0.4175  3050
+  pair2_CCU   WWW_UAU  wobble_GU  trigger_derived  4168  0.0447  0.3863  2050
+  pair1_CCC   WWW_AUA  wobble_GU  trigger_derived  4168  0.0421  0.3866  2968
+  pair2_CCU   WWW_AUA  wobble_GU  trigger_derived  4168  0.0349  0.373   1941
+  closed_UAU  WWW_UAU  wobble_GU  trigger_derived  4168  0.0224  0.444   641
+  closed_UAU  WWW_AUA  wobble_GU  trigger_derived  4168  0.0215  0.3955  705
+  closed_CGU  WWW_AUA  wobble_GU  trigger_derived  4168  0.0204  0.4313  700
+  closed_CGU  WWW_UAU  wobble_GU  trigger_derived  4168  0.02    0.4626  688
+  open_3x3    WWW_UAU  SWS        trigger_derived  4168  0.0142  0.4669  2928
+  closed_CAU  WWW_AUA  wobble_GU  trigger_derived  4168  0.014   0.3673  307
+  closed_CAU  WWW_UAU  wobble_GU  trigger_derived  4168  0.0131  0.444   304
+  open_3x3    WWW_UAU  WSS        trigger_derived  4168  0.0123  0.4623  2918
+
+==============================================================================
+  DESIGNS THAT BOTH OPEN AND SEPARATE (A_M(11) > 0.3), TOP 12
+==============================================================================
+  closure     upper3   lower3     island           scheme      x@   stem  mean_sep  A_M_gain  A_M_11  joint_sep  log10_kin
+  ----------  -------  ---------  ---------------  ----------  ---  ----  --------  --------  ------  ---------  ---------
+  open_3x3    WWW_UAU  SWS        trigger_derived  mixed       525  3     0.4669    0.8201    0.891   5.19       1.08   
+  open_3x3    WWW_UAU  SWS        trigger_derived  mixed       525  1     0.4668    0.82      0.891   5.24       2.0    
+  open_3x3    WWW_UAU  SSW        trigger_derived  mixed       525  3     0.4652    0.7993    0.877   3.72       1.06   
+  open_3x3    WWW_UAU  SSW        trigger_derived  B-anchored  525  0     0.4644    0.7979    0.876   3.47       2.26   
+  open_3x3    WWW_UAU  SSW        trigger_derived  B-anchored  525  2     0.464     0.7974    0.876   3.47       1.86   
+  closed_CGU  WWW_UAU  WSS        trigger_derived  mixed       118  3     0.4626    0.7654    0.772   5.11       3.47   
+  closed_CGU  WWW_UAU  wobble_GU  trigger_derived  mixed       118  3     0.4626    0.7654    0.772   5.11       3.47   
+  closed_CGU  WWW_UAU  wobble_GU  trigger_derived  mixed       118  2     0.4625    0.7655    0.772   7.86       2.71   
+  closed_CGU  WWW_UAU  WSS        trigger_derived  mixed       118  2     0.4625    0.7655    0.772   7.86       2.71   
+  closed_CGU  WWW_UAU  WSS        trigger_derived  mixed       118  3     0.4624    0.7655    0.772   6.88       3.9    
+  closed_CGU  WWW_UAU  wobble_GU  trigger_derived  mixed       118  3     0.4624    0.7655    0.772   6.88       3.9    
+  open_3x3    WWW_UAU  WSS        trigger_derived  mixed       525  3     0.4623    0.7802    0.851   5.42       1.08   
+
+  those 12 rows come from 6 distinct pair-stem(s).
+
+    querying 6 file(s): a1top_folded_0.csv, a1top_folded_1.csv, a1top_folded_2.csv, a1top_folded_3.csv, a1top_folded_4.csv, a1top_folded_5.csv
+
+==============================================================================
+  WHAT IS IN THE FILE
+==============================================================================
+  4,800 folded designs, 100 pair-stems, 100 trigger pairs
+
+==============================================================================
+  DOES IT OPEN AT ALL? -- everything below depends on this
+==============================================================================
+  * A_M(11) is the ON-state availability of the RBS/AUG region. Where it is
+    near zero the switch is shut in every state, and a large `separation` is
+    then the difference between two dead states rather than a working gate.
+
+  threshold      designs  share
+  -------------  -------  -----
+  A_M(11) > 0.1  2,571    53.6%
+  A_M(11) > 0.2  1,665    34.7%
+  A_M(11) > 0.3  1,476    30.8%
+  A_M(11) > 0.5  877      18.3%
+  A_M(11) > 0.7  223      4.6%
+
+  `--opens` is set to 0.3; the rows above are why that choice is reported,
+  not hidden. Nothing is filtered out of the file or out of any ranking.
+
+==============================================================================
+  DO THE RANKING STATISTICS AGREE?
+==============================================================================
+  * Two statistics correlating near +/-1 carry one fact between them. Two near
+    zero are measuring different things, and ranking on either alone silently
+    discards the other.
+
+  statistic A           statistic B           pearson r
+  --------------------  --------------------  ---------
+  mean_separation       A_M_gain              0.752
+  mean_separation       A_M_11                0.221
+  A_M_gain              A_M_11                0.145
+  separation            log10_rate_advantage  -0.095
+  A_M_gain              separation            0.09
+  mean_separation       separation            0.088
+  separation            A_M_11                0.052
+  mean_separation       log10_rate_advantage  -0.033
+  A_M_gain              log10_rate_advantage  -0.025
+  log10_rate_advantage  A_M_11                -0.016
+
+==============================================================================
+  AXIS: closure
+==============================================================================
+  closure     n    mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ----------  ---  --------  --------  ---------  ------  -----
+  pair2_CCU   800  0.0       0.0       0.0        0.0956  225
+  closed_CGU  800  0.0       0.0       0.0        0.0268  53
+  closed_CAU  800  0.0       0.0       0.0        0.0254  20
+  pair1_CCC   800  0.0       0.0       0.0        0.2028  356
+  closed_UAU  800  0.0       0.0       0.0        0.0275  84
+  open_3x3    800  0.0       0.0       0.0        0.575   738
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  closure     mean     sd      best  p99  in top 500
+  ----------  -------  ------  ----  ---  ----------
+  closed_CAU  -0.0018  0.0048  0.0   0.0  86
+  closed_UAU  -0.0017  0.0048  0.0   0.0  87
+  pair1_CCC   -0.0012  0.0058  0.0   0.0  82
+  closed_CGU  -0.0018  0.0048  0.0   0.0  91
+  pair2_CCU   -0.0016  0.0047  0.0   0.0  75
+  open_3x3    -0.0     0.0006  0.0   0.0  79
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   open_3x3 308,  pair1_CCC 140,  closed_UAU 122,  pair2_CCU 110,  closed_CGU 68,  closed_CAU 52   (of 800)
+
+  among designs that open (A_M(11) > 0.3) only:
+  closure     n    mean_sep  joint_sep
+  ----------  ---  --------  ---------
+  closed_UAU  84   0.0       0.0
+  open_3x3    738  0.0       0.0
+  pair2_CCU   225  0.0       0.0
+  pair1_CCC   356  0.0       0.0
+  closed_CAU  20   0.0       0.0
+  closed_CGU  53   0.0       0.0
+
+==============================================================================
+  AXIS: upper3
+==============================================================================
+  upper3   n     mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  -------  ----  --------  --------  ---------  ------  -----
+  WWW_AUA  2400  0.0       0.0       0.0        0.119   750
+  WWW_UAU  2400  0.0       0.0       0.0        0.1169  726
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  upper3   mean     sd      best  p99  in top 500
+  -------  -------  ------  ----  ---  ----------
+  WWW_AUA  -0.0013  0.0047  0.0   0.0  246
+  WWW_UAU  -0.0014  0.0045  0.0   0.0  254
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   WWW_AUA 1251,  WWW_UAU 1149   (of 2400)
+
+  among designs that open (A_M(11) > 0.3) only:
+  upper3   n    mean_sep  joint_sep
+  -------  ---  --------  ---------
+  WWW_UAU  726  0.0       0.0
+  WWW_AUA  750  0.0       0.0
+
+==============================================================================
+  AXIS: lower3
+==============================================================================
+  lower3     n     mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------  ----  --------  --------  ---------  ------  -----
+  SWS        1200  0.0       -0.0      0.0        0.0819  295
+  WSS        1200  0.0       -0.0      0.0        0.0635  249
+  SSW        1200  0.0       0.0       0.0        0.0683  261
+  wobble_GU  1200  0.0       0.0       0.0        0.3621  671
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  lower3     mean     sd      best  p99  in top 500
+  ---------  -------  ------  ----  ---  ----------
+  wobble_GU  -0.0     0.0005  0.0   0.0  152
+  SWS        -0.0026  0.0073  0.0   0.0  113
+  SSW        -0.0007  0.0023  0.0   0.0  120
+  WSS        -0.0021  0.0047  0.0   0.0  115
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   wobble_GU 444,  SSW 325,  WSS 248,  SWS 183   (of 1200)
+
+  among designs that open (A_M(11) > 0.3) only:
+  lower3     n    mean_sep  joint_sep
+  ---------  ---  --------  ---------
+  SWS        295  0.0       0.0
+  WSS        249  0.0       0.0
+  SSW        261  0.0       0.0
+  wobble_GU  671  0.0       0.0
+
+==============================================================================
+  AXIS: island
+==============================================================================
+  island           n     mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------------  ----  --------  --------  ---------  ------  -----
+  trigger_derived  4800  0.0       0.0       0.0        0.1181  1476
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  island           mean     sd      best  p99  in top 500
+  ---------------  -------  ------  ----  ---  ----------
+  trigger_derived  -0.0014  0.0046  0.0   0.0  500
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   trigger_derived 4800   (of 4800)
+
+  among designs that open (A_M(11) > 0.3) only:
+  island           n     mean_sep  joint_sep
+  ---------------  ----  --------  ---------
+  trigger_derived  1476  0.0       0.0
+
+==============================================================================
+  DOES EACH RULE IMPROVE A DESIGN? -- paired effect, not share of winners
+==============================================================================
+  * Share-of-winners says how often a level comes first; it does not say by
+    how much, and a level that wins narrowly everywhere is worth less than one
+    that wins rarely but hugely. This holds the pair-stem and the other three
+    axes fixed and reports the median CHANGE in mean_separation from switching
+    that one level to its best alternative -- the improvement the rule
+    actually buys.
+
+  closure -- 0.0 means this level IS the best of its group:
+  closure     n    median gap  mean gap  times best
+  ----------  ---  ----------  --------  ----------
+  pair2_CCU   800  0.0         -0.0015   112
+  pair1_CCC   800  0.0         -0.0011   152
+  closed_CAU  800  0.0         -0.0017   52
+  closed_UAU  800  0.0         -0.0017   123
+  closed_CGU  800  0.0         -0.0017   71
+  open_3x3    800  0.0         -0.0      308
+
+  upper3 -- 0.0 means this level IS the best of its group:
+  upper3   n     median gap  mean gap  times best
+  -------  ----  ----------  --------  ----------
+  WWW_AUA  2400  0.0         -0.0      1251
+  WWW_UAU  2400  0.0         -0.0001   1180
+
+  lower3 -- 0.0 means this level IS the best of its group:
+  lower3     n     median gap  mean gap  times best
+  ---------  ----  ----------  --------  ----------
+  SSW        1200  0.0         -0.0007   325
+  WSS        1200  0.0         -0.0021   253
+  wobble_GU  1200  0.0         -0.0      552
+  SWS        1200  0.0         -0.0026   188
+
+  island -- 0.0 means this level IS the best of its group:
+  (no rows)
+
+
+==============================================================================
+  WHICH COMBINATIONS WIN? -- what the pipeline should actually keep
+==============================================================================
+  * Axes are reported one at a time everywhere above, which cannot show an
+    interaction: a level can be mediocre alone and essential in company. This
+    ranks the full (closure, upper3, lower3, island) points, which is what a
+    funnel would keep.
+
+  closure     upper3   lower3     island           n    median  best  opens
+  ----------  -------  ---------  ---------------  ---  ------  ----  -----
+  open_3x3    WWW_UAU  wobble_GU  trigger_derived  100  -0.0    0.0   100
+  open_3x3    WWW_AUA  SWS        trigger_derived  100  0.0     0.0   90
+  closed_CAU  WWW_AUA  WSS        trigger_derived  100  -0.0    0.0   0
+  closed_CAU  WWW_UAU  WSS        trigger_derived  100  -0.0    0.0   0
+  pair2_CCU   WWW_UAU  wobble_GU  trigger_derived  100  0.0     0.0   69
+  closed_UAU  WWW_AUA  wobble_GU  trigger_derived  100  0.0     0.0   42
+  closed_UAU  WWW_UAU  WSS        trigger_derived  100  -0.0    0.0   0
+  closed_UAU  WWW_UAU  wobble_GU  trigger_derived  100  0.0     0.0   28
+  open_3x3    WWW_AUA  SSW        trigger_derived  100  -0.0    0.0   86
+  closed_CAU  WWW_UAU  wobble_GU  trigger_derived  100  0.0     0.0   8
+  closed_CGU  WWW_UAU  wobble_GU  trigger_derived  100  0.0     0.0   21
+  pair2_CCU   WWW_UAU  WSS        trigger_derived  100  -0.0    0.0   5
+
+  the same, ranked on the median instead -- a different set means the best
+  combinations are not the most reliable ones:
+  closure     upper3   lower3     island           n    median  best  opens
+  ----------  -------  ---------  ---------------  ---  ------  ----  -----
+  open_3x3    WWW_UAU  wobble_GU  trigger_derived  100  -0.0    0.0   100
+  open_3x3    WWW_UAU  SWS        trigger_derived  100  0.0     0.0   88
+  pair1_CCC   WWW_AUA  SSW        trigger_derived  100  0.0     0.0   35
+  pair1_CCC   WWW_UAU  SSW        trigger_derived  100  0.0     0.0   23
+  open_3x3    WWW_AUA  wobble_GU  trigger_derived  100  -0.0    0.0   100
+  closed_CGU  WWW_AUA  SSW        trigger_derived  100  0.0     0.0   0
+  pair1_CCC   WWW_AUA  SWS        trigger_derived  100  -0.0    0.0   31
+  closed_CGU  WWW_UAU  WSS        trigger_derived  100  -0.0    0.0   0
+  open_3x3    WWW_AUA  SWS        trigger_derived  100  0.0     0.0   90
+  closed_CAU  WWW_AUA  WSS        trigger_derived  100  -0.0    0.0   0
+  closed_CAU  WWW_UAU  WSS        trigger_derived  100  -0.0    0.0   0
+  pair2_CCU   WWW_UAU  wobble_GU  trigger_derived  100  0.0     0.0   69
+
+==============================================================================
+  DESIGNS THAT BOTH OPEN AND SEPARATE (A_M(11) > 0.3), TOP 12
+==============================================================================
+  closure     upper3   lower3     island           scheme      x@   stem  mean_sep  A_M_gain  A_M_11  joint_sep  log10_kin
+  ----------  -------  ---------  ---------------  ----------  ---  ----  --------  --------  ------  ---------  ---------
+  open_3x3    WWW_UAU  SSW        trigger_derived  A-anchored  111  1     0.0       0.0       0.387   0.0        -1.25  
+  open_3x3    WWW_AUA  SSW        trigger_derived  A-anchored  111  1     0.0       0.0       0.461   0.0        -1.25  
+  open_3x3    WWW_AUA  WSS        trigger_derived  A-anchored  111  1     0.0       0.0       0.414   0.0        -1.52  
+  open_3x3    WWW_UAU  WSS        trigger_derived  A-anchored  111  1     0.0       0.0       0.336   0.0        -1.52  
+  closed_CGU  WWW_AUA  wobble_GU  trigger_derived  A-anchored  102  0     0.0       0.0       0.411   0.0        1.25   
+  pair1_CCC   WWW_AUA  WSS        trigger_derived  A-anchored  102  0     0.0       0.0       0.448   0.0        2.26   
+  pair2_CCU   WWW_UAU  wobble_GU  trigger_derived  A-anchored  102  0     0.0       0.0       0.532   0.0        1.25   
+  open_3x3    WWW_UAU  SSW        trigger_derived  A-anchored  111  2     0.0       0.0       0.387   0.0        -1.29  
+  open_3x3    WWW_AUA  SSW        trigger_derived  A-anchored  111  2     0.0       0.0       0.461   0.0        -1.29  
+  open_3x3    WWW_UAU  SWS        trigger_derived  A-anchored  102  0     0.0       0.0       0.482   0.0        1.14   
+  open_3x3    WWW_AUA  WSS        trigger_derived  A-anchored  111  2     0.0       0.0       0.414   0.0        -1.7   
+  open_3x3    WWW_UAU  WSS        trigger_derived  A-anchored  111  2     0.0       0.0       0.336   0.0        -1.7   
+
+  those 12 rows come from 3 distinct pair-stem(s).
+
+    querying 6 file(s): wob_folded_0.csv, wob_folded_1.csv, wob_folded_2.csv, wob_folded_3.csv, wob_folded_4.csv, wob_folded_5.csv
+
+==============================================================================
+  WHAT IS IN THE FILE
+==============================================================================
+  8,336 folded designs, 4168 pair-stems, 1042 trigger pairs
+
+==============================================================================
+  DOES IT OPEN AT ALL? -- everything below depends on this
+==============================================================================
+  * A_M(11) is the ON-state availability of the RBS/AUG region. Where it is
+    near zero the switch is shut in every state, and a large `separation` is
+    then the difference between two dead states rather than a working gate.
+
+  threshold      designs  share
+  -------------  -------  -----
+  A_M(11) > 0.1  8,313    99.7%
+  A_M(11) > 0.2  8,299    99.6%
+  A_M(11) > 0.3  8,280    99.3%
+  A_M(11) > 0.5  6,244    74.9%
+  A_M(11) > 0.7  1,137    13.6%
+
+  `--opens` is set to 0.3; the rows above are why that choice is reported,
+  not hidden. Nothing is filtered out of the file or out of any ranking.
+
+==============================================================================
+  DO THE RANKING STATISTICS AGREE?
+==============================================================================
+  * Two statistics correlating near +/-1 carry one fact between them. Two near
+    zero are measuring different things, and ranking on either alone silently
+    discards the other.
+
+  statistic A           statistic B           pearson r
+  --------------------  --------------------  ---------
+  mean_separation       A_M_gain              0.974    
+  A_M_gain              separation            0.75     
+  mean_separation       separation            0.719    
+  mean_separation       A_M_11                0.245    
+  A_M_gain              A_M_11                0.23     
+  mean_separation       log10_rate_advantage  0.043    
+  separation            A_M_11                0.042    
+  A_M_gain              log10_rate_advantage  0.041    
+  log10_rate_advantage  A_M_11                0.029    
+  separation            log10_rate_advantage  0.016    
+
+==============================================================================
+  AXIS: closure
+==============================================================================
+  closure   n     mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  --------  ----  --------  --------  ---------  ------  -----
+  open_3x3  8336  0.0       0.0001    0.0        0.5641  8280 
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  closure   mean    sd      best    p99     in top 500
+  --------  ------  ------  ------  ------  ----------
+  open_3x3  0.0408  0.0938  0.4582  0.3801  500       
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   open_3x3 8336   (of 8336)
+
+  among designs that open (A_M(11) > 0.3) only:
+  closure   n     mean_sep  joint_sep
+  --------  ----  --------  ---------
+  open_3x3  8280  0.0       0.0      
+
+==============================================================================
+  AXIS: upper3
+==============================================================================
+  upper3   n     mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  -------  ----  --------  --------  ---------  ------  -----
+  WWW_UAU  8336  0.0       0.0001    0.0        0.5641  8280 
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  upper3   mean    sd      best    p99     in top 500
+  -------  ------  ------  ------  ------  ----------
+  WWW_UAU  0.0408  0.0938  0.4582  0.3801  500       
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   WWW_UAU 8336   (of 8336)
+
+  among designs that open (A_M(11) > 0.3) only:
+  upper3   n     mean_sep  joint_sep
+  -------  ----  --------  ---------
+  WWW_UAU  8280  0.0       0.0      
+
+==============================================================================
+  AXIS: lower3
+==============================================================================
+  lower3           n     mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------------  ----  --------  --------  ---------  ------  -----
+  wobble_GU        4168  0.0001    0.0001    0.0        0.5657  4133 
+  trigger_derived  4168  0.0       0.0001    0.0        0.5603  4147 
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  lower3           mean    sd      best    p99     in top 500
+  ---------------  ------  ------  ------  ------  ----------
+  trigger_derived  0.0373  0.0901  0.4582  0.3776  223       
+  wobble_GU        0.0442  0.0972  0.4582  0.3914  277       
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   trigger_derived 2890,  wobble_GU 1278   (of 4168)
+
+  among designs that open (A_M(11) > 0.3) only:
+  lower3           n     mean_sep  joint_sep
+  ---------------  ----  --------  ---------
+  wobble_GU        4133  0.0001    0.0      
+  trigger_derived  4147  0.0       0.0      
+
+==============================================================================
+  AXIS: island
+==============================================================================
+  island           n     mean_sep  A_M_gain  joint_sep  A_M_11  opens
+  ---------------  ----  --------  --------  ---------  ------  -----
+  trigger_derived  8336  0.0       0.0001    0.0        0.5641  8280 
+
+  by mean/sd/max, and share of the overall top 500 on mean_separation:
+  island           mean    sd      best    p99     in top 500
+  ---------------  ------  ------  ------  ------  ----------
+  trigger_derived  0.0408  0.0938  0.4582  0.3801  500       
+
+  paired on mean_separation, pair-stem and the other three axes held fixed:
+   trigger_derived 8336   (of 8336)
+
+  among designs that open (A_M(11) > 0.3) only:
+  island           n     mean_sep  joint_sep
+  ---------------  ----  --------  ---------
+  trigger_derived  8280  0.0       0.0      
+
+==============================================================================
+  DOES EACH RULE IMPROVE A DESIGN? -- paired effect, not share of winners
+==============================================================================
+  * Share-of-winners says how often a level comes first; it does not say by
+    how much, and a level that wins narrowly everywhere is worth less than one
+    that wins rarely but hugely. This holds the pair-stem and the other three
+    axes fixed and reports the median CHANGE in mean_separation from switching
+    that one level to its best alternative -- the improvement the rule
+    actually buys.
+
+  closure -- 0.0 means this level IS the best of its group:
+  (no rows)
+
+  upper3 -- 0.0 means this level IS the best of its group:
+  (no rows)
+
+  lower3 -- 0.0 means this level IS the best of its group:
+  lower3           n     median gap  mean gap  times best
+  ---------------  ----  ----------  --------  ----------
+  wobble_GU        4168  0.0         -0.0009   3994      
+  trigger_derived  4168  0.0         -0.0078   2891      
+
+  island -- 0.0 means this level IS the best of its group:
+  (no rows)
+
+
+==============================================================================
+  WHICH COMBINATIONS WIN? -- what the pipeline should actually keep
+==============================================================================
+  * Axes are reported one at a time everywhere above, which cannot show an
+    interaction: a level can be mediocre alone and essential in company. This
+    ranks the full (closure, upper3, lower3, island) points, which is what a
+    funnel would keep.
+
+  closure   upper3   lower3           island           n     median  best    opens
+  --------  -------  ---------------  ---------------  ----  ------  ------  -----
+  open_3x3  WWW_UAU  wobble_GU        trigger_derived  4168  0.0001  0.4582  4133 
+  open_3x3  WWW_UAU  trigger_derived  trigger_derived  4168  0.0     0.4582  4147 
+
+  the same, ranked on the median instead -- a different set means the best
+  combinations are not the most reliable ones:
+  closure   upper3   lower3           island           n     median  best    opens
+  --------  -------  ---------------  ---------------  ----  ------  ------  -----
+  open_3x3  WWW_UAU  wobble_GU        trigger_derived  4168  0.0001  0.4582  4133 
+  open_3x3  WWW_UAU  trigger_derived  trigger_derived  4168  0.0     0.4582  4147 
+
+==============================================================================
+  DESIGNS THAT BOTH OPEN AND SEPARATE (A_M(11) > 0.3), TOP 12
+==============================================================================
+  closure   upper3   lower3           island           scheme      x@   stem  mean_sep  A_M_gain  A_M_11  joint_sep  log10_kin
+  --------  -------  ---------------  ---------------  ----------  ---  ----  --------  --------  ------  ---------  ---------
+  open_3x3  WWW_UAU  wobble_GU        trigger_derived  B-anchored  111  0     0.4582    0.7626    0.825   6.12       2.61     
+  open_3x3  WWW_UAU  trigger_derived  trigger_derived  B-anchored  111  0     0.4582    0.7626    0.825   6.12       2.61     
+  open_3x3  WWW_UAU  wobble_GU        trigger_derived  B-anchored  111  1     0.4582    0.7626    0.825   6.12       2.85     
+  open_3x3  WWW_UAU  trigger_derived  trigger_derived  B-anchored  111  1     0.4582    0.7626    0.825   6.12       2.85     
+  open_3x3  WWW_UAU  wobble_GU        trigger_derived  B-anchored  111  1     0.4562    0.7593    0.825   3.35       0.17     
+  open_3x3  WWW_UAU  trigger_derived  trigger_derived  B-anchored  111  1     0.4562    0.7593    0.825   3.35       0.17     
+  open_3x3  WWW_UAU  wobble_GU        trigger_derived  B-anchored  111  2     0.4562    0.7593    0.825   3.35       0.97     
+  open_3x3  WWW_UAU  trigger_derived  trigger_derived  B-anchored  111  2     0.4562    0.7593    0.825   3.35       0.97     
+  open_3x3  WWW_UAU  trigger_derived  trigger_derived  B-anchored  111  0     0.4561    0.7592    0.825   3.35       0.02     
+  open_3x3  WWW_UAU  wobble_GU        trigger_derived  B-anchored  111  0     0.4561    0.7592    0.825   3.35       0.02     
+  open_3x3  WWW_UAU  trigger_derived  trigger_derived  B-anchored  111  3     0.4561    0.759     0.822   6.11       2.81     
+  open_3x3  WWW_UAU  wobble_GU        trigger_derived  B-anchored  111  3     0.4561    0.759     0.822   6.11       2.81     
+
+  those 12 rows come from 4 distinct pair-stem(s).

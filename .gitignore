@@ -41,3 +41,44 @@ staticfiles/
 .DS_Store
 desktop.ini
 *:Zone.Identifier
+
+# --- A0 full-sweep outputs (regenerable; hundreds of MB) ---
+# The small result files under toehold_and/results/ ARE committed on purpose: they are
+# the evidence behind the report, and all 72 of them come to 4.1 MB. The full sweep is a
+# different kind of object. sweep_cheap.csv is ~450 MB at 707 of 1036 trigger pairs and
+# ~650 MB complete, and git keeps every version of every committed file forever, so
+# adding it once would grow this 21 MB repo roughly thirtyfold and there would be no
+# clean way to take it back. It is regenerable from full_sweep.py plus the FASTA.
+# Listed by exact name rather than as sweep_* so the small, deliberately-pinned
+# sweep_smoke_cheap.csv and sweep_smoke_folded.csv fixtures stay tracked.
+src/engine/gates/notebooks/toehold_and/results/sweep_cheap.csv
+src/engine/gates/notebooks/toehold_and/results/sweep_folded.csv
+# The temporary copy --resume writes while trimming a partial file.
+src/engine/gates/notebooks/toehold_and/results/*.trimmed
+# The compact Parquet copy sweep_analysis.py --build derives from the CSV above.
+src/engine/gates/notebooks/toehold_and/results/*_analysis.parquet
+# Per-phase sweep outputs from run_night.ps1 and its logs. Same reasoning as sweep_*:
+# regenerable, and the folded files run to hundreds of MB across six shards.
+src/engine/gates/notebooks/toehold_and/results/p[0-9]_cheap.csv
+src/engine/gates/notebooks/toehold_and/results/p[0-9]_folded*.csv
+# The same objects under the phase prefixes the rules above never learned about. This gap is why
+# 2,798 MB across 362 files got committed under results/ against the budget stated above: the
+# ignore rules were written for sweep_* and p<digit>_*, and the k1_, a1_ and wob_ phases went in
+# unnoticed. Twelve of those blobs are 109-134 MB, over GitHub's 100 MB per-file limit, which is
+# what makes this branch unpushable.
+#
+# wob_cheap_0..5.csv are BYTE-IDENTICAL to k1_cheap_0..5.csv -- same blob SHAs, 806 MB of tracked
+# paths carrying nothing new.
+src/engine/gates/notebooks/toehold_and/results/k1_cheap_*.csv
+src/engine/gates/notebooks/toehold_and/results/k1_folded_*.csv
+src/engine/gates/notebooks/toehold_and/results/a1_cheap_*.csv
+src/engine/gates/notebooks/toehold_and/results/a1top_cheap.csv
+src/engine/gates/notebooks/toehold_and/results/wob_cheap_*.csv
+src/engine/gates/notebooks/toehold_and/results/wob_folded_*.csv
+src/engine/gates/notebooks/toehold_and/results/logs/
+src/engine/gates/notebooks/toehold_and/results/*_vista*.csv
+src/engine/gates/notebooks/toehold_and/results/toehold.csv
+
+# Report build products: regenerate with report/panel_data.py and report/panel_page.py
+src/engine/gates/notebooks/toehold_and/report/panel_data.json
+src/engine/gates/notebooks/toehold_and/report/panel.html

@@ -1,0 +1,906 @@
+<script>
+const D = /*__DATA__*/{};
+const CANDS = D.cands, STATS = D.stats;
+// Exposed for the Excel exporter, which lives in its own file and must not keep a second copy of
+// either the data or the filter logic -- a sheet built from a different row set than the page
+// shows is the one failure mode that would not be visible to the person ordering from it.
+window.DATA = D;
+const el = (id) => document.getElementById(id);
+const f2 = (v, d = 2) => (v === null || v === undefined ? "—" : v.toFixed(d));
+const UP = '<span class="dir up">▲</span>', DN = '<span class="dir dn">▼</span>';
+const STATE_NOTE = {"00":"no trigger", "01":"trigger B only", "10":"trigger A only",
+  "11":"both triggers"};
+
+function ramp(v){
+  const c0 = [43,74,125], c1 = [250,250,246], c2 = [201,132,22];
+  const t = Math.max(0, Math.min(1, v));
+  const [a, b, u] = t < .5 ? [c0, c1, t * 2] : [c1, c2, (t - .5) * 2];
+  return "rgb(" + a.map((x,i)=>Math.round(x+(b[i]-x)*u)).join(",") + ")";
+}
+el("swatch").style.background =
+  "linear-gradient(90deg," + [0,.25,.5,.75,1].map(ramp).join(",") + ")";
+
+const pairs = [...new Set(CANDS.map(c => c.pair))];
+el("prov").textContent =
+  CANDS.length + " designs · " + pairs.length + " trigger pairs × 2 geometries × "
+  + new Set(CANDS.flatMap(c => String(c.arm).split(" + ").map(s => s.trim()))).size
+  + " objectives · scored on 5.2% of the sweep"
+  + " · energies in kcal/mol at 37 °C";
+
+/* ---------- structure viewer ---------- */
+const DOMCOL = {
+  "cap":"#9aa4b2", "r2*":"#2b7fd0", "sw_x":"#c2185b", "k2*":"#1f8a70",
+  "sec_loop":"#d98324", "sec_z":"#5b8c2a", "x*":"#7a5cc6",
+  "main_pre_star":"#00897b", "bulge_star":"#d81b60", "k1_star":"#3949ab",
+  "rbs_loop":"#f9a825", "main_z":"#6d4c41", "aug":"#e53935", "main_pre":"#00838f",
+  "linker":"#78909c", "trigger A":"#8E44AD", "trigger B":"#2F7A4E"
+};
+function domainOf(i, d, cuts){
+  if (i >= d.nt) return (cuts.length > 1 && i >= cuts[1]) ? "trigger B" : "trigger A";
+  for (const x of d.alld) if (i >= x.s && i < x.e) return x.name;
+  return "cap";
+}
+function principalAngle(xy){
+  const n = xy.length;
+  let mx = 0, my = 0;
+  for (const p of xy){ mx += p[0]; my += p[1]; }
+  mx /= n; my /= n;
+  let sxx = 0, syy = 0, sxy = 0;
+  for (const p of xy){
+    const dx = p[0] - mx, dy = p[1] - my;
+    sxx += dx * dx; syy += dy * dy; sxy += dx * dy;
+  }
+  return 0.5 * Math.atan2(2 * sxy, sxx - syy);
+}
+function buildSVG(d, state, model){
+  const base = d.states[state];
+  // The centroid carries its own coordinates and pair list; everything else -- sequence,
+  // strand cuts, the ensemble strip -- is a property of the tube, not of the drawing.
+  const draw = (model === "centroid" && base.centroid) ? base.centroid : base;
+  const st = {xy: draw.xy, bp: draw.bp, cuts: base.cuts, seq: base.seq};
+  if (!st.xy || !st.xy.length) return '<p class="note">no layout available</p>';
+  const ang = -principalAngle(st.xy);
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const pts = st.xy.map(p => [p[0] * ca - p[1] * sa, p[0] * sa + p[1] * ca]);
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const pad = 13;
+  const x0 = Math.min.apply(null, xs) - pad, x1 = Math.max.apply(null, xs) + pad;
+  const y0 = Math.min.apply(null, ys) - pad, y1 = Math.max.apply(null, ys) + pad;
+  const cutSet = new Set(st.cuts), seq = st.seq;
+  let g = "";
+  for (let i = 0; i + 1 < pts.length; i++){
+    if (cutSet.has(i + 1)) continue;
+    g += '<line x1="' + pts[i][0].toFixed(1) + '" y1="' + pts[i][1].toFixed(1)
+      + '" x2="' + pts[i+1][0].toFixed(1) + '" y2="' + pts[i+1][1].toFixed(1)
+      + '" stroke="#b6bcc6" stroke-width="1.3"/>';
+  }
+  for (const pr of st.bp){
+    g += '<line x1="' + pts[pr[0]][0].toFixed(1) + '" y1="' + pts[pr[0]][1].toFixed(1)
+      + '" x2="' + pts[pr[1]][0].toFixed(1) + '" y2="' + pts[pr[1]][1].toFixed(1)
+      + '" stroke="#7f8794" stroke-width="1" stroke-dasharray="2 1.6"/>';
+  }
+  for (let i = 0; i < pts.length; i++){
+    const col = DOMCOL[domainOf(i, d, st.cuts)] || "#9aa4b2";
+    g += '<circle cx="' + pts[i][0].toFixed(1) + '" cy="' + pts[i][1].toFixed(1)
+      + '" r="4.6" fill="' + col + '" stroke="#fff" stroke-width=".7"/>'
+      + '<text x="' + pts[i][0].toFixed(1) + '" y="' + (pts[i][1] + 2.2).toFixed(1)
+      + '" font-size="4.8" text-anchor="middle" fill="#fff">' + (seq[i] || "") + '</text>';
+  }
+  const vb = [x0, y0, x1 - x0, y1 - y0];
+  return '<svg viewBox="' + vb.map(v => v.toFixed(1)).join(" ") + '" data-vb="'
+    + vb.map(v => v.toFixed(3)).join(" ") + '" role="img" aria-label="predicted structure, state '
+    + state + '">' + g + '</svg>';
+}
+function wireStage(box){
+  const stage = box.querySelector(".stage");
+  const svg = stage.querySelector("svg");
+  if (!svg) return null;
+  const base = svg.dataset.vb.split(" ").map(Number);
+  let vb = base.slice();
+  const info = box.querySelector(".vinfo");
+  const apply = () => {
+    svg.setAttribute("viewBox", vb.map(v => v.toFixed(2)).join(" "));
+    if (info) info.textContent = "zoom " + (base[2] / vb[2]).toFixed(2) + "×";
+  };
+  apply();
+  const zoomAt = (k, fx, fy) => {
+    const px = vb[0] + fx * vb[2], py = vb[1] + fy * vb[3];
+    vb[2] /= k; vb[3] /= k; vb[0] = px - fx * vb[2]; vb[1] = py - fy * vb[3];
+    apply();
+  };
+  box.querySelectorAll("[data-zoom]").forEach(b => {
+    b.onclick = () => zoomAt(Number(b.dataset.zoom), 0.5, 0.5);
+  });
+  svg.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const r = svg.getBoundingClientRect();
+    zoomAt(e.deltaY < 0 ? 1.18 : 1 / 1.18,
+      (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  }, {passive:false});
+  let drag = null;
+  svg.addEventListener("pointerdown", (e) => {
+    drag = {x:e.clientX, y:e.clientY, vb:vb.slice()};
+    stage.classList.add("drag");
+    try { svg.setPointerCapture(e.pointerId); } catch (err) { /* older app views */ }
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const r = svg.getBoundingClientRect();
+    vb[0] = drag.vb[0] - (e.clientX - drag.x) * drag.vb[2] / r.width;
+    vb[1] = drag.vb[1] - (e.clientY - drag.y) * drag.vb[3] / r.height;
+    apply();
+  });
+  const stop = () => { drag = null; stage.classList.remove("drag"); };
+  ["pointerup","pointercancel","pointerleave"].forEach(ev => svg.addEventListener(ev, stop));
+  return () => { vb = base.slice(); apply(); };
+}
+function mountViewer(box, d){
+  let cur = "11", model = "mfe";
+  const draw = () => {
+    box.querySelector(".stage").innerHTML = buildSVG(d, cur, model);
+    const reset = wireStage(box);
+    const fit = box.querySelector("[data-fit]");
+    if (fit) fit.onclick = () => { if (reset) reset(); };
+    const st = d.states[cur];
+    // Both energies, always, so switching the drawing does not also switch which number
+    // is on screen -- the gap between them is how split the ensemble is.
+    // Each structure's own share of the ensemble, beside its energy. One structure out of
+    // exponentially many, so the numbers are small by construction -- the ratio between them
+    // and the order of magnitude are what carry information.
+    const share = v => (v === undefined || v === null) ? "" :
+      " (" + (v >= 0.01 ? (100 * v).toFixed(1) + "%" : v.toExponential(1)) + " of the ensemble)";
+    const gap = (st.dG_centroid === undefined || st.dG_centroid === null)
+      ? "" : "  ·  centroid " + f2(st.dG_centroid, 1) + " kcal/mol" + share(st.p_centroid);
+    box.querySelector(".dG").textContent = STATE_NOTE[cur] + "  ·  MFE "
+      + f2(st.dG, 1) + " kcal/mol" + share(st.p_mfe) + gap + "  ·  drawing: "
+      + (model === "centroid" ? "centroid" : "MFE");
+  };
+  const press = (selector, key) => box.querySelectorAll(selector).forEach(b => {
+    b.addEventListener("click", () => {
+      if (key === "state") cur = b.dataset.state; else model = b.dataset.model;
+      box.querySelectorAll(selector).forEach(x => x.setAttribute("aria-pressed",
+        String((key === "state" ? x.dataset.state === cur : x.dataset.model === model))));
+      draw();
+    });
+  });
+  press("[data-state]", "state");
+  press("[data-model]", "model");
+  draw();
+}
+function viewerHTML(d){
+  const seen = [];
+  d.alld.forEach(x => { if (seen.indexOf(x.name) < 0) seen.push(x.name); });
+  seen.push("trigger A", "trigger B");
+  const keys = seen.map(nm =>
+    '<span><i style="background:' + (DOMCOL[nm] || "#9aa4b2") + '"></i>' + nm + "</span>").join("");
+  const btns = ["00","01","10","11"].map(st =>
+    '<button data-state="' + st + '" aria-pressed="' + (st === "11") + '">' + st + "</button>").join("");
+  const models = [["mfe", "MFE"], ["centroid", "centroid"]].map(m =>
+    '<button data-model="' + m[0] + '" aria-pressed="' + (m[0] === "mfe") + '">'
+    + m[1] + "</button>").join("");
+  return '<div class="viewer"><div class="vbar">' + btns
+    + '<span class="vsep"></span>' + models
+    + '<button data-zoom="1.4">+</button><button data-zoom="0.714">−</button>'
+    + '<button data-fit>fit</button><span class="vinfo"></span></div>'
+    + '<span class="dG note" style="margin:0 0 6px;display:block"></span>'
+    + '<div class="stage"></div><div class="domkey">' + keys + "</div>"
+    + '<p class="note">Drag to move, scroll to zoom, <b>fit</b> to reset. Rotated onto its own '
+    + 'long axis so it fills the frame. Colour is the <b>domain</b>, the letter is the base. '
+    + '<b>MFE</b> is the single most stable fold; <b>centroid</b> is the structure closest '
+    + 'on average to the whole ensemble, so it keeps only the pairs the ensemble agrees on. '
+    + 'Where they differ, the ensemble is split on those helices &mdash; neither is more '
+    + 'correct. No number on this card is read off either one: the strips and every metric '
+    + 'come from the partition function.</p></div>';
+}
+
+/* ---------- cards ---------- */
+function stripHTML(open, stem, xstar, n){
+  const w = 100 / n;
+  const bars = open.map((v, i) =>
+    '<i style="position:absolute;left:' + (i*w) + "%;width:" + (w+.08)
+    + "%;top:0;bottom:0;background:" + ramp(v) + '"></i>').join("");
+  const boxes = stem.map(s =>
+    '<span class="mark" style="left:' + (100*s[0]/n) + "%;width:" + (100*(s[1]-s[0])/n) + '%"></span>').join("")
+    + '<span class="mark sec" style="left:' + (100*xstar.s/n) + "%;width:"
+    + (100*(xstar.e-xstar.s)/n) + '%"></span>';
+  return bars + boxes;
+}
+// Metrics whose spread is multiplicative get a LOG axis. The A_M ratio runs 0.16 to 383.57 with a
+// median of 2.52, so on a linear axis its median marker sits at 0.62% and every card looks
+// identical and broken. The bar was never missing -- the scale was wrong for the quantity.
+const LOG_SCALE = new Set(["f2"]);
+function rngBar(key, val, lowerBetter){
+  const s = STATS[key];
+  if (!s || val === null || val === undefined) return "";
+  const lg = LOG_SCALE.has(key) && s.min > 0;
+  const t = (v) => lg ? Math.log10(Math.max(v, s.min)) : v;
+  const span = (t(s.max) - t(s.min)) || 1;
+  const pos = (v) => 100 * (t(v) - t(s.min)) / span;
+  const lo = Math.max(s.min, s.mean - s.sd), hi = Math.min(s.max, s.mean + s.sd);
+  const better = lowerBetter ? val <= s.median : val >= s.median;
+  return '<div class="rng" title="' + (lg ? "log scale · " : "") + "min " + f2(s.min) + " · mean " + f2(s.mean)
+    + " ± " + f2(s.sd) + " · median " + f2(s.median) + " · max " + f2(s.max)
+    + '"><i class="sd" style="left:' + pos(lo) + "%;width:" + (pos(hi)-pos(lo))
+    + '%"></i><i class="md" style="left:' + pos(s.median) + '%"></i>'
+    + '<i class="me ' + (better ? "good" : "poor") + '" style="left:' + pos(val) + '%"></i></div>';
+}
+function card(d){
+  const kim = d.geom.indexOf("Kim") === 0;
+  const xstar = d.sec[d.sec.length - 1];
+  const strips = ["00","01","10","11"].map(s =>
+    '<div class="srow"><div class="stag"><span class="sbin">' + s + '</span>'
+    + '<span class="dimv">' + (s === "11" ? "must open" : "must shut") + "</span></div>"
+    + '<div class="strip">' + stripHTML(d.states[s].open, d.stem, xstar, d.nt) + "</div>"
+    + '<div class="sval">' + f2(d.op[s]) + "</div></div>").join("");
+  const track = (list, cls) => list.map(x =>
+    '<span class="dseg ' + cls + '" style="left:' + (100*x.s/d.nt) + "%;width:"
+    + (100*(x.e-x.s)/d.nt) + '%">' + x.name + "</span>").join("");
+  const tiles = [
+    // Named for what the page calls it everywhere else. It WAS "f1 - AND-ness", which is the
+    // same quantity under the column name, and the question "which tile is the opening SEP" had
+    // no answer on the card.
+    ["opening SEP · f1", DN, f2(d.f1), "f1", d.f1, true],
+    ["ON opening cost · 11", DN, f2(d.op["11"]), "op11", d.op["11"], true],
+    ["open 10 · leak", UP, f2(d.op["10"]), "op10", d.op["10"], false],
+    ["Barrier", DN, f2(d.barrier, 1), "barrier", d.barrier, true],
+    ["A_M ratio", UP, f2(d.f2, 1), "f2", d.f2, false],
+    ["A_M gain", UP, f2(d.f2_gain, 3), "f2_gain", d.f2_gain, false],
+    // Beside the gain, because the gain cannot see it: rho(gain, worst A_M) = -0.019 over 2,052
+    // gating designs, against +0.940 with A_M(11). LOWER is better -- it is the OFF state.
+    ["worst A_M · OFF", DN, f2(d.f2_worst, 3), "f2_worst", d.f2_worst, true],
+    ["A_M · 11", UP, f2(d.am11, 3), "am11", d.am11, false],
+    ["IED rbs-linker", DN, f2(d.ied11, 3), "ied11", d.ied11, true],
+    // The arm, beside the ON half above it: ied(00) - ied(11), so HIGHER is better --
+    // a paired OFF state and an open ON one. The only term in the stack that keeps a
+    // positive sign on all three measured libraries (+0.345 / +0.495 / +0.116).
+    ["IED gain · 00-11", UP, f2(d.ied_gain, 3), "ied_gain", d.ied_gain, false],
+    ["dG arm · ON", DN, f2(d.dgarm11, 2), "dgarm11", d.dgarm11, true],
+    // Trigger B nucleates on r2*, so how open that arm is in the OFF tube is B's counterpart
+    // to `access` for A -- computed by four_tube_observables from the start and never shown.
+    ["B toehold open · 00", UP, f2(d.r2_star_00, 3), "r2_star_00", d.r2_star_00, false],
+    // Trigger accessibility, which had a statistics entry, a comparison column and a filter but
+    // no tile -- so the one place a reader looks at a design, it was absent. It is the SUM of the
+    // two windows' reachability, which is why it is not on the 0-1 scale the per-window floor is.
+    // The BOTTLENECK first, then the two windows. `l_local` is already min(A, B) -- it is what
+    // the floor is applied to and the only one of the three that answers "can both triggers be
+    // reached", since a mechanism is limited by its worse half. The A and B tiles beside it say
+    // WHICH half, which the minimum alone cannot. `access` is their sum and is the one not to
+    // read: a design can look average on it with one unreachable window.
+    // Distance to the nearest OTHER design on the page, in bases. A slot spent on a design one
+    // substitution away from another is a slot spent twice on one experiment.
+    ["nearest design · nt apart", UP, d.nearest_nt === null || d.nearest_nt === undefined
+      ? "&ndash;" : d.nearest_nt, "nearest_nt", d.nearest_nt, false],
+    ["trigger access · min(A,B)", UP, f2(d.l_local, 3), "l_local", d.l_local, false],
+    ["— window A", UP, f2(d.access_a, 1), "access_a", d.access_a, false],
+    ["— window B", UP, f2(d.access_b, 1), "access_b", d.access_b, false],
+    ["combined · A_M+Bar", UP, f2(d.f5, 1), "f5", d.f5, false],
+    ["combined with f1", UP, f2(d.f4, 1), "f4", d.f4, false],
+  ].map(t =>
+    '<div class="mbox"><div class="mv">' + t[2] + '</div><div class="mk">' + t[0] + " " + t[1]
+    + "</div>" + rngBar(t[3], t[4], t[5]) + "</div>").join("");
+  const m = d.mech;
+  const mech = '<table class="mech"><tbody>'
+    + "<tr><td>A engages the main stem, A alone " + UP + "</td><td>"
+      + f2(m.engages_stem_alone) + "</td></tr>"
+    + "<tr><td>A engages the main stem, with B " + UP + "</td><td>"
+      + f2(m.engages_stem_with_B) + "</td></tr>"
+    // The duplex trigger A actually forms, and how much of it is the TOEHOLD. The row above says
+    // whether A is on the stem at all; these say how long the helix is and where it sits. Both
+    // come from `complete_panel`'s antiparallel-diagonal runs, at the three gap tolerances -- a
+    // run is contiguous on both strands, so a far-away contact is a different run, not a longer
+    // one. The landing site is `secondaryZ + x*`, the stretch trigger B frees.
+    + "<tr><td>A&rsquo;s duplex, longest run <small class=\"dimv\">gap 0/1/2</small></td><td>"
+      + runs(d, "eff_run_a") + span(d) + "</td></tr>"
+    + "<tr><td>&mdash; of it on the landing site <small class=\"dimv\">secondaryZ+x*</small>"
+      + "</td><td>" + runs(d, "land_run") + site(d) + "</td></tr>"
+    + "<tr><td>&Delta;G bind A alone " + DN + "</td><td>" + f2(m.dG_bind_A)
+      + (m.engages_stem_alone < 0.10
+          ? ' <span class="flag">off-site</span>' : "") + "</td></tr>"
+    + "<tr><td>&Delta;G bind B alone " + DN + "</td><td>" + f2(m.dG_bind_B) + "</td></tr>"
+    + "<tr><td>&Delta;G bind A <em>given</em> B " + DN + "</td><td>" + f2(m.dG_bind_A_given_B) + "</td></tr>"
+    + "<tr><td>&Delta;G bind B <em>given</em> A " + DN + "</td><td>" + f2(m.dG_bind_B_given_A) + "</td></tr>"
+    + '<tr><td>A&rsquo;s contact sites, with vs without B</td><td class="'
+      + (m.coop_ok ? "" : "bad") + '">' + f2(m.site_overlap) + "</td></tr>"
+    + '<tr><td>coupling, A&harr;B ' + DN + ' <small class="dimv">symmetric</small></td><td class="'
+    + (m.coop_ok ? (m.coop < 0 ? "win" : "bad") : "dimv") + '">'
+    + f2(m.coop) + (m.coop_ok ? "" : ' <span class="flag">not a cooperativity</span>') + "</td></tr>"
+    + "<tr><td>x* locked by the stem, 00 " + UP + "</td><td>"
+      + f2(d.lock4["00"]) + "</td></tr>"
+    + "<tr><td>x* still locked, A alone, 10 " + UP + "</td><td>"
+      + f2(d.lock4["10"]) + "</td></tr>"
+    + "<tr><td>x* freed by B alone, 01 " + UP + "</td><td>"
+      + f2(d.lock4["01"]) + "</td></tr>"
+    + "<tr><td>x* engaged by A, 11 " + UP + "</td><td>"
+      + f2(d.lock4["11"].xstar) + "</td></tr>"
+    + "<tr><td>main_pre* engaged by A, 11 " + UP + "</td><td class=\""
+      + (d.lock4["11"].arm < 0.10 ? "bad" : "") + '">' + f2(d.lock4["11"].arm)
+      + (d.lock4["11"].arm < 0.10
+          ? ' <span class="flag">stem stays shut</span>' : "") + "</td></tr>"
+    + '<tr><td class="dimv">&mdash; the weaker of the two, which is the verdict</td>'
+      + '<td class="dimv">' + f2(d.lock4["11"].min) + "</td></tr>"
+    + '<tr><td>x* re-pairs with, in 01</td><td class="dimv">'
+      + (Object.keys(d.xstar_partners_01 || {}).length
+          ? Object.keys(d.xstar_partners_01).sort((a, b) =>
+              d.xstar_partners_01[b] - d.xstar_partners_01[a])
+              .map(k => k + " " + f2(d.xstar_partners_01[k])).join(", ")
+          : "nothing above 1%") + "</td></tr>"
+    + "<tr><td>RBS(11) open, all 11 nt at once " + UP + "</td><td>"
+      + (d.rbs11_p === null || d.rbs11_p === undefined ? "n/a"
+          : d.rbs11_p >= 0.01 ? f2(d.rbs11_p) : d.rbs11_p.toExponential(1))
+      + ' <small class="dimv">' + f2(d.rbs11) + " kcal/mol</small></td></tr>"
+    + "</tbody></table>";
+  const refChips = d.refs.map(r =>
+    '<span class="chip ref">' + r.name + " · " + r.nt + " nt on " + r.which + "</span>").join("");
+  const rareFlag = d.rare.length ? '<span class="flag">rare codon ' + d.rare.join(", ") + "</span>" : "";
+  const pctName = {f1: "AND-ness", f2: "A_M ratio", f2_gain: "A_M gain",
+                   barrier: "Barrier", access: "access"};
+  // Every percentile is already flipped so that 100 = best, including the three whose
+  // raw metric is lower-is-better. The tiles above show the RAW direction, so without
+  // this the card showed "Barrier lower-is-better" beside "Barrier 85th" and left the
+  // reader to guess which way the 85 pointed.
+  const pct = Object.keys(d.pct).filter(k => d.pct[k] !== null).map(k =>
+    '<span class="chip">' + (pctName[k] || k) + " " + d.pct[k].toFixed(0)
+      + "th</span>").join("")
+    + (Object.keys(d.pct).some(k => d.pct[k] !== null)
+        ? '<span class="chip dimv">' + UP + "best, of "
+          + (D.n_population || 0).toLocaleString() + " feasible</span>" : "");
+  return '<div class="card ' + (kim ? "kim" : "naive") + '">'
+    + '<div class="chead"><span class="role">' + d.arm + "</span>"
+    + (d.control.indexOf("nothing") === 0
+        ? '<span class="flag">uncontrolled &mdash; best in sweep</span>' : "")
+    + ((d.extras || {}).offtarget && d.extras.offtarget !== "not notable"
+        && d.extras.offtarget !== "inert"
+        ? '<span class="flag">off-target ' + d.extras.offtarget + "</span>" : "")
+    + '<span class="chip win">' + d.geom + "</span>"
+    + '<span class="chip">' + d.closure + "</span>"
+    + '<span class="chip">upper3 ' + d.upper3 + "</span>"
+    + '<span class="chip">lower3 ' + d.lower3 + "</span>"
+    + '<span class="chip">' + d.scheme + "</span>"
+    + '<span class="chip">' + d.nt + " nt</span>" + pct + refChips + rareFlag + "</div>"
+    + '<div class="states">' + strips
+    + '<div class="track"><span class="dimv" style="font-size:10.5px">main hairpin</span>'
+    + '<div class="dom">' + track(d.domains, "") + "</div><span></span></div>"
+    + '<div class="track"><span class="dimv" style="font-size:10.5px">secondary</span>'
+    + '<div class="dom">' + track(d.sec, "sec") + "</div><span></span></div></div>"
+    + '<div class="mgrid">' + tiles + "</div>"
+    + "<details open><summary>Mechanism</summary>" + mech
+    + '<p class="note">Cooperativity is what A gains from B already being bound. Negative means '
+    + "B helps A. <strong>It has no direction.</strong> &ldquo;What B gains from A&rdquo; is "
+    + "the same number, exactly: both differences reduce to "
+    + '<span class="mono">e(sw&middot;A&middot;B) &minus; e(sw&middot;A) &minus; e(sw&middot;B) '
+    + '+ e(sw)</span>, the single-strand terms cancelling, and the measured difference over all '
+    + "23 designs is <span class=\"mono\">0.0</span>. So it is a symmetric coupling and cannot "
+    + "say which trigger helps which &mdash; but only where the two energies price the same "
+    + "binding, which is what "
+    + "the site overlap above tests. <strong>off-site</strong> marks a design whose A engages the "
+    + "main stem in under 10% of its contacts when B is absent. It fires on every row here: "
+    + "measured, <span class=\"mono\">A engages the main stem, A alone</span> is "
+    + "<span class=\"mono\">0.00</span> in all of them, so A alone binds the secondary region "
+    + "and nothing else. The flag is conditional and will go quiet if that ever changes; it was "
+    + "previously drawn unconditionally, which made a true statement unfalsifiable."
+    + "</p></details>"
+    + '<details class="viewbox"><summary>Predicted structure — pick a state</summary>'
+    + viewerHTML(d) + "</details>"
+    + "<details><summary>Sequences</summary>"
+    + '<div class="seq"><b>switch</b> · ' + d.nt + " nt<br>" + d.seq + "</div>"
+    + '<div class="seq"><b>trigger A</b> · transcript[' + d.wa[0] + ":" + d.wa[1] + "]<br>" + d.trigA + "</div>"
+    + '<div class="seq"><b>trigger B</b> · transcript[' + d.wb[0] + ":" + d.wb[1] + "]<br>" + d.trigB + "</div>"
+    + '<div class="seq"><b>first three codons after AUG</b> · ' + d.codons.join(" ") + "</div>"
+    + '<p class="note">Original mCherry windows. The codon-shuffled variants that realise states '
+    + "00/01/10 are not calculated yet.</p></details></div>";
+}
+
+
+/* ---------- the comparison table: every design on one screen ---------- */
+// The cards carry everything about ONE design and nothing about how it compares. Twenty cards
+// cannot be read side by side, and the questions that actually arise -- which design opens its
+// stem, which has a near-1.0 A_M ratio, which pair is weak on trigger B -- are all cross-design.
+// Same filter set as the cards, so the table never shows a design the cards have hidden.
+const COLS = [
+  ["pair",      "trigger pair",   d => d.pair,                           "txt"],
+  ["geom",      "geometry",       d => d.geom,                           "txt"],
+  ["arm",       "chosen by",      d => d.arm,                            "txt"],
+  ["nt",        "nt",             d => d.nt,                             "int"],
+  ["lenx",      "len_x",          d => d.len_x,                          "int"],
+  ["closure",   "closure",        d => d.closure,                        "txt"],
+  ["lower3",    "lower3",         d => d.lower3,                         "txt"],
+  ["f1",        "opening SEP",    d => d.f1,                             "num1"],
+  ["f2",        "A_M ratio",      d => d.f2,                             "num1"],
+  ["f2gain",    "A_M gain",       d => d.f2_gain,                        "num3"],
+  ["ied",       "IED rbs-linker", d => d.ied11,                          "num3"],
+  ["dgarm",     "dG arm (ON)",    d => d.dgarm11,                        "num2"],
+  ["barrier",   "Barrier",        d => d.barrier,                        "num1"],
+  ["op11",      "ON cost",        d => d.op["11"],                       "num2"],
+  ["op10",      "open 10",        d => d.op["10"],                       "num2"],
+  ["engarm",    "A opens stem",   d => (d.lock4["11"]||{}).arm,          "num3"],
+  ["engswp",    "same, from sweep", d => d.engarm11,                     "num3"],
+  ["engx",      "A takes x*",     d => (d.lock4["11"]||{}).xstar,        "num3"],
+  ["hairpin",   "hairpin worst",  d => num0(d, "hairpin_worst"),         "num3"],
+  ["rbsp",      "RBS(11) p",      d => d.rbs11_p,                        "num3"],
+  ["r2",        "B toehold open", d => d.r2_star_00,                     "num3"],
+  ["f2w",       "worst A_M",      d => d.f2_worst,                       "num3"],
+  ["iedg",      "IED gain",       d => d.ied_gain,                       "num3"],
+  ["am11",      "A_M 11",         d => d.am11,                           "num3"],
+  ["doff",      "d_off",          d => d.d_off,                          "num3"],
+  ["access",    "access A+B",     d => d.access,                         "num1"],
+  ["acca",      "access A",       d => d.access_a,                       "num1"],
+  ["accb",      "access B",       d => d.access_b,                       "num1"],
+  ["lloc",      "l_local",        d => d.l_local,                        "num3"],
+  ["near",      "nt to nearest",  d => d.nearest_nt,                     "num0"],
+  ["offt",      "off-target",     d => (d.extras||{}).offtarget || "--", "txt"],
+];
+// Higher is better for these; the rest are lower-is-better or categorical. Used only to tint.
+const HIGHER = new Set(["f2","f2gain","engarm","engswp","engx","hairpin","rbsp","r2"]);
+// worst A_M joins the lower-is-better set: it is the OFF-state leak the gain subtracts.
+const LOWER  = new Set(["f1","barrier","op11","doff","access","ied","dgarm","f2w"]);
+function num0(d, key){
+  const v = (d.extras || {})[key];
+  return (v === undefined || v === null || v === "") ? null : +v;
+}
+function fmtCell(kind, v){
+  if (v === null || v === undefined || v === "") return '<span class="dimv">--</span>';
+  if (kind === "txt") return String(v);
+  if (kind === "int") return String(v);
+  const digits = kind === "num1" ? 1 : kind === "num2" ? 2 : 3;
+  return (+v).toFixed(digits);
+}
+let tableSort = {col: "arm", dir: 1};
+function renderTable(rows){
+  const host = el("comparison");
+  if (!host) return;
+  if (!rows.length){
+    host.innerHTML = '<p class="note">Every design is filtered out. Clear a filter to see the '
+      + "table.</p>";
+    return;
+  }
+  // Per-column extremes over the VISIBLE rows, so the tint answers "best of what I am looking
+  // at" rather than "best in the sweep" -- the table is a comparison, not a scoreboard.
+  const span = {};
+  COLS.forEach(c => {
+    if (!HIGHER.has(c[0]) && !LOWER.has(c[0])) return;
+    const vals = rows.map(c[2]).filter(v => v !== null && v !== undefined && v !== "").map(Number);
+    if (vals.length > 1) span[c[0]] = [Math.min.apply(null, vals), Math.max.apply(null, vals)];
+  });
+  const tint = (key, v) => {
+    if (v === null || v === undefined || !span[key]) return "";
+    const [lo, hi] = span[key];
+    if (hi === lo) return "";
+    let t = (Number(v) - lo) / (hi - lo);
+    if (LOWER.has(key)) t = 1 - t;
+    return ' style="background:rgba(47,122,78,' + (0.04 + 0.30 * t).toFixed(3) + ')"';
+  };
+  const sorted = rows.slice().sort((a, b) => {
+    const col = COLS.find(c => c[0] === tableSort.col) || COLS[2];
+    let x = col[2](a), y = col[2](b);
+    if (x === null || x === undefined || x === "") return 1;
+    if (y === null || y === undefined || y === "") return -1;
+    if (col[3] !== "txt"){ x = Number(x); y = Number(y); }
+    return (x > y ? 1 : x < y ? -1 : 0) * tableSort.dir;
+  });
+  const head = COLS.map(c =>
+    '<th data-sort="' + c[0] + '" style="cursor:pointer;white-space:nowrap">' + c[1]
+    + (tableSort.col === c[0] ? (tableSort.dir > 0 ? " \u25b2" : " \u25bc") : "") + "</th>").join("");
+  const body = sorted.map(d => "<tr>" + COLS.map(c => {
+    const v = c[2](d);
+    const cell = (HIGHER.has(c[0]) || LOWER.has(c[0])) ? tint(c[0], v) : "";
+    return "<td" + cell + ">" + fmtCell(c[3], v) + "</td>";
+  }).join("") + "</tr>").join("");
+  host.innerHTML = '<p class="note" style="margin-top:0">All <strong>' + rows.length
+    + "</strong> designs that pass the filters above, on one screen. Click a heading to sort. "
+    + "Green tints the better end of each numeric column <em>among the rows shown</em>, so it "
+    + "re-scales as you filter. <span class=\"mono\">A opens stem</span> is the share of "
+    + "main_pre* paired with trigger A in the ON tube &mdash; a design near zero there does not "
+    + 'open, whatever else it scores.</p><div class="scroll"><table class="cmp"><thead><tr>'
+    + head + "</tr></thead><tbody>" + body + "</tbody></table></div>";
+  host.querySelectorAll("th[data-sort]").forEach(th => th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    tableSort = {col: key, dir: tableSort.col === key ? -tableSort.dir : 1};
+    renderTable(rows);
+  }));
+}
+
+/* ---------- filters and render ---------- */
+const state = {view:"all", arm:"all", geom:"all", pair:"all"};
+//: Which filter each button row drives, so a count can be taken with that row's own choice
+//: replaced by the candidate value and every other filter left as the user set it.
+const BTN_KEYS = {fView: "view", fArm: "arm", fGeom: "geom", fPair: "pair"};
+// A row's `arm` is " + "-joined when several objectives chose the same design, so there were
+// buttons reading "A_M ratio + A_M gain + combined" -- one per COMBINATION, which multiplies with
+// the number of arms and names something nobody is looking for. One button per arm, and a row
+// matches if that arm is among the ones that chose it.
+const armsOf = c => String(c.arm).split(" + ").map(s => s.trim());
+const matchesArm = (c, want) => want === "all" || armsOf(c).indexOf(want) >= 0;
+function countButtons(){
+  Object.keys(BTN_KEYS).forEach(id => {
+    const host = el(id);
+    if (!host) return;
+    const key = BTN_KEYS[id];
+    [...host.children].forEach(btn => {
+      const value = btn.dataset.v;
+      const n = CANDS.filter(c =>
+        // `arm` needs membership, not equality, for the same reason the filter does: a row
+        // picked by three objectives carries all three in one string. With equality only the
+        // arms that appear ALONE on some row ever counted, so the bar showed three lit buttons
+        // summing to 7 while "all" said 14.
+        (value === "all"
+          || (key === "view" ? VIEWS[value](c)
+              : key === "arm" ? matchesArm(c, value) : c[key] === value))
+        && (key === "view" || state.view === "all" || VIEWS[state.view](c))
+        && (key === "arm" || matchesArm(c, state.arm))
+        && (key === "geom" || state.geom === "all" || c.geom === state.geom)
+        && (key === "pair" || state.pair === "all" || c.pair === state.pair)
+        && Object.keys(GATES).every(g => !gateOn[g] || GATES[g][1](c))).length;
+      let tag = btn.querySelector(".cnt");
+      if (!tag){ tag = document.createElement("span"); tag.className = "cnt"; btn.appendChild(tag); }
+      tag.textContent = n;
+      btn.classList.toggle("empty", n === 0);
+    });
+  });
+}
+function mkBtns(id, values, keyName){
+  el(id).innerHTML = ["all", ...values].map(v =>
+    '<button data-v="' + v + '" aria-pressed="' + (v === "all") + '">' + v + "</button>").join("");
+  el(id).addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    state[keyName] = b.dataset.v;
+    [...el(id).children].forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    render();
+  });
+}
+// Toggle filters, all off by default so the page opens showing everything. Each is a
+// predicate a row must satisfy while its box is ticked; several can be on at once, which is the
+// point -- deciding what to synthesise means narrowing on more than one axis.
+const GATES = {
+  fControlled: ["fully controlled only", c => c.control.indexOf("nothing") < 0],
+  fNoBlocks:   ["drop off-target BLOCKS", c => (c.extras || {}).offtarget_blocks !== "True"],
+  fNoFires:    ["drop off-target FIRES",  c => (c.extras || {}).offtarget_fires !== "True"],
+  fRbs:        ["RBS(11) open < 1.0",     c => !d0(c, "rbs11_open") || +d0(c, "rbs11_open") < 1.0],
+  fAug:        ["AUG(11) open < 1.5",     c => !d0(c, "aug11_open") || +d0(c, "aug11_open") < 1.5],
+  fAcc:        ["l_green > 0.45",         c => !d0(c, "l_green_worst") || +d0(c, "l_green_worst") > 0.45],
+  fGate:       ["opening SEP < -5",       c => c.f1 < -5],
+  // 2. The lower3 constraint, as a toggle rather than a filter in the code, because it is a
+  // trade and not a correctness condition. Measured over the 1,367 gating designs: keeping only
+  // `wobble_GU` and `trigger_derived` leaves 482 (35%) and lifts the median engaged_arm_11 from
+  // 0.777 to 0.949 while every best value survives -- but it cuts the eligible trigger pairs from
+  // 25 to 6, which is most of the room the pair requirements need. Toggle it and see.
+  fLower3:     ["lower3: wobble or trigger-derived only",
+                c => ["wobble_GU", "trigger_derived"].indexOf(c.lower3) >= 0],
+  fStem:       ["A opens the main stem > 0.5",
+                c => { const v = (c.lock4 || {})["11"]; return !v || v.arm > 0.5; }],
+};
+function d0(c, k){ const e = c.extras || {}; return e[k]; }
+// The three gap tolerances as one cell, and "-" for a design the completion pass has not reached:
+// an unmeasured run is absent, never zero.
+function runs(c, prefix){
+  const v = [0, 1, 2].map(g => {
+    const x = d0(c, prefix + "_g" + g);
+    return x === undefined || x === null || x === "" ? "&ndash;" : x;
+  });
+  return v.join("/");
+}
+function span(c){
+  const lo = d0(c, "eff_run_lo"), hi = d0(c, "eff_run_hi");
+  return (lo === undefined || lo === null || lo === "")
+    ? "" : ' <small class="dimv">nt ' + lo + "&ndash;" + hi + "</small>";
+}
+function site(c){
+  const nt = d0(c, "land_site_nt");
+  return (nt === undefined || nt === null || nt === "")
+    ? "" : ' <small class="dimv">of ' + nt + " nt</small>";
+}
+const gateOn = {};
+// Two kinds of row answer different questions, and reading them mixed together invites treating a
+// best-in-sweep row as a comparison. "controlled" is the experiment; "best in sweep" is the
+// ceiling -- one design per (overlap length, objective) with no control at all. mkBtns prepends
+// "all", so that case needs no entry here.
+const VIEWS = {
+  // The two panels. "default" is built over the whole feasible set; "lower3" is built under the
+  // constraint that lower3 is wobble_GU or trigger_derived, which changes the PAIRS and the
+  // geometries and not just which rows survive -- 25 eligible pairs against 6. A design both
+  // panels chose is tagged "both" and shows under either.
+  // The six the bench will build: the controlled rows of the default panel, without the
+  // best-in-sweep ceiling rows, which are a comparison of nothing and would pad the six to
+  // twenty on a page whose whole point is those six.
+  "the six to build": c => ["default", "both", "both4"].indexOf(c.panelset || "default") >= 0
+    && String(c.control || "").indexOf("nothing") !== 0
+    && String(c.control || "").indexOf("arm 4") !== 0,
+  // One view per panel FILE is generated below, so there is no fixed entry per panel here:
+  // "+ arm 4 (nine)", "default panel" and "lower3 panel" were three such entries and all three
+  // duplicated a generated one, which is how the view bar came to hold five labels for four
+  // things with nothing saying what any of them was.
+  controlled: c => c.control.indexOf("nothing") < 0,
+  "best in sweep": c => c.control.indexOf("nothing") === 0,
+};
+function render(){
+  const shown = CANDS.filter(c =>
+    (state.view === "all" || VIEWS[state.view](c))
+    && matchesArm(c, state.arm)
+    && (state.geom === "all" || c.geom === state.geom)
+    && (state.pair === "all" || c.pair === state.pair)
+    && Object.keys(GATES).every(k => !gateOn[k] || GATES[k][1](c)));
+  const byPair = {};
+  shown.forEach(c => { (byPair[c.pair] = byPair[c.pair] || []).push(c); });
+  el("cells").innerHTML = Object.keys(byPair).map(p => {
+    const group = byPair[p];
+    const best = Math.min.apply(null, group.map(c => c.f1));
+    return '<div class="cell"><div class="cellhead">'
+      + '<span class="cellname">' + p + "</span>"
+      + '<span class="chip win">one transcript site, both geometries</span>'
+      + '<span class="chip">len_x ' + group[0].len_x + "</span>"
+      + '<span class="chip">' + group.length + " rows</span>"
+      + '<span class="chip">best f5 ' + f2(Math.max.apply(null, group.map(c => c.f5)), 1)
+      + "</span>"
+      + '<span class="chip">best f1 ' + f2(best) + "</span></div>"
+      + '<div class="cards">' + group.map(card).join("") + "</div></div>";
+  }).join("");
+  el("count").textContent = shown.length + " of " + CANDS.length;
+  // The exporter reads this, so the sheet and the page can never disagree about what is selected.
+  window.SHOWN = shown;
+  // The ACTIVE VIEW, which is the only thing that says which panel the reader is looking at. The
+  // exporter needs it: a design shared between two panels carries both names, so a row cannot say
+  // which panel is on screen.
+  window.VIEW = state.view;
+  showRecipe();
+  // Same `shown` the cards got, so the table can never disagree with them about what is visible.
+  renderTable(shown);
+  // Same `shown` as the cards and the comparison table, so no table on the page can disagree
+  // with another about what is visible.
+  renderOrder(shown);
+  // How many rows each button would leave, given everything ELSE that is currently on. A button
+  // showing 0 cannot change the page, so it is dimmed rather than removed -- removing it would
+  // hide the fact that the option exists and is empty.
+  countButtons(shown);
+  const flat = Object.keys(byPair).flatMap(p => byPair[p]);
+  [...el("cells").querySelectorAll(".viewbox")].forEach((box, i) => {
+    box.addEventListener("toggle", () => {
+      if (box.open && !box.dataset.mounted){
+        box.dataset.mounted = "1";
+        mountViewer(box, flat[i]);
+      }
+    });
+  });
+}
+(function(){
+  const box = el("gates");
+  if (!box) return;
+  const toggle = el("gatesToggle");
+  const region = el("filterbox");
+  if (toggle && region){
+    // Collapsed by default is wrong -- a filter you cannot see is a filter you forget is on --
+    // so it starts open and the button says which way it will go.
+    let open = true;
+    const paint = () => {
+      // The whole region, not just the checkboxes: hiding the tick-boxes while leaving four rows
+      // of buttons behind frees no space, which was the point of asking.
+      region.hidden = !open;
+      toggle.textContent = open ? "hide filters" : "show filters";
+      toggle.setAttribute("aria-expanded", String(open));
+    };
+    toggle.addEventListener("click", () => { open = !open; paint(); });
+    paint();
+  }
+  box.innerHTML = Object.keys(GATES).map(k =>
+    '<label class="gate"><input type="checkbox" id="' + k + '"> ' + GATES[k][0] + "</label>").join("");
+  Object.keys(GATES).forEach(k => {
+    const input = el(k);
+    input.addEventListener("change", () => { gateOn[k] = input.checked; render(); });
+  });
+})();
+// ---- what would be ordered -----------------------------------------------------------------
+// TWO tables, because they answer different questions and one table answered neither well. The
+// window edits are a property of the four TRANSCRIPTS -- four rows, whatever the panel's size --
+// while the performance is a property of each (candidate, transcript) pair, which is 4x the panel.
+// Interleaving them repeated every sequence twelve times and put a per-design number beside a
+// per-transcript one.
+//
+// It also read column names the variant script no longer emits (ortho_a_identity, gc_a_before),
+// which is why ident and GC came out blank and the change-marking lost its reference.
+// Takes the SHOWN rows rather than running once at load. It used to be an IIFE, so filtering the
+// cards left every variant table on the page -- a reader narrowing to one pair still saw the other
+// pair's four transcripts, which is the same class of mismatch as a filter that reaches one table
+// and not another.
+function renderOrder(shown){
+  const host = el("order");
+  if (!host) return;
+  // A variant row belongs to a shown candidate when its pair, geometry and arm all match one.
+  // Matching on the pair alone would keep a pair's whole variant set when a single arm is shown.
+  const live = new Set(shown.map(c => c.pair + "|" + c.geom + "|" + c.arm));
+  const livePairs = new Set(shown.map(c => c.pair));
+  const V = (D.variants || []).filter(v =>
+    live.has(v.pair + "|" + v.geom + "|" + v.arm) || livePairs.has(v.pair));
+  if (!V.length){
+    host.innerHTML = '<p class="note">No variants built yet. Run <span class="mono">'
+      + 'pwsh -File refresh_panel.ps1</span>, which rebuilds them against the current panel.</p>';
+    return;
+  }
+  // Mark every position that differs from the original so the eye does the comparison. The
+  // original row is its own reference and is never marked.
+  const mark = (seq, ref) => [...(seq || "")].map((c, i) =>
+    (ref && c !== ref[i]) ? '<b class="dif">' + c + "</b>" : c).join("");
+  const num = (v, digits) => (v === undefined || v === null || v === "")
+    ? "n/a" : (+v).toFixed(digits === undefined ? 2 : digits);
+  // GC and its shift. The shift is printed because matching codon abundance costs GC -- window A
+  // drops 20 points -- and GC drives folding energy, which is the quantity being read. A silent
+  // shift would make a variant look like it failed for its sequence when it failed for its energy.
+  const gcCell = (value, shift) => {
+    const d = +shift;
+    return '<td class="' + (Math.abs(d) < 0.05 ? "dimv" : "bad") + '">' + num(value, 1)
+      + (Math.abs(d) < 0.05 ? "" : ' <small>(' + (d > 0 ? "+" : "") + d.toFixed(1) + ")</small>")
+      + "</td>";
+  };
+
+  // ---- table 1: the window edits, one row per transcript per window set --------------------
+  // One window set per TRIGGER PAIR, the widest. The two geometries give windows differing by a
+  // single nucleotide -- trigger B's window is 50 nt in the naive build and 49 in Kim's -- and
+  // that is the same place in the transcript, not a second pair. Keying on the exact coordinates
+  // showed each pair twice, which is four extra rows saying the same thing.
+  const widest = {};
+  V.forEach(v => {
+    const key = v.pair + ":" + v.variant;
+    const span = (+v.a_end - +v.a_start) + (+v.b_end - +v.b_start);
+    if (!widest[key] || span > widest[key].span) widest[key] = {span: span, row: v};
+  });
+  const byWindow = {};
+  Object.keys(widest).forEach(key => {
+    const v = widest[key].row;
+    const label = v.pair + "   ·   A " + v.a_start + "–" + v.a_end
+      + "  ·  B " + v.b_start + "–" + v.b_end;
+    (byWindow[label] = byWindow[label] || []).push(v);
+  });
+  const editTables = Object.keys(byWindow).sort().map(key => {
+    const rows = byWindow[key];
+    const base = rows.find(r => r.variant === "original") || rows[0];
+    const body = rows.map(r => {
+      const isBase = r.variant === "original";
+      return "<tr><td><strong>" + r.variant + "</strong></td>"
+        + '<td class="dimv">' + r.removes + "</td>"
+        + '<td class="mono">' + r.states + "</td>"
+        + '<td class="mono seqcell">' + mark(r.trigger_a, isBase ? null : base.trigger_a) + "</td>"
+        + "<td>" + (isBase ? "&mdash;" : num(r.identity_a)) + "</td>"
+        + gcCell(r.gc_a, r.gc_a_shift)
+        + '<td class="mono seqcell">' + mark(r.trigger_b, isBase ? null : base.trigger_b) + "</td>"
+        + "<td>" + (isBase ? "&mdash;" : num(r.identity_b)) + "</td>"
+        + gcCell(r.gc_b, r.gc_b_shift)
+        + "</tr>";
+    }).join("");
+    return '<div class="panel" style="margin-top:14px"><h3>' + key + "</h3>"
+      + '<p class="note" style="margin-top:0">0-based, end exclusive, in the original mCherry '
+      + "transcript. Red bases differ from the original.</p>"
+      + '<div class="scroll"><table><thead><tr><th>transcript</th><th>removes</th><th>state</th>'
+      + "<th>trigger A</th><th>ident</th><th>GC A</th>"
+      + "<th>trigger B</th><th>ident</th><th>GC B</th></tr></thead><tbody>"
+      + body + "</tbody></table></div></div>";
+  }).join("");
+
+  // ---- table 2: what each candidate does against each transcript ---------------------------
+  //
+  // A block per candidate, which is the layout that shows the spread of the metrics; the matrix
+  // that replaced it for one build was compact and lost exactly that.
+  //
+  // **The `AND-ness` column was removed and it was the misleading one.** Per variant row it is
+  // `score_design`'s AND-ness computed inside THAT VARIANT'S OWN four tubes -- so for the
+  // A-recoded transcript it is "is this recoded construct itself a gate", which it is not meant to
+  // be, and a value near zero there is expected rather than a leak. Flagging it as one said six
+  // sound designs were leaking.
+  //
+  // What replaces it is on the block header: the only AND-ness the bench will see, the ON
+  // transcript's opening cost minus the CHEAPEST of the three recoded ones. That is the number the
+  // --bench-floor is applied to, and the per-row `ON cost` column beside it is what it is computed
+  // from, so a reader can check the subtraction.
+  const byCand = {};
+  V.forEach(v => {
+    const key = v.pair + " · " + v.geom + " · " + v.arm;
+    (byCand[key] = byCand[key] || []).push(v);
+  });
+  const perf = Object.keys(byCand).map(key => {
+    const rows = byCand[key];
+    const base = rows.find(r => String(r.states) === "11");
+    const offs = rows.filter(r => String(r.states) !== "11")
+      .map(r => Number(r.open_11)).filter(v => !isNaN(v));
+    // ON minus the cheapest OFF transcript. Cheapest, because the gate is only as good as the
+    // OFF state that opens most easily -- the same `min` the sweep's own AND-ness uses.
+    const bench = (base && offs.length) ? Number(base.open_11) - Math.min.apply(null, offs) : null;
+    const verdict = bench === null ? '<span class="dimv">not measured</span>'
+      : bench <= -2.0 ? '<span class="win">gates, ' + f2(bench) + ' kcal/mol</span>'
+      : bench <= -0.5 ? '<span class="dimv">weak, ' + f2(bench) + "</span>"
+      : '<span class="bad">NO GATE, ' + f2(bench) + "</span>";
+    const body = rows.map(r => {
+      const isBase = String(r.states) === "11";
+      // The margin this transcript contributes: how much MORE it costs to open than the ON one.
+      const margin = (base && !isBase) ? Number(r.open_11) - Number(base.open_11) : null;
+      return "<tr" + (isBase ? ' class="win"' : "") + "><td><strong>" + r.variant + "</strong></td>"
+        + '<td class="mono">' + r.states + "</td>"
+        + "<td>" + num(r.open_11) + "</td>"
+        + "<td>" + (margin === null ? '<span class="dimv">baseline</span>'
+            : (margin > 0 ? "+" : "") + f2(margin)) + "</td>"
+        + "<td>" + num(r.barrier) + "</td><td>" + num(r.a_m_ratio) + "</td>"
+        // `num` already maps undefined/null/"" to "n/a"; a hand-rolled guard here missed the
+        // empty string the CSV reader hands back, and `+""` is 0 -- an unmeasured gain would
+        // have printed as a perfect 0.000 rather than as missing.
+        + "<td>" + num(r.a_m_gain, 3) + "</td>"
+        + "<td>" + num(r.a_m_worst, 4) + "</td></tr>";
+    }).join("");
+    return '<tr><td colspan=8 class="dimv"><strong>' + key + "</strong> &mdash; " + verdict
+      + "</td></tr>" + body;
+  }).join("");
+
+  host.innerHTML = "<h3>The edits to each window</h3>" + editTables
+    + '<div class="panel" style="margin-top:18px"><h3>What each candidate does against each '
+    + "transcript</h3>"
+    + '<p class="note" style="margin-top:0">The switch never changes &mdash; only the transcript. '
+    + "Each block&rsquo;s header carries the <strong>only AND-ness the bench will see</strong>: the "
+    + "ON transcript&rsquo;s opening cost minus the <em>cheapest</em> of the three recoded ones, "
+    + "which is what <span class=\"mono\">--bench-floor</span> is applied to. The "
+    + "<strong>margin</strong> column is each transcript&rsquo;s own contribution to it, so the "
+    + "subtraction is checkable: every OFF transcript should be <strong>positive</strong>, and the "
+    + "smallest of them is the gate.</p>"
+    + '<p class="note" style="margin-top:6px">With the role swap the transcripts are '
+    + "<span class=\"mono\">T0&ndash;T3</span> and <strong>the state differs between blocks of "
+    + "different trigger pairs</strong> &mdash; the same transcript is 01 for one pair and 10 for "
+    + "the other, which is what the swap is for.</p>"
+    + '<p class="note" style="margin-top:6px">Both A_M forms are shown because they disagree about '
+    + "what a variant costs. <span class=\"mono\">A_M ratio</span> is A_M(11)/max(A_M OFF) and "
+    + "runs past 100, so a large value can come from a collapsed denominator rather than a good ON "
+    + "state; <span class=\"mono\">A_M gain</span> is the same two terms SUBTRACTED and bounded "
+    + "in [&minus;1,&nbsp;1]. A variant that lifts the ratio while leaving the gain flat has lost "
+    + "its OFF state, not gained an ON one. <span class=\"mono\">Barrier</span> depends on the "
+    + "switch alone, so it is constant down each block: a sanity check, not a result.</p>"
+    + '<div class="scroll"><table><thead><tr><th>transcript</th><th>state</th><th>ON cost</th>'
+    + "<th>margin</th><th>Barrier</th><th>A_M ratio</th><th>A_M gain</th>"
+    + "<th>worst A_M</th></tr></thead><tbody>"
+    + perf + "</tbody></table></div></div>";
+}
+// One view per panel file in the data, beside the fixed ones. A panel built with a different
+// third arm is a different panel rather than a filter of this one, so it gets its own button
+// instead of a label describing the panel it is not. Best-in-sweep rows carry no panel name and
+// are therefore absent from these views, which is where they belong.
+(function(){
+  const names = [];
+  CANDS.forEach(c => {
+    String(c.panelname || "").split(" + ").forEach(n => {
+      const short = n.replace(/^panel_/, "");
+      if (short && names.indexOf(short) < 0) names.push(short);
+    });
+  });
+  names.forEach(short => {
+    // Whole-name match on the SPLIT list, not a substring search. `indexOf("maxam")` also matches
+    // "panel_maxam2", so the maxam view showed both panels merged -- 9 rows for a panel of 6.
+    VIEWS["panel: " + short] = c => String(c.panelname || "").split(" + ")
+        .map(n => n.replace(/^panel_/, "")).indexOf(short) >= 0
+      && String(c.control || "").indexOf("nothing") !== 0;
+  });
+})();
+// What the active view IS, from the panel's own recipe, under the filter bar. Without this the
+// buttons are five unlabelled options whose only documentation was the shell history.
+function showRecipe(){
+  const host = el("recipe");
+  if (!host) return;
+  const key = String(state.view || "").indexOf("panel: ") === 0
+    ? "panel_" + state.view.slice(7) : null;
+  const all = D.recipes || {};
+  const one = key && (all[key] || all[key.replace(/^panel_panel_/, "panel_")]);
+  if (one){
+    host.innerHTML = '<strong>' + state.view + '</strong> &mdash; <span class="mono">'
+      + one.replace(/\|/g, "&middot;") + "</span>";
+    return;
+  }
+  // No single panel selected: list them all, so the bar is self-documenting either way.
+  const rows = Object.keys(all).filter(k => all[k]).map(k =>
+    '<div><dt class="mono">' + k.replace(/^panel_/, "") + "</dt><dd>"
+    + all[k].replace(/\|/g, "&middot;") + "</dd></div>").join("");
+  host.innerHTML = rows
+    ? '<dl style="font-size:13px">' + rows + "</dl>"
+    : "";
+}
+mkBtns("fView", Object.keys(VIEWS), "view");
+// Sorted by how many rows each arm appears on, so the arms doing the most work come first.
+mkBtns("fArm", (() => {
+  const seen = new Map();
+  CANDS.forEach(c => armsOf(c).forEach(a => seen.set(a, (seen.get(a) || 0) + 1)));
+  return [...seen.keys()].sort((a, b) => seen.get(b) - seen.get(a));
+})(), "arm");
+mkBtns("fGeom", [...new Set(CANDS.map(c => c.geom))], "geom");
+mkBtns("fPair", pairs, "pair");
+render();
+</script>

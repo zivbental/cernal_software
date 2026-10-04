@@ -30,7 +30,7 @@ Bodies land in Step 5 (docs/ROADMAP.md E1).
 """
 
 import math
-from functools import cache
+from functools import lru_cache
 from itertools import permutations
 
 import RNA
@@ -64,9 +64,10 @@ class FoldEngine:
             and matches mammalian culture; *E. coli* work is often done at 37 too, but a
             wet-lab protocol at 30 should be reflected here. **Recorded on the run** —
             it changes every energy this module returns.
-        cache_size: Maximum cached folds. Each entry holds a sequence and its structure,
-            so 100k entries is roughly tens of MB. Raise it before raising the machine
-            size.
+        cache_size: Maximum cached folds **per cached method**. Each entry holds a
+            sequence and its structure, so 100k entries is roughly tens of MB. Raise it
+            before raising the machine size. ``None`` means unbounded — only for a run
+            whose working set is known to be small.
 
     Example:
         >>> folder = FoldEngine(temperature=37.0)
@@ -75,9 +76,65 @@ class FoldEngine:
         ('(((...)))', -1.2)
     """
 
-    def __init__(self, temperature: float = 37.0, cache_size: int = 100_000) -> None:
+    #: The methods memoised per instance by ``__init__``. Listed here rather than marked
+    #: with a decorator because the bound has to come from ``cache_size``, which only
+    #: exists once there is an instance.
+    _CACHED = (
+        "mfe",
+        "structure_energy",
+        "partition",
+        "_partition_with_unpaired",
+        "_base_pair_probabilities_cached",
+    )
+
+    #: Methods whose entries are far too large for ``cache_size`` to govern, with their own
+    #: absolute cap. ``cache_size`` counts **entries**, and entries differ in size by four
+    #: orders of magnitude: a ``structure_energy`` result is a float against a short duplex,
+    #: while a base-pair-probability matrix for a 221-nt complex is n² Python floats —
+    #: **measured at ~0.9 MB each**.
+    #:
+    #: A 3,600-design stage-2 run touches 3,600 x 4 = 14,400 distinct complexes. That never
+    #: reaches a 100,000-entry bound, so nothing is ever evicted and the process grows to
+    #: ~13 GB — which is the same class of failure the entry bound was added to fix, just
+    #: one method down. Observed live at 1.76 GB and climbing 2.7 MB/s, on a 15.7 GB machine.
+    #:
+    #: 64 is generous for the reuse that actually exists: a design re-reads its **own** four
+    #: states within one evaluation and never touches another design's matrices.
+    _HEAVY_ENTRY_CAPS = {"_base_pair_probabilities_cached": 64}
+
+    def __init__(self, temperature: float = 37.0, cache_size: int | None = 100_000) -> None:
         self.temperature = temperature
         self._cache_size = cache_size
+        # These were decorated ``@cache`` — that is ``lru_cache(maxsize=None)``, so the
+        # documented ``cache_size`` bound above was never applied to anything and every
+        # sequence the process ever folded was retained for its lifetime. Measured on the
+        # A0 sweep: 29k new ``structure_energy`` entries per trigger pair, ~7.6 MB of
+        # Python heap per pair, growing linearly and never released. A 1036-pair run died
+        # of memory exhaustion at pair 707, after 4h37m of work. Ruff's B019 flags exactly
+        # this and had been silenced with a ``noqa`` reading "one instance per run" —
+        # which bounds the number of caches, not the size of one.
+        #
+        # Binding per instance (rather than decorating the class) also keeps ``self`` out
+        # of the cache key, so the entries die with the engine that made them.
+        for name in self._CACHED:
+            limit = cache_size
+            cap = self._HEAVY_ENTRY_CAPS.get(name)
+            if cap is not None and (limit is None or cap < limit):
+                limit = cap
+            method = getattr(type(self), name).__get__(self, type(self))
+            setattr(self, name, lru_cache(maxsize=limit)(method))
+
+    def cache_report(self) -> dict[str, tuple[int, int, int]]:
+        """``{method: (hits, misses, entries)}`` — for checking a long run's cache health.
+
+        A hit rate near zero means the bound is too small for the working set, or that the
+        caller is asking a different question every time and the cache is pure overhead.
+        """
+        return {
+            name: (info.hits, info.misses, info.currsize)
+            for name in self._CACHED
+            if (info := getattr(self, name).cache_info())
+        }
 
     def _compound(self, strands: str) -> RNA.fold_compound:
         """Build a ``fold_compound`` at this engine's temperature.
@@ -103,7 +160,6 @@ class FoldEngine:
         model.temperature = self.temperature
         return RNA.fold_compound(strands, model)
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
     def mfe(self, strands: str) -> FoldResult:
         """Fold a sequence — or a multi-strand complex — and return its most stable
         predicted structure.
@@ -138,7 +194,51 @@ class FoldEngine:
         structure, energy = fc.mfe()
         return FoldResult(structure=structure, energy=energy)
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
+    def centroid(self, strands: str) -> FoldResult:
+        """The structure with the smallest expected base-pair distance to the ensemble.
+
+        A second answer to "what does this fold into", and a better one wherever the
+        ensemble is not concentrated on one structure. ``mfe`` returns the single most
+        stable fold, which can carry a small share of the Boltzmann weight — in that case
+        drawing it presents a structure the molecule mostly is **not** in. The centroid is
+        the structure closest on average to every structure in the ensemble, so it keeps
+        only pairs the ensemble broadly agrees on and leaves the contested regions open.
+
+        Neither is "the" structure and they are not ranked against each other: the centroid
+        can lose a real helix that half the ensemble forms, and the MFE can show one that
+        only it forms. Both are drawings, which is why every *measurement* in this engine
+        goes through the partition function instead — ``p_open``, ``open_penalty``,
+        ``pooled_pair_probabilities``. Use these two for the picture and those for the
+        number.
+
+        Args:
+            strands: RNA, uppercase, ``&``-joined for a complex — the same convention and
+                the same cache-key reason as ``mfe``.
+
+        Returns:
+            ``FoldResult(structure, energy)``. ``structure`` is dot-bracket over the
+            combined strands, the same length ``mfe`` returns. ``energy`` is the
+            **centroid's own free energy** in kcal/mol, evaluated under this model, not
+            the ensemble free energy and not ViennaRNA's distance-to-ensemble figure —
+            so it is directly comparable with ``mfe().energy`` and is always greater than
+            or equal to it, the MFE being the minimum by definition.
+
+        Gotchas:
+            * ``pf()`` must run before ``centroid()``; ViennaRNA returns a meaningless
+              structure otherwise, and silently. Handled here.
+            * ``fc.centroid()`` returns ``(structure, distance)`` where the second value
+              is the expected base-pair distance — **not** an energy. Reporting it as one
+              would put a positive "energy" of a few dozen on a drawing that sits beside
+              a negative MFE, which is why this re-evaluates the structure instead.
+        """
+        fold_compound = self._compound(strands)
+        fold_compound.pf()
+        structure, _distance = fold_compound.centroid()
+        return FoldResult(
+            structure=structure,
+            energy=float(fold_compound.eval_structure(structure)),
+        )
+
     def structure_energy(self, strands: str, structure: str) -> float | None:
         """Energy of one **given** structure, rather than the best one.
 
@@ -171,7 +271,6 @@ class FoldEngine:
         energy = float(self._compound(strands).eval_structure(structure))
         return energy if abs(energy) < 1e4 else None
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
     def partition(self, sequence: str) -> float:
         """Ensemble free energy over all structures, not just the most stable one.
 
@@ -219,7 +318,6 @@ class FoldEngine:
         head, *rest = strands.split("&")
         return ["&".join((head, *tail)) for tail in permutations(rest)]
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
     def _partition_with_unpaired(self, strands: str, unpaired: tuple[int, ...]) -> float:
         """Ensemble free energy with every 1-based position in ``unpaired`` forced open."""
         fold_compound = self._compound(strands)
@@ -354,6 +452,120 @@ class FoldEngine:
         ]
         return probabilities, constrained, unconstrained
 
+    def open_penalty(self, strands: str, spans: tuple[tuple[int, int], ...]) -> float | None:
+        """Free energy cost of forcing every base in ``spans`` unpaired, in kcal/mol.
+
+        This is ``p_open`` expressed as an energy rather than a probability, and generalised
+        to several disjoint spans so that a stem can be constrained without constraining the
+        bulge between its arms.
+
+        **Why the energy and not the probability.** They are the same number —
+        ``G_constrained - G_ensemble = -RT ln(Q_constrained / Q)`` — but only one of them is
+        usable. Measured across the four tubes of one real A0 design, the probabilities span
+        ``1.9e-15`` to ``3.4e-04`` while the energies span ``4.93`` to ``20.89`` kcal/mol.
+        The probability underflows in the OFF states, where the answer matters most, and
+        ``p_open`` has to return ``None`` once it does. The energy never underflows, and
+        energies add, so terms built from this compose into an objective function without
+        weights: a sum of free energies is a free energy.
+
+        **Constrain the stem, not the window.** A window constraint asks "is this region
+        unpaired", which a design can satisfy by refolding the region onto something else —
+        measured on the VISTA library, where 57 of 60 switches re-pair the RBS-to-AUG window
+        in the ON state and a window-based score therefore reports a working switch as
+        broken. Constraining the stem's own arms cannot be faked that way.
+
+        **Direction matters, and only one direction carries information.** Forcing a stem
+        *closed* costs ``0.00 +/- 0.00`` kcal/mol in every state of every design measured:
+        the stem is already paired in the ensemble, so the constraint is pre-satisfied and
+        the term is identically zero. Forcing it *open* separates the states — 16.96 (00),
+        19.37 (01), 4.05 (10), 2.75 (11) on a five-design sample. So score every state with
+        the same open constraint and take the contrast; never mix directions.
+
+        Args:
+            strands: RNA, uppercase, ``&``-joined for a complex.
+            spans: ``(start, end)`` pairs into **the first strand**, 0-based, inclusive
+                start, exclusive end. May be given in any order; overlaps are harmless
+                because positions are de-duplicated.
+
+        Returns:
+            The cost in kcal/mol, ``>= 0`` in exact arithmetic, or ``None`` if any ensemble
+            came back non-finite. ``None`` rather than ``0.0``: zero is what a *free* region
+            costs, so returning it for a failed measurement would read as a perfectly
+            accessible stem.
+
+        Raises:
+            ValueError: if ``spans`` is empty or any span is empty, reversed, or runs off
+                the first strand. Always a bug upstream, not a bad design.
+        """
+        if not spans:
+            raise ValueError("spans must name at least one range")
+        first = strands.split("&")[0]
+        positions: set[int] = set()
+        for start, end in spans:
+            if not 0 <= start < end <= len(first):
+                raise ValueError(
+                    f"span {(start, end)} is not a non-empty range inside the first strand "
+                    f"(length {len(first)})"
+                )
+            positions.update(range(start + 1, end + 1))
+        ordered = tuple(sorted(positions))
+
+        constrained: list[float] = []
+        unconstrained: list[float] = []
+        for order in self._strand_orders(strands):
+            constrained.append(self._partition_with_unpaired(order, ordered))
+            unconstrained.append(self.partition(order))
+        if not all(math.isfinite(e) for e in (*constrained, *unconstrained)):
+            return None
+        return self._combine(constrained) - self._combine(unconstrained)
+
+    def saddle(
+        self, sequence: str, start: str, end: str, *, max_energy: float = 200.0
+    ) -> float | None:
+        """Activation barrier between two structures, in kcal/mol above ``start``.
+
+        The quantity every "kinetic barrier" in this project has so far *not* been. A state
+        difference is end minus beginning; a barrier is the highest energy on the path
+        between, and two states at equal energy can still be separated by one. Measured on a
+        real 165-nt A0 switch: the difference is +8.59 kcal/mol while the barrier is +9.60,
+        and on another design +7.29 against +9.30. The gap is small but it varies, so the
+        barrier is not a rescaled difference.
+
+        Args:
+            sequence: RNA, uppercase. A single strand — findpath does not take ``&``.
+            start: Dot-bracket for the starting structure, same length as ``sequence``.
+            end: Dot-bracket for the target structure, same length.
+            max_energy: Search ceiling in kcal/mol. Paths needing more are abandoned.
+
+        Returns:
+            Barrier height above ``start`` in kcal/mol, or ``None`` when no path was found
+            under ``max_energy``.
+
+        Gotchas:
+            * ``RNA.find_saddle`` takes **and returns dekacal/mol as an integer** — the
+              units trap this repo has already been bitten by. 290 means 2.90 kcal/mol.
+              Both conversions happen here so no caller repeats them.
+            * findpath walks a heuristic *direct* path, so this is an **upper bound** on the
+              true saddle, not the minimum-barrier path. Report it as such.
+            * **Cost depends entirely on how far apart the two structures are**, and the
+              spread is three orders of magnitude. Releasing only a stem's arms on a 161-nt
+              switch: median **136 ms** over six real designs (92-416 ms). Asking for the
+              fully open chain on the same switch: **24 seconds**, because findpath explores
+              every intermediate. An earlier version of this note said 11 ms, measured on a
+              27-nt toy hairpin — do not size a sweep from that number. Give the nearest
+              target that answers the question.
+        """
+        for name, structure in (("start", start), ("end", end)):
+            if len(structure) != len(sequence):
+                raise ValueError(
+                    f"{name} structure is {len(structure)} long but sequence is {len(sequence)}"
+                )
+        ceiling = round(max_energy * 100)
+        saddle = RNA.find_saddle(sequence, start, end, ceiling)
+        if saddle is None or saddle >= ceiling:
+            return None
+        return saddle / 100.0 - float(self._compound(sequence).eval_structure(start))
+
     def ensemble_defect(self, sequence: str, target: str) -> float:
         """How far the predicted ensemble sits from an intended structure.
 
@@ -476,6 +688,36 @@ class FoldEngine:
                         target[index[j]] += share * probability
         return pooled
 
+    def pooled_partition(self, strands: str) -> float:
+        """``partition`` Boltzmann-summed over all strand orderings.
+
+        **Use this, not ``partition``, for any free energy of three or more strands.**
+        ``partition`` folds the strands in the order written and ViennaRNA counts only
+        structures that are non-crossing in that order, so the answer depends on it. The
+        two orderings of one real AND-gate tube measured **12.66 kcal/mol** apart here
+        (``switch&A&B`` = -162.97, ``switch&B&A`` = -150.31), and on a second trigger pair
+        the same switch came out 5.03 apart with the *opposite* ordering favoured — so
+        there is no ordering a caller can simply prefer, and picking one silently
+        discards the other's structures.
+
+        A binding energy built from unpooled terms inherits the whole spread, because the
+        complex and its sub-complexes are folded in different orders.
+
+        Returns:
+            Ensemble free energy in kcal/mol over the union of the orderings' ensembles.
+            Never above the lowest single ordering, and equal to ``partition`` for one or
+            two strands, where there is a single ordering.
+        """
+        orders = self._strand_orders(strands)
+        if len(orders) == 1:
+            return self.partition(strands)
+        energies = [self.partition(order) for order in orders]
+        # Shifted by the minimum before exponentiating, the same guard `p_open` uses: a
+        # bare exp(-G / RT) overflows a float at these magnitudes.
+        floor = min(energies)
+        total = math.fsum(math.exp(-(energy - floor) / self.rt) for energy in energies)
+        return floor - self.rt * math.log(total)
+
     @staticmethod
     def _position_map(order: list[str], canonical: list[str]) -> list[int]:
         """Index in the canonical concatenation for each index in ``order``'s.
@@ -502,7 +744,6 @@ class FoldEngine:
                 raise ValueError(f"{strand!r} is not an unused strand of the original")
         return mapping
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
     def _base_pair_probabilities_cached(self, sequence: str) -> tuple[tuple[float, ...], ...]:
         fold_compound = self._compound(sequence)
         fold_compound.pf()

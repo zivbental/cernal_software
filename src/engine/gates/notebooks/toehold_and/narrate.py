@@ -44,7 +44,7 @@ def banner(title: str, lines: list[str] = (), estimate: float | None = None) -> 
     if estimate is not None:
         print(
             f"  estimated {_clock(estimate)}"
-            + ("  — abandon now if that is too long" if estimate > 300 else "")
+            + ("  -- abandon now if that is too long" if estimate > 300 else "")
         )
     print(flush=True)
 
