@@ -55,7 +55,7 @@ so there is exactly one of it rather than one per notebook.
 | `motif_self_bind_score()` | loader cell | `measure()` and `load_ranked_designs()` both call it |
 | `load_ranked_designs()` | loader cell | the NucSyn CSV parser, needed by both |
 | `_maybe_float()` | loader cell | `load_ranked_designs()` calls it |
-| `_toehold_self_fold()` | loader cell | `load_ranked_designs()` calls it |
+| `_toehold_self_fold()` | loader cell | `load_ranked_designs()` calls it — itself calls `_mean_unpaired`, imported in the loader cell from `engine.gates.toehold`, not defined there; the module needs that same import line or this `NameError`s on first real call |
 
 That is every top-level `def` in the loader cell plus the two standalone cells — so three
 cells collapse into imports.
@@ -103,7 +103,8 @@ this migration must be behaviour-neutral by construction.
 | `AND_REPORT_N` | `20` | How many pairs reach the AND report |
 | `N_SAMPLES` | `1200` | Boltzmann samples per state |
 | `OPEN_THRESHOLD` | `0.70` | Fraction of footprint bound externally to call a state open |
-| `N_FAKES` | `10` | Distinct fake triggers, averaged |
+| `SINGLE_N_FAKES` | `10` | Distinct fake triggers checked per single-switch candidate, **averaged** into its OFF term — matches the original ask ("10 different fake triggers... the mean will be the result"), do not reuse this count for AND |
+| `AND_N_FAKES` | `2` | Fixed fakes per AND pair — `fake1` (checked against A-side states) and `fake2` (B-side) — used once each, **not averaged**. This is a different question from `SINGLE_N_FAKES` and the predecessor notebook's own param names (`MEGA_N_SAMPLES` etc.) reflect that split; do not collapse the two into one `N_FAKES` |
 | `FAKE_MAX_SEQ_OVERLAP_NT` | `8` | Max shared/complementary run a fake may have |
 | `WOBBLE_MAX_FRACTION` | `0.50` | Max share of a matched run that may be G·U |
 | `SPACER_VARIANTS` | `("no_spacer", "spacer")` | Both are run and reported separately |
@@ -143,6 +144,17 @@ Report all three. Do **not** collapse them into one number: with triggers presen
 cross-hybridised with the other hairpin", and that conflation is what made the
 predecessor's leak metric wrong.
 
+**Implementation note — only one of these three exists today.** `trigger_bound` is
+exactly `_frac_paired_to_external(structure, start, end, n_self)` in
+`_joint_state_parallel.py`, already written and already the fix for the bug above —
+reuse it directly. `stem_closed` and `misfolded` do **not** exist anywhere yet; nobody
+has needed "which specific partner" before, only "external or not". Both are a few lines
+over the same `_partner_table(structure)` the existing function already uses (check
+whether `stem_up`'s partner index falls inside `stem_down`'s span, vs. falls inside the
+molecule but outside it). Write them as named functions in `_switch_construct.py`
+alongside `fuse`/`measure` — not inlined per-worker — so a later notebook reuses them
+too instead of writing a fourth near-copy of partner-table logic.
+
 **Fake-trigger selection** — a real trigger from the same CSV qualifies as a fake only if
 its longest complementary run against the footprint is both (a)
 `<= FAKE_MAX_SEQ_OVERLAP_NT`, and (b) strictly less than the real trigger's own run
@@ -155,9 +167,15 @@ never randomly.
 within one:
 
 - Single: `ON = trigger_bound(+real trigger)`;
-  `OFF = max(open fraction over: alone, each of N_FAKES fakes)`
+  `OFF = max(open fraction over: alone, each of SINGLE_N_FAKES fakes)` — the max is itself
+  taken over a mean-of-10 draw per fake position, per the original ask
 - AND: `ON = P(both open | +A+B)`;
-  `OFF = max(P(both open) over: alone, +A, +B, +fake1, +fake2, +A+fake, +B+fake)`
+  `OFF = max(P(both open) over: alone, +A, +B, +fake1, +fake2, +A+fake1, +B+fake2)` — one
+  draw each of `fake1`/`fake2` (`AND_N_FAKES = 2`), not averaged. The predecessor
+  notebook later re-draws these particular states 10x and averages, but only for the
+  already-selected top 20, as a separate refinement cell run after initial selection —
+  decide explicitly whether this notebook does that too, or ships the single-draw number;
+  do not add it silently.
 
 Floor `OFF` at `1/N_SAMPLES`. When `OFF` is genuinely zero, display **`>=1200`** (a bound,
 not a measurement). Show `ON - OFF` in the adjacent column.
@@ -166,7 +184,7 @@ not a measurement). Show `ON - OFF` in the adjacent column.
 number):
 
 - Single: switch alone, trigger alone, switch+trigger, `dG`, and the mean `dG` across the
-  `N_FAKES` fakes
+  `SINGLE_N_FAKES` fakes
 - AND: alone, trigger A alone, trigger B alone, +A, +B, +A+B, and
   `Δ(ON) = ee_both - min(ee_off, ee_+A, ee_+B)`. **More negative is better.**
 
@@ -179,7 +197,7 @@ number):
    Three-way decomposition each. Rank by ON/OFF.
 3. **Single Switch report** — top `SINGLE_REPORT_N`.
 4. **AND grid** — `AND_GRID_N` x itself, self-pairs excluded, both spacer variants. States:
-   alone, +A, +B, +A+B, +fake1, +fake2, +A+fake, +B+fake. Rank by ON/OFF.
+   alone, +A, +B, +A+B, +fake1, +fake2, +A+fake1, +B+fake2. Rank by ON/OFF.
 5. **AND report** — top `AND_REPORT_N`.
 6. **Snapshot export** (opt-in cell, timestamped JSON) and **snapshot load**
    (`SNAPSHOT_TO_LOAD`, `None` by default). Every heavy cell checks that flag at its top
