@@ -2546,11 +2546,14 @@ def main(argv=None) -> int:
             f"= {len(panel)} rows"
         )
     print(
-        f"  opening SEP is the floor, not an arm: every row satisfies SEP <= {GATING} kcal/mol.\n"
+        f"  IED, A_M and SEP are the three ARMS the panel is selected on. ON is the gating\n"
+        f"  ceiling; Bar and comb select nothing. Higher is better for IED and A_M, lower\n"
+        f"  for SEP and ON. Every row satisfies the floor SEP <= {GATING} kcal/mol.\n"
     )
     print(
         f"  {'pair':17s}{'geometry':15s}{'chosen by':32s}"
-        f"{'SEP':>8s}{'A_M':>8s}{'Bar':>7s}{'comb':>6s}{'ON':>6s}  closure / lower3"
+        f"{'IED':>7s}{'A_M':>8s}{'SEP':>8s}{'ON':>6s}{'Bar':>7s}{'comb':>6s}"
+        f"  closure / lower3"
     )
     last = None
     for row in panel:
@@ -2560,8 +2563,9 @@ def main(argv=None) -> int:
         mark = "  *repeat*" if row["duplicate"] else ""
         print(
             f"  {row['pair_label']:17s}{row['geom']:15s}{row['arm']:32s}"
-            f"{row['f1']:>8.2f}{(row['f2'] or 0):>8.1f}{(row['barrier'] or 0):>7.1f}"
-            f"{(row['f5'] or 0):>6.1f}{row['open_11f']:>6.2f}  "
+            f"{(row.get('ied_gain') or 0):>7.3f}{(row['f2'] or 0):>8.1f}"
+            f"{row['f1']:>8.2f}{row['open_11f']:>6.2f}"
+            f"{(row['barrier'] or 0):>7.1f}{(row['f5'] or 0):>6.1f}  "
             f"{row['closure']} / {row['lower3']}{mark}"
         )
     # Distinct SWITCH STRINGS and distinct MEASUREMENTS, because they are not the same number and
