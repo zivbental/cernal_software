@@ -65,12 +65,6 @@ def test_contract_types_are_frozen():
             instance.kind = "mutated" if cls is ArtifactRef else None
 
 
-def test_mock_options_defaults_to_empty(make_request):
-    assert make_request(params={}).mock_options() == {}
-    assert make_request(params={"mock": "not-a-dict"}).mock_options() == {}
-    assert make_request(params={"mock": {"fail": True}}).mock_options() == {"fail": True}
-
-
 def test_accepted_returns_rank_order():
     result = JobResult(
         schema_version=SCHEMA_VERSION,
@@ -108,9 +102,9 @@ def test_every_engine_error_shares_one_base():
 def test_capabilities_advertise_the_scoring_vocabulary():
     """docs/public-api.md §7: the API validates a custom scoring block against this,
     without importing engine.scoring (§3's boundary rule)."""
-    from engine.client import MockEngine
+    from engine.client import LocalEngine
 
-    capabilities = MockEngine().capabilities()
+    capabilities = LocalEngine().capabilities()
     names = {metric.name for metric in capabilities.metrics}
 
     assert names == {

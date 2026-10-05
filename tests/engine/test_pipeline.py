@@ -839,7 +839,7 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
     direct_request, always_continue
 ):
     """LocalEngine.run is what converts EngineError to data — run_pipeline itself
-    still raises, matching MockEngine._execute's half of the same split."""
+    still raises."""
     from engine.errors import InputValidationError
 
     with pytest.raises(InputValidationError):

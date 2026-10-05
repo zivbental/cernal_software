@@ -21,7 +21,7 @@ variables:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 # Backend: lint, format, Django system checks and the full pytest suite.
-# Runs against MockEngine (the default), so no scientific dependencies are needed.
+# Runs against LocalEngine, the only engine, so the scientific stack is required.
 backend:
   stage: check
   image: python:3.13-slim
@@ -38,7 +38,7 @@ backend:
     - uv run pytest -q
 
 # Python client conformance (docs/public-api.md §11.4): submits
-# clients/fixtures/design_request.json against a real, running MockEngine server
+# clients/fixtures/design_request.json against a real, running LocalEngine server
 # (pytest-django's live_server) through the published cernal package's own HTTP code
 # path, and checks the result columns against clients/fixtures/expected_columns.json.
 # `--with` installs the client and its one runtime dependency (requests) into an

@@ -371,7 +371,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         metrics = build_metrics(raw, profile)
         breach = failed_filter(raw, profile)
 
-        # Round-robin, matching MockEngine._build_candidates: every requested output
+        # Round-robin: every requested output
         # gets a comparable share of the candidate budget rather than one dominating
         # by chance (both engines must agree on this, or a real run's distribution
         # looks like a bug next to the mock one it is meant to match).
@@ -662,7 +662,7 @@ def _direct_trigger(
     lengths ever do.
 
     Re-validates length and alphabet defensively, mirroring
-    ``MockEngine._verify_input`` — the Platform already checked this
+    the Platform already checked this
     (``apps/analyses/services.py::_clean_trigger``), but the engine must not trust a
     caller that skipped the Platform (``LocalEngine`` used directly, as this module's
     own tests do).
@@ -1017,7 +1017,7 @@ def _candidate_result(
             "switch_sequence": design.sequence,
             "structure": design.dot_bracket,
             "toehold_length": design.architecture.get("toehold_length", 0),
-            # The whole construct, not the switch alone - matches MockEngine's
+            # The whole construct, not the switch alone - matches
             # convention (client.py) and Plasmid.length_bp's own definition. The
             # frontend's PlasmidRing draws arcs proportional to this against
             # plasmid_segments, so a switch-only value here makes every arc but the
@@ -1038,11 +1038,12 @@ def _candidate_result(
 def _write_artifacts(
     output_dir: str, candidates: list[CandidateResult], plasmids: dict[str, PlasmidDesign]
 ) -> list[ArtifactRef]:
-    """A design table, a FASTA and a GenBank per accepted candidate — the FASTA and
-    table match the shape ``MockEngine._write_artifacts`` produces, so the Platform's
-    artifact import and download path is exercised identically regardless of which
-    engine ran; the GenBank is new (docs/plasmids.md, E5a) and has no mock equivalent
-    yet.
+    """A design table, and — only once the safety gate releases — a FASTA, a GenBank
+    and an SBOL document per accepted candidate (docs/plasmids.md, E5a; ADR 0008).
+
+    The sequence-bearing exports sit below the release check deliberately: with no
+    local screening adapter provisioned, ``fail_closed_release`` holds every sequence
+    and this writes the design table and the audit manifests alone.
 
     ``plasmids`` is keyed by candidate ref, from the same run that produced
     ``candidates`` — every accepted candidate has an entry (``_build_plasmid`` never

@@ -106,7 +106,7 @@ class SwitchDesigner:
             scoring would be pure waste with no compensating benefit. The caller —
             ``run_pipeline`` today, ``CircuitDesigner`` once stage 4 exists — calls
             ``evaluate_design`` exactly once per surviving design, the same pattern
-            ``engine.client.MockEngine._build_candidates`` already uses.
+            the scoring layer already uses.
         """
         for trigger_set in self.build_trigger_sets(triggers, constraints):
             for family in self.families:

@@ -134,8 +134,6 @@ function CompilePage() {
           },
         ],
       },
-      // Makes progress observable while the science is still mocked.
-      mock: { candidate_count: 24, step_delay: 0.6 },
     };
 
     if (config.backbone === "custom") {

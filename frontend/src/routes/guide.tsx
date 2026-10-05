@@ -113,11 +113,14 @@ export function GuideContent() {
             in.
           </p>
           <Caveat>
-            The default is <strong>MockEngine</strong>, whose results are
-            simulated. Check the real{" "}
-            <HelpLink href="/api/version">/api/version</HelpLink> response:{" "}
-            <code>engine</code> identifies MockEngine or LocalEngine, while
-            capability listings show availability—not scientific completeness.
+            The only engine is <strong>LocalEngine</strong>, which reports real
+            measurements from an incomplete pipeline — never simulated numbers.
+            Check{" "}
+            <HelpLink href="/api/version">/api/version</HelpLink>:{" "}
+            <code>engine_version</code> identifies the build, while capability
+            listings show availability—not scientific completeness. A family can
+            be listed as available and still refuse to build for want of a
+            payload library.
           </Caveat>
           <p>
             See the repository&apos;s{" "}
@@ -243,9 +246,12 @@ export function GuideContent() {
             Every successfully imported run gets the platform&apos;s per-run
             candidate table <code>summary.csv</code> and{" "}
             <code>manifest.json</code>. LocalEngine additionally emits the per-run{" "}
-            <code>candidates.csv</code> and FASTA/GenBank files for accepted switch
-            candidates. MockEngine emits simulated candidate tables and FASTA, not
-            GenBank. ZIP downloads package the existing artifacts. The current
+            <code>candidates.csv</code>, plus FASTA, GenBank and SBOL files for
+            accepted switch candidates. Those sequence files appear only once the
+            safety screen releases a sequence; with no screening adapter
+            provisioned the gate holds every one, leaving the candidate table and
+            per-candidate safety audits. ZIP downloads package the existing
+            artifacts. The current
             LocalEngine does not generate PDF, structure-figure, or circuit-diagram
             artifacts; the in-app schematic views are separate. Partner ordering
             is disabled.
@@ -263,7 +269,7 @@ export function GuideContent() {
             Preserve the original DE file, dataset and artifact checksums,
             idempotency key, Git commit, and dependency environment separately.
             Reusing an idempotency key returns the existing run rather than
-            recomputing it. MockEngine uses both the key and seed, so a new key can
+            recomputing it. The engine is seeded from the run's seed, so a new seed can
             change simulated output even with the same seed. Different engines,
             versions, profiles, or environments need not produce byte-identical
             output. Continue with the{" "}

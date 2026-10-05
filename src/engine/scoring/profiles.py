@@ -331,7 +331,7 @@ def derive_profile(
 
 
 def resolve_profile(base_name: str, overrides: dict | None = None) -> ScoringProfile:
-    """What ``MockEngine``/the real pipeline actually calls: ``base_name`` is
+    """What the real pipeline actually calls: ``base_name`` is
     ``AnalysisRun.scoring_profile`` (always a known name — kept that way so
     ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is
     ``JobRequest.params.get("scoring")``. No overrides, or an empty ``weights`` /

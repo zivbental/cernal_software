@@ -99,7 +99,7 @@ def test_health_needs_no_authentication(client, db):
 def test_version_advertises_engine_capabilities(client, db):
     body = client.get("/api/version").json()
 
-    assert body["engine"] == "MockEngine"
+    assert body["engine"] == "LocalEngine"
     assert "default" in body["scoring_profiles"]
 
 

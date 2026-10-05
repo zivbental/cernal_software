@@ -361,6 +361,5 @@ export interface RunParams {
    * params key; the engine does not read it today.
    */
   target_gene?: { organism: string; gene_id: string; gene_symbol: string | null };
-  mock?: { candidate_count?: number; step_delay?: number; fail?: boolean };
   [key: string]: unknown;
 }

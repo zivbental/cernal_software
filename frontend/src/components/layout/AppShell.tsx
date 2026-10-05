@@ -132,7 +132,6 @@ function Nav() {
 
 function Footer() {
   const { data: version } = useVersion();
-  const mock = version?.engine === "MockEngine";
 
   return (
     <footer className="mx-auto flex max-w-[1400px] items-center justify-between border-t border-border px-8 py-6 font-mono text-[11px] text-muted-foreground">
@@ -140,9 +139,8 @@ function Footer() {
       <div className="flex items-center gap-4">
         <span>{version ? `v${version.app_version}` : "—"}</span>
         <span className="flex items-center gap-1.5" title={version?.engine_version}>
-          <span className={`h-1.5 w-1.5 rounded-full ${mock ? "bg-amber-500" : "bg-mint"}`} />
-          {/* Never let a demo be mistaken for real science. */}
-          {mock ? "Mock engine — results are simulated" : "All systems operational"}
+          <span className="h-1.5 w-1.5 rounded-full bg-mint" />
+          {version?.engine ?? "—"}
         </span>
       </div>
     </footer>

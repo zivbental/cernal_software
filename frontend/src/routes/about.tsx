@@ -84,13 +84,13 @@ function AboutPage() {
             ))}
           </dl>
 
-          {version?.engine === "MockEngine" && (
-            <p className="mt-5 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
-              This deployment runs the <strong className="text-foreground">mock engine</strong>.
-              Candidates are structurally realistic but the numbers are simulated — they are
-              not scientific predictions.
-            </p>
-          )}
+          <p className="mt-5 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+            Every number here is computed by the real pipeline, but the pipeline is
+            incomplete. Off-target specificity is not measured yet, and two declared
+            metrics — state separation and orthogonality — are not computed by any gate
+            family, so they are reported blank rather than guessed. Treat candidates as
+            designs to test at the bench, not as validated predictions.
+          </p>
         </Panel>
       </div>
     </>

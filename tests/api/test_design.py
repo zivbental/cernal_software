@@ -128,9 +128,9 @@ def test_exclude_gate_families_removes_from_the_available_set(client, design_key
 
 
 def test_excluding_every_family_is_422(client, design_key):
-    from engine.client import MockEngine
+    from engine.client import LocalEngine
 
-    all_families = MockEngine().capabilities().available_families
+    all_families = LocalEngine().capabilities().available_families
     response = _post(
         client,
         design_key,
@@ -200,9 +200,9 @@ def test_a_valid_scoring_override_is_accepted(client, design_key):
 
 
 def test_a_scoring_override_of_all_zero_weights_is_a_422(client, design_key):
-    from engine.client import MockEngine
+    from engine.client import LocalEngine
 
-    weights = {metric.name: 0.0 for metric in MockEngine().capabilities().metrics}
+    weights = {metric.name: 0.0 for metric in LocalEngine().capabilities().metrics}
     response = _post(
         client,
         design_key,

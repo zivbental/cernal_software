@@ -1,6 +1,6 @@
 """The seed_demo command (docs/architecture.md §13 Step 2, "Done when").
 
-It drives MockEngine through the real import path, so it doubles as an end-to-end check
+It drives the configured engine through the real import path, so it doubles as an end-to-end check
 that the model layer can hold a complete engine result.
 """
 
@@ -18,7 +18,7 @@ from engine.scoring.profiles import DEFAULT_V1
 @pytest.fixture
 def seeded(db, media_root):
     out = StringIO()
-    call_command("seed_demo", "--candidates", "12", stdout=out)
+    call_command("seed_demo", stdout=out)
     return out.getvalue()
 
 
@@ -28,14 +28,17 @@ def test_seed_demo_creates_a_browsable_run(seeded):
     assert run.status == RunStatus.COMPLETED
     assert run.progress_pct == 100
     assert run.finished_at is not None
-    assert run.engine_version.startswith("mock")
+    assert run.engine_version.startswith("local-")
 
 
 def test_seed_demo_creates_the_whole_object_graph(seeded):
     assert Dataset.objects.get().validation_status == ValidationStatus.VALID
-    assert Candidate.objects.count() == 12
-    # One row per metric the scoring profile declares.
-    assert CandidateMetric.objects.count() == 12 * len(DEFAULT_V1.metrics)
+    # How many candidates the real engine finds depends on the science, not on a knob
+    # the demo sets, so this pins the shape of the graph rather than a magic number.
+    candidate_count = Candidate.objects.count()
+    assert candidate_count > 0
+    # One row per candidate per metric the scoring profile declares.
+    assert CandidateMetric.objects.count() == candidate_count * len(DEFAULT_V1.metrics)
     assert Artifact.objects.exists()
     assert Annotation.objects.exists()
 
@@ -61,7 +64,7 @@ def test_seed_demo_reports_the_login_it_created(seeded):
 
 
 def test_seed_demo_reset_clears_previous_data(db, media_root):
-    call_command("seed_demo", "--candidates", "5", stdout=StringIO())
-    call_command("seed_demo", "--candidates", "5", "--reset", stdout=StringIO())
+    call_command("seed_demo", stdout=StringIO())
+    call_command("seed_demo", "--reset", stdout=StringIO())
 
     assert AnalysisRun.objects.count() == 1

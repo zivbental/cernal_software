@@ -146,7 +146,7 @@ Q_CLUSTER = {
 # --- Engine (docs/architecture.md §3, §10) ------------------------------------
 
 # Dotted path to an engine.client.EngineClient implementation.
-CERNAL_ENGINE = env.str("CERNAL_ENGINE", default="engine.client.MockEngine")
+CERNAL_ENGINE = env.str("CERNAL_ENGINE", default="engine.client.LocalEngine")
 
 # --- Logging --------------------------------------------------------------------
 

@@ -42,14 +42,15 @@ def test_a_direct_run_executes_end_to_end(
             auth_client,
             input_mode="direct",
             trigger_sequence=TRIGGER,
-            params={"mock": {"candidate_count": 6}},
+            organism="ecoli",
         ).json()["id"]
 
     run_analysis(run_id)
 
     status = auth_client.get(f"/api/runs/{run_id}").json()
     assert status["status"] == RunStatus.COMPLETED
-    assert status["counts"]["candidates"] == 6
+    # How many designs the real engine finds is a property of the science, not a knob.
+    assert status["counts"]["candidates"] > 0
 
 
 def test_dna_is_accepted_and_normalized_to_rna(auth_client, django_capture_on_commit_callbacks):

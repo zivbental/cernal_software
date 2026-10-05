@@ -38,9 +38,9 @@ so that convention is the only rule there is.
 | | Count |
 | --- | ---: |
 | Modules | 63 |
-| Public classes | 101 |
-| Public callables (excluding `__init__`) | 324 |
-| — `BUILT` | 291 |
+| Public classes | 100 |
+| Public callables (excluding `__init__`) | 321 |
+| — `BUILT` | 288 |
 | — `STUB` | 25 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -108,8 +108,8 @@ layers above it, never the ones below.
 | stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
-| top | `engine.client` |  | 8 | 0 | The Platform-facing engine interface. |
-| top | `engine.contract` |  | 5 | 0 | The Platform ⇄ Engine contract. |
+| top | `engine.client` |  | 6 | 0 | The Platform-facing engine interface. |
+| top | `engine.contract` |  | 4 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``. |
 | top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
@@ -769,7 +769,7 @@ Versioned scoring profiles.
 | `BUILT` | `def available_profiles() -> list[str]` | Profile names a submission may request. Surfaced at ``GET /api/version``. |
 | `BUILT` | `def custom_scoring_label(base_name: str, weights: dict[str, float], hard_filters: list[dict], tie_breakers: list[str] \| None) -> str` | ``<hash8>`` — a pure function of the overrides, so two runs with identical weights get the same label and stay comparable (design map 12). |
 | `BUILT` | `def derive_profile(base: ScoringProfile, *, weights: dict[str, float] \| None = None, hard_filters: list[dict] \| None = None, tie_breakers: list[str] \| None = None) -> ScoringProfile` | A per-request variant of ``base``. Only ``weight`` on each metric may change — ``direction`` and ``valid_range`` are physics and units, not preference, so a caller who could widen ``valid_range`` could make their own numbers look better an… |
-| `BUILT` | `def resolve_profile(base_name: str, overrides: dict \| None = None) -> ScoringProfile` | What ``MockEngine``/the real pipeline actually calls: ``base_name`` is ``AnalysisRun.scoring_profile`` (always a known name — kept that way so ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is ``JobRequest.params.get("scoring")``. |
+| `BUILT` | `def resolve_profile(base_name: str, overrides: dict \| None = None) -> ScoringProfile` | What the real pipeline actually calls: ``base_name`` is ``AnalysisRun.scoring_profile`` (always a known name — kept that way so ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is ``JobRequest.params.get("scoring")``. |
 
 #### `class MetricSpec`
 
@@ -1972,7 +1972,7 @@ The Platform-facing engine interface.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.MockEngine``. |
+| `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.LocalEngine``. |
 | `BUILT` | `def label_for_custom_scoring(base_name: str, overrides: dict \| None) -> str` | The label the engine will actually score under (docs/public-api.md §9.1) — computable from the request alone, before the engine ever runs, so the Platform can echo it in a submission's ``resolved`` field without building a ``ScoringProfile… |
 
 #### `class EngineClient(Protocol)`
@@ -1998,19 +1998,6 @@ Runs the real scientific pipeline in-process.
 | --- | --- | --- |
 | `BUILT` | `def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult` | Delegate to the real pipeline. |
 | `BUILT` | `def capabilities(self) -> EngineCapabilities` | The families and profiles actually installed in this build. |
-
-#### `class MockEngine`
-
-Deterministic fake science.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `ENGINE_VERSION` |  | `'mock-1.0.0'` |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def capabilities(self) -> EngineCapabilities` | The same registries the real engine reports, so a mock run configures identically to a real one. |
-| `BUILT` | `def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult` | Run a fake job, deterministically. |
 
 ### `engine.contract`
 
@@ -2054,7 +2041,6 @@ An immutable request for one scientific computation.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `@property def is_direct_trigger(self) -> bool` | True when the researcher pasted a sequence instead of uploading a table. |
-| `BUILT` | `def mock_options(self) -> dict` | Options consumed by MockEngine. Ignored by every real implementation. |
 
 #### `class GateFamilyInfo`
 

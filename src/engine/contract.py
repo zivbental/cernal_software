@@ -56,11 +56,6 @@ class JobRequest:
         """True when the researcher pasted a sequence instead of uploading a table."""
         return self.input_mode == INPUT_DIRECT
 
-    def mock_options(self) -> dict:
-        """Options consumed by MockEngine. Ignored by every real implementation."""
-        options = self.params.get("mock", {})
-        return options if isinstance(options, dict) else {}
-
 
 @dataclass(frozen=True, slots=True)
 class GateFamilyInfo:
