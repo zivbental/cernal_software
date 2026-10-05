@@ -2605,14 +2605,16 @@ def main(argv=None) -> int:
             f"= {len(panel)} rows"
         )
     print(
-        f"  IED, A_M and SEP are the three ARMS the panel is selected on. ON is the gating\n"
+        f"  IED, A_M and the third arm are what the panel is selected on. A_M11 and offA_M\n"
+        f"  are the ratio's two halves: a ratio carried by a collapsed offA_M is not a better\n"
+        f"  ON state. Population median offA_M is 0.0798. ON is the gating\n"
         f"  ceiling; Bar and comb select nothing. Higher is better for IED and A_M, lower\n"
         f"  for SEP and ON. Every row satisfies the floor SEP <= {GATING} kcal/mol.\n"
     )
     print(
         f"  {'pair':17s}{'geometry':15s}{'chosen by':32s}"
-        f"{'IED':>7s}{'A_M':>8s}{'SEP':>8s}{'ON':>6s}{'Bar':>7s}{'comb':>6s}"
-        f"  closure / lower3"
+        f"{'IED':>7s}{'A_M':>8s}{'A_M11':>8s}{'offA_M':>9s}{'SEP':>8s}{'ON':>6s}"
+        f"{'Bar':>7s}  closure / lower3"
     )
     last = None
     for row in panel:
@@ -2623,8 +2625,14 @@ def main(argv=None) -> int:
         print(
             f"  {row['pair_label']:17s}{row['geom']:15s}{row['arm']:32s}"
             f"{(row.get('ied_gain') or 0):>7.3f}{(row['f2'] or 0):>8.1f}"
+            # The ratio's two halves. A_M(11) is the ON state's own openness and is what
+            # the gate wants high; offA_M is the worst OFF state it is divided by. A ratio
+            # carried by a collapsed denominator shows here as a small offA_M beside an
+            # unremarkable A_M11.
+            f"{(row.get('A_M_11') or 0):>8.4f}"
+            f"{((row.get('A_M_11') or 0) / row['f2'] if row.get('f2') else 0):>9.5f}"
             f"{row['f1']:>8.2f}{row['open_11f']:>6.2f}"
-            f"{(row['barrier'] or 0):>7.1f}{(row['f5'] or 0):>6.1f}  "
+            f"{(row['barrier'] or 0):>7.1f}  "
             f"{row['closure']} / {row['lower3']}{mark}"
         )
     # Distinct SWITCH STRINGS and distinct MEASUREMENTS, because they are not the same number and
