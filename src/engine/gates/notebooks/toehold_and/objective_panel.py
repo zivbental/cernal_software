@@ -1351,6 +1351,10 @@ MIN_NT_APART = 3
 #: Off by default because that is a deliberate trade, not an improvement. ``--any-geometry``.
 ANY_GEOMETRY = False
 
+#: Print every eligible pair with its three arm values before choosing. Off by default;
+#: `--list-pairs` turns it on. It changes nothing about the selection.
+LIST_PAIRS = False
+
 #: The columns ``ARM_TIE`` compares, one per entry of ``PANEL_ARMS``, in the same order.
 ARM_COLUMNS = {
     "IED gain": "ied_gain",
@@ -1850,6 +1854,28 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
     for pair, cell, arm_rows in candidates:
         scored.append((score_on(cell, arm_rows, PANEL_ARMS), pair, cell, arm_rows))
     scored.sort()
+    if LIST_PAIRS:
+        # Every eligible pair with what it is made of, so a `--pin` can be chosen on the
+        # numbers instead of by name. Same construction as the selection above -- these are
+        # the pairs the panel could have taken, after the same filters.
+        print(f"\n  --list-pairs: {len(scored)} eligible pair(s), best worst-arm first")
+        print(
+            f"  {'pair':17s}{'worst%':>7s}"
+            + "".join(f"{arm[:11]:>12s}" for arm in PANEL_ARMS)
+            + f"{'A_M':>8s}{'ON':>7s}"
+        )
+        for score, pair, cell, arm_rows in scored:
+            values = "".join(f"{arm_value(arm_rows[arm], arm, cell):>12.3f}" for arm in PANEL_ARMS)
+            # A_M and the ON ceiling of the A_M-chosen row, because "is this pair's A_M any
+            # good" is the question a pin is usually being chosen to answer.
+            am_row = arm_rows.get("A_M ratio")
+            am = (am_row or {}).get("f2")
+            on = (am_row or {}).get("open_11f")
+            print(
+                f"  {pair:17s}{score:7.1f}{values}"
+                f"{(am if am is not None else float('nan')):>8.1f}"
+                f"{(on if on is not None else float('nan')):>7.2f}"
+            )
     if PAIR_ARMS:
         # One group per pair, matched greedily in group order: the first group takes its best pair,
         # the second its best of what is left. `scored` is rebuilt so that everything downstream --
@@ -2436,6 +2462,12 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--geometry", default="", help="fix the geometry for --six")
     parser.add_argument(
+        "--list-pairs",
+        action="store_true",
+        help="print every eligible pair with its three arm values, so a --pin can be "
+        "chosen on the numbers. Changes nothing about the selection",
+    )
+    parser.add_argument(
         "--pin",
         default="",
         help="comma-separated trigger pairs to place first, e.g. 625/124/6",
@@ -2473,6 +2505,9 @@ def main(argv=None) -> int:
         global PANEL_ARMS
         PANEL_ARMS = (*PANEL_ARMS[:2], args.arm3)
         print(f"  --arm3: the panel's arms are {', '.join(PANEL_ARMS)}")
+    if args.list_pairs:
+        global LIST_PAIRS
+        LIST_PAIRS = True
     if args.distinct_arms:
         global DISTINCT_ARMS
         DISTINCT_ARMS = True
