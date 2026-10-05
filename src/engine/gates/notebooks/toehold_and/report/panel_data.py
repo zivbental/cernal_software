@@ -435,6 +435,8 @@ def main(argv=None) -> int:
         for row in rows_here:
             existing = by_switch.get(row["switch"])
             if existing is None:
+                # The arm THIS panel chose it for, before the merge starts joining names.
+                row.setdefault("arm_by_panel", {})[panel_name] = row["arm"]
                 panel.append(row)
                 by_switch[row["switch"]] = row
                 added += 1
@@ -447,6 +449,19 @@ def main(argv=None) -> int:
             if panel_name not in existing["panelname"]:
                 existing["panelname"] = f"{existing['panelname']} + {panel_name}"
             existing.setdefault("swap_by_panel", {})[panel_name] = row.get("swap_states") or ""
+            # Per panel as well as merged. The merged `arm` is what the "all" view and the arm
+            # filter read; this is what a PANEL view must read, or a design serving two arms in
+            # two different panels reads as serving both in each of them -- which hides the
+            # back-off's whole effect, one arm per design.
+            # Accumulated WITHIN a panel too, not overwritten. Without the back-off a design can
+            # serve two arms of the SAME panel -- that is the duplicate the no-back-off view
+            # exists to show -- and last-write-wins reported only one of them, so the view hid
+            # the very thing it is the control for.
+            per_panel = existing.setdefault("arm_by_panel", {})
+            if panel_name not in per_panel:
+                per_panel[panel_name] = row["arm"]
+            elif row["arm"] not in per_panel[panel_name]:
+                per_panel[panel_name] = f"{per_panel[panel_name]} + {row['arm']}"
             if row["arm"] not in existing["arm"]:
                 existing["arm"] = f"{existing['arm']} + {row['arm']}"
         # One recipe per panel file. Taken from the rows rather than restated here, so the page
@@ -613,6 +628,7 @@ def main(argv=None) -> int:
             "panelname": row.get("panelname") or "",
             "mult": int(row["multiplicity"]),
             "arm": row["arm"],
+            "arm_by_panel": row.get("arm_by_panel") or {},
             "geom": row["geom"],
             "pair": row["pair_label"],
             "dup": row["duplicate"] == "True",

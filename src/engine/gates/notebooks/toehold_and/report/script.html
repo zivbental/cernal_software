@@ -351,7 +351,7 @@ function card(d){
         ? '<span class="chip dimv">' + UP + "best, of "
           + (D.n_population || 0).toLocaleString() + " feasible</span>" : "");
   return '<div class="card ' + (kim ? "kim" : "naive") + '">'
-    + '<div class="chead"><span class="role">' + d.arm + "</span>"
+    + '<div class="chead"><span class="role">' + armIn(d) + "</span>"
     + (d.control.indexOf("nothing") === 0
         ? '<span class="flag">uncontrolled &mdash; best in sweep</span>' : "")
     + ((d.extras || {}).offtarget && d.extras.offtarget !== "not notable"
@@ -405,7 +405,7 @@ function card(d){
 const COLS = [
   ["pair",      "trigger pair",   d => d.pair,                           "txt"],
   ["geom",      "geometry",       d => d.geom,                           "txt"],
-  ["arm",       "chosen by",      d => d.arm,                            "txt"],
+  ["arm",       "chosen by",      d => armIn(d),                         "txt"],
   ["nt",        "nt",             d => d.nt,                             "int"],
   ["lenx",      "len_x",          d => d.len_x,                          "int"],
   ["closure",   "closure",        d => d.closure,                        "txt"],
@@ -612,6 +612,21 @@ const gateOn = {};
 // Reading that one while another view is on screen reports a neighbour from a panel nobody is
 // building: measured on this build, a panel_var design read 2 nt against a panel_maxam design
 // and 5 nt against anything actually in panel_var.
+// Which arm chose this design IN THE SELECTED VIEW. The merged `arm` joins every panel's
+// choice, so in panel_backoff -- where the lever's point is one arm per design -- three cards
+// read "IED gain + A_M ratio", "A_M ratio + opening SEP", "opening SEP" and the reader cannot
+// see that each design serves exactly one arm there.
+function armIn(d) {
+  const view = String((typeof state === "object" && state && state.view) || "");
+  if (view.indexOf("panel: ") === 0) {
+    const short = view.slice(7);
+    const by = d.arm_by_panel || {};
+    const hit = by["panel_" + short] || by[short];
+    if (hit) return hit;
+  }
+  return d.arm;
+}
+
 function nearestIn(d) {
   const view = String((typeof state === "object" && state && state.view) || "");
   if (view.indexOf("panel: ") === 0) {

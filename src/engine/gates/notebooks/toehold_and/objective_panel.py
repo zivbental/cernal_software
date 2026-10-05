@@ -1386,6 +1386,21 @@ ANY_GEOMETRY = False
 #: two families, and it still holds for that purpose.
 SPAN_GEOMETRY = False
 
+#: Let an arm whose best design is already taken by another arm take its best UNTAKEN one.
+#:
+#: Off by default, because keeping the duplicate is a deliberate choice: two arms landing on one
+#: design is a finding about the arms, and the emission loop says so. It is the wrong choice only
+#: when the question is which six constructs to build, where a duplicate is a spent slot.
+#:
+#: Measured on ``491/434/4``, otherwise the best second pair: IED gain and A_M ratio pick the
+#: identical design, so it offers 2 distinct measurements of 3, and ``SPAN_GEOMETRY`` does not
+#: help because all three of its arms stay in naive.
+ARM_BACKOFF = False
+
+#: What each pair's arms gave up to the back-off, keyed by pair, filled during ranking and read
+#: by the emission loop so the printed panel states the cost rather than hiding it.
+BACKOFF_COST: dict[str, dict[str, dict]] = {}
+
 #: Print every eligible pair with its three arm values before choosing. Off by default;
 #: `--list-pairs` turns it on. It changes nothing about the selection.
 LIST_PAIRS = False
@@ -1429,39 +1444,89 @@ ARM_COLUMNS = {
 }
 
 
-def real_measurements(cell: list[dict], arm_rows: dict[str, dict]) -> int:
-    """How many of the arm rows are measurements the others do not already carry.
+def merge_test(cell: list[dict], arms):
+    """Return the predicate "these two rows are ONE measurement in this cell".
 
-    Two rows are one measurement when they agree within ``ARM_TIE`` of the cell's range on EVERY
-    arm column. Falls back to counting switches for an arm with no column mapped, which is the
-    conservative direction: it over-counts rather than silently merging two rows.
+    Factored out of ``real_measurements`` so the arm back-off uses the SAME test the distinct
+    count does. Two definitions here would let an arm back off onto a design the count still
+    merges, which would report three measurements where there are two.
+
+    Either half merges a pair of rows: the arm columns cannot tell them apart (within ``ARM_TIE``
+    of the cell's range on every one), OR the sequences are closer than ``MIN_NT_APART`` bases,
+    which catches a 1-nt pair whose arm values happen to differ. With an arm that has no column
+    mapped it falls back to switch identity -- the conservative direction, over-counting rather
+    than silently merging.
     """
-    columns = [ARM_COLUMNS.get(arm) for arm in arm_rows]
-    if any(c is None for c in columns):
-        return len({r["switch"] for r in arm_rows.values()})
+    columns = [ARM_COLUMNS.get(arm) for arm in arms]
+    if any(column is None for column in columns):
+        return lambda row, first: row["switch"] == first["switch"]
     spans = {}
     for column in columns:
         values = [r[column] for r in cell if r.get(column) is not None]
         spans[column] = (max(values) - min(values)) if len(values) > 1 else 0.0
+
+    def merges(row: dict, first: dict) -> bool:
+        close = (
+            len(row["switch"]) == len(first["switch"])
+            and sum(1 for x, y in zip(row["switch"], first["switch"], strict=True) if x != y)
+            < MIN_NT_APART
+        )
+        tied = all(abs(row[c] - first[c]) <= ARM_TIE * spans[c] or spans[c] == 0.0 for c in columns)
+        return tied or close
+
+    return merges
+
+
+def real_measurements(cell: list[dict], arm_rows: dict[str, dict]) -> int:
+    """How many of the arm rows are measurements the others do not already carry.
+
+    The grouping test is ``merge_test``, shared with the arm back-off.
+    """
+    merges = merge_test(cell, list(arm_rows))
     groups: list[dict] = []
     for row in arm_rows.values():
         for first in groups:
-            # Either test merges them: the arms cannot tell them apart, OR the sequences are too
-            # close to be two constructs. The second is the one that catches a 1-nt pair whose
-            # arm values happen to differ.
-            close = (
-                len(row["switch"]) == len(first["switch"])
-                and sum(1 for x, y in zip(row["switch"], first["switch"], strict=True) if x != y)
-                < MIN_NT_APART
-            )
-            tied = all(
-                abs(row[c] - first[c]) <= ARM_TIE * spans[c] or spans[c] == 0.0 for c in columns
-            )
-            if tied or close:
+            if merges(row, first):
                 break
         else:
             groups.append(row)
     return len(groups)
+
+
+def pick_arms(cell: list[dict], arms) -> tuple[dict[str, dict], dict[str, dict]]:
+    """One design per arm, and what each arm gave up to avoid a design already taken.
+
+    Without ``ARM_BACKOFF`` this is the historic rule: every arm takes the cell's minimum on its
+    own key, independently, so two arms that agree land on one design. With it, an arm walks its
+    own ranking and takes the first row that is not already a measurement another arm holds --
+    ``merge_test``, the same test ``real_measurements`` counts by.
+
+    Greedy in ``arms`` order: the first arm gets its unconstrained best and later arms work around
+    it. That is not an optimal assignment, which is why the second return value carries the cost --
+    the arm's best key against the key it settled for -- so a panel says what the back-off spent.
+    """
+    chosen: dict[str, dict] = {}
+    cost: dict[str, dict] = {}
+    merges = merge_test(cell, arms) if ARM_BACKOFF else None
+    for arm in arms:
+        key = ARMS[arm](cell) if arm in CELL_RELATIVE else ARMS[arm]
+        usable = [r for r in cell if key(r) != float("inf")]
+        if not usable:
+            continue
+        best = min(usable, key=key)
+        if not ARM_BACKOFF:
+            chosen[arm] = best
+            continue
+        free = [
+            r for r in sorted(usable, key=key) if not any(merges(r, t) for t in chosen.values())
+        ]
+        # Nothing free means every design in the cell reads as a measurement already taken, so
+        # the duplicate is kept -- the historic behaviour -- rather than the arm dropping out.
+        take = free[0] if free else best
+        chosen[arm] = take
+        if take is not best:
+            cost[arm] = {"best": key(best), "took": key(take)}
+    return chosen, cost
 
 
 #: Require a pair to carry designs in BOTH geometries.
@@ -1775,6 +1840,8 @@ def recipe() -> str:
         # reproduced from: with --pair-score mean it was claiming both "mean" and "the
         # worst arm's percentile, maximised" in the same line.
         parts.append(f"pairs=the {PAIR_SCORE} arm's percentile, minimised")
+    if ARM_BACKOFF:
+        parts.append("an arm whose best is taken takes its best untaken")
     if SPAN_GEOMETRY:
         parts.append("geometry=per arm, inside a pair")
     elif ANY_GEOMETRY:
@@ -1880,12 +1947,12 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
     for pair, _geom, cell in cells:
         if len(cell) < len(PANEL_ARMS):
             continue
-        arm_rows = {}
-        for arm in PANEL_ARMS:
-            key = ARMS[arm](cell) if arm in CELL_RELATIVE else ARMS[arm]
-            usable = [r for r in cell if key(r) != float("inf")]
-            if usable:
-                arm_rows[arm] = min(usable, key=key)
+        # One site, so the ranking, the DISTINCT_ARMS test and the emission all see the same
+        # designs. `backoff_cost` is what each arm gave up to avoid one already taken; it is
+        # empty unless ARM_BACKOFF is on.
+        arm_rows, backoff_cost = pick_arms(cell, PANEL_ARMS)
+        if backoff_cost:
+            BACKOFF_COST[pair] = backoff_cost
         if len(arm_rows) < len(PANEL_ARMS):
             missing = [a for a in PANEL_ARMS if a not in arm_rows]
             reason = f"no design carries {', '.join(missing)}"
@@ -2175,7 +2242,9 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
     #
     # A duplicate is kept and FLAGGED rather than replaced: if two arms land on one design that is
     # a finding about the arms, and substituting something else would hide it. `distinct designs`
-    # in the banner is the number to read.
+    # in the banner is the number to read. `--arm-backoff` reverses that choice for a panel whose
+    # question is which six constructs to build, where a duplicate is a spent bench slot instead;
+    # the agreement table is computed from the whole cell, so it reports the truth either way.
     # The rows come from the ranking's own `arm_rows`, not from a second `cell_picks` call: a pair
     # was ranked on these exact designs, so emitting a different one would mean the panel shows
     # rows the pair was not chosen for.
@@ -2190,6 +2259,13 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
                 print(f"  {arm} on {pair}: no design in the cell carries it")
                 continue
             mark = "  (already taken by another arm)" if row["switch"] in seen else ""
+            # An arm that backed off is showing its SECOND choice, so the panel says what it
+            # gave up rather than presenting the fallback as the arm's optimum.
+            spent = BACKOFF_COST.get(pair, {}).get(arm)
+            if spent:
+                mark += (
+                    f"  (backed off: its best was {spent['best']:.4g}, took {spent['took']:.4g})"
+                )
             print(f"  {pair:16s}{arm:14s}{row['switch'][:12]}...{mark}")
             # Each cell's OWN geometry, which is the chosen one unless ANY_GEOMETRY let the two
             # pairs differ. Taken from the row rather than from the panel, so the control string
@@ -2574,6 +2650,13 @@ def main(argv=None) -> int:
         "the historic rule), mean, or best. Lower is better in every mode",
     )
     parser.add_argument(
+        "--arm-backoff",
+        action="store_true",
+        help="an arm whose best design another arm already took takes its best UNTAKEN one, so a "
+        "pair spends six slots on six constructs. Off by default because keeping the duplicate is "
+        "a finding about the arms -- see ARM_BACKOFF",
+    )
+    parser.add_argument(
         "--span-geometry",
         action="store_true",
         help="let one pair's three arms each pick their own geometry, so a pair can field three "
@@ -2632,6 +2715,10 @@ def main(argv=None) -> int:
         global PANEL_ARMS
         PANEL_ARMS = (*PANEL_ARMS[:2], args.arm3)
         print(f"  --arm3: the panel's arms are {', '.join(PANEL_ARMS)}")
+    if args.arm_backoff:
+        global ARM_BACKOFF
+        ARM_BACKOFF = True
+        print("  --arm-backoff: an arm whose best is taken takes its best untaken")
     if args.span_geometry:
         global SPAN_GEOMETRY
         SPAN_GEOMETRY = True
