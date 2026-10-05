@@ -496,6 +496,37 @@ def _longest_complementary_run_wobble(
     return best_len, best_wobble
 
 
+def trigger_pair_too_similar(
+    trigger_a: str, trigger_b: str, *, max_overlap_nt: int, wobble_max_fraction: float
+) -> bool:
+    """True when an AND pair's own two REAL triggers (trigger A, trigger B) share a
+    complementary run (wobble included) exceeding ``max_overlap_nt`` -- the SAME
+    acceptance rule :func:`pick_fake_design` already applies to a FAKE trigger
+    against a real footprint, applied here between the pair's own two real triggers
+    instead.
+
+    2026-10-05 fix: the AND grid had no check at all for how similar trigger A and
+    trigger B are to EACH OTHER when fusing two singles into a pair --
+    ``FAKE_MAX_SEQ_OVERLAP_NT``/``WOBBLE_MAX_FRACTION`` only ever screened a FAKE
+    trigger against the real trigger of the SAME candidate (via ``pick_fake_design``),
+    never trigger-A-vs-trigger-B of the pair itself. Confirmed on real data: the AND
+    report's #1 candidate (56+63) has trigger A (30nt) and trigger B (33nt) sharing a
+    27nt IDENTICAL substring -- the same transcript region, not independent AND
+    inputs -- which this complementary-run screen also catches (run=9nt, just over
+    the 8nt cap): two near-duplicate sequences carry matching local
+    self-complementarity artifacts too, not just a long identical run.
+
+    Reuses :func:`_longest_complementary_run_wobble` -- the SAME helper, SAME
+    semantics, as the existing fake-trigger screen (CLAUDE.md sec 1: one
+    overlap-checker, not two). Called identically from the fresh-grid-building path
+    (before any job for the pair is submitted, i.e. before any compute is spent on
+    it) and the snapshot-restore rescoring path (filtering the already-scored rows),
+    so a pair is never admitted under one path and rejected under the other.
+    """
+    run, _wobble = _longest_complementary_run_wobble(trigger_a, trigger_b, wobble_max_fraction)
+    return run > max_overlap_nt
+
+
 def pick_fake_design(
     design_5p,
     design_3p,

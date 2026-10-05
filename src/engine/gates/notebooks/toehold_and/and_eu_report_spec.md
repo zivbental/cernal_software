@@ -415,3 +415,72 @@ HTML in a browser) for both reports' summary tables and several candidate cards.
 `uv run pytest tests/engine -q`: 730 passed. `uv run ruff check .`: clean (same
 pre-existing, unrelated `_joint_state_parallel.py:767` format-only diff noted in the
 prior round, confirmed still present and still unrelated to this round's changes).
+
+## 2026-10-05, round 4 — trigger-vs-trigger overlap screen, summary-row breakdown revert, kozak-ring color
+
+**Finding — the AND grid never screened a pair's own two REAL triggers against each
+other.** `FAKE_MAX_SEQ_OVERLAP_NT`/`WOBBLE_MAX_FRACTION` only ever screened a FAKE
+trigger against the real trigger of the SAME candidate, via `pick_fake_design` — never
+trigger-A-vs-trigger-B of the pair actually being fused. Confirmed by direct
+inspection on real data: the AND report's #1 candidate by ratio across the last two
+rounds (56+63) has trigger A (30nt, `UUACCCCCUCAUUGUUUAUUAACAAAUUAU`) and trigger B
+(33nt, `UCUAGAUUACCCCCUCAUUGUUUAUUAACAAAU`) sharing a **27nt IDENTICAL substring** — the
+same transcript region, not independent AND inputs. The same pair's complementary-run
+screen (the metric this fix actually applies, per the user-approved cap reusing
+`_longest_complementary_run_wobble`) reads 9nt — just over the existing 8nt
+`FAKE_MAX_SEQ_OVERLAP_NT` cap — confirming near-duplicate trigger sequences also carry
+matching local self-complementarity artifacts, not only a long identical run. This is
+very likely most of what the 2026-10-04/2026-10-05-round-3 investigations labelled
+"real cross-hybridization" (trigger B opening hairpin A) for this same pair — not
+subtle biology, near-duplicate trigger sequences being paired together.
+
+**Fix**: `trigger_pair_too_similar(trigger_a, trigger_b, *, max_overlap_nt,
+wobble_max_fraction)`, new in `_joint_state_parallel.py`, reuses
+`_longest_complementary_run_wobble` (same helper, same semantics as the existing
+fake-trigger screen) applied between the pair's own two real triggers. Called with
+`max_overlap_nt=FAKE_MAX_SEQ_OVERLAP_NT, wobble_max_fraction=WOBBLE_MAX_FRACTION` (the
+SAME parameters already governing fake screening — no new tunable). A pair that fails
+is excluded entirely (not scored, not shown), from both the fresh-grid-building path
+(before any job is submitted for it) and the snapshot-restore rescoring path (filtering
+the already-scored/restored rows) — one shared predicate, not two copies of the same
+condition. On the current 2026-10-04 snapshot's top-20 AND report rows: 3/20 excluded
+(56+63 × both spacer variants, 70+6 — all three previously top-ranked candidates
+flagged across the last two rounds' own screenshots), 17 remain. 11+55 and 63+56 (runs
+of 6nt and 8nt respectively, at or under the cap) survive.
+
+**Also reverted**: the AND summary table's OFF cell dropped the
+`_off_breakdown_text`/`_off_breakdown_compact` sentence added last round — too much
+text under the numbers in a 20-row table — back to the plain OFF percentage + per-side
+nt-counts. The card head keeps the full breakdown (room for it there). Checked the
+single report for the same pattern: its summary rows never called the breakdown helper
+in the first place (only `_pct_nt_n`, a plain percentage/nt/n display) — no change
+needed there.
+
+**Also fixed**: a stray-looking red ring on kozak in the AND structure plots. Root
+cause confirmed directly on real data (candidate 56+63, "alone" state): kozak(B) spans
+`[140, 146)`, `visible_len` (the kozak-end clip) is 146, and the real MFE structure of
+the fused construct pairs bases 141-143 (inside kozak) to bases 169-171 — squarely
+inside the clipped exp_gene payload tail `[146, 176)`. **Correct, not a bug**: kozak
+genuinely folds back onto the construct's own hidden payload bases just past the clip
+boundary. The dangling-ring mechanism (`structure_png`, AND item 7/4) used ONE color
+(`_TRIGGER_COLOR`, red) for every hidden partner regardless of cause, so this
+correct-but-mundane payload fold-back read identically to "bound to a hidden trigger
+strand" — alarming and misleading. Fixed by giving `structure_png` a new
+`construct_len` parameter (the fused construct's own length, always `<= len(sequence)`
+when trigger strands are appended): a hidden partner index `< construct_len` is the
+construct's own hidden tail and now gets a new, less alarming `_PAYLOAD_RING_COLOR`
+(amber, matching the existing exp_gene/payload domain color); `>= construct_len` is a
+genuinely hidden trigger strand and keeps the original red. A one-line legend entry is
+added per plot for whichever ring color(s) actually appear on it. Confirmed by
+rasterizing the re-rendered PDF: candidates 11+55 and 63+56 both show the amber
+"ring: paired into this construct's own hidden tail" ring (and matching legend entry)
+at the kozak boundary in both their "alone" and "+A+B" structure plots — no red ring
+present in either (would need a base pairing to a genuinely hidden trigger strand to
+trigger). Checked the single report for the same mechanism: its structure plots never
+pass `visible_len` at all — every sequence plotted is already truncated by a real
+separate fold, nothing hidden past the plotted end — confirmed unaffected by
+rasterizing its own #1 candidate.
+
+Verified by executing the notebook end to end against the same 2026-10-04 snapshot (no
+re-screen, no re-grid) and reading the real rendered HTML/PDF output.
+`uv run pytest tests/engine -q`: 730 passed. `uv run ruff check .`: clean.
