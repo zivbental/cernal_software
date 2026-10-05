@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 102 |
 | Public classes | 104 |
-| Public callables (excluding `__init__`) | 518 |
-| — `BUILT` | 486 |
+| Public callables (excluding `__init__`) | 521 |
+| — `BUILT` | 489 |
 | — `STUB` | 24 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -68,7 +68,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.base` |  | 8 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
-| gates | `engine.gates.toehold` |  | 26 | 0 | Toehold switches — single input, and two-input AND. |
+| gates | `engine.gates.toehold` |  | 29 | 0 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
 | gates | `engine.gates.notebooks.toehold_and.access_vs_vista` |  | 5 | 0 | Do Green 2014's local single-strandedness and VISTA's flanked MFE pick the same trigger pairs? |
@@ -1132,7 +1132,7 @@ Two-input AND toehold.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'toehold_and'` |
-| `version` |  | `'0.2.0-stub'` |
+| `version` |  | `'0.3.0'` |
 | `kind` |  | `GateKind.TOEHOLD_AND` |
 | `label` |  | `'AND Toehold'` |
 | `description` |  | `'Two-input translational AND'` |
@@ -1143,7 +1143,9 @@ Two-input AND toehold.
 | `RBS_FLANK` | `ClassVar[str]` | `'AGACAAG'` |
 | `SECONDARY_LOOP` | `ClassVar[str]` | `'CAAGAACUUAGACAA'` |
 | `BULGE_LEN` | `ClassVar[int]` | `3` |
-| `FORBIDDEN_MOTIFS` | `ClassVar[dict[str, str]]` | `{'RNase_E': '[AG]AUGA', 'G_quadruplex': 'G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,…` |
+| `FORBIDDEN_MOTIFS` | `ClassVar[dict[str, str]]` | `{'G_quadruplex': 'G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,7}G{3,}', 'poly_U': 'U{…` |
+| `RNASE_E_CONSENSUS` | `ClassVar[str]` | `'[AG][ACGU][AU]UU'` |
+| `RNASE_E_CUT_OFFSET` | `ClassVar[int]` | `2` |
 | `RARE_CODONS` | `ClassVar[frozenset[str]]` | `frozenset({'AGG', 'AGA', 'CGA', 'AUA', 'CUA', 'CGG'})` |
 | `RBS_CORE` | `ClassVar[str]` | `'AGGAGA'` |
 | `THRESHOLDS` | `ClassVar[tuple[tuple[str, str, float], ...]]` | `(('A_S_00', '<', 0.2), ('A_M_00', '<', 0.2), ('A_S_10', '<', 0.2), ('A_M_10', '<', 0.2)…` |
@@ -1163,7 +1165,10 @@ Two-input AND toehold.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def screen_trigger_window(self, window_a: str, main_pre: str) -> tuple[str, ...]` | Sequence restrictions on trigger A's window. Empty means clean. |
+| `BUILT` | `def find_cross_gene_pairs(self, gene_a: str, transcript_a: str, gene_b: str, transcript_b: str) -> Iterator['_CrossGenePair']` | Every maximal reverse-complementary run shared by two transcripts, both roles. |
+| `BUILT` | `def screen_trigger_window(self, window_a: str, main_pre: str \| None = None) -> tuple[str, ...]` | Sequence restrictions on ONE trigger window. Empty means clean. |
+| `BUILT` | `def screen_trigger_pair(self, window_a: str, window_b: str, main_pre: str) -> tuple[str, ...]` | Both windows of a pair, each hit labelled with the window it came from. |
+| `BUILT` | `def rnase_e_sites(self, window: str, openness: list[float] \| None = None, floor: float = 0.0) -> tuple[int, ...]` | Positions in ``window`` matching the RNase E consensus. Reported, never filtering. |
 | `BUILT` | `def knockout_possible(self, transcript: str, start: int, length: int, partner: str) -> bool` | Could synonymous substitution alone leave this trigger unable to nucleate? |
 | `BUILT` | `def controls_constructible(self, transcript: str, pair: '_TriggerPair') -> tuple[bool, bool]` | Whether states 01 and 10 can both be built for this pair, as ``(ko_A, ko_B)``. |
 | `BUILT` | `def assemble(self, trigger_a: str, trigger_b: str, len_x: int, stem: '_SecondaryStem') -> '_AssembledSwitch'` | Build the switch for one trigger pair and one secondary stem. |

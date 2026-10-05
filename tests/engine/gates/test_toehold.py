@@ -1076,9 +1076,129 @@ def test_forbidden_motifs_are_caught_in_the_trigger_window():
     clean_pre = "GCAUCGAUC"
 
     assert gate.screen_trigger_window("ACGUACGUACGU", clean_pre) == ()
-    assert "RNase_E" in gate.screen_trigger_window("ACGAAUGAACGU", clean_pre)
     assert "poly_U" in gate.screen_trigger_window("ACGUUUUUACGU", clean_pre)
     assert "internal_SD" in gate.screen_trigger_window("ACGAGGAGGACG", clean_pre)
+
+
+def test_rnase_e_is_counted_and_never_rejects():
+    """The pattern was wrong and the right one cannot be a filter. Both halves asserted.
+
+    `[AG]AUGA` was never the RNase E consensus. The consensus (Chao et al. 2017, ~22,000
+    sites mapped in vivo) is `RN|WUU`, a 2-nt uridine ruler. But measured over 4,308 bundled
+    *E. coli* transcripts it fires on 39.7% of 36-nt windows and 51.0% of 50-nt windows, so
+    as a hard screen it would reject half of every trigger B pool.
+    """
+    gate = _and_gate()
+
+    # The old pattern is gone from the hard screen, and so is the name.
+    assert "RNase_E" not in gate.FORBIDDEN_MOTIFS
+    assert gate.screen_trigger_window("ACGAAUGAACGU", "GCAUCGAUC") == ()
+
+    # The real consensus is reported instead, with positions.
+    assert gate.rnase_e_sites("ACGUACGUACGU") == ()
+    sites = gate.rnase_e_sites("CCCGAAUUCCC")  # GAAUU: purine, A, cut, A, U, U
+    assert sites, "the consensus should match GAAUU"
+    assert gate.screen_trigger_window("CCCGAAUUCCC", "GCAUCGAUC") == (), "counted, not screened"
+
+
+def test_rnase_e_sites_can_be_restricted_to_reachable_positions():
+    """RNase E cleaves single-stranded RNA, so a site inside a paired region is not a site.
+
+    The profile is per-base P(unpaired) aligned to the window. One RNAplfold pass per
+    transcript covers every window on it, so asking for this costs nothing per pair.
+    """
+    gate = _and_gate()
+    window = "CCCGAAUUCCC"
+    found = gate.rnase_e_sites(window)
+    assert found
+
+    wide_open = [1.0] * len(window)
+    assert gate.rnase_e_sites(window, wide_open, floor=0.5) == found
+
+    fully_paired = [0.0] * len(window)
+    assert gate.rnase_e_sites(window, fully_paired, floor=0.5) == ()
+
+
+def test_both_windows_are_screened_and_only_a_gets_the_stop_check():
+    """Trigger B's window went unexamined entirely before this.
+
+    And only A gets the stop check: A's `main_pre` becomes codons 2-4 of the output protein,
+    while B's bases reach the switch as `revcomp(r2)` in the 5' UTR, where no reading frame
+    passes through them.
+    """
+    gate = _and_gate()
+    clean = "ACGUACGUACGU"
+    clean_pre = "GCAUCGAUC"
+
+    assert gate.screen_trigger_pair(clean, clean, clean_pre) == ()
+
+    # A hit in B alone is now reported, labelled.
+    hits = gate.screen_trigger_pair(clean, "ACGUUUUUACGU", clean_pre)
+    assert hits == ("B:poly_U",), hits
+
+    # And a hit in A is labelled apart from it.
+    hits = gate.screen_trigger_pair("ACGAGGAGGACG", clean, clean_pre)
+    assert hits == ("A:internal_SD",), hits
+
+    # The stop check applies to A's main_pre only, never to B's window.
+    assert "A:in_frame_stop" in gate.screen_trigger_pair(clean, clean, "GCAUAAGCU")
+    assert not any(
+        "B:in_frame_stop" == h for h in gate.screen_trigger_pair(clean, "UAAUAAUAA", clean_pre)
+    )
+
+
+def test_cross_gene_pairs_come_in_both_role_assignments():
+    """A run shared by two transcripts is symmetric; the construct built on it is not.
+
+    Trigger A's footprint reaches `ARM_LEN` upstream of the overlap and trigger B's reaches
+    `TOEHOLD_B_LEN` downstream, so which gene supplies which role is a different design and
+    both are emitted from the one scan. That is what lets a caller enumerate only `j > i`.
+    """
+    gate = _and_gate()
+    shared = "GGAUCAUGCAUCGAUU"
+    left = "ACGUACGU" * 12 + shared + "ACGUACGU" * 12
+    right = "CAUCGAUC" * 12 + sq.reverse_complement(shared) + "CAUCGAUC" * 12
+
+    pairs = list(gate.find_cross_gene_pairs("geneA", left, "geneB", right))
+    assert pairs, "a planted reverse complement should be found"
+
+    # Every run appears with each gene as A.
+    forward = [p for p in pairs if (p.gene_a, p.gene_b) == ("geneA", "geneB")]
+    reverse = [p for p in pairs if (p.gene_a, p.gene_b) == ("geneB", "geneA")]
+    assert forward and reverse
+
+    # The overlap really is reverse-complementary at the coordinates reported, and both
+    # footprints really do lie inside their own transcript.
+    for pair in pairs:
+        source_a, source_b = (left, right) if pair.gene_a == "geneA" else (right, left)
+        x = source_a[pair.x_start : pair.x_start + pair.len_x]
+        x_star = source_b[pair.xstar_start : pair.xstar_start + pair.len_x]
+        assert x == sq.reverse_complement(x_star), (x, x_star)
+        a_lo, a_hi = pair.window_a()
+        b_lo, b_hi = pair.window_b()
+        assert 0 <= a_lo < a_hi <= len(source_a)
+        assert 0 <= b_lo < b_hi <= len(source_b)
+        assert a_hi - a_lo == gate.ARM_LEN + gate.SECONDARY_INVASION_LEN
+        assert b_hi - b_lo == gate.SECONDARY_INVASION_LEN + gate.TOEHOLD_B_LEN
+
+
+def test_cross_gene_scan_reports_no_within_gene_matches():
+    """A match inside one mRNA is one transcript's presence reported twice, not two inputs.
+
+    `find_trigger_pairs` is the within-one-transcript search and keeps its gap rule for the
+    collision it can have. This scan takes two sequences and cannot produce such a pair at
+    all, which is the point of it being a separate method.
+    """
+    gate = _and_gate()
+    # A transcript that is full of internal reverse complements...
+    selfish = "GGGGAUCCCC" * 20
+    # ...paired against one with nothing in common with it.
+    other = "AAAAAAAAAA" * 20
+
+    assert list(gate.find_cross_gene_pairs("g1", selfish, "g2", other)) == []
+    # Within one transcript the other method does find them, so the sequence is not the
+    # reason the list above is empty.
+    assert list(gate.find_trigger_pairs(selfish, min_window_gap=0))
 
 
 def test_a_stop_codon_in_main_pre_is_read_in_its_own_frame():

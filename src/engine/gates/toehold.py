@@ -838,7 +838,11 @@ class ToeholdAndGate(ToeholdGate):
     """
 
     name = "toehold_and"
-    version = "0.2.0-stub"
+    #: 0.3.0: `generate_designs`, `measure_design` and `evaluate_design` have bodies, the
+    #: initiation rules match the architecture spec, the RNase E pattern left the hard screen
+    #: and trigger B's window is screened. Every one of those moves the numbers, so the label
+    #: moves with them -- a stored result from 0.2.0-stub is not comparable with one from here.
+    version = "0.3.0"
     kind = GateKind.TOEHOLD_AND
     label = "AND Toehold"
     description = "Two-input translational AND"
@@ -899,12 +903,55 @@ class ToeholdAndGate(ToeholdGate):
     #: whether the transcript survives and is translated once. Teaching it regexes is a
     #: change to a stage every family is screened by, so it needs coordinating; until then
     #: these live here, where the pipeline can reach them.
+    #: Sequence patterns that disqualify a trigger window outright. **Every one of them has
+    #: to discriminate**, and the hit rate per window is what decides that. Measured over
+    #: 4,308 bundled *E. coli* transcripts (51.9% GC), on 36-nt and 50-nt windows -- the two
+    #: trigger footprints:
+    #:
+    #: ===============  =============  =============
+    #: pattern          36-nt windows  50-nt windows
+    #: ===============  =============  =============
+    #: ``internal_SD``           0.6%           0.8%
+    #: ``poly_U``                2.8%           3.9%
+    #: ``G_quadruplex``          0.0%           0.0%
+    #: ===============  =============  =============
+    #:
+    #: ``G_quadruplex`` has never fired on any window measured. It stays because it is free
+    #: and the failure it guards against is real, but nothing in this repo has tested it.
+    #:
+    #: **``RNase_E`` was removed, and that is a correction rather than a relaxation.** The
+    #: pattern here was ``[AG]AUGA``, which is not the RNase E consensus -- see
+    #: ``RNASE_E_CONSENSUS`` for the measured reason the real one cannot be a filter.
     FORBIDDEN_MOTIFS: ClassVar[dict[str, str]] = {
-        "RNase_E": r"[AG]AUGA",
         "G_quadruplex": r"G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,7}G{3,}",
         "poly_U": r"U{5,}",
         "internal_SD": r"AGGAGG|AAGGAG|GGAGGA",
     }
+
+    #: The RNase E cleavage consensus, ``RN|WUU``: purine, any base, the cut, then A-or-U and
+    #: two uridines. From Chao et al. 2017, which mapped ~22,000 sites in vivo by TIER-seq and
+    #: describes it as a 2-nt uridine ruler -- the U at +2 from the cut is the determinant.
+    #:
+    #: **Counted and reported, never filtering**, and the numbers are why. On the same 4,308
+    #: transcripts it fires on **39.7% of 36-nt windows and 51.0% of 50-nt windows**: as a
+    #: hard screen it would reject half of every trigger B pool, which discriminates nothing.
+    #:
+    #: Weighting it by accessibility is biologically right -- RNase E cleaves single-stranded
+    #: RNA, so a consensus site inside a paired region is not a site -- and it helps without
+    #: rescuing it. Measured on the four PFAS targets (83 sites in ggt, fadB, astC, aldA),
+    #: requiring P(unpaired) at the cut above 0.3 / 0.5 / 0.7 / 0.9 leaves 70 / 60 / 40 / 16
+    #: of those sites, and the per-window rejection rate only falls from 37.6% / 49.0% to
+    #: 8.1% / 11.5% at the strictest floor. One window in nine is still too many to discard
+    #: for a motif whose effect depends on context this screen cannot see.
+    #:
+    #: ``stages/motifs.py`` left RNase E out of the shared screener for the same reason,
+    #: stated there before this was measured: the real determinant "needs structure and does
+    #: not belong in a sequence screener".
+    RNASE_E_CONSENSUS: ClassVar[str] = r"[AG][ACGU][AU]UU"
+
+    #: Offset of the cut within ``RNASE_E_CONSENSUS``: between positions 2 and 3, so index 2
+    #: is the first base 3' of the cut and index 3 is the U at +2 that the ruler reads.
+    RNASE_E_CUT_OFFSET: ClassVar[int] = 2
 
     #: *E. coli* rare codons. A negative control may not introduce one: it has to differ
     #: from the real construct in whether the trigger works, not in how well it translates.
@@ -933,12 +980,105 @@ class ToeholdAndGate(ToeholdGate):
     #: switch, so screening on it rejects a third of the population and measures nothing.
     RBS_CORE: ClassVar[str] = "AGGAGA"
 
-    def screen_trigger_window(self, window_a: str, main_pre: str) -> tuple[str, ...]:
-        """Sequence restrictions on trigger A's window. Empty means clean.
+    def find_cross_gene_pairs(
+        self,
+        gene_a: str,
+        transcript_a: str,
+        gene_b: str,
+        transcript_b: str,
+    ) -> Iterator["_CrossGenePair"]:
+        """Every maximal reverse-complementary run shared by two transcripts, both roles.
+
+        The cross-gene counterpart of ``find_trigger_pairs``. Same seeding and extension --
+        index every ``MIN_OVERLAP``-mer of one sequence, walk the other, grow each seed while
+        the bases keep pairing -- with two differences that follow from there being two
+        molecules:
+
+        * **No within-gene matches.** They are not wanted: two windows on one mRNA are one
+          transcript's presence reported twice, not a two-input measurement.
+        * **No gap rule.** ``MIN_WINDOW_GAP`` exists because two windows on one transcript
+          can overlap each other. On separate transcripts they cannot, so there is nothing
+          to space apart.
 
         Args:
-            window_a: Trigger A's full 36-nt footprint on the transcript.
-            main_pre: The 9 nt immediately 5' of the overlap.
+            gene_a, transcript_a: The gene whose run is read as ``x``. RNA uppercase.
+            gene_b, transcript_b: The gene whose run is read as ``x*``.
+
+        Yields:
+            Two records per run -- one per role assignment, the second from ``swapped()``.
+            A run is symmetric; the construct built on it is not, since trigger A's footprint
+            reaches ``ARM_LEN`` upstream of the overlap and trigger B's reaches
+            ``TOEHOLD_B_LEN`` downstream. Only pairs whose **both** footprints fit inside
+            their own transcript are yielded.
+
+            Each run is reported at its **maximal** length only, for the reason
+            ``find_trigger_pairs`` gives: a truncated overlap is strictly dominated, because
+            both footprints are the same size regardless and a shorter ``x`` only moves
+            positions out of the conflict-free core.
+
+        Note:
+            **Motif screening is not applied here**, exactly as in ``find_trigger_pairs``:
+            this is geometry, and a screen needs ``screen_trigger_pair``. One scan is
+            ``O(n_a + n_b)``, so a caller enumerating genes needs only ``j > i`` -- scanning
+            the other order finds the same runs and both assignments already come out of
+            this one.
+        """
+        rna_a, rna_b = sq.to_rna(transcript_a), sq.to_rna(transcript_b)
+        n_a, n_b = len(rna_a), len(rna_b)
+        k = self.MIN_OVERLAP
+
+        index: dict[str, list[int]] = {}
+        for j in range(n_b - k + 1):
+            index.setdefault(rna_b[j : j + k], []).append(j)
+
+        seen: set[tuple[int, int, int]] = set()
+        for i in range(n_a - k + 1):
+            for j in index.get(sq.reverse_complement(rna_a[i : i + k]), ()):
+                start_x, start_xs, length = i, j, k
+                # Extending x 3'-ward in A walks its partner 5'-ward in B: antiparallel.
+                while (
+                    length < self.SECONDARY_INVASION_LEN
+                    and start_x + length < n_a
+                    and start_xs > 0
+                    and rna_b[start_xs - 1] == sq.reverse_complement(rna_a[start_x + length])
+                ):
+                    start_xs -= 1
+                    length += 1
+                while (
+                    length < self.SECONDARY_INVASION_LEN
+                    and start_x > 0
+                    and start_xs + length < n_b
+                    and rna_b[start_xs + length] == sq.reverse_complement(rna_a[start_x - 1])
+                ):
+                    start_x -= 1
+                    length += 1
+                seen.add((start_x, start_xs, length))
+
+        for start_x, start_xs, length in sorted(seen):
+            pair = _CrossGenePair(
+                gene_a=gene_a,
+                gene_b=gene_b,
+                x_start=start_x,
+                xstar_start=start_xs,
+                len_x=length,
+                arm_len=self.ARM_LEN,
+                invasion_len=self.SECONDARY_INVASION_LEN,
+                toehold_b_len=self.TOEHOLD_B_LEN,
+            )
+            if pair.fits(n_a, n_b):
+                yield pair
+            flipped = pair.swapped()
+            if flipped.fits(n_b, n_a):
+                yield flipped
+
+    def screen_trigger_window(self, window_a: str, main_pre: str | None = None) -> tuple[str, ...]:
+        """Sequence restrictions on ONE trigger window. Empty means clean.
+
+        Args:
+            window_a: The window's full footprint on the transcript.
+            main_pre: The 9 nt immediately 5' of the overlap, for trigger A only. Omitted
+                for trigger B, whose bases never enter a reading frame -- see
+                ``screen_trigger_pair``.
 
         Returns:
             The name of every violated restriction, in declaration order.
@@ -948,13 +1088,74 @@ class ToeholdAndGate(ToeholdGate):
             own 5' end. In the finished switch it lands at +4…+12, codons 2 to 4 of the
             output protein, so its frame there is set by the switch's start codon and not
             by the frame it happens to occupy in the transcript it was taken from.
+
+            These bases belong to the gene being sensed. **Nothing downstream can edit
+            them** -- not a wobble substitution, not a synonymous rewrite -- because we do
+            not synthesise the transcript. That is what makes this a screen and not a
+            repair: measured on 1,200 mCherry pairs, 24.1% carry a motif hit on one window
+            or the other and none of them is fixable. A motif in the SWITCH is a different
+            matter, and there 43.3% of the offending positions are A or C and so have a
+            G·U alternative.
         """
         rna = sq.to_rna(window_a)
         hits = [name for name, pattern in self.FORBIDDEN_MOTIFS.items() if re.search(pattern, rna)]
-        pre = sq.to_rna(main_pre)
-        if any(pre[i : i + 3] in sq.STOP_CODONS for i in (0, 3, 6)):
-            hits.append("in_frame_stop")
+        if main_pre is not None:
+            pre = sq.to_rna(main_pre)
+            if any(pre[i : i + 3] in sq.STOP_CODONS for i in (0, 3, 6)):
+                hits.append("in_frame_stop")
         return tuple(hits)
+
+    def screen_trigger_pair(self, window_a: str, window_b: str, main_pre: str) -> tuple[str, ...]:
+        """Both windows of a pair, each hit labelled with the window it came from.
+
+        **Trigger B's window was not screened at all before this.** It is as much a part of
+        the sensed mRNA as A's: measured on 1,200 mCherry pairs, B alone carries an
+        ``internal_SD`` hit in 6.2% and the old RNase E pattern in 7.8%, and every one of
+        them went through unexamined because the screen only ever looked at A.
+
+        **Only A gets the stop-codon check, and that is not an oversight.** Trigger A's
+        ``main_pre`` becomes codons 2 to 4 of the output protein, so a stop among those
+        bases truncates the reporter. Trigger B's bases reach the switch as ``revcomp(r2)``
+        in the 5' UTR, where no reading frame passes through them, so a stop codon there is
+        not a defect and screening for one would reject usable pairs for nothing.
+
+        Returns:
+            ``()`` when both windows are clean, else one entry per violation, prefixed
+            ``A:`` or ``B:`` so a rejection summary says which half of the pair failed.
+        """
+        hits = [f"A:{name}" for name in self.screen_trigger_window(window_a, main_pre)]
+        hits.extend(f"B:{name}" for name in self.screen_trigger_window(window_b))
+        return tuple(hits)
+
+    def rnase_e_sites(
+        self, window: str, openness: list[float] | None = None, floor: float = 0.0
+    ) -> tuple[int, ...]:
+        """Positions in ``window`` matching the RNase E consensus. Reported, never filtering.
+
+        Args:
+            window: A trigger window, RNA uppercase.
+            openness: Per-base unpaired probability for ``window``, aligned to it, when the
+                caller wants only sites the enzyme could actually reach. RNase E cleaves
+                single-stranded RNA, so a consensus site inside a paired region is not a
+                site. One RNAplfold pass per transcript covers every window on it --
+                measured at 1.56 s for the pass and 1.5 microseconds per window after it --
+                so asking for this costs nothing per pair.
+            floor: Minimum P(unpaired) at the cut. Ignored without ``openness``.
+
+        Returns:
+            The start index of each match, so a caller can report both the count and where.
+            See ``RNASE_E_CONSENSUS`` for why this is a count and not a rejection.
+        """
+        rna = sq.to_rna(window)
+        found: list[int] = []
+        for match in re.finditer(self.RNASE_E_CONSENSUS, rna):
+            at = match.start()
+            if openness is not None:
+                cut = at + self.RNASE_E_CUT_OFFSET
+                if cut >= len(openness) or openness[cut] <= floor:
+                    continue
+            found.append(at)
+        return tuple(found)
 
     def _synonymous(self, codon: str) -> list[str]:
         """Other codons for the same residue, excluding rare ones and the codon itself."""
@@ -3161,6 +3362,74 @@ class _TriggerPair:
         a_start, a_end = self.window_a()
         b_start, b_end = self.window_b()
         return b_start - a_end if a_end <= b_start else a_start - b_end
+
+
+@dataclass(frozen=True, slots=True)
+class _CrossGenePair:
+    """One reverse-complementary run shared by **two different transcripts**.
+
+    ``_TriggerPair``'s sibling for the cross-gene case, and deliberately not the same record.
+    ``_TriggerPair`` carries two coordinates into one sequence and offers ``gap()`` and
+    ``disjoint()`` because two windows on one transcript can collide. Windows on different
+    transcripts cannot, so those methods would have no meaning here and are absent rather
+    than returning a polite constant.
+
+    ``gene_a``/``gene_b`` are the ids the caller indexed the transcripts by, carried so a
+    candidate can say which gene each half came from without a second lookup. Coordinates are
+    0-based, inclusive start and exclusive end, as everywhere else.
+    """
+
+    gene_a: str
+    gene_b: str
+    #: Start of the shared run in gene_a, which supplies trigger A.
+    x_start: int
+    #: Start of its reverse complement in gene_b, which supplies trigger B.
+    xstar_start: int
+    len_x: int
+    arm_len: int
+    invasion_len: int
+    toehold_b_len: int
+
+    @property
+    def len_k2(self) -> int:
+        """Trigger B's invasion domain 5' of the overlap. Cancels ``len_x``, as in one gene."""
+        return self.invasion_len - self.len_x
+
+    def window_a(self) -> tuple[int, int]:
+        """Trigger A's footprint in ``gene_a``: the stem arm, the overlap, the extension."""
+        return self.x_start - self.arm_len, self.x_start + self.len_x + self.len_k2
+
+    def window_b(self) -> tuple[int, int]:
+        """Trigger B's footprint in ``gene_b``: invasion, overlap, then the free toehold."""
+        return (
+            self.xstar_start - self.len_k2,
+            self.xstar_start + self.len_x + self.toehold_b_len,
+        )
+
+    def fits(self, length_a: int, length_b: int) -> bool:
+        """Both footprints lie inside their own transcript."""
+        a_start, a_end = self.window_a()
+        b_start, b_end = self.window_b()
+        return a_start >= 0 and b_start >= 0 and a_end <= length_a and b_end <= length_b
+
+    def swapped(self) -> "_CrossGenePair":
+        """The same run with the roles exchanged: gene_b supplies A, gene_a supplies B.
+
+        The run is symmetric but the construct is not, so both assignments are real
+        candidates and `generate_designs` would have to try both anyway. Note the overlap
+        coordinates swap with the roles -- the run in gene_b read as ``x`` begins at
+        ``xstar_start``, and its partner in gene_a at ``x_start``.
+        """
+        return _CrossGenePair(
+            gene_a=self.gene_b,
+            gene_b=self.gene_a,
+            x_start=self.xstar_start,
+            xstar_start=self.x_start,
+            len_x=self.len_x,
+            arm_len=self.arm_len,
+            invasion_len=self.invasion_len,
+            toehold_b_len=self.toehold_b_len,
+        )
 
 
 @dataclass(frozen=True, slots=True)
