@@ -750,16 +750,42 @@ def main(argv=None) -> int:
     # as a large number that would read as "very different".
     from engine.sequences import hamming
 
-    for cand in cands:
+    def panels_of(cand: dict) -> list[str]:
+        """Every panel that chose this design, from the merge's " + "-joined `panelname`."""
+        return [
+            part.strip() for part in str(cand.get("panelname") or "").split("+") if part.strip()
+        ]
+
+    def nearest_within(cand: dict, group: list[dict]) -> tuple[int | None, str]:
         best, who = None, ""
-        for other in cands:
+        for other in group:
             if other is cand or len(other["seq"]) != len(cand["seq"]):
                 continue
             distance = hamming(cand["seq"], other["seq"])
             if best is None or distance < best:
                 best, who = distance, other["arm"]
-        cand["nearest_nt"] = best
-        cand["nearest_arm"] = who
+        return best, who
+
+    # Per PANEL, not across the merge. The question is "am I building two designs that are
+    # nearly the same", and that is only meaningful among designs in the same order: a 2-nt
+    # neighbour from a view you are not building is not a wasted bench slot.
+    by_panel: dict[str, list[dict]] = {}
+    for cand in cands:
+        for panel_name in panels_of(cand):
+            by_panel.setdefault(panel_name, []).append(cand)
+
+    #: The view the page opens on, and so the one `nearest_nt` reports for.
+    default_panel = names[0] if names else ""
+    for cand in cands:
+        per_panel: dict[str, list] = {}
+        for panel_name in panels_of(cand):
+            distance, who = nearest_within(cand, by_panel[panel_name])
+            per_panel[panel_name] = [distance, who]
+        cand["nearest_by_panel"] = per_panel
+        # The default view's value under the historic names, so nothing reading them breaks.
+        # A design absent from the default view falls back to its own first panel.
+        chosen = per_panel.get(default_panel) or next(iter(per_panel.values()), [None, ""])
+        cand["nearest_nt"], cand["nearest_arm"] = chosen[0], chosen[1]
 
     # The identity, added to the population so `describe` can reach it like any column.
     for row in population:
@@ -785,6 +811,7 @@ def main(argv=None) -> int:
             "access_b",
             "l_local",
             "nearest_nt",
+            "nearest_by_panel",
             "r2_star_00",
             "f4",
             "f5",

@@ -268,8 +268,8 @@ function card(d){
     // read: a design can look average on it with one unreachable window.
     // Distance to the nearest OTHER design on the page, in bases. A slot spent on a design one
     // substitution away from another is a slot spent twice on one experiment.
-    ["nearest design · nt apart", UP, d.nearest_nt === null || d.nearest_nt === undefined
-      ? "&ndash;" : d.nearest_nt, "nearest_nt", d.nearest_nt, false],
+    ["nearest design · nt apart", UP, nearestIn(d)[0] === null || nearestIn(d)[0] === undefined
+      ? "&ndash;" : nearestIn(d)[0], "nearest_nt", nearestIn(d)[0], false],
     ["trigger access · min(A,B)", UP, f2(d.l_local, 3), "l_local", d.l_local, false],
     ["— window A", UP, f2(d.access_a, 1), "access_a", d.access_a, false],
     ["— window B", UP, f2(d.access_b, 1), "access_b", d.access_b, false],
@@ -426,7 +426,7 @@ const COLS = [
   ["acca",      "access A",       d => d.access_a,                       "num1"],
   ["accb",      "access B",       d => d.access_b,                       "num1"],
   ["lloc",      "l_local",        d => d.l_local,                        "num3"],
-  ["near",      "nt to nearest",  d => d.nearest_nt,                     "num0"],
+  ["near",      "nt to nearest",  d => nearestIn(d)[0],                  "num0"],
   ["offt",      "off-target",     d => (d.extras||{}).offtarget || "--", "txt"],
 ];
 // Higher is better for these; the rest are lower-is-better or categorical. Used only to tint.
@@ -594,6 +594,27 @@ const gateOn = {};
 // best-in-sweep row as a comparison. "controlled" is the experiment; "best in sweep" is the
 // ceiling -- one design per (overlap length, objective) with no control at all. mkBtns prepends
 // "all", so that case needs no entry here.
+
+// Distance to the nearest other design IN THE PANEL THE READER IS LOOKING AT.
+//
+// `nearest_by_panel` holds one distance per panel because a design shared between views has a
+// different nearest neighbour in each, and the flat `nearest_nt` is only the default view's.
+// Reading that one while another view is on screen reports a neighbour from a panel nobody is
+// building: measured on this build, a panel_var design read 2 nt against a panel_maxam design
+// and 5 nt against anything actually in panel_var.
+function nearestIn(d) {
+  const view = String((typeof state === "object" && state && state.view) || "");
+  if (view.indexOf("panel: ") === 0) {
+    // The button label drops a leading `panel_`, so put it back -- and accept the bare name too,
+    // for a panel whose name never had the prefix. `showRecipe` guards the same two spellings.
+    const short = view.slice(7);
+    const by = d.nearest_by_panel || {};
+    const hit = by["panel_" + short] || by[short];
+    if (hit) return hit;
+  }
+  return [d.nearest_nt, d.nearest_arm || ""];
+}
+
 const VIEWS = {
   // The two panels. "default" is built over the whole feasible set; "lower3" is built under the
   // constraint that lower3 is wobble_GU or trigger_derived, which changes the PAIRS and the
