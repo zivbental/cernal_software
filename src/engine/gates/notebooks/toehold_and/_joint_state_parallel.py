@@ -896,6 +896,10 @@ def _single_decomp_worker(job: SingleDecompJob) -> dict:
         "mean_stem_closed": sum_stem_closed / n,
         "mean_misfolded": sum_misfolded / n,
         "n_samples": n,
+        # n_unique_structures/effective_structures/sample_coverage (2026-10-05 fix,
+        # item N): _sample_coverage already does exactly "len(set(...)) on the samples
+        # already drawn in this loop" -- reused as-is rather than a second ad hoc
+        # len(set(...)) written here (CLAUDE.md sec 1).
         **_sample_coverage(samples),
     }
 
@@ -990,6 +994,14 @@ def _and_decomp_worker(job: AndDecompJob) -> dict:
         "frac_both_open": n_both_open / n,
         "frac_a_open": n_a_open / n,
         "frac_b_open": n_b_open / n,
+        # Exact integer counts (2026-10-05 root-bug fix), not just the derived
+        # fractions above: a caller that wants a "k of N" display for trigger_bound_a/
+        # trigger_bound_b/both-open must read these, never reconstruct k via
+        # round(frac * n) -- that can disagree with the real count by 1 once frac is a
+        # float, same class of bug the k/N-vs-mean mismatch this round is fixing.
+        "n_a_open": n_a_open,
+        "n_b_open": n_b_open,
+        "n_both_open": n_both_open,
         "mean_trigger_bound_a": sum_tb_a / n,
         "mean_stem_closed_a": sum_sc_a / n,
         "mean_misfolded_a": sum_mf_a / n,
@@ -1001,6 +1013,12 @@ def _and_decomp_worker(job: AndDecompJob) -> dict:
         "n_stem_closed_b": n_stem_closed_b,
         "n_misfolded_b": n_misfolded_b,
         "n_samples": n,
+        # n_unique_structures (2026-10-05 fix, item N): one count over the FUSED
+        # molecule's own dot-bracket string per sample -- "the structure" in the AND
+        # case is the whole two-hairpin construct's fold in that state, not a
+        # per-side notion, since a single Boltzmann draw already produces one
+        # structure for the entire fused frame. Reuses _sample_coverage's existing
+        # Counter(samples) rather than a second len(set(...)) pass.
         **_sample_coverage(samples),
     }
 

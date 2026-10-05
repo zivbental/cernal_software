@@ -269,3 +269,48 @@ Per candidate:
 8. **Assuming instead of measuring.** Every mechanism claim on this project that was
    reasoned rather than folded turned out wrong at least once. Fold it and read the base
    pairs.
+
+## 2026-10-05 fix round (on top of the 2026-10-04 report-fix pass)
+
+Rendered from the same `and_eu_report_snapshot_20261004T203534.json` snapshot, no
+re-screen / re-grid. Changes, both reports unless noted:
+
+- **Root bug fixed**: `_kofn_pct` used to print `"k/N (XX%)"` with `XX%` a *continuous
+  mean* that does not equal `k/n*100` (verified: a real cell read `"6/1200 (29.3%)"`
+  where `6/1200 = 0.5%`, not `29.3%`). Now the percentage next to `k/N` is always
+  literally `k/n*100`; the mean is kept as a separately-labelled second line
+  (`"k/N — XX.X% of samples · mean YY.Y%"`). Also applied to AND's per-side
+  `trigger_bound_a/b` (previously a bare mean with no k/N at all) and to "both open"
+  (previously `round(frac_both_open * n_samples)`, which can be off-by-one against the
+  real count; the worker now returns the exact `n_both_open`/`n_a_open`/`n_b_open`
+  integers instead).
+- **item N**: `n_unique_structures` added to both decomp workers via the existing
+  `_sample_coverage()` helper (no new sampling) and displayed as a new "unique
+  structures" column in both decomp tables; backfilled narrowly for only the ~40
+  report rows' states, same mechanism as the prior round's `n_stem_closed`/
+  `n_misfolded` backfill.
+- **item K**: `_nt`/`_nt_n` now show the denominator (`"27.0/27 nt"`, not `"27.0 nt"`).
+- Metric glossary added before each report's Summary table; `OFF (fakes, nt bound to
+  stem_down)` column header shortened to `FAKES` with its full definition moved into
+  the glossary (not duplicated).
+- Energy table narrowed to `max-width:420px` (summary/decomp tables untouched).
+- Real trigger length shown next to "Trigger:" in every card head; AND also shows
+  spacer length, or states explicitly when a variant has no spacer.
+- Single report's zero-qualifying-fakes row (this snapshot's #1-by-ratio candidate has
+  a real trigger/footprint complementary run of only 4nt, so almost nothing in the
+  300-pool can score below it under `pick_fake_design`'s self-calibrated screen) now
+  renders an explanatory message instead of a bare "--" row.
+- `loop`/`prefix` given distinct colors in both domain palettes (previously `loop` was
+  literally `_DEFAULT_FILL` and `prefix` nearly matched it); `spacer` added as a real
+  palette key (shared teal) instead of a hardcoded near-invisible color in the AND
+  images cell.
+- `exp_gene`/`opt_exp_gene` dropped from the rendered layout bar and structure-plot
+  `domain_fill`/legend in both reports (the domain itself is untouched in `fuse()`/
+  `measure()`'s own output) via a shared `_PAYLOAD_DOMAINS` constant; total switch /
+  fused-construct length now printed on each layout bar's title.
+- Single report's ON structure plot gives the real trigger strand its own color
+  (previously flat default fill) and a caption noting its drawn position is a
+  `FoldEngine` `&`-join layout artifact, not meaningful.
+- AND decomp table gets a one-line caption explaining "both open" is a joint
+  per-sample event, not derivable from the two `trigger_bound_a/b` marginals —
+  addresses the "82% trigger_bound but 4/1200 both-open" confusion directly.
