@@ -1397,6 +1397,26 @@ SPAN_GEOMETRY = False
 #: help because all three of its arms stay in naive.
 ARM_BACKOFF = False
 
+#: Name of one arm to send into a geometry other than its own best's, so the pair spans both
+#: families rather than sitting entirely in one.
+#:
+#: Empty by default. ``SPAN_GEOMETRY`` only ALLOWS an arm its own geometry, and on 491/434/4 every
+#: arm still picks naive because naive wins on all three arms -- its 3 Kim designs are all the same
+#: design, and the loss is 32.9% (IED gain), 95.2% (A_M ratio) and 34.8% (opening SEP) on each
+#: arm's own key. Which arm pays is therefore a declared choice, not a derived one: the three costs
+#: are a fraction, a ratio with a 90x range and kcal/mol, and combining arms across scales is
+#: exactly what pair selection rejected.
+#:
+#: The named arm is assigned FIRST, so the other arms stop competing with it for the better
+#: geometry's designs. Measured with IED gain named: A_M ratio and opening SEP both reach their
+#: unconstrained optima, where the plain back-off had opening SEP paying 16%.
+GEOMETRY_ARM = ""
+
+#: Restrict ``GEOMETRY_ARM`` to one trigger pair, as ``a_start/b_end/len_x``. Empty means every
+#: pair, which is rarely what is wanted: unscoped it also moved 507/260/4's IED arm from 0.2665 to
+#: 0.2132, a pair that was not the subject of the request.
+GEOMETRY_PAIR = ""
+
 #: What each pair's arms gave up to the back-off, keyed by pair, filled during ranking and read
 #: by the emission loop so the printed panel states the cost rather than hiding it.
 BACKOFF_COST: dict[str, dict[str, dict]] = {}
@@ -1493,7 +1513,7 @@ def real_measurements(cell: list[dict], arm_rows: dict[str, dict]) -> int:
     return len(groups)
 
 
-def pick_arms(cell: list[dict], arms) -> tuple[dict[str, dict], dict[str, dict]]:
+def pick_arms(cell: list[dict], arms, pair: str = "") -> tuple[dict[str, dict], dict[str, dict]]:
     """One design per arm, and what each arm gave up to avoid a design already taken.
 
     Without ``ARM_BACKOFF`` this is the historic rule: every arm takes the cell's minimum on its
@@ -1508,12 +1528,35 @@ def pick_arms(cell: list[dict], arms) -> tuple[dict[str, dict], dict[str, dict]]
     chosen: dict[str, dict] = {}
     cost: dict[str, dict] = {}
     merges = merge_test(cell, arms) if ARM_BACKOFF else None
-    for arm in arms:
+    # Scoped to GEOMETRY_PAIR when one is named. Unscoped it hits every pair, and measured that
+    # cost 507/260/4 -- a pair nobody asked to change -- 20% of its IED arm, 0.2665 to 0.2132.
+    geom_arm = GEOMETRY_ARM if not GEOMETRY_PAIR or pair == GEOMETRY_PAIR else ""
+    # The named arm goes first, and only so that the others stop competing with it for the
+    # geometry it is leaving. Its own pick is restricted below; theirs is not.
+    order = list(arms)
+    if geom_arm in order:
+        order.remove(geom_arm)
+        order.insert(0, geom_arm)
+    for arm in order:
         key = ARMS[arm](cell) if arm in CELL_RELATIVE else ARMS[arm]
         usable = [r for r in cell if key(r) != float("inf")]
         if not usable:
             continue
         best = min(usable, key=key)
+        if arm == geom_arm:
+            # Its best design OUTSIDE the geometry its own best sits in -- the pair then carries
+            # both families. Recorded as a cost like any back-off, because it is one, and tagged
+            # so the emission says WHY rather than re-deriving the reason from a global.
+            away = [r for r in usable if r["geom"] != best["geom"]]
+            if away:
+                take = min(away, key=key)
+                chosen[arm] = take
+                cost[arm] = {"best": key(best), "took": key(take), "why": "other geometry"}
+                continue
+            # A pair with designs in only one geometry cannot span; keep the best and say nothing
+            # rather than silently dropping the arm.
+            chosen[arm] = best
+            continue
         if not ARM_BACKOFF:
             chosen[arm] = best
             continue
@@ -1525,7 +1568,7 @@ def pick_arms(cell: list[dict], arms) -> tuple[dict[str, dict], dict[str, dict]]
         take = free[0] if free else best
         chosen[arm] = take
         if take is not best:
-            cost[arm] = {"best": key(best), "took": key(take)}
+            cost[arm] = {"best": key(best), "took": key(take), "why": "backed off"}
     return chosen, cost
 
 
@@ -1840,6 +1883,9 @@ def recipe() -> str:
         # reproduced from: with --pair-score mean it was claiming both "mean" and "the
         # worst arm's percentile, maximised" in the same line.
         parts.append(f"pairs=the {PAIR_SCORE} arm's percentile, minimised")
+    if GEOMETRY_ARM:
+        where = f" on {GEOMETRY_PAIR}" if GEOMETRY_PAIR else ""
+        parts.append(f"{GEOMETRY_ARM} forced into the other geometry{where}")
     if ARM_BACKOFF:
         parts.append("an arm whose best is taken takes its best untaken")
     if SPAN_GEOMETRY:
@@ -1950,7 +1996,7 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
         # One site, so the ranking, the DISTINCT_ARMS test and the emission all see the same
         # designs. `backoff_cost` is what each arm gave up to avoid one already taken; it is
         # empty unless ARM_BACKOFF is on.
-        arm_rows, backoff_cost = pick_arms(cell, PANEL_ARMS)
+        arm_rows, backoff_cost = pick_arms(cell, PANEL_ARMS, pair)
         if backoff_cost:
             BACKOFF_COST[pair] = backoff_cost
         if len(arm_rows) < len(PANEL_ARMS):
@@ -2263,9 +2309,9 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
             # gave up rather than presenting the fallback as the arm's optimum.
             spent = BACKOFF_COST.get(pair, {}).get(arm)
             if spent:
-                mark += (
-                    f"  (backed off: its best was {spent['best']:.4g}, took {spent['took']:.4g})"
-                )
+                # The geometry arm did not back off from a taken design; it was sent across.
+                why = spent.get("why") or "backed off"
+                mark += f"  ({why}: its best was {spent['best']:.4g}, took {spent['took']:.4g})"
             print(f"  {pair:16s}{arm:14s}{row['switch'][:12]}...{mark}")
             # Each cell's OWN geometry, which is the chosen one unless ANY_GEOMETRY let the two
             # pairs differ. Taken from the row rather than from the panel, so the control string
@@ -2650,6 +2696,14 @@ def main(argv=None) -> int:
         "the historic rule), mean, or best. Lower is better in every mode",
     )
     parser.add_argument(
+        "--arm-geometry",
+        default="",
+        help="name one arm to take its best design in the OTHER geometry, so the pair spans both "
+        'families. Scope it to one pair with arm@pair, e.g. --arm-geometry "IED gain@491/434/4"; '
+        "unscoped it moves every pair's named arm. Measured on 491/434/4 the loss is 32.9%% for "
+        "IED gain, 95.2%% for A_M ratio, 34.8%% for opening SEP -- see GEOMETRY_ARM",
+    )
+    parser.add_argument(
         "--arm-backoff",
         action="store_true",
         help="an arm whose best design another arm already took takes its best UNTAKEN one, so a "
@@ -2715,6 +2769,20 @@ def main(argv=None) -> int:
         global PANEL_ARMS
         PANEL_ARMS = (*PANEL_ARMS[:2], args.arm3)
         print(f"  --arm3: the panel's arms are {', '.join(PANEL_ARMS)}")
+    if args.arm_geometry:
+        global GEOMETRY_ARM, GEOMETRY_PAIR
+        # `arm` or `arm@a_start/b_end/len_x`. Scoping it is the normal case: the request is about
+        # one pair, and unscoped it rewrites every pair's named arm.
+        GEOMETRY_ARM, _, GEOMETRY_PAIR = args.arm_geometry.partition("@")
+        GEOMETRY_ARM, GEOMETRY_PAIR = GEOMETRY_ARM.strip(), GEOMETRY_PAIR.strip()
+        if GEOMETRY_ARM not in ARMS:
+            print(f"  --arm-geometry: {GEOMETRY_ARM!r} is not an arm -- ignored")
+            GEOMETRY_ARM = GEOMETRY_PAIR = ""
+        else:
+            scope = GEOMETRY_PAIR or "every pair"
+            print(
+                f"  --arm-geometry: {GEOMETRY_ARM} takes its best in the other geometry on {scope}"
+            )
     if args.arm_backoff:
         global ARM_BACKOFF
         ARM_BACKOFF = True
