@@ -314,3 +314,104 @@ re-screen / re-grid. Changes, both reports unless noted:
 - AND decomp table gets a one-line caption explaining "both open" is a joint
   per-sample event, not derivable from the two `trigger_bound_a/b` marginals —
   addresses the "82% trigger_bound but 4/1200 both-open" confusion directly.
+
+## 2026-10-05, round 3 — OFF-broadening, cross-domain binding, PDF legibility
+
+Rendered from the same `and_eu_report_snapshot_20261004T203534.json` snapshot (no
+re-screen, no re-grid), plus two narrow backfills on the ~40 report rows only (the
+existing `n_stem_closed`/`n_misfolded`/`n_unique_structures` backfill, unchanged, and
+a brand-new one for the cross-domain-binding fields below).
+
+- **OFF broadening (user-approved)**: OFF used to be picked by trigger-binding leak
+  (`frac_open`/`frac_both_open`) alone — blind to a state whose STEM is independently
+  loose for an unrelated reason while `frac_open` stays ~0 (nothing legitimate present
+  to trigger-bind). `badness = max(trigger-binding leak, stem-loosening leak
+  [, AND: the OTHER (absent-trigger) hairpin's own trigger_bound opening anyway —
+  cross-talk])`, shared via `_single_badness`/`_and_badness`/`_and_off_term` (cell 7)
+  so the snapshot-restore path (cell 9) and a fresh full run's own scoring cells (12,
+  19) score identically. `off_criterion` records which term won, shown on every card
+  ("OFF set by: fakes's stem-loosening"). **Load-bearing correctness fix found while
+  building this**: a state's own ACTING side must be exempt from its own
+  stem-loosening term — e.g. in AND's "+A" state, A's own trigger legitimately
+  displaces A's stem_up from stem_down, which is the intended result of real binding,
+  not a leak. Without this mask, every state with any real trigger present reads
+  ~100% stem-loosening badness for the bound side, collapsing OFF to ~100% and ratio
+  to ~0 for every candidate uniformly (verified directly, then masked via
+  `_and_off_term(..., mask_side=...)`).
+  - Single report: top-5 reordered (rank 4, 12, 72, 40, 44 replace 4, 6, 7, 9, 11) —
+    e.g. rank 72 was OFF=0.0%/ratio=100.0 under the old frac_open-only formula and is
+    now OFF=11.1%/ratio=8.3 (`off_source=fakes`, `off_criterion=stem-loosening`): its
+    fakes' trigger-binding leak was genuinely ~0, but its stem was independently loose
+    against those same fakes, previously invisible.
+  - AND report: top-20 pair order is stable except a 3-way shuffle at #3–#5 (70+6,
+    11+55, 63+56 permute among themselves); #1/#2 (56+63 spacer/no_spacer) and the
+    rest of the top 20 are unchanged in rank. OFF values for nearly every AND
+    candidate now sit near 100% (ratio near 0), because at least one hairpin's stem
+    reliably fails to stay closed in at least one of the states that are NOT its own
+    binding state (e.g. 56+63's hairpin B: `n_stem_closed_b=0/1200` during "+A only").
+    This is a real, previously-invisible characteristic of this candidate pool, not a
+    scoring bug — flagged explicitly here because it changes the AND ratio column from
+    a wide, discriminating range into a narrow one dominated by this one failure mode;
+    worth a follow-up decision on whether stem-loosening should carry full weight
+    equal to trigger-binding leak in the AND `max()`, or a smaller one, in a future
+    round.
+- **Cross-domain binding (new field, display-only, AND report only)**: for each AND
+  report row's "+A+B" (ON) state, mean fraction of spacer nt paired to either hairpin's
+  own toehold, and mean fraction of each hairpin's toehold paired to the OTHER
+  hairpin's prefix domain — `CrossDomainJob`/`_cross_domain_worker`/
+  `run_parallel_cross_domain` in `_joint_state_parallel.py`, reusing `_partner_table`
+  (no second pairing walker). Backfilled narrowly for only `and_report_rows`'s "+A+B"
+  state (~20 jobs, under a second). `None`/"--" when a term cannot be measured (no
+  spacer in this variant; hairpin B's own prefix domain is cut away entirely by
+  `fuse()` under this topology's `KEEP_3P_AFTER="prefix"`, so `toeholdA↔prefixB` reads
+  "--" for every AND candidate here, not 0.0%) — CLAUDE.md sec 3. No ranking effect.
+- **FAKES-%-fix**: new `_nt_pct` helper (cell 7) shows the mean % right next to the
+  nt-count (`"6.8/18 nt (37.8%)"`), applied everywhere a FAKES-related nt-count is
+  shown (summary column, per-side AND summary columns, single decomp table's +fake row).
+- **OFF-criterion note**: every card head now states which criterion decided that
+  candidate's own OFF (`"(OFF set by: fakes's stem-loosening)"`, AND also names A/B/
+  cross-talk) so the FAKES column and OFF column are never silently about two
+  different things again.
+- **Energy table legibility**: header text shortened to `energy`/`kcal/mol`, the
+  "ensemble ΔG..." sentence moved to a one-time `<p class="scr-p">` caption above the
+  table; print CSS gives `.scr-table-energy` its own exemption from the generic
+  tight-print squeeze (10.5px/5-8px padding vs. the generic 8px/3-4px). Confirmed by
+  rendering to PDF and reading it directly: energy numbers are now clearly larger than
+  the surrounding decomp table, not squeezed to the same 8px as every other table.
+- **Decomp table PDF fit**: `<colgroup>` with explicit percent widths (summing to
+  100%) on both decomp tables, headers shortened (the repeated "(k of N, mean %)"
+  suffixes cut to a one-word `<small>` hint, since the glossary now explains the
+  convention once). **Load-bearing fix found while verifying the PDF render**:
+  `<colgroup>` widths alone do nothing without `table-layout:fixed` on the `<table>`
+  itself — without it the browser auto-sizes columns by content and silently clips
+  the last 1-2 columns at the container's right edge in the static Chromium PDF
+  render (no horizontal scrollbar exists there to reveal the loss). Added
+  `table-layout:fixed` inline on both tables, plus a CSS rule letting the `<small>`
+  secondary line wrap independently of its parent `td.num`'s `white-space:nowrap` (the
+  compound "k/N / pct-of-samples / mean" cells are too long for a ~90px fixed column
+  on one line otherwise). AND's wider 7-data-column layout additionally gets its own
+  smaller base font (`.scr-table-and-decomp`, 7px in print) rather than being split
+  into two stacked tables — confirmed by rendering to landscape A4 PDF at actual page
+  width: all 7/9 columns visible on both tables, no truncation, no overflow.
+- **Trigger-hidden ON plot (AND only)**: `structure_png` gets an optional
+  `visible_len` parameter — only positions `0..visible_len` of the sequence are
+  scattered at all; a base pair with exactly one partner outside that range draws no
+  connecting line (the hidden partner doesn't exist on the plot) but gives the
+  switch-side base a dangling-ring indicator instead of looking falsely unpaired. Used
+  only for the AND report's "+A+B" structure plot (not "alone", not "+A"/"+B", not the
+  single report's ON plot) with a one-line figcaption noting triggers are hidden.
+  Confirmed by rendering: the "+A+B" image now shows only the switch's own two-hairpin
+  fold, the same visual style as the "alone" plot, no trigger dots anywhere.
+- AND summary table headers renamed `OFF` → `OFF-STEM BOUND`, `FAKES` →
+  `FAKES-STEM BOUND` (AND report only, per explicit request — single report's headers
+  left as-is).
+- Glossary worked examples (k/N-vs-mean, per-side nt base, cross-talk) are now computed
+  live from each render's own `rows[0]`/matching candidate rather than hand-typed, so
+  they can never go stale against a re-render.
+
+Verified by executing the notebook end to end (`uv run python <jupyter_client runner>`)
+and reading the real rendered HTML/PDF output (landscape A4, actual page width, not the
+HTML in a browser) for both reports' summary tables and several candidate cards.
+`uv run pytest tests/engine -q`: 730 passed. `uv run ruff check .`: clean (same
+pre-existing, unrelated `_joint_state_parallel.py:767` format-only diff noted in the
+prior round, confirmed still present and still unrelated to this round's changes).

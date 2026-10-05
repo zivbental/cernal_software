@@ -1031,3 +1031,108 @@ def run_parallel_and_decomp(jobs: list[AndDecompJob], max_workers: int = 6) -> d
         for outcome in pool.map(_and_decomp_worker, jobs):
             results[outcome["key"]] = outcome
     return results
+
+
+# ======================================================================================
+# Cross-domain binding (and_eu_report.ipynb, 2026-10-05 round, AND item 6) -- DISPLAY-
+# ONLY diagnostic, no ranking input. Built for the "+A+B" (ON) state specifically: with
+# both real triggers present, does the spacer compete for either toehold, and does
+# either hairpin's own toehold pair to the OTHER hairpin's prefix domain instead of its
+# intended trigger? Reuses `_partner_table` (the one stack-walk every other worker in
+# this module already shares) rather than a second pairing walker -- CLAUDE.md sec 1.
+# ======================================================================================
+
+
+def _mean_frac_paired_to_spans(
+    structures: list[str], span: tuple[int, int], targets: list[tuple[int, int]]
+) -> float | None:
+    """Mean, across ``structures``, of the fraction of ``span`` paired to ANY position
+    inside ``targets`` (a union of other spans) -- one partner lookup per base, no
+    second pairing walker. ``None`` when ``span`` is empty (CLAUDE.md sec 3: a domain
+    that does not exist here, e.g. a no-spacer variant's zero-length spacer, was not
+    measured, which is not the same as measuring zero of it)."""
+    s0, s1 = span
+    if s1 <= s0:
+        return None
+    total = 0.0
+    for structure in structures:
+        partner = _partner_table(structure)
+        hits = 0
+        for i in range(s0, s1):
+            p = partner[i]
+            if p is None:
+                continue
+            if any(t0 <= p < t1 for t0, t1 in targets):
+                hits += 1
+        total += hits / (s1 - s0)
+    return total / len(structures) if structures else None
+
+
+class CrossDomainJob(NamedTuple):
+    """One AND pair's "+A+B" (ON) state, re-sampled once to read off three
+    cross-domain-binding diagnostics that the already-stored aggregate fractions
+    cannot answer (they need the raw per-sample partner table, which is never kept
+    around after a decomp job returns -- see this module's own docstring on why
+    sampling isn't cached to disk). Narrow, display-only, no ranking effect.
+    """
+
+    key: str
+    fused: str
+    trigger_a: str
+    trigger_b: str
+    toehold_a: tuple[int, int]
+    toehold_b: tuple[int, int]
+    prefix_a: tuple[int, int] | None  # None: this design/topology has no surviving
+    prefix_b: tuple[int, int] | None  # prefix domain for that half after fuse() --
+    #    e.g. euk_open_5p_kozak_after_stem's own KEEP_3P_AFTER="prefix" cuts the 3'
+    #    half's prefix away entirely, so `prefix_b` is routinely None for that
+    #    topology; the corresponding mean is then None too (CLAUDE.md sec 3 -- a
+    #    domain that was never retained was not measured, which is not zero of it).
+    spacer: tuple[int, int] | None
+    temperature: float
+    n_samples: int = 1200
+
+
+def _cross_domain_worker(job: CrossDomainJob) -> dict:
+    """Runs in a separate process, folding through the inherited shared ``FoldEngine``.
+
+    Three means over the same batch of ``+A+B`` samples: (a) spacer nt paired to
+    EITHER hairpin's own toehold (``None`` if this variant has no spacer), (b)
+    hairpin A's toehold paired to hairpin B's prefix (``None`` if B has no surviving
+    prefix domain), (c) hairpin B's toehold paired to hairpin A's prefix (same,
+    mirrored) -- unwanted cross-domain competition, not the intended trigger binding
+    (which is already reported elsewhere as trigger_bound_a/b).
+    """
+    engine = _engine(job.temperature)
+    strands = f"{job.fused}&{job.trigger_a}&{job.trigger_b}"
+    samples = engine.sample_structures(strands, job.n_samples)
+    toeholds = [job.toehold_a, job.toehold_b]
+    return {
+        "key": job.key,
+        "mean_spacer_cross_toehold": (
+            _mean_frac_paired_to_spans(samples, job.spacer, toeholds)
+            if job.spacer is not None
+            else None
+        ),
+        "mean_toeholdA_to_prefixB": (
+            _mean_frac_paired_to_spans(samples, job.toehold_a, [job.prefix_b])
+            if job.prefix_b is not None
+            else None
+        ),
+        "mean_toeholdB_to_prefixA": (
+            _mean_frac_paired_to_spans(samples, job.toehold_b, [job.prefix_a])
+            if job.prefix_a is not None
+            else None
+        ),
+        "n_samples": len(samples),
+    }
+
+
+def run_parallel_cross_domain(jobs: list[CrossDomainJob], max_workers: int = 6) -> dict[str, dict]:
+    """Same fork-context reasoning as every other ``run_parallel*`` in this module."""
+    results: dict[str, dict] = {}
+    context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=context) as pool:
+        for outcome in pool.map(_cross_domain_worker, jobs):
+            results[outcome["key"]] = outcome
+    return results
