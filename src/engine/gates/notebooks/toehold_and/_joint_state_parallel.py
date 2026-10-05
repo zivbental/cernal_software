@@ -496,35 +496,84 @@ def _longest_complementary_run_wobble(
     return best_len, best_wobble
 
 
+def _longest_identity_run(a: str, b: str) -> int:
+    """Longest SAME-DIRECTION identical substring shared by ``a`` and ``b`` -- literal
+    sequence identity, not antiparallel complementarity. Identical DP shape to
+    :func:`_longest_complementary_run` (ordinary longest-common-substring DP), just
+    WITHOUT the ``reverse_complement`` step.
+
+    2026-10-05 fix (round 5, correctness bug in the round-4 trigger-overlap screen):
+    two triggers drawn from the same or overlapping transcript region read as
+    near-identical substrings of EACH OTHER in the same reading direction -- which
+    predicts near-identical BINDING TARGETS (hence real cross-talk), not that the two
+    triggers would hybridize to EACH OTHER. :func:`_longest_complementary_run_wobble`
+    checks exactly the latter (antiparallel pairing) and structurally cannot catch the
+    former: two identical same-direction sequences are generally NOT
+    self-complementary. Confirmed by a real counterexample that passed the
+    complementarity-only screen and was ranked #1: trigger B (27nt) a literal, exact
+    PREFIX of trigger A (30nt) -- 27/27 nt identical, same direction -- while their
+    longest COMPLEMENTARY run is only 6nt (well under the 8nt cap). No mismatch/wobble
+    tolerance here (unlike the complementarity check's G*U wobble, which models a real
+    physical base pair) -- identity is binary per position, so a plain exact-match run
+    is the right analog; kept as narrowly scoped as :func:`_longest_complementary_run`.
+    """
+    n, m = len(a), len(b)
+    prev = [0] * (m + 1)
+    best = 0
+    for i in range(1, n + 1):
+        curr = [0] * (m + 1)
+        ai = a[i - 1]
+        for j in range(1, m + 1):
+            if ai == b[j - 1]:
+                v = prev[j - 1] + 1
+                curr[j] = v
+                if v > best:
+                    best = v
+        prev = curr
+    return best
+
+
 def trigger_pair_too_similar(
     trigger_a: str, trigger_b: str, *, max_overlap_nt: int, wobble_max_fraction: float
 ) -> bool:
-    """True when an AND pair's own two REAL triggers (trigger A, trigger B) share a
-    complementary run (wobble included) exceeding ``max_overlap_nt`` -- the SAME
-    acceptance rule :func:`pick_fake_design` already applies to a FAKE trigger
-    against a real footprint, applied here between the pair's own two real triggers
-    instead.
+    """True when an AND pair's own two REAL triggers (trigger A, trigger B) are too
+    similar to each other by EITHER of two independent checks: a complementary run
+    (wobble included, :func:`_longest_complementary_run_wobble` -- would they
+    hybridize to each other) or a same-direction identity run
+    (:func:`_longest_identity_run` -- are they (nearly) the same sequence, i.e. drawn
+    from the same transcript region), each compared against ``max_overlap_nt``. The
+    SAME acceptance rule :func:`pick_fake_design` already applies to a FAKE trigger
+    against a real footprint (the complementarity half only), applied here between
+    the pair's own two real triggers, PLUS the identity check the fake-screening use
+    case never needed (a fake and the real trigger it's screened against are already
+    guaranteed different candidates, never literal prefixes of each other by
+    construction).
 
-    2026-10-05 fix: the AND grid had no check at all for how similar trigger A and
-    trigger B are to EACH OTHER when fusing two singles into a pair --
+    2026-10-05 fix (round 4): the AND grid had no check at all for how similar
+    trigger A and trigger B are to EACH OTHER when fusing two singles into a pair --
     ``FAKE_MAX_SEQ_OVERLAP_NT``/``WOBBLE_MAX_FRACTION`` only ever screened a FAKE
     trigger against the real trigger of the SAME candidate (via ``pick_fake_design``),
-    never trigger-A-vs-trigger-B of the pair itself. Confirmed on real data: the AND
-    report's #1 candidate (56+63) has trigger A (30nt) and trigger B (33nt) sharing a
-    27nt IDENTICAL substring -- the same transcript region, not independent AND
-    inputs -- which this complementary-run screen also catches (run=9nt, just over
-    the 8nt cap): two near-duplicate sequences carry matching local
-    self-complementarity artifacts too, not just a long identical run.
+    never trigger-A-vs-trigger-B of the pair itself.
 
-    Reuses :func:`_longest_complementary_run_wobble` -- the SAME helper, SAME
-    semantics, as the existing fake-trigger screen (CLAUDE.md sec 1: one
-    overlap-checker, not two). Called identically from the fresh-grid-building path
+    2026-10-05 fix (round 5, correctness bug in round 4): the round-4 version checked
+    ONLY the complementary run, which structurally cannot catch two triggers that are
+    literal same-direction duplicates of each other (identical sequences are
+    generally not self-complementary) -- confirmed by a real counterexample that
+    passed round 4's screen and was ranked #1: trigger B (27nt) a literal, exact
+    27/27nt PREFIX of trigger A (30nt), same direction, with a complementary run of
+    only 6nt. Now rejects on EITHER check exceeding the cap, not complementarity
+    alone. See :func:`_longest_identity_run`'s own docstring for the full reasoning.
+
+    Reuses :func:`_longest_complementary_run_wobble` and :func:`_longest_identity_run`
+    -- no new copy of either (CLAUDE.md sec 1: one overlap-checker per concept, not
+    duplicated per call site). Called identically from the fresh-grid-building path
     (before any job for the pair is submitted, i.e. before any compute is spent on
     it) and the snapshot-restore rescoring path (filtering the already-scored rows),
     so a pair is never admitted under one path and rejected under the other.
     """
-    run, _wobble = _longest_complementary_run_wobble(trigger_a, trigger_b, wobble_max_fraction)
-    return run > max_overlap_nt
+    comp_run, _wobble = _longest_complementary_run_wobble(trigger_a, trigger_b, wobble_max_fraction)
+    identity_run = _longest_identity_run(trigger_a, trigger_b)
+    return comp_run > max_overlap_nt or identity_run > max_overlap_nt
 
 
 def pick_fake_design(

@@ -484,3 +484,50 @@ rasterizing its own #1 candidate.
 Verified by executing the notebook end to end against the same 2026-10-04 snapshot (no
 re-screen, no re-grid) and reading the real rendered HTML/PDF output.
 `uv run pytest tests/engine -q`: 730 passed. `uv run ruff check .`: clean.
+
+## 2026-10-05, round 5 — correctness bug in round 4's trigger-overlap screen (complementarity alone is the wrong check)
+
+**Finding — round 4's `trigger_pair_too_similar` checked the wrong relationship.** It
+screened only the longest COMPLEMENTARY run between trigger A and trigger B (would
+they physically hybridize to EACH OTHER). That is the right check for fake-trigger
+screening (`pick_fake_design`: does an off-target fake accidentally bind a footprint
+meant for the real trigger), but it is the wrong check for "are these two triggers
+drawn from the same transcript region" — two IDENTICAL, same-direction sequences are
+generally NOT self-complementary, so a same-direction duplicate structurally cannot be
+caught by a complementarity check.
+
+**Confirmed by a real counterexample that passed round 4's screen and was ranked #1**:
+after round 4 excluded 56+63/70+6, the new top candidate was **11+55** — trigger A
+(30nt, `ACGAGAAGCCAACGUGUAAAGCUGUGACAU`) and trigger B (27nt,
+`ACGAGAAGCCAACGUGUAAAGCUGUGA`), where B is a literal, exact 27/27nt PREFIX of A, same
+direction. Their longest COMPLEMENTARY run is only 6nt (well under the 8nt cap, which
+is exactly why round 4 let it through) while their longest IDENTITY run is the full
+27nt.
+
+**Fix**: added `_longest_identity_run(a, b)` to `_joint_state_parallel.py` — the same
+ordinary longest-common-substring DP shape as the existing `_longest_complementary_run`
+(checked first: nothing in `engine/sequences.py` or this notebook's own helpers already
+did plain same-direction identity matching), just WITHOUT the `reverse_complement`
+step. `trigger_pair_too_similar` now rejects a pair when EITHER the complementary run
+OR the identity run exceeds `FAKE_MAX_SEQ_OVERLAP_NT` (8nt) — same cap, same parameter,
+both checks. No wobble/mismatch tolerance on the identity check (unlike the
+complementarity check's G·U wobble, which models a real physical base pair) — identity
+is binary per position, so a plain exact-match run is the right analog, kept as
+narrowly scoped as `_longest_complementary_run` itself.
+
+**Re-verified on the same 2026-10-04 snapshot's top-20 AND rows**: **5/20 now excluded**
+(up from round 4's 3/20) — 56+63 [spacer] (comp=9, ident=27), 56+63 [no_spacer]
+(comp=9, ident=27), **11+55 [spacer]** (comp=6 — passed round 4 — ident=27, now
+excluded), **63+56 [spacer]** (comp=8 — passed round 4 — ident=27, now excluded, the
+mirror-image pair of 11+55), 70+6 [spacer] (comp=11, ident=30). 15 remain. Every
+remaining "4+N [no_spacer]" row has an identity run of 3-6nt (genuinely different
+transcript regions) and passes both checks. New top-5 by ratio: 4+6, 4+7, 4+9, 4+11,
+4+12 (all `[no_spacer]`) — every previously top-ranked candidate from the last three
+rounds' own screenshots (56+63, 70+6, 11+55, 63+56) is now excluded.
+
+Dek/glossary updated again to describe both checks; both reports re-rendered from the
+same snapshot, re-verified by rasterizing the new PDF with `pdftoppm`.
+
+Verified by executing the notebook end to end against the same 2026-10-04 snapshot (no
+re-screen, no re-grid) and reading the real rendered HTML/PDF output.
+`uv run pytest tests/engine -q`: 730 passed. `uv run ruff check .`: clean.
