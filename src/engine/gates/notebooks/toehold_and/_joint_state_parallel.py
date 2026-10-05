@@ -1069,11 +1069,21 @@ def _mean_frac_paired_to_spans(
 
 
 class CrossDomainJob(NamedTuple):
-    """One AND pair's "+A+B" (ON) state, re-sampled once to read off three
-    cross-domain-binding diagnostics that the already-stored aggregate fractions
-    cannot answer (they need the raw per-sample partner table, which is never kept
-    around after a decomp job returns -- see this module's own docstring on why
-    sampling isn't cached to disk). Narrow, display-only, no ranking effect.
+    """One AND pair's cross-domain-binding diagnostics, re-sampled once to read off
+    three means that the already-stored aggregate fractions cannot answer (they need
+    the raw per-sample partner table, which is never kept around after a decomp job
+    returns -- see this module's own docstring on why sampling isn't cached to disk).
+    Narrow, display-only, no ranking effect.
+
+    ``include_triggers`` (2026-10-05 fix, AND item 3): ``True`` (the original,
+    default behaviour) samples the "+A+B" (ON) state, ``trigger_a``/``trigger_b``
+    both present. ``False`` samples the "alone" (OFF) state instead -- the fused
+    construct by itself, no trigger strands at all -- reusing this exact job type
+    and worker rather than a second implementation (CLAUDE.md sec 1): the ON-state-
+    only metric was blind to a real cross-domain interaction that only shows up with
+    no trigger present (the intended trigger binding in +A+B displaces it), which a
+    reader looking at the "alone" structure plot would see but the text metric never
+    reported at all.
     """
 
     key: str
@@ -1091,20 +1101,26 @@ class CrossDomainJob(NamedTuple):
     spacer: tuple[int, int] | None
     temperature: float
     n_samples: int = 1200
+    include_triggers: bool = True
 
 
 def _cross_domain_worker(job: CrossDomainJob) -> dict:
     """Runs in a separate process, folding through the inherited shared ``FoldEngine``.
 
-    Three means over the same batch of ``+A+B`` samples: (a) spacer nt paired to
-    EITHER hairpin's own toehold (``None`` if this variant has no spacer), (b)
-    hairpin A's toehold paired to hairpin B's prefix (``None`` if B has no surviving
-    prefix domain), (c) hairpin B's toehold paired to hairpin A's prefix (same,
-    mirrored) -- unwanted cross-domain competition, not the intended trigger binding
-    (which is already reported elsewhere as trigger_bound_a/b).
+    Three means over the same batch of samples of the state ``job.include_triggers``
+    selects -- "+A+B" (ON, both triggers present) when ``True``, "alone" (OFF, no
+    trigger strands at all) when ``False``: (a) spacer nt paired to EITHER hairpin's
+    own toehold (``None`` if this variant has no spacer), (b) hairpin A's toehold
+    paired to hairpin B's prefix (``None`` if B has no surviving prefix domain), (c)
+    hairpin B's toehold paired to hairpin A's prefix (same, mirrored) -- unwanted
+    cross-domain competition, not the intended trigger binding (which is already
+    reported elsewhere as trigger_bound_a/b, and which does not exist at all in the
+    "alone" state).
     """
     engine = _engine(job.temperature)
-    strands = f"{job.fused}&{job.trigger_a}&{job.trigger_b}"
+    strands = (
+        f"{job.fused}&{job.trigger_a}&{job.trigger_b}" if job.include_triggers else job.fused
+    )
     samples = engine.sample_structures(strands, job.n_samples)
     toeholds = [job.toehold_a, job.toehold_b]
     return {
