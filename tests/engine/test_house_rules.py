@@ -88,6 +88,11 @@ DIAGNOSTIC_METRICS = frozenset(
         # contiguous stretch, not a scattering of open bases. Documented as
         # deliberately undeclared in AntisenseNotGate.evaluate_design.
         "initiation_open_run_nt",
+        # euk_antisense.py: mean probability that a base in the UTR arm or the
+        # coding linker is paired to the trigger. The Kozak loop is excluded
+        # because it is not complementary. Reported beside predicted_success_rate,
+        # which stays the shared hybridization sigmoid so families remain comparable.
+        "flank_binding_probability",
     }
 )
 

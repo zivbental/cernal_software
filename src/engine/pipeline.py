@@ -146,6 +146,11 @@ _UNBUILDABLE_FAMILIES: dict[str, str] = {
         "AntisenseNotGate cannot be constructed without one. Request a toehold "
         "family instead."
     ),
+    "euk_antisense": (
+        "no payload sequence library exists yet (docs/ROADMAP.md Q11) — "
+        "EukaryoticAntisenseNotGate cannot be constructed without one. Request a "
+        "toehold family instead."
+    ),
     # available=True is inherited from ToeholdGate, but generate_designs is an
     # unconditional NotImplementedError (docs/triggers.md E2b) — dormant while a
     # direct run only ever supplies one trigger (is_compatible's arity check rejects

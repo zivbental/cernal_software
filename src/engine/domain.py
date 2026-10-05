@@ -41,6 +41,7 @@ class GateKind(StrEnum):
     TOEHOLD = "toehold"
     TOEHOLD_AND = "toehold_and"
     ANTISENSE_NOT = "antisense_not"
+    EUK_ANTISENSE_NOT = "euk_antisense_not"
     CRISPR = "crispr"
 
 
