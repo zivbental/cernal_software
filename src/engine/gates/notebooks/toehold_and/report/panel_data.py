@@ -653,7 +653,15 @@ def main(argv=None) -> int:
             "ied_gain": number("ied_gain"),
             "dgarm11": number("dG_arm_11"),
             "engarm11": number("engaged_arm_11"),
-            "pct": {k: number(f"pct_{k}") for k in ("f1", "f2", "f2_gain", "barrier", "access")},
+            # `l_local` is here because it is the accessibility the panel actually
+            # filters on; `access` stays because it is what earlier builds showed, and
+            # it is constant within a cell so it cannot separate a card from its
+            # siblings. Both on the card beats one of them silently standing for the
+            # other.
+            "pct": {
+                k: number(f"pct_{k}")
+                for k in ("f1", "f2", "f2_gain", "barrier", "access", "l_local")
+            },
             "op": {s: number(f"open_{s}") for s in ("00", "01", "10", "11")},
             "domains": main_d,
             "sec": sec_d,

@@ -1023,6 +1023,11 @@ def add_percentiles(rows: list[dict]) -> None:
         ("f1", True),
         ("barrier", True),
         ("access", True),
+        # The accessibility the FILTER uses, which `access` is not. `l_local` is
+        # `FoldProfiler.openness` -- RNAplfold in a sliding local window, the measure CERNAL
+        # uses now -- and it is a per-WINDOW quantity, so unlike `access` it can differ
+        # between the designs of one cell. Higher is more open, hence False.
+        ("l_local", False),
         ("f2", False),
         ("f2_gain", False),
     ):
@@ -2801,6 +2806,10 @@ def main(argv=None) -> int:
             "pct_f2_gain",
             "pct_barrier",
             "pct_access",
+            # Computed by `add_percentiles` and, until this line existed, not written:
+            # the card read it back as None while 60,337 rows carried the value. A
+            # column that is measured and not named here is a column that vanishes.
+            "pct_l_local",
             "aug_11",
             # A_M(11) itself, so the report can show the ON state and derive worst(A_M) as
             # A_M(11) - f2_gain. Without the column the derived tile has a statistics bar and no
