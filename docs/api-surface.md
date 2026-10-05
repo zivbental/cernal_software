@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 102 |
 | Public classes | 104 |
-| Public callables (excluding `__init__`) | 521 |
-| — `BUILT` | 489 |
+| Public callables (excluding `__init__`) | 522 |
+| — `BUILT` | 490 |
 | — `STUB` | 24 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -68,7 +68,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.base` |  | 8 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
-| gates | `engine.gates.toehold` |  | 29 | 0 | Toehold switches — single input, and two-input AND. |
+| gates | `engine.gates.toehold` |  | 30 | 0 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
 | gates | `engine.gates.notebooks.toehold_and.access_vs_vista` |  | 5 | 0 | Do Green 2014's local single-strandedness and VISTA's flanked MFE pick the same trigger pairs? |
@@ -1167,7 +1167,8 @@ Two-input AND toehold.
 | --- | --- | --- |
 | `BUILT` | `def find_cross_gene_pairs(self, gene_a: str, transcript_a: str, gene_b: str, transcript_b: str) -> Iterator['_CrossGenePair']` | Every maximal reverse-complementary run shared by two transcripts, both roles. |
 | `BUILT` | `def screen_trigger_window(self, window_a: str, main_pre: str \| None = None) -> tuple[str, ...]` | Sequence restrictions on ONE trigger window. Empty means clean. |
-| `BUILT` | `def screen_trigger_pair(self, window_a: str, window_b: str, main_pre: str) -> tuple[str, ...]` | Both windows of a pair, each hit labelled with the window it came from. |
+| `BUILT` | `def stop_rescue_cost(self, main_pre: str) -> int \| None` | Wobble substitutions needed to clear every in-frame stop in ``main_pre``. |
+| `BUILT` | `def screen_trigger_pair(self, window_a: str, window_b: str, main_pre: str) -> tuple[str, ...]` | What is wrong with a trigger pair that can be known from the windows alone. |
 | `BUILT` | `def rnase_e_sites(self, window: str, openness: list[float] \| None = None, floor: float = 0.0) -> tuple[int, ...]` | Positions in ``window`` matching the RNase E consensus. Reported, never filtering. |
 | `BUILT` | `def knockout_possible(self, transcript: str, start: int, length: int, partner: str) -> bool` | Could synonymous substitution alone leave this trigger unable to nucleate? |
 | `BUILT` | `def controls_constructible(self, transcript: str, pair: '_TriggerPair') -> tuple[bool, bool]` | Whether states 01 and 10 can both be built for this pair, as ``(ko_A, ko_B)``. |

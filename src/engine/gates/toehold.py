@@ -1105,27 +1105,77 @@ class ToeholdAndGate(ToeholdGate):
                 hits.append("in_frame_stop")
         return tuple(hits)
 
-    def screen_trigger_pair(self, window_a: str, window_b: str, main_pre: str) -> tuple[str, ...]:
-        """Both windows of a pair, each hit labelled with the window it came from.
+    def stop_rescue_cost(self, main_pre: str) -> int | None:
+        """Wobble substitutions needed to clear every in-frame stop in ``main_pre``.
 
-        **Trigger B's window was not screened at all before this.** It is as much a part of
-        the sensed mRNA as A's: measured on 1,200 mCherry pairs, B alone carries an
-        ``internal_SD`` hit in 6.2% and the old RNase E pattern in 7.8%, and every one of
-        them went through unexamined because the screen only ever looked at A.
+        ``main_pre`` is the 9 nt immediately 5' of the overlap in trigger A, and it becomes
+        codons 2 to 4 of the output protein, so a stop among them truncates the reporter.
+        **That is a reason to price the repair, not to drop the pair** -- it was the largest
+        single rejection at step 1 (2,012 of 3,967 on ggt+fadB) and every one of those
+        rejections was avoidable.
 
-        **Only A gets the stop-codon check, and that is not an oversight.** Trigger A's
-        ``main_pre`` becomes codons 2 to 4 of the output protein, so a stop among those
-        bases truncates the reporter. Trigger B's bases reach the switch as ``revcomp(r2)``
-        in the 5' UTR, where no reading frame passes through them, so a stop codon there is
-        not a defect and screening for one would reject usable pairs for nothing.
+        ``main_pre`` pairs with ``main_pre_star`` in the main stem, so a base can be changed
+        while the pair survives as a G·U wobble. Exactly two moves exist: a base opposite U
+        may go ``A->G``, and a base opposite G may go ``C->U``. G and U have no alternative.
+        Applied to the three stop codons:
+
+        ======  ==========================================  ==============
+        codon   repair                                      substitutions
+        ======  ==========================================  ==============
+        ``UAG``  ``A->G`` at position 2 gives ``UGG`` (Trp)   1
+        ``UGA``  ``A->G`` at position 3 gives ``UGG`` (Trp)   1
+        ``UAA``  either ``A->G`` alone gives another stop;
+                 both together give ``UGG``                   2
+        ======  ==========================================  ==============
+
+        Measured over the three PFAS gene pairs, 58.8% / 62.0% / 67.2% of the stops cost one
+        substitution and the remainder cost two; 3-5% of affected pairs carry more than one
+        stop. **Every stop is rescuable** -- this returns what it costs.
 
         Returns:
-            ``()`` when both windows are clean, else one entry per violation, prefixed
-            ``A:`` or ``B:`` so a rejection summary says which half of the pair failed.
+            ``0`` when there is no stop, else the total number of substitutions. A UAA
+            costing two matters: ``GRIP_BREAK_MAX`` permits one broken pair, so two wobbles
+            in a 9-nt stem region is a real weakening and the design stage may still decline
+            it. ``None`` when ``main_pre`` is not 9 nt, which is not a measurement.
         """
-        hits = [f"A:{name}" for name in self.screen_trigger_window(window_a, main_pre)]
-        hits.extend(f"B:{name}" for name in self.screen_trigger_window(window_b))
-        return tuple(hits)
+        pre = sq.to_rna(main_pre)
+        if len(pre) != 9:
+            return None
+        cost = 0
+        for i in (0, 3, 6):
+            codon = pre[i : i + 3]
+            if codon in ("UAG", "UGA"):
+                cost += 1
+            elif codon == "UAA":
+                cost += 2
+        return cost
+
+    def screen_trigger_pair(self, window_a: str, window_b: str, main_pre: str) -> tuple[str, ...]:
+        """What is wrong with a trigger pair that can be known from the windows alone.
+
+        **This no longer screens for motifs, and that is a correction.** It used to run
+        ``FORBIDDEN_MOTIFS`` over the two windows as they sit in the *E. coli* gene. Most of
+        what reaches the switch is the REVERSE COMPLEMENT of those bases -- ``r2_star`` is
+        revcomp of trigger B's ``r2``, ``k1_star`` and ``main_pre_star`` are revcomp of
+        trigger A's -- so the gene window is the wrong molecule to read. Trigger B is the
+        clearest case: none of B appears forward anywhere in the switch, so every rejection
+        on B's window was for a pattern the construct does not contain.
+
+        The screen cannot be completed here in any case. ``k2_star`` and ``secondary_z`` come
+        from the stem solver, which has not run, and a motif can straddle a domain junction
+        that exists only once assembled. So motifs are screened on the finished switch by
+        ``assembly_violations``, and this returns what the windows really do determine.
+
+        Returns:
+            ``()`` when nothing is wrong. A stop codon in trigger A's ``main_pre`` is
+            reported as ``A:stop_in_main_pre:<n>``, where ``n`` is the number of wobble
+            substitutions that clears it -- see ``stop_rescue_cost``. **It is a flag and the
+            caller decides**; the pair is not unusable.
+        """
+        cost = self.stop_rescue_cost(main_pre)
+        if cost:
+            return (f"A:stop_in_main_pre:{cost}",)
+        return ()
 
     def rnase_e_sites(
         self, window: str, openness: list[float] | None = None, floor: float = 0.0
@@ -1453,6 +1503,18 @@ class ToeholdAndGate(ToeholdGate):
             faults.append("upstream_aug")
         if len(coding) % 3:
             faults.append("frame_shift")
+        # **The motif screen belongs here, on the molecule we actually synthesise.** It used
+        # to run over the trigger windows as they sit in the gene, which is the wrong
+        # sequence: most of what reaches the switch is the reverse complement of those bases,
+        # and a motif can straddle a domain junction that exists only after assembly. Both
+        # directions of that error were real -- measured on 2,176 built switches,
+        # `internal_SD` occurs 384 times here while the window screen was rejecting pairs
+        # for patterns the construct never contained.
+        faults.extend(
+            name
+            for name, pattern in self.FORBIDDEN_MOTIFS.items()
+            if re.search(pattern, switch.sequence)
+        )
         return tuple(faults)
 
     #: The feasible set: pass/fail on the four-tube observables, applied before any
@@ -3025,6 +3087,14 @@ class ToeholdAndGate(ToeholdGate):
                 if built is None:
                     continue
                 switch, notes = built
+                # `assembly_violations` had no caller anywhere in the engine until now, so
+                # three switch-level checks it implements -- an upstream AUG, an in-frame
+                # stop, a frame shift -- were written, tested and never run. It is also
+                # where the motif screen moved to, so this is the one place the finished
+                # molecule is read.
+                faults = self.assembly_violations(switch)
+                if faults:
+                    notes = {**notes, "assembly_violations": faults}
                 rbs_start = switch.domains["rbs_loop"][0]
                 aug_end = switch.domains["aug"][1]
                 outside = [i for i in sq.find_augs(switch.sequence) if not rbs_start <= i < aug_end]

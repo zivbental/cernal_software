@@ -4,6 +4,7 @@ Real ``FoldEngine``/ViennaRNA throughout, matching ``test_antisense.py``: every 
 here tops out under 90 nt, so a real fold costs low milliseconds.
 """
 
+import dataclasses
 import itertools
 
 import pytest
@@ -1119,32 +1120,53 @@ def test_rnase_e_sites_can_be_restricted_to_reachable_positions():
     assert gate.rnase_e_sites(window, fully_paired, floor=0.5) == ()
 
 
-def test_both_windows_are_screened_and_only_a_gets_the_stop_check():
-    """Trigger B's window went unexamined entirely before this.
+def test_the_pair_screen_prices_a_stop_instead_of_rejecting_it():
+    """A stop in `main_pre` was the largest single rejection at step 1, and avoidable.
 
-    And only A gets the stop check: A's `main_pre` becomes codons 2-4 of the output protein,
-    while B's bases reach the switch as `revcomp(r2)` in the 5' UTR, where no reading frame
-    passes through them.
+    `main_pre` pairs with `main_pre_star`, so a wobble substitution can change it while the
+    pair survives. Exactly two moves exist - `A->G` opposite U, `C->U` opposite G - so UAG
+    and UGA each reach UGG (Trp) in one substitution, while UAA needs two because either
+    `A->G` alone turns it into another stop.
     """
     gate = _and_gate()
     clean = "ACGUACGUACGU"
+
+    assert gate.screen_trigger_pair(clean, clean, "GCAUCGAUC") == ()
+
+    # UAG at offset 3: one substitution.
+    assert gate.screen_trigger_pair(clean, clean, "GCAUAGGCU") == ("A:stop_in_main_pre:1",)
+    # UGA at offset 3: one substitution.
+    assert gate.screen_trigger_pair(clean, clean, "GCAUGAGCU") == ("A:stop_in_main_pre:1",)
+    # UAA at offset 3: two, because UGA and UAG are both still stops.
+    assert gate.screen_trigger_pair(clean, clean, "GCAUAAGCU") == ("A:stop_in_main_pre:2",)
+
+    assert gate.stop_rescue_cost("GCAUCGAUC") == 0
+    assert gate.stop_rescue_cost("UAAUAAUAA") == 6
+    # Not 9 nt is not a measurement, and must not read as "no stop".
+    assert gate.stop_rescue_cost("GCAUC") is None
+
+
+def test_the_motif_screen_reads_the_switch_not_the_gene():
+    """Most of what reaches the switch is the reverse complement of the trigger's bases.
+
+    `r2_star` is revcomp of trigger B's `r2`; `k1_star` and `main_pre_star` are revcomp of
+    trigger A's. So the gene window is the wrong molecule: screening it both missed motifs
+    that appear in the switch and rejected pairs for patterns the construct never contains.
+    None of trigger B appears forward anywhere in the switch at all.
+    """
+    gate = _and_gate()
     clean_pre = "GCAUCGAUC"
 
-    assert gate.screen_trigger_pair(clean, clean, clean_pre) == ()
+    # A motif in the WINDOW no longer rejects the pair, in either half.
+    assert gate.screen_trigger_pair("ACGAGGAGGACG", "ACGUUUUUACGU", clean_pre) == ()
 
-    # A hit in B alone is now reported, labelled.
-    hits = gate.screen_trigger_pair(clean, "ACGUUUUUACGU", clean_pre)
-    assert hits == ("B:poly_U",), hits
-
-    # And a hit in A is labelled apart from it.
-    hits = gate.screen_trigger_pair("ACGAGGAGGACG", clean, clean_pre)
-    assert hits == ("A:internal_SD",), hits
-
-    # The stop check applies to A's main_pre only, never to B's window.
-    assert "A:in_frame_stop" in gate.screen_trigger_pair(clean, clean, "GCAUAAGCU")
-    assert not any(
-        "B:in_frame_stop" == h for h in gate.screen_trigger_pair(clean, "UAAUAAUAA", clean_pre)
-    )
+    # It is caught on the assembled switch instead, where the molecule really is.
+    trigger_a, trigger_b, _ = _contested_pair()
+    stem = gate.secondary_stems(trigger_a, trigger_b, len(_OVERLAP))[0]
+    switch = gate.assemble(trigger_a, trigger_b, len(_OVERLAP), stem)
+    planted = switch.sequence[:40] + "AGGAGG" + switch.sequence[46:]
+    probe = dataclasses.replace(switch, sequence=planted)
+    assert "internal_SD" in gate.assembly_violations(probe)
 
 
 def test_cross_gene_pairs_come_in_both_role_assignments():
@@ -1373,7 +1395,10 @@ def test_an_aug_inside_main_z_is_repaired_through_a_wobble():
     start, end = switch.domains["main_z"]
     main_z = switch.sequence[start:end]
 
-    assert gate.assembly_violations(switch) == ()
+    # The structural faults only: `assembly_violations` also carries the motif screen now,
+    # and these hand-built triggers happen to contain a U run that a real one need not.
+    faults = gate.assembly_violations(switch)
+    assert not [f for f in faults if f in ("in_frame_stop", "upstream_aug", "frame_shift")], faults
     assert main_z != with_aug[:6], "mainZ should have been repaired"
     assert sum(a != b for a, b in zip(main_z, with_aug[:6], strict=True)) == 1
     # every position still pairs with k1*, which is what makes the repair cheap
@@ -1400,7 +1425,8 @@ def test_an_aug_straddling_the_rbs_loop_boundary_cannot_be_repaired():
 def test_a_clean_switch_reports_no_assembly_violations():
     gate, switch = _assembled()
 
-    assert gate.assembly_violations(switch) == ()
+    faults = gate.assembly_violations(switch)
+    assert not [f for f in faults if f in ("in_frame_stop", "upstream_aug", "frame_shift")], faults
 
 
 # --- Stage 4: the four tubes ---------------------------------------------------------
