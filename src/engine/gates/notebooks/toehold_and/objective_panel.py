@@ -54,7 +54,8 @@ from pathlib import Path
 # The screens are defined in the scorer, which is the lower layer and the place they are
 # applied first. Importing them keeps exactly one definition of each: two copies of a
 # threshold is how the panel and the sweep end up disagreeing about what is feasible.
-from objective_energy import ON_CEILING, RARE_CODONS, domains, early_codons
+from objective_energy import ON_CEILING as _ON_CEILING_DEFAULT
+from objective_energy import RARE_CODONS, domains, early_codons
 from objective_energy import domains as _oe_domains
 
 from engine.sequences import reverse_complement as _revcomp
@@ -1367,6 +1368,26 @@ ANY_GEOMETRY = False
 #: `--list-pairs` turns it on. It changes nothing about the selection.
 LIST_PAIRS = False
 
+#: How a pair's three arm percentiles are combined into the number the selection minimises.
+#: ``"worst"`` is the historic rule and the default: the maximum percentile, so a pair with
+#: one weak arm is rejected however strong the other two are. ``"mean"`` asks instead what
+#: the pair is like on average, and ``"best"`` judges it by its strongest arm alone.
+#:
+#: The arms are already percentiles when they reach here -- a probability difference, a ratio
+#: and kcal/mol put on one 0-100 scale by `rank_in` -- so this is a change of question rather
+#: than a rescaling.
+PAIR_SCORE: str = "worst"
+
+#: Ceiling on ``open_11``, the cost of opening the main stem with both triggers present. It
+#: is the most direct statement here about whether a gate works at all, and at the inherited
+#: 4.0 it is **not a filter**: measured over the 764 designs past `lower3_ok` and the bench
+#: floor it keeps 100% of them, minimum 0.40, median 2.49, maximum 3.99.
+#:
+#: None of the three ranking arms measures it either, which is how a pair whose ON state
+#: costs 3.01 kcal/mol to open reaches the top of the ranking. `--on-ceiling` tightens it:
+#: 3.0 keeps 66.5%, 2.0 keeps 32.3%, 1.5 keeps 23.2%, 1.0 keeps 13.0%.
+ON_CEILING: float = _ON_CEILING_DEFAULT
+
 #: The columns ``ARM_TIE`` compares, one per entry of ``PANEL_ARMS``, in the same order.
 ARM_COLUMNS = {
     "IED gain": "ied_gain",
@@ -1718,13 +1739,18 @@ def recipe() -> str:
     not comparable with the one beside it.
     """
     parts = [f"arms={', '.join(PANEL_ARMS)}"]
+    if ON_CEILING != _ON_CEILING_DEFAULT:
+        parts.append(f"open_11 <= {ON_CEILING} kcal/mol")
     if ARM4:
         parts.append(f"arm4={ARM4} on {ARM4_PAIRS} pair(s)")
     if PAIR_ARMS:
         groups = "".join("(" + ", ".join(group) + ")" for group in PAIR_ARMS)
         parts.append(f"pairs=assigned {groups}")
     else:
-        parts.append("pairs=the worst arm's percentile, maximised")
+        # Named from PAIR_SCORE rather than fixed, because the recipe is what a panel is
+        # reproduced from: with --pair-score mean it was claiming both "mean" and "the
+        # worst arm's percentile, maximised" in the same line.
+        parts.append(f"pairs=the {PAIR_SCORE} arm's percentile, minimised")
     if ANY_GEOMETRY:
         parts.append("geometry=per pair")
     if VARIANT_GATING is not None:
@@ -1861,8 +1887,18 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
         return 100.0 * sum(1 for v in values if v < value) / len(values)
 
     def score_on(cell: list[dict], arm_rows: dict, arms: tuple[str, ...]) -> float:
-        """The worst percentile among `arms` -- the whole set, or just the ones assigned."""
-        return max(rank_in(per_arm[arm], arm_value(arm_rows[arm], arm, cell)) for arm in arms)
+        """Combine `arms`' percentiles into the number the selection minimises.
+
+        Which way they combine is `PAIR_SCORE`; lower is better in every mode because the
+        ARMS keys are oriented that way. `worst` is the historic maximin rule and the
+        default, so a panel built before this existed still means what it meant.
+        """
+        ranks = [rank_in(per_arm[arm], arm_value(arm_rows[arm], arm, cell)) for arm in arms]
+        if PAIR_SCORE == "mean":
+            return sum(ranks) / len(ranks)
+        if PAIR_SCORE == "best":
+            return min(ranks)
+        return max(ranks)
 
     scored = []
     for pair, cell, arm_rows in candidates:
@@ -2105,7 +2141,7 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
         # The objective the selection actually maximises, printed so two panels can be
         # compared on it rather than by eye across five columns in different units. It is
         # the WORST of the three arms' percentiles, and lower is better.
-        print(f"  {pair:16s}worst-arm percentile {_score:5.1f}")
+        print(f"  {pair:16s}{PAIR_SCORE}-arm percentile {_score:5.1f}")
         for arm in PANEL_ARMS:
             row = arm_rows.get(arm)
             if row is None:
@@ -2482,6 +2518,20 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--geometry", default="", help="fix the geometry for --six")
     parser.add_argument(
+        "--on-ceiling",
+        type=float,
+        default=None,
+        help="ceiling on open_11 in kcal/mol, the ON state's opening cost. The inherited "
+        "4.0 keeps 100%% of the designs that reach it; 2.0 keeps 32%%, 1.0 keeps 13%%",
+    )
+    parser.add_argument(
+        "--pair-score",
+        choices=("worst", "mean", "best"),
+        default="worst",
+        help="how a pair's three arm percentiles combine: worst (maximin, the default and "
+        "the historic rule), mean, or best. Lower is better in every mode",
+    )
+    parser.add_argument(
         "--list-pairs",
         action="store_true",
         help="print every eligible pair with its three arm values, so a --pin can be "
@@ -2525,6 +2575,14 @@ def main(argv=None) -> int:
         global PANEL_ARMS
         PANEL_ARMS = (*PANEL_ARMS[:2], args.arm3)
         print(f"  --arm3: the panel's arms are {', '.join(PANEL_ARMS)}")
+    if args.on_ceiling is not None:
+        global ON_CEILING
+        ON_CEILING = args.on_ceiling
+        print(f"  --on-ceiling: open_11 must be <= {ON_CEILING} kcal/mol")
+    if args.pair_score != "worst":
+        global PAIR_SCORE
+        PAIR_SCORE = args.pair_score
+        print(f"  --pair-score: combining the arms by their {PAIR_SCORE}, not the worst")
     if args.list_pairs:
         global LIST_PAIRS
         LIST_PAIRS = True
