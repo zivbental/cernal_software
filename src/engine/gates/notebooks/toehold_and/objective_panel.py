@@ -2062,6 +2062,10 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
     # was ranked on these exact designs, so emitting a different one would mean the panel shows
     # rows the pair was not chosen for.
     for _score, pair, _cell, arm_rows in taken:
+        # The objective the selection actually maximises, printed so two panels can be
+        # compared on it rather than by eye across five columns in different units. It is
+        # the WORST of the three arms' percentiles, and lower is better.
+        print(f"  {pair:16s}worst-arm percentile {_score:5.1f}")
         for arm in PANEL_ARMS:
             row = arm_rows.get(arm)
             if row is None:
