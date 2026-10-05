@@ -270,9 +270,15 @@ function card(d){
     // substitution away from another is a slot spent twice on one experiment.
     ["nearest design · nt apart", UP, nearestIn(d)[0] === null || nearestIn(d)[0] === undefined
       ? "&ndash;" : nearestIn(d)[0], "nearest_nt", nearestIn(d)[0], false],
-    ["trigger access · min(A,B)", UP, f2(d.l_local, 3), "l_local", d.l_local, false],
-    ["— window A", UP, f2(d.access_a, 1), "access_a", d.access_a, false],
-    ["— window B", UP, f2(d.access_b, 1), "access_b", d.access_b, false],
+    // The two quantities here point OPPOSITE ways and both were drawn as up-arrows.
+    // `l_local` is an unpaired PROBABILITY, 0-1, so higher is more reachable. `access_a` and
+    // `access_b` are `FoldEngine.open_penalty`: the kcal/mol COST of forcing the window open,
+    // so LOWER is more reachable. The sum `access` was already lower-is-better in the table's
+    // tint set and in `add_percentiles`; its two halves were not, which read the best window
+    // A in the panel (8.5 kcal/mol, the cheapest of forty) as the worst.
+    ["trigger access · min(A,B) · p", UP, f2(d.l_local, 3), "l_local", d.l_local, false],
+    ["— window A · kcal/mol to open", DN, f2(d.access_a, 1), "access_a", d.access_a, false],
+    ["— window B · kcal/mol to open", DN, f2(d.access_b, 1), "access_b", d.access_b, false],
     ["combined · A_M+Bar", UP, f2(d.f5, 1), "f5", d.f5, false],
     ["combined with f1", UP, f2(d.f4, 1), "f4", d.f4, false],
   ].map(t =>
@@ -432,7 +438,11 @@ const COLS = [
 // Higher is better for these; the rest are lower-is-better or categorical. Used only to tint.
 const HIGHER = new Set(["f2","f2gain","engarm","engswp","engx","hairpin","rbsp","r2"]);
 // worst A_M joins the lower-is-better set: it is the OFF-state leak the gain subtracts.
-const LOWER  = new Set(["f1","barrier","op11","doff","access","ied","dgarm","f2w"]);
+// `acca`/`accb` belong here with their sum `access`: all three are opening COSTS in
+// kcal/mol, where lower is more reachable. They were absent, so the two halves of the
+// sum were tinted the opposite way from the sum.
+const LOWER  = new Set(["f1","barrier","op11","doff","access","acca","accb",
+                        "ied","dgarm","f2w"]);
 function num0(d, key){
   const v = (d.extras || {})[key];
   return (v === undefined || v === null || v === "") ? null : +v;

@@ -191,6 +191,9 @@ L_FULL_W25_FLOOR = 0.3482
 #: (71% agreement) and ``l_local``'s half is the better-founded one.
 L_LOCAL_FLOOR = 0.3369
 
+#: The inherited value of the floor above, so the recipe can say when it has been moved.
+L_LOCAL_FLOOR_DEFAULT = L_LOCAL_FLOOR
+
 #: Floor on the x* lock's **01 term alone**: does trigger B, acting by itself, actually free x*?
 #:
 #: **Deliberately lenient, and that is a measurement rather than timidity.** The 4-term lock mean
@@ -1744,6 +1747,8 @@ def recipe() -> str:
     not comparable with the one beside it.
     """
     parts = [f"arms={', '.join(PANEL_ARMS)}"]
+    if L_LOCAL_FLOOR != L_LOCAL_FLOOR_DEFAULT:
+        parts.append(f"min trigger access > {L_LOCAL_FLOOR}")
     if ON_CEILING != _ON_CEILING_DEFAULT:
         parts.append(f"open_11 <= {ON_CEILING} kcal/mol")
     if ARM4:
@@ -1917,7 +1922,7 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
         print(
             f"  {'pair':17s}{'worst%':>7s}"
             + "".join(f"{arm[:11]:>12s}" for arm in PANEL_ARMS)
-            + f"{'A_M':>8s}{'ON':>7s}"
+            + f"{'A_M':>8s}{'ON':>7s}{'access':>8s}"
         )
         for score, pair, cell, arm_rows in scored:
             values = "".join(f"{arm_value(arm_rows[arm], arm, cell):>12.3f}" for arm in PANEL_ARMS)
@@ -1926,10 +1931,17 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
             am_row = arm_rows.get("A_M ratio")
             am = (am_row or {}).get("f2")
             on = (am_row or {}).get("open_11f")
+            # The pair's WEAKER trigger window, which is what the accessibility floor tests
+            # and what a pair gets rejected on -- and which this listing did not show, so a
+            # `--pin` could not be chosen on it. `min` over the cell because the two
+            # geometries give one `b_end` a different `b_start`, 50 nt against 49.
+            opens = [r["l_local"] for r in cell if r.get("l_local") is not None]
+            acc = min(opens) if opens else None
             print(
                 f"  {pair:17s}{score:7.1f}{values}"
                 f"{(am if am is not None else float('nan')):>8.1f}"
                 f"{(on if on is not None else float('nan')):>7.2f}"
+                f"{(acc if acc is not None else float('nan')):>8.3f}"
             )
     if PAIR_ARMS:
         # One group per pair, matched greedily in group order: the first group takes its best pair,
@@ -2537,6 +2549,14 @@ def main(argv=None) -> int:
         "the historic rule), mean, or best. Lower is better in every mode",
     )
     parser.add_argument(
+        "--access-floor",
+        type=float,
+        default=None,
+        help="floor on l_local, the pair's WEAKER trigger window's unpaired probability "
+        "(0-1, higher is more reachable). The inherited 0.3369 is the population median and "
+        "the current panel's lowest pair clears it by 0.00003",
+    )
+    parser.add_argument(
         "--list-pairs",
         action="store_true",
         help="print every eligible pair with its three arm values, so a --pin can be "
@@ -2580,6 +2600,10 @@ def main(argv=None) -> int:
         global PANEL_ARMS
         PANEL_ARMS = (*PANEL_ARMS[:2], args.arm3)
         print(f"  --arm3: the panel's arms are {', '.join(PANEL_ARMS)}")
+    if args.access_floor is not None:
+        global L_LOCAL_FLOOR
+        L_LOCAL_FLOOR = args.access_floor
+        print(f"  --access-floor: min(l_local_A, l_local_B) must be > {L_LOCAL_FLOOR}")
     if args.on_ceiling is not None:
         global ON_CEILING
         ON_CEILING = args.on_ceiling
