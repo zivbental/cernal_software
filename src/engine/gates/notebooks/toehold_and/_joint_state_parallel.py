@@ -854,6 +854,14 @@ def _single_decomp_worker(job: SingleDecompJob) -> dict:
     (Trap 1 -- never "paired to anything"); ``frac_open`` is the fraction of samples
     that clear it, which is what the ON/OFF ratio is built from (a frequency, so Trap
     4's floor at ``1/n_samples`` is meaningful on it, unlike a continuous mean).
+
+    ``n_stem_closed``/``n_misfolded`` (added for and_eu_report.ipynb's fix #5): the
+    SAME per-sample ``job.threshold`` crossing used for ``n_open``, applied to
+    ``stem_closed``/``misfolded`` instead of ``trigger_bound`` -- counts, not just
+    the continuous mean, so a report can show "k of N samples read as closed/
+    misfolded" rather than a bare percentage with no sample count behind it. Computed
+    in the SAME per-sample loop that already sums these two (no extra folding or
+    sampling).
     """
     engine = _engine(job.temperature)
     strands = f"{job.switch}&{job.extra}" if job.extra else job.switch
@@ -861,21 +869,29 @@ def _single_decomp_worker(job: SingleDecompJob) -> dict:
     n_self = len(job.switch)
     f0, f1 = job.footprint
 
-    n_open = 0
+    n_open = n_stem_closed = n_misfolded = 0
     sum_trigger_bound = sum_stem_closed = sum_misfolded = 0.0
     for structure in samples:
         trigger_bound = _frac_paired_to_external(structure, f0, f1, n_self)
+        stem_closed = stem_closed_fraction(structure, job.stem_up, job.stem_down)
+        misfolded = misfolded_fraction(structure, job.footprint, job.stem_down, n_self)
         sum_trigger_bound += trigger_bound
-        sum_stem_closed += stem_closed_fraction(structure, job.stem_up, job.stem_down)
-        sum_misfolded += misfolded_fraction(structure, job.footprint, job.stem_down, n_self)
+        sum_stem_closed += stem_closed
+        sum_misfolded += misfolded
         if trigger_bound >= job.threshold:
             n_open += 1
+        if stem_closed >= job.threshold:
+            n_stem_closed += 1
+        if misfolded >= job.threshold:
+            n_misfolded += 1
 
     n = len(samples) or 1
     return {
         "key": job.key,
         "frac_open": n_open / n,
         "n_open": n_open,
+        "n_stem_closed": n_stem_closed,
+        "n_misfolded": n_misfolded,
         "mean_trigger_bound": sum_trigger_bound / n,
         "mean_stem_closed": sum_stem_closed / n,
         "mean_misfolded": sum_misfolded / n,
@@ -924,6 +940,11 @@ def _and_decomp_worker(job: AndDecompJob) -> dict:
     Same three metrics as :func:`_single_decomp_worker`, computed independently for
     each side (A/B) on every sampled structure, plus the per-structure joint "both
     open" fraction the AND ON/OFF ratio is built from.
+
+    ``n_stem_closed_a/b``/``n_misfolded_a/b`` (and_eu_report.ipynb fix #5): same
+    per-sample ``job.threshold`` crossing as ``n_a_open``/``n_b_open``, applied to
+    ``stem_closed``/``misfolded`` per side, from the SAME loop that already sums
+    them -- no extra sampling.
     """
     engine = _engine(job.temperature)
     strands = "&".join([job.fused, *job.extra]) if job.extra else job.fused
@@ -933,22 +954,35 @@ def _and_decomp_worker(job: AndDecompJob) -> dict:
     fb0, fb1 = job.footprint_b
 
     n_a_open = n_b_open = n_both_open = 0
+    n_stem_closed_a = n_misfolded_a = n_stem_closed_b = n_misfolded_b = 0
     sum_tb_a = sum_sc_a = sum_mf_a = 0.0
     sum_tb_b = sum_sc_b = sum_mf_b = 0.0
     for structure in samples:
         tb_a = _frac_paired_to_external(structure, fa0, fa1, n_self)
         tb_b = _frac_paired_to_external(structure, fb0, fb1, n_self)
+        sc_a = stem_closed_fraction(structure, job.stem_up_a, job.stem_down_a)
+        sc_b = stem_closed_fraction(structure, job.stem_up_b, job.stem_down_b)
+        mf_a = misfolded_fraction(structure, job.footprint_a, job.stem_down_a, n_self)
+        mf_b = misfolded_fraction(structure, job.footprint_b, job.stem_down_b, n_self)
         sum_tb_a += tb_a
         sum_tb_b += tb_b
-        sum_sc_a += stem_closed_fraction(structure, job.stem_up_a, job.stem_down_a)
-        sum_sc_b += stem_closed_fraction(structure, job.stem_up_b, job.stem_down_b)
-        sum_mf_a += misfolded_fraction(structure, job.footprint_a, job.stem_down_a, n_self)
-        sum_mf_b += misfolded_fraction(structure, job.footprint_b, job.stem_down_b, n_self)
+        sum_sc_a += sc_a
+        sum_sc_b += sc_b
+        sum_mf_a += mf_a
+        sum_mf_b += mf_b
         a_open = tb_a >= job.threshold
         b_open = tb_b >= job.threshold
         n_a_open += a_open
         n_b_open += b_open
         n_both_open += a_open and b_open
+        if sc_a >= job.threshold:
+            n_stem_closed_a += 1
+        if sc_b >= job.threshold:
+            n_stem_closed_b += 1
+        if mf_a >= job.threshold:
+            n_misfolded_a += 1
+        if mf_b >= job.threshold:
+            n_misfolded_b += 1
 
     n = len(samples) or 1
     return {
@@ -959,9 +993,13 @@ def _and_decomp_worker(job: AndDecompJob) -> dict:
         "mean_trigger_bound_a": sum_tb_a / n,
         "mean_stem_closed_a": sum_sc_a / n,
         "mean_misfolded_a": sum_mf_a / n,
+        "n_stem_closed_a": n_stem_closed_a,
+        "n_misfolded_a": n_misfolded_a,
         "mean_trigger_bound_b": sum_tb_b / n,
         "mean_stem_closed_b": sum_sc_b / n,
         "mean_misfolded_b": sum_mf_b / n,
+        "n_stem_closed_b": n_stem_closed_b,
+        "n_misfolded_b": n_misfolded_b,
         "n_samples": n,
         **_sample_coverage(samples),
     }
