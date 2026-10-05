@@ -327,21 +327,55 @@ def corruptions() -> dict[str, Callable[[list[dict], dict], tuple[list[dict], di
 
 def main(argv=None) -> int:
     argv = list(argv or sys.argv[1:])
-    view = argv[0] if argv else "the six to build"
+    # The PANEL to check, e.g. `panel_backoff`. The argument used to set only the printed label
+    # while the filter stayed hardcoded to the legacy `default`/`both` sets -- so pointing this
+    # script at the panel being ordered silently checked a different panel, or nothing. A
+    # validator that cannot be aimed at the sheet it is validating is not one.
+    panel = argv[0] if argv else ""
     data = json.loads((HERE / "panel_data.json").read_text(encoding="utf-8"))
+
+    def in_panel(cand: dict) -> bool:
+        if not panel:
+            return (cand.get("panelset") or "default") in ("default", "both", "both4")
+        # Membership from `panelname`, the joined list of every panel that chose the design --
+        # `panelset` holds only the FIRST, so a design a second panel also chose fails that test.
+        names = [p.strip() for p in str(cand.get("panelname") or "").split("+") if p.strip()]
+        return panel in names
+
     rows = [
         c
         for c in data["cands"]
-        if (c.get("panelset") or "default") in ("default", "both", "both4")
+        if in_panel(c)
         and not str(c.get("control", "")).startswith("nothing")
         and not str(c.get("control", "")).startswith("arm 4")
     ]
-    transcripts = {
-        t["variant"]: t
-        for t in data.get("transcripts", [])
-        if (t.get("panelset") or "default") == "default"
-    }
-    print(f"  view {view!r}: {len(rows)} rows, {len(transcripts)} transcripts")
+    # The panel's own order, so a failure names the row the reader sees in that position.
+    if panel:
+        rows.sort(key=lambda c: (c.get("seat_by_panel") or {}).get(panel, 10**6))
+
+    # The panel's own transcripts, falling back to "default" -- the same two-step the exporter
+    # does. `panel_data` labels the FIRST panel on its command line "default" rather than by
+    # name, so the default view's transcripts never carry their own panel's name and an exact
+    # match would find none for exactly the panel the page opens on.
+    def transcripts_for(want: str) -> dict:
+        return {
+            t["variant"]: t
+            for t in data.get("transcripts", [])
+            if (t.get("panelset") or "default") == want
+        }
+
+    transcripts = transcripts_for(panel) if panel else {}
+    source = panel
+    if not transcripts:
+        transcripts, source = transcripts_for("default"), "default"
+    label = panel or "the six to build"
+    note = f" (from {source!r})" if panel and source != panel else ""
+    print(f"  panel {label!r}: {len(rows)} rows, {len(transcripts)} transcripts{note}")
+    if panel and not transcripts:
+        print(
+            f"  no transcripts for {panel} -- run codon_variants.py --panel {panel} "
+            f"--out variants_{panel}, then panel_data.py again"
+        )
     if not rows or not transcripts:
         print("  nothing to check -- run panel_data.py first")
         return 1

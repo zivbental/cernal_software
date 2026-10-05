@@ -185,6 +185,32 @@ function acguOnly(ref){
 }
 
 function buildWorkbook(rows, meta){
+  // WHICH PANEL is being ordered, resolved before anything is written. It used to be computed
+  // half-way down, beside the transcripts, which meant the rows above it could not use it -- so
+  // the "arm" column printed the MERGED arm name and the rows came out in global load order.
+  const view = String(window.VIEW || "");
+  const wanted = view.indexOf("panel: ") === 0
+    ? "panel_" + view.slice(7)
+    : String((rows[0] || {}).panelname || "").split(" + ")[0];
+
+  // The arm THIS panel chose the design for. `arm` accumulates across panels on purpose, so on
+  // an ordering sheet it reads "A_M ratio + IED gain" for a design that serves one arm here --
+  // and that is the column a wet-lab reader uses to tell the six constructs apart.
+  const armOf = c => (c.arm_by_panel || {})[wanted] || c.arm;
+
+  // The panel's OWN row order. `window.SHOWN` is in payload order, which is global load order
+  // across every panel built, so a design a later panel introduced sorts after all the earlier
+  // panels' rows: the backoff sheet came out 491, 491, 507, 507, 507, 491 with the pairs
+  // interleaved, although panel_backoff.csv is grouped by pair. Rows with no seat recorded keep
+  // their relative order behind the seated ones rather than jumping to the front.
+  rows = rows.slice().sort((a, b) => {
+    const sa = (a.seat_by_panel || {})[wanted], sb = (b.seat_by_panel || {})[wanted];
+    if (sa === undefined && sb === undefined) return 0;
+    if (sa === undefined) return 1;
+    if (sb === undefined) return -1;
+    return sa - sb;
+  });
+
   const wb = new ExcelJS.Workbook();
   wb.creator = "A0 panel report";
   const ws = wb.addWorksheet("AND set");
@@ -213,7 +239,7 @@ function buildWorkbook(rows, meta){
     const put = (key, value) => { ws.getCell(at(key)).value = value; };
     const land = landingTriple(c);
     put("n", i + 1);
-    put("arm", c.arm);
+    put("arm", armOf(c));
     put("pair", c.pair);
     put("aSeq", c.trigA);
     put("aStart", c.wa ? c.wa[0] : null);
@@ -302,10 +328,7 @@ function buildWorkbook(rows, meta){
   // and the sheet then took panel_best's role-named transcripts for an assign2 export, labelled
   // them 01/01 and 10/10, and the realisation matrix correctly said they realise nothing. The
   // view is the only thing that knows.
-  const view = String(window.VIEW || "");
-  const wanted = view.indexOf("panel: ") === 0
-    ? "panel_" + view.slice(7)
-    : String((rows[0] || {}).panelname || "").split(" + ")[0];
+  // `wanted` is resolved at the top of this function; see the comment there.
   const all = meta.transcripts || [];
   const transcripts = all.filter(t => t.panelset === wanted).length
     ? all.filter(t => t.panelset === wanted)
@@ -465,7 +488,7 @@ function buildWorkbook(rows, meta){
   });
   rows.forEach((c, i) => {
     const r = M0 + 2 + i;
-    [i + 1, c.arm, c.pair, c.f1, c.op ? c.op["11"] : null, c.barrier, c.f2, c.ied_gain,
+    [i + 1, armOf(c), c.pair, c.f1, c.op ? c.op["11"] : null, c.barrier, c.f2, c.ied_gain,
      c.f2_worst].forEach((v, j) => { ws.getRow(r).getCell(j + 1).value = v; });
   });
   const MF = M0 + 2, ML = M0 + 1 + rows.length;

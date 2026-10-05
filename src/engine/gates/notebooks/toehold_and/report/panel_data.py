@@ -432,11 +432,17 @@ def main(argv=None) -> int:
                 for r in csv.DictReader(handle)
             ]
         added = 0
-        for row in rows_here:
+        for seat, row in enumerate(rows_here):
             existing = by_switch.get(row["switch"])
             if existing is None:
                 # The arm THIS panel chose it for, before the merge starts joining names.
                 row.setdefault("arm_by_panel", {})[panel_name] = row["arm"]
+                # And WHERE this panel put it. `cands` is in global load order, so a design that
+                # a later panel introduced lands after every earlier panel's rows: the ordering
+                # sheet for panel_backoff came out 491, 491, 507, 507, 507, 491 -- the pairs
+                # interleaved -- although that panel's own CSV is grouped. The exporter sorts on
+                # this instead.
+                row.setdefault("seat_by_panel", {})[panel_name] = seat
                 panel.append(row)
                 by_switch[row["switch"]] = row
                 added += 1
@@ -462,6 +468,9 @@ def main(argv=None) -> int:
                 per_panel[panel_name] = row["arm"]
             elif row["arm"] not in per_panel[panel_name]:
                 per_panel[panel_name] = f"{per_panel[panel_name]} + {row['arm']}"
+            # First seat wins: a design serving two arms of one panel occupies the earlier of
+            # its two rows, which is where the reader of that panel expects it.
+            existing.setdefault("seat_by_panel", {}).setdefault(panel_name, seat)
             if row["arm"] not in existing["arm"]:
                 existing["arm"] = f"{existing['arm']} + {row['arm']}"
         # One recipe per panel file. Taken from the rows rather than restated here, so the page
@@ -629,6 +638,7 @@ def main(argv=None) -> int:
             "mult": int(row["multiplicity"]),
             "arm": row["arm"],
             "arm_by_panel": row.get("arm_by_panel") or {},
+            "seat_by_panel": row.get("seat_by_panel") or {},
             "geom": row["geom"],
             "pair": row["pair_label"],
             "dup": row["duplicate"] == "True",
