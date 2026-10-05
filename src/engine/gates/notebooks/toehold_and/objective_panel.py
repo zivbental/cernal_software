@@ -1372,6 +1372,20 @@ MIN_NT_APART = 3
 #: Off by default because that is a deliberate trade, not an improvement. ``--any-geometry``.
 ANY_GEOMETRY = False
 
+#: Let the three arms of ONE pair each pick their own geometry, by making the pair's cell the
+#: union of its geometries instead of one candidate per ``(pair, geometry)``.
+#:
+#: The reason is diversity. Under ``--distinct-arms`` only **2 of 29** pairs can field three
+#: different designs, and the best of them is the pair rejected for low accessibility. Inside one
+#: geometry a pair usually cannot: ``491/434/4`` gives 2 distinct measurements of 3 and
+#: ``612/439/4`` gives 1. A triple assembled by hand from ``507/260/4`` does give three -- two Kim
+#: designs and one naive -- and that is only possible across the boundary.
+#:
+#: What it costs is the geometry comparison for that pair: a row's geometry becomes confounded with
+#: the arm that chose it. ``pick_six``'s "One geometry, not two" argument is about comparing the
+#: two families, and it still holds for that purpose.
+SPAN_GEOMETRY = False
+
 #: Print every eligible pair with its three arm values before choosing. Off by default;
 #: `--list-pairs` turns it on. It changes nothing about the selection.
 LIST_PAIRS = False
@@ -1761,7 +1775,9 @@ def recipe() -> str:
         # reproduced from: with --pair-score mean it was claiming both "mean" and "the
         # worst arm's percentile, maximised" in the same line.
         parts.append(f"pairs=the {PAIR_SCORE} arm's percentile, minimised")
-    if ANY_GEOMETRY:
+    if SPAN_GEOMETRY:
+        parts.append("geometry=per arm, inside a pair")
+    elif ANY_GEOMETRY:
         parts.append("geometry=per pair")
     if VARIANT_GATING is not None:
         parts.append(f"bench floor: andness_variant <= {VARIANT_GATING}")
@@ -1844,14 +1860,23 @@ def pick_six(rows: list[dict], geometry: str = "", pin: tuple[str, ...] = ()) ->
     # One entry per (pair, geometry) when ANY_GEOMETRY, else only the chosen geometry's cell. A
     # pair appearing in both geometries competes as two candidates and at most one can be taken,
     # because the clash test below rejects a pair against itself by trigger A.
-    cells = (
-        [(pair, geom, cell) for pair, geoms in by_pair.items() for geom, cell in geoms.items()]
-        if ANY_GEOMETRY
-        else [
+    # With SPAN_GEOMETRY the pair is ONE candidate whose cell is the union of its geometries, so
+    # the three arms may each land in a different one. That is strictly freer than ANY_GEOMETRY's
+    # per-pair choice, so it takes precedence rather than combining with it.
+    if SPAN_GEOMETRY:
+        cells = [
+            (pair, "spanning", [row for geom_cell in geoms.values() for row in geom_cell])
+            for pair, geoms in by_pair.items()
+        ]
+    elif ANY_GEOMETRY:
+        cells = [
+            (pair, geom, cell) for pair, geoms in by_pair.items() for geom, cell in geoms.items()
+        ]
+    else:
+        cells = [
             (pair, chosen_geometry, geoms.get(chosen_geometry, []))
             for pair, geoms in by_pair.items()
         ]
-    )
     for pair, _geom, cell in cells:
         if len(cell) < len(PANEL_ARMS):
             continue
@@ -2549,6 +2574,13 @@ def main(argv=None) -> int:
         "the historic rule), mean, or best. Lower is better in every mode",
     )
     parser.add_argument(
+        "--span-geometry",
+        action="store_true",
+        help="let one pair's three arms each pick their own geometry, so a pair can field three "
+        "DIFFERENT designs. Under --distinct-arms only 2 of 29 pairs can do that within one "
+        "geometry. Gives up the geometry comparison for that pair -- see SPAN_GEOMETRY",
+    )
+    parser.add_argument(
         "--access-floor",
         type=float,
         default=None,
@@ -2600,6 +2632,10 @@ def main(argv=None) -> int:
         global PANEL_ARMS
         PANEL_ARMS = (*PANEL_ARMS[:2], args.arm3)
         print(f"  --arm3: the panel's arms are {', '.join(PANEL_ARMS)}")
+    if args.span_geometry:
+        global SPAN_GEOMETRY
+        SPAN_GEOMETRY = True
+        print("  --span-geometry: each arm picks its own geometry inside the pair")
     if args.access_floor is not None:
         global L_LOCAL_FLOOR
         L_LOCAL_FLOOR = args.access_floor
