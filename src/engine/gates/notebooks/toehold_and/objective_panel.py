@@ -725,6 +725,16 @@ def add_accessibility(rows: list[dict], results: Path) -> int:
 #: can use to ask whether the forced levels were ever worth having.
 LOWER3_KEEP: frozenset[str] = frozenset()
 
+#: Closures excluded by name, a drop list rather than a keep list because the point is to
+#: remove one or two of sixteen. Empty keeps all; `--drop-closures` fills it.
+#:
+#: `pair2_CCU` is the measured case. Over the 7,238 designs carrying the RBS and AUG columns
+#: its RBS in state 11 is the second most shut of any closure (`rbs11_open` median 0.5829
+#: against 0.4641 for everything else), which fits `CCU` pairing with the `AGG` in the RBS
+#: loop. But the AUG was carried as a control and moved further still -- 0.9873 against
+#: 0.5678 -- so the closure leaves the START CODON shut in the ON state, not merely the RBS.
+CLOSURE_DROP: frozenset[str] = frozenset()
+
 #: Transcript positions corrected after the sweep had already folded against them.
 #:
 #: All six are at codon base 3, so the protein is unchanged -- but a switch's trigger-derived
@@ -831,6 +841,8 @@ def feasible(rows: list[dict]) -> list[dict]:
         # caller asks for; `lower3_ok` is the measured one -- a forced level is kept when it costs
         # trigger A at most one of the bottom 3, which is what SSW does in 68% of its designs.
         if LOWER3_KEEP and (row.get("lower3") or "") not in LOWER3_KEEP:
+            continue
+        if CLOSURE_DROP and (row.get("closure") or "") in CLOSURE_DROP:
             continue
         if not lower3_ok(row):
             continue
@@ -1723,6 +1735,8 @@ def recipe() -> str:
         parts.append("pairs must give three distinct measurements")
     if LOWER3_KEEP:
         parts.append(f"lower3 in {{{', '.join(sorted(LOWER3_KEEP))}}}")
+    if CLOSURE_DROP:
+        parts.append(f"closures dropped: {', '.join(sorted(CLOSURE_DROP))}")
     return " | ".join(parts)
 
 
@@ -2403,6 +2417,12 @@ def main(argv=None) -> int:
         "empty keeps all. Shrinks the eligible pair pool sharply -- see LOWER3_KEEP",
     )
     parser.add_argument(
+        "--drop-closures",
+        default="",
+        help="comma-separated closures to exclude, e.g. pair2_CCU. Measured: pair2_CCU "
+        "leaves the AUG shut in state 11 (aug11_open 0.99 against 0.57) -- see CLOSURE_DROP",
+    )
+    parser.add_argument(
         "--any-geometry",
         action="store_true",
         help="let each pair bring its own geometry instead of forcing one on the panel. Opens the "
@@ -2519,6 +2539,10 @@ def main(argv=None) -> int:
         global LOWER3_KEEP
         LOWER3_KEEP = frozenset(v.strip() for v in args.lower3.split(",") if v.strip())
         print(f"  --lower3: keeping only {sorted(LOWER3_KEEP)}")
+    if args.drop_closures:
+        global CLOSURE_DROP
+        CLOSURE_DROP = frozenset(v.strip() for v in args.drop_closures.split(",") if v.strip())
+        print(f"  --drop-closures: excluding {sorted(CLOSURE_DROP)}")
     every = load(results)
     if not every:
         print("  nothing scored yet -- run objective_energy.py first")
