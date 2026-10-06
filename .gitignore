@@ -86,3 +86,6 @@ src/engine/gates/notebooks/toehold_and/report/panel.html
 # The axis-characterisation run: one row per design, hundreds of thousands of them.
 # Regenerable by tools/run_axes.cmd, and the analysis that reads them is what gets committed.
 src/engine/gates/notebooks/toehold_and/results/axes_*.csv
+
+# The analysis output: regenerated from the run by tools/analyse_axes.py, and rows.csv is large.
+docs/assets/axes_*/rows.csv

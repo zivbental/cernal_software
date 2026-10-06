@@ -42,6 +42,7 @@ import argparse
 import csv
 import math
 import statistics as st
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -208,13 +209,60 @@ def report_spread(label: str, values: list[float]) -> None:
     )
 
 
+class Tee:
+    """Print to the terminal AND to the report file, so the analysis is not only a scrollback.
+
+    `print` is used throughout rather than a logger because the report is meant to be read as
+    text; this keeps that and adds persistence, instead of rewriting every call site.
+    """
+
+    def __init__(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._handle = path.open("w", encoding="utf-8", newline="\n")
+        self._stdout = sys.stdout
+        self.path = path
+
+    def write(self, text: str) -> int:
+        self._stdout.write(text)
+        self._handle.write(text)
+        return len(text)
+
+    def flush(self) -> None:
+        self._stdout.flush()
+        self._handle.flush()
+
+    def close(self) -> None:
+        self._handle.close()
+
+
+def write_tidy(path: Path, header: tuple[str, ...], records: list[tuple]) -> None:
+    """One observation per line, so plotting is a group-by rather than a reshape."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(header)
+        writer.writerows(records)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", default="axes_pfas", help="which run to read")
     parser.add_argument("--shards", type=int, default=6)
     parser.add_argument("--bins", type=int, default=5, help="quantiles for the shape check")
-    parser.add_argument("--csv", default="", help="also write the tables under this prefix")
+    parser.add_argument(
+        "--into",
+        default="",
+        help="directory for the report and the tidy tables; defaults to docs/assets/<out>/ so "
+        "they sit with the rest of the figure material. Pass 'none' to print only",
+    )
     args = parser.parse_args(argv)
+
+    into = None
+    tee = None
+    if args.into.lower() != "none":
+        into = Path(args.into) if args.into else ROOT / "docs/assets" / args.out
+        tee = Tee(into / "report.txt")
+        sys.stdout = tee
 
     rows = read_rows(args.out, args.shards)
     if not rows:
@@ -225,6 +273,10 @@ def main(argv=None) -> int:
     print(f"  {len(rows):,} rows, {len(full):,} in full ({100.0 * len(full) / len(rows):.1f}%)")
     cells = cells_of(rows)
     print(f"  {len(cells):,} cells (trigger pair x geometry)")
+    survival_table: list[tuple] = []
+    correlation_table: list[tuple] = []
+    shape_table: list[tuple] = []
+    interaction_table: list[tuple] = []
 
     # ---- 4. survival first, because every table after it is conditioned on it ------------
     print(f"\n{'=' * 100}\nSURVIVAL -- the outcome, over ALL rows")
@@ -245,6 +297,7 @@ def main(argv=None) -> int:
             here = [r for r in rows if str(r.get(axis)) == level]
             kept = sum(1 for r in here if not r.get("skipped"))
             print(f"    {level:20s}{len(here):>9,}{kept:>10,}{100.0 * kept / len(here):>7.1f}%")
+            survival_table.append((axis, level, len(here), kept, kept / len(here)))
 
     # ---- 1. continuous axes: within-cell Spearman ---------------------------------------
     print(f"\n{'=' * 100}\nCONTINUOUS AXES -- Spearman rho WITHIN each cell")
@@ -264,6 +317,22 @@ def main(argv=None) -> int:
                 if rho is not None:
                     rhos.append(rho)
             report_spread(axis, rhos)
+            if rhos:
+                pos = sum(1 for v in rhos if v > 0)
+                neg = sum(1 for v in rhos if v < 0)
+                correlation_table.append(
+                    (
+                        objective,
+                        axis,
+                        len(rhos),
+                        st.median(rhos),
+                        st.fmean(rhos),
+                        st.stdev(rhos) if len(rhos) > 1 else 0.0,
+                        pos,
+                        neg,
+                        sign_test_p(pos, neg),
+                    )
+                )
 
     # ---- 2. shape: quintiles within cell ------------------------------------------------
     print(f"\n{'=' * 100}\nSHAPE -- mean within-cell z-score per within-cell quintile")
@@ -292,6 +361,9 @@ def main(argv=None) -> int:
             cells_text = "".join(f"{st.fmean(b):>+10.3f}" if b else f"{'--':>10s}" for b in buckets)
             per = int(st.fmean([len(b) for b in buckets])) if any(buckets) else 0
             print(f"    {objective:18s}{cells_text}{per:>9,}")
+            for q, bucket in enumerate(buckets, start=1):
+                if bucket:
+                    shape_table.append((axis, objective, q, st.fmean(bucket), len(bucket)))
 
     # ---- 3. interactions ----------------------------------------------------------------
     print(f"\n{'=' * 100}\nINTERACTIONS -- mean within-cell z-score per combination, n in brackets")
@@ -320,6 +392,18 @@ def main(argv=None) -> int:
                     cells_text = ""
                     for c_level in cols_l:
                         vals = table.get((r_level, c_level))
+                        if vals:
+                            interaction_table.append(
+                                (
+                                    first,
+                                    r_level,
+                                    second,
+                                    c_level,
+                                    objective,
+                                    st.fmean(vals),
+                                    len(vals),
+                                )
+                            )
                         cells_text += (
                             f"{st.fmean(vals):>+9.2f}({len(vals):>4}){'':0s}"
                             if vals
@@ -327,16 +411,44 @@ def main(argv=None) -> int:
                         )
                     print(f"    {r_level[:18]:18s}{cells_text}")
 
-    if args.csv:
-        target = Path(args.csv)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        path = target.with_suffix(".rows.csv")
+    if into is not None:
+        write_tidy(
+            into / "survival.csv",
+            ("axis", "level", "rows", "measured", "rate"),
+            survival_table,
+        )
+        write_tidy(
+            into / "correlation.csv",
+            ("objective", "axis", "n_cells", "median_rho", "mean_rho", "sd_rho", "pos", "neg", "p"),
+            correlation_table,
+        )
+        write_tidy(
+            into / "shape.csv",
+            ("axis", "objective", "quintile", "mean_z", "n"),
+            shape_table,
+        )
+        write_tidy(
+            into / "interaction.csv",
+            ("axis_a", "level_a", "axis_b", "level_b", "objective", "mean_z", "n"),
+            interaction_table,
+        )
         keys = sorted({k for r in rows for k in r})
-        with path.open("w", encoding="utf-8", newline="") as handle:
+        with (into / "rows.csv").open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=keys, extrasaction="ignore")
             writer.writeheader()
             writer.writerows(rows)
-        print(f"\n  wrote {path} for plotting ({len(rows):,} rows, {len(keys)} columns)")
+        print(f"\n  WHERE THE RESULTS ARE: {into}")
+        print("    report.txt        this whole report, kept")
+        print(f"    survival.csv      {len(survival_table):>6,} rows -- axis, level, rate")
+        print(
+            f"    correlation.csv   {len(correlation_table):>6,} rows -- rho per (objective, axis)"
+        )
+        print(f"    shape.csv         {len(shape_table):>6,} rows -- the non-monotonic check")
+        print(f"    interaction.csv   {len(interaction_table):>6,} rows -- the two-way tables")
+        print(f"    rows.csv          {len(rows):>6,} rows -- one per design, {len(keys)} columns")
+        print("    Tidy (long) format: one observation per line, so a plot is a group-by.")
+        sys.stdout = tee._stdout
+        tee.close()
     return 0
 
 
