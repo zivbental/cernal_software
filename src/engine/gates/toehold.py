@@ -3082,6 +3082,17 @@ class ToeholdAndGate(ToeholdGate):
         ]
         if not stems:
             return
+        # **This sort collapses a Pareto front onto one of its three axes.**
+        # `secondary_stems` returns the NON-DOMINATED set over (lock_energy, a_site_energy,
+        # b_site_energy), so every stem it offers is already a distinct trade among locking the
+        # hairpin, letting trigger A grip the secondary arm, and letting trigger B invade it.
+        # Measured on 404 real PFAS pairs, that front holds a median of 82 usable stems (mean
+        # 89.4, max 268), and the best DROPPED stem is a median of only 0.40 kcal/mol behind the
+        # last one kept. Taking the first `stems_per_pair` by lock_energy therefore does not take
+        # the two best stems; it takes two points from one edge of the front and discards the
+        # a_site_energy trade entirely -- the axis the architecture's own claim rests on.
+        # Widening this is a budget decision: every usable stem on every PFAS pair is 612M
+        # designs. Carried as a declared cap rather than silently, and this is what it costs.
         stems.sort(key=lambda stem: stem.lock_energy)
         for stem_index, stem in enumerate(stems[: constraints.stems_per_pair]):
             # Only the schemes that gate. A-anchored is measured dead -- 0 of 4,330 ever
@@ -3527,8 +3538,27 @@ class _SecondaryStem:
     #: negative, so positive means the switch's own copy is the *weaker* binder and
     #: trigger B can displace it. Computing it the other way round inverts the gate.
     ddg_pref: float
+
+    #: ``fixed_alignment_energy(k2_star, secondary_z)`` **including the cap** -- the free energy
+    #: of the secondary hairpin's own stem, in kcal/mol. Negative is a duplex that forms, so
+    #: ``generate_designs`` keeps ``<= 0``: a positive value is not a weak lock, it is no lock.
+    #: Do not read it as the ``>= 0`` test above, which is ``ddg_pref`` and a different quantity.
     lock_energy: float
+
+    #: ``fixed_alignment_energy(x + ext, secondary_z + revcomp(x))`` -- **trigger A's binding to
+    #: the secondary arm**, in kcal/mol. This is the quantity the architecture's central claim
+    #: rests on: shortening trigger A's toehold and removing the gap between the hairpins is
+    #: affordable only if A's grip on the secondary stem makes up for it.
+    #:
+    #: It is carried onto every design's ``architecture`` and **nothing ranks on it.** The three
+    #: selection arms are IED gain, the A_M ratio and opening SEP; none reads this, and
+    #: ``generate_designs`` sorts the stems by ``lock_energy`` alone. The notebook carries
+    #: ``lock_minus_a_site`` -- the trade between locking the hairpin and letting A grip it --
+    #: and that is not ranked on either.
     a_site_energy: float
+
+    #: ``fixed_alignment_energy(k2, k2_star)`` -- trigger B's binding to the invaded arm, in
+    #: kcal/mol. With ``lock_energy`` it forms ``ddg_pref``, the displacement test.
     b_site_energy: float
 
     @property
