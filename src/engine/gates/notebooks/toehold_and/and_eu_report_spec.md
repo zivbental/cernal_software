@@ -1,533 +1,514 @@
-# Build `and_eu_report.ipynb` — eukaryotic toehold switch ON/OFF report
+# Spec — `and_eu_report.ipynb` (eukaryotic toehold switch ON/OFF report)
 
-> **What this file is:** a ready-to-paste prompt for building this notebook. It is written
-> for a session with no memory of the conversation that produced it, which is why the
-> rationale is inline — without the "why", the Traps section at the bottom gets
-> "simplified" straight back into the bugs it describes.
+> Current as of 2026-10-06. The code is the source of truth: if this file and the notebook
+> or `_joint_state_parallel.py` disagree, the code wins and this file is wrong. Cell numbers
+> below are the notebook's cell indices on this date and shift when cells are added.
+
+This file describes the pipeline and methods as they exist now, with the rationale inline.
+The "why" matters: the Traps section is made of real mistakes, and without the reasoning it
+gets "simplified" straight back into the bugs it describes. Dated history is in the
+**Change log** at the bottom.
 
 ## Context to read first
 
-- `CLAUDE.md` §1 (don't rewrite existing functions), §3 (raw values, `None` never
-  defaulted), §5 (tools injected, `FoldEngine` is the only folding adapter), §6
-  (units/conventions).
-- Existing notebook: `toehold_and_eu_test.ipynb` — the predecessor, in this same folder.
-  Read its cells before writing anything; ~80% of what is needed already exists there and
-  is debugged.
-- Existing module: `_joint_state_parallel.py` — parallel workers, fake-trigger selection,
-  state sampling.
+- `CLAUDE.md` §1 (do not rewrite existing functions), §3 (raw values, `None` never
+  defaulted), §5 (tools injected; `FoldEngine` is the only folding adapter), §6
+  (units, conventions).
+- `and_eu_report.ipynb` — the notebook this file specifies.
+- `_joint_state_parallel.py` (this folder) — process-pool workers, `designed_pairs`,
+  `both_triggers_extra`, fake-trigger selection, overlap screens, spacer selection.
+- `_switch_construct.py` (this folder) — `fuse`, `measure`, `load_ranked_designs`,
+  `motif_self_bind_score`, shared with `toehold_and_eu_test.ipynb`.
+- `src/engine/gates/tools/folding.py` — `FoldEngine` (`mfe`, `partition`,
+  `base_pair_probabilities`, `constrained_probability`, `layout_coordinates`, `versions`);
+  tests in `tests/engine/test_fold_constrained_probability.py`.
+- `src/engine/gates/notebooks/toehold/render_pdf.py` — HTML to PDF.
 
 ## Hard rules
 
-1. **Fold only through `FoldEngine`.** One instance, built once via
-   `fx.fold_engine(real=True, temperature=TEMPERATURE_C)`, published to the worker module
-   with `use_fold_engine(folder)`. No `import RNA` anywhere —
-   `tests/engine/test_house_rules.py` enforces this for module code.
-2. **Reuse, don't rewrite.** Before writing any function, search for it. Already built and
-   tested: `fuse()`, `measure()`, `motif_self_bind_score()`, `load_ranked_designs()`,
-   `FakeSweepJob`/`run_parallel_fake_sweep`, `SingleStateJob`/`run_parallel_single`,
-   `ConstrainedBindJob`/`run_parallel_constrained_bind`, `pick_fake_design`,
-   `pick_optimized_spacer`, `generate_spacer_candidates`, `_frac_paired_to_external`,
-   `_partner_table`, `render_layout_bar_png`, `render_register_png`,
-   `render_trigger_position_png`, `_structure_png`, `_bpp_heatmap_png`,
-   `FoldEngine.sample_structures`, and from `engine.sequences`:
-   `longest_homopolymer`, `reverse_complement`, `windows`, `hamming`, `gc_content`.
-3. **Parallelise with one pool call per batch**, never one pool spin-up per job (measured
-   5.8x overhead for the anti-pattern).
+1. **Fold only through `FoldEngine`.** One instance, built once in cell 5 via
+   `fx.fold_engine(real=True, temperature=TEMPERATURE_C)` and published to the worker
+   module with `use_fold_engine(folder)` before any pool starts (the pools fork, so every
+   worker inherits that one instance and its cache). No `import RNA`; enforced for module
+   code by `tests/engine/test_house_rules.py`.
+2. **Reuse, do not rewrite.** `fuse`, `measure`, `load_ranked_designs`,
+   `motif_self_bind_score` (`_switch_construct.py`); `designed_pairs`,
+   `both_triggers_extra`, `pick_fake_trigger`/`pick_fake_triggers`,
+   `trigger_pair_too_similar`, `generate_spacer_candidates`, `pick_optimized_spacer`,
+   `SingleExactJob`/`run_parallel_single_exact`, `and_pair_jobs` (builds the
+   `AndDecompJob`s of one pair)/`run_parallel_and_decomp` (`_joint_state_parallel.py`);
+   `longest_homopolymer` from `engine.sequences`. The
+   sampled workers that remain in `_joint_state_parallel.py` (`SingleStateJob`,
+   `FakeSweepJob`, `ConstrainedBindJob`, `SingleDecompJob`) are for other notebooks; this
+   report does not use them.
+3. **One process-pool call per batch**, never one pool spin-up per job (measured 5.8x
+   overhead for the anti-pattern).
 4. **Raw values only.** A metric that could not be computed is `None` and renders `--`.
-   Never `0.0`, `-1`, or `nan` as a stand-in.
-5. **No randomness without a literal seed.** Only the spacer candidate pool needs one.
-6. **Everything runs through notebook cells** — including your own verification. No
-   standalone scripts; a script copy of notebook code already produced a silent indexing
-   bug on this project. Verification cells go at the bottom under a marked heading and
-   stay in the file.
-7. **Don't edit test files.**
+   Never `0.0`, `-1` or `nan` as a stand-in.
+5. **No randomness without a literal seed.** Only the spacer candidate pool is random
+   (`SPACER_SEED`).
+6. **Everything runs through notebook cells**, including verification. No standalone
+   scripts (a script copy of notebook code once produced a silent indexing bug here).
+   Verification cells stay in the file, under the "Verification" heading.
+7. **Do not edit test files.**
 
-## Step 0 — migration (do this first)
+## Step 0 — shared module (done; for orientation only)
 
-Create `_switch_construct.py` in this folder, moved verbatim out of
-`toehold_and_eu_test.ipynb`, holding **six** functions. Decided: the CSV parser moves too,
-so there is exactly one of it rather than one per notebook.
+`fuse`, `measure`, `motif_self_bind_score`, `load_ranked_designs`, `_maybe_float` and
+`_toehold_self_fold` live in `_switch_construct.py`, moved out of
+`toehold_and_eu_test.ipynb` so the two notebooks share one implementation. Notebook-level
+configuration is passed in explicitly, never defaulted in the module: `load_ranked_designs`
+takes `columns=COLUMNS`, `carry_metrics=CARRY_METRICS`; `fuse` takes
+`cut_before=CUT_5P_BEFORE`, `keep_after=KEEP_3P_AFTER`, `spacer`. `_switch_construct.py`
+imports `both_triggers_extra` from `_joint_state_parallel.py` (not the other way round), so
+helpers the workers need must live in `_joint_state_parallel.py`.
 
-| Function | Currently in | Why it has to move |
+## Step 1 — parameters (cell 4; every tunable lives here)
+
+| Parameter | Current value | Meaning |
 |---|---|---|
-| `fuse()` | its own cell | the AND construct builder, needed by both notebooks |
-| `measure()` | its own cell | the energy/accessibility measurement, needed by both |
-| `motif_self_bind_score()` | loader cell | `measure()` and `load_ranked_designs()` both call it |
-| `load_ranked_designs()` | loader cell | the NucSyn CSV parser, needed by both |
-| `_maybe_float()` | loader cell | `load_ranked_designs()` calls it |
-| `_toehold_self_fold()` | loader cell | `load_ranked_designs()` calls it — itself calls `_mean_unpaired`, imported in the loader cell from `engine.gates.toehold`, not defined there; the module needs that same import line or this `NameError`s on first real call |
-
-That is every top-level `def` in the loader cell plus the two standalone cells — so three
-cells collapse into imports.
-
-**Config stays in the notebook, passed in explicitly.** `load_ranked_designs` currently
-closes over the notebook's `COLUMNS` and `CARRY_METRICS`. In the module these become
-required parameters, not module-level defaults — a second copy of the column map living
-in the module is the same drift problem one level down. Same for `fuse()`'s
-`cut_before`/`keep_after`/`spacer` defaults (`CUT_5P_BEFORE`, `KEEP_3P_AFTER`,
-`SPACER_SEQ`): keep them in the notebook's parameters cell and pass them.
-
-Then in the old notebook, replace each emptied cell **in the same position** (keeps cell
-indices stable, and tells a reader where the code went rather than leaving a hole):
-
-```python
-# These now live in _switch_construct.py so this notebook and and_eu_report.ipynb share
-# one implementation rather than two that drift apart (CLAUDE.md §1).
-from _switch_construct import (
-    fuse,
-    load_ranked_designs,
-    measure,
-    motif_self_bind_score,
-)
-```
-
-Call sites in the old notebook then need `columns=COLUMNS` / `carry_metrics=CARRY_METRICS`
-added where `load_ranked_designs` is called, and `cut_before=`/`keep_after=` where `fuse`
-relies on the old defaults. Grep for every call site; there are several, including inside
-the snapshot dG-backfill cell.
-
-**Verify the move changed nothing:** re-render the old notebook's report via its snapshot
-path (`SNAPSHOT_TO_LOAD`, ~20 s, skips all heavy cells) and confirm the energies are
-identical to the digit. If any number moves, stop and find out why before continuing —
-this migration must be behaviour-neutral by construction.
-
-## Step 1 — parameters, all in cell 1, each with a comment
-
-| Parameter | Default | Meaning |
-|---|---|---|
-| `CSV_PATH` | current sele export | Source NucSyn CSV; printed on both reports |
-| `TEMPERATURE_C` | `37.0` | Folding temperature, recorded on every energy |
-| `SINGLE_POOL_N` | `300` | Ranked designs loaded for the single-switch screen |
-| `SINGLE_REPORT_N` | `20` | How many reach the Single Switch report |
-| `AND_GRID_N` | `20` | Top-N singles fed into the N x N AND grid |
-| `AND_REPORT_N` | `20` | How many pairs reach the AND report |
-| `N_SAMPLES` | `1200` | Boltzmann samples per state |
-| `OPEN_THRESHOLD` | `0.70` | Fraction of footprint bound externally to call a state open |
-| `SINGLE_N_FAKES` | `10` | Distinct fake triggers checked per single-switch candidate, **averaged** into its OFF term — matches the original ask ("10 different fake triggers... the mean will be the result"), do not reuse this count for AND |
-| `AND_N_FAKES` | `10` | Distinct fakes drawn **per side** for each AND pair — 10 for the A-side states, 10 for the B-side states (20 fake-involving folds total per pair, two independent pools) — each side's result is the **mean** over its 10, same averaging shape as `SINGLE_N_FAKES`. Two separate parameters only because they're drawn from, and screened against, two different footprints — not because the counts differ (they're both 10) |
-| `FAKE_MAX_SEQ_OVERLAP_NT` | `8` | Max shared/complementary run a fake may have |
-| `WOBBLE_MAX_FRACTION` | `0.50` | Max share of a matched run that may be G·U |
-| `SPACER_VARIANTS` | `("no_spacer", "spacer")` | Both are run and reported separately |
-| `SPACER_MIN_LENGTH` / `SPACER_MAX_LENGTH` | `15` / `20` | Per-pair spacer search bounds |
-| `SPACER_SEED` | `1` | Literal seed for the candidate pool |
-| `FILTER_HOMOPOLYMER_RUN` | `False` | Exclude toeholds with a run > `MAX_HOMOPOLYMER_RUN` |
+| `CSV_PATH` | NucSyn `.../output_T2/targets/sele/basic_switch/results_ranked.csv` | Source CSV, sorted best-first by `postgen_global_rank`; printed on both reports |
+| `COLUMNS` | dict: `switch`, `trigger`, `domains`, `rank`, `trigger_start`, `trigger_end` mapped to CSV column names | Column map `load_ranked_designs` requires |
+| `CARRY_METRICS` | `("sim_score", "mcc", "switch_toehold_unpaired_prob_mean", "energy_trigger_mfe")` | CSV columns carried into `design["metrics"]` unchanged (read, not recomputed) |
+| `CUT_5P_BEFORE` | `"kozak"` | 5' half of an AND construct keeps everything before its own kozak |
+| `KEEP_3P_AFTER` | `"prefix"` | 3' half keeps everything after its own prefix |
+| `TEMPERATURE_C` | `37.0` | Folding temperature for the one `FoldEngine` and every job |
+| `SINGLE_POOL_N` | `300` | Ranked designs loaded and scored in the single-switch screen |
+| `SINGLE_REPORT_N` | `20` | Singles shown in the Single Switch report |
+| `AND_GRID_N` | `20` | Top singles (by single-switch order) fed into the N x N AND grid |
+| `AND_REPORT_N` | `20` | AND pairs shown in the AND report |
+| `OPEN_THRESHOLD` | `0.70` | HIGH/LOW cutoff of the green/red plan colouring **only** (HIGH >= 0.70, LOW <= 0.30); never enters a score |
+| `SINGLE_N_FAKES` | `10` | Distinct fakes per single-switch candidate, averaged into its OFF fakes term |
+| `AND_N_FAKES` | `10` | Distinct fakes drawn **per side** (A and B, two independent rotations) per AND pair; separate from `SINGLE_N_FAKES` because the two footprints are screened and reported separately, so changing one must never change the other |
+| `FAKE_MAX_SEQ_OVERLAP_NT` | `8` | Max identical run (nt) a fake trigger may share with a real trigger; also the cap for the AND trigger-vs-trigger screen |
+| `WOBBLE_MAX_FRACTION` | `0.50` | Used by the AND trigger-vs-trigger complementarity screen only: max share of a counted complementary run that may be G·U wobble. Fakes ignore it |
+| `SPACER_VARIANTS` | `("no_spacer", "spacer")` | Both run and reported separately |
+| `SPACER_MIN_LENGTH` / `SPACER_MAX_LENGTH` | `15` / `20` | Spacer candidate length range |
+| `SPACER_SEED` | `1` | Literal seed of the spacer candidate pool |
+| `SPACER_CANDIDATE_POOL_SIZE` | `150` | Candidates `generate_spacer_candidates` draws |
+| `FILTER_HOMOPOLYMER_RUN` | `False` | Exclude toeholds with a homopolymer run > `MAX_HOMOPOLYMER_RUN` |
 | `MAX_HOMOPOLYMER_RUN` | `5` | Threshold for the above |
 | `MAX_WORKERS` | `6` | Process-pool width |
-| `SNAPSHOT_TO_LOAD` | `None` | Set to a snapshot file to skip every heavy cell |
+| `SNAPSHOT_TO_LOAD` | `None` | Snapshot file (name or absolute path) to restore instead of running any heavy cell |
+
+There is no sample-count parameter: nothing in the report is sampled.
 
 ## Step 2 — definitions
 
-**Footprint** = TBS (toehold) + stem_up. This is the span every "bound/open" question is
-asked about.
+### Constructs
 
-**Single switch topology:** `prefix - TBS - stemup - loop - stemdown - kozak - CDS`
+- **Footprint** = toehold (TBS) + `stem_up`. Every "bound" question is asked about it.
+- **Single switch:** `prefix - TBS - stem_up - loop - stem_down - kozak - CDS`.
+- **AND construct** (`fuse()`; hairpin A loses its kozak, hairpin B loses its prefix):
+  `prefix - TBS1 - stem_up1 - loop1 - stem_down1 - [spacer] - TBS2 - stem_up2 - loop2 - stem_down2 - kozak - CDS`.
+  `fuse(design_5p, design_3p, cut_before, keep_after, spacer)` keeps the 5' design's switch
+  up to the start of its `cut_before` domain, appends the spacer, then the 3' design's
+  switch after the end of its `keep_after` domain; every surviving domain is relocated into
+  the fused frame (`domains_5p`, `domains_3p`, `footprint_5p`, `footprint_3p`,
+  `spacer_span`) and each relocation is asserted to hold the original sequence. A design
+  lacking the needed domain or `stem_up` returns `(None, problem)` and the pair is skipped.
+- **Spacer:** `SPACER_VARIANTS` runs each pair twice. `no_spacer` is the empty string.
+  `spacer` is `pick_optimized_spacer`: from the seeded pool (`generate_spacer_candidates`:
+  A/U-biased, lengths cycling over the range) the candidate with the smallest worst-case
+  complementary run against either toehold or either trigger; ties go to lower GC, then
+  to pool order (deterministic).
 
-**AND topology** (hairpin 1 loses its kozak, hairpin 2 loses its prefix):
+### Per-hairpin metrics (all exact, from one `FoldEngine.base_pair_probabilities` matrix)
 
-```
-prefix - TBS1 - stemup1 - loop1 - stemdown1 - [spacer] - TBS2 - stemup2 - loop2 - stemdown2 - kozak - CDS
-```
+`_exact_decomp_means` reads, for each position, the total probability of pairing into a
+target set, and averages over a span (`None` for an empty span). Indices below `n_self`
+(`len(fused)` or `len(switch)`) are the switch; at or past it, an external strand.
 
-**Three-way state decomposition** — compute all three from the same sampled structures,
-per footprint, per state:
+| Metric | Span (denominator) | Pairs into | Ideal |
+|---|---|---|---|
+| `stem_closed` | `stem_up` | the hairpin's own `stem_down` | high in OFF states, low once its own trigger is bound |
+| `misfolded` | footprint | the switch, but not its own `stem_down` | low in every state |
+| `trigger_bound` | footprint | any external strand (index >= `n_self`) | high with its own trigger, ~0 otherwise |
 
-| Metric | Definition | Ideal |
+Per position, unpaired + external + own-`stem_down` + other-intramolecular probabilities sum
+to 1 (verification 3). Each metric is the expected fraction of its span's
+nt; the report also shows it as nt out of the span length. Do not collapse them into one
+number: "footprint is paired" cannot tell "the trigger bound it" from "it cross-hybridised
+with the other hairpin".
+
+### States
+
+- **Single:** `alone`, `+real trigger`, `+fake` (one job per fake, up to `SINGLE_N_FAKES`).
+- **AND:** `alone`, `+A`, `+B`, `+A+B`, and per side up to `AND_N_FAKES` draws of
+  `+fakeA`, `+A+fakeA`, `+fakeB`, `+B+fakeB`. Worst case `4 + 4*AND_N_FAKES` jobs per
+  (pair, spacer).
+- **Strand order.** A state is folded as `switch & extra1 & extra2 ...`. Every state
+  holding both real triggers uses `both_triggers_extra(trigger_a, trigger_b)` =
+  `(trigger_b, trigger_a)`: B first, A last. ViennaRNA's multi-strand folding represents
+  only structures nested along the written strand order; `fused&tA&tB` makes
+  footprint A/tA cross footprint B/tB (a pseudoknot), so trigger B cannot bind. Measured
+  on pair 4+6 no_spacer: trigger B to footprint B 0.00 in that order, 0.98 in `fused&tB&tA`
+  (MFE -70.8 vs -88.2 kcal/mol). Physically the order is irrelevant; it is a modelling
+  constraint. `+A+fakeA` / `+B+fakeB` keep (real, fake): one real footprint is in play, so
+  its duplex nests either way. The helper is used by `and_pair_jobs` (grid),
+  `measure()`, and the figures.
+
+### ON (exact joint probability)
+
+`designed_pairs(engine, strands, footprints, n_self)` takes the `FoldEngine.mfe` structure
+of the state's exact strand string and returns every `(i, j)` with `i` inside a footprint
+and `j >= n_self`: the designed footprint-trigger duplex as the MFE realises it. If any
+footprint has no external pair in the MFE it returns `None`. Then
+`FoldEngine.constrained_probability(strands, pairs)` returns
+
+    P(all pairs present) = Z(forced)/Z = exp(-(G_forced - G) / RT),  RT = 0.0019872 * (T + 273.15)
+
+from two partition functions (the constrained one uses `hc_add_bp` with all-loop
+enforcement). Pairs are 0-indexed over the `&`-removed concatenation. It returns `None`,
+never 0.0 or 1.0, for an empty pair list, an infeasible or conflicting constraint set, or a
+ViennaRNA failure; for a single pair it equals the `base_pair_probabilities` entry (to about
+3e-6).
+
+- `p_on` is computed only for the `+real trigger` state (single) and the `+A+B` state
+  (AND); every other state has `p_on = None`. `ON = p_on`; `None` shows `--`, the ratio is
+  `None`, and the row sorts last.
+- The event is **strict**: every designed pair must be present at once, so `P(duplexes)` is
+  below each side's `trigger_bound` (a joint event cannot exceed a marginal; asserted in
+  verification 6). In the 2026-10-06 full run the top AND pairs read 0.5-0.92 and the top
+  single designs 0.45-0.91. The product of per-side bound means is higher and is not the
+  quantity.
+
+### OFF (worst state over exact terms)
+
+Per state, for every hairpin whose **own real trigger is absent** (`mask_side` names the
+side whose own trigger is present and is exempt from both terms):
+
+- stem-loosening = `1 - mean_stem_closed`
+- trigger-binding = `mean_trigger_bound`
+
+State badness = the largest of its terms (`_single_badness`, `_and_off_term`); `OFF` = the
+largest badness over the states; `off_source` = the winning state, `off_criterion` = the
+winning term, `off_terms` = all terms of that state (shown on every card). Without the
+mask, a working design's own trigger binding, which necessarily displaces its `stem_up`
+from `stem_down`, would read as a leak in every state holding a real trigger and collapse
+OFF to ~100% for every candidate (verified).
+
+- **Single:** states `alone` and `fakes` (the mean of the per-draw exact means over the
+  found fakes), both hairpin-terms.
+- **AND:** `alone`, `+A`, `+B`, `+fakeA`, `+fakeB`, `+A+fakeA`, `+B+fakeB` (fake states pooled
+  as the mean of per-draw exact means). `+A` and `+A+fakeA` score hairpin B only; `+B` and
+  `+B+fakeB` score hairpin A only; `alone`, `+fakeA`, `+fakeB` score both. Cross-talk is
+  simply the other hairpin's trigger-binding term.
+- A missing input (including a pooled fake mean lacking one draw) makes that state's
+  badness, OFF and the ratio `None`; it is never dropped to give a lower OFF.
+- OFF is measured **across states**, never as `1 - ON` within one (see Traps).
+
+### Ratio and ranking
+
+`ratio = (ON*100) / (1 + OFF*100)` in percentage points (at fraction units the "+1"
+swamps any real OFF below 100%; OFF = 0 still gives a finite ratio). `ON - OFF` is shown
+beside it.
+
+- **Single order** (`_single_sort_key`): rounded ratio (1 decimal) descending, then `dG`
+  ascending (more negative first), `dG = None` last within a tie, `ratio = None` last
+  overall. Applied to the whole pool in cell 12; the top `AND_GRID_N` of this order enter
+  the AND grid.
+- **AND order:** raw ratio descending, `None` last (no dG tie-break).
+
+### Fake triggers
+
+`pick_fake_trigger(real_triggers, exclude_ranks, pool, start_offset=0, *, max_overlap_nt=8)`
+scans the pool from `start_offset`, wrapping, and returns the first design whose trigger has a
+longest same-direction identical run (`_longest_identity_run`, plain longest common
+substring) of at most `FAKE_MAX_SEQ_OVERLAP_NT` against **every** real trigger given. Rule:
+a fake shares at most `FAKE_MAX_SEQ_OVERLAP_NT` nt of sequence with any real trigger.
+Identity only: no complementarity or wobble test. `pick_fake_triggers(real_triggers,
+exclude_ranks, pool, n, start_offset, *, max_overlap_nt)` collects up to `n` distinct fakes
+by calling it with `start_offset + k` and excluding each pick from the next. Single:
+`real_triggers = (trigger,)`; AND: `(trigger_a, trigger_b)` for both sides, since both real
+triggers are in the construct. Single fakes come from the full single pool
+(`start_offset = i + 1`); AND fakes also come from the full single pool (`SINGLE_POOL_N`
+candidates), side A with `start_offset = 0`, side B with `1000`, each side excluding the pair
+itself and its own earlier picks. The pool can run out: fewer than `N_FAKES` fakes are used
+and reported as found, never padded; zero found renders an explanatory note, not a
+measurement. `pick_fake_design` (footprint-complementarity screen) remains in the module
+for the other notebooks but this report does not call it.
+
+### AND trigger-vs-trigger overlap screen
+
+`trigger_pair_too_similar(trigger_a, trigger_b, max_overlap_nt, wobble_max_fraction)` is
+checked per ordered pair before any job is built, with the same
+`FAKE_MAX_SEQ_OVERLAP_NT` / `WOBBLE_MAX_FRACTION`. A pair is excluded (not scored, not
+shown) when **either** the longest complementary run (wobble-tolerant) **or** the longest
+same-direction identity run (`_longest_identity_run`, exact match, no tolerance) exceeds
+the cap. Both checks are needed: two near-duplicate triggers from one transcript region
+are same-direction identical and generally not complementary to each other, so a
+complementarity check alone cannot see them (Trap 4). Self-pairs are also excluded, and a
+pair for which `fuse()` reports a problem is skipped and counted in the grid cell's printout.
+
+### Energies (ensemble free energy, kcal/mol, more negative = more stable)
+
+- Single (cells 12-13): switch alone, trigger alone, switch + trigger, `dG` = ee(switch +
+  trigger) - ee(switch alone), and the mean `dG` over the fakes. All via `FoldEngine.partition`.
+- AND (cell 19): alone, trigger A alone, trigger B alone, +A, +B, +A+B and
+  `dG` = `measure()`'s `d_ee_worst_alt` = ee(+A+B) - min(ee(alone), ee(+A), ee(+B)).
+
+## Step 3 — pipeline (cell by cell)
+
+| Cell | Role | Exact / parallel |
 |---|---|---|
-| `stem_closed` | stem_up paired specifically to **stem_down** | high in OFF |
-| `misfolded` | footprint paired intramolecularly but **not** to its own stem_down | **low in every state** |
-| `trigger_bound` | footprint paired to an **external** strand | high in ON, zero in OFF |
+| 0, 2 | Intro markdown; path setup and `fx.bootstrap()` | |
+| 4 | Parameters (Step 1) | |
+| 5 | One `FoldEngine`; `use_fold_engine`; imports | one instance for the whole notebook |
+| 7 | Plotting, CSS and scoring helpers: `structure_png`, `bpp_heatmap_png`, `layout_bar_png`, `_single_badness`, `_and_off_term`, `_on_off_ratio`, `_mean_or_none`, `_plan_class`, `_off_breakdown_text`, `_single_sort_key`, `_average_ranks`, `_spearman_rho`, `_kendall_tau_b`, `csv_vs_report_rank_png`, `_render_pdf`, formatting helpers | no folding of its own |
+| 9 | **Snapshot restore** (pure load) and `_report_root` (`var/reports`, found by walking up to `pyproject.toml`) | |
+| 10 | Load `SINGLE_POOL_N` designs. With `FILTER_HOMOPOLYMER_RUN`: load the whole file, filter, then cut (filtering a pre-capped pool would shrink it instead of backfilling) | |
+| 11 | Single screen: for every candidate the jobs `alone`, `real` (`with_joint=True`), up to `SINGLE_N_FAKES` fakes (`pick_fake_triggers`); all of all candidates in **one** `run_parallel_single_exact` call | exact, parallel |
+| 12 | Single scoring: ON, OFF (source/criterion/terms), ratio, `dG` for the whole pool; sort by `_single_sort_key`; `single_report_rows` = top `SINGLE_REPORT_N`; `single_scored_pool` (slim: `csv_rank`, `on`, `off`, `ratio`, `d_ee`, `off_source`, `off_criterion`) | exact (cached `partition`) |
+| 13 | Mean `dG` over fakes for report rows | |
+| 14 | Single images (OFF alone and ON +trigger structures and matrices through Kozak, layout bar) | cache hits |
+| 15 | Single report: CSV-vs-report rank section and PNG, HTML, PDF | |
+| 17 | AND grid: `AND_GRID_N` x itself, self-pairs, overlap-screen failures and `fuse()` failures excluded, both spacer variants; every job of every pair (`and_pair_jobs`) submitted in **one** `run_parallel_and_decomp` call | exact, parallel |
+| 18 | AND scoring: ON, OFF, ratio; sort by ratio; `and_report_rows` = top `AND_REPORT_N` | exact |
+| 19 | AND energies (`measure()` plus trigger energies) for report rows | cached |
+| 20 | AND images (structures for `alone` and `+A+B`; matrices for `alone`, `+A`, `+B`, `+A+B`; layout bar) | cache hits |
+| 21 | AND report HTML and PDF | |
+| 23 | **Snapshot export**: timestamped JSON `and_eu_report_snapshot_<ts>.json` with `single_report_rows`, `and_report_rows`, `single_scored_pool`, `csv_path`, `temperature_c`, `open_threshold`, `exported_at`; every row key ending `_png` is stripped (images rebuild in seconds) | |
+| 24 | Prints the four report paths | |
+| 26-31 | Verification | |
 
-A state is "open" when `trigger_bound >= OPEN_THRESHOLD`.
+Rules:
 
-Report all three. Do **not** collapse them into one number: with triggers present,
-"footprint is paired" cannot distinguish "the trigger bound it" from "it
-cross-hybridised with the other hairpin", and that conflation is what made the
-predecessor's leak metric wrong.
-
-**Implementation note — all three now exist, in `_joint_state_parallel.py`.**
-`trigger_bound` is `_frac_paired_to_external(structure, start, end, n_self)`, already
-written before this spec and already the fix for the bug above. `stem_closed_fraction`
-and `misfolded_fraction` were added for this spec, built on the same `_partner_table`
-stack-walk, right next to `_frac_paired_to_external` — **not** in `_switch_construct.py`
-as this spec originally said: that module imports `_partner_table` *from*
-`_joint_state_parallel.py`, so defining these two the other way round would be
-circular. All three live where the parallel workers that call them also live.
-Verified against this session's own hand-traced ground truth (rank 100+111, no_spacer):
-`misfolded_fraction` reproduces 13/15=0.87 (A toehold, paired to exp_gene + B's toehold)
-and 2/15=0.13 (B toehold) exactly; `stem_closed_fraction` reads 1.00 for both hairpins'
-own stems.
-
-**Fake-trigger selection** — a real trigger from the same CSV qualifies as a fake only if
-its longest complementary run against the footprint is both (a)
-`<= FAKE_MAX_SEQ_OVERLAP_NT`, and (b) strictly less than the real trigger's own run
-against that same footprint. Allow G·U wobbles for at most `WOBBLE_MAX_FRACTION` of a
-run's positions, and record `wobble_positions_used` on every reported fake set so a
-wobble-driven decision is visible. Rotate the pool deterministically (`start_offset`),
-never randomly.
-
-**ON/OFF ratio** — the ranking metric, higher is better. Measured **across states**, never
-within one:
-
-- Single: `ON = trigger_bound(+real trigger)`;
-  `OFF = max(open fraction over: alone, mean over SINGLE_N_FAKES fakes)`
-- AND: `ON = P(both open | +A+B)`;
-  `OFF = max(P(both open) over: alone, +A, +B, mean(+fakeA over AND_N_FAKES draws),
-  mean(+fakeB over AND_N_FAKES draws), mean(+A+fakeA over AND_N_FAKES draws),
-  mean(+B+fakeB over AND_N_FAKES draws))` — `fakeA` is drawn from a pool screened
-  against *both* real triggers (reuse `pick_fake_design` as-is; it already checks both
-  footprints in one call), independently per pair, 10 distinct draws averaged, same shape
-  as `fakeB`. Resolved: this notebook computes the mean from the start — there is no
-  separate single-draw screen followed by a later refinement pass, unlike the
-  predecessor notebook's two-stage history. One pass, already averaged.
-
-Floor `OFF` at `1/N_SAMPLES`. When `OFF` is genuinely zero, display **`>=1200`** (a bound,
-not a measurement). Show `ON - OFF` in the adjacent column.
-
-**Energies** (ensemble free energy, kcal/mol, sign convention stated next to every
-number):
-
-- Single: switch alone, trigger alone, switch+trigger, `dG`, and the mean `dG` across the
-  `SINGLE_N_FAKES` fakes
-- AND: alone, trigger A alone, trigger B alone, +A, +B, +A+B, and
-  `Δ(ON) = ee_both - min(ee_off, ee_+A, ee_+B)`. **More negative is better.**
-
-## Step 3 — pipeline
-
-1. Load `SINGLE_POOL_N` designs. If `FILTER_HOMOPOLYMER_RUN`, load the whole file, filter,
-   *then* cut to `SINGLE_POOL_N` — filtering a pre-capped pool shrinks it instead of
-   backfilling with the next candidates that pass.
-2. **Single-switch screen**, parallel per candidate: alone, +real trigger, +each fake.
-   Three-way decomposition each. Rank by ON/OFF.
-3. **Single Switch report** — top `SINGLE_REPORT_N`.
-4. **AND grid** — `AND_GRID_N` x itself, self-pairs excluded, both spacer variants. States:
-   `alone`, `+A`, `+B`, `+A+B`, `+fakeA` (mean of `AND_N_FAKES`), `+fakeB` (mean of
-   `AND_N_FAKES`), `+A+fakeA` (mean), `+B+fakeB` (mean) — 8 states, the fake-involving
-   four each already averaged in this one pass. Rank by ON/OFF.
-5. **AND report** — top `AND_REPORT_N`.
-
-   **Cost consequence of `AND_N_FAKES = 10` per side:** each pair now folds/samples 4
-   fake-involving states x 10 draws = 40 extra jobs, on top of the 4 base states
-   (`alone`/`+A`/`+B`/`+A+B`). At `AND_GRID_N = 20` that is 380 pairs x 2 spacer
-   variants x 40 = ~30,400 fake-related jobs, each `N_SAMPLES` Boltzmann draws — well
-   above the 2-per-pair this was costed at earlier. Benchmark one pair's full job count
-   before launching the whole grid (same benchmark-first pattern the predecessor
-   notebook uses for its NUPACK calls), not after.
-6. **Snapshot export** (opt-in cell, timestamped JSON) and **snapshot load**
-   (`SNAPSHOT_TO_LOAD`, `None` by default). Every heavy cell checks that flag at its top
-   and prints a one-line skip notice instead of running. Copy this pattern from the
-   predecessor notebook — it is verified working there.
+- Every heavy cell (10-13, 17-20, 24) is wrapped in `if SNAPSHOT_TO_LOAD is None:` and
+  prints a one-line skip notice otherwise. Image and report cells always run.
+- **Snapshot restore is a pure load.** It reads the rows and `single_scored_pool`,
+  converts two-int lists back to tuples, and nothing else: no backfill, no rescoring, no
+  re-applied screen. A full run already produces every field. Snapshots exported before
+  the exact method (those lacking `_bpp` fields) are not supported. A snapshot without
+  `single_scored_pool` still loads; the single report then shows "pool scores not in this
+  snapshot; re-run the notebook to produce them".
+- Each job is one `base_pair_probabilities` matrix for its state; the `real` / `+A+B` job
+  adds one MFE and two constrained partition functions (`p_on`).
+- A cache hit is guaranteed in report cells because those sequences were folded earlier
+  through the same `FoldEngine`.
+- Cost: at `AND_GRID_N = 20`, 380 ordered pairs x 2 spacer variants (minus excluded pairs),
+  each up to `4 + 4*AND_N_FAKES = 44` jobs. Many pairs find fewer than 10 fakes per side;
+  the grid cell prints the real job count and total time when it finishes.
 
 ## Step 4 — reports
 
-Both as **HTML + PDF, timestamped filenames, `CSV_PATH` printed on the page.** Single
-Switch and AND render in separate cells of the same notebook.
+Both reports: HTML written to `var/reports/` with a timestamp in the name
+(`single_switch_report_<ts>.html`, `and_report_<ts>.html`), PDF by
+`toehold/render_pdf.py` (skipped with a message if the script is not found), `CSV_PATH`
+printed on the page, FoldEngine versions and `OPEN_THRESHOLD` in the footer.
 
-Per candidate:
+**Intro** is built from the parameters, never hand-typed numbers. The AND intro is a bullet
+list: Source; Top N singles / pool (cut/keep domains, spacer variants, `AND_REPORT_N`);
+Method (exact, temperature); ON; OFF (states, up to `AND_N_FAKES` fakes per side, each
+sharing at most `FAKE_MAX_SEQ_OVERLAP_NT` nt of identical sequence with either real trigger); Ratio; Trigger overlap screen. The single intro is one paragraph of the same
+content.
 
-- **Metrics table** — energies above; the three-way decomposition per state; Boltzmann
-  agreement as *"k of N structures"*, not just a percentage; nt of trigger hybridised to
-  the switch (high in ON, low in OFF/fake); nt of stem still hybridised
-  (stem_up <-> stem_down) for OFF states.
-- **Probability matrices** — single: alone and +trigger. AND: alone, +A, +B, +A+B. Each
-  with a labelled colourbar, numbered axes, and base letters where spacing allows.
-- **Domain diagram** — 2D structure plus layout bar, one colour per domain with a legend,
-  and each domain's **sequence** printed. AND needs a doubled palette so hairpin 1 and 2
-  are distinguishable.
-- Written so someone new to the project can read it: every metric gets a one-line
-  explanation of what it measures and which direction is good.
+**Glossary** is definitions only (no history, no sampling vocabulary): ON / P(duplexes),
+OFF, ratio, dG, FAKES, `trigger_bound`, `stem_closed`, `misfolded` (and for AND: footprint
+bound, stem still closed, trigger overlap screen, per-hairpin A/B forms; for single:
+Spearman rho / Kendall tau-b). Worked examples are computed live from the render's own
+first row so they cannot go stale.
 
-## Step 5 — state these limitations in the report itself
+**Summary table.** Single: `#`, rank, ON (P(duplexes) over footprint-bound nt), OFF
+(worst-state badness over `off_source` / `off_criterion` and the stem-closed nt there),
+ratio, ON-OFF, dG, FAKES (mean nt of `stem_up` still bound to `stem_down` over the fakes,
+with %), detail link. AND: `#`, spacer, pair, ON, OFF, ratio, ON-OFF, dG, `FAKES: STEM
+STILL CLOSED (exact)` (per side). A `--` means not measured (for FAKES: no qualifying fake
+for that side), never zero. Domains named `exp_gene` / `opt_exp_gene` are never drawn.
 
-- `OPEN_THRESHOLD = 0.70` => numbers are **not** comparable to the predecessor notebook's
-  reports (which used 0.80).
-- Rows where `OFF = 0` give a ratio **bound**, not a value.
+**Candidate card.** A head block of separate lines (rank or pair, trigger length and
+sequence, spacer on its own line for AND, ON, OFF with its `off_source` /
+`off_criterion` and every term, ratio); an energy table (`max-width` 420 px, one caption
+sentence above it); the per-state table (`table-layout:fixed` with explicit column
+widths, or the PDF clips the last columns); layout bar and per-domain sequences; figures
+two per row, larger than the single report's, legend below the plot.
+
+- Single per-state table: `alone`, `+real trigger`, `+fake trigger` (mean of the found
+  fakes), columns `trigger_bound`, `stem_closed`, `misfolded`, nt hybridised, `P(duplexes)`
+  (filled only in the `+real trigger` row).
+- AND per-state table: per state, hairpin A and B `bound / closed / misfolded`, plus
+  `P(duplexes)` (filled only in `+A+B`).
+- **Plan colouring** (`_plan_class`, colouring only, never scored): for `trigger_bound` of
+  hairpin H, HIGH wanted iff H's own trigger is present; for `stem_closed`, LOW wanted iff
+  its own trigger is present, else HIGH; `misfolded` LOW everywhere; fake rows count as no
+  real trigger. HIGH = value >= `OPEN_THRESHOLD`, LOW = value <= `1 - OPEN_THRESHOLD`;
+  a value in between agrees with neither and is red; `None` gets no colour. **`P(duplexes)`
+  is coloured too**: HIGH expected only in the +A+B row (single: the +real trigger row is not
+  shaded because the single table has no plan colouring).
+- **Figures.** Single: OFF and ON structures plus both probability matrices (structures
+  through Kozak, a real separate fold; the ON plot draws the trigger in its own colour, and
+  its position is a `FoldEngine` `&`-join layout artifact). AND: structures for `alone` and
+  `+A+B` only, matrices for `alone`, `+A`, `+B`, `+A+B`; structures are clipped at the end
+  of the last kozak domain. In the `+A+B` plot the trigger strands are hidden
+  (`visible_len`): a base pair whose partner is outside the drawn range gets a dangling
+  ring instead of a line, amber (`_PAYLOAD_RING_COLOR`) when the partner is the
+  construct's own hidden payload tail (`index < construct_len`), red when it is a hidden
+  trigger strand. Matrix crosshairs mark each strand junction in that strand's colour; in
+  `+A+B` the order is B (pink) first, then A (blue). Palette: shared teal for `spacer`,
+  distinct colours for `loop` and `prefix`.
+
+**Single report only: CSV ranking vs this report's ranking** (between Summary and
+Candidates). A scatter of CSV rank (`postgen_global_rank`, x) against rank by this report's
+order (y, 1 = best at top) for the **whole scored pool**, report rows highlighted, with
+Spearman rho and Kendall tau-b; saved as `csv_vs_report_rank_<ts>.png` with the same
+timestamp as the HTML. Ties: the report ranking is the position under `_single_sort_key`
+(rounded ratio, then dG); only candidates tied in both get the average of the positions
+they span. rho = Pearson correlation of the two average-rank vectors; tau-b =
+`(C - D) / sqrt((n0 - n1)(n0 - n2))`. Both vectors are oriented 1 = best, so a positive
+value means the CSV order and the report order agree. numpy / pure python only.
+
+## Step 5 — limitations to state in the report
+
+- **Strict ON.** `P(duplexes)` requires every pair of the MFE-realised duplex at once, so it
+  is lower than the footprint-bound fraction; a duplex that is mostly formed but frays at
+  one pair counts only for structures that keep all pairs. Designed pairs come from the MFE
+  of that state, so a state whose MFE has no footprint-trigger duplex has no ON (`--`).
+- **Exact quantities only, by necessity.** `FoldEngine.sample_structures` was found to
+  contradict `base_pair_probabilities` for some multi-strand complexes (a reproducer is
+  written up separately as an issue for the repository owners; more draws do not fix it).
+  That is why every number here is a partition-function quantity. `FoldEngine` itself is
+  not changed by this report.
+- **Strand order is a model constraint** (`both_triggers_extra`), not physics.
 - `misfolded` is a structural risk signal, not a measured expression leak.
-- The AND grid never scores a pair outside the top `AND_GRID_N` singles.
+- The AND grid never scores a pair outside the top `AND_GRID_N` singles, and the single
+  order that selects them uses the dG tie-break.
+- A fake screen that finds fewer than the requested fakes, or none, says so; an OFF built on
+  fewer fakes is less well averaged.
+- `OPEN_THRESHOLD` affects colour only; ratios are not comparable with reports from
+  earlier designs (see Change log) or with the predecessor notebook's.
+
+## Verification (cells 26-31, kept in the file)
+
+1. **Ranking** (27): single rows sorted by `_single_sort_key`; AND rows by ratio descending,
+   `None` last.
+2. **Trap 1 regression** (28): `trigger_bound` of the `alone` state <= 2% for every single
+   and AND report row.
+3. **Three-way partition** (29): for the top single's ON state, every footprint position's
+   unpaired + external + own-`stem_down` + other-intramolecular probabilities sum to 1, and
+   the module's `trigger_bound` and `misfolded` means equal the independently summed ones.
+4. **Fake identity rule** (30): for every fake used in the report rows, the longest identity
+   run against its real trigger(s) (single: the candidate; AND: both triggers of the pair)
+   is asserted `<= FAKE_MAX_SEQ_OVERLAP_NT`; prints the max run observed and the count.
+5. **Strand order** (31): for the top AND pair's `+A+B` strand list, both triggers must bind
+   their own footprint with mean probability > 0.5; the reversed (A-then-B) order is folded
+   and printed for information only.
+6. **Joint ON sanity** (32): for the top single and top AND row, `p_on` exists, lies in
+   (0, 1], and does not exceed its marginal(s) (`trigger_bound` mean; the smaller of the two
+   per-side means), tolerance 1e-6; the product of the marginals is printed for reference.
 
 ## Traps — real mistakes already made on this project. Do not repeat them.
 
-1. **"Open" meaning "paired to anything."** The predecessor read 80-90% "open" with zero
-   triggers present, purely from intramolecular misfolding. Open must mean *paired to an
-   external strand*. Use `_frac_paired_to_external`.
-2. **Selecting fakes by transcript position.** A positionally non-overlapping candidate was
-   measured with an 8nt complementary run to a footprint whose real trigger managed only
-   6nt — a "fake" that outcompetes the true pair. Screen by sequence complementarity, not
-   coordinates.
+1. **"Open" meaning "paired to anything".** An earlier version read 80-90% "open" with zero
+   triggers present, purely from intramolecular misfolding. `trigger_bound` counts pairing
+   to an **external strand** only (index >= `n_self`); misfolding is its own metric.
+   Verification 2 re-checks this.
+2. **Selecting fakes by transcript position.** Position says nothing about sequence
+   similarity. Fakes are screened by sequence (identity with the real triggers), never by
+   where on the transcript they sit.
 3. **Watson-Crick-only complementarity scans.** A real, ViennaRNA-confirmed 12 bp helix
-   scored as only 4nt under exact-complement matching because four positions were G·U
-   wobbles. Any complementarity screen must accept wobbles.
-4. **ON/OFF as an unguarded ratio.** `OFF = 0` occurs on real candidates. With 1200 samples
-   a one-sample change moves the ratio 1200 -> 600 -> 400, so the best candidates would
-   rank on sampling noise. Floor it and label bounds.
-5. **Defining OFF within a single state.** `1 - P(both open)` makes the ratio a pure
-   function of ON and carries no independent leak information. OFF is the worst across
-   illegitimate *states*.
-6. **One process pool per job.** Measured 5.8x slower than batching.
-7. **`try/except: return 0.0` around a folding call.**
-   `normalize_value(0.0, predicted_leakage_spec)` returns a *perfect* score, so a failed
-   measurement outranks every correct one and no filter catches it. `None`, always.
-8. **Assuming instead of measuring.** Every mechanism claim on this project that was
-   reasoned rather than folded turned out wrong at least once. Fold it and read the base
-   pairs.
+   scored as 4 nt under exact-complement matching because four positions were G·U wobbles.
+   A complementarity screen must be able to accept wobbles; the parameter that controls it
+   is `WOBBLE_MAX_FRACTION`, used by the AND trigger-vs-trigger screen (not by fakes).
+4. **Complementarity alone is the wrong test for "same transcript region".** Two same-
+   direction duplicates are not complementary to each other. The trigger-vs-trigger screen
+   checks identity runs as well.
+5. **Defining OFF within a single state.** `1 - ON` makes the ratio a pure function of ON
+   and carries no leak information. OFF is the worst across illegitimate *states*, with
+   the own-trigger mask so intended binding is not counted as a leak.
+6. **Unmasked OFF terms.** Counting a hairpin's own trigger binding as stem-loosening
+   collapses OFF to ~100% for every candidate.
+7. **One process pool per job.** Measured 5.8x slower than one call per batch.
+8. **`try/except: return 0.0` around a folding call.** `normalize_value(0.0,
+   predicted_leakage_spec)` is a perfect score, so a failed measurement outranks every
+   correct one and no filter catches it. `None`, always: `p_on`, OFF terms and the ratio
+   all propagate `None`.
+9. **Assuming instead of measuring.** Every mechanism claim here that was reasoned rather
+   than folded turned out wrong at least once. Fold it and read the base pairs.
+10. **Two-trigger strand order.** See Step 2, States: `fused&tA&tB` is a pseudoknot and
+    trigger B cannot bind (0.00 vs 0.98). Every both-trigger state must use
+    `both_triggers_extra`.
+11. **Reading a joint event from marginals.** The product of per-side bound means (0.75-0.98
+    on the top AND pairs) is not the probability that both duplexes exist (0.32-0.69).
+    Use `constrained_probability`.
+12. **Never use sampled marginals** (`sample_structures`) for per-hairpin fractions or
+    joint events on multi-strand complexes; see Step 5.
+13. **A forced pair ViennaRNA cannot place reads as P = 1.0.** `constrained_probability`
+    checks that the constrained MFE actually contains every pair and returns `None`
+    otherwise; keep that check.
+14. **`<colgroup>` without `table-layout:fixed`** silently clips the last columns in the
+    static PDF render.
 
-## 2026-10-05 fix round (on top of the 2026-10-04 report-fix pass)
+## Change log (condensed; the body above is current)
 
-Rendered from the same `and_eu_report_snapshot_20261004T203534.json` snapshot, no
-re-screen / re-grid. Changes, both reports unless noted:
-
-- **Root bug fixed**: `_kofn_pct` used to print `"k/N (XX%)"` with `XX%` a *continuous
-  mean* that does not equal `k/n*100` (verified: a real cell read `"6/1200 (29.3%)"`
-  where `6/1200 = 0.5%`, not `29.3%`). Now the percentage next to `k/N` is always
-  literally `k/n*100`; the mean is kept as a separately-labelled second line
-  (`"k/N — XX.X% of samples · mean YY.Y%"`). Also applied to AND's per-side
-  `trigger_bound_a/b` (previously a bare mean with no k/N at all) and to "both open"
-  (previously `round(frac_both_open * n_samples)`, which can be off-by-one against the
-  real count; the worker now returns the exact `n_both_open`/`n_a_open`/`n_b_open`
-  integers instead).
-- **item N**: `n_unique_structures` added to both decomp workers via the existing
-  `_sample_coverage()` helper (no new sampling) and displayed as a new "unique
-  structures" column in both decomp tables; backfilled narrowly for only the ~40
-  report rows' states, same mechanism as the prior round's `n_stem_closed`/
-  `n_misfolded` backfill.
-- **item K**: `_nt`/`_nt_n` now show the denominator (`"27.0/27 nt"`, not `"27.0 nt"`).
-- Metric glossary added before each report's Summary table; `OFF (fakes, nt bound to
-  stem_down)` column header shortened to `FAKES` with its full definition moved into
-  the glossary (not duplicated).
-- Energy table narrowed to `max-width:420px` (summary/decomp tables untouched).
-- Real trigger length shown next to "Trigger:" in every card head; AND also shows
-  spacer length, or states explicitly when a variant has no spacer.
-- Single report's zero-qualifying-fakes row (this snapshot's #1-by-ratio candidate has
-  a real trigger/footprint complementary run of only 4nt, so almost nothing in the
-  300-pool can score below it under `pick_fake_design`'s self-calibrated screen) now
-  renders an explanatory message instead of a bare "--" row.
-- `loop`/`prefix` given distinct colors in both domain palettes (previously `loop` was
-  literally `_DEFAULT_FILL` and `prefix` nearly matched it); `spacer` added as a real
-  palette key (shared teal) instead of a hardcoded near-invisible color in the AND
-  images cell.
-- `exp_gene`/`opt_exp_gene` dropped from the rendered layout bar and structure-plot
-  `domain_fill`/legend in both reports (the domain itself is untouched in `fuse()`/
-  `measure()`'s own output) via a shared `_PAYLOAD_DOMAINS` constant; total switch /
-  fused-construct length now printed on each layout bar's title.
-- Single report's ON structure plot gives the real trigger strand its own color
-  (previously flat default fill) and a caption noting its drawn position is a
-  `FoldEngine` `&`-join layout artifact, not meaningful.
-- AND decomp table gets a one-line caption explaining "both open" is a joint
-  per-sample event, not derivable from the two `trigger_bound_a/b` marginals —
-  addresses the "82% trigger_bound but 4/1200 both-open" confusion directly.
-
-## 2026-10-05, round 3 — OFF-broadening, cross-domain binding, PDF legibility
-
-Rendered from the same `and_eu_report_snapshot_20261004T203534.json` snapshot (no
-re-screen, no re-grid), plus two narrow backfills on the ~40 report rows only (the
-existing `n_stem_closed`/`n_misfolded`/`n_unique_structures` backfill, unchanged, and
-a brand-new one for the cross-domain-binding fields below).
-
-- **OFF broadening (user-approved)**: OFF used to be picked by trigger-binding leak
-  (`frac_open`/`frac_both_open`) alone — blind to a state whose STEM is independently
-  loose for an unrelated reason while `frac_open` stays ~0 (nothing legitimate present
-  to trigger-bind). `badness = max(trigger-binding leak, stem-loosening leak
-  [, AND: the OTHER (absent-trigger) hairpin's own trigger_bound opening anyway —
-  cross-talk])`, shared via `_single_badness`/`_and_badness`/`_and_off_term` (cell 7)
-  so the snapshot-restore path (cell 9) and a fresh full run's own scoring cells (12,
-  19) score identically. `off_criterion` records which term won, shown on every card
-  ("OFF set by: fakes's stem-loosening"). **Load-bearing correctness fix found while
-  building this**: a state's own ACTING side must be exempt from its own
-  stem-loosening term — e.g. in AND's "+A" state, A's own trigger legitimately
-  displaces A's stem_up from stem_down, which is the intended result of real binding,
-  not a leak. Without this mask, every state with any real trigger present reads
-  ~100% stem-loosening badness for the bound side, collapsing OFF to ~100% and ratio
-  to ~0 for every candidate uniformly (verified directly, then masked via
-  `_and_off_term(..., mask_side=...)`).
-  - Single report: top-5 reordered (rank 4, 12, 72, 40, 44 replace 4, 6, 7, 9, 11) —
-    e.g. rank 72 was OFF=0.0%/ratio=100.0 under the old frac_open-only formula and is
-    now OFF=11.1%/ratio=8.3 (`off_source=fakes`, `off_criterion=stem-loosening`): its
-    fakes' trigger-binding leak was genuinely ~0, but its stem was independently loose
-    against those same fakes, previously invisible.
-  - AND report: top-20 pair order is stable except a 3-way shuffle at #3–#5 (70+6,
-    11+55, 63+56 permute among themselves); #1/#2 (56+63 spacer/no_spacer) and the
-    rest of the top 20 are unchanged in rank. OFF values for nearly every AND
-    candidate now sit near 100% (ratio near 0), because at least one hairpin's stem
-    reliably fails to stay closed in at least one of the states that are NOT its own
-    binding state (e.g. 56+63's hairpin B: `n_stem_closed_b=0/1200` during "+A only").
-    This is a real, previously-invisible characteristic of this candidate pool, not a
-    scoring bug — flagged explicitly here because it changes the AND ratio column from
-    a wide, discriminating range into a narrow one dominated by this one failure mode;
-    worth a follow-up decision on whether stem-loosening should carry full weight
-    equal to trigger-binding leak in the AND `max()`, or a smaller one, in a future
-    round.
-- **Cross-domain binding (new field, display-only, AND report only)**: for each AND
-  report row's "+A+B" (ON) state, mean fraction of spacer nt paired to either hairpin's
-  own toehold, and mean fraction of each hairpin's toehold paired to the OTHER
-  hairpin's prefix domain — `CrossDomainJob`/`_cross_domain_worker`/
-  `run_parallel_cross_domain` in `_joint_state_parallel.py`, reusing `_partner_table`
-  (no second pairing walker). Backfilled narrowly for only `and_report_rows`'s "+A+B"
-  state (~20 jobs, under a second). `None`/"--" when a term cannot be measured (no
-  spacer in this variant; hairpin B's own prefix domain is cut away entirely by
-  `fuse()` under this topology's `KEEP_3P_AFTER="prefix"`, so `toeholdA↔prefixB` reads
-  "--" for every AND candidate here, not 0.0%) — CLAUDE.md sec 3. No ranking effect.
-- **FAKES-%-fix**: new `_nt_pct` helper (cell 7) shows the mean % right next to the
-  nt-count (`"6.8/18 nt (37.8%)"`), applied everywhere a FAKES-related nt-count is
-  shown (summary column, per-side AND summary columns, single decomp table's +fake row).
-- **OFF-criterion note**: every card head now states which criterion decided that
-  candidate's own OFF (`"(OFF set by: fakes's stem-loosening)"`, AND also names A/B/
-  cross-talk) so the FAKES column and OFF column are never silently about two
-  different things again.
-- **Energy table legibility**: header text shortened to `energy`/`kcal/mol`, the
-  "ensemble ΔG..." sentence moved to a one-time `<p class="scr-p">` caption above the
-  table; print CSS gives `.scr-table-energy` its own exemption from the generic
-  tight-print squeeze (10.5px/5-8px padding vs. the generic 8px/3-4px). Confirmed by
-  rendering to PDF and reading it directly: energy numbers are now clearly larger than
-  the surrounding decomp table, not squeezed to the same 8px as every other table.
-- **Decomp table PDF fit**: `<colgroup>` with explicit percent widths (summing to
-  100%) on both decomp tables, headers shortened (the repeated "(k of N, mean %)"
-  suffixes cut to a one-word `<small>` hint, since the glossary now explains the
-  convention once). **Load-bearing fix found while verifying the PDF render**:
-  `<colgroup>` widths alone do nothing without `table-layout:fixed` on the `<table>`
-  itself — without it the browser auto-sizes columns by content and silently clips
-  the last 1-2 columns at the container's right edge in the static Chromium PDF
-  render (no horizontal scrollbar exists there to reveal the loss). Added
-  `table-layout:fixed` inline on both tables, plus a CSS rule letting the `<small>`
-  secondary line wrap independently of its parent `td.num`'s `white-space:nowrap` (the
-  compound "k/N / pct-of-samples / mean" cells are too long for a ~90px fixed column
-  on one line otherwise). AND's wider 7-data-column layout additionally gets its own
-  smaller base font (`.scr-table-and-decomp`, 7px in print) rather than being split
-  into two stacked tables — confirmed by rendering to landscape A4 PDF at actual page
-  width: all 7/9 columns visible on both tables, no truncation, no overflow.
-- **Trigger-hidden ON plot (AND only)**: `structure_png` gets an optional
-  `visible_len` parameter — only positions `0..visible_len` of the sequence are
-  scattered at all; a base pair with exactly one partner outside that range draws no
-  connecting line (the hidden partner doesn't exist on the plot) but gives the
-  switch-side base a dangling-ring indicator instead of looking falsely unpaired. Used
-  only for the AND report's "+A+B" structure plot (not "alone", not "+A"/"+B", not the
-  single report's ON plot) with a one-line figcaption noting triggers are hidden.
-  Confirmed by rendering: the "+A+B" image now shows only the switch's own two-hairpin
-  fold, the same visual style as the "alone" plot, no trigger dots anywhere.
-- AND summary table headers renamed `OFF` → `OFF-STEM BOUND`, `FAKES` →
-  `FAKES-STEM BOUND` (AND report only, per explicit request — single report's headers
-  left as-is).
-- Glossary worked examples (k/N-vs-mean, per-side nt base, cross-talk) are now computed
-  live from each render's own `rows[0]`/matching candidate rather than hand-typed, so
-  they can never go stale against a re-render.
-
-Verified by executing the notebook end to end (`uv run python <jupyter_client runner>`)
-and reading the real rendered HTML/PDF output (landscape A4, actual page width, not the
-HTML in a browser) for both reports' summary tables and several candidate cards.
-`uv run pytest tests/engine -q`: 730 passed. `uv run ruff check .`: clean (same
-pre-existing, unrelated `_joint_state_parallel.py:767` format-only diff noted in the
-prior round, confirmed still present and still unrelated to this round's changes).
-
-## 2026-10-05, round 4 — trigger-vs-trigger overlap screen, summary-row breakdown revert, kozak-ring color
-
-**Finding — the AND grid never screened a pair's own two REAL triggers against each
-other.** `FAKE_MAX_SEQ_OVERLAP_NT`/`WOBBLE_MAX_FRACTION` only ever screened a FAKE
-trigger against the real trigger of the SAME candidate, via `pick_fake_design` — never
-trigger-A-vs-trigger-B of the pair actually being fused. Confirmed by direct
-inspection on real data: the AND report's #1 candidate by ratio across the last two
-rounds (56+63) has trigger A (30nt, `UUACCCCCUCAUUGUUUAUUAACAAAUUAU`) and trigger B
-(33nt, `UCUAGAUUACCCCCUCAUUGUUUAUUAACAAAU`) sharing a **27nt IDENTICAL substring** — the
-same transcript region, not independent AND inputs. The same pair's complementary-run
-screen (the metric this fix actually applies, per the user-approved cap reusing
-`_longest_complementary_run_wobble`) reads 9nt — just over the existing 8nt
-`FAKE_MAX_SEQ_OVERLAP_NT` cap — confirming near-duplicate trigger sequences also carry
-matching local self-complementarity artifacts, not only a long identical run. This is
-very likely most of what the 2026-10-04/2026-10-05-round-3 investigations labelled
-"real cross-hybridization" (trigger B opening hairpin A) for this same pair — not
-subtle biology, near-duplicate trigger sequences being paired together.
-
-**Fix**: `trigger_pair_too_similar(trigger_a, trigger_b, *, max_overlap_nt,
-wobble_max_fraction)`, new in `_joint_state_parallel.py`, reuses
-`_longest_complementary_run_wobble` (same helper, same semantics as the existing
-fake-trigger screen) applied between the pair's own two real triggers. Called with
-`max_overlap_nt=FAKE_MAX_SEQ_OVERLAP_NT, wobble_max_fraction=WOBBLE_MAX_FRACTION` (the
-SAME parameters already governing fake screening — no new tunable). A pair that fails
-is excluded entirely (not scored, not shown), from both the fresh-grid-building path
-(before any job is submitted for it) and the snapshot-restore rescoring path (filtering
-the already-scored/restored rows) — one shared predicate, not two copies of the same
-condition. On the current 2026-10-04 snapshot's top-20 AND report rows: 3/20 excluded
-(56+63 × both spacer variants, 70+6 — all three previously top-ranked candidates
-flagged across the last two rounds' own screenshots), 17 remain. 11+55 and 63+56 (runs
-of 6nt and 8nt respectively, at or under the cap) survive.
-
-**Also reverted**: the AND summary table's OFF cell dropped the
-`_off_breakdown_text`/`_off_breakdown_compact` sentence added last round — too much
-text under the numbers in a 20-row table — back to the plain OFF percentage + per-side
-nt-counts. The card head keeps the full breakdown (room for it there). Checked the
-single report for the same pattern: its summary rows never called the breakdown helper
-in the first place (only `_pct_nt_n`, a plain percentage/nt/n display) — no change
-needed there.
-
-**Also fixed**: a stray-looking red ring on kozak in the AND structure plots. Root
-cause confirmed directly on real data (candidate 56+63, "alone" state): kozak(B) spans
-`[140, 146)`, `visible_len` (the kozak-end clip) is 146, and the real MFE structure of
-the fused construct pairs bases 141-143 (inside kozak) to bases 169-171 — squarely
-inside the clipped exp_gene payload tail `[146, 176)`. **Correct, not a bug**: kozak
-genuinely folds back onto the construct's own hidden payload bases just past the clip
-boundary. The dangling-ring mechanism (`structure_png`, AND item 7/4) used ONE color
-(`_TRIGGER_COLOR`, red) for every hidden partner regardless of cause, so this
-correct-but-mundane payload fold-back read identically to "bound to a hidden trigger
-strand" — alarming and misleading. Fixed by giving `structure_png` a new
-`construct_len` parameter (the fused construct's own length, always `<= len(sequence)`
-when trigger strands are appended): a hidden partner index `< construct_len` is the
-construct's own hidden tail and now gets a new, less alarming `_PAYLOAD_RING_COLOR`
-(amber, matching the existing exp_gene/payload domain color); `>= construct_len` is a
-genuinely hidden trigger strand and keeps the original red. A one-line legend entry is
-added per plot for whichever ring color(s) actually appear on it. Confirmed by
-rasterizing the re-rendered PDF: candidates 11+55 and 63+56 both show the amber
-"ring: paired into this construct's own hidden tail" ring (and matching legend entry)
-at the kozak boundary in both their "alone" and "+A+B" structure plots — no red ring
-present in either (would need a base pairing to a genuinely hidden trigger strand to
-trigger). Checked the single report for the same mechanism: its structure plots never
-pass `visible_len` at all — every sequence plotted is already truncated by a real
-separate fold, nothing hidden past the plotted end — confirmed unaffected by
-rasterizing its own #1 candidate.
-
-Verified by executing the notebook end to end against the same 2026-10-04 snapshot (no
-re-screen, no re-grid) and reading the real rendered HTML/PDF output.
-`uv run pytest tests/engine -q`: 730 passed. `uv run ruff check .`: clean.
-
-## 2026-10-05, round 5 — correctness bug in round 4's trigger-overlap screen (complementarity alone is the wrong check)
-
-**Finding — round 4's `trigger_pair_too_similar` checked the wrong relationship.** It
-screened only the longest COMPLEMENTARY run between trigger A and trigger B (would
-they physically hybridize to EACH OTHER). That is the right check for fake-trigger
-screening (`pick_fake_design`: does an off-target fake accidentally bind a footprint
-meant for the real trigger), but it is the wrong check for "are these two triggers
-drawn from the same transcript region" — two IDENTICAL, same-direction sequences are
-generally NOT self-complementary, so a same-direction duplicate structurally cannot be
-caught by a complementarity check.
-
-**Confirmed by a real counterexample that passed round 4's screen and was ranked #1**:
-after round 4 excluded 56+63/70+6, the new top candidate was **11+55** — trigger A
-(30nt, `ACGAGAAGCCAACGUGUAAAGCUGUGACAU`) and trigger B (27nt,
-`ACGAGAAGCCAACGUGUAAAGCUGUGA`), where B is a literal, exact 27/27nt PREFIX of A, same
-direction. Their longest COMPLEMENTARY run is only 6nt (well under the 8nt cap, which
-is exactly why round 4 let it through) while their longest IDENTITY run is the full
-27nt.
-
-**Fix**: added `_longest_identity_run(a, b)` to `_joint_state_parallel.py` — the same
-ordinary longest-common-substring DP shape as the existing `_longest_complementary_run`
-(checked first: nothing in `engine/sequences.py` or this notebook's own helpers already
-did plain same-direction identity matching), just WITHOUT the `reverse_complement`
-step. `trigger_pair_too_similar` now rejects a pair when EITHER the complementary run
-OR the identity run exceeds `FAKE_MAX_SEQ_OVERLAP_NT` (8nt) — same cap, same parameter,
-both checks. No wobble/mismatch tolerance on the identity check (unlike the
-complementarity check's G·U wobble, which models a real physical base pair) — identity
-is binary per position, so a plain exact-match run is the right analog, kept as
-narrowly scoped as `_longest_complementary_run` itself.
-
-**Re-verified on the same 2026-10-04 snapshot's top-20 AND rows**: **5/20 now excluded**
-(up from round 4's 3/20) — 56+63 [spacer] (comp=9, ident=27), 56+63 [no_spacer]
-(comp=9, ident=27), **11+55 [spacer]** (comp=6 — passed round 4 — ident=27, now
-excluded), **63+56 [spacer]** (comp=8 — passed round 4 — ident=27, now excluded, the
-mirror-image pair of 11+55), 70+6 [spacer] (comp=11, ident=30). 15 remain. Every
-remaining "4+N [no_spacer]" row has an identity run of 3-6nt (genuinely different
-transcript regions) and passes both checks. New top-5 by ratio: 4+6, 4+7, 4+9, 4+11,
-4+12 (all `[no_spacer]`) — every previously top-ranked candidate from the last three
-rounds' own screenshots (56+63, 70+6, 11+55, 63+56) is now excluded.
-
-Dek/glossary updated again to describe both checks; both reports re-rendered from the
-same snapshot, re-verified by rasterizing the new PDF with `pdftoppm`.
-
-Verified by executing the notebook end to end against the same 2026-10-04 snapshot (no
-re-screen, no re-grid) and reading the real rendered HTML/PDF output.
-`uv run pytest tests/engine -q`: 730 passed. `uv run ruff check .`: clean.
+- **2026-10-04 — original build.** Boltzmann sampling (1200 samples/state), ON = sampled
+  P(both open) at an `OPEN_THRESHOLD` 0.70, OFF floored at 1/1200 with a `>=1200` bound,
+  k-of-N tables. All AND values from that period were computed under the wrong strand
+  order and must not be compared with new runs.
+- **2026-10-05 — fix round.** `_kofn_pct` printed a continuous mean next to `k/N` (a real
+  cell read "6/1200 (29.3%)" where 6/1200 = 0.5%); exact `n_both_open` etc. returned by
+  workers; unique-structure column added; `loop`/`prefix`/`spacer` palette fixes;
+  `exp_gene` dropped from drawn layouts; explanatory row when a single has zero qualifying
+  fakes; "82% bound but 4/1200 both open" confusion explained as a joint event.
+- **2026-10-05, round 3 — OFF broadened.** OFF previously used trigger-binding only, blind
+  to a loose stem when nothing was present to bind (rank 72: OFF 0.0% / ratio 100.0 became
+  OFF 11.1% / ratio 8.3). Found while building it: a state's acting side must be exempt
+  from its own stem-loosening term (`mask_side`), else every state with a real trigger
+  reads ~100% badness. AND OFF values moved to near 100% for nearly every candidate under
+  the sampled method (e.g. 56+63 `+A` stem_closed_B 0/1200). Cross-domain binding
+  diagnostic and its workers removed. Trigger-hidden `+A+B` plot added.
+- **2026-10-05, round 4 — trigger-vs-trigger screen.** The AND grid never compared a
+  pair's own two triggers. Top candidate 56+63 had triggers sharing a 27 nt identical
+  substring (A, 30 nt `UUACCCCCUCAUUGUUUAUUAACAAAUUAU`; B, 33 nt
+  `UCUAGAUUACCCCCUCAUUGUUUAUUAACAAAU`), complementary run 9 nt. Screen added (3/20 report
+  rows excluded). Amber vs red dangling rings: kozak(B) folding onto the construct's own
+  hidden payload tail is correct, not a bug. Summary-row OFF breakdown reverted (too much
+  text).
+- **2026-10-05, round 5 — identity check.** Round 4 checked complementarity only; 11+55 had
+  B as a literal 27/27 nt same-direction prefix of A (30 nt `ACGAGAAGCCAACGUGUAAAGCUGUGACAU`
+  vs 27 nt `ACGAGAAGCCAACGUGUAAAGCUGUGA`) with a complementary run of only 6 nt and passed.
+  `_longest_identity_run` added; 5/20 rows now excluded; new top-5 were 4+6, 4+7, 4+9,
+  4+11, 4+12 (all `no_spacer`).
+- **2026-10-05 — exact means for the three metrics.** `sample_structures` disagreed with
+  `base_pair_probabilities` (pair 141+7 spacer, `+A`: exact stem_up_B to stem_down_B ~0.99,
+  sampled stem_closed_B 7.1%). `_exact_decomp_means` introduced; stem-loosening OFF term
+  moved to exact; trigger-binding and ON stayed sampled until the next entry.
+- **2026-10-05 — CSV vs report ranking.** `single_scored_pool` added to the snapshot; rank
+  correlation section and PNG added. The single order became (rounded ratio, dG): ratios
+  tie often (OFF = 0 gives ratio = ON%), and the dG tie-break now also decides which
+  singles enter the AND grid.
+- **2026-10-06 — fake rule clarified.** The old fake screen (complementary run against the
+  footprint, strictly below the real trigger's own run) never found fakes for AND pairs: the
+  real trigger's own run is 4-7 nt by that metric while pool candidates share 4-11 nt
+  complementary runs with any footprint by chance, so every AND row had zero fakes. User
+  rule: a fake must not share more than 8 nt of sequence (identity) with the real trigger(s).
+  `pick_fake_trigger` added (identity vs every real trigger; AND: both); the report cells,
+  texts and verification 4 follow it. `WOBBLE_MAX_FRACTION` now serves only the AND
+  trigger-vs-trigger complementarity screen. `pick_fake_design` unchanged for other notebooks.
+- **2026-10-06 — strand order and restore.** Two-trigger states were folded `fused&tA&tB`.
+  Measured on 4+6 no_spacer: trigger B to footprint B 0.00 vs 0.98 in `fused&tB&tA`; MFE
+  -70.8 vs -88.2 kcal/mol. `both_triggers_extra` introduced as the one place deciding
+  order. Snapshot restore became a pure load (no backfill or rescoring; old snapshots
+  unsupported). AND report layout round: bullet intro from parameters, definitions-only
+  glossary, split ON/OFF cells, green/red plan colouring, larger 2-per-row figures.
+- **2026-10-06 — sampling removed.** `FoldEngine.sample_structures` (pbacktrack) is
+  unreliable on these complexes and more draws do not fix it. For the top AND pairs sampled
+  "both open" was about 0.3-1% while the exact probability that both designed duplexes are
+  present was 0.32-0.69 (product of exact per-side bound means 0.75-0.98).
+  `FoldEngine.constrained_probability` added (agrees with `base_pair_probabilities` to ~3e-6
+  for one pair). ON became the exact constrained probability; every OFF term exact;
+  `N_SAMPLES`, `frac_open` / `frac_both_open`, k-of-N and unique-structure counts, and the
+  `>=1200` notation removed; `OPEN_THRESHOLD` demoted to colouring only. The cost per job
+  fell to one partition function per state (`+real` / `+A+B` adds one MFE and two
+  constrained partition functions) instead of 1200 backtracks. ViennaRNA 2.7.2
+  reproducer written up separately: one pair 0.996 exact vs 0.000 sampled. The sampled
+  `SingleDecompJob` / `_single_decomp_worker` stay in the module because
+  `toehold_context_report.ipynb` uses them.
+- **2026-10-06 — cleanup, output unchanged.** Dead code and history comments removed from
+  the notebook and both modules; duplicated logic moved to one helper each
+  (`pick_fake_triggers`, `and_pair_jobs`, `_mean_or_none`, `_on_off_ratio`, `_render_pdf`);
+  AND structure plots for `+A` and `+B` (never displayed) no longer built; the pointer cell
+  and the tautological "fake counts independent" verification removed (cells and
+  verification numbers above are the new ones); AND grid now counts `fuse()` failures
+  instead of skipping them silently. A smoke run (`SINGLE_POOL_N=14`, `AND_GRID_N=6`)
+  before and after gave identical `single_report_rows`, `and_report_rows` and
+  `single_scored_pool` (8464 numbers, max difference 0).

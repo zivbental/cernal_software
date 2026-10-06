@@ -1,23 +1,20 @@
 """Shared AND-construct builder and single-switch loader/measurement.
 
-Moved out of ``toehold_and_eu_test.ipynb``'s own cells so that notebook and
-``and_eu_report.ipynb`` share one implementation of each, instead of two copies that can
-drift apart (``CLAUDE.md`` §1 — "two implementations of one measurement produce two
-numbers and only one reaches the report").
+Shared by ``toehold_and_eu_test.ipynb`` and ``and_eu_report.ipynb`` so there is one
+implementation of each (``CLAUDE.md`` §1 — "two implementations of one measurement produce
+two numbers and only one reaches the report").
 
-Three names that used to be notebook globals these functions closed over
-(``COLUMNS``/``CARRY_METRICS`` for :func:`load_ranked_designs`, ``cut_before``/
-``keep_after`` for :func:`fuse`) are **required parameters here**, not module-level
-defaults — a second copy of a notebook's column map living in this module would be the
-same drift problem one level down. Callers pass their own notebook's values explicitly.
-
-``fx.sq.X`` calls (the notebook bootstrap's alias for ``engine.sequences``) are now plain
-``engine.sequences`` imports — this module has no notebook bootstrap to inherit one from.
+Notebook configuration (``COLUMNS``/``CARRY_METRICS`` for :func:`load_ranked_designs`,
+``cut_before``/``keep_after`` for :func:`fuse`) is passed as **required parameters**, not
+module-level defaults — a second copy of a notebook's column map living in this module
+would be the same drift problem one level down.
 """
 
 import csv
 import json
 from pathlib import Path
+
+from _joint_state_parallel import both_triggers_extra  # the one A/B strand-order rule
 
 from engine.gates.toehold import _mean_unpaired  # same accessibility helper measure() uses
 from engine.sequences import hamming, is_valid_rna, reverse_complement, to_rna, windows
@@ -49,12 +46,10 @@ def motif_self_bind_score(sequence, motif_seq):
     fold back onto a toehold regardless of how far away it sits.
 
     Same sliding-window partial-match idea as the team's own ``complementarity_Kozak`` in
-    ``CERNAL_FUNCTIONS.py`` — and the one ``engine.gates.toehold._kozak_rc_in_toehold``
-    should arguably also use: an exact full-length substring check misses a real,
-    ViennaRNA-confirmed partial match (a 5/9 toehold x Kozak+AUG pair found directly in a
-    real MFE fold earlier this session, at a window score of 0.556 — see that function's
-    own docstring for the caveat this generalises past). Score in [0, 1]; 1.0 is a perfect
-    match over the whole window.
+    ``CERNAL_FUNCTIONS.py``: an exact full-length substring check misses a real,
+    ViennaRNA-confirmed partial match (a 5/9 toehold x Kozak+AUG pair seen in a real MFE
+    fold, at a window score of 0.556). Score in [0, 1]; 1.0 is a perfect match over the
+    whole window.
     """
     target = reverse_complement(motif_seq)
     window_len = len(target)
@@ -266,16 +261,16 @@ def measure(built, trigger_5p, trigger_3p, folder, own_kozak_rc_3p, own_prefix_r
     """Energies for the four states, both toehold accessibilities, and the Kozak/prefix
     self-binding risk of whichever toehold each fixed element could actually reach.
 
-    ``FoldEngine`` caches per sequence, so the shared instance built in the run cell below
-    is the only one that should ever fold here — a second instance means a cold cache and,
-    worse, a second chance to fold at a different temperature.
+    ``FoldEngine`` caches per sequence, so the one shared instance is the only one that
+    should ever fold here — a second instance means a cold cache and, worse, a second
+    chance to fold at a different temperature.
 
     ``own_kozak_rc_3p``/``own_prefix_rc_5p`` are the 3'/5' design's own
     ``metrics["own_kozak_rc_score"]``/``["own_prefix_rc_score"]`` (``load_ranked_designs``),
     passed in rather than recomputed: fusion never changes the 3' half's own toehold+Kozak,
     or the 5' half's own toehold+prefix -- only their position in the fused frame -- and
-    ``motif_self_bind_score`` depends only on sequence content, so recomputing either here
-    was verified to return the exact same number the load-time pass already computed. Only
+    ``motif_self_bind_score`` depends only on sequence content, so recomputing would give
+    the exact same number the load-time pass already computed. Only
     the *other* toehold's score against each surviving element is genuinely
     fusion-dependent (5' toehold vs the surviving Kozak; 3' toehold vs the surviving
     prefix), since each depends on which design it ended up paired with — those two are
@@ -286,7 +281,10 @@ def measure(built, trigger_5p, trigger_3p, folder, own_kozak_rc_3p, own_prefix_r
         "off": fused,  # no trigger: both hairpins closed
         "t5": f"{fused}&{trigger_5p}",  # '&' = a true multi-strand complex, not a fusion
         "t3": f"{fused}&{trigger_3p}",
-        "both": f"{fused}&{trigger_5p}&{trigger_3p}",
+        # Strand order from both_triggers_extra (3' trigger first): ViennaRNA cannot
+        # represent the crossing A<->tA, B<->tB pairs of the A-then-B order, which would
+        # make the "both" energy/ensemble unrepresentative of the fully-bound state.
+        "both": "&".join([fused, *both_triggers_extra(trigger_5p, trigger_3p)]),
     }
 
     out = {}
@@ -303,7 +301,7 @@ def measure(built, trigger_5p, trigger_3p, folder, own_kozak_rc_3p, own_prefix_r
     # Reported, never ranked on: how much the second trigger buys beyond whichever single
     # trigger already did most of the work. Near zero means one trigger alone already
     # opens the construct -- an OR wearing an AND's shape, which is the specific failure
-    # this architecture has to be checked for (see this notebook's mechanism section).
+    # this architecture has to be checked for.
     out["and_margin_ee"] = min(out["d_ee_t5"], out["d_ee_t3"]) - out["d_ee_both"]
 
     # The ranking key. d_ee_both alone only asks "is ON more stable than OFF" -- it says
@@ -329,9 +327,7 @@ def measure(built, trigger_5p, trigger_3p, folder, own_kozak_rc_3p, own_prefix_r
     # copy was cut away in fuse()) is the one the 5' toehold could realistically
     # hybridise to in the finished molecule -- its own Kozak is gone, but nothing stops it
     # from reaching the surviving one instead: intramolecular pairing does not require
-    # adjacency. A real ViennaRNA fold earlier this session found exactly this kind of
-    # pairing spanning ~50 nt of intervening hairpin, so "less important" for the 5'
-    # toehold is not "not checked".
+    # adjacency (a real ViennaRNA fold paired across ~50 nt of intervening hairpin).
     fused_kozak_span = built["domains_3p"].get("kozak")
     if fused_kozak_span is not None:
         kozak_seq = fused[fused_kozak_span[0] : fused_kozak_span[1]]

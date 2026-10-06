@@ -94,29 +94,76 @@ def _frac_paired_to_external(structure: str, start: int, end: int, n_self: int) 
     """Fraction of ``structure[start:end]`` paired to a strand OTHER than the first
     ``n_self`` positions -- i.e. other than the switch/fused molecule itself.
 
-    WHY NOT "paired to anything", which every worker in this file used to count: in the
-    fused AND construct the footprint reaches 80-90% paired with NO trigger present at
-    all -- measured directly, roughly half of it to its own stem_down (the intended OFF
-    hairpin) and half to the OTHER hairpin's toehold (real cross-hairpin talk). A plain
-    "any non-dot character" count therefore cleared an 80%-of-footprint "open"
-    threshold in up to 81% of alone-state samples, and that number fed the AND score's
-    leak term -- so "open" was reporting intramolecular misfolding as trigger
-    activation, and the AND ranking was built on it.
+    WHY NOT "paired to anything": in the fused AND construct the footprint is 80-90%
+    paired with NO trigger present at all (roughly half to its own stem_down, the
+    intended OFF hairpin, and half to the OTHER hairpin's toehold), so a plain "any
+    non-dot character" count reads intramolecular misfolding as trigger activation.
 
-    Requiring the partner to live on another strand makes "open" mean what its name
-    claims: this footprint was opened by something that arrived from outside the
-    molecule. A real trigger and an off-target fake both count, deliberately -- in the
-    legitimate states the only external strands present ARE the real triggers, and in
-    a leak state a fake occupying the footprint is exactly the leak being measured.
-    Folding with no second strand at all (``n_self == len(structure)``) therefore
-    yields 0.0 by construction, which is correct: nothing external is present to open
-    anything.
+    Requiring the partner to live on another strand makes "open" mean that the
+    footprint was opened by something that arrived from outside the molecule. A real
+    trigger and an off-target fake both count, deliberately: in a leak state a fake
+    occupying the footprint is exactly the leak being measured. Folding with no second
+    strand (``n_self == len(structure)``) yields 0.0 by construction.
     """
     partner = _partner_table(structure)
     external = sum(
         1 for i in range(start, end) if partner[i] is not None and partner[i] >= n_self
     )
     return external / (end - start)
+
+
+def _mean_pair_prob(matrix: list[list[float]], span: tuple[int, int], target_ok) -> float | None:
+    """Mean over positions of ``span`` of the TOTAL probability of pairing to any
+    position ``j`` with ``target_ok(j)`` -- the one exact-marginal reader, shared by
+    :func:`_exact_decomp_means`. ``None`` for an empty
+    span (not measured is not zero -- CLAUDE.md sec 3)."""
+    s0, s1 = span
+    if s1 <= s0:
+        return None
+    n_total = len(matrix)
+    total = 0.0
+    for i in range(s0, s1):
+        row = matrix[i]
+        total += sum(row[j] for j in range(n_total) if target_ok(j))
+    return total / (s1 - s0)
+
+
+def _exact_decomp_means(
+    matrix: list[list[float]],
+    n_self: int,
+    footprint: tuple[int, int],
+    stem_up: tuple[int, int],
+    stem_down: tuple[int, int],
+) -> dict[str, float | None]:
+    """EXACT ensemble means of the three decomposition metrics for one hairpin, read off
+    the partition-function pair-probability matrix instead of Boltzmann samples.
+
+    Same definitions as :func:`stem_closed_fraction` / :func:`misfolded_fraction` /
+    :func:`_frac_paired_to_external`, with a position's single 0/1 partner replaced by
+    the total probability of pairing into the same target set (a position pairs with at
+    most one partner per structure, so these probabilities add; the per-position values
+    are expected fractions, and their mean over the span is the expected fraction of the
+    span's nt). ``matrix`` is ``FoldEngine.base_pair_probabilities`` for the SAME strand
+    string the sampling used (0-indexed, ``&`` removed, fused molecule first, so every
+    index below ``n_self`` is the fused construct and every index at/past it is an
+    external strand).
+
+    WHY: ``FoldEngine.sample_structures`` disagrees with this exact calculation on multi-strand
+    complexes, so the report uses these exact means. A joint event (all designed duplexes at
+    once) cannot be read from a marginal matrix; it comes from
+    ``FoldEngine.constrained_probability`` (see :func:`designed_pairs`).
+
+    ``None`` for a metric whose span is empty (not measured is not zero -- CLAUDE.md
+    sec 3).
+    """
+    sd0, sd1 = stem_down
+    return {
+        "stem_closed": _mean_pair_prob(matrix, stem_up, lambda j: sd0 <= j < sd1),
+        "misfolded": _mean_pair_prob(
+            matrix, footprint, lambda j: j < n_self and not (sd0 <= j < sd1)
+        ),
+        "trigger_bound": _mean_pair_prob(matrix, footprint, lambda j: j >= n_self),
+    }
 
 
 def stem_closed_fraction(
@@ -126,13 +173,10 @@ def stem_closed_fraction(
     sampled structure -- the intended OFF hairpin actually closing, not just "paired to
     something". One of three state-decomposition metrics (``and_eu_report_spec.md``
     Step 2); the other two are :func:`misfolded_fraction` below and
-    ``_frac_paired_to_external`` above -- already written, already the fix for "open"
-    meaning "paired to anything" rather than "paired to an external strand"; reused as-is
-    for ``trigger_bound``, not reimplemented.
+    ``_frac_paired_to_external`` above (``trigger_bound``).
 
-    Built on the same :func:`_partner_table` stack-walk every other partner-tracing
-    check in this project uses, so a stem that closes with a bulge or an off-register
-    shift is read the same way everywhere, not approximated differently here.
+    Built on :func:`_partner_table`, so a stem that closes with a bulge or an
+    off-register shift is read the same way as every other partner-tracing check here.
     """
     partner = _partner_table(structure)
     su0, su1 = stem_up_span
@@ -152,11 +196,8 @@ def misfolded_fraction(
     """Fraction of ``footprint_span`` paired INTRAMOLECULARLY but NOT to its own
     ``stem_down_span`` -- paired to something other than what either the OFF hairpin
     (``stem_closed_fraction``) or a real binding event (``_frac_paired_to_external``,
-    ``trigger_bound``) would call correct. This is the metric that would have caught the
-    80-90% false "open" the AND construct read with zero triggers present: that was
-    footprint paired to the OTHER hairpin's toehold, not to an external strand and not to
-    its own stem_down -- exactly this category, previously invisible because nothing
-    distinguished it from "open".
+    ``trigger_bound``) would call correct, e.g. the footprint paired to the OTHER
+    hairpin's toehold in the fused AND construct.
 
     Low everywhere is the goal; unlike ``trigger_bound``, there is no state in which a
     high value here is correct.
@@ -209,54 +250,8 @@ def _sample_coverage(samples: list[str]) -> dict:
     }
 
 
-class JointStateJob(NamedTuple):
-    key: str  # caller's own identifier for this candidate, echoed back in the result
-    fused: str
-    trigger_5p: str
-    trigger_3p: str
-    footprint_5p: tuple[int, int]
-    footprint_3p: tuple[int, int]
-    temperature: float
-    n_samples: int = 1200
-    threshold: float = 0.80
-
-
-def _worker(job: JointStateJob) -> dict:
-    """Runs in a separate process, folding through the inherited shared ``FoldEngine``
-    (``sample_structures`` sets the ``uniq_ML=1`` that stochastic backtracking needs)."""
-    samples = _engine(job.temperature).sample_structures(
-        f"{job.fused}&{job.trigger_5p}&{job.trigger_3p}", job.n_samples
-    )
-
-    # "Open" = paired to an EXTERNAL strand, not to anything -- see
-    # _frac_paired_to_external's own docstring for the measured reason why.
-    n_fused = len(job.fused)
-    fp5, fp3 = job.footprint_5p, job.footprint_3p
-    neither = a_only = b_only = both = 0
-    for structure in samples:
-        a_open = _frac_paired_to_external(structure, fp5[0], fp5[1], n_fused) >= job.threshold
-        b_open = _frac_paired_to_external(structure, fp3[0], fp3[1], n_fused) >= job.threshold
-        if a_open and b_open:
-            both += 1
-        elif a_open:
-            a_only += 1
-        elif b_open:
-            b_only += 1
-        else:
-            neither += 1
-    n = len(samples) or 1
-    return {
-        "key": job.key,
-        "neither": neither / n,
-        "a_only": a_only / n,
-        "b_only": b_only / n,
-        "both": both / n,
-        "n_samples": n,
-    }
-
-
 class SingleStateJob(NamedTuple):
-    """Single-input analog of ``JointStateJob`` -- one switch, one trigger (or none),
+    """Single-input state job -- one switch, one trigger (or none),
     one footprint. There is no "both" state to speak of; the only question is whether
     the footprint reads as paired in a real sampled structure, not just on average.
 
@@ -349,6 +344,30 @@ class FakeSweepJob(NamedTuple):
     threshold: float = 0.80
 
 
+def both_triggers_extra(trigger_a: str, trigger_b: str) -> tuple[str, str]:
+    """The ONE place the strand order of a two-real-trigger AND state is decided.
+
+    Returns ``(trigger_b, trigger_a)``: B is appended FIRST, A LAST. ViennaRNA's
+    multi-strand folding only represents structures that are NESTED along the written
+    strand order. The fused switch is written 5'->3' as hairpin A (footprint A, ~nt
+    8-38) ... hairpin B (footprint B, ~nt 66-96), then the appended strands. A written
+    ``fused & tA & tB`` makes footprint A <-> tA and footprint B <-> tB CROSS (a
+    pseudoknot: A < B < tA < tB), which the model cannot represent -- measured on pair
+    4+6 no_spacer, tA bound 0.99 but tB bound 0.00 (59% unpaired), so the joint ON
+    state was ~0 for every pair. ``fused & tB & tA`` nests (A < B < tB < tA: the LATER
+    strand binds the EARLIER footprint) and both bind (0.98/0.99). Physically the
+    molecules are separate, so the order is irrelevant; this is purely a
+    model-representation requirement. Every state containing both real triggers must
+    take its strands from here, and its crosshair boundaries must follow this order.
+
+    Single-real-trigger states with a fake (``+A+fakeA``, ``+B+fakeB``) are left as
+    (real, fake): only one real footprint is in play, so the real duplex (one footprint
+    against one strand) is nestable whichever position it sits in, and the fake is a
+    non-binding decoy; that order is kept consistent for all of them.
+    """
+    return (trigger_b, trigger_a)
+
+
 # (state name, which resolved sequences ride along with the fused switch) -- shared by
 # the worker below and by any caller that wants to know the state list without running
 # anything (e.g. to size a results table before the sweep finishes).
@@ -359,27 +378,22 @@ FAKE_SWEEP_STATES = (
     ("+fake1+fake2", ("fake_a", "fake_b")),
     ("+A", ("trigger_a",)),
     ("+B", ("trigger_b",)),
-    ("+A+B", ("trigger_a", "trigger_b")),
+    ("+A+B", ("trigger_b", "trigger_a")),  # order: see both_triggers_extra
     ("+A+fake1", ("trigger_a", "fake_a")),
     ("+B+fake2", ("trigger_b", "fake_b")),
-    ("+A+B+fake1+fake2", ("trigger_a", "trigger_b", "fake_a", "fake_b")),
+    ("+A+B+fake1+fake2", ("trigger_b", "trigger_a", "fake_a", "fake_b")),
 )
-# Only these three states get a real partition-function base-pair-probability matrix
-# (the marginal check) alongside the Boltzmann-sampled joint answer -- the fake-only
-# states are leakage checks on the SAMPLED open-fraction only, per the request that
-# spawned this job type; computing a full n^2 matrix for every one of ten states per
-# pair would multiply the already-heavy cost of this sweep for numbers nobody asked for.
+# Only these three states get a base-pair-probability matrix (the marginal check) alongside
+# the sampled joint answer; the fake-only states are leakage checks on the sampled
+# open-fraction alone, since a full n^2 matrix for all ten states would multiply the cost.
 FAKE_SWEEP_MATRIX_STATES = frozenset({"+A", "+B", "+A+B"})
 
 
 def _fake_sweep_worker(job: FakeSweepJob) -> dict:
     """Runs in a separate process, folding through the inherited shared ``FoldEngine``.
 
-    Accessibility now comes from ``FoldEngine.base_pair_probabilities`` rather than a
-    hand-rolled ``fc.bpp()`` conversion: that method already returns the 0-indexed
-    symmetric matrix this wants, over the same ``&``-joined frame, so mirroring its
-    1-indexed-upper-triangular unpacking inline here was a second copy of one
-    conversion -- exactly the duplication ``CLAUDE.md`` sec 1 is about.
+    Accessibility comes from ``FoldEngine.base_pair_probabilities`` (0-indexed, symmetric,
+    over the same ``&``-joined frame).
     """
     engine = _engine(job.temperature)
 
@@ -405,19 +419,13 @@ def _fake_sweep_worker(job: FakeSweepJob) -> dict:
         strands = "&".join([job.fused, *extra]) if extra else job.fused
         samples = engine.sample_structures(strands, job.n_samples)
         n_samples = len(samples) or 1
-        # Per-structure classification, not two independent marginals -- min(a_open,
-        # b_open) from separately-counted fractions would still be right even if A and
-        # B were open in entirely DIFFERENT sampled structures, never simultaneously.
-        # "sampled_both" is the count of structures where BOTH footprints clear
-        # threshold in the SAME draw -- the only number that actually answers "does
-        # this molecule ever really do both at once" (this exact marginal-vs-joint gap
-        # is why joint_state()/JointStateJob exist elsewhere in this notebook; this
-        # worker had been computing only the marginals until this was checked).
+        # Per-structure classification, not two independent marginals: "sampled_both"
+        # counts structures where BOTH footprints clear threshold in the SAME draw, the
+        # only number that answers "does this molecule ever do both at once".
         a_open = b_open = both_open = 0
         for s in samples:
-            # External-strand rule, not "paired to anything" -- this is the metric the
-            # AND score's leak term is built from, and the alone state was previously
-            # reporting 80%+ "both open" with no trigger present at all.
+            # External-strand rule, not "paired to anything" (see
+            # _frac_paired_to_external).
             is_a = _frac_paired_to_external(s, fp5[0], fp5[1], n) >= job.threshold
             is_b = _frac_paired_to_external(s, fp3[0], fp3[1], n) >= job.threshold
             a_open += is_a
@@ -498,24 +506,15 @@ def _longest_complementary_run_wobble(
 
 def _longest_identity_run(a: str, b: str) -> int:
     """Longest SAME-DIRECTION identical substring shared by ``a`` and ``b`` -- literal
-    sequence identity, not antiparallel complementarity. Identical DP shape to
-    :func:`_longest_complementary_run` (ordinary longest-common-substring DP), just
-    WITHOUT the ``reverse_complement`` step.
+    sequence identity, not antiparallel complementarity. Ordinary longest-common-substring
+    DP (:func:`_longest_complementary_run` without the ``reverse_complement`` step).
 
-    2026-10-05 fix (round 5, correctness bug in the round-4 trigger-overlap screen):
-    two triggers drawn from the same or overlapping transcript region read as
-    near-identical substrings of EACH OTHER in the same reading direction -- which
-    predicts near-identical BINDING TARGETS (hence real cross-talk), not that the two
-    triggers would hybridize to EACH OTHER. :func:`_longest_complementary_run_wobble`
-    checks exactly the latter (antiparallel pairing) and structurally cannot catch the
-    former: two identical same-direction sequences are generally NOT
-    self-complementary. Confirmed by a real counterexample that passed the
-    complementarity-only screen and was ranked #1: trigger B (27nt) a literal, exact
-    PREFIX of trigger A (30nt) -- 27/27 nt identical, same direction -- while their
-    longest COMPLEMENTARY run is only 6nt (well under the 8nt cap). No mismatch/wobble
-    tolerance here (unlike the complementarity check's G*U wobble, which models a real
-    physical base pair) -- identity is binary per position, so a plain exact-match run
-    is the right analog; kept as narrowly scoped as :func:`_longest_complementary_run`.
+    WHY it exists beside the complementarity checks: two triggers drawn from the same or
+    overlapping transcript region are near-identical substrings of each other, which
+    predicts near-identical BINDING TARGETS (cross-talk) but is structurally invisible to
+    a complementarity check -- identical sequences are generally not self-complementary.
+    Real counterexample: trigger B (27 nt) a literal prefix of trigger A (30 nt) has a
+    complementary run of only 6 nt. No wobble tolerance: identity is binary per position.
     """
     n, m = len(a), len(b)
     prev = [0] * (m + 1)
@@ -537,39 +536,14 @@ def trigger_pair_too_similar(
     trigger_a: str, trigger_b: str, *, max_overlap_nt: int, wobble_max_fraction: float
 ) -> bool:
     """True when an AND pair's own two REAL triggers (trigger A, trigger B) are too
-    similar to each other by EITHER of two independent checks: a complementary run
-    (wobble included, :func:`_longest_complementary_run_wobble` -- would they
-    hybridize to each other) or a same-direction identity run
-    (:func:`_longest_identity_run` -- are they (nearly) the same sequence, i.e. drawn
-    from the same transcript region), each compared against ``max_overlap_nt``. The
-    SAME acceptance rule :func:`pick_fake_design` already applies to a FAKE trigger
-    against a real footprint (the complementarity half only), applied here between
-    the pair's own two real triggers, PLUS the identity check the fake-screening use
-    case never needed (a fake and the real trigger it's screened against are already
-    guaranteed different candidates, never literal prefixes of each other by
-    construction).
+    similar to each other by EITHER of two independent checks, each compared against
+    ``max_overlap_nt``: a complementary run (wobble included,
+    :func:`_longest_complementary_run_wobble` -- would they hybridize to each other) or a
+    same-direction identity run (:func:`_longest_identity_run` -- are they (nearly) the
+    same sequence, i.e. drawn from the same transcript region).
 
-    2026-10-05 fix (round 4): the AND grid had no check at all for how similar
-    trigger A and trigger B are to EACH OTHER when fusing two singles into a pair --
-    ``FAKE_MAX_SEQ_OVERLAP_NT``/``WOBBLE_MAX_FRACTION`` only ever screened a FAKE
-    trigger against the real trigger of the SAME candidate (via ``pick_fake_design``),
-    never trigger-A-vs-trigger-B of the pair itself.
-
-    2026-10-05 fix (round 5, correctness bug in round 4): the round-4 version checked
-    ONLY the complementary run, which structurally cannot catch two triggers that are
-    literal same-direction duplicates of each other (identical sequences are
-    generally not self-complementary) -- confirmed by a real counterexample that
-    passed round 4's screen and was ranked #1: trigger B (27nt) a literal, exact
-    27/27nt PREFIX of trigger A (30nt), same direction, with a complementary run of
-    only 6nt. Now rejects on EITHER check exceeding the cap, not complementarity
-    alone. See :func:`_longest_identity_run`'s own docstring for the full reasoning.
-
-    Reuses :func:`_longest_complementary_run_wobble` and :func:`_longest_identity_run`
-    -- no new copy of either (CLAUDE.md sec 1: one overlap-checker per concept, not
-    duplicated per call site). Called identically from the fresh-grid-building path
-    (before any job for the pair is submitted, i.e. before any compute is spent on
-    it) and the snapshot-restore rescoring path (filtering the already-scored rows),
-    so a pair is never admitted under one path and rejected under the other.
+    Reuses both run finders (CLAUDE.md sec 1: one overlap checker per concept). Called
+    before any job for the pair is submitted, so no compute is spent on a rejected pair.
     """
     comp_run, _wobble = _longest_complementary_run_wobble(trigger_a, trigger_b, wobble_max_fraction)
     identity_run = _longest_identity_run(trigger_a, trigger_b)
@@ -587,49 +561,29 @@ def pick_fake_design(
     wobble_max_fraction=None,
 ):
     """Pool design with no meaningful sequence complementarity to EITHER A's or B's own
-    footprint (toehold+stem_up) -- a real off-target trigger picked by actual sequence
-    dissimilarity, not by genomic position.
+    footprint (toehold+stem_up) -- a real off-target trigger picked by sequence
+    dissimilarity, not by genomic position (two triggers from non-overlapping windows can
+    still share real, accidental complementarity to a footprint).
 
-    Previously this screened candidates by trigger *position* on the transcript (two
-    windows counted as "the same region" if they overlapped by some nt threshold). That
-    is the wrong criterion for "this fake shouldn't bind": two triggers from
-    non-overlapping windows can still share real, accidental complementarity to a
-    footprint (verified directly -- one positionally-"non-overlapping" candidate had an
-    8nt exact complementary run against a footprint whose own REAL trigger's best run
-    was only 6nt, i.e. a fake that could out-compete the true pair on this same metric).
-    Conversely, if a candidate has NO meaningful sequence complementarity to the
-    footprint, it cannot meaningfully bind it regardless of where it came from on the
-    transcript -- position becomes irrelevant once sequence similarity is the actual
-    thing being screened for.
+    Used by ``toehold_and_eu_test.ipynb`` and ``toehold_context_report.ipynb``;
+    ``and_eu_report.ipynb`` uses :func:`pick_fake_trigger` instead.
 
-    ``max_overlap_nt``/``wobble_max_fraction`` (both ``None`` by default): optional,
-    additive screening used by ``and_eu_report.ipynb``'s richer fake-selection rule
-    (``and_eu_report_spec.md`` Step 2) -- a candidate also fails when its longest
-    complementary run against either footprint exceeds ``max_overlap_nt`` (an absolute
-    cap, not just "less than the real trigger"), and wobble matches count toward that
-    run up to ``wobble_max_fraction`` of it (:func:`_longest_complementary_run_wobble`,
-    the Trap-3 fix). Leaving both ``None`` preserves this function's ORIGINAL behaviour
-    bit-for-bit -- the predecessor notebook's own calls are unaffected by this addition.
-    When wobble screening is on, the returned dict carries an extra
-    ``wobble_positions_used`` key (the larger of the two footprints' wobble counts in
-    the accepted candidate's own best run) so a wobble-driven accept decision is visible
-    on every reported fake, never silent.
+    ``max_overlap_nt``/``wobble_max_fraction`` (both ``None`` by default): optional extra
+    screening -- a candidate also fails when its longest complementary run against either
+    footprint exceeds ``max_overlap_nt`` (an absolute cap, not just "less than the real
+    trigger"), and wobble matches count toward that run up to ``wobble_max_fraction`` of it
+    (:func:`_longest_complementary_run_wobble`). Leaving both ``None`` keeps the plain
+    exact-complement behaviour. When wobble screening is on, the returned dict carries an
+    extra ``wobble_positions_used`` key (the larger of the two footprints' wobble counts in
+    the accepted candidate's own best run) so a wobble-driven accept is visible.
 
     A candidate qualifies only when its longest exact complementary run
     (``_longest_complementary_run``) against EACH footprint is STRICTLY LESS than that
     footprint's own real trigger's longest complementary run against itself --
-    self-calibrated per design rather than one arbitrary nt cutoff for every candidate:
-    a fake is only accepted if it could not plausibly out-compete the real trigger even
-    on this same crude metric.
+    self-calibrated per design rather than one arbitrary nt cutoff.
 
-    Starts the scan at ``start_offset`` and wraps around, rather than always scanning
-    from the front of ``pool`` -- same reasoning as before: always starting from index 0
-    would let one early-pool design's accidental complementarity profile dominate every
-    pair's result instead of rotating across genuinely different fakes.
-
-    Lives here (not a notebook cell) so every sweep that needs a fake trigger -- single-
-    switch or AND -- imports the exact same selection rule instead of each cell keeping
-    its own copy that can quietly drift apart.
+    Starts the scan at ``start_offset`` and wraps around, so different candidates rotate
+    onto different fakes instead of one early-pool design dominating every result.
     """
 
     def _footprint(design):
@@ -666,13 +620,71 @@ def pick_fake_design(
     return None
 
 
+def pick_fake_trigger(
+    real_triggers,
+    exclude_ranks,
+    pool,
+    start_offset=0,
+    *,
+    max_overlap_nt=8,
+):
+    """Next pool design whose TRIGGER shares at most ``max_overlap_nt`` nt of identical
+    sequence with EVERY real trigger in ``real_triggers``.
+
+    Similarity is the longest same-direction identical run
+    (:func:`_longest_identity_run`, a plain longest-common-substring). Single switch:
+    ``real_triggers=(trigger,)``. AND: ``(trigger_a, trigger_b)`` -- both real triggers sit
+    in the AND construct, so a fake for either side must resemble neither.
+
+    Identity only, no complementarity or wobble screen: :func:`pick_fake_design`'s
+    footprint-complementarity bar (4-7 nt, self-calibrated) is not met by any pool
+    candidate, which gave zero fakes.
+
+    Scan starts at ``start_offset`` and wraps, so different candidates rotate onto
+    different fakes. Deterministic. Returns the pool design dict, or ``None`` when no
+    unexcluded candidate qualifies.
+    """
+    n = len(pool)
+    for step in range(n):
+        candidate = pool[(start_offset + step) % n]
+        if candidate["rank"] in exclude_ranks:
+            continue
+        if all(
+            _longest_identity_run(real, candidate["trigger"]) <= max_overlap_nt
+            for real in real_triggers
+        ):
+            return candidate
+    return None
+
+
+def pick_fake_triggers(real_triggers, exclude_ranks, pool, n, start_offset=0, *, max_overlap_nt):
+    """Up to ``n`` distinct fakes for one footprint set: :func:`pick_fake_trigger` called
+    with ``start_offset``, ``start_offset + 1``, ... and each pick excluded from the next.
+    Stops early when the pool runs out, so fewer than ``n`` may come back (never padded).
+    ``exclude_ranks`` is not modified.
+    """
+    picked = set(exclude_ranks)
+    fakes = []
+    for k in range(n):
+        fake = pick_fake_trigger(
+            real_triggers,
+            picked,
+            pool,
+            start_offset=start_offset + k,
+            max_overlap_nt=max_overlap_nt,
+        )
+        if fake is None:
+            break
+        picked.add(fake["rank"])
+        fakes.append(fake)
+    return fakes
+
+
 def _longest_complementary_run(a: str, b: str) -> int:
     """Longest stretch that could actually base-pair between ``a`` and ``b`` in an
     antiparallel duplex -- the longest common substring between ``a`` and
-    ``reverse_complement(b)``, found by ordinary substring DP. Pure string matching,
-    no folding: a fast pre-screen for "would this even have a chance to hybridize",
-    not a replacement for the real Boltzmann-sampled ON/OFF check every selected
-    spacer still goes through afterwards.
+    ``reverse_complement(b)``, found by ordinary substring DP. Pure string matching, no
+    folding: a fast pre-screen for "would this even have a chance to hybridize".
     """
     b_rc = reverse_complement(b)
     n, m = len(a), len(b_rc)
@@ -696,11 +708,9 @@ def generate_spacer_candidates(
 ) -> list[str]:
     """A fixed, reproducible pool of low-GC candidate spacer sequences -- lengths
     cycle 15..20 so the whole requested range is covered, and every base is drawn
-    A/U-biased (A-U pairs are weaker than G-C, this notebook's own established
-    low-GC-spacer rationale). Seeded with a literal constant, never wall-clock or
-    module-level ``random.`` state (CLAUDE.md sec 6) -- the SAME pool every run, so a
-    later run picking a different spacer for some pair means the pair's own scoring
-    changed, never that the candidate pool silently changed under it.
+    A/U-biased (A-U pairs are weaker than G-C, hence a low-GC spacer). Seeded with a
+    literal constant, never wall-clock or module-level ``random.`` state (CLAUDE.md
+    sec 6) -- the SAME pool every run.
     """
     rng = random.Random(seed)
     bases = ("A", "U", "G", "C")
@@ -714,14 +724,12 @@ def generate_spacer_candidates(
 
 def pick_optimized_spacer(design_5p, design_3p, candidates: list[str]) -> tuple[str, int]:
     """Picks the candidate spacer with the smallest worst-case complementary run
-    against either design's toehold OR trigger -- "minimal interaction" estimated as
-    "no hybridization with triggers or toeholds", per this task's own instruction.
-    Ties broken by lower GC (this notebook's low-GC spacer rationale), then by pool
-    order (deterministic, first-found wins -- CLAUDE.md sec 6, no randomness in a
-    tie-break either). Returns ``(spacer, worst_run)`` so the caller can see how good
-    the best available candidate actually was, not just which one won -- a worst_run
-    of e.g. 8 on a 20-candidate pool says the pool needs to be bigger or the pair is
-    just hard to spacer around, not that the search silently failed.
+    against either design's toehold OR trigger ("minimal interaction" estimated as no
+    hybridization with triggers or toeholds). Ties broken by lower GC, then by pool order
+    (deterministic, first-found wins -- CLAUDE.md sec 6). Returns ``(spacer, worst_run)``
+    so the caller can see how good the best available candidate actually was -- a
+    worst_run of e.g. 8 says the pool needs to be bigger or the pair is hard to spacer
+    around, not that the search silently failed.
     """
     t5 = design_5p["switch"][slice(*design_5p["domains"]["toehold"])]
     t3 = design_3p["switch"][slice(*design_3p["domains"]["toehold"])]
@@ -741,34 +749,11 @@ def pick_optimized_spacer(design_5p, design_3p, candidates: list[str]) -> tuple[
 
 
 def run_parallel_fake_sweep(jobs: list[FakeSweepJob], max_workers: int = 6) -> dict[str, dict]:
-    """Fake-sweep counterpart to ``run_parallel`` -- same fork-context reasoning."""
+    """Same fork-context reasoning as every other ``run_parallel*`` in this module."""
     results: dict[str, dict] = {}
     context = multiprocessing.get_context("fork")
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=context) as pool:
         for outcome in pool.map(_fake_sweep_worker, jobs):
-            results[outcome["key"]] = outcome
-    return results
-
-
-def run_parallel(jobs: list[JointStateJob], max_workers: int = 6) -> dict[str, dict]:
-    """Runs every job across a process pool and returns ``{key: joint_state_dict}``.
-
-    ``max_workers`` defaults to 6, not the machine's full core count (8 on the dev
-    machine this was written on) -- leaving headroom keeps the machine responsive while
-    a batch runs, since this is meant to be launched interactively, not as a dedicated
-    batch job.
-    """
-    # "fork" (not the platform default "spawn" on macOS) so a worker starts as a clone
-    # of this process instead of re-importing whatever launched it -- "spawn" re-imports
-    # the __main__ module in every worker, which breaks when the launcher is a Jupyter
-    # kernel or a notebook-exec harness rather than a plain `if __name__ == "__main__":`
-    # script (that re-import tries to re-run the launcher's own top-level code in the
-    # child and the pool falls over). Each job is a plain, already-built NamedTuple of
-    # strings and numbers, so fork's copy-on-write semantics cost nothing extra here.
-    results: dict[str, dict] = {}
-    context = multiprocessing.get_context("fork")
-    with ProcessPoolExecutor(max_workers=max_workers, mp_context=context) as pool:
-        for outcome in pool.map(_worker, jobs):
             results[outcome["key"]] = outcome
     return results
 
@@ -808,8 +793,7 @@ class ConstrainedBindJob(NamedTuple):
 
 
 def _constrained_bind_worker(job: ConstrainedBindJob) -> dict:
-    """Runs in a separate process -- imports RNA locally, same ``uniq_ML=1``
-    precondition as every other real-sampling worker in this module.
+    """Runs in a separate process, folding through the inherited shared ``FoldEngine``.
 
     Step 1: fold ``fused & trigger_bound`` ALONE (just those two strands) and read
     off the REAL base pairs the to-be-forced footprint actually forms with its
@@ -889,24 +873,18 @@ def run_parallel_constrained_bind(
 
 
 # ======================================================================================
-# Three-way state decomposition (and_eu_report_spec.md Step 2) -- built for
-# and_eu_report.ipynb. Every job here samples real structures and reads off all three
-# of stem_closed_fraction / misfolded_fraction / _frac_paired_to_external per footprint,
-# instead of the single bound/unbound bit the older job types above report: with
-# triggers present, "footprint is paired" alone cannot tell "the trigger bound it" apart
-# from "it cross-hybridised with something else", which is exactly the conflation that
-# made the predecessor notebook's leak metric wrong (see _frac_paired_to_external's own
-# docstring). One job = one state (one fixed set of extra strands); the caller (the
-# notebook) submits every state of every candidate -- real, alone, and every fake draw
-# -- as ONE list to ONE pool.map call per batch (CLAUDE.md sec 5 / Trap 6), then
-# averages whatever needs averaging (the fake draws) itself, after the pool returns.
+# Sampled three-way state decomposition (stem_closed / misfolded / trigger_bound), used by
+# ``toehold_context_report.ipynb`` (``and_eu_report.ipynb`` uses the exact workers at the
+# end of this file). One job = one state (one fixed set of extra strands); the caller
+# submits every state of every candidate as ONE list to ONE pool.map call per batch
+# (CLAUDE.md sec 5), then averages whatever needs averaging itself.
 # ======================================================================================
 
 
 class SingleDecompJob(NamedTuple):
     """One state of one single-input switch: ``extra`` is the second strand (the real
-    trigger, or a fake), or ``""`` for the switch alone -- same convention as
-    ``SingleStateJob``. ``footprint`` is toehold+stem_up (what a trigger binds, and what
+    trigger, or a fake), or ``""`` for the switch alone. ``footprint`` is toehold+stem_up
+    (what a trigger binds, and what
     ``_frac_paired_to_external``/``misfolded_fraction`` are asked about); ``stem_up`` is
     just the ascending arm (what ``stem_closed_fraction`` is asked about, paired against
     ``stem_down``).
@@ -935,13 +913,9 @@ def _single_decomp_worker(job: SingleDecompJob) -> dict:
     that clear it, which is what the ON/OFF ratio is built from (a frequency, so Trap
     4's floor at ``1/n_samples`` is meaningful on it, unlike a continuous mean).
 
-    ``n_stem_closed``/``n_misfolded`` (added for and_eu_report.ipynb's fix #5): the
-    SAME per-sample ``job.threshold`` crossing used for ``n_open``, applied to
-    ``stem_closed``/``misfolded`` instead of ``trigger_bound`` -- counts, not just
-    the continuous mean, so a report can show "k of N samples read as closed/
-    misfolded" rather than a bare percentage with no sample count behind it. Computed
-    in the SAME per-sample loop that already sums these two (no extra folding or
-    sampling).
+    ``n_stem_closed``/``n_misfolded``: the same per-sample ``job.threshold`` crossing
+    used for ``n_open``, applied to ``stem_closed``/``misfolded`` -- counts, so a report
+    can show "k of N samples read as closed/misfolded" rather than a bare percentage.
     """
     engine = _engine(job.temperature)
     strands = f"{job.switch}&{job.extra}" if job.extra else job.switch
@@ -965,9 +939,23 @@ def _single_decomp_worker(job: SingleDecompJob) -> dict:
         if misfolded >= job.threshold:
             n_misfolded += 1
 
+    # Exact (partition-function) means, same strand string as the sampling above. Reports
+    # show and score these *_bpp values, not the sampled mean_* fields, because sampled
+    # structures disagree with the exact ensemble on multi-strand complexes.
+    exact = _exact_decomp_means(
+        engine.base_pair_probabilities(strands),
+        n_self,
+        job.footprint,
+        job.stem_up,
+        job.stem_down,
+    )
+
     n = len(samples) or 1
     return {
         "key": job.key,
+        "mean_stem_closed_bpp": exact["stem_closed"],
+        "mean_misfolded_bpp": exact["misfolded"],
+        "mean_trigger_bound_bpp": exact["trigger_bound"],
         "frac_open": n_open / n,
         "n_open": n_open,
         "n_stem_closed": n_stem_closed,
@@ -976,10 +964,6 @@ def _single_decomp_worker(job: SingleDecompJob) -> dict:
         "mean_stem_closed": sum_stem_closed / n,
         "mean_misfolded": sum_misfolded / n,
         "n_samples": n,
-        # n_unique_structures/effective_structures/sample_coverage (2026-10-05 fix,
-        # item N): _sample_coverage already does exactly "len(set(...)) on the samples
-        # already drawn in this loop" -- reused as-is rather than a second ad hoc
-        # len(set(...)) written here (CLAUDE.md sec 1).
         **_sample_coverage(samples),
     }
 
@@ -996,14 +980,111 @@ def run_parallel_single_decomp(
     return results
 
 
-class AndDecompJob(NamedTuple):
-    """One state of one AND pair: ``extra`` lists whichever trigger/fake strands ride
-    along with ``fused`` for this state (``()`` = alone). Both footprints get the full
-    three-way decomposition every sample, from ONE set of sampled structures -- "both
-    open" is read per-structure (``is_a_open and is_b_open`` on the SAME draw), not from
-    two independent marginals (the same joint-vs-marginal gap ``JointStateJob`` exists
-    to close for the plain open/not-open case).
+# ======================================================================================
+# EXACT-ONLY decomposition workers (``and_eu_report.ipynb``). Nothing below samples:
+# sampled structures disagree with the exact partition function on these multi-strand
+# complexes (measured on the top AND pairs: sampled "both open" 0.3-1% vs exact
+# P(both designed duplexes) 32-69%), so the report is built from
+# ``FoldEngine.base_pair_probabilities`` marginals plus ONE exact joint probability,
+# ``FoldEngine.constrained_probability``, per state where the joint event is defined.
+# ======================================================================================
+
+
+def designed_pairs(
+    engine,
+    strands: str,
+    footprints: tuple[tuple[int, int], ...],
+    n_self: int,
+) -> list[tuple[int, int]] | None:
+    """The designed footprint-trigger duplex(es) of one state, as the MFE realises them.
+
+    ``strands`` is the exact string the state is folded as (``&``-joined, fused molecule
+    first, same strand order as every other call -- incl. ``both_triggers_extra``);
+    ``n_self`` = ``len(fused)``, so an index ``>= n_self`` is a base of an external
+    strand. The structure is ``engine.mfe(strands)`` (the one shared engine, cached; a
+    ``&`` in the returned string is stripped so indices run over the concatenation).
+
+    Returns every ``(i, j)`` with ``i`` inside one of ``footprints`` and ``j >= n_self``
+    (0-indexed, ``i < j``) -- "the designed duplex as the MFE realises it". It is
+    STRICT: ``constrained_probability`` of this list is the probability that every one
+    of those pairs is present at once.
+
+    ``None`` (never an empty list, never 1.0 downstream) when ANY footprint has no
+    external pair in the MFE: that hairpin's duplex is then undefined, so the joint
+    event is not defined for this state.
     """
+    structure = engine.mfe(strands).structure.replace("&", "")
+    partner = _partner_table(structure)
+    pairs: list[tuple[int, int]] = []
+    for start, end in footprints:
+        found = [
+            (i, partner[i])
+            for i in range(start, end)
+            if partner[i] is not None and partner[i] >= n_self
+        ]
+        if not found:
+            return None
+        pairs.extend(found)
+    return pairs
+
+
+class SingleExactJob(NamedTuple):
+    """One state of one single-input switch, exact-only. ``extra`` is the second strand
+    (the real trigger, or a fake), or ``""`` for the switch alone. ``footprint`` is
+    toehold+stem_up; ``stem_up``/``stem_down`` the hairpin arms. ``with_joint`` asks
+    for ``p_on`` (only meaningful for the switch + REAL trigger state)."""
+
+    key: str
+    switch: str
+    extra: str  # "" => switch alone
+    footprint: tuple[int, int]
+    stem_up: tuple[int, int]
+    stem_down: tuple[int, int]
+    temperature: float
+    with_joint: bool = False
+
+
+def _single_exact_worker(job: SingleExactJob) -> dict:
+    """Runs in a separate process, folding through the inherited shared ``FoldEngine``.
+    Exact means of ``trigger_bound`` / ``stem_closed`` / ``misfolded`` from one
+    ``base_pair_probabilities`` matrix, plus ``p_on`` -- the exact probability that the
+    designed footprint-trigger duplex (:func:`designed_pairs`) is fully formed -- when
+    ``with_joint``; ``p_on`` is ``None`` otherwise or when the duplex is undefined."""
+    engine = _engine(job.temperature)
+    strands = f"{job.switch}&{job.extra}" if job.extra else job.switch
+    n_self = len(job.switch)
+    exact = _exact_decomp_means(
+        engine.base_pair_probabilities(strands), n_self, job.footprint, job.stem_up, job.stem_down
+    )
+    p_on = None
+    if job.with_joint and job.extra:
+        pairs = designed_pairs(engine, strands, (job.footprint,), n_self)
+        if pairs is not None:
+            p_on = engine.constrained_probability(strands, pairs)
+    return {
+        "key": job.key,
+        "mean_stem_closed_bpp": exact["stem_closed"],
+        "mean_misfolded_bpp": exact["misfolded"],
+        "mean_trigger_bound_bpp": exact["trigger_bound"],
+        "p_on": p_on,
+    }
+
+
+def run_parallel_single_exact(jobs: list[SingleExactJob], max_workers: int = 6) -> dict[str, dict]:
+    """Same fork-context reasoning as every other ``run_parallel*`` in this module."""
+    results: dict[str, dict] = {}
+    context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=context) as pool:
+        for outcome in pool.map(_single_exact_worker, jobs):
+            results[outcome["key"]] = outcome
+    return results
+
+
+class AndDecompJob(NamedTuple):
+    """One state of one AND pair, exact-only: ``extra`` lists whichever trigger/fake
+    strands ride along with ``fused`` for this state (``()`` = alone). Both footprints
+    get the three-way exact decomposition from ONE ``base_pair_probabilities`` matrix.
+    ``with_joint`` asks for ``p_on`` (only meaningful for the +A+B state)."""
 
     key: str
     fused: str
@@ -1015,92 +1096,84 @@ class AndDecompJob(NamedTuple):
     stem_up_b: tuple[int, int]
     stem_down_b: tuple[int, int]
     temperature: float
-    n_samples: int = 1200
-    threshold: float = 0.70
+    with_joint: bool = False
 
 
 def _and_decomp_worker(job: AndDecompJob) -> dict:
     """Runs in a separate process, folding through the inherited shared ``FoldEngine``.
-    Same three metrics as :func:`_single_decomp_worker`, computed independently for
-    each side (A/B) on every sampled structure, plus the per-structure joint "both
-    open" fraction the AND ON/OFF ratio is built from.
-
-    ``n_stem_closed_a/b``/``n_misfolded_a/b`` (and_eu_report.ipynb fix #5): same
-    per-sample ``job.threshold`` crossing as ``n_a_open``/``n_b_open``, applied to
-    ``stem_closed``/``misfolded`` per side, from the SAME loop that already sums
-    them -- no extra sampling.
-    """
+    Same exact means as :func:`_single_exact_worker`, per side (A/B), plus ``p_on`` --
+    the exact probability that BOTH designed duplexes (:func:`designed_pairs` over both
+    footprints) are present in the same structure -- when ``with_joint``; ``None``
+    otherwise or when either duplex is undefined in the MFE."""
     engine = _engine(job.temperature)
     strands = "&".join([job.fused, *job.extra]) if job.extra else job.fused
-    samples = engine.sample_structures(strands, job.n_samples)
     n_self = len(job.fused)
-    fa0, fa1 = job.footprint_a
-    fb0, fb1 = job.footprint_b
-
-    n_a_open = n_b_open = n_both_open = 0
-    n_stem_closed_a = n_misfolded_a = n_stem_closed_b = n_misfolded_b = 0
-    sum_tb_a = sum_sc_a = sum_mf_a = 0.0
-    sum_tb_b = sum_sc_b = sum_mf_b = 0.0
-    for structure in samples:
-        tb_a = _frac_paired_to_external(structure, fa0, fa1, n_self)
-        tb_b = _frac_paired_to_external(structure, fb0, fb1, n_self)
-        sc_a = stem_closed_fraction(structure, job.stem_up_a, job.stem_down_a)
-        sc_b = stem_closed_fraction(structure, job.stem_up_b, job.stem_down_b)
-        mf_a = misfolded_fraction(structure, job.footprint_a, job.stem_down_a, n_self)
-        mf_b = misfolded_fraction(structure, job.footprint_b, job.stem_down_b, n_self)
-        sum_tb_a += tb_a
-        sum_tb_b += tb_b
-        sum_sc_a += sc_a
-        sum_sc_b += sc_b
-        sum_mf_a += mf_a
-        sum_mf_b += mf_b
-        a_open = tb_a >= job.threshold
-        b_open = tb_b >= job.threshold
-        n_a_open += a_open
-        n_b_open += b_open
-        n_both_open += a_open and b_open
-        if sc_a >= job.threshold:
-            n_stem_closed_a += 1
-        if sc_b >= job.threshold:
-            n_stem_closed_b += 1
-        if mf_a >= job.threshold:
-            n_misfolded_a += 1
-        if mf_b >= job.threshold:
-            n_misfolded_b += 1
-
-    n = len(samples) or 1
+    matrix = engine.base_pair_probabilities(strands)
+    exact_a = _exact_decomp_means(matrix, n_self, job.footprint_a, job.stem_up_a, job.stem_down_a)
+    exact_b = _exact_decomp_means(matrix, n_self, job.footprint_b, job.stem_up_b, job.stem_down_b)
+    p_on = None
+    if job.with_joint and job.extra:
+        pairs = designed_pairs(engine, strands, (job.footprint_a, job.footprint_b), n_self)
+        if pairs is not None:
+            p_on = engine.constrained_probability(strands, pairs)
     return {
         "key": job.key,
-        "frac_both_open": n_both_open / n,
-        "frac_a_open": n_a_open / n,
-        "frac_b_open": n_b_open / n,
-        # Exact integer counts (2026-10-05 root-bug fix), not just the derived
-        # fractions above: a caller that wants a "k of N" display for trigger_bound_a/
-        # trigger_bound_b/both-open must read these, never reconstruct k via
-        # round(frac * n) -- that can disagree with the real count by 1 once frac is a
-        # float, same class of bug the k/N-vs-mean mismatch this round is fixing.
-        "n_a_open": n_a_open,
-        "n_b_open": n_b_open,
-        "n_both_open": n_both_open,
-        "mean_trigger_bound_a": sum_tb_a / n,
-        "mean_stem_closed_a": sum_sc_a / n,
-        "mean_misfolded_a": sum_mf_a / n,
-        "n_stem_closed_a": n_stem_closed_a,
-        "n_misfolded_a": n_misfolded_a,
-        "mean_trigger_bound_b": sum_tb_b / n,
-        "mean_stem_closed_b": sum_sc_b / n,
-        "mean_misfolded_b": sum_mf_b / n,
-        "n_stem_closed_b": n_stem_closed_b,
-        "n_misfolded_b": n_misfolded_b,
-        "n_samples": n,
-        # n_unique_structures (2026-10-05 fix, item N): one count over the FUSED
-        # molecule's own dot-bracket string per sample -- "the structure" in the AND
-        # case is the whole two-hairpin construct's fold in that state, not a
-        # per-side notion, since a single Boltzmann draw already produces one
-        # structure for the entire fused frame. Reuses _sample_coverage's existing
-        # Counter(samples) rather than a second len(set(...)) pass.
-        **_sample_coverage(samples),
+        "mean_stem_closed_a_bpp": exact_a["stem_closed"],
+        "mean_misfolded_a_bpp": exact_a["misfolded"],
+        "mean_trigger_bound_a_bpp": exact_a["trigger_bound"],
+        "mean_stem_closed_b_bpp": exact_b["stem_closed"],
+        "mean_misfolded_b_bpp": exact_b["misfolded"],
+        "mean_trigger_bound_b_bpp": exact_b["trigger_bound"],
+        "p_on": p_on,
     }
+
+
+def and_pair_jobs(
+    built: dict,
+    key_prefix: str,
+    trigger_a: str,
+    trigger_b: str,
+    fakes_a: list[dict],
+    fakes_b: list[dict],
+    *,
+    temperature: float,
+) -> list[AndDecompJob]:
+    """Every state job of one (pair, spacer): ``alone``, ``+A``, ``+B``, ``+A+B`` (the only
+    one with ``with_joint``; strands via :func:`both_triggers_extra`), then per side each
+    fake alone and with its own real trigger (``+fakeA{i}``/``+A+fakeA{i}``,
+    ``+fakeB{i}``/``+B+fakeB{i}``). ``built`` is ``fuse()``'s output; ``fakes_a``/
+    ``fakes_b`` are pool designs (only ``["trigger"]`` is read). Keys are
+    ``f"{key_prefix}|{state}"``.
+    """
+
+    def job(state, extra, with_joint=False):
+        return AndDecompJob(
+            key=f"{key_prefix}|{state}",
+            fused=built["fused"],
+            extra=extra,
+            footprint_a=built["footprint_5p"],
+            stem_up_a=built["domains_5p"]["stem_up"],
+            stem_down_a=built["domains_5p"]["stem_down"],
+            footprint_b=built["footprint_3p"],
+            stem_up_b=built["domains_3p"]["stem_up"],
+            stem_down_b=built["domains_3p"]["stem_down"],
+            temperature=temperature,
+            with_joint=with_joint,
+        )
+
+    jobs = [
+        job("alone", ()),
+        job("+A", (trigger_a,)),
+        job("+B", (trigger_b,)),
+        job("+A+B", both_triggers_extra(trigger_a, trigger_b), with_joint=True),
+    ]
+    for i, fake in enumerate(fakes_a):
+        jobs.append(job(f"+fakeA{i}", (fake["trigger"],)))
+        jobs.append(job(f"+A+fakeA{i}", (trigger_a, fake["trigger"])))
+    for i, fake in enumerate(fakes_b):
+        jobs.append(job(f"+fakeB{i}", (fake["trigger"],)))
+        jobs.append(job(f"+B+fakeB{i}", (trigger_b, fake["trigger"])))
+    return jobs
 
 
 def run_parallel_and_decomp(jobs: list[AndDecompJob], max_workers: int = 6) -> dict[str, dict]:
@@ -1109,126 +1182,5 @@ def run_parallel_and_decomp(jobs: list[AndDecompJob], max_workers: int = 6) -> d
     context = multiprocessing.get_context("fork")
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=context) as pool:
         for outcome in pool.map(_and_decomp_worker, jobs):
-            results[outcome["key"]] = outcome
-    return results
-
-
-# ======================================================================================
-# Cross-domain binding (and_eu_report.ipynb, 2026-10-05 round, AND item 6) -- DISPLAY-
-# ONLY diagnostic, no ranking input. Built for the "+A+B" (ON) state specifically: with
-# both real triggers present, does the spacer compete for either toehold, and does
-# either hairpin's own toehold pair to the OTHER hairpin's prefix domain instead of its
-# intended trigger? Reuses `_partner_table` (the one stack-walk every other worker in
-# this module already shares) rather than a second pairing walker -- CLAUDE.md sec 1.
-# ======================================================================================
-
-
-def _mean_frac_paired_to_spans(
-    structures: list[str], span: tuple[int, int], targets: list[tuple[int, int]]
-) -> float | None:
-    """Mean, across ``structures``, of the fraction of ``span`` paired to ANY position
-    inside ``targets`` (a union of other spans) -- one partner lookup per base, no
-    second pairing walker. ``None`` when ``span`` is empty (CLAUDE.md sec 3: a domain
-    that does not exist here, e.g. a no-spacer variant's zero-length spacer, was not
-    measured, which is not the same as measuring zero of it)."""
-    s0, s1 = span
-    if s1 <= s0:
-        return None
-    total = 0.0
-    for structure in structures:
-        partner = _partner_table(structure)
-        hits = 0
-        for i in range(s0, s1):
-            p = partner[i]
-            if p is None:
-                continue
-            if any(t0 <= p < t1 for t0, t1 in targets):
-                hits += 1
-        total += hits / (s1 - s0)
-    return total / len(structures) if structures else None
-
-
-class CrossDomainJob(NamedTuple):
-    """One AND pair's cross-domain-binding diagnostics, re-sampled once to read off
-    three means that the already-stored aggregate fractions cannot answer (they need
-    the raw per-sample partner table, which is never kept around after a decomp job
-    returns -- see this module's own docstring on why sampling isn't cached to disk).
-    Narrow, display-only, no ranking effect.
-
-    ``include_triggers`` (2026-10-05 fix, AND item 3): ``True`` (the original,
-    default behaviour) samples the "+A+B" (ON) state, ``trigger_a``/``trigger_b``
-    both present. ``False`` samples the "alone" (OFF) state instead -- the fused
-    construct by itself, no trigger strands at all -- reusing this exact job type
-    and worker rather than a second implementation (CLAUDE.md sec 1): the ON-state-
-    only metric was blind to a real cross-domain interaction that only shows up with
-    no trigger present (the intended trigger binding in +A+B displaces it), which a
-    reader looking at the "alone" structure plot would see but the text metric never
-    reported at all.
-    """
-
-    key: str
-    fused: str
-    trigger_a: str
-    trigger_b: str
-    toehold_a: tuple[int, int]
-    toehold_b: tuple[int, int]
-    prefix_a: tuple[int, int] | None  # None: this design/topology has no surviving
-    prefix_b: tuple[int, int] | None  # prefix domain for that half after fuse() --
-    #    e.g. euk_open_5p_kozak_after_stem's own KEEP_3P_AFTER="prefix" cuts the 3'
-    #    half's prefix away entirely, so `prefix_b` is routinely None for that
-    #    topology; the corresponding mean is then None too (CLAUDE.md sec 3 -- a
-    #    domain that was never retained was not measured, which is not zero of it).
-    spacer: tuple[int, int] | None
-    temperature: float
-    n_samples: int = 1200
-    include_triggers: bool = True
-
-
-def _cross_domain_worker(job: CrossDomainJob) -> dict:
-    """Runs in a separate process, folding through the inherited shared ``FoldEngine``.
-
-    Three means over the same batch of samples of the state ``job.include_triggers``
-    selects -- "+A+B" (ON, both triggers present) when ``True``, "alone" (OFF, no
-    trigger strands at all) when ``False``: (a) spacer nt paired to EITHER hairpin's
-    own toehold (``None`` if this variant has no spacer), (b) hairpin A's toehold
-    paired to hairpin B's prefix (``None`` if B has no surviving prefix domain), (c)
-    hairpin B's toehold paired to hairpin A's prefix (same, mirrored) -- unwanted
-    cross-domain competition, not the intended trigger binding (which is already
-    reported elsewhere as trigger_bound_a/b, and which does not exist at all in the
-    "alone" state).
-    """
-    engine = _engine(job.temperature)
-    strands = (
-        f"{job.fused}&{job.trigger_a}&{job.trigger_b}" if job.include_triggers else job.fused
-    )
-    samples = engine.sample_structures(strands, job.n_samples)
-    toeholds = [job.toehold_a, job.toehold_b]
-    return {
-        "key": job.key,
-        "mean_spacer_cross_toehold": (
-            _mean_frac_paired_to_spans(samples, job.spacer, toeholds)
-            if job.spacer is not None
-            else None
-        ),
-        "mean_toeholdA_to_prefixB": (
-            _mean_frac_paired_to_spans(samples, job.toehold_a, [job.prefix_b])
-            if job.prefix_b is not None
-            else None
-        ),
-        "mean_toeholdB_to_prefixA": (
-            _mean_frac_paired_to_spans(samples, job.toehold_b, [job.prefix_a])
-            if job.prefix_a is not None
-            else None
-        ),
-        "n_samples": len(samples),
-    }
-
-
-def run_parallel_cross_domain(jobs: list[CrossDomainJob], max_workers: int = 6) -> dict[str, dict]:
-    """Same fork-context reasoning as every other ``run_parallel*`` in this module."""
-    results: dict[str, dict] = {}
-    context = multiprocessing.get_context("fork")
-    with ProcessPoolExecutor(max_workers=max_workers, mp_context=context) as pool:
-        for outcome in pool.map(_cross_domain_worker, jobs):
             results[outcome["key"]] = outcome
     return results
