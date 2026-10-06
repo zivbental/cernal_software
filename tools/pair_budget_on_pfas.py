@@ -1,5 +1,14 @@
 """What selecting trigger pairs by accessibility does to the run, on the real PFAS genes.
 
+    uv run python tools/pair_budget_on_pfas.py
+
+**Why this lives in ``tools/`` and not beside the notebook.** It uses ``FoldProfiler``, a stage-2
+tool, and ``tests/engine/test_house_rules.py`` forbids any file under ``gates/`` from referencing
+it -- both as an upward import (layer 4 from layer 3) and as a gate family reaching for a
+stage tool. The notebook's exemption covers the shared-tool rule only; every other house rule still
+applies to it. ``accessibility_local.py`` is here for exactly the same reason. I put this under
+``review/`` first and the test caught it, which is the test doing its job.
+
 The question is whether every pair can be carried. The answer has to come from the pair count at
 each accessibility threshold, because the grid behind each pair is fixed and the pair count is the
 only free factor.
