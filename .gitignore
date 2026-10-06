@@ -82,3 +82,7 @@ src/engine/gates/notebooks/toehold_and/results/toehold.csv
 # Report build products: regenerate with report/panel_data.py and report/panel_page.py
 src/engine/gates/notebooks/toehold_and/report/panel_data.json
 src/engine/gates/notebooks/toehold_and/report/panel.html
+
+# The axis-characterisation run: one row per design, hundreds of thousands of them.
+# Regenerable by tools/run_axes.cmd, and the analysis that reads them is what gets committed.
+src/engine/gates/notebooks/toehold_and/results/axes_*.csv

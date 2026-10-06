@@ -416,8 +416,26 @@ class Constraints:
             abundance column at all, docs/genes.md §2).
         max_base_expression: Ceiling on a gene's expression in whichever group is the
             "OFF" state for its direction — too high and the switch leaks.
+        stem_order: HOW those stems are chosen from the pair's front, not how many.
+            ``secondary_stems`` returns the NON-DOMINATED set over ``(lock_energy,
+            a_site_energy, b_site_energy)``, so every stem it offers is already a distinct
+            trade among locking the hairpin, letting trigger A grip the secondary arm and
+            letting trigger B invade it. Measured on 404 real PFAS trigger pairs that front
+            holds a median of 82 usable stems (mean 89.4, max 268).
+
+            ``"lock"`` is the historic rule: sort by ``lock_energy`` and take the first
+            ``stems_per_pair``. That is two points from ONE EDGE of the front, and it
+            discards the ``a_site_energy`` axis entirely — the quantity the architecture's
+            central claim rests on and the one nothing has ever ranked on. The best dropped
+            stem is a median of only 0.40 kcal/mol behind the last one kept, so the cut is
+            not between good and bad stems.
+
+            ``"front"`` bins the front into quantiles on ``lock_energy`` and on
+            ``a_site_energy`` independently and takes one stem per occupied bin, nearest its
+            centre, so both axes are spanned at the same budget. Deterministic, so a resumed
+            run picks the same stems.
         stems_per_pair: How many secondary stems a two-input family may take per trigger
-            pair, best lock energy first. **A budget, and it has to be declared here rather
+            pair, chosen by ``stem_order``. **A budget, and it has to be declared here rather
             than chosen inside a gate family.** The axis grid is 16 closures x 3 upper3 x 2
             lower3 = 96 designs per stem per pair per role assignment, so this number
             multiplies the whole sweep; an undeclared default would be an invisible
@@ -457,6 +475,7 @@ class Constraints:
     max_base_expression: float | None = None
     trigger_gc_range: tuple[float, float] = (30.0, 70.0)
     stems_per_pair: int = 2
+    stem_order: str = "lock"
     min_window_gap: int = 50
     overlap_range: tuple[int, int] = (4, 18)
     direction_balance: bool = True

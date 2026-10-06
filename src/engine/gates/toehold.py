@@ -3093,8 +3093,8 @@ class ToeholdAndGate(ToeholdGate):
         # a_site_energy trade entirely -- the axis the architecture's own claim rests on.
         # Widening this is a budget decision: every usable stem on every PFAS pair is 612M
         # designs. Carried as a declared cap rather than silently, and this is what it costs.
-        stems.sort(key=lambda stem: stem.lock_energy)
-        for stem_index, stem in enumerate(stems[: constraints.stems_per_pair]):
+        selected = _select_stems(stems, constraints.stems_per_pair, constraints.stem_order)
+        for stem_index, stem in enumerate(selected):
             # Only the schemes that gate. A-anchored is measured dead -- 0 of 4,330 ever
             # gated, with opening SEP identically 0.000 and an A_M ratio of exactly 1.000
             # across all 392 that pass every other test, which is a trigger pair that does
@@ -3649,6 +3649,77 @@ def _invasion_runs_ok(ext: str, k2: str, k2_star: str, max_run: int) -> bool:
         if run > max_run:
             return False
     return True
+
+
+def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> list["_SecondaryStem"]:
+    """Which stems of a pair's Pareto front to build on, under ``Constraints.stem_order``.
+
+    ``secondary_stems`` returns the non-dominated set over ``(lock_energy, a_site_energy,
+    b_site_energy)``, so the question is not which stems are best -- none dominates another --
+    but which part of the front to spend the budget on.
+
+    ``"lock"`` is the historic rule and is kept exactly: sort by ``lock_energy``, take the first
+    ``budget``. It samples one edge of the front, and the ``a_site_energy`` axis -- trigger A's
+    grip on the secondary arm, the architecture's own claim -- is not represented at all.
+
+    ``"front"`` bins the front into tertiles on each of those two axes independently and takes
+    one stem per occupied bin, the one nearest its bin's centre so the pick represents the bin
+    rather than its corner. Bins are visited in a fixed order and any budget left over goes to
+    the lock-sorted remainder, so the result is deterministic and a resumed run rebuilds it.
+
+    An unknown ``order`` falls back to ``"lock"`` and is **not** silently different: the caller
+    declared a value this function does not implement, and the historic rule is the safe reading.
+    """
+    if budget <= 0 or not stems:
+        return []
+    by_lock = sorted(stems, key=lambda stem: stem.lock_energy)
+    if order != "front" or len(stems) <= budget:
+        return by_lock[:budget]
+
+    bins = 3
+    locks = sorted(stem.lock_energy for stem in stems)
+    sites = sorted(stem.a_site_energy for stem in stems)
+
+    def edges(values: list[float]) -> list[float]:
+        return [values[int(len(values) * (i + 1) / bins) - 1] for i in range(bins - 1)]
+
+    def which(value: float, cuts: list[float]) -> int:
+        for i, cut in enumerate(cuts):
+            if value <= cut:
+                return i
+        return len(cuts)
+
+    lock_cuts, site_cuts = edges(locks), edges(sites)
+    buckets: dict[tuple[int, int], list[_SecondaryStem]] = {}
+    for stem in stems:
+        key = (which(stem.lock_energy, lock_cuts), which(stem.a_site_energy, site_cuts))
+        buckets.setdefault(key, []).append(stem)
+
+    chosen: list[_SecondaryStem] = []
+    for key in sorted(buckets):
+        group = buckets[key]
+        mid_lock = sum(stem.lock_energy for stem in group) / len(group)
+        mid_site = sum(stem.a_site_energy for stem in group) / len(group)
+        chosen.append(
+            min(
+                group,
+                key=lambda stem: (
+                    (stem.lock_energy - mid_lock) ** 2 + (stem.a_site_energy - mid_site) ** 2,
+                    stem.lock_energy,
+                ),
+            )
+        )
+        if len(chosen) >= budget:
+            return chosen[:budget]
+    # Fewer occupied bins than the budget: fill from the lock-sorted remainder, which keeps the
+    # historic rule's designs in the set rather than inventing a third ordering.
+    taken = {id(stem) for stem in chosen}
+    for stem in by_lock:
+        if len(chosen) >= budget:
+            break
+        if id(stem) not in taken:
+            chosen.append(stem)
+    return chosen[:budget]
 
 
 def _pareto_front(points: list[tuple[float, float, float]]) -> list[int]:
