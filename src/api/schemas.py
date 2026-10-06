@@ -233,7 +233,11 @@ class RunIn(Schema):
     )
     dataset_id: UUID | None = Field(default=None, description="Required when input_mode is de.")
     trigger_sequence: str = Field(default="", description="Required when input_mode is direct.")
-    organism: str = Field(default="", max_length=100, description="e.g. E. coli")
+    organism: str = Field(
+        default="ecoli",
+        max_length=100,
+        description="Host key: ecoli, yeast or human. Not free text — 'E. coli' is rejected.",
+    )
     params: dict = Field(default_factory=dict)
     gate_families: list[str] = Field(default_factory=lambda: ["toehold"])
     scoring_profile: str = "default"
@@ -420,7 +424,10 @@ class DesignIn(Schema):
     dge_csv: str = ""
 
     # --- biology ---
-    organism: str = Field(default="", description="e.g. E. coli")
+    organism: str = Field(
+        default="ecoli",
+        description="Host key: ecoli, yeast or human. Not free text — 'E. coli' is rejected.",
+    )
     payload: dict = Field(
         default_factory=dict, description='{"outputs": [...], "custom_sequence": ...}'
     )

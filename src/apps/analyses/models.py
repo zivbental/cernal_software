@@ -58,7 +58,12 @@ class AnalysisRun(UUIDModel, TimestampedModel):
     stands on its own, scoped only to the user who submitted it (``created_by``).
     """
 
-    organism = models.CharField(max_length=100, blank=True, help_text="e.g. E. coli")
+    organism = models.CharField(
+        max_length=100,
+        blank=True,
+        default="ecoli",
+        help_text="Host key: ecoli, yeast or human (engine.domain.Host). Not free text.",
+    )
 
     input_mode = models.CharField(max_length=10, choices=InputMode, default=InputMode.DE)
     dataset = models.ForeignKey(
