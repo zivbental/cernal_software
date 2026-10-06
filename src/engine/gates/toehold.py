@@ -1134,9 +1134,14 @@ class ToeholdAndGate(ToeholdGate):
 
         Returns:
             ``0`` when there is no stop, else the total number of substitutions. A UAA
-            costing two matters: ``GRIP_BREAK_MAX`` permits one broken pair, so two wobbles
-            in a 9-nt stem region is a real weakening and the design stage may still decline
-            it. ``None`` when ``main_pre`` is not 9 nt, which is not a measurement.
+            costing two matters because two wobbles in a 9-nt stem region is a real
+            weakening, and the design stage may still decline it. ``None`` when
+            ``main_pre`` is not 9 nt, which is not a measurement.
+
+            **Nothing enforces a ceiling on that cost today.** This prices the repair; no
+            caller refuses a price. An earlier draft of ``LOWER3`` named a
+            ``GRIP_BREAK_MAX`` for it, and that constant was never written -- see
+            ``LOWER3``, where the levels it was meant to govern are also gone.
         """
         pre = sq.to_rna(main_pre)
         if len(pre) != 9:
@@ -2740,9 +2745,13 @@ class ToeholdAndGate(ToeholdGate):
     #:
     #: Measured: only ``trigger_derived`` and ``wobble_GU`` leave trigger A's grip on the stem
     #: base intact -- 0 mismatches across 368 designs -- while the fixed levels break it, and
-    #: ``WSS``/``AGG`` was dropped 100% of the time by the rare-codon screen. ``grip_broken``
-    #: is what permits at most one broken pair, which is how a forced level can still reach a
-    #: 2S1W arrangement without losing the trigger.
+    #: ``WSS``/``AGG`` was dropped 100% of the time by the rare-codon screen.
+    #:
+    #: **So the broken-pair allowance is moot and is not implemented.** Earlier drafts
+    #: described a ``grip_broken`` count with a ``GRIP_BREAK_MAX`` of 1, to let a FORCED
+    #: level still reach a 2S1W arrangement without losing trigger A's grip. Both levels
+    #: that survive leave the grip intact, so there is nothing for it to permit; neither
+    #: name exists in the code, and a reader looking for them should stop here.
     LOWER3_WOBBLE: ClassVar[str] = "<wobble>"
     LOWER3: ClassVar[tuple[tuple[str, str | None], ...]] = (
         ("trigger_derived", None),
