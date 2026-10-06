@@ -742,7 +742,6 @@ class ToeholdGate(GateFamily):
             * ``trigger_accessibility`` — already measured in stage 2 and carried on the
               trigger. Read it, do not recompute it, or the two disagree.
             * ``translation_score`` — ``self.translation.score(...)`` at the start codon.
-            * ``binding_site_off_target`` — supplied by the validator; do not re-scan.
 
         Gotcha:
             Fold the ON state as a **dimer** (``cofold`` with the ``&`` separator), not as
@@ -751,11 +750,11 @@ class ToeholdGate(GateFamily):
 
         Emits (see the port's metrics audit for why not the others the docstring above
         names): ``gate_folding_energy``, ``predicted_leakage``, ``dynamic_range``,
-        ``trigger_accessibility``, ``gc_content``. ``translation_score`` and
-        ``binding_site_off_target`` are not legal ``evaluate_design`` keys (they are
-        ``GateDesign`` fields filled elsewhere, not profile metrics) and are not computed
-        here; ``self.translation`` (``TranslationScorer.score``) is not called because it
-        still raises ``NotImplementedError`` — see the port's open questions for
+        ``trigger_accessibility``, ``gc_content``. ``translation_score`` is not a legal
+        ``evaluate_design`` key (it is a ``GateDesign`` field filled elsewhere, not a
+        profile metric) and is not computed here; ``self.translation``
+        (``TranslationScorer.score``) is not called because it still raises
+        ``NotImplementedError`` — see the port's open questions for
         ``predicted_success_rate``, which is left unemitted for the same reason.
         """
         switch = design.sequence

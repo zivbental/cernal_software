@@ -22,7 +22,6 @@ from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.stages.motifs import MotifScreener
-from engine.stages.off_target import OffTargetScanner
 from engine.stages.switches import SwitchDesigner, SwitchValidator, _windows_overlap
 
 # A sequence whose reverse-complement-built switch does not echo extra AUGs —
@@ -41,8 +40,6 @@ def _trigger(**overrides) -> TriggerCandidate:
         "openness": 0.6,
         "accessibility": 0.5,
         "mfe": -5.0,
-        "off_target_penalty": 0.0,
-        "segment_specificity": 1.0,
         "gc_content": 45.0,
     }
     defaults.update(overrides)
@@ -62,9 +59,7 @@ def toehold_gate(folder):
 
 @pytest.fixture
 def validator(folder):
-    return SwitchValidator(
-        folder, OffTargetScanner({}), MotifScreener(), TranslationScorer(Host.ECOLI), Constraints()
-    )
+    return SwitchValidator(folder, MotifScreener(), TranslationScorer(Host.ECOLI), Constraints())
 
 
 # --- SwitchDesigner.build_trigger_sets ----------------------------------------------
@@ -253,7 +248,6 @@ def test_a_clean_design_passes(validator):
 def test_length_over_the_constraint_is_rejected(folder):
     validator = SwitchValidator(
         folder,
-        OffTargetScanner({}),
         MotifScreener(),
         TranslationScorer(Host.ECOLI),
         Constraints(max_switch_length=10),
@@ -325,7 +319,6 @@ def test_every_violation_is_collected_not_just_the_first(folder):
     at once (the class's own docstring)."""
     validator = SwitchValidator(
         folder,
-        OffTargetScanner({}),
         MotifScreener(),
         TranslationScorer(Host.ECOLI),
         Constraints(max_switch_length=5),

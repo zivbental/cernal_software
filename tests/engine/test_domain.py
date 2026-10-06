@@ -34,8 +34,6 @@ def _trigger(ref: str, gene: str = "lacZ", seq: str = "ACGUACGUAC") -> TriggerCa
         openness=0.8,
         accessibility=0.7,
         mfe=-12.0,
-        off_target_penalty=0.1,
-        segment_specificity=0.9,
         gc_content=50.0,
     )
 

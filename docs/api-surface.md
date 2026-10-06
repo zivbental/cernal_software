@@ -37,14 +37,14 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 63 |
-| Public classes | 100 |
-| Public callables (excluding `__init__`) | 321 |
-| — `BUILT` | 288 |
-| — `STUB` | 25 |
+| Modules | 62 |
+| Public classes | 97 |
+| Public callables (excluding `__init__`) | 315 |
+| — `BUILT` | 287 |
+| — `STUB` | 20 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
-| `__init__` constructors | 21 |
+| `__init__` constructors | 19 |
 
 ## Index
 
@@ -53,7 +53,7 @@ layers above it, never the ones below.
 
 | Layer | Module | S | Not `STUB` | `STUB` | Purpose |
 | --- | --- | --- | ---: | ---: | --- |
-| domain | `engine.domain` |  | 30 | 0 | The engine's scientific vocabulary. |
+| domain | `engine.domain` |  | 29 | 0 | The engine's scientific vocabulary. |
 | sequences | `engine.sequences` | S6 | 12 | 0 | S6 — sequence facts. Pure functions, no state, no dependencies. |
 | scoring | `engine.scoring` |  | 0 | 0 |  |
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
@@ -96,11 +96,10 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold_and.trigger_accessibility` |  | 8 | 0 | Stage 1b — accessibility scores for every trigger pair, in Green's and VISTA's terms. |
 | gates | `engine.gates.notebooks.toehold_and.window_probabilities` |  | 4 | 0 | The ribosome window as probabilities, base by base, in all four tubes. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
-| stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
+| stages | `engine.stages.circuits` |  | 0 | 3 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
 | stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
-| stages | `engine.stages.off_target` | S5 | 0 | 4 | S5 — off-target scanning, in both directions. |
 | stages | `engine.stages.plasmids` |  | 7 | 0 | Stage 5 — plasmid construction. |
 | stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
@@ -343,8 +342,6 @@ Stage 2 output — a sub-segment of a transcript, ranked as a possible input.
 | `openness` | `float` |  |
 | `accessibility` | `float` |  |
 | `mfe` | `float` |  |
-| `off_target_penalty` | `float` |  |
-| `segment_specificity` | `float` |  |
 | `gc_content` | `float` |  |
 | `aug_indexes` | `tuple[int, ...]` | `()` |
 | `stop_indexes` | `tuple[int, ...]` | `()` |
@@ -444,7 +441,6 @@ Stage 3 output — one concrete switch built for one trigger set.
 | `mfe_off` | `float` | `0.0` |
 | `mfe_trigger` | `float` | `0.0` |
 | `binding_site_accessibility` | `float` | `0.0` |
-| `binding_site_off_target` | `float` | `0.0` |
 | `translation_score` | `float` | `0.0` |
 | `architecture` | `dict` | `field(default_factory=dict)` |
 | `score` | `float` | `0.0` |
@@ -613,34 +609,6 @@ An external tool a gate family needs, and the version it was validated against.
 | `name` | `str` |  |
 | `version` | `str` |  |
 | `optional` | `bool` | `False` |
-
-#### `class Hit`
-
-`@dataclass(frozen=True, slots=True)`
-
-One near-match found in the transcriptome.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `gene_id` | `str` |  |
-| `start` | `int` |  |
-| `mismatches` | `int` |  |
-| `identity` | `float` |  |
-
-#### `class OffTargetReport`
-
-`@dataclass(frozen=True, slots=True)`
-
-What an off-target scan found, and what it costs the candidate.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `hits` | `tuple[Hit, ...]` |  |
-| `penalty` | `float` |  |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `@property def worst_identity(self) -> float` | Closest off-target match found. 1.0 means an exact duplicate exists. |
 
 #### `class FoldResult`
 
@@ -1705,9 +1673,7 @@ Scores a circuit by how it behaves on the actual samples.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, off_target: OffTargetScanner) -> None` |  |
 | `STUB` | `def evaluate(self, expression: BooleanExpression, counts: CountMatrix, threshold: float) -> ConfusionMatrix` | Run an expression over every sample and tally the four outcomes. |
-| `STUB` | `def cross_talk_penalty(self, designs: list[GateDesign]) -> float` | Interference between a circuit's own switches. |
 
 ### `engine.stages.folding` · S1
 
@@ -1794,24 +1760,6 @@ Rejects or penalises sequences carrying prohibited motifs.
 | `BUILT` | `def __init__(self, standard: AssemblyStandard = AssemblyStandard.RFC10, *, extra_motifs: dict[str, str] \| None = None, max_homopolymer: int = MAX_HOMOPOLYMER) -> None` |  |
 | `BUILT` | `def violations(self, sequence: str, *, circular: bool = False) -> tuple[Violation, ...]` | Every prohibited motif in this sequence. Empty means compliant. |
 | `BUILT` | `def is_compliant(self, sequence: str) -> bool` | True when nothing prohibited is present. A yes/no wrapper over ``violations``. |
-
-### `engine.stages.off_target` · S5
-
-`src/engine/stages/off_target.py`
-
-S5 — off-target scanning, in both directions.
-
-#### `class OffTargetScanner`
-
-Finds near-matches of a sequence in the host transcriptome.
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def __init__(self, transcriptome: dict[str, str], max_mismatch: int = 2) -> None` |  |
-| `STUB` | `def build_index(self) -> None` | Prepare the search structure. Call once, before any scanning. |
-| `STUB` | `def find_similar(self, sequence: str) -> tuple[Hit, ...]` | The primitive. Every method below is interpretation of these hits. |
-| `STUB` | `def scan_trigger(self, trigger: str) -> OffTargetReport` | Direction (b) — is this trigger sponged by other transcripts? |
-| `STUB` | `def scan_switch(self, binding_site: str) -> OffTargetReport` | Direction (a) — can non-cognate RNA cross-activate this switch? |
 
 ### `engine.stages.plasmids`
 
@@ -1907,7 +1855,7 @@ The hard rules a switch must obey, whichever family produced it.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, folder: FoldEngine, off_target: OffTargetScanner, screener: MotifScreener, translation: TranslationScorer, constraints: Constraints) -> None` |  |
+| `BUILT` | `def __init__(self, folder: FoldEngine, screener: MotifScreener, translation: TranslationScorer, constraints: Constraints) -> None` |  |
 | `BUILT` | `def validate(self, design: GateDesign) -> ValidationResult` | Check one design against every hard rule this stage can currently apply. |
 
 ### `engine.stages.triggers`
@@ -1935,7 +1883,7 @@ Scan transcripts and deterministically shortlist candidates per gate footprint.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, profiler: FoldProfiler, off_target: OffTargetScanner, screener: MotifScreener, folder: FoldEngine) -> None` |  |
+| `BUILT` | `def __init__(self, profiler: FoldProfiler, screener: MotifScreener, folder: FoldEngine) -> None` |  |
 | `BUILT` | `def score(self, genes: list[SelectedGene], sequences: dict[str, str], constraints: Constraints) -> Iterator[TriggerCandidate]` | Yield a stable per-gene shortlist across all configured footprint buckets. |
 
 ## Layer 7 · Top level — contract, errors, composition
@@ -1992,7 +1940,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.5.0-direct-and-de-ecoli-yeast'` |
+| `ENGINE_VERSION` |  | `'local-0.6.0-direct-and-de-ecoli-yeast'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |

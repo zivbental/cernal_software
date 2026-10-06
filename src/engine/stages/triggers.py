@@ -18,7 +18,6 @@ from engine.domain import (
 from engine.gates.tools.folding import FoldEngine
 from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
-from engine.stages.off_target import OffTargetScanner
 
 
 class TriggerScorer:
@@ -49,12 +48,10 @@ class TriggerScorer:
     def __init__(
         self,
         profiler: FoldProfiler,
-        off_target: OffTargetScanner,
         screener: MotifScreener,
         folder: FoldEngine,
     ) -> None:
         self.profiler = profiler
-        self.off_target = off_target
         self.screener = screener
         self.folder = folder
 
@@ -90,8 +87,6 @@ class TriggerScorer:
                     local_profile = profile[start:end]
                     openness = sum(local_profile) / length
                     accessibility = min(local_profile)
-                    off_target_report = self.off_target.scan_trigger(window)
-                    segment_specificity = max(0.0, 1.0 - off_target_report.penalty)
 
                     gate_evidence = self._gate_evidence(transcript, profile, start, end)
                     score = gate_evidence.get("selected_seed_probability", openness)
@@ -105,8 +100,6 @@ class TriggerScorer:
                             openness=openness,
                             accessibility=accessibility,
                             mfe=self.folder.mfe(window).energy,
-                            off_target_penalty=off_target_report.penalty,
-                            segment_specificity=segment_specificity,
                             gc_content=sq.gc_content(window),
                             aug_indexes=sq.find_augs(window),
                             stop_indexes=sq.find_stops(window),

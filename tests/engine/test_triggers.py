@@ -1,6 +1,6 @@
 """``TriggerScorer`` — stage 2, ranking candidate trigger windows within a transcript.
 
-``FoldProfiler`` is real; ``OffTargetScanner``'s matching is still a stub. This file
+``FoldProfiler`` is real. This file
 uses small, explicit fakes for both so per-base probabilities and penalties stay easy to
 hand-check. ``MotifScreener`` and ``FoldEngine`` are real: both are already implemented,
 and the whole point of a golden test is to pin real numbers.
@@ -11,8 +11,6 @@ import pytest
 from engine.domain import (
     AssemblyStandard,
     Constraints,
-    Hit,
-    OffTargetReport,
     Regulation,
     SelectedGene,
 )
@@ -32,20 +30,6 @@ class FakeFoldProfiler:
 
     def profile(self, sequence: str) -> list[float]:
         return [0.9 if (i // 4) % 2 == 0 else 0.1 for i in range(len(sequence))]
-
-
-class FakeOffTargetScanner:
-    """A stand-in for ``OffTargetScanner`` returning a fixed, non-zero penalty — enough
-    to prove ``TriggerScorer`` reads it rather than inventing its own number."""
-
-    def __init__(self, penalty: float = 0.2) -> None:
-        self.penalty = penalty
-        self.calls: list[str] = []
-
-    def scan_trigger(self, trigger: str) -> OffTargetReport:
-        self.calls.append(trigger)
-        hits = (Hit(gene_id="other", start=0, mismatches=1, identity=0.9),) if self.penalty else ()
-        return OffTargetReport(hits=hits, penalty=self.penalty)
 
 
 def make_gene(**overrides) -> SelectedGene:
@@ -68,7 +52,6 @@ def make_gene(**overrides) -> SelectedGene:
 def scorer() -> TriggerScorer:
     return TriggerScorer(
         FakeFoldProfiler(),
-        FakeOffTargetScanner(),
         MotifScreener(AssemblyStandard.RFC10),
         FoldEngine(),
     )
@@ -115,7 +98,6 @@ def test_each_gene_is_pruned_independently(sequences, monkeypatch):
     whole reason for pruning per gene rather than by one global threshold."""
     scorer = TriggerScorer(
         FakeFoldProfiler(),
-        FakeOffTargetScanner(),
         MotifScreener(AssemblyStandard.RFC10),
         FoldEngine(),
     )
@@ -141,16 +123,6 @@ def test_windows_carrying_a_restriction_site_are_screened_out(scorer, genes):
     assert len(candidates) < total_possible
 
 
-def test_off_target_and_folding_are_never_called_for_a_screened_out_window():
-    off_target = FakeOffTargetScanner()
-    scorer = TriggerScorer(
-        FakeFoldProfiler(), off_target, MotifScreener(AssemblyStandard.RFC10), FoldEngine()
-    )
-    transcript = "ACGU" * 5 + "GAAUUC" + "ACGU" * 5
-    list(scorer.score([make_gene()], {"b0002": transcript}, Constraints(trigger_lengths=(10,))))
-    assert not any("GAAUUC" in call for call in off_target.calls)
-
-
 def test_the_transcript_is_profiled_once_per_gene_not_once_per_window():
     calls = []
 
@@ -161,7 +133,6 @@ def test_the_transcript_is_profiled_once_per_gene_not_once_per_window():
 
     scorer = TriggerScorer(
         CountingProfiler(),
-        FakeOffTargetScanner(),
         MotifScreener(AssemblyStandard.RFC10),
         FoldEngine(),
     )
@@ -187,20 +158,9 @@ def test_openness_is_the_mean_and_accessibility_is_the_minimum_over_the_window(
     assert candidate.accessibility == pytest.approx(0.1)
 
 
-def test_off_target_penalty_is_read_from_the_scanner_not_invented(genes, sequences):
-    off_target = FakeOffTargetScanner(penalty=0.37)
-    scorer = TriggerScorer(
-        FakeFoldProfiler(), off_target, MotifScreener(AssemblyStandard.RFC10), FoldEngine()
-    )
-    constraints = Constraints(trigger_lengths=(30,))
-    candidates = list(scorer.score(genes, sequences, constraints))
-    assert all(c.off_target_penalty == pytest.approx(0.37) for c in candidates)
-
-
-def test_score_is_raw_openness_even_when_off_target_penalty_is_nonzero(genes, sequences):
+def test_score_is_raw_openness_not_a_blended_figure(genes, sequences):
     scorer = TriggerScorer(
         FakeFoldProfiler(),
-        FakeOffTargetScanner(penalty=0.37),
         MotifScreener(AssemblyStandard.RFC10),
         FoldEngine(),
     )
@@ -239,7 +199,6 @@ def test_higher_mean_openness_outranks_higher_minimum_accessibility():
 
     scorer = TriggerScorer(
         MeanFirstProfiler(),
-        FakeOffTargetScanner(penalty=0.0),
         MotifScreener(AssemblyStandard.RFC10),
         FoldEngine(),
     )
@@ -261,7 +220,6 @@ def test_candidates_are_sorted_by_raw_openness_score(sequences, monkeypatch):
     monkeypatch.setattr(TriggerScorer, "TOP_K_PER_GENE", 100)
     scorer = TriggerScorer(
         FakeFoldProfiler(),
-        FakeOffTargetScanner(penalty=0.0),
         MotifScreener(AssemblyStandard.RFC10),
         FoldEngine(),
     )
@@ -289,7 +247,6 @@ def test_equal_openness_uses_documented_deterministic_tie_breakers():
     def score(values: list[float], sequence: str, lengths: tuple[int, ...]):
         scorer = TriggerScorer(
             ProfileValues(values),
-            FakeOffTargetScanner(penalty=0.0),
             MotifScreener(AssemblyStandard.RFC10),
             FoldEngine(),
         )
@@ -332,6 +289,4 @@ def test_golden_first_candidate_for_a_known_transcript(scorer, genes, sequences)
     assert best.sequence == TRANSCRIPT[0:30]
     assert best.openness == pytest.approx(0.5266666666666667)
     assert best.accessibility == pytest.approx(0.1)
-    assert best.off_target_penalty == pytest.approx(0.2)
-    assert best.segment_specificity == pytest.approx(0.8)
     assert best.score == pytest.approx(0.5266666666666667)

@@ -25,7 +25,6 @@ from engine.domain import (
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.stages.motifs import MotifScreener
-from engine.stages.off_target import OffTargetScanner
 
 
 class SwitchDesigner:
@@ -198,7 +197,6 @@ class SwitchValidator:
 
     Args:
         folder: Shared ``FoldEngine``, for structural checks.
-        off_target: Shared ``OffTargetScanner``, for direction (a) on the binding site.
         screener: Shared ``MotifScreener``, for assembly-standard compliance.
         translation: Shared ``TranslationScorer``, for the initiation checks.
         constraints: The run's limits. ``max_switch_length`` comes from here, never a
@@ -210,13 +208,11 @@ class SwitchValidator:
     def __init__(
         self,
         folder: FoldEngine,
-        off_target: OffTargetScanner,
         screener: MotifScreener,
         translation: TranslationScorer,
         constraints: Constraints,
     ) -> None:
         self.folder = folder
-        self.off_target = off_target
         self.screener = screener
         self.translation = translation
         self.constraints = constraints

@@ -24,7 +24,6 @@ from engine.domain import (
     GateDesign,
     SelectedGene,
 )
-from engine.stages.off_target import OffTargetScanner
 
 
 class CircuitDesigner:
@@ -72,11 +71,9 @@ class CircuitDesigner:
             3. Drop any expression referencing a gene with no design.
             4. ``evaluator.evaluate(expression, counts, threshold)`` for the confusion
                matrix.
-            5. ``evaluator.cross_talk_penalty(designs)`` for interference between the
-               circuit's own parts.
-            6. Build the ``LogicGraph`` the results view renders — genes with their ON/OFF
+            5. Build the ``LogicGraph`` the results view renders — genes with their ON/OFF
                state and direction, the gate operators, and the caption.
-            7. Score: separation margin against complexity, minus cross-talk. Yield.
+            6. Score: separation margin against complexity. Yield.
 
         On overfitting:
             With few samples, a large expression can score perfectly by memorising them.
@@ -125,18 +122,9 @@ class ConfusionEvaluator:
     The pipeline map's confusion table: circuit ON or OFF, against condition or control.
 
     This is the most honest signal in the pipeline. Everything before it is prediction —
-    predicted folding, predicted binding, predicted off-target load. This is measurement,
-    against data the researcher actually collected.
-
-    Args:
-        off_target: Shared scanner, used **only** for cross-talk between a circuit's own
-            components. Per-trigger and per-switch penalties are already computed and
-            stored upstream; re-scanning here would be slow and would disagree with the
-            numbers already recorded (docs/engine.md §3.4).
+    predicted folding, predicted binding. This is measurement, against data the
+    researcher actually collected.
     """
-
-    def __init__(self, off_target: OffTargetScanner) -> None:
-        self.off_target = off_target
 
     def evaluate(
         self, expression: BooleanExpression, counts: CountMatrix, threshold: float
@@ -167,31 +155,5 @@ class ConfusionEvaluator:
             derived from its own control distribution (say, the control 90th percentile)
             is more defensible and not much more work. **Whatever is chosen, record it**:
             the confusion matrix means nothing without knowing what "present" meant.
-        """
-        raise NotImplementedError("Step 5")
-
-    def cross_talk_penalty(self, designs: list[GateDesign]) -> float:
-        """Interference between a circuit's own switches.
-
-        Each switch was validated in isolation against the transcriptome. In a circuit
-        they coexist, and trigger A may open switch B. A two-input AND whose switches
-        cross-activate is really an OR, and it will look fine in every earlier stage.
-
-        Args:
-            designs: Every switch in this circuit.
-
-        Returns:
-            A penalty, 0.0 for no interference and rising with it. Subtracted from the
-            circuit score, and it should also raise the false-positive expectation.
-
-        Implementation (Step 5):
-            For each ordered pair of designs, ask whether one's trigger resembles the
-            other's binding site — ``off_target.find_similar`` against the
-            reverse complement, as in ``scan_switch``. Skip self-pairs. Weight by
-            similarity.
-
-        Note:
-            This is the **only** genuinely new off-target search at this stage. Everything
-            else was computed upstream and stored.
         """
         raise NotImplementedError("Step 5")

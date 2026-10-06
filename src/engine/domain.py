@@ -320,10 +320,6 @@ class TriggerCandidate:
             and paired in the middle does not score as well as one open throughout.
         mfe: The window's own folding energy, kcal/mol. A trigger that folds tightly on
             itself competes with binding the switch.
-        off_target_penalty: From ``OffTargetScanner.scan_trigger`` — direction (b),
-            sponging by other transcripts. 0 is clean.
-        segment_specificity: How well this window distinguishes its gene from its
-            paralogues.
         gc_content: Percent G+C. Extremes hurt synthesis and duplex behaviour alike.
         aug_indexes: Start codons inside the window. Recorded because a trigger carrying
             one can interfere once incorporated into a switch's stem.
@@ -342,8 +338,6 @@ class TriggerCandidate:
     openness: float
     accessibility: float
     mfe: float
-    off_target_penalty: float
-    segment_specificity: float
     gc_content: float
     aug_indexes: tuple[int, ...] = ()
     stop_indexes: tuple[int, ...] = ()
@@ -510,8 +504,6 @@ class GateDesign:
         mfe_trigger: The trigger's own folding energy, needed to compute binding.
         binding_site_accessibility: How reachable the toehold is in the OFF state. A
             switch whose toehold is itself buried can never be opened.
-        binding_site_off_target: From ``scan_switch`` — direction (a), cross-activation
-            by non-cognate RNA. Feeds the leakage estimate.
         translation_score: Codon adaptation of the fused payload, from ``CodonOptimizer``.
         architecture: Family-specific parameters — stem and loop lengths, toehold length.
             A dict because it is opaque to everything outside the family that produced it,
@@ -530,7 +522,6 @@ class GateDesign:
     mfe_off: float = 0.0
     mfe_trigger: float = 0.0
     binding_site_accessibility: float = 0.0
-    binding_site_off_target: float = 0.0
     translation_score: float = 0.0
     architecture: dict = field(default_factory=dict)
     score: float = 0.0
@@ -787,29 +778,6 @@ class ToolRequirement:
     name: str
     version: str
     optional: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class Hit:
-    """One near-match found in the transcriptome."""
-
-    gene_id: str
-    start: int
-    mismatches: int
-    identity: float
-
-
-@dataclass(frozen=True, slots=True)
-class OffTargetReport:
-    """What an off-target scan found, and what it costs the candidate."""
-
-    hits: tuple[Hit, ...]
-    penalty: float
-
-    @property
-    def worst_identity(self) -> float:
-        """Closest off-target match found. 1.0 means an exact duplicate exists."""
-        return max((hit.identity for hit in self.hits), default=0.0)
 
 
 @dataclass(frozen=True, slots=True)

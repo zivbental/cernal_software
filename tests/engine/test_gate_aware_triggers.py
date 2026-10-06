@@ -5,7 +5,7 @@ import math
 
 import pytest
 
-from engine.domain import AssemblyStandard, Constraints, OffTargetReport, Regulation, SelectedGene
+from engine.domain import AssemblyStandard, Constraints, Regulation, SelectedGene
 from engine.gates.tools.folding import FoldEngine
 from engine.stages import folding as folding_module
 from engine.stages.folding import FoldProfiler
@@ -133,11 +133,6 @@ class GateAwareProfiler:
         }
 
 
-class EmptyOffTarget:
-    def scan_trigger(self, trigger):
-        return OffTargetReport(hits=(), penalty=0.0)
-
-
 def gene():
     return SelectedGene(
         gene_id="g", symbol="g", regulation=Regulation.UP, log2_fold_change=2.0, score=1.0
@@ -146,9 +141,7 @@ def gene():
 
 def score_one(length, profiler, start_offset=0):
     transcript = "ACGU" * 30
-    scorer = TriggerScorer(
-        profiler, EmptyOffTarget(), MotifScreener(AssemblyStandard.RFC10), FoldEngine()
-    )
+    scorer = TriggerScorer(profiler, MotifScreener(AssemblyStandard.RFC10), FoldEngine())
     candidates = list(
         scorer.score(
             [gene()],
@@ -211,7 +204,7 @@ def test_joint_metrics_are_not_products_of_marginals_and_delta_g_uses_floor():
 def test_top_k_round_robin_preserves_every_footprint_bucket(monkeypatch):
     monkeypatch.setattr(TriggerScorer, "TOP_K_PER_GENE", 3)
     transcript = "ACGU" * 20
-    scorer = TriggerScorer(GateAwareProfiler(), EmptyOffTarget(), MotifScreener(), FoldEngine())
+    scorer = TriggerScorer(GateAwareProfiler(), MotifScreener(), FoldEngine())
 
     candidates = list(
         scorer.score([gene()], {"g": transcript}, Constraints(trigger_lengths=(30, 33, 36)))
@@ -226,7 +219,7 @@ def test_default_trigger_lengths_cover_every_exact_toehold_footprint():
 
 def test_coordinates_remain_absolute_for_nonzero_candidate_start():
     transcript = "ACGU" * 10
-    scorer = TriggerScorer(GateAwareProfiler(), EmptyOffTarget(), MotifScreener(), FoldEngine())
+    scorer = TriggerScorer(GateAwareProfiler(), MotifScreener(), FoldEngine())
     candidates = list(scorer.score([gene()], {"g": transcript}, Constraints(trigger_lengths=(30,))))
     candidate = next(item for item in candidates if item.start_index == 7)
     assert (candidate.hypothesis_start, candidate.hypothesis_end) == (17, 37)
@@ -238,7 +231,7 @@ def test_coordinates_remain_absolute_for_nonzero_candidate_start():
 def test_primary_joint_p8_orders_candidates_within_one_bucket():
     transcript = "ACGU" * 8
     profiler = GateAwareProfiler(joint={(18, 26): 0.9, (23, 31): 0.8})
-    scorer = TriggerScorer(profiler, EmptyOffTarget(), MotifScreener(), FoldEngine())
+    scorer = TriggerScorer(profiler, MotifScreener(), FoldEngine())
     candidates = list(scorer.score([gene()], {"g": transcript}, Constraints(trigger_lengths=(30,))))
     assert candidates[0].start_index == 0
     assert candidates[0].selected_seed_probability == pytest.approx(0.9)
@@ -256,7 +249,7 @@ def test_marginal_only_profiler_uses_documented_legacy_fallback():
 
 @pytest.mark.parametrize("lengths", [(31,), (30, 31, 33)])
 def test_joint_capable_scorer_rejects_non_exact_footprints(lengths):
-    scorer = TriggerScorer(GateAwareProfiler(), EmptyOffTarget(), MotifScreener(), FoldEngine())
+    scorer = TriggerScorer(GateAwareProfiler(), MotifScreener(), FoldEngine())
     with pytest.raises(ValueError, match=r"30, 33, and 36"):
         list(scorer.score([gene()], {"g": "ACGU" * 20}, Constraints(trigger_lengths=lengths)))
 

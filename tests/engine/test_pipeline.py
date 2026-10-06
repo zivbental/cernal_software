@@ -690,7 +690,6 @@ def test_build_tools_returns_every_documented_key(direct_request):
     assert set(tools) == {
         "folder",
         "profiler",
-        "off_target",
         "screener",
         "codons",
         "translation",
@@ -847,7 +846,7 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
 
 def test_gate_aware_trigger_ranking_bumps_engine_version():
-    assert LocalEngine.ENGINE_VERSION == "local-0.5.0-direct-and-de-ecoli-yeast"
+    assert LocalEngine.ENGINE_VERSION == "local-0.6.0-direct-and-de-ecoli-yeast"
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(

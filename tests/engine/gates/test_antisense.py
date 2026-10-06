@@ -50,8 +50,6 @@ def make_trigger(**overrides) -> TriggerCandidate:
         "openness": 0.70,
         "accessibility": 0.65,
         "mfe": -4.0,
-        "off_target_penalty": 0.0,
-        "segment_specificity": 0.9,
         "gc_content": sq.gc_content(sequence),
         "score": 0.8,
     }

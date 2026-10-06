@@ -70,8 +70,6 @@ def _trigger() -> TriggerCandidate:
         openness=0.6,
         accessibility=0.5,
         mfe=-4.2,
-        off_target_penalty=0.0,
-        segment_specificity=1.0,
         gc_content=44.4,
     )
 

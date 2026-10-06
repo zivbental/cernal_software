@@ -18,10 +18,9 @@ modes and both hosts.
 **What the `de` path still does not do, deliberately.** No ``InputQualityCheck`` — there
 is no count matrix to check; the product only ever collects a differential-expression
 table (docs/genes.md §3 G-a), so the stage that validates one has nothing to run on
-yet. No real off-target scanning — ``OffTargetScanner``'s matching (``find_similar``) is
-still a stub, so its transcriptome is kept empty even here (an empty transcriptome has a
-defined, honest "not measured" answer — docs/triggers.md T1 — where a populated one
-would raise). No ``CircuitDesigner`` — every selected gene becomes its own one-gene
+yet. No off-target scanning at all — the scanner and the two trigger fields it fed
+were removed rather than left as placeholders that read as measurements. No
+``CircuitDesigner`` — every selected gene becomes its own one-gene
 circuit, the same trivial construction the `direct` path already uses (see the next
 paragraph), never a multi-gene Boolean expression. No human — no bundled reference
 transcriptome (a genomic CDS extraction is the wrong tool for a heavily-spliced genome,
@@ -100,7 +99,6 @@ from engine.scoring.profiles import HardFilter, resolve_profile
 from engine.stages.folding import FoldProfiler
 from engine.stages.genes import GeneSelector
 from engine.stages.motifs import MotifScreener
-from engine.stages.off_target import OffTargetScanner
 from engine.stages.plasmids import (
     BACKBONES,
     PAYLOADS,
@@ -186,7 +184,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         one place, which is what makes it recordable.
 
     Note:
-        The transcriptome that ``OffTargetScanner`` indexes **must be the same build**
+        The transcriptome **must be the same build**
         the trigger sequences came from. This build never has one — the `direct` path
         has no transcriptome at all — so it is constructed empty
         (docs/triggers.md T1: an empty transcriptome gives a defined, honest
@@ -203,7 +201,6 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
     tools: dict[str, object] = {
         "folder": folder,
         "profiler": FoldProfiler(),
-        "off_target": OffTargetScanner({}),
         "screener": screener,
         "codons": codons,
         "translation": TranslationScorer(host),
@@ -216,13 +213,6 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
 
     families: list = []
     warnings: list[str] = []
-    if not tools["off_target"].transcriptome:
-        warnings.append(
-            "Off-target specificity was not measured (OffTargetScanner's matching is "
-            "not yet implemented, so it is deliberately given an empty transcriptome "
-            "rather than one it would crash on) — off_target_penalty and "
-            "segment_specificity are placeholders, not measurements."
-        )
 
     for name in request.gate_families or ["toehold"]:
         reason = _UNBUILDABLE_FAMILIES.get(name)
@@ -303,7 +293,6 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             store,
             tools["profiler"],
             tools["folder"],
-            tools["off_target"],
             tools["screener"],
             constraints,
             host,
@@ -316,7 +305,6 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             store,
             tools["profiler"],
             tools["folder"],
-            tools["off_target"],
             tools["screener"],
             constraints,
         )
@@ -324,7 +312,6 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
 
     validator = SwitchValidator(
         tools["folder"],
-        tools["off_target"],
         tools["screener"],
         tools["translation"],
         constraints,
@@ -636,7 +623,6 @@ def _direct_trigger(
     store: CandidateStore,
     profiler: FoldProfiler,
     folder: FoldEngine,
-    off_target: OffTargetScanner,
     screener: MotifScreener,
     constraints: Constraints,
 ) -> tuple[list[TriggerCandidate], list[str]]:
@@ -708,10 +694,6 @@ def _direct_trigger(
             openness=openness,
             accessibility=min(window),
             mfe=folder.mfe(sequence).energy,
-            # No transcriptome exists for a direct submission (off-target is reported
-            # as unmeasured in run_pipeline's warnings, not silently clean).
-            off_target_penalty=0.0,
-            segment_specificity=1.0,
             gc_content=sq.gc_content(sequence),
             aug_indexes=sq.find_augs(sequence),
             stop_indexes=sq.find_stops(sequence),
@@ -735,7 +717,7 @@ def _direct_trigger(
         log2_fold_change=0.0,
         score=0.0,
     )
-    scorer = TriggerScorer(profiler, off_target, screener, folder)
+    scorer = TriggerScorer(profiler, screener, folder)
     scored = list(scorer.score([gene], {"direct": sequence}, constraints))
     # Re-mint through CandidateStore: TriggerCandidate.trigger_id's own contract
     # (domain.py) says "minted by CandidateStore", but TriggerScorer builds its own
@@ -772,7 +754,6 @@ def _de_trigger(
     store: CandidateStore,
     profiler: FoldProfiler,
     folder: FoldEngine,
-    off_target: OffTargetScanner,
     screener: MotifScreener,
     constraints: Constraints,
     host: Host,
@@ -801,12 +782,6 @@ def _de_trigger(
            still becomes its own one-gene circuit downstream (this module's own
            docstring) — selecting several genes here is not a multi-gene Boolean
            circuit, just several independent single-input switches to choose from.
-
-    Off-target scanning is **not** performed here even though a real, non-empty
-    transcriptome now exists: ``OffTargetScanner``'s own matching (``find_similar``) is
-    still a Step-5 stub, and it raises rather than degrades once its transcriptome is
-    non-empty (``off_target.transcriptome`` stays ``{}``, exactly as ``build_tools``
-    already constructs it for `direct` mode — see this module's own docstring).
 
     Returns:
         The candidate trigger(s), ranked best first, and warnings describing how they
@@ -854,7 +829,7 @@ def _de_trigger(
     # Every gene GeneSelector kept is guaranteed present in `transcriptome` (it drops,
     # and warns about, any gene missing from `sequences` itself) — safe to reuse the
     # same dict rather than building a second, smaller one.
-    scorer = TriggerScorer(profiler, off_target, screener, folder)
+    scorer = TriggerScorer(profiler, screener, folder)
     scored = list(scorer.score(genes, transcriptome, constraints))
     # Re-mint through CandidateStore, matching _direct_trigger's own note: trigger_id
     # is "minted by CandidateStore" per domain.py's contract, but TriggerScorer builds

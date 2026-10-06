@@ -74,8 +74,8 @@ nothing raises; the candidate ranks on the metrics it spelled correctly.
 **Adding a metric is an edit to `profiles.py` in the same PR** — a new `MetricSpec` with
 its name, direction, weight and `valid_range`, plus a version bump on `DEFAULT_V1`, since
 the profile label is recorded on every run. `structure_deviation`, `translation_score`,
-`off_target_penalty`, `binding_site_accessibility` and `condition_specificity` are real
-fields on the records with **no spec** — they are stored, not scored.
+`binding_site_accessibility` and `condition_specificity` are real fields on the records
+with **no spec** — they are stored, not scored.
 
 ---
 
@@ -122,9 +122,9 @@ pipeline  →  stages  →  gates  →  gates/tools  →  sequences  →  domain
 library. **Nothing imports upward** — a tool that needs to know which stage called it is
 the signal something is in the wrong place.
 
-The one sideways exception: the stage-level tools S1 `stages/folding.py`, S5
-`stages/off_target.py` and S7 `stages/motifs.py` may be imported by sibling stages. One
-screener, three callers. A stage importing another *stage* is not allowed.
+The one sideways exception: the stage-level tools S1 `stages/folding.py` and S7
+`stages/motifs.py` may be imported by sibling stages. One screener, three callers. A
+stage importing another *stage* is not allowed.
 
 `src/engine/` must never import `django`, `apps`, `api` or `config`; platform code imports
 only `engine.contract` and `engine.client`. This half is machine-checked by
@@ -144,15 +144,15 @@ fix the code, do not edit the test.
 
 Every tool is built **once** in `pipeline.build_tools()` and passed down. Your class
 receives them in `__init__` and stores them. Do not write `FoldEngine()`,
-`OffTargetScanner()`, `MotifScreener()`, `CodonOptimizer()`, `TranslationScorer()` or
+`MotifScreener()`, `CodonOptimizer()`, `TranslationScorer()` or
 `FoldProfiler()` anywhere outside `pipeline.py` — not in a stage, not in a gate family,
 not in a helper, not in a loop.
 
 `FoldEngine`'s cache lives on the instance, so a second instance means a cold cache and,
 worse, a second chance to fold at a different temperature — two designs folded at
 different temperatures get normalised onto the same `gate_folding_energy` axis as if
-comparable, and nothing detects it. Same for the index: one `OffTargetScanner`, on the
-same transcriptome build the trigger sequences came from.
+comparable, and nothing detects it. Same for every other tool whose configuration
+decides what its numbers mean.
 
 **Only two modules may `import RNA`:** `src/engine/gates/tools/folding.py` (design-side
 MFE and ensemble, cached) and `src/engine/stages/folding.py` (windowed RNAplfold). Today
@@ -161,9 +161,8 @@ else, never add a second folding library, and never mutate `RNA.cvar.temperature
 process-global and unsafe; model parameters travel on an explicit `RNA.md()`.
 
 Values already computed upstream are **read, not recomputed**:
-`TriggerCandidate.accessibility`, `openness`, `off_target_penalty`,
-`GateDesign.binding_site_off_target`. Recomputing with a slightly different window or
-mismatch model produces two numbers for one quantity, and both get persisted.
+`TriggerCandidate.accessibility` and `openness`. Recomputing with a slightly different
+window produces two numbers for one quantity, and both get persisted.
 
 ---
 
@@ -191,9 +190,8 @@ mutable `RunContext` that accumulates stage state.
 ## 7. Where your code goes
 
 Four destinations for what was one script is normal here — a switch chemistry's
-generator+validation code splits four ways. Generation → `gates/toehold.py`; validation
-→ `stages/switches.py`; off-target → `stages/off_target.py`; visualisation →
-`stages/reporting.py`. (docs/engine.md §5: no possessive or personal names in this
+generator+validation code splits three ways. Generation → `gates/toehold.py`;
+validation → `stages/switches.py`; visualisation → `stages/reporting.py`. (docs/engine.md §5: no possessive or personal names in this
 repo's naming — a pipeline step, not the person who ports it, identifies the row below.)
 
 | Pipeline area | File | Class | Signature to implement |
