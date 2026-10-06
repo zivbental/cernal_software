@@ -77,6 +77,7 @@ helpers the workers need must live in `_joint_state_parallel.py`.
 | `SINGLE_REPORT_N` | `20` | Singles shown in the Single Switch report |
 | `AND_GRID_N` | `20` | Top singles (by single-switch order) fed into the N x N AND grid |
 | `AND_REPORT_N` | `20` | AND pairs shown in the AND report |
+| `OFF_FLOOR_PCT` | `1.0` | Floor for OFF (percentage points) in the ratio: `ratio = ON% / max(OFF%, OFF_FLOOR_PCT)`; floored rows are marked `*` |
 | `OPEN_THRESHOLD` | `0.70` | HIGH/LOW cutoff of the green/red plan colouring **only** (HIGH >= 0.70, LOW <= 0.30); never enters a score |
 | `SINGLE_N_FAKES` | `10` | Distinct fakes per single-switch candidate, averaged into its OFF fakes term |
 | `AND_N_FAKES` | `10` | Distinct fakes drawn **per side** (A and B, two independent rotations) per AND pair; separate from `SINGLE_N_FAKES` because the two footprints are screened and reported separately, so changing one must never change the other |
@@ -200,8 +201,11 @@ OFF to ~100% for every candidate (verified).
 
 ### Ratio and ranking
 
-`ratio = (ON*100) / (1 + OFF*100)` in percentage points (at fraction units the "+1"
-swamps any real OFF below 100%; OFF = 0 still gives a finite ratio). `ON - OFF` is shown
+`ratio = (ON*100) / max(OFF*100, OFF_FLOOR_PCT)` in percentage points. An OFF below
+`OFF_FLOOR_PCT` (1%) is replaced by it in the ratio, so OFF values of 0.2% and 0.9% give the
+same ratio and a measured OFF of 0 stays finite. Rows where the floor was used carry
+`off_floored = True`; the reports mark their ratio with `*` and print a note under the summary
+table, while the OFF column keeps the measured value. `ON - OFF` is shown
 beside it.
 
 - **Single order** (`_single_sort_key`): rounded ratio (1 decimal) descending, then `dG`
@@ -512,3 +516,8 @@ value means the CSV order and the report order agree. numpy / pure python only.
   instead of skipping them silently. A smoke run (`SINGLE_POOL_N=14`, `AND_GRID_N=6`)
   before and after gave identical `single_report_rows`, `and_report_rows` and
   `single_scored_pool` (8464 numbers, max difference 0).
+- **2026-10-06 — ratio floor.** The ratio became `ON% / max(OFF%, OFF_FLOOR_PCT)` instead of
+  `ON% / (1 + OFF%)`. With OFF mostly 0.3-4%, the old `+1` shrank every ratio by a similar
+  factor and hid the OFF differences below 1%; the floor treats those as equal and marked `*`.
+  Ratios tie more often (ratio = ON% whenever OFF < 1%), so the dG tie-break decides more of the
+  single order. Needs a new full run: ranking, the AND pool and the top-20 lists all change.
