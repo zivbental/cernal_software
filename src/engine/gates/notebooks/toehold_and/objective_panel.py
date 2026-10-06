@@ -955,6 +955,16 @@ def population(results: Path, *, quiet: bool = True) -> list[dict]:
     missing column reads as "nothing to filter on" rather than as an error, which is exactly the
     silent-pass failure the house rules are about.
     """
+    rows = _enrich(results, quiet=quiet)
+    if not rows:
+        return []
+    live = feasible(rows)
+    add_percentiles(live)
+    return live
+
+
+def _enrich(results: Path, *, quiet: bool = True) -> list[dict]:
+    """Every join, in order, with no filtering. `population` and `enriched` both read it."""
     rows = load(results)
     if not rows:
         return []
@@ -986,9 +996,21 @@ def population(results: Path, *, quiet: bool = True) -> list[dict]:
             f"  off-target joined for {off['joined']:,}: {off['fires']:,} on a FIRES pair "
             f"(excluded), {off['blocks']:,} on a BLOCKS pair (flagged)"
         )
-    live = feasible(rows)
-    add_percentiles(live)
-    return live
+    return rows
+
+
+def enriched(results: Path, *, quiet: bool = True) -> list[dict]:
+    """Every scored row with every join applied, and **`feasible` NOT applied**.
+
+    `population` is enrich-then-filter and returns only survivors, so nothing could ask which
+    filter rejected what: an attribution run on `load`'s bare rows under-counts every rejection,
+    because a column a join has not supplied reads as "nothing to filter on" rather than as a
+    failure. Measured, that gap is 17,666 against 7,298 -- more than twice the survivors.
+
+    So the enrich half is named and `population` is defined in terms of it. One definition of
+    what a joined row is; `tools/attribute_survival.py` is the caller this exists for.
+    """
+    return _enrich(results, quiet=quiet)
 
 
 def add_percentiles(rows: list[dict]) -> None:
