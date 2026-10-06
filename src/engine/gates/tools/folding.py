@@ -29,12 +29,27 @@ this module computes is in service of predicting whether that actually happens.
 Bodies land in Step 5 (docs/ROADMAP.md E1).
 """
 
+import math
 from collections.abc import Sequence
 from functools import cache
 
 import RNA
 
 from engine.domain import FoldResult, StructureMatch
+
+
+def _contains_pairs(structure: str, pairs: Sequence[tuple[int, int]]) -> bool:
+    """Whether a dot-bracket string (``&`` ignored) pairs every ``(i, j)`` in ``pairs``."""
+    stack: list[int] = []
+    partner: dict[int, int] = {}
+    for position, char in enumerate(structure.replace("&", "")):
+        if char == "(":
+            stack.append(position)
+        elif char == ")":
+            opener = stack.pop()
+            partner[opener] = position
+            partner[position] = opener
+    return all(partner.get(i) == j for i, j in pairs)
 
 
 class FoldEngine:
@@ -281,6 +296,86 @@ class FoldEngine:
                 fold_compound.hc_add_bp(i + 1, j + 1, option)
         fold_compound.pf()
         return list(fold_compound.pbacktrack(n_samples))
+
+    def constrained_probability(
+        self, strands: str, forced_pairs: Sequence[tuple[int, int]]
+    ) -> float | None:
+        """Exact probability that **all** of ``forced_pairs`` are present at once.
+
+        Why it exists: a joint event such as "both designed duplexes are formed in the
+        same structure" cannot be read off the pair-probability matrix, whose entries
+        are marginals — the product of marginals is only a bound under independence.
+        The partition-function ratio answers it exactly, with no sampling noise (on
+        multi-strand complexes :meth:`sample_structures` was measured to disagree badly
+        with the exact probabilities, and more draws do not fix it)::
+
+            P(all forced pairs) = Z(forced) / Z = exp(-(G_forced - G) / RT)
+
+        where ``Z(forced)`` is the partition function restricted to structures that
+        contain every forced pair, ``G`` the unconstrained ensemble free energy, and
+        ``RT = R * T`` with ``R = 0.0019872`` kcal/mol/K and ``T = temperature + 273.15``.
+        For a single forced pair this equals the matching
+        :meth:`base_pair_probabilities` entry exactly.
+
+        Args:
+            strands: RNA, uppercase; one sequence or several joined with ``&`` — the
+                same syntax and indexing as :meth:`sample_structures`.
+            forced_pairs: ``(i, j)`` positions, **0-indexed over the concatenation with
+                the** ``&`` **removed**, that must all be paired. Converted here to
+                ViennaRNA's 1-indexed ``hc_add_bp`` with all-loop-context enforcement.
+
+        Returns:
+            A probability in ``(0, 1]``, or ``None`` — never ``0.0`` — when
+            ``forced_pairs`` is empty (nothing to ask), the constraints cannot all hold
+            (an impossible pair, or pairs that conflict), or ViennaRNA fails.
+
+        Numerics: both compounds run ``mfe()`` and ``exp_params_rescale(mfe)`` before
+        ``pf()`` so the Boltzmann factors are scaled to the same energy scale and long
+        complexes do not overflow. Cached on ``(strands, forced_pairs)``.
+        """
+        pairs = tuple((int(i), int(j)) for i, j in forced_pairs)
+        if not pairs:
+            return None
+        return self._constrained_probability_cached(strands, pairs)
+
+    @cache  # noqa: B019 — one instance per run; see the class docstring
+    def _constrained_probability_cached(
+        self, strands: str, forced_pairs: tuple[tuple[int, int], ...]
+    ) -> float | None:
+        gas_constant = 0.0019872  # kcal/mol/K
+        rt = gas_constant * (self.temperature + 273.15)
+
+        def free_energy(pairs: tuple[tuple[int, int], ...]) -> float | None:
+            fold_compound = self._compound(strands)
+            if pairs:
+                option = RNA.CONSTRAINT_CONTEXT_ALL_LOOPS | RNA.CONSTRAINT_CONTEXT_ENFORCE
+                for i, j in pairs:
+                    fold_compound.hc_add_bp(i + 1, j + 1, option)
+            structure, mfe_energy = fold_compound.mfe()
+            if pairs and not _contains_pairs(structure, pairs):
+                # ViennaRNA silently drops a forced pair it cannot place (and an
+                # enforced set that conflicts), which would read back as P = 1.0.
+                return None
+            fold_compound.exp_params_rescale(mfe_energy)
+            _, energy = fold_compound.pf()
+            return energy
+
+        try:
+            free_forced = free_energy(forced_pairs)
+            free_all = free_energy(())
+        except Exception:  # ViennaRNA raises bare RuntimeError/ValueError
+            return None
+        # An infeasible constraint set yields a non-finite or absurdly high energy.
+        if free_forced is None or free_all is None:
+            return None
+        if not (free_forced == free_forced and free_all == free_all):
+            return None
+        if free_forced - free_all > 100.0:
+            return None
+        probability = math.exp(-(free_forced - free_all) / rt)
+        if not 0.0 < probability <= 1.0 + 1e-9:
+            return None
+        return min(probability, 1.0)
 
     def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]:
         """Every structure within an energy window of the MFE.
