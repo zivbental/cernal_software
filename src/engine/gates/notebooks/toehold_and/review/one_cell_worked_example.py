@@ -67,8 +67,8 @@ for r in cell:
             win = " <= BEST" if v == best.get(arm) else ""
             marks.append(f"{v:>8.3f}{win:<8s}")
     print(
-        f"  {str(r['closure']):12s}{str(r['upper3']):16s}{str(r['lower3']):16s}"
-        f"{str(r['scheme']):12s}" + "".join(marks)
+        f"  {r['closure']!s:12s}{r['upper3']!s:16s}{r['lower3']!s:16s}"
+        f"{r['scheme']!s:12s}" + "".join(marks)
     )
 
 print("\n  so THIS cell votes:")
@@ -78,7 +78,7 @@ for arm, col in ARMS.items():
     winner = min((r for r in cell if r.get(col) is not None), key=lambda r: r[col])
     k = len({str(r["closure"]) for r in cell if r.get(col) is not None})
     print(
-        f"    {arm:14s} winner closure = {str(winner['closure']):12s}"
+        f"    {arm:14s} winner closure = {winner['closure']!s:12s}"
         f"(one vote; every closure in this cell also gets 1/{k} of expected-by-luck)"
     )
 
