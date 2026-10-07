@@ -108,7 +108,9 @@ class AntisenseNotGate(GateFamily):
     kind = GateKind.ANTISENSE_NOT
     label = "Antisense Repression"
     description = "Post-transcriptional silencing"
-    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset(
+        {Host.ECOLI, Host.YEAST, Host.HUMAN, Host.C_ACNES}
+    )
     max_inputs = 1
     available = True
 

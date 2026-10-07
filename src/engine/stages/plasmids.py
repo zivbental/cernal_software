@@ -112,6 +112,14 @@ PROMOTERS: dict[Host, tuple[str, str]] = {
     # BBa_J23119 — Anderson promoter family: the consensus sequence and the strongest
     # constitutive member. https://registry.igem.org/parts/bba-j23119
     Host.ECOLI: ("J23119", "TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC"),
+    # The same Anderson part, and that is the finding rather than a shortcut. Nevot et al.
+    # (Cell Systems 16(2):101169, 2025, doi:10.1016/j.cels.2025.101169) compared nine
+    # endogenous C. acnes promoters against the synthetic consensus BBa_J23119 and J23119
+    # gave the HIGHEST expression; all six fluorescent reporters in their deposited
+    # plasmid collection are built on P(BBa_J23119)+RBS_1, and Addgene's depositor note
+    # for the sfGFP vector (#225611) calls it "strong constitutive recombinant expression
+    # in C. acnes". Known caveat: its expression decays in stationary phase.
+    Host.C_ACNES: ("J23119", "TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC"),
     # BBa_K124002 — the yeast GPD (TDH3) promoter: 680 bp upstream of GPD1, a very
     # strong constitutive promoter (Mumberg, Muller & Funk 1995, p413 pGPD,
     # doi:10.1016/0378-1119(95)00037-7). https://registry.igem.org/parts/bba-k124002
@@ -134,6 +142,30 @@ TERMINATORS: dict[Host, tuple[str, str]] = {
     # BBa_B0015 — double terminator (B0010 + B0012), the most-used terminator in the
     # registry. https://registry.igem.org/parts/BBa_B0015
     Host.ECOLI: (
+        "B0015",
+        "CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTTTGTCGGTGAACGC"
+        "TCTCTACTAGAGTCACACTGGCTCACCTTCGGGTGGGCCTTTCTGCGTTTATA",
+    ),
+    # BBa_B0015 again, and unlike the promoter above this one is TRANSFERRED BY ANALOGY,
+    # not measured in this host. No terminator part is named anywhere in the AIS-China or
+    # Nevot et al. plasmid collections, and both papers are paywalled, so there is no
+    # characterised C. acnes terminator to bundle.
+    #
+    # Why it is defensible rather than a guess: high-GC Actinomycetota terminators
+    # characteristically pair a stable GC-rich hairpin with a weak or absent U-tract (~90%
+    # of M. tuberculosis terminators have no U-trail or a mixed U/A trail), and
+    # mycobacterial RNAP terminates MORE efficiently than E. coli RNAP at canonical
+    # terminators with imperfect U-tracts. B0015 is hairpin + a short 4 nt U-tract, which
+    # is the regime that work says transfers. The one dissenting result concerns
+    # terminators LACKING a U-tract; B0015 has one. And J23119 above is direct precedent
+    # for an E. coli synthetic part outperforming native ones in this exact organism.
+    #
+    # The residual risk is real and the scoring cannot see it: transcriptional read-through
+    # is invisible to ``predicted_leakage``, which is computed from the switch's own
+    # folding and has no term for polymerase arriving from the plasmid context. A
+    # read-through failure would score clean, clear the 0.85 hard filter and leak in the
+    # lab. ``build`` records this on the design so it reaches the researcher.
+    Host.C_ACNES: (
         "B0015",
         "CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTTTGTCGGTGAACGC"
         "TCTCTACTAGAGTCACACTGGCTCACCTTCGGGTGGGCCTTTCTGCGTTTATA",

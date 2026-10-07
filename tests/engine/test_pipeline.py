@@ -15,8 +15,15 @@ import os
 import pytest
 
 from engine.client import LocalEngine
-from engine.contract import CANCELLED, FAILED, INPUT_DE, INPUT_DIRECT, SCHEMA_VERSION, SUCCEEDED
-from engine.domain import AssemblyStandard, Host
+from engine.contract import (
+    CANCELLED,
+    FAILED,
+    INPUT_DE,
+    INPUT_DIRECT,
+    SCHEMA_VERSION,
+    SUCCEEDED,
+)
+from engine.domain import AssemblyStandard, Host, Track
 from engine.errors import InputValidationError
 from engine.pipeline import build_tools, run_pipeline
 
@@ -692,6 +699,7 @@ def test_build_tools_returns_every_documented_key(direct_request):
         "profiler",
         "screener",
         "codons",
+        "aisc",
         "translation",
         "plasmid_builder",
         "constraints",
@@ -977,3 +985,48 @@ def test_an_unknown_constraint_field_is_still_rejected(de_request, always_contin
 
     assert result.status == FAILED
     assert "max_circuit_gatez" in result.error
+
+
+# --- C. acnes: the fourth host, end to end ------------------------------------------
+
+
+def test_c_acnes_direct_run_produces_a_plasmid_scored_on_the_collaborators_table(
+    direct_request, always_continue
+):
+    """The whole point of the AIS-China collaboration, exercised end to end.
+
+    Covers what no unit test does: that selecting this organism gets a prokaryotic track
+    (so an RBS, not a Kozak context), a real transcriptome, the J23119/B0015 parts, and a
+    ``translation_score`` computed against *their* genome-derived CAI weights rather than
+    a generic bacterial table — all the way to an emitted plasmid.
+    """
+    request = direct_request(organism="c_acnes", params={"organism": "c_acnes"})
+    result = run_pipeline(request, always_continue)
+
+    assert result.candidates, f"no candidates for C. acnes; warnings: {result.warnings}"
+    designs = [c.design for c in result.candidates if c.design.get("plasmid_segments")]
+    assert designs, f"no plasmid was assembled; warnings: {result.warnings}"
+
+    names = [s["name"] for s in designs[0]["plasmid_segments"]]
+    assert "J23119" in names, f"expected the J23119 promoter, got {names}"
+    assert "B0015" in names, f"expected the B0015 terminator, got {names}"
+
+
+def test_c_acnes_is_prokaryotic_and_gets_the_collaborators_codon_table(direct_request):
+    """``HOST_TRACKS`` and the codon-table routing, asserted together.
+
+    These two are one fact about this host from a reviewer's point of view: it is a
+    bacterium whose codon model came from the collaboration. Getting the track wrong was
+    the silent failure the explicit mapping exists to prevent, and getting the table wrong
+    would score an actinobacterium against *E. coli*'s codon preferences.
+    """
+    tools = build_tools(
+        direct_request(organism="c_acnes", params={"organism": "c_acnes"}), Host.C_ACNES
+    )
+
+    assert Host.C_ACNES.track is Track.PROKARYOTIC
+    assert tools["aisc"] is not None, "the AIS-China package must be built for this host"
+    versions = tools["codons"].versions()
+    assert versions["codon_table"].startswith("ais-china/atcc6919_GCF_008728435.1@"), versions
+    # And the other three hosts must not pay for it.
+    assert build_tools(direct_request(), Host.ECOLI)["aisc"] is None

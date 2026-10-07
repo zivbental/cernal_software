@@ -4,10 +4,12 @@ These are implemented, not stubbed, so they are tested like any other code.
 """
 
 import dataclasses
+from enum import StrEnum
 
 import pytest
 
 from engine.domain import (
+    HOST_TRACKS,
     AssemblyStandard,
     BooleanExpression,
     ConfusionMatrix,
@@ -19,8 +21,10 @@ from engine.domain import (
     SampleMetadata,
     Segment,
     SegmentKind,
+    Track,
     TriggerCandidate,
     TriggerSet,
+    require_track_for_every_host,
 )
 
 
@@ -41,11 +45,67 @@ def _trigger(ref: str, gene: str = "lacZ", seq: str = "ACGUACGUAC") -> TriggerCa
 # --- Host and track ---------------------------------------------------------------
 
 
+#: Written out independently of ``domain.HOST_TRACKS`` on purpose. Adding a ``Host`` member
+#: fails ``test_every_host_has_a_declared_track`` until its track is declared here too, so a
+#: new organism's translation machinery is a decision made twice, never a default.
+EXPECTED_TRACKS = {
+    Host.ECOLI: Track.PROKARYOTIC,
+    Host.YEAST: Track.EUKARYOTIC,
+    Host.HUMAN: Track.EUKARYOTIC,
+    Host.C_ACNES: Track.PROKARYOTIC,
+}
+
+
 def test_ecoli_is_prokaryotic_and_the_others_are_not():
     """Design rules follow the track, so this mapping is load-bearing."""
     assert Host.ECOLI.track == "prokaryotic"
     assert Host.YEAST.track == "eukaryotic"
     assert Host.HUMAN.track == "eukaryotic"
+
+
+def test_every_host_has_a_declared_track():
+    """No ``Host`` falls through to a default track. A bacterium that silently became
+    eukaryotic would get Kozak context instead of a Shine-Dalgarno RBS, with nothing raising."""
+    assert set(HOST_TRACKS) == set(Host)
+    assert set(EXPECTED_TRACKS) == set(Host), "declare the new Host's track in EXPECTED_TRACKS"
+    for host in Host:
+        assert isinstance(host.track, Track)
+        assert host.track is EXPECTED_TRACKS[host], host
+    require_track_for_every_host(Host, HOST_TRACKS)  # the import-time guard, run again
+
+
+def test_host_track_is_read_only():
+    with pytest.raises(TypeError):
+        HOST_TRACKS[Host.ECOLI] = Track.EUKARYOTIC  # type: ignore[index]
+
+
+def test_a_host_without_a_declared_track_is_rejected():
+    """The guard that runs at import time: a member added without a track must raise."""
+
+    class Grown(StrEnum):
+        ECOLI = "ecoli"
+        NEW_BACTERIUM = "new_bacterium"
+
+    declared = {Grown.ECOLI: Track.PROKARYOTIC}
+    with pytest.raises(TypeError, match="NEW_BACTERIUM"):
+        require_track_for_every_host(Grown, declared)  # type: ignore[arg-type]
+
+
+def test_a_track_for_something_that_is_not_a_host_is_rejected():
+    class Shrunk(StrEnum):
+        ECOLI = "ecoli"
+
+    declared = {Shrunk.ECOLI: Track.PROKARYOTIC, "ghost": Track.EUKARYOTIC}
+    with pytest.raises(TypeError, match="ghost"):
+        require_track_for_every_host(Shrunk, declared)  # type: ignore[arg-type]
+
+
+def test_a_non_track_entry_is_rejected():
+    class One(StrEnum):
+        ECOLI = "ecoli"
+
+    with pytest.raises(TypeError, match="ECOLI"):
+        require_track_for_every_host(One, {One.ECOLI: "prokaryotic"})  # type: ignore[arg-type]
 
 
 def test_enums_are_strings_so_they_serialise_unchanged():

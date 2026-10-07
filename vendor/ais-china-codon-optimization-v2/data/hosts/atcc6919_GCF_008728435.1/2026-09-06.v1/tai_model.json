@@ -1,0 +1,49 @@
+{
+  "model_id": "bacterial_classic_role_filtered_v1",
+  "status": "ready_with_model_assumptions",
+  "source": "https://doi.org/10.1093/dnares/dsu017",
+  "s_values": {
+    "WC": 0.0,
+    "G_U": 0.41,
+    "I_C": 0.28,
+    "I_A": 0.9999,
+    "U_G": 0.68,
+    "L_A": 0.89
+  },
+  "role_source": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5389676/",
+  "sequence_score_mask": "exclude_first_start_and_terminal_stop;include_internal_Met_Trp",
+  "normalization": "maximum_W_over_all_61_sense_codons",
+  "zero_weight_imputation": "none;error_on_uncovered_codon",
+  "assumptions": [
+    "Met initiator/elongator role inferred from anticodon-stem 3GC motif;not experimentally validated",
+    "A34-to-inosine treatment follows the published bacterial tAI approximation",
+    "Ile-CAT is separated from Met-CAT and mapped to ATA via lysidine",
+    "Genomic copy number is a tRNA supply proxy;classic s-values are not measured C.acnes parameters"
+  ],
+  "tilS_annotation": [
+    {
+      "locus_tag": "F6X01_RS01465",
+      "product": "tRNA lysidine(34) synthetase TilS"
+    }
+  ],
+  "methionine_roles": [
+    {
+      "locus_tag": "F6X01_RS06835",
+      "role": "initiator_inferred",
+      "role_evidence": "3GC_anticodon_stem_motif;not_experimental;canonical_loop_alignment_assumed",
+      "anticodon_stem_pairs_29_41_to_31_39": "G-C;G-C;G-C"
+    },
+    {
+      "locus_tag": "F6X01_RS10070",
+      "role": "elongator_inferred",
+      "role_evidence": "3GC_anticodon_stem_motif;not_experimental;canonical_loop_alignment_assumed",
+      "anticodon_stem_pairs_29_41_to_31_39": "C-G;G-C;G-T"
+    }
+  ],
+  "coverage": {
+    "sense_codons": 61,
+    "positive_weights": 61,
+    "trna_loci": 45,
+    "excluded_initiator_loci": 1
+  }
+}

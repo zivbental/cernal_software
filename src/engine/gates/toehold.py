@@ -105,7 +105,9 @@ class ToeholdGate(GateFamily):
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
-    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset(
+        {Host.ECOLI, Host.YEAST, Host.HUMAN, Host.C_ACNES}
+    )
     max_inputs = 1
     available = True
 
@@ -1984,7 +1986,7 @@ class ProkaryoticToeholdGate(ToeholdGate):
     design_prefix = "prokaryotic_toehold"
     label = "Prokaryotic Toehold"
     description = "Prokaryotic single-input translational control"
-    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI})
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI, Host.C_ACNES})
 
 
 class ProkaryoticToeholdAndGate(ToeholdAndGate):
@@ -1994,7 +1996,7 @@ class ProkaryoticToeholdAndGate(ToeholdAndGate):
     design_prefix = "prokaryotic_toehold_and"
     label = "Prokaryotic AND Toehold"
     description = "Prokaryotic two-input translational AND"
-    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI})
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI, Host.C_ACNES})
 
 
 class EukaryoticToeholdGate(ToeholdGate):

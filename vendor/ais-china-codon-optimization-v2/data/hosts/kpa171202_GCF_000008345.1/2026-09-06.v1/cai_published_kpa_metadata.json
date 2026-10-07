@@ -1,0 +1,9 @@
+{
+  "source_url": "http://codonstatsdb.unr.edu/data/1747/ribosomal_codon_statistics.tsv",
+  "source_header": "Organism = Cutibacterium acnes KPA171202\nTaxonomy ID = 267747\nAssembly = GCF_000008345.1 | ASM834v1\nCodon table = 11\nTotal ribosomal genes = 60\nTotal codons = 9085\nCodon stats run date = 2021-10-15",
+  "total_codons_including_stop": 9085,
+  "total_sense_codons": 9025,
+  "scope": "KPA171202 only",
+  "status": "alternative_reference_not_default",
+  "note": "Different reference set and annotation year;aggregate counts cannot be start-codon-corrected without reference CDSs."
+}

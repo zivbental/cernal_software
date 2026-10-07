@@ -1,0 +1,7 @@
+﻿pair_type,classic_s,fitted_s,fixed,near_boundary
+WC,0.0,0.0,True,True
+G_U,0.41,0.018586628975294672,False,False
+I_C,0.28,0.0,False,True
+I_A,0.9999,0.32998972910305274,False,False
+U_G,0.68,0.9995266509976036,False,True
+L_A,0.89,0.9990862316461133,False,True

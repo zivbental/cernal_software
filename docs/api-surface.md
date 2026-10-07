@@ -37,14 +37,14 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 62 |
-| Public classes | 97 |
-| Public callables (excluding `__init__`) | 319 |
-| — `BUILT` | 293 |
-| — `STUB` | 18 |
+| Modules | 63 |
+| Public classes | 105 |
+| Public callables (excluding `__init__`) | 327 |
+| — `BUILT` | 303 |
+| — `STUB` | 16 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
-| `__init__` constructors | 19 |
+| `__init__` constructors | 20 |
 
 ## Index
 
@@ -53,14 +53,15 @@ layers above it, never the ones below.
 
 | Layer | Module | S | Not `STUB` | `STUB` | Purpose |
 | --- | --- | --- | ---: | ---: | --- |
-| domain | `engine.domain` |  | 29 | 0 | The engine's scientific vocabulary. |
+| domain | `engine.domain` |  | 30 | 0 | The engine's scientific vocabulary. |
 | sequences | `engine.sequences` | S6 | 12 | 0 | S6 — sequence facts. Pure functions, no state, no dependencies. |
 | scoring | `engine.scoring` |  | 0 | 0 |  |
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
 | scoring | `engine.scoring.profiles` |  | 8 | 0 | Versioned scoring profiles. |
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
+| gate_tools | `engine.gates.tools.ais_china` |  | 5 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 7 | 0 | S3 — trigger/switch hybridisation energy. |
-| gate_tools | `engine.gates.tools.codons` | S8 | 0 | 2 | S8 — codon usage and synonymous rewriting. |
+| gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
 | gate_tools | `engine.gates.tools.folding` | S2, S4 | 13 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
@@ -126,19 +127,13 @@ Data and arithmetic only, no science. Every value that crosses a module boundary
 
 The engine's scientific vocabulary.
 
-#### `class Host(StrEnum)`
-
-The organism a circuit is designed for.
-
-| Attribute | Type | Default |
+| Constant | Type | Value |
 | --- | --- | --- |
-| `ECOLI` |  | `'ecoli'` |
-| `YEAST` |  | `'yeast'` |
-| `HUMAN` |  | `'human'` |
+| `HOST_TRACKS` | `Mapping[Host, Track]` | `MappingProxyType({Host.ECOLI: Track.PROKARYOTIC, Host.YEAST: Track.EUKARYOTIC, Host.HUM…` |
 
-| Status | Method | Purpose |
+| Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `@property def track(self) -> 'Track'` | Design rules follow the track, not the individual organism. |
+| `BUILT` | `def require_track_for_every_host(hosts: Iterable[Host], tracks: Mapping[Host, Track]) -> None` | Raise unless ``tracks`` names a ``Track`` for every one of ``hosts``, and nothing else. |
 
 #### `class Track(StrEnum)`
 
@@ -148,6 +143,21 @@ Translation machinery. Decides RBS-in-loop versus Kozak, among other rules.
 | --- | --- | --- |
 | `PROKARYOTIC` |  | `'prokaryotic'` |
 | `EUKARYOTIC` |  | `'eukaryotic'` |
+
+#### `class Host(StrEnum)`
+
+The organism a circuit is designed for.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `ECOLI` |  | `'ecoli'` |
+| `YEAST` |  | `'yeast'` |
+| `HUMAN` |  | `'human'` |
+| `C_ACNES` |  | `'c_acnes'` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def track(self) -> Track` | Design rules follow the track, not the individual organism. |
 
 #### `class GateKind(StrEnum)`
 
@@ -802,6 +812,139 @@ Scientific primitives shared across the gate families.
 
 *No public symbols — the docstring is the whole file.*
 
+### `engine.gates.tools.ais_china`
+
+`src/engine/gates/tools/ais_china.py`
+
+Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `PINNED_COMMIT` |  | `'e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9'` |
+| `VENDORED_TREE_SHA256` |  | `'fa75b595515c943bb855de1574cf8a66589205f66421c3e57eaf5a58224239c2'` |
+| `HOST_ID` |  | `'atcc6919_GCF_008728435.1'` |
+| `REFERENCE_VERSION` |  | `'2026-09-06.v1'` |
+| `STRATEGY_IDS` | `tuple[str, ...]` | `('rna_start', 'host_sampling', 'cai_max', 'tai_max', 'harmonize')` |
+| `DEFAULT_ROOT` |  | `Path(__file__).resolve().parents[4] / 'vendor' / 'ais-china-codon-optimization-v2'` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def vendored_tree_sha256(root: Path \| str \| None = None) -> str` | Recompute the recursive content hash of the vendored tree. |
+
+#### `class CodonEdit`
+
+`@dataclass(frozen=True, slots=True)`
+
+One synonymous codon substitution, in CERNAL coordinates.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `codon_index` | `int` |  |
+| `start` | `int` |  |
+| `end` | `int` |  |
+| `before` | `str` |  |
+| `after` | `str` |  |
+| `amino_acid` | `str` |  |
+
+#### `class AisChinaMetric`
+
+`@dataclass(frozen=True, slots=True)`
+
+One of their per-candidate measurements, in their vocabulary.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` | `str` |  |
+| `value` | `float \| None` |  |
+| `unit` | `str \| None` |  |
+| `status` | `str` |  |
+| `reason` | `str \| None` |  |
+
+#### `class AisChinaCandidate`
+
+`@dataclass(frozen=True, slots=True)`
+
+A synonymous variant of the input CDS, RNA alphabet, with the edits that made it.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `candidate_id` | `str` |  |
+| `sequence` | `str` |  |
+| `sequence_sha256` | `str` |  |
+| `protein` | `str` |  |
+| `metrics` | `tuple[AisChinaMetric, ...]` |  |
+| `constraints_passed` | `bool` |  |
+| `violations` | `tuple[str, ...]` |  |
+| `edits` | `tuple[CodonEdit, ...]` |  |
+| `strategies` | `tuple[str, ...]` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def metric(self, name: str) -> AisChinaMetric` | The named metric, or ``KeyError``. Never a default value. |
+
+#### `class StrategyOutcome`
+
+`@dataclass(frozen=True, slots=True)`
+
+What one strategy did — including that it found nothing, or could not run.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `strategy_id` | `str` |  |
+| `status` | `str` |  |
+| `reason` | `str \| None` |  |
+| `solver` | `str \| None` |  |
+| `seed` | `int \| None` |  |
+| `returned_count` | `int` |  |
+| `termination_reason` | `str \| None` |  |
+
+#### `class AisChinaProvenance`
+
+`@dataclass(frozen=True, slots=True)`
+
+What produced the numbers: enough to say which reference and which code.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `host_id` | `str` |  |
+| `display_name` | `str` |  |
+| `assembly` | `str` |  |
+| `accession` | `str` |  |
+| `reference_version` | `str` |  |
+| `code_version` | `str` |  |
+| `pinned_commit` | `str` |  |
+| `implementation_sha256` | `tuple[tuple[str, str], ...]` |  |
+| `consumed_file_sha256` | `tuple[tuple[str, str], ...]` |  |
+| `coding_gc_bounds` | `tuple[float, float]` |  |
+
+#### `class AisChinaRun`
+
+`@dataclass(frozen=True, slots=True)`
+
+The outcome of one :meth:`AisChinaCodons.optimize` call.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `status` | `str` |  |
+| `input_sequence` | `str` |  |
+| `protein` | `str` |  |
+| `original` | `AisChinaCandidate` |  |
+| `candidates` | `tuple[AisChinaCandidate, ...]` |  |
+| `strategies` | `tuple[StrategyOutcome, ...]` |  |
+| `warnings` | `tuple[str, ...]` |  |
+| `provenance` | `AisChinaProvenance` |  |
+
+#### `class AisChinaCodons`
+
+*C. acnes* ATCC 6919 codon optimization through the AIS-China library, unmodified.
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def __init__(self, root: Path \| str \| None = None) -> None` |  |
+| `BUILT` | `def usage_frequencies(self) -> dict[str, float]` | Codon -> **relative frequency** within its synonymous family, RNA keys. |
+| `BUILT` | `def cai_relative_adaptiveness(self) -> dict[str, float]` | Codon -> CAI weight ``w`` (**relative adaptiveness**), RNA keys. |
+| `BUILT` | `def optimize(self, cds: str, *, seed: int, strategies: Sequence[str] \| None = None, upstream: str = '', locked_codons: Sequence[int] = (), source_codon_counts: Mapping[str, float] \| None = None, source_name: str = 'source') -> AisChinaRun` | Run their pipeline on one CDS and return it in CERNAL's conventions. |
+
 ### `engine.gates.tools.binding` · S3
 
 `src/engine/gates/tools/binding.py`
@@ -829,15 +972,40 @@ S3 — trigger/switch hybridisation energy.
 
 S8 — codon usage and synonymous rewriting.
 
+| Constant | Type | Value |
+| --- | --- | --- |
+| `RECOMBINATION_MODE` |  | `'thorough'` |
+| `SLIPPAGE_MODE` |  | `'default'` |
+
+#### `class CodonVariant`
+
+`@dataclass(frozen=True, slots=True)`
+
+One synonymous rewrite of a coding sequence, with what is known to be wrong with it.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `sequence` | `str` |  |
+| `translation_score` | `float \| None` |  |
+| `structure_deviation` | `float \| None` |  |
+| `codons_changed` | `int` |  |
+| `unresolved` | `tuple[str, ...]` |  |
+| `seed` | `int \| None` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def clean(self) -> bool` | True when nothing is recorded as unresolved. |
+
 #### `class CodonOptimizer`
 
 Synonymous-codon search and translation scoring for one host.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, usage_table: dict[str, float] \| None = None) -> None` |  |
-| `STUB` | `def variants(self, cds: str, target_pairing: str \| None = None) -> list[str]` | Synonymous rewrites of a coding sequence: same protein, different bases. |
-| `STUB` | `def translation_score(self, cds: str) -> float` | How well a sequence's codons suit the host. |
+| `BUILT` | `def __init__(self, host: Host, usage_table: dict[str, float] \| None = None, *, folder: FoldEngine \| None = None, seed: int = 0, aisc: AisChinaCodons \| None = None) -> None` |  |
+| `BUILT` | `def versions(self) -> dict[str, str]` | What this tool's numbers depend on — written into the run's provenance. |
+| `BUILT` | `def variants(self, cds: str, target_pairing: str \| None = None, *, count: int = 4, avoid_enzymes: Sequence[str] = (), acceptable: Callable[[str], bool] \| None = None, on_rejected: Callable[[str, tuple[str, ...]], None] \| None = None, gc_range: tuple[float, float] = (30.0, 70.0), gc_window: int = 50) -> list[CodonVariant]` | Synonymous rewrites of a coding sequence: same protein, different bases. |
+| `BUILT` | `def translation_score(self, cds: str) -> float \| None` | How well a sequence's codons suit the host: its Codon Adaptation Index. |
 
 ### `engine.gates.tools.folding` · S2, S4
 
@@ -916,7 +1084,7 @@ Post-transcriptional silencing. The pipeline's inverting element.
 | `kind` |  | `GateKind.ANTISENSE_NOT` |
 | `label` |  | `'Antisense Repression'` |
 | `description` |  | `'Post-transcriptional silencing'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN, Host.C_ACNES})` |
 | `max_inputs` |  | `1` |
 | `available` |  | `True` |
 | `UTR_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(8, 10, 12, 14)` |
@@ -1031,7 +1199,7 @@ Single-input toehold switch.
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
 | `description` |  | `'Translational control · pre-mRNA'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN, Host.C_ACNES})` |
 | `max_inputs` |  | `1` |
 | `available` |  | `True` |
 | `toehold_lengths` | `ClassVar[tuple[int, ...]]` | `(12, 15, 18)` |
@@ -1111,7 +1279,7 @@ Single-input toehold family for prokaryotic translation.
 | `design_prefix` |  | `'prokaryotic_toehold'` |
 | `label` |  | `'Prokaryotic Toehold'` |
 | `description` |  | `'Prokaryotic single-input translational control'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.C_ACNES})` |
 
 #### `class ProkaryoticToeholdAndGate(ToeholdAndGate)`
 
@@ -1123,7 +1291,7 @@ Two-input AND toehold family for prokaryotic translation.
 | `design_prefix` |  | `'prokaryotic_toehold_and'` |
 | `label` |  | `'Prokaryotic AND Toehold'` |
 | `description` |  | `'Prokaryotic two-input translational AND'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.C_ACNES})` |
 
 #### `class EukaryoticToeholdGate(ToeholdGate)`
 
@@ -1781,7 +1949,7 @@ Stage 5 — plasmid construction.
 | Constant | Type | Value |
 | --- | --- | --- |
 | `REGISTRY_PARTS` | `dict[str, str]` | `{'J23119': 'BBa_J23119', 'K124002': 'BBa_K124002', 'B0015': 'BBa_B0015', 'K1486025': 'B…` |
-| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.YEAST: ('K124002',…` |
+| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.C_ACNES: ('J23119'…` |
 | `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |

@@ -40,6 +40,9 @@ jobs:
     name: backend (ruff + django check + pytest)
     runs-on: ubuntu-latest
     steps:
+      # No submodules: vendor/ais-china-codon-optimization-v2 is vendored into the repo
+      # (see its PROVENANCE.md). It used to be a submodule, until gitlab.igem.org
+      # returned 503 and checkout failed before a single test could run.
       - uses: actions/checkout@v4
 
       # setup-uv reads .python-version (3.13) and provisions that interpreter itself.
