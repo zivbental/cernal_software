@@ -15,7 +15,7 @@ import os
 import pytest
 
 from engine.client import LocalEngine
-from engine.contract import CANCELLED, INPUT_DE, INPUT_DIRECT, SCHEMA_VERSION
+from engine.contract import CANCELLED, FAILED, INPUT_DE, INPUT_DIRECT, SCHEMA_VERSION, SUCCEEDED
 from engine.domain import AssemblyStandard, Host
 from engine.errors import InputValidationError
 from engine.pipeline import build_tools, run_pipeline
@@ -846,7 +846,7 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
 
 def test_gate_aware_trigger_ranking_bumps_engine_version():
-    assert LocalEngine.ENGINE_VERSION == "local-0.6.0-direct-and-de-ecoli-yeast"
+    assert LocalEngine.ENGINE_VERSION == "local-0.7.0-direct-and-de-ecoli-yeast"
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(
@@ -884,3 +884,96 @@ def test_a_released_run_exports_fasta_genbank_and_sbol_together(
     assert len(sbol) == len(accepted)
     assert all(a.media_type == "application/n-triples" for a in sbol)
     assert all(a.path.startswith("sbol/") and a.path.endswith(".nt") for a in sbol)
+
+
+# --- Stage 4: circuits longer than one gate ------------------------------------------
+
+
+def _multi_gate(result):
+    """The candidates that are real circuits rather than single switches."""
+    return [c for c in result.candidates if "-gate circuit" in (c.summary or "")]
+
+
+def test_max_circuit_gates_of_one_produces_no_multi_gate_circuits(de_request, always_continue):
+    """The knob set to 1 is exactly what this engine produced before stage 4 existed —
+    one circuit per gene, nothing combined."""
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 1}}), always_continue
+    )
+
+    assert result.status == SUCCEEDED
+    assert result.candidates
+    assert _multi_gate(result) == []
+
+
+def test_raising_max_circuit_gates_adds_circuits_without_removing_any(de_request, always_continue):
+    """Additive on purpose: raising the cap widens the menu rather than replacing it,
+    so a researcher never loses a candidate by allowing longer circuits."""
+    one = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 1}}), always_continue
+    )
+    two = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
+    )
+
+    assert len(two.candidates) > len(one.candidates)
+    assert len(_multi_gate(two)) == len(two.candidates) - len(one.candidates)
+
+
+def test_a_longer_circuit_is_penalised_for_its_length(de_request, always_continue):
+    """``circuit_complexity`` is the price of a longer circuit. It comes from the
+    circuit's own BooleanExpression, so it rises with every gate — a two-gate circuit
+    must never report the 1.0 a single gate does."""
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
+    )
+
+    def complexity(candidate):
+        return next(m.raw_value for m in candidate.metrics if m.name == "circuit_complexity")
+
+    singles = [c for c in result.candidates if c not in _multi_gate(result)]
+    assert all(complexity(c) == 1.0 for c in singles)
+    assert all(complexity(c) >= 3.0 for c in _multi_gate(result))
+
+
+def test_a_multi_gate_circuit_lists_every_member_switch(de_request, always_continue):
+    """The plasmid is real: PlasmidBuilder lays out a promoter/switch pair per switch,
+    and the candidate carries every member rather than only the first."""
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
+    )
+    circuit = _multi_gate(result)[0]
+
+    components = circuit.design["component_switches"]
+    assert len(components) == 2
+    # switch_sequence stays singular and is the primary member, never a concatenation.
+    assert circuit.design["switch_sequence"] == components[0]["switch_sequence"]
+
+    switches = [s for s in circuit.design["plasmid_segments"] if s["kind"] == "switch"]
+    assert len(switches) == 2
+    assert len(circuit.triggers["features"]) == 2
+
+
+def test_a_multi_gate_circuit_reports_its_real_logic(de_request, always_continue):
+    """Not the one-gene placeholder graph: the genes, their required states and the
+    operator all come from the expression CircuitDesigner built."""
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
+    )
+    circuit = _multi_gate(result)[0]
+
+    graph = circuit.design["logic_graph"]
+    assert len(graph["genes"]) == 2
+    assert graph["mid_gate"] == "AND"
+    assert "AND" in circuit.logic_type
+    assert all(g["state"] in ("ON", "OFF") for g in graph["genes"])
+
+
+def test_an_unknown_constraint_field_is_still_rejected(de_request, always_continue):
+    """The new field must not have loosened validation on the block it lives in."""
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gatez": 2}}), always_continue
+    )
+
+    assert result.status == FAILED
+    assert "max_circuit_gatez" in result.error

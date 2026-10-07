@@ -11,7 +11,7 @@ import { useRef } from "react";
 import type { Backbone, Dataset, ExampleDataset, GateFamily } from "@/api/types";
 import { BacteriaIcon, HumanIcon, YeastIcon } from "@/components/icons/BioIcons";
 import { Panel, SectionHeading, AdvancedOptions } from "@/components/layout/Primitives";
-import { Check, SliderRow, Token } from "@/components/compile/Bits";
+import { Check, SliderRow } from "@/components/compile/Bits";
 import { ExpressionPreview } from "@/components/compile/ExpressionPreview";
 import { PublicDatasetPicker } from "@/components/compile/PublicDatasetPicker";
 import { GenePicker } from "@/components/compile/GenePicker";
@@ -37,8 +37,6 @@ export interface CompileConfig {
    * regardless of which mode ultimately supplies the dataset/sequence. Informational —
    * see InputModeValue's docstring. */
   targetGene: { organism: Organism; geneId: string; geneSymbol: string } | null;
-  setA: string;
-  setB: string;
   mechanism: string;
   /** Downstream outputs, all equivalent. Each selected one gets its own plasmids. */
   outputs: string[];
@@ -51,6 +49,12 @@ export interface CompileConfig {
    */
   maxLeakage: number;
   minGateStability: number;
+  /**
+   * `engine.domain.Constraints.max_circuit_gates` — how many gates one circuit may
+   * combine. The one search constraint the wizard exposes, because it is the one that
+   * changes what the researcher gets back rather than only how it is filtered.
+   */
+  maxCircuitGates: number;
   /**
    * The plasmid vector to assemble onto (docs/plasmids.md Q13) — a catalog key from
    * `useVersion().available_backbones`, `"none"` for the bare construct (today's
@@ -72,13 +76,14 @@ export const DEFAULT_CONFIG: CompileConfig = {
   datasetId: null,
   triggerSequence: "",
   targetGene: null,
-  setA: "",
-  setB: "",
   mechanism: "toehold",
   outputs: ["gfp"],
   customPayload: "",
   maxLeakage: 0.08,
   minGateStability: -32,
+  // 2, matching the engine's own Constraints default: single-gene circuits plus the
+  // pairs, which is "longer than one gate" without the combinatorics of triples.
+  maxCircuitGates: 2,
   // A real backbone by default, not "none" — the whole point of this feature is a
   // researcher who just clicks through getting an orderable plasmid, not a bare
   // four-segment construct (docs/plasmids.md §13 note on this being a deliberate
@@ -492,50 +497,8 @@ export function StepLogic({
       <SectionHeading
         kicker="Step 02 · Logic"
         title="Intracellular Logic Gate Assembly"
-        desc="Configure the Boolean expression that gates payload expression. CERNAL compiles your logic into a thermodynamically stable switch mechanism."
+        desc="Choose the switch mechanism CERNAL compiles your trigger into."
       />
-
-      <div className="rounded-xl border border-border bg-surface-2 p-5">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          Boolean Expression
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-sm">
-          <span className="text-muted-foreground">IF</span>
-          <Token>Set A Transcripts</Token>
-          <span className="rounded-md bg-mint/20 px-2 py-1 text-mint">AND</span>
-          <span className="rounded-md bg-primary/10 px-2 py-1 text-primary">NOT</span>
-          <Token>Set B Transcripts</Token>
-        </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-              Set A · must be present
-            </span>
-            <input
-              value={config.setA}
-              onChange={(e) => patch({ setA: e.target.value })}
-              placeholder="IL6, TNF, HIF1A"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-foreground focus:border-mint focus:outline-none"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-              Set B · must be absent
-            </span>
-            <input
-              value={config.setB}
-              onChange={(e) => patch({ setB: e.target.value })}
-              placeholder="FOXP3"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-foreground focus:border-mint focus:outline-none"
-            />
-          </label>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Comma-separated gene identifiers. Leave blank to let the engine choose triggers
-          from your data.
-        </p>
-      </div>
 
       <div className="mt-6">
         <div className="mb-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -599,6 +562,17 @@ export function StepLogic({
             max={0}
             unit=" kcal/mol"
             onChange={(v) => patch({ minGateStability: v })}
+          />
+          <SliderRow
+            label="Max Gates Per Circuit"
+            value={config.maxCircuitGates}
+            min={1}
+            // 4 rather than the gene count: combinations grow fast, and every extra
+            // gate is another switch to synthesise — circuit_complexity already
+            // penalises length, so this cap is about compute, not about quality.
+            max={4}
+            step={1}
+            onChange={(v) => patch({ maxCircuitGates: v })}
           />
         </div>
       </AdvancedOptions>

@@ -40,8 +40,8 @@ so that convention is the only rule there is.
 | Modules | 62 |
 | Public classes | 97 |
 | Public callables (excluding `__init__`) | 319 |
-| — `BUILT` | 291 |
-| — `STUB` | 20 |
+| — `BUILT` | 293 |
+| — `STUB` | 18 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
 | `__init__` constructors | 19 |
@@ -96,7 +96,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold_and.trigger_accessibility` |  | 8 | 0 | Stage 1b — accessibility scores for every trigger pair, in Green's and VISTA's terms. |
 | gates | `engine.gates.notebooks.toehold_and.window_probabilities` |  | 4 | 0 | The ribosome window as probabilities, base by base, in all four tubes. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
-| stages | `engine.stages.circuits` |  | 0 | 3 | Stage 4 — circuit design and scoring. |
+| stages | `engine.stages.circuits` |  | 2 | 1 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
 | stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
@@ -377,6 +377,7 @@ The researcher's limits, carried into every stage that has to respect them.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `max_triggers` | `int` | `2` |
+| `max_circuit_gates` | `int` | `2` |
 | `min_separation` | `float` | `0.5` |
 | `max_p_adj` | `float` | `0.05` |
 | `trigger_lengths` | `tuple[int, ...]` | `(30, 33, 36)` |
@@ -1674,8 +1675,8 @@ Turn an up/down gene pattern into ranked, buildable circuits.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, evaluator: 'ConfusionEvaluator', max_terms: int = 4) -> None` |  |
-| `STUB` | `def design(self, genes: list[SelectedGene], designs: Iterable[GateDesign], counts: CountMatrix) -> Iterator[CircuitCandidate]` | Yield scored circuits, buildable from the switches that exist. |
-| `STUB` | `def enumerate_expressions(self, genes: list[SelectedGene]) -> Iterator[BooleanExpression]` | Generate Boolean expressions reproducing the genes' up/down pattern. |
+| `BUILT` | `def design(self, genes: list[SelectedGene], designs: Iterable[GateDesign], counts: CountMatrix) -> Iterator[CircuitCandidate]` | Yield scored circuits, buildable from the switches that exist. |
+| `BUILT` | `def enumerate_expressions(self, genes: list[SelectedGene]) -> Iterator[BooleanExpression]` | Generate Boolean expressions reproducing the genes' up/down pattern. |
 
 #### `class ConfusionEvaluator`
 
@@ -1950,7 +1951,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.6.0-direct-and-de-ecoli-yeast'` |
+| `ENGINE_VERSION` |  | `'local-0.7.0-direct-and-de-ecoli-yeast'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |

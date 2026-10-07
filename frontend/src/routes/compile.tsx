@@ -102,11 +102,6 @@ function CompilePage() {
       schema_version: "1",
       organism: config.organism,
       input_mode: submittedInputMode,
-      logic: {
-        set_a: config.setA.split(",").map((s) => s.trim()).filter(Boolean),
-        set_b: config.setB.split(",").map((s) => s.trim()).filter(Boolean),
-        expression: config.setB.trim() ? "A AND NOT B" : "A",
-      },
       mechanism: config.mechanism,
       payload: {
         outputs: config.outputs,
@@ -120,6 +115,8 @@ function CompilePage() {
       // (api/params.py check_scoring_block) — it becomes the rejected candidate's
       // recorded rejection_reason, so a researcher can see why their own slider
       // rejected a design.
+      // engine.domain.Constraints, unlike `scoring` above — see RunParams.
+      constraints: { max_circuit_gates: config.maxCircuitGates },
       scoring: {
         hard_filters: [
           {

@@ -383,6 +383,14 @@ class Constraints:
     so what a run was asked to do is recoverable from its snapshot.
 
     Attributes:
+        max_circuit_gates: How many gates one circuit may combine — the length of the
+            logic, not the arity of a single gate. 1 means every selected gene becomes
+            its own one-gene circuit, which is all this engine built before stage 4
+            existed. Raising it lets ``CircuitDesigner`` combine genes into
+            ``A AND NOT B``-style circuits; each extra gate is another switch to
+            synthesise, so ``circuit_complexity`` (weight 1.0, lower better) prices it
+            in rather than the cap alone deciding. Distinct from ``max_triggers``,
+            which is how many *inputs one gate* takes.
         max_triggers: Circuit arity ceiling. 2 is the practical limit — pairs grow as the
             square of the trigger count, and triples make the search space intractable
             without a cluster (docs/ROADMAP.md §3).
@@ -426,6 +434,7 @@ class Constraints:
     """
 
     max_triggers: int = 2
+    max_circuit_gates: int = 2
     min_separation: float = 0.5
     max_p_adj: float = 0.05
     trigger_lengths: tuple[int, ...] = (30, 33, 36)

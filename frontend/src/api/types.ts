@@ -349,6 +349,19 @@ export interface RunParams {
     hard_filters?: { metric: string; minimum?: number; maximum?: number; reason: string }[];
   };
   /**
+   * Search constraints — `engine.domain.Constraints`, field for field. Unknown field
+   * names are rejected at submission rather than silently ignored.
+   */
+  constraints?: {
+    /**
+     * How many gates one circuit may combine (not how many inputs one gate takes —
+     * that is `max_triggers`). 1 gives one circuit per gene; higher lets the engine
+     * also propose `A AND NOT B` style circuits, each priced by `circuit_complexity`.
+     */
+    max_circuit_gates?: number;
+    [key: string]: unknown;
+  };
+  /**
    * The plasmid vector the circuit gets assembled onto (docs/plasmids.md Q13). Exactly
    * one of the two fields, or neither (today's bare four-segment construct, unchanged) —
    * the API rejects both being set at once.

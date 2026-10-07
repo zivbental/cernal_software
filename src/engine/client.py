@@ -167,8 +167,10 @@ class LocalEngine:
     yeast — the two hosts with a bundled reference transcriptome
     (``engine.transcriptome.available_hosts()``, docs/ROADMAP.md Q1) — and only as
     single-gene circuits: ``GeneSelector`` real, real transcripts scanned by the same
-    ``TriggerScorer`` the `direct` path uses, but no ``CircuitDesigner`` (no multi-gene
-    Boolean circuits yet), no real off-target scanning, no ``InputQualityCheck`` (there
+    ``TriggerScorer`` the `direct` path uses, plus ``CircuitDesigner`` for circuits
+    that combine up to ``Constraints.max_circuit_gates`` genes — scored on complexity
+    and on their weakest member, not yet on behaviour, because there is no count matrix
+    to measure behaviour against. No off-target scanning, no ``InputQualityCheck`` (there
     is no count matrix in this product to check), no bundled yeast plasmid backbone
     (a lab's own upload, or no backbone at all). Human has no bundled transcriptome
     and no promoter/terminator either. See docs/genes.md and this module's own
@@ -176,7 +178,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.6.0-direct-and-de-ecoli-yeast"
+    ENGINE_VERSION = "local-0.7.0-direct-and-de-ecoli-yeast"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

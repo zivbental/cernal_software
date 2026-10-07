@@ -20,9 +20,10 @@ is no count matrix to check; the product only ever collects a differential-expre
 table (docs/genes.md §3 G-a), so the stage that validates one has nothing to run on
 yet. No off-target scanning at all — the scanner and the two trigger fields it fed
 were removed rather than left as placeholders that read as measurements. No
-``CircuitDesigner`` — every selected gene becomes its own one-gene
-circuit, the same trivial construction the `direct` path already uses (see the next
-paragraph), never a multi-gene Boolean expression. No human — no bundled reference
+real confusion matrix — ``CircuitDesigner`` now builds circuits that combine up to
+``Constraints.max_circuit_gates`` genes (``A AND NOT B``), but with no per-sample count
+matrix there is nothing to evaluate their *behaviour* against, so a circuit is scored on
+complexity and on its weakest member rather than on a measured separation. No human — no bundled reference
 transcriptome (a genomic CDS extraction is the wrong tool for a heavily-spliced genome,
 ``tools/sync_transcriptome.py``), and no promoter/terminator either (Q12). No bundled
 yeast plasmid backbone either, deliberately — yeast's real BioBrick-family assembly
@@ -52,12 +53,13 @@ import dataclasses
 import json
 import re
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 from engine import sequences as sq
 from engine.artifacts import sha256_bytes, write_artifact
 from engine.contract import (
+    HIGHER_BETTER,
     INPUT_DE,
     INPUT_DIRECT,
     SCHEMA_VERSION,
@@ -74,6 +76,7 @@ from engine.domain import (
     CircuitCandidate,
     ConfusionMatrix,
     Constraints,
+    CountMatrix,
     DesiredOutcome,
     GateDesign,
     Host,
@@ -81,6 +84,7 @@ from engine.domain import (
     LogicOperator,
     PlasmidDesign,
     Regulation,
+    SampleMetadata,
     Segment,
     SegmentKind,
     SelectedGene,
@@ -95,7 +99,8 @@ from engine.gates.tools.translation import TranslationScorer
 from engine.inputs import parse_dge_table
 from engine.safety import fail_closed_release
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
-from engine.scoring.profiles import HardFilter, resolve_profile
+from engine.scoring.profiles import HardFilter, ScoringProfile, resolve_profile
+from engine.stages.circuits import CircuitDesigner, ConfusionEvaluator
 from engine.stages.folding import FoldProfiler
 from engine.stages.genes import GeneSelector
 from engine.stages.motifs import MotifScreener
@@ -346,6 +351,10 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
 
     scored: list[tuple[CandidateResult, float | None]] = []
     plasmids: dict[str, PlasmidDesign] = {}
+    #: Accepted one-gate designs with their raw metrics and score, for stage 4 to
+    #: combine. Rejected designs are excluded: a circuit built on a switch that
+    #: already breached a hard filter is not a circuit worth proposing.
+    single_gate: list[tuple[GateDesign, dict[str, float | None], float]] = []
     designs = designer.design(
         trigger_candidates, constraints, on_incompatible=_on_incompatible, on_invalid=_on_invalid
     )
@@ -374,7 +383,25 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         )
         plasmids[candidate.ref] = plasmid
 
-        scored.append((candidate, None if breach else weighted_score(metrics, profile)))
+        score = None if breach else weighted_score(metrics, profile)
+        scored.append((candidate, score))
+        if not breach:
+            single_gate.append((design, raw, score or 0.0))
+
+    # Stage 4: circuits longer than one gate, when the researcher allows them.
+    for candidate, plasmid, score in _multi_gate_candidates(
+        single_gate,
+        trigger_candidates,
+        constraints,
+        profile,
+        plasmid_builder,
+        store,
+        outcomes,
+        custom_sequence,
+        families_by_kind,
+    ):
+        plasmids[candidate.ref] = plasmid
+        scored.append((candidate, score))
 
     ranks = rank_candidates([(c.ref, s) for c, s in scored if not c.is_rejected])
     candidates = [
@@ -900,6 +927,283 @@ def _build_plasmid(
     return builder.build(circuit, outcome)
 
 
+def _multi_gate_candidates(
+    single_gate: list[tuple[GateDesign, dict[str, float | None], float]],
+    trigger_candidates: list[TriggerCandidate],
+    constraints: Constraints,
+    profile: ScoringProfile,
+    plasmid_builder: PlasmidBuilder,
+    store: CandidateStore,
+    outcomes: list[DesiredOutcome],
+    custom_sequence: str | None,
+    families_by_kind: dict,
+) -> Iterator[tuple[CandidateResult, PlasmidDesign, float | None]]:
+    """Stage 4 — circuits that combine more than one gene, and their plasmids.
+
+    Additive on purpose. Every one-gene candidate the loop above produced is still
+    yielded unchanged; this adds the longer circuits alongside them, so raising
+    ``max_circuit_gates`` widens the menu rather than replacing it. A researcher who
+    sets it to 1 gets exactly what this engine produced before stage 4 existed.
+
+    Why a circuit's metrics are its *worst* member's:
+        A circuit is only as good as the weakest switch in it. Taking each metric's
+        worst value across the member designs — worst by that metric's own declared
+        direction, not by magnitude — means a two-gate circuit can never score better
+        than either gate alone on any axis, which is the honest answer: adding a
+        component cannot improve the thermodynamics of the one already there.
+
+        ``circuit_complexity`` is the exception, and the one that makes a longer circuit
+        actually cost something: it comes from the circuit's own
+        ``BooleanExpression.complexity()`` rather than from any member, so it rises with
+        every gate and every ``NOT``.
+    """
+    if constraints.max_circuit_gates <= 1 or len(single_gate) < 2:
+        return
+
+    genes = _genes_for_circuits(trigger_candidates)
+    if len(genes) < 2:
+        return
+
+    designer = CircuitDesigner(ConfusionEvaluator(), max_terms=constraints.max_circuit_gates)
+    # Best-first, so CircuitDesigner.design's "first design per gene" rule picks each
+    # gene's strongest switch (its own docstring explains why the choice is the
+    # caller's to make through ordering).
+    ordered = [design for design, _raw, _score in sorted(single_gate, key=_by_score_desc)]
+    raw_by_design = {design.design_id: raw for design, raw, _score in single_gate}
+
+    # No per-sample counts exist in this product (docs/genes.md §3 G-a), so the
+    # confusion matrix stays unmeasured — CircuitDesigner.design's own docstring says
+    # what that means and what fills it once a count matrix does exist.
+    empty_counts = CountMatrix(
+        gene_ids=(),
+        samples=(),
+        counts=(),
+        metadata=SampleMetadata(control_samples=(), condition_samples=()),
+    )
+    for index, circuit in enumerate(designer.design(genes, ordered, empty_counts)):
+        if len(circuit.expression.gene_ids()) < 2:
+            # The one-gene forms were already produced, and scored, above.
+            continue
+
+        outcome = outcomes[index % len(outcomes)]
+        raws = [raw_by_design[design.design_id] for design in circuit.designs]
+        raw = _worst_metrics(raws, profile)
+        raw["circuit_complexity"] = float(circuit.complexity)
+
+        metrics = build_metrics(raw, profile)
+        breach = failed_filter(raw, profile)
+
+        built = dataclasses.replace(circuit, circuit_id=store.mint_id("circ"), output=outcome.value)
+        plasmid = (
+            plasmid_builder.build(built, outcome, custom_payload=custom_sequence)
+            if outcome is DesiredOutcome.CUSTOM
+            else plasmid_builder.build(built, outcome)
+        )
+        family = families_by_kind[circuit.designs[0].gate_kind]
+        candidate = _circuit_candidate_result(
+            store, built, family, metrics, breach, plasmid, outcome
+        )
+        yield candidate, plasmid, None if breach else weighted_score(metrics, profile)
+
+
+def _by_score_desc(entry: tuple[GateDesign, dict[str, float | None], float]):
+    """Highest score first, ties broken by design id so the order is total."""
+    design, _raw, score = entry
+    return (-score, design.design_id)
+
+
+def _genes_for_circuits(trigger_candidates: list[TriggerCandidate]) -> list[SelectedGene]:
+    """The genes behind these triggers, as stage 4 needs them.
+
+    Rebuilt from the trigger candidates rather than threaded down from stage 1, because
+    a ``TriggerCandidate`` already carries everything a circuit needs to know about its
+    gene — the id, the symbol and the effect size — and the direction follows from the
+    sign of that effect size (``DgeRow.regulation`` derives it the same way).
+
+    One entry per gene, not per trigger: scanning can yield many windows from one
+    transcript, and they are all the same circuit input.
+    """
+    genes: dict[str, SelectedGene] = {}
+    for trigger in trigger_candidates:
+        if trigger.gene_id in genes or trigger.log2_fold_change is None:
+            # No effect size means no direction, and a `direct` submission has none —
+            # there is nothing to orient a NOT gate by, so it cannot join a circuit.
+            continue
+        genes[trigger.gene_id] = SelectedGene(
+            gene_id=trigger.gene_id,
+            symbol=trigger.symbol,
+            regulation=(Regulation.UP if trigger.log2_fold_change >= 0 else Regulation.DOWN),
+            log2_fold_change=trigger.log2_fold_change,
+            score=trigger.score,
+        )
+    return list(genes.values())
+
+
+def _worst_metrics(
+    raws: list[dict[str, float | None]], profile: ScoringProfile
+) -> dict[str, float | None]:
+    """Each metric's worst value across a circuit's member designs.
+
+    "Worst" is by the metric's own declared direction: the lowest value for a
+    higher-is-better metric, the highest for a lower-is-better one. A metric any member
+    could not measure stays ``None`` for the circuit too — one unmeasured switch makes
+    the circuit's figure unmeasured, not the best of what is left.
+    """
+    worst: dict[str, float | None] = {}
+    for name in {key for raw in raws for key in raw}:
+        values = [raw.get(name) for raw in raws]
+        if any(value is None for value in values):
+            worst[name] = None
+            continue
+        spec = profile.spec(name)
+        if spec is None:
+            # Stored, not scored (CLAUDE.md §2) — no direction to pick a worst by, so
+            # report the first member's rather than inventing an ordering.
+            worst[name] = values[0]
+            continue
+        worst[name] = min(values) if spec.direction == HIGHER_BETTER else max(values)
+    return worst
+
+
+def _circuit_candidate_result(
+    store: CandidateStore,
+    circuit: CircuitCandidate,
+    family: GateFamily,
+    metrics: list[MetricValue],
+    breach: HardFilter | None,
+    plasmid: PlasmidDesign,
+    outcome: DesiredOutcome,
+) -> CandidateResult:
+    """A multi-gene circuit shaped as a ``CandidateResult`` the Platform can import.
+
+    The same record a one-gene candidate uses, with the parts that are genuinely plural
+    carrying every member rather than only the first:
+
+    * ``triggers["features"]`` — one entry per member gene. The field was always a list;
+      a one-gene circuit simply only ever put one thing in it.
+    * ``plasmid_segments`` — the real construct, which ``PlasmidBuilder`` already lays
+      out as a promoter/switch pair per switch plus one shared payload and terminator.
+    * ``logic_graph`` — the real Boolean structure from ``CircuitDesigner``, not the
+      one-gene placeholder.
+
+    ``design["switch_sequence"]`` stays the *primary* switch, because the field is
+    singular in the contract and a concatenation of several switches would read as one
+    molecule that nobody is building. ``component_switches`` carries all of them, so a
+    consumer that wants every sequence has it without the singular field lying.
+    """
+    logic_graph = {
+        "genes": [
+            {
+                "name": gene.name,
+                "role": gene.role,
+                "state": gene.state.value,
+                "direction": gene.direction.value,
+            }
+            for gene in circuit.logic_graph.genes
+        ],
+        "mid_gate": circuit.logic_graph.mid_gate.value,
+        "outer_gate": circuit.logic_graph.outer_gate.value,
+        "invert": circuit.logic_graph.invert,
+        "output": outcome.display_name,
+        "caption": f"{circuit.logic_graph.caption} -> {outcome.display_name}",
+    }
+    triggers = [
+        trigger
+        for design in circuit.designs
+        for trigger in (design.trigger_set.activators + design.trigger_set.repressors)
+    ]
+    primary = circuit.designs[0]
+    return CandidateResult(
+        ref=store.mint_id("cand"),
+        rank=None,
+        overall_score=None,
+        gate_family=family.name,
+        logic_type=circuit.expression.render(),
+        triggers={"features": [_trigger_feature(trigger) for trigger in triggers]},
+        design={
+            "switch_sequence": primary.sequence,
+            "structure": primary.dot_bracket,
+            "toehold_length": primary.architecture.get("toehold_length", 0),
+            "sequence_length_bp": plasmid.plasmid.length_bp,
+            "plasmid_segments": [
+                {"kind": segment.kind.value, "name": segment.name, "length_bp": segment.length_bp}
+                for segment in plasmid.plasmid.segments
+            ],
+            "logic_graph": logic_graph,
+            "trigger_start_index": triggers[0].start_index if triggers else 0,
+            "component_switches": [
+                {"design_id": design.design_id, "switch_sequence": design.sequence}
+                for design in circuit.designs
+            ],
+        },
+        summary=(
+            f"{len(circuit.designs)}-gate circuit: {circuit.expression.render()} "
+            f"-> {outcome.display_name}"
+        ),
+        metrics=metrics,
+        warnings=tuple(f"Assembly standard: {v}" for v in plasmid.violations),
+        is_rejected=breach is not None,
+        rejection_reason=breach.reason if breach else "",
+    )
+
+
+def _trigger_feature(trigger: TriggerCandidate) -> dict:
+    """One trigger as the Platform's ``triggers["features"]`` entry.
+
+    Extracted so the single-gene and multi-gene circuit paths describe a trigger
+    identically — a circuit's features list is this, once per member gene.
+    """
+    return {
+        "feature_id": trigger.symbol,
+        "sequence": trigger.sequence,
+        "openness": trigger.openness,
+        "accessibility": trigger.accessibility,
+        "selection_method": (
+            TriggerScorer.SELECTION_METHOD
+            if trigger.gate_toehold_length is not None
+            else TriggerScorer.LEGACY_SELECTION_METHOD
+        ),
+        "selection_metric": (
+            "selected_joint_p8"
+            if trigger.gate_toehold_length is not None
+            else "mean_base_unpaired_probability"
+        ),
+        "selection_score": trigger.score,
+        "orientation": "transcript_forward",
+        "gate_toehold_length": trigger.gate_toehold_length,
+        "hypothesis_start": trigger.hypothesis_start,
+        "hypothesis_end": trigger.hypothesis_end,
+        "joint_open_probability_20": trigger.joint_open_probability_20,
+        "mean_marginal_openness_20": trigger.mean_marginal_openness_20,
+        "delta_g_open_kcal_per_mol_per_nt": (trigger.delta_g_open_kcal_per_mol_per_nt),
+        "selected_seed_start": trigger.selected_seed_start,
+        "selected_seed_end": trigger.selected_seed_end,
+        "selected_seed_probability": trigger.selected_seed_probability,
+        "seed_trials": [
+            {
+                "start": trial.start,
+                "end": trial.end,
+                "relative_start": trial.relative_start,
+                "sequence": trial.sequence,
+                "joint_probability": trial.probability,
+            }
+            for trial in trigger.seed_trials
+        ],
+        "rnaplfold": {
+            "viennarna_version": trigger.rnaplfold_version,
+            "window": trigger.rnaplfold_window,
+            "max_span": trigger.rnaplfold_max_span,
+            "unpaired": trigger.rnaplfold_unpaired,
+            "temperature_celsius": trigger.rnaplfold_temperature_celsius,
+        },
+        # Which window this candidate came from (docs/triggers.md T2) —
+        # 0 for the single-trigger fast path, a real scanned offset
+        # otherwise. Makes a chosen window inspectable rather than a
+        # black box when more than one was considered.
+        "start_index": trigger.start_index,
+    }
+
+
 def _candidate_result(
     store: CandidateStore,
     design: GateDesign,
@@ -939,59 +1243,7 @@ def _candidate_result(
         overall_score=None,
         gate_family=family.name,
         logic_type=design.trigger_set.logic_type,
-        triggers={
-            "features": [
-                {
-                    "feature_id": trigger.symbol,
-                    "sequence": trigger.sequence,
-                    "openness": trigger.openness,
-                    "accessibility": trigger.accessibility,
-                    "selection_method": (
-                        TriggerScorer.SELECTION_METHOD
-                        if trigger.gate_toehold_length is not None
-                        else TriggerScorer.LEGACY_SELECTION_METHOD
-                    ),
-                    "selection_metric": (
-                        "selected_joint_p8"
-                        if trigger.gate_toehold_length is not None
-                        else "mean_base_unpaired_probability"
-                    ),
-                    "selection_score": trigger.score,
-                    "orientation": "transcript_forward",
-                    "gate_toehold_length": trigger.gate_toehold_length,
-                    "hypothesis_start": trigger.hypothesis_start,
-                    "hypothesis_end": trigger.hypothesis_end,
-                    "joint_open_probability_20": trigger.joint_open_probability_20,
-                    "mean_marginal_openness_20": trigger.mean_marginal_openness_20,
-                    "delta_g_open_kcal_per_mol_per_nt": (trigger.delta_g_open_kcal_per_mol_per_nt),
-                    "selected_seed_start": trigger.selected_seed_start,
-                    "selected_seed_end": trigger.selected_seed_end,
-                    "selected_seed_probability": trigger.selected_seed_probability,
-                    "seed_trials": [
-                        {
-                            "start": trial.start,
-                            "end": trial.end,
-                            "relative_start": trial.relative_start,
-                            "sequence": trial.sequence,
-                            "joint_probability": trial.probability,
-                        }
-                        for trial in trigger.seed_trials
-                    ],
-                    "rnaplfold": {
-                        "viennarna_version": trigger.rnaplfold_version,
-                        "window": trigger.rnaplfold_window,
-                        "max_span": trigger.rnaplfold_max_span,
-                        "unpaired": trigger.rnaplfold_unpaired,
-                        "temperature_celsius": trigger.rnaplfold_temperature_celsius,
-                    },
-                    # Which window this candidate came from (docs/triggers.md T2) —
-                    # 0 for the single-trigger fast path, a real scanned offset
-                    # otherwise. Makes a chosen window inspectable rather than a
-                    # black box when more than one was considered.
-                    "start_index": trigger.start_index,
-                }
-            ]
-        },
+        triggers={"features": [_trigger_feature(trigger)]},
         design={
             "switch_sequence": design.sequence,
             "structure": design.dot_bracket,
