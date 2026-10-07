@@ -37,16 +37,11 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 63 |
-| Public classes | 102 |
-| Public callables (excluding `__init__`) | 326 |
-| — `BUILT` | 295 |
-| — `STUB` | 23 |
 | Modules | 64 |
-| Public classes | 108 |
-| Public callables (excluding `__init__`) | 328 |
-| — `BUILT` | 295 |
-| — `STUB` | 25 |
+| Public classes | 109 |
+| Public callables (excluding `__init__`) | 330 |
+| — `BUILT` | 299 |
+| — `STUB` | 23 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
 | `__init__` constructors | 22 |
