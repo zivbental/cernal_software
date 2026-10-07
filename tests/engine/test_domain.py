@@ -54,6 +54,7 @@ EXPECTED_TRACKS = {
     Host.ECOLI: Track.PROKARYOTIC,
     Host.YEAST: Track.EUKARYOTIC,
     Host.HUMAN: Track.EUKARYOTIC,
+    Host.C_ACNES: Track.PROKARYOTIC,
 }
 
 

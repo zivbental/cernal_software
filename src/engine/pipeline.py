@@ -90,6 +90,7 @@ from engine.domain import (
 from engine.errors import ChecksumMismatchError, InputValidationError, JobCancelled
 from engine.gates.base import GateFamily
 from engine.gates.registry import get_family
+from engine.gates.tools.ais_china import AisChinaCodons
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
@@ -199,8 +200,16 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
     screener = MotifScreener(constraints.standard)
     # The run's seed, so ESO's stochastic repair is reproducible; folder, so a structural
     # objective folds through the one shared FoldEngine and not a second library.
+    # Only for C. acnes: their reference package is ~12 MB of tables, and loading it for
+    # an E. coli run would be pure waste. None for every other host -- and CodonOptimizer
+    # raises rather than silently falling back to another organism's numbers if it is
+    # missing for the one host that needs it.
+    aisc = AisChinaCodons() if host is Host.C_ACNES else None
     codons = CodonOptimizer(
-        host, folder=folder, seed=request.seed if request.seed is not None else 0
+        host,
+        folder=folder,
+        seed=request.seed if request.seed is not None else 0,
+        aisc=aisc,
     )
     backbone = _resolve_backbone(request.params)
 
@@ -210,6 +219,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         "off_target": OffTargetScanner({}),
         "screener": screener,
         "codons": codons,
+        "aisc": aisc,
         "translation": TranslationScorer(host),
         # Same screener/codons instances as above — a second PlasmidBuilder-only
         # MotifScreener would mean two independently configured screeners agreeing by

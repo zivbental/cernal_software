@@ -30,6 +30,11 @@ class Host(StrEnum):
     ECOLI = "ecoli"
     YEAST = "yeast"
     HUMAN = "human"
+    #: *Cutibacterium acnes* ATCC 6919, the strain the iGEM AIS-China 2026 team built a
+    #: genome-derived codon model for (docs/collaborations.md). Gram-positive, anaerobic,
+    #: ~60% GC — and prokaryotic, which is the whole reason ``HOST_TRACKS`` below is
+    #: explicit rather than defaulting to EUKARYOTIC.
+    C_ACNES = "c_acnes"
 
     @property
     def track(self) -> Track:
@@ -53,6 +58,10 @@ HOST_TRACKS: Mapping[Host, Track] = MappingProxyType(
         Host.ECOLI: Track.PROKARYOTIC,
         Host.YEAST: Track.EUKARYOTIC,
         Host.HUMAN: Track.EUKARYOTIC,
+        # A Shine-Dalgarno RBS in the toehold loop, not a Kozak context. Getting this
+        # wrong for an actinobacterium is the exact failure the explicit mapping exists
+        # to prevent, and it would not have raised.
+        Host.C_ACNES: Track.PROKARYOTIC,
     }
 )
 

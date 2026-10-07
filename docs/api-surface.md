@@ -154,6 +154,7 @@ The organism a circuit is designed for.
 | `ECOLI` |  | `'ecoli'` |
 | `YEAST` |  | `'yeast'` |
 | `HUMAN` |  | `'human'` |
+| `C_ACNES` |  | `'c_acnes'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -1024,7 +1025,7 @@ Synonymous-codon search and translation scoring for one host.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, usage_table: dict[str, float] \| None = None, *, folder: FoldEngine \| None = None, seed: int = 0) -> None` |  |
+| `BUILT` | `def __init__(self, host: Host, usage_table: dict[str, float] \| None = None, *, folder: FoldEngine \| None = None, seed: int = 0, aisc: AisChinaCodons \| None = None) -> None` |  |
 | `BUILT` | `def versions(self) -> dict[str, str]` | What this tool's numbers depend on — written into the run's provenance. |
 | `BUILT` | `def variants(self, cds: str, target_pairing: str \| None = None, *, count: int = 4, avoid_enzymes: Sequence[str] = (), acceptable: Callable[[str], bool] \| None = None, on_rejected: Callable[[str, tuple[str, ...]], None] \| None = None, gc_range: tuple[float, float] = (30.0, 70.0), gc_window: int = 50) -> list[CodonVariant]` | Synonymous rewrites of a coding sequence: same protein, different bases. |
 | `BUILT` | `def translation_score(self, cds: str) -> float \| None` | How well a sequence's codons suit the host: its Codon Adaptation Index. |
@@ -1106,7 +1107,7 @@ Post-transcriptional silencing. The pipeline's inverting element.
 | `kind` |  | `GateKind.ANTISENSE_NOT` |
 | `label` |  | `'Antisense Repression'` |
 | `description` |  | `'Post-transcriptional silencing'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN, Host.C_ACNES})` |
 | `max_inputs` |  | `1` |
 | `available` |  | `True` |
 | `UTR_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(8, 10, 12, 14)` |
@@ -1219,7 +1220,7 @@ Single-input toehold switch.
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
 | `description` |  | `'Translational control · pre-mRNA'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN, Host.C_ACNES})` |
 | `max_inputs` |  | `1` |
 | `available` |  | `True` |
 | `toehold_lengths` | `ClassVar[tuple[int, ...]]` | `(12, 15, 18)` |
@@ -1299,7 +1300,7 @@ Single-input toehold family for prokaryotic translation.
 | `design_prefix` |  | `'prokaryotic_toehold'` |
 | `label` |  | `'Prokaryotic Toehold'` |
 | `description` |  | `'Prokaryotic single-input translational control'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.C_ACNES})` |
 
 #### `class ProkaryoticToeholdAndGate(ToeholdAndGate)`
 
@@ -1311,7 +1312,7 @@ Two-input AND toehold family for prokaryotic translation.
 | `design_prefix` |  | `'prokaryotic_toehold_and'` |
 | `label` |  | `'Prokaryotic AND Toehold'` |
 | `description` |  | `'Prokaryotic two-input translational AND'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.C_ACNES})` |
 
 #### `class EukaryoticToeholdGate(ToeholdGate)`
 
@@ -1989,7 +1990,7 @@ Stage 5 — plasmid construction.
 | Constant | Type | Value |
 | --- | --- | --- |
 | `REGISTRY_PARTS` | `dict[str, str]` | `{'J23119': 'BBa_J23119', 'K124002': 'BBa_K124002', 'B0015': 'BBa_B0015', 'K1486025': 'B…` |
-| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.YEAST: ('K124002',…` |
+| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.C_ACNES: ('J23119'…` |
 | `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |

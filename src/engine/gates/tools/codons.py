@@ -53,6 +53,9 @@ import python_codon_tables
 
 from engine.domain import Host
 from engine.errors import InputValidationError
+from engine.gates.tools.ais_china import HOST_ID as AISC_HOST_ID
+from engine.gates.tools.ais_china import REFERENCE_VERSION as AISC_REFERENCE_VERSION
+from engine.gates.tools.ais_china import AisChinaCodons
 from engine.gates.tools.folding import FoldEngine
 from engine.sequences import (
     CODON_TABLE,
@@ -256,17 +259,53 @@ class CodonOptimizer:
         *,
         folder: FoldEngine | None = None,
         seed: int = 0,
+        aisc: AisChinaCodons | None = None,
     ) -> None:
         self.host = host
         self.folder = folder
         self.seed = seed
-        if usage_table is None:
-            self._eso_organism: str | None = _bundled_table_name(host)
+        self._aisc: AisChinaCodons | None = None
+        if usage_table is None and host is Host.C_ACNES:
+            if aisc is None:
+                raise InputValidationError(
+                    f"Host {host.value!r} is scored against the AIS-China reference "
+                    "package, so CodonOptimizer needs the run's shared AisChinaCodons. "
+                    "pipeline.build_tools() constructs it for this host and passes it as "
+                    "aisc=; constructing a second one here would load a second copy of "
+                    "their reference package (CLAUDE.md §5)."
+                )
+            # C. acnes is not in python_codon_tables, and a generic bacterial table would
+            # be the wrong answer rather than an approximate one: this host's model is the
+            # point of the collaboration. The AIS-China team derived it from ATCC 6919's
+            # own genome -- CAI from a 61-gene ribosomal reference set, tAI from its 45
+            # tRNA loci -- so their table is what this host is scored against.
+            #
+            # usage_frequencies() is host_codon_counts.csv (frequency within family,
+            # summing to 1.0), NOT cai_weights.csv (relative adaptiveness, max 1.0 per
+            # family). Those are different numbers of the same shape; see that method's
+            # docstring. Passing the wrong one would be invisible under use_best_codon and
+            # wrong under match_codon_usage.
+            self._aisc = aisc
+            self._eso_organism: str | None = None
+            self.usage_table = _validated_usage(self._aisc.usage_frequencies())
+        elif usage_table is None:
+            self._eso_organism = _bundled_table_name(host)
             self.usage_table = dict(_bundled_usage(self._eso_organism))
         else:
             self._eso_organism = None
             self.usage_table = _validated_usage(usage_table)
-        self._adaptiveness = _relative_adaptiveness(self.usage_table)
+        if self._aisc is not None:
+            # Their published CAI weights, not adaptiveness re-derived from their
+            # frequencies. Both are "relative adaptiveness" shaped, but theirs comes from
+            # the 61-gene ribosomal reference set (Sharp & Li's high-expression proxy)
+            # while re-deriving from genome-wide frequencies answers a different question.
+            # Using theirs makes CERNAL's translation_score agree with the `cai` their own
+            # report carries for the same sequence; deriving our own left the two
+            # disagreeing in the third decimal for no defensible reason, which is exactly
+            # the "two numbers for one measurement" this repo is built to avoid.
+            self._adaptiveness = _validated_adaptiveness(self._aisc.cai_relative_adaptiveness())
+        else:
+            self._adaptiveness = _relative_adaptiveness(self.usage_table)
 
     def versions(self) -> dict[str, str]:
         """What this tool's numbers depend on — written into the run's provenance.
@@ -279,7 +318,11 @@ class CodonOptimizer:
             "eso": importlib.metadata.version("evolutionary-stability-optimizer"),
             "dnachisel": importlib.metadata.version("dnachisel"),
             "python_codon_tables": importlib.metadata.version("python-codon-tables"),
-            "codon_table": self._eso_organism or "caller-supplied",
+            "codon_table": (
+                self._eso_organism
+                or (f"ais-china/{AISC_HOST_ID}@{AISC_REFERENCE_VERSION}" if self._aisc else None)
+                or "caller-supplied"
+            ),
             "eso_recombination_mode": RECOMBINATION_MODE,
             "eso_slippage_mode": SLIPPAGE_MODE,
             "eso_method": _ESO_METHOD,
@@ -735,6 +778,36 @@ def _validated_usage(usage_table: dict[str, float]) -> dict[str, float]:
             f"offending: {', '.join(bad)}"
         )
     return {codon: table[codon] for codon in sorted(sense)}
+
+
+def _validated_adaptiveness(weights: dict[str, float]) -> dict[str, float]:
+    """RNA-keyed copy of a CAI weight table, or ``ValueError`` saying what is wrong.
+
+    Same contract ``_relative_adaptiveness`` produces, checked because this table comes
+    from outside: every sense codon present, every weight finite, strictly positive and at
+    most 1.0. Zero would collapse any CDS using that codon to a CAI of 0 through the
+    geometric mean, and this module will not invent a floor to hide that. A value above
+    1.0 means someone passed frequencies or raw counts, which have the same shape and are
+    a different quantity.
+    """
+    table = {to_rna(codon): float(w) for codon, w in weights.items()}
+    sense = {codon for codon, residue in CODON_TABLE.items() if residue != "*"}
+    missing = sorted(sense - table.keys())
+    if missing:
+        raise ValueError(f"CAI weight table is missing sense codon(s): {', '.join(missing)}")
+    bad = sorted(c for c in sense if not (math.isfinite(table[c]) and 0.0 < table[c] <= 1.0))
+    if bad:
+        raise ValueError(
+            "CAI weights must be finite and in (0.0, 1.0] -- relative adaptiveness, not "
+            f"frequencies or counts; offending: {', '.join(bad)}"
+        )
+    # Drop single-codon families, exactly as _relative_adaptiveness does: Met and Trp have
+    # one codon each, so w == 1.0 by construction and including them dilutes the geometric
+    # mean towards 1.0 in proportion to how Met/Trp-rich the protein is. Returning all 61
+    # here instead of 59 is what made this score disagree with the collaborators' own
+    # reported CAI for the same sequence in the third decimal.
+    scoreable = {c for c in sense if sum(1 for d in sense if CODON_TABLE[d] == CODON_TABLE[c]) > 1}
+    return {codon: table[codon] for codon in sorted(scoreable)}
 
 
 def _relative_adaptiveness(usage_table: dict[str, float]) -> dict[str, float]:
