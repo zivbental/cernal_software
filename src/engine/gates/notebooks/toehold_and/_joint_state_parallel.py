@@ -30,6 +30,7 @@ from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from typing import NamedTuple
 
+from engine.gates.tools.binding import alignment_pairs
 from engine.sequences import gc_content, reverse_complement
 
 # The one shared FoldEngine, published by the notebook (or a pipeline) before any pool
@@ -151,7 +152,8 @@ def _exact_decomp_means(
     WHY: ``FoldEngine.sample_structures`` disagrees with this exact calculation on multi-strand
     complexes, so the report uses these exact means. A joint event (all designed duplexes at
     once) cannot be read from a marginal matrix; it comes from
-    ``FoldEngine.constrained_probability`` (see :func:`designed_pairs`).
+    ``FoldEngine.constrained_probability`` over the designed duplex
+    (:func:`designed_pairs`).
 
     ``None`` for a metric whose span is empty (not measured is not zero -- CLAUDE.md
     sec 3).
@@ -991,40 +993,33 @@ def run_parallel_single_decomp(
 
 
 def designed_pairs(
-    engine,
-    strands: str,
-    footprints: tuple[tuple[int, int], ...],
-    n_self: int,
+    fused: str,
+    duplexes: tuple[tuple[int, str, int], ...],
 ) -> list[tuple[int, int]] | None:
-    """The designed footprint-trigger duplex(es) of one state, as the MFE realises them.
+    """The designed footprint-trigger duplex(es), from the sequences -- not from an MFE.
 
-    ``strands`` is the exact string the state is folded as (``&``-joined, fused molecule
-    first, same strand order as every other call -- incl. ``both_triggers_extra``);
-    ``n_self`` = ``len(fused)``, so an index ``>= n_self`` is a base of an external
-    strand. The structure is ``engine.mfe(strands)`` (the one shared engine, cached; a
-    ``&`` in the returned string is stripped so indices run over the concatenation).
+    Each ``(footprint_start, trigger, trigger_offset)`` aligns ``trigger`` antiparallel to
+    the switch starting at its footprint start: trigger base ``k`` faces switch base
+    ``footprint_start + len(trigger) - 1 - k``. ``trigger_offset`` is where that trigger
+    begins in the ``&``-removed concatenation of the folded string (the fused switch comes
+    first, so it is ``len(fused)`` plus the lengths of the strands before it). A facing
+    pair is kept when it can pair, GU wobbles included (``binding.alignment_pairs``, the
+    shared alignment rule); a facing pair that cannot pair is a designed mismatch and is
+    left out. Returns every kept ``(i, j)`` (0-indexed, ``i < j``).
 
-    Returns every ``(i, j)`` with ``i`` inside one of ``footprints`` and ``j >= n_self``
-    (0-indexed, ``i < j``) -- "the designed duplex as the MFE realises it". It is
-    STRICT: ``constrained_probability`` of this list is the probability that every one
-    of those pairs is present at once.
-
-    ``None`` (never an empty list, never 1.0 downstream) when ANY footprint has no
-    external pair in the MFE: that hairpin's duplex is then undefined, so the joint
-    event is not defined for this state.
+    STRICT: ``constrained_probability`` of this list is the probability that every one of
+    those pairs is present at once, i.e. the whole designed duplex is formed (every
+    complementary position of the trigger bound, not just the toehold the MFE happens to
+    open). ``None`` (never an empty list) when a duplex keeps no pair at all.
     """
-    structure = engine.mfe(strands).structure.replace("&", "")
-    partner = _partner_table(structure)
     pairs: list[tuple[int, int]] = []
-    for start, end in footprints:
-        found = [
-            (i, partner[i])
-            for i in range(start, end)
-            if partner[i] is not None and partner[i] >= n_self
-        ]
-        if not found:
+    for footprint_start, trigger, trigger_offset in duplexes:
+        n = len(trigger)
+        paired = alignment_pairs(fused[footprint_start : footprint_start + n], trigger)
+        kept = [(footprint_start + i, trigger_offset + n - 1 - i) for i in range(n) if paired[i]]
+        if not kept:
             return None
-        pairs.extend(found)
+        pairs.extend(kept)
     return pairs
 
 
@@ -1058,7 +1053,7 @@ def _single_exact_worker(job: SingleExactJob) -> dict:
     )
     p_on = None
     if job.with_joint and job.extra:
-        pairs = designed_pairs(engine, strands, (job.footprint,), n_self)
+        pairs = designed_pairs(job.switch, ((job.footprint[0], job.extra, n_self),))
         if pairs is not None:
             p_on = engine.constrained_probability(strands, pairs)
     return {
@@ -1084,7 +1079,9 @@ class AndDecompJob(NamedTuple):
     """One state of one AND pair, exact-only: ``extra`` lists whichever trigger/fake
     strands ride along with ``fused`` for this state (``()`` = alone). Both footprints
     get the three-way exact decomposition from ONE ``base_pair_probabilities`` matrix.
-    ``with_joint`` asks for ``p_on`` (only meaningful for the +A+B state)."""
+    ``with_joint`` asks for ``p_on`` (only meaningful for the +A+B state); ``own_side``
+    (``"a"``/``"b"``, for the +A / +B states) asks for ``p_own_duplex``, the same exact
+    probability for that one hairpin's duplex alone."""
 
     key: str
     fused: str
@@ -1097,6 +1094,22 @@ class AndDecompJob(NamedTuple):
     stem_down_b: tuple[int, int]
     temperature: float
     with_joint: bool = False
+    own_side: str = ""
+    trigger_a: str = ""
+    trigger_b: str = ""
+
+
+def _duplexes(job: AndDecompJob, sides: str) -> tuple[tuple[int, str, int], ...]:
+    """``designed_pairs`` input for the named sides (``"a"``, ``"b"`` or ``"ab"``): each
+    trigger's footprint start and its offset in the folded string, from the order the
+    strands appear in ``job.extra``."""
+    wanted = {"a": (job.footprint_a[0], job.trigger_a), "b": (job.footprint_b[0], job.trigger_b)}
+    offsets, position = {}, len(job.fused)
+    for strand in job.extra:
+        offsets[strand] = position
+        position += len(strand)
+    return tuple((start, trigger, offsets[trigger]) for side in sides
+                 for start, trigger in (wanted[side],))
 
 
 def _and_decomp_worker(job: AndDecompJob) -> dict:
@@ -1104,7 +1117,8 @@ def _and_decomp_worker(job: AndDecompJob) -> dict:
     Same exact means as :func:`_single_exact_worker`, per side (A/B), plus ``p_on`` --
     the exact probability that BOTH designed duplexes (:func:`designed_pairs` over both
     footprints) are present in the same structure -- when ``with_joint``; ``None``
-    otherwise or when either duplex is undefined in the MFE."""
+    otherwise or when either duplex keeps no pair. ``p_own_duplex`` is the same
+    quantity for the single footprint named by ``own_side`` (``None`` when not asked)."""
     engine = _engine(job.temperature)
     strands = "&".join([job.fused, *job.extra]) if job.extra else job.fused
     n_self = len(job.fused)
@@ -1113,9 +1127,14 @@ def _and_decomp_worker(job: AndDecompJob) -> dict:
     exact_b = _exact_decomp_means(matrix, n_self, job.footprint_b, job.stem_up_b, job.stem_down_b)
     p_on = None
     if job.with_joint and job.extra:
-        pairs = designed_pairs(engine, strands, (job.footprint_a, job.footprint_b), n_self)
+        pairs = designed_pairs(job.fused, _duplexes(job, "ab"))
         if pairs is not None:
             p_on = engine.constrained_probability(strands, pairs)
+    p_own_duplex = None
+    if job.own_side and job.extra:
+        pairs = designed_pairs(job.fused, _duplexes(job, job.own_side))
+        if pairs is not None:
+            p_own_duplex = engine.constrained_probability(strands, pairs)
     return {
         "key": job.key,
         "mean_stem_closed_a_bpp": exact_a["stem_closed"],
@@ -1125,6 +1144,7 @@ def _and_decomp_worker(job: AndDecompJob) -> dict:
         "mean_misfolded_b_bpp": exact_b["misfolded"],
         "mean_trigger_bound_b_bpp": exact_b["trigger_bound"],
         "p_on": p_on,
+        "p_own_duplex": p_own_duplex,
     }
 
 
@@ -1138,15 +1158,16 @@ def and_pair_jobs(
     *,
     temperature: float,
 ) -> list[AndDecompJob]:
-    """Every state job of one (pair, spacer): ``alone``, ``+A``, ``+B``, ``+A+B`` (the only
-    one with ``with_joint``; strands via :func:`both_triggers_extra`), then per side each
+    """Every state job of one (pair, spacer): ``alone``, ``+A`` / ``+B`` (``own_side``: the
+    exact P of that hairpin's own duplex), ``+A+B`` (the only one with ``with_joint``;
+    strands via :func:`both_triggers_extra`), then per side each
     fake alone and with its own real trigger (``+fakeA{i}``/``+A+fakeA{i}``,
     ``+fakeB{i}``/``+B+fakeB{i}``). ``built`` is ``fuse()``'s output; ``fakes_a``/
     ``fakes_b`` are pool designs (only ``["trigger"]`` is read). Keys are
     ``f"{key_prefix}|{state}"``.
     """
 
-    def job(state, extra, with_joint=False):
+    def job(state, extra, with_joint=False, own_side=""):
         return AndDecompJob(
             key=f"{key_prefix}|{state}",
             fused=built["fused"],
@@ -1159,12 +1180,15 @@ def and_pair_jobs(
             stem_down_b=built["domains_3p"]["stem_down"],
             temperature=temperature,
             with_joint=with_joint,
+            own_side=own_side,
+            trigger_a=trigger_a,
+            trigger_b=trigger_b,
         )
 
     jobs = [
         job("alone", ()),
-        job("+A", (trigger_a,)),
-        job("+B", (trigger_b,)),
+        job("+A", (trigger_a,), own_side="a"),
+        job("+B", (trigger_b,), own_side="b"),
         job("+A+B", both_triggers_extra(trigger_a, trigger_b), with_joint=True),
     ]
     for i, fake in enumerate(fakes_a):

@@ -1,6 +1,6 @@
 # Spec — `and_eu_report.ipynb` (eukaryotic toehold switch ON/OFF report)
 
-> Current as of 2026-10-06. The code is the source of truth: if this file and the notebook
+> Current as of 2026-10-07. The code is the source of truth: if this file and the notebook
 > or `_joint_state_parallel.py` disagree, the code wins and this file is wrong. Cell numbers
 > below are the notebook's cell indices on this date and shift when cells are added.
 
@@ -73,9 +73,9 @@ helpers the workers need must live in `_joint_state_parallel.py`.
 | `CUT_5P_BEFORE` | `"kozak"` | 5' half of an AND construct keeps everything before its own kozak |
 | `KEEP_3P_AFTER` | `"prefix"` | 3' half keeps everything after its own prefix |
 | `TEMPERATURE_C` | `37.0` | Folding temperature for the one `FoldEngine` and every job |
-| `SINGLE_POOL_N` | `300` | Ranked designs loaded and scored in the single-switch screen |
+| `SINGLE_POOL_N` | `1000` | Ranked designs loaded and scored in the single-switch screen |
 | `SINGLE_REPORT_N` | `20` | Singles shown in the Single Switch report |
-| `AND_GRID_N` | `20` | Top singles (by single-switch order) fed into the N x N AND grid |
+| `AND_GRID_N` | `30` | Top singles (by single-switch ON - OFF order) fed into the N x N AND grid |
 | `AND_REPORT_N` | `20` | AND pairs shown in the AND report |
 | `OFF_FLOOR_PCT` | `1.0` | Floor for OFF (percentage points) in the ratio: `ratio = ON% / max(OFF%, OFF_FLOOR_PCT)`; floored rows are marked `*` |
 | `OPEN_THRESHOLD` | `0.70` | HIGH/LOW cutoff of the green/red plan colouring **only** (HIGH >= 0.70, LOW <= 0.30); never enters a score |
@@ -151,13 +151,18 @@ with the other hairpin".
 
 ### ON (exact joint probability)
 
-`designed_pairs(engine, strands, footprints, n_self)` takes the `FoldEngine.mfe` structure
-of the state's exact strand string and returns every `(i, j)` with `i` inside a footprint
-and `j >= n_self`: the designed footprint-trigger duplex as the MFE realises it. If any
-footprint has no external pair in the MFE it returns `None`. Then
+`designed_pairs(fused, duplexes)` builds the designed footprint-trigger duplex from the
+sequences, not from an MFE: each `(footprint_start, trigger, trigger_offset)` aligns the
+trigger antiparallel to the switch from its footprint start (trigger base `k` faces switch
+base `footprint_start + len(trigger) - 1 - k`) and keeps every facing pair that can pair
+(Watson-Crick or GU), using the shared `binding.alignment_pairs` taken from Offer's branch;
+a designed mismatch is skipped. If a duplex keeps no pair it returns
+`None`. (An earlier version took the pairs from the state's MFE; that counted only the
+toehold when the MFE had not opened the stem, and left a state undefined whenever its MFE kept
+the footprint closed.) Then
 `FoldEngine.constrained_probability(strands, pairs)` returns
 
-    P(all pairs present) = Z(forced)/Z = exp(-(G_forced - G) / RT),  RT = 0.0019872 * (T + 273.15)
+    P(all pairs present) = Z(forced)/Z = exp(-(G_forced - G) / RT),  RT = FoldEngine.rt (ViennaRNA GASCONST, same as Offer's `p_open`)
 
 from two partition functions (the constrained one uses `hc_add_bp` with all-loop
 enforcement). Pairs are 0-indexed over the `&`-removed concatenation. It returns `None`,
@@ -168,36 +173,49 @@ ViennaRNA failure; for a single pair it equals the `base_pair_probabilities` ent
 - `p_on` is computed only for the `+real trigger` state (single) and the `+A+B` state
   (AND); every other state has `p_on = None`. `ON = p_on`; `None` shows `--`, the ratio is
   `None`, and the row sorts last.
+- For display only (not scored), the AND `+A` and `+B` states also get `p_own_duplex`: the
+  same exact probability over that one hairpin's own footprint (A in `+A`, B in `+B`;
+  `AndDecompJob.own_side`). It shows in the P(duplexes) column of those rows, next to the
+  averaged `trigger_bound`. It is `None` (`--`) when that footprint has no designed pair.
+  Snapshots exported before this field existed show `--` there.
 - The event is **strict**: every designed pair must be present at once, so `P(duplexes)` is
-  below each side's `trigger_bound` (a joint event cannot exceed a marginal; asserted in
-  verification 6). In the 2026-10-06 full run the top AND pairs read 0.5-0.92 and the top
-  single designs 0.45-0.91. The product of per-side bound means is higher and is not the
-  quantity.
+  below the probability of each single designed pair (a joint event cannot exceed one of
+  its parts; asserted in verification 6 against the weakest designed pair of the top rows).
+  The product of per-side bound means is not the quantity.
 
-### OFF (worst state over exact terms)
+### OFF (worst state's stem opening)
+
+OFF is the **stem opening**, whatever the cause: for each state, the share of a hairpin's
+`stem_up` that is NOT paired to its own `stem_down`. Trigger binding to the footprint is no
+longer part of OFF (it stays visible in the decomposition tables); a stem that opens because
+a fake trigger invaded, because the other trigger acted, or because the hairpin folded open
+on its own counts the same.
 
 Per state, for every hairpin whose **own real trigger is absent** (`mask_side` names the
-side whose own trigger is present and is exempt from both terms):
+side whose own trigger is present and is exempt):
 
 - stem-loosening = `1 - mean_stem_closed`
-- trigger-binding = `mean_trigger_bound`
 
-State badness = the largest of its terms (`_single_badness`, `_and_off_term`); `OFF` = the
-largest badness over the states; `off_source` = the winning state, `off_criterion` = the
-winning term, `off_terms` = all terms of that state (shown on every card). Without the
-mask, a working design's own trigger binding, which necessarily displaces its `stem_up`
-from `stem_down`, would read as a leak in every state holding a real trigger and collapse
-OFF to ~100% for every candidate (verified).
+State leak = the largest stem-loosening over its non-exempt hairpins (`_single_badness`,
+`_and_off_term`); `OFF` = the largest leak over the states; `off_source` = the winning
+state, `off_criterion` = the winning term (`stem-loosening`, with `(A)`/`(B)` in AND),
+`off_terms` = all terms of that state (shown on every card, with every state in the card's
+"How ON and OFF were computed" table). Without the mask, a working design's own trigger
+binding, which necessarily opens its `stem_up`, would read as a leak in every state holding
+a real trigger and collapse OFF to ~100% for every candidate (verified).
 
 - **Single:** states `alone` and `fakes` (the mean of the per-draw exact means over the
-  found fakes), both hairpin-terms.
+  found fakes).
 - **AND:** `alone`, `+A`, `+B`, `+fakeA`, `+fakeB`, `+A+fakeA`, `+B+fakeB` (fake states pooled
   as the mean of per-draw exact means). `+A` and `+A+fakeA` score hairpin B only; `+B` and
-  `+B+fakeB` score hairpin A only; `alone`, `+fakeA`, `+fakeB` score both. Cross-talk is
-  simply the other hairpin's trigger-binding term.
+  `+B+fakeB` score hairpin A only; `alone`, `+fakeA`, `+fakeB` score both.
 - A missing input (including a pooled fake mean lacking one draw) makes that state's
-  badness, OFF and the ratio `None`; it is never dropped to give a lower OFF.
+  leak, OFF and the ratio `None`; it is never dropped to give a lower OFF.
 - OFF is measured **across states**, never as `1 - ON` within one (see Traps).
+- History: until 2026-10-07 OFF was the larger of this stem opening and the trigger-binding
+  mean (`mean_trigger_bound`) of the same hairpin; a fake trigger paired to part of a
+  footprint without opening the stem then set OFF (7.2% for the top AND pair, of which the
+  stem opening was 0.3%).
 
 ### Ratio and ranking
 
@@ -208,11 +226,12 @@ same ratio and a measured OFF of 0 stays finite. Rows where the floor was used c
 table, while the OFF column keeps the measured value. `ON - OFF` is shown
 beside it.
 
-- **Single order** (`_single_sort_key`): rounded ratio (1 decimal) descending, then `dG`
-  ascending (more negative first), `dG = None` last within a tie, `ratio = None` last
-  overall. Applied to the whole pool in cell 12; the top `AND_GRID_N` of this order enter
-  the AND grid.
-- **AND order:** raw ratio descending, `None` last (no dG tie-break).
+- **Single order** (`_single_sort_key`): `ON - OFF` in percentage points rounded to 1
+  decimal, descending, then `dG` ascending (more negative first), `dG = None` last within a
+  tie, `ON - OFF = None` last overall. Applied to the whole pool in cell 12; the top
+  `AND_GRID_N` of this order enter the AND grid.
+- **AND order:** `ON - OFF` descending, `None` last (no tie-break).
+- The ratio is computed and shown in both reports but orders neither list.
 
 ### Fake triggers
 
@@ -268,7 +287,7 @@ pair for which `fuse()` reports a problem is skipped and counted in the grid cel
 | 14 | Single images (OFF alone and ON +trigger structures and matrices through Kozak, layout bar) | cache hits |
 | 15 | Single report: CSV-vs-report rank section and PNG, HTML, PDF | |
 | 17 | AND grid: `AND_GRID_N` x itself, self-pairs, overlap-screen failures and `fuse()` failures excluded, both spacer variants; every job of every pair (`and_pair_jobs`) submitted in **one** `run_parallel_and_decomp` call | exact, parallel |
-| 18 | AND scoring: ON, OFF, ratio; sort by ratio; `and_report_rows` = top `AND_REPORT_N` | exact |
+| 18 | AND scoring: ON, OFF, ratio; sort by ON - OFF; `and_report_rows` = top `AND_REPORT_N` | exact |
 | 19 | AND energies (`measure()` plus trigger energies) for report rows | cached |
 | 20 | AND images (structures for `alone` and `+A+B`; matrices for `alone`, `+A`, `+B`, `+A+B`; layout bar) | cache hits |
 | 21 | AND report HTML and PDF | |
@@ -287,7 +306,7 @@ Rules:
   `single_scored_pool` still loads; the single report then shows "pool scores not in this
   snapshot; re-run the notebook to produce them".
 - Each job is one `base_pair_probabilities` matrix for its state; the `real` / `+A+B` job
-  adds one MFE and two constrained partition functions (`p_on`).
+  adds two constrained partition functions (`p_on`).
 - A cache hit is guaranteed in report cells because those sequences were folded earlier
   through the same `FoldEngine`.
 - Cost: at `AND_GRID_N = 20`, 380 ordered pairs x 2 spacer variants (minus excluded pairs),
@@ -314,15 +333,20 @@ Spearman rho / Kendall tau-b). Worked examples are computed live from the render
 first row so they cannot go stale.
 
 **Summary table.** Single: `#`, rank, ON (P(duplexes) over footprint-bound nt), OFF
-(worst-state badness over `off_source` / `off_criterion` and the stem-closed nt there),
-ratio, ON-OFF, dG, FAKES (mean nt of `stem_up` still bound to `stem_down` over the fakes,
-with %), detail link. AND: `#`, spacer, pair, ON, OFF, ratio, ON-OFF, dG, `FAKES: STEM
-STILL CLOSED (exact)` (per side). A `--` means not measured (for FAKES: no qualifying fake
-for that side), never zero. Domains named `exp_gene` / `opt_exp_gene` are never drawn.
+(leak in the worst OFF state over `off_source` / `off_criterion` and the stem-closed nt there),
+ratio, ON-OFF, dG, detail link. AND: `#`, spacer, pair, ON, OFF, ratio, ON-OFF, dG. The
+FAKES values (mean nt of `stem_up` still bound to `stem_down` over the fakes, with %; per
+side in AND) are in each card, not in the summary. A `--` means not measured, never zero.
+A "How to read ON and OFF" paragraph sits above each summary table (ON % is P(duplexes) of
+the ON state; OFF % is the share of stem_up open in the worst OFF state, an average share
+of nucleotides and not the probability of one event). Domains named `exp_gene` / `opt_exp_gene` are never drawn.
 
 **Candidate card.** A head block of separate lines (rank or pair, trigger length and
 sequence, spacer on its own line for AND, ON, OFF with its `off_source` /
-`off_criterion` and every term, ratio); an energy table (`max-width` 420 px, one caption
+`off_criterion` and every term, FAKES, ratio); a "How ON and OFF were computed" block (ON:
+designed pairs forced, P(duplexes), cost -RT ln P of forcing them, average footprint nt
+bound in the same state; OFF: every OFF state's stem-loosening per scored hairpin and the
+state leak, the worst in bold, exempt sides marked); an energy table (`max-width` 420 px, one caption
 sentence above it); the per-state table (`table-layout:fixed` with explicit column
 widths, or the PDF clips the last columns); layout bar and per-domain sequences; figures
 two per row, larger than the single report's, legend below the plot.
@@ -331,19 +355,26 @@ two per row, larger than the single report's, legend below the plot.
   fakes), columns `trigger_bound`, `stem_closed`, `misfolded`, nt hybridised, `P(duplexes)`
   (filled only in the `+real trigger` row).
 - AND per-state table: per state, hairpin A and B `bound / closed / misfolded`, plus
-  `P(duplexes)` (filled only in `+A+B`).
+  `P(duplexes)` (`p_own_duplex` of that hairpin in `+A` / `+B`, `p_on` in `+A+B`).
 - **Plan colouring** (`_plan_class`, colouring only, never scored): for `trigger_bound` of
   hairpin H, HIGH wanted iff H's own trigger is present; for `stem_closed`, LOW wanted iff
   its own trigger is present, else HIGH; `misfolded` LOW everywhere; fake rows count as no
   real trigger. HIGH = value >= `OPEN_THRESHOLD`, LOW = value <= `1 - OPEN_THRESHOLD`;
   a value in between agrees with neither and is red; `None` gets no colour. **`P(duplexes)`
-  is coloured too**: HIGH expected only in the +A+B row (single: the +real trigger row is not
-  shaded because the single table has no plan colouring).
+  is coloured too**: HIGH expected in every row that holds a real trigger (+A, +B, +A+B)
+  (single: the +real trigger row is not shaded because the single table has no plan colouring).
 - **Figures.** Single: OFF and ON structures plus both probability matrices (structures
   through Kozak, a real separate fold; the ON plot draws the trigger in its own colour, and
   its position is a `FoldEngine` `&`-join layout artifact). AND: structures for `alone` and
   `+A+B` only, matrices for `alone`, `+A`, `+B`, `+A+B`; structures are clipped at the end
-  of the last kozak domain. In the `+A+B` plot the trigger strands are hidden
+  of the last kozak domain. The two AND structure plots are inline SVG (`structure_svg`,
+  cell 7), full card width, one above the other: every base a circle with its letter, filled
+  by domain, backbone and a rung per base pair, same ring and `visible_len` rules as
+  `structure_png`; bases are 23 units apart so the canvas grows with the molecule; a layout
+  taller than wide is turned 90 degrees to fit a landscape page; height is capped at 640 px
+  and the figure is kept on one page when printed. The matrices stay PNG. The displayed
+  one-piece switch sequence of every card ends at the Kozak (`Switch sequence through the
+  Kozak`); the folded sequence still includes the reporter payload. In the `+A+B` plot the trigger strands are hidden
   (`visible_len`): a base pair whose partner is outside the drawn range gets a dangling
   ring instead of a line, amber (`_PAYLOAD_RING_COLOR`) when the partner is the
   construct's own hidden payload tail (`index < construct_len`), red when it is a hidden
@@ -356,17 +387,21 @@ Candidates). A scatter of CSV rank (`postgen_global_rank`, x) against rank by th
 order (y, 1 = best at top) for the **whole scored pool**, report rows highlighted, with
 Spearman rho and Kendall tau-b; saved as `csv_vs_report_rank_<ts>.png` with the same
 timestamp as the HTML. Ties: the report ranking is the position under `_single_sort_key`
-(rounded ratio, then dG); only candidates tied in both get the average of the positions
-they span. rho = Pearson correlation of the two average-rank vectors; tau-b =
+(`ON - OFF` rounded to 1 decimal, then dG); only candidates tied in both get the average
+of the positions they span. rho = Pearson correlation of the two average-rank vectors; tau-b =
 `(C - D) / sqrt((n0 - n1)(n0 - n2))`. Both vectors are oriented 1 = best, so a positive
 value means the CSV order and the report order agree. numpy / pure python only.
+A second scatter in the same section ranks the pool by dG alone (more negative = 1) against
+the CSV rank, with its own rho and tau-b, saved as `csv_vs_dg_rank_<ts>.png`; it leaves ON
+and OFF out entirely.
 
 ## Step 5 — limitations to state in the report
 
-- **Strict ON.** `P(duplexes)` requires every pair of the MFE-realised duplex at once, so it
-  is lower than the footprint-bound fraction; a duplex that is mostly formed but frays at
-  one pair counts only for structures that keep all pairs. Designed pairs come from the MFE
-  of that state, so a state whose MFE has no footprint-trigger duplex has no ON (`--`).
+- **Strict ON.** `P(duplexes)` requires every designed pair (every complementary position of
+  the trigger against its footprint) at once, so it is lower than the probability of any one
+  of those pairs; a duplex that is mostly formed but frays at one pair counts only for
+  structures that keep all pairs. It is not comparable with `trigger_bound`, which averages
+  over the whole footprint including positions the trigger does not cover.
 - **Exact quantities only, by necessity.** `FoldEngine.sample_structures` was found to
   contradict `base_pair_probabilities` for some multi-strand complexes (a reproducer is
   written up separately as an issue for the repository owners; more draws do not fix it).
@@ -383,8 +418,8 @@ value means the CSV order and the report order agree. numpy / pure python only.
 
 ## Verification (cells 26-31, kept in the file)
 
-1. **Ranking** (27): single rows sorted by `_single_sort_key`; AND rows by ratio descending,
-   `None` last.
+1. **Ranking** (27): single rows sorted by `_single_sort_key`; AND rows by `ON - OFF`
+   descending, `None` last.
 2. **Trap 1 regression** (28): `trigger_bound` of the `alone` state <= 2% for every single
    and AND report row.
 3. **Three-way partition** (29): for the top single's ON state, every footprint position's
@@ -397,8 +432,8 @@ value means the CSV order and the report order agree. numpy / pure python only.
    their own footprint with mean probability > 0.5; the reversed (A-then-B) order is folded
    and printed for information only.
 6. **Joint ON sanity** (32): for the top single and top AND row, `p_on` exists, lies in
-   (0, 1], and does not exceed its marginal(s) (`trigger_bound` mean; the smaller of the two
-   per-side means), tolerance 1e-6; the product of the marginals is printed for reference.
+   (0, 1], and does not exceed the weakest designed pair it requires (the smallest
+   `base_pair_probabilities` entry among its `designed_pairs`), tolerance 1e-6.
 
 ## Traps — real mistakes already made on this project. Do not repeat them.
 
@@ -444,6 +479,20 @@ value means the CSV order and the report order agree. numpy / pure python only.
 
 ## Change log (condensed; the body above is current)
 
+- **2026-10-07 — OFF, ranking, ON definition, report layout.** OFF is now the worst state's
+  stem opening only (`1 - mean_stem_closed` per scored hairpin; the trigger-binding term left
+  OFF and stays in the decomposition tables), in both reports. Both lists are ranked by
+  `ON - OFF` (single: with dG ties); the ratio is shown but orders nothing. ON's designed
+  pairs come from the sequence design (`binding.alignment_pairs`: every complementary
+  position of the trigger against its footprint), not from the MFE; `+A` / `+B` also show
+  `p_own_duplex`. `FoldEngine.constrained_probability` uses `FoldEngine.rt` and clamps a
+  result a single-precision ulp above 1 (both taken from Offer's branch). Cards gained the
+  "How ON and OFF were computed" block and the FAKES line; the summary lost its FAKES column
+  and gained a "How to read" paragraph. AND structure plots are lettered SVG. A second CSV
+  correlation plot (CSV rank against dG rank) was added. Tested and not used: product of the
+  per-pair probabilities (it is a lower bound on `P(duplexes)`, far below it for long
+  duplexes) and `hc_add_bp` with no context as a forbid-pair constraint (it removed both
+  bases from pairing, so it does not give 1 - bpp for a single pair).
 - **2026-10-04 — original build.** Boltzmann sampling (1200 samples/state), ON = sampled
   P(both open) at an `OPEN_THRESHOLD` 0.70, OFF floored at 1/1200 with a `>=1200` bound,
   k-of-N tables. All AND values from that period were computed under the wrong strand
