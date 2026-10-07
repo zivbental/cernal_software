@@ -37,6 +37,20 @@ across datasets** — see `no-metric-holds-sign` below before carrying any of th
 | The two geometries differ in the **secondary** arm, not the main one | `ARM_LEN` 18 in both; `SECONDARY_ARM_LEN` 20 (Kim) vs 18 (naive); switch 165 vs 161 nt | both | `ToeholdAndGate.geometry_name` | as above |
 | 33 of a 161-nt switch are gene bases nothing downstream can edit | `sw_x` 13 + `secondary_z` 5 + `main_z` 6 + `main_pre` 9 | PFAS | `review/step2_switch_construction.py` | as above |
 
+## The competition at `x*` — the clearest result this work has
+
+| finding | number | dataset | reasoning lives in | reproduce |
+|---|---|---|---|---|
+| **Trigger A's `x` is sequence-identical to the switch's own `sw_x`** | **1,344 of 1,344 designs**, and structurally: `assemble` writes `("sw_x", x)` and `("sw_xs", revcomp(x))`, paired at line 1477 | PFAS | `toehold.assemble` lines 1366/1370/1477 | `uv run python tools/xstar_competition.py` |
+| So A has **no energetic advantage at `x*`** — it offers the duplex the hairpin already has | the fold charges **6.06** kcal/mol to free `x*`; A offers **2.00** | PFAS | `tools/xstar_competition.py` | as above |
+| The competition margin, length-cancelled | `median -4.36` (Q1 −5.82, Q3 −1.61, min −6.93, **max +2.66**); positive in 256 of 1,344 (19.0%) | PFAS | as above | as above |
+| **Our maximum is below Kim's working construct** | ours **+2.66** against his **+3.86**; his two non-gating ones are −1.32 and −5.61 | PFAS vs Kim | `tools/kim_competition.py` | `uv run python tools/kim_competition.py` |
+| Kim's `hold` is nearly constant while burial doubles | 9.41, 10.52, 10.54 kcal/mol at 5, 8, 11 nt buried — so the hold is a fold cost, not a length | Kim | as above | as above |
+| But his series **cannot calibrate the axis** | burial and his primary-hairpin toehold sum to 15 nt by construction, so they move together in opposite directions | Kim | as above | — |
+| And equilibrium fails on his own working gate | margin **+3.86** says A should strip the secondary hairpin unaided, which is a state-10 leak, yet it gates cleanly | Kim | `kim2019_comparison.md` | — |
+| ⚠ **A superseded number.** `\|lock_energy\| − hold` is **+8.52** median on the same designs — ~13 kcal/mol from the true margin and the opposite sign | an earlier turn reported "+10.70, far past Kim's +3.86, too generous to A". Wrong twice: we are too **stingy** | PFAS | `tools/xstar_competition.py` docstring | as above |
+| The lever it exposes | `sw_x` need not be `x`; weakening it lowers `hold` without touching `grip`, which is the asymmetry Kim's different sequences give him free. Closing 8 kcal/mol needs several substitutions, so parity may be unreachable | — | as above | not yet measured |
+
 ## The secondary stem — the axis the claim rests on and nothing ranks
 
 | finding | number | dataset | reasoning lives in | reproduce |
