@@ -274,7 +274,7 @@ class SelectedGene:
     gene_id: str
     symbol: str
     regulation: Regulation
-    log2_fold_change: float
+    log2_fold_change: float | None
     score: float
     p_adj: float | None = None
     control_percentile: float | None = None
@@ -320,6 +320,12 @@ class TriggerCandidate:
             and paired in the middle does not score as well as one open throughout.
         mfe: The window's own folding energy, kcal/mol. A trigger that folds tightly on
             itself competes with binding the switch.
+        log2_fold_change: The *gene's* effect size, carried down from
+            ``SelectedGene`` — not a property of this window. It is here because
+            everything below stage 1 (``is_compatible``'s ``min_separation`` check,
+            ``state_separation``) needs it and a ``TriggerCandidate`` is the only
+            record those layers receive. ``None`` for a `direct` submission, which
+            made no differential-expression comparison at all.
         gc_content: Percent G+C. Extremes hurt synthesis and duplex behaviour alike.
         aug_indexes: Start codons inside the window. Recorded because a trigger carrying
             one can interfere once incorporated into a switch's stem.
@@ -339,6 +345,7 @@ class TriggerCandidate:
     accessibility: float
     mfe: float
     gc_content: float
+    log2_fold_change: float | None = None
     aug_indexes: tuple[int, ...] = ()
     stop_indexes: tuple[int, ...] = ()
     ribosome_occupancy: float | None = None

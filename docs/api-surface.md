@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 62 |
 | Public classes | 97 |
-| Public callables (excluding `__init__`) | 315 |
-| — `BUILT` | 287 |
+| Public callables (excluding `__init__`) | 319 |
+| — `BUILT` | 291 |
 | — `STUB` | 20 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -59,13 +59,13 @@ layers above it, never the ones below.
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
 | scoring | `engine.scoring.profiles` |  | 8 | 0 | Versioned scoring profiles. |
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
-| gate_tools | `engine.gates.tools.binding` | S3 | 5 | 0 | S3 — trigger/switch hybridisation energy. |
+| gate_tools | `engine.gates.tools.binding` | S3 | 7 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 0 | 2 | S8 — codon usage and synonymous rewriting. |
 | gate_tools | `engine.gates.tools.folding` | S2, S4 | 13 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
-| gates | `engine.gates.base` |  | 8 | 0 | The GateFamily interface. |
+| gates | `engine.gates.base` |  | 10 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
 | gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
@@ -303,7 +303,7 @@ Stage 1 output — a gene that separates the two cell states.
 | `gene_id` | `str` |  |
 | `symbol` | `str` |  |
 | `regulation` | `Regulation` |  |
-| `log2_fold_change` | `float` |  |
+| `log2_fold_change` | `float \| None` |  |
 | `score` | `float` |  |
 | `p_adj` | `float \| None` | `None` |
 | `control_percentile` | `float \| None` | `None` |
@@ -343,6 +343,7 @@ Stage 2 output — a sub-segment of a transcript, ranked as a possible input.
 | `accessibility` | `float` |  |
 | `mfe` | `float` |  |
 | `gc_content` | `float` |  |
+| `log2_fold_change` | `float \| None` | `None` |
 | `aug_indexes` | `tuple[int, ...]` | `()` |
 | `stop_indexes` | `tuple[int, ...]` | `()` |
 | `ribosome_occupancy` | `float \| None` | `None` |
@@ -728,7 +729,7 @@ Versioned scoring profiles.
 | --- | --- | --- |
 | `TREAT_AS_WORST` |  | `'worst'` |
 | `SKIP` |  | `'skip'` |
-| `DEFAULT_V1` |  | `ScoringProfile(name='default', version='v1', metrics=[MetricSpec(name='state_separation…` |
+| `DEFAULT_V1` |  | `ScoringProfile(name='default', version='v2', metrics=[MetricSpec(name='state_separation…` |
 | `PROFILES` | `dict[str, ScoringProfile]` | `{DEFAULT_V1.name: DEFAULT_V1}` |
 
 | Status | Function | Purpose |
@@ -806,6 +807,11 @@ Scientific primitives shared across the gate families.
 
 S3 — trigger/switch hybridisation energy.
 
+| Constant | Type | Value |
+| --- | --- | --- |
+| `DG_REFERENCE_KCAL` |  | `-15.0` |
+| `DG_STEEPNESS` |  | `2.0` |
+
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def can_pair(first: str, second: str) -> bool` | Whether two bases can hydrogen-bond, **G:U wobbles included**. |
@@ -813,6 +819,8 @@ S3 — trigger/switch hybridisation energy.
 | `BUILT` | `def longest_complementary_run(first: str, second: str) -> int` | Longest unbroken stretch the two strands can pair over, in this alignment. |
 | `BUILT` | `def fixed_alignment_energy(first: str, second: str, folder: FoldEngine) -> float \| None` | Free energy of two strands held in the alignment the **design** imposes. |
 | `BUILT` | `def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float` | Free energy released when a trigger binds its switch. |
+| `BUILT` | `def binding_energy_factor(binding_dg: float, *, reference_kcal: float = DG_REFERENCE_KCAL, steepness: float = DG_STEEPNESS) -> float` | Map ΔG_bind (kcal/mol, more negative is stronger) onto a 0-1 confidence. |
+| `BUILT` | `def weakest_binding_confidence(switch: str, triggers: Sequence[str], folder: FoldEngine) -> float \| None` | ``predicted_success_rate`` over every input a design needs. |
 
 ### `engine.gates.tools.codons` · S8
 
@@ -903,7 +911,7 @@ Post-transcriptional silencing. The pipeline's inverting element.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'antisense'` |
-| `version` |  | `'0.1.0'` |
+| `version` |  | `'0.2.0'` |
 | `kind` |  | `GateKind.ANTISENSE_NOT` |
 | `label` |  | `'Antisense Repression'` |
 | `description` |  | `'Post-transcriptional silencing'` |
@@ -951,6 +959,8 @@ Base class for every switch chemistry.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def supports(self, host: Host) -> bool` | Whether this family can be used for this organism. |
+| `BUILT` | `@staticmethod def state_separation(triggers: Sequence[TriggerCandidate]) -> float \| None` | ``state_separation`` — the weakest input's absolute log2 fold change. |
+| `BUILT` | `@staticmethod def component_count(arity: int) -> float` | ``circuit_complexity`` — component count, on ``BooleanExpression``'s scale. |
 | `ABSTRACT` | `def required_tools(self) -> list[ToolRequirement]` | External tools this family needs. Checked before a run starts. |
 | `ABSTRACT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | Can this family realise this trigger set? Cheap checks only — expensive evaluation happens later, and only for designs that survive this. |
 | `ABSTRACT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Produce candidate realisations. **Yields**, because a family exploring a length window across thousands of trigger sets produces far too many designs to hold in a list. |
@@ -1016,7 +1026,7 @@ Single-input toehold switch.
 | --- | --- | --- |
 | `name` |  | `'toehold'` |
 | `design_prefix` |  | `'toehold'` |
-| `version` |  | `'0.8.1'` |
+| `version` |  | `'0.9.0'` |
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
 | `description` |  | `'Translational control · pre-mRNA'` |

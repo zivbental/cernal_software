@@ -101,6 +101,8 @@ class TriggerScorer:
                             accessibility=accessibility,
                             mfe=self.folder.mfe(window).energy,
                             gc_content=sq.gc_content(window),
+                            # The gene's, not the window's — read, never recomputed.
+                            log2_fold_change=gene.log2_fold_change,
                             aug_indexes=sq.find_augs(window),
                             stop_indexes=sq.find_stops(window),
                             score=score,

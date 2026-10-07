@@ -52,6 +52,10 @@ def make_trigger(**overrides) -> TriggerCandidate:
         "accessibility": 0.62,
         "mfe": -4.0,
         "gc_content": sq.gc_content(sequence),
+        # The gene's effect size, carried down by stage 2 — what `state_separation`
+        # reads. Set here so the golden test pins a real value rather than the None a
+        # `direct` submission would legitimately produce.
+        "log2_fold_change": 3.2,
         "score": 0.8,
     }
     defaults.update(overrides)
@@ -626,6 +630,9 @@ def test_evaluate_design_returns_only_declared_metric_names(gate, activator_set,
         "dynamic_range",
         "trigger_accessibility",
         "gc_content",
+        "predicted_success_rate",
+        "state_separation",
+        "circuit_complexity",
     }
     assert all(isinstance(v, float) for v in metrics.values())
 
@@ -712,6 +719,9 @@ def test_trailing_layout_evaluate_design_emits_only_declared_metric_names(
         "dynamic_range",
         "trigger_accessibility",
         "gc_content",
+        "predicted_success_rate",
+        "state_separation",
+        "circuit_complexity",
     }
     assert all(isinstance(v, float) for v in metrics.values())
 
@@ -764,6 +774,9 @@ def test_golden_first_design_for_a_known_trigger(gate, activator_set, constraint
             "dynamic_range": 0.4236469499952924,
             "trigger_accessibility": 0.62,
             "gc_content": 45.78313253012048,
+            "predicted_success_rate": 0.998887464179103,
+            "state_separation": 3.2,
+            "circuit_complexity": 1.0,
         }
     )
 

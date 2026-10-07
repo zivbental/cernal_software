@@ -46,6 +46,7 @@ from engine.gates.tools.binding import (
     can_pair,
     fixed_alignment_energy,
     longest_complementary_run,
+    weakest_binding_confidence,
 )
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
@@ -100,7 +101,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.8.1"
+    version = "0.9.0"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -748,14 +749,27 @@ class ToeholdGate(GateFamily):
             a concatenated single strand. Concatenation gives a plausible-looking number
             that means nothing.
 
-        Emits (see the port's metrics audit for why not the others the docstring above
-        names): ``gate_folding_energy``, ``predicted_leakage``, ``dynamic_range``,
-        ``trigger_accessibility``, ``gc_content``. ``translation_score`` is not a legal
-        ``evaluate_design`` key (it is a ``GateDesign`` field filled elsewhere, not a
-        profile metric) and is not computed here; ``self.translation``
-        (``TranslationScorer.score``) is not called because it still raises
-        ``NotImplementedError`` — see the port's open questions for
-        ``predicted_success_rate``, which is left unemitted for the same reason.
+        Emits ``gate_folding_energy``, ``predicted_leakage``, ``dynamic_range``,
+        ``trigger_accessibility``, ``gc_content``, ``predicted_success_rate``,
+        ``state_separation`` and ``circuit_complexity``.
+
+        ``translation_score`` is not a legal ``evaluate_design`` key (it is a
+        ``GateDesign`` field filled elsewhere, not a profile metric) and is not computed
+        here; ``self.translation`` (``TranslationScorer.score``) is not called because it
+        still raises ``NotImplementedError``. ``predicted_success_rate`` no longer waits
+        on it — it is the shared binding sigmoid
+        (``engine.gates.tools.binding.binding_energy_factor``) over
+        ``hybridization_energy``, the same scale ``AntisenseNotGate`` reports on, so the
+        two chemistries stay comparable.
+
+        ``orthogonality`` is **not** emitted, and not because it is unfinished. It is
+        declared as independence *from other gates*; every design this family can build
+        is single-input, so there is no other gate in the circuit to be independent of,
+        and the quantity does not exist to be measured. A number here — 1.0 for "nothing
+        to clash with", or a self-dimerisation figure wearing the name — would be a
+        different quantity under a metric name the profile already defines, which is the
+        failure CLAUDE.md §2 is about. It stays absent, and its spec carries
+        ``missing_behavior=SKIP`` so an inapplicable metric costs a design nothing.
         """
         switch = design.sequence
         trigger = design.trigger_set.activators[0]
@@ -797,12 +811,18 @@ class ToeholdGate(GateFamily):
             # good because it measured the wrong partner.
             off_accessibility = 1.0
 
+        activators = design.trigger_set.activators
         return {
             "gate_folding_energy": self.folder.mfe(switch).energy,
             "predicted_leakage": off_accessibility,
             "dynamic_range": on_accessibility / max(off_accessibility, 1e-3),
             "trigger_accessibility": trigger.accessibility,
             "gc_content": sq.gc_content(switch),
+            "predicted_success_rate": weakest_binding_confidence(
+                switch, [t.sequence for t in activators], self.folder
+            ),
+            "state_separation": self.state_separation(activators),
+            "circuit_complexity": self.component_count(len(activators)),
         }
 
     def emit_sequence(self, design: GateDesign) -> str:

@@ -710,11 +710,12 @@ def _direct_trigger(
         symbol="direct-trigger",
         regulation=Regulation.UP,
         # This describes a differential-expression comparison this submission never
-        # made. TriggerScorer.score reads none of these fields — log2_fold_change and
-        # score are required by the record and stay 0.0 as inert placeholders; every
-        # optional field is None rather than a fabricated measurement (domain.py's own
-        # "None means not measured" rule, docs/genes.md §3 G1), since none of them were.
-        log2_fold_change=0.0,
+        # made, so every field below is None or inert rather than a fabricated
+        # measurement (domain.py's "None means not measured" rule, docs/genes.md §3 G1).
+        # log2_fold_change is None specifically: it now travels onto every
+        # TriggerCandidate and is read as `state_separation`, and a 0.0 there would
+        # breach that metric's own hard filter on a quantity this mode cannot have.
+        log2_fold_change=None,
         score=0.0,
     )
     scorer = TriggerScorer(profiler, screener, folder)
@@ -845,10 +846,13 @@ def _de_trigger(
         ]
 
     best = genes[0]
+    # Always present on this path — GeneSelector reads it off the DGE table and filters
+    # on it — but the field is Optional for `direct`'s sake, so this does not assume.
+    best_effect = "n/a" if best.log2_fold_change is None else f"{best.log2_fold_change:.2f}"
     return candidates, [
         *warnings,
         f"Selected {len(genes)} gene(s) from the differential-expression table (best: "
-        f"{best.symbol or best.gene_id}, log2FC={best.log2_fold_change:.2f}); scanned "
+        f"{best.symbol or best.gene_id}, log2FC={best_effect}); scanned "
         f"their real transcripts and kept {len(candidates)} candidate trigger "
         "window(s) after screening. Exact footprints were ranked within footprint "
         "buckets by selected joint P8, terminal-20 opening energy and mean marginal "

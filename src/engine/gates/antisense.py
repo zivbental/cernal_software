@@ -14,7 +14,6 @@ standalone script. Where the two genuinely diverge, the divergence is called out
 rather than silently guessed.
 """
 
-import math
 from collections.abc import Iterator
 from typing import ClassVar
 
@@ -30,7 +29,7 @@ from engine.domain import (
     TriggerSet,
 )
 from engine.gates.base import GateFamily
-from engine.gates.tools.binding import hybridization_energy
+from engine.gates.tools.binding import binding_energy_factor, hybridization_energy
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 
@@ -80,7 +79,8 @@ class AntisenseNotGate(GateFamily):
     * ``binding_energy_factor``'s reference ΔG was calibrated per run, from the strongest-
       binding quartile of that run's own candidate pool. ``evaluate_design`` scores one
       design in isolation and has no pool to calibrate against, so it uses the source
-      pipeline's literature-reasonable fixed default instead (see ``_DG_REFERENCE_KCAL``).
+      pipeline's literature-reasonable fixed default instead (see
+      ``engine.gates.tools.binding.DG_REFERENCE_KCAL``).
 
     Args:
         host: Prokaryotic and eukaryotic silencing differ in efficiency and in what
@@ -104,7 +104,7 @@ class AntisenseNotGate(GateFamily):
     """
 
     name = "antisense"
-    version = "0.1.0"
+    version = "0.2.0"
     kind = GateKind.ANTISENSE_NOT
     label = "Antisense Repression"
     description = "Post-transcriptional silencing"
@@ -149,12 +149,6 @@ class AntisenseNotGate(GateFamily):
     #: Below this fraction accessible, ``is_compatible`` calls the trigger too structured
     #: for the antisense arm to reliably pair with — cheap gate, no folding.
     MIN_TRIGGER_ACCESSIBILITY: ClassVar[float] = 0.3
-
-    #: Binding-energy sigmoid, ported unchanged from the source pipeline's
-    #: ``DG_REFERENCE_KCAL`` / ``DG_STEEPNESS`` (see the simplification note above for why
-    #: the reference is fixed here rather than pool-calibrated).
-    _DG_REFERENCE_KCAL: ClassVar[float] = -15.0
-    _DG_STEEPNESS: ClassVar[float] = 2.0
 
     def __init__(
         self, host: Host, folder: FoldEngine, codons: CodonOptimizer, payload: str
@@ -334,7 +328,7 @@ class AntisenseNotGate(GateFamily):
             * ``trigger_accessibility`` — carried from stage 2, not recomputed.
             * ``predicted_success_rate`` — ``hybridization_energy`` between the switch and
               trigger, passed through the source pipeline's ΔG sigmoid
-              (``_binding_energy_factor``): a duplex that is not thermodynamically
+              (``binding_energy_factor``): a duplex that is not thermodynamically
               favourable will not reliably form regardless of how open either side looks
               in isolation.
             * ``gc_content`` — free, from ``sequences.gc_content``.
@@ -370,10 +364,11 @@ class AntisenseNotGate(GateFamily):
         gate_folding_energy = self.folder.mfe(switch).energy
 
         binding_dg = hybridization_energy(switch, trigger.sequence, self.folder)
-        predicted_success_rate = self._binding_energy_factor(binding_dg)
+        predicted_success_rate = binding_energy_factor(binding_dg)
 
         dynamic_range = on_accessibility / max(predicted_leakage, 1e-3)
 
+        repressors = design.trigger_set.repressors
         return {
             "gate_folding_energy": gate_folding_energy,
             "predicted_leakage": predicted_leakage,
@@ -381,19 +376,12 @@ class AntisenseNotGate(GateFamily):
             "trigger_accessibility": trigger.accessibility,
             "predicted_success_rate": predicted_success_rate,
             "gc_content": sq.gc_content(switch),
+            # Shared derivations (gates/base.py) so this family lands on the same axes
+            # as the toehold ones rather than a subset of them.
+            "state_separation": self.state_separation(repressors),
+            "circuit_complexity": self.component_count(len(repressors)),
             "initiation_open_run_nt": float(open_run),
         }
-
-    def _binding_energy_factor(self, binding_dg: float) -> float:
-        """Sigmoid mapping ΔG_bind (kcal/mol, more negative is stronger) onto 0-1.
-
-        Ported unchanged from the source pipeline's ``binding_energy_factor`` — see
-        ``_DG_REFERENCE_KCAL`` for why the reference point is fixed rather than
-        pool-calibrated here.
-        """
-        x = (binding_dg - self._DG_REFERENCE_KCAL) / self._DG_STEEPNESS
-        x = max(-50.0, min(50.0, x))  # clamp: math.exp overflows well before this
-        return 1.0 / (1.0 + math.exp(x))
 
     def emit_sequence(self, design: GateDesign) -> str:
         """The synthesis-ready sequence.
