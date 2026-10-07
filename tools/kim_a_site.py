@@ -47,11 +47,11 @@ sys.path.insert(0, str(NB))
 # ruff: noqa: E402 - the engine and notebook imports must follow the sys.path inserts.
 import statistics as st
 
+from kim2019_benchmark import PRIMARY_TRIGGER, REPORTED, SWITCHES
+
 from engine import sequences as sq
 from engine.gates.tools.binding import fixed_alignment_energy
 from engine.gates.tools.folding import FoldEngine
-
-from kim2019_benchmark import PRIMARY_TRIGGER, REPORTED, SWITCHES
 
 
 def longest_shared(needle: str, haystack: str) -> tuple[int, int, int]:
