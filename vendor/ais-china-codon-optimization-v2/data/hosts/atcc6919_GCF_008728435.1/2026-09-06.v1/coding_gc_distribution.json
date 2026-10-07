@@ -1,0 +1,42 @@
+{
+  "units": "fraction_0_to_1",
+  "coding_mask": "include_start;exclude_terminal_stop",
+  "per_gene": {
+    "min": 0.4144144144144144,
+    "p01": 0.48847448922271974,
+    "p05": 0.544885452462772,
+    "p25": 0.5862680361946686,
+    "median": 0.604619778426388,
+    "p75": 0.6211263272551905,
+    "p95": 0.649867149758454,
+    "p99": 0.6710609262480289,
+    "max": 0.710691823899371,
+    "n": 2312,
+    "mean": 0.601613706904726,
+    "quantile_method": "linear_type7"
+  },
+  "gc3_per_gene": {
+    "min": 0.3333333333333333,
+    "p01": 0.5088447533929162,
+    "p05": 0.5775159206061451,
+    "p25": 0.6520202702702702,
+    "median": 0.6945340501792114,
+    "p75": 0.7378880786653409,
+    "p95": 0.7993188854489162,
+    "p99": 0.8439724999999999,
+    "max": 0.9230769230769231,
+    "n": 2312,
+    "mean": 0.6924432213435097,
+    "quantile_method": "linear_type7"
+  },
+  "v2_length_weighted_coding_gc": 0.6039791243684267,
+  "v1_length_weighted_coding_gc": 0.6039791243684267,
+  "engineering_default_gc_band_source": "per_gene_p05_p95;not_a_validated_expression_threshold",
+  "local_windows": {
+    "window_nt": 60,
+    "step_nt": 3,
+    "last_full_window_included": true,
+    "full_window_count": 681575,
+    "mode": "report_only"
+  }
+}

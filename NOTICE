@@ -25,12 +25,12 @@ It is a dependency installed by the user, not redistributed as part of CERNAL.
 
 --------------------------------------------------------------------------------
 
-Third-party software included in this repository as an unmodified git submodule:
+Third-party software vendored into this repository, unmodified:
 
   c-acnes-codon-optimization-version2 ("codon-optimization-v2")
   Copyright 2026 iGEM AIS-China team and the contributors to that repository
   Licensed under the Apache License, Version 2.0
-  Location:   vendor/ais-china-codon-optimization-v2  (git submodule)
+  Location:   vendor/ais-china-codon-optimization-v2  (vendored; see its PROVENANCE.md)
   Source:     https://gitlab.igem.org/2026/software/ais-china/codon-optimization-v2
   Commit:     e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9
   Modified:   NO. CERNAL has made no modification to any file of this work.

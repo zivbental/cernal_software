@@ -39,13 +39,9 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 64 |
 | Public classes | 109 |
-| Public callables (excluding `__init__`) | 330 |
-| — `BUILT` | 299 |
+| Public callables (excluding `__init__`) | 332 |
+| — `BUILT` | 301 |
 | — `STUB` | 23 |
-| Public classes | 108 |
-| Public callables (excluding `__init__`) | 329 |
-| — `BUILT` | 296 |
-| — `STUB` | 25 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
 | `__init__` constructors | 22 |
@@ -63,7 +59,7 @@ layers above it, never the ones below.
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
 | scoring | `engine.scoring.profiles` |  | 8 | 0 | Versioned scoring profiles. |
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
-| gate_tools | `engine.gates.tools.ais_china` |  | 4 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
+| gate_tools | `engine.gates.tools.ais_china` |  | 5 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 5 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
 | gate_tools | `engine.gates.tools.folding` | S2, S4 | 13 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
@@ -854,10 +850,15 @@ Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library.
 | Constant | Type | Value |
 | --- | --- | --- |
 | `PINNED_COMMIT` |  | `'e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9'` |
+| `VENDORED_TREE_SHA256` |  | `'fa75b595515c943bb855de1574cf8a66589205f66421c3e57eaf5a58224239c2'` |
 | `HOST_ID` |  | `'atcc6919_GCF_008728435.1'` |
 | `REFERENCE_VERSION` |  | `'2026-09-06.v1'` |
 | `STRATEGY_IDS` | `tuple[str, ...]` | `('rna_start', 'host_sampling', 'cai_max', 'tai_max', 'harmonize')` |
 | `DEFAULT_ROOT` |  | `Path(__file__).resolve().parents[4] / 'vendor' / 'ais-china-codon-optimization-v2'` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def vendored_tree_sha256(root: Path \| str \| None = None) -> str` | Recompute the recursive content hash of the vendored tree. |
 
 #### `class CodonEdit`
 

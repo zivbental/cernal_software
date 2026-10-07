@@ -1,17 +1,16 @@
-"""The AIS-China adapter: the submodule contract and the three data traps at the seam.
+"""The AIS-China adapter: the vendoring contract and the three data traps at the seam.
 
 The energy-model guarantee lives in ``test_ais_china_energy_model.py``. This file covers the
-rest: that the vendored code is exactly the pinned, unmodified commit (the condition of the
-collaboration — docs/collaborations.md), that only ATCC 6919 is reachable, and that the
-three measured traps in their data (UTF-8 BOM, two same-shaped codon tables with different
-meanings, 1-based inclusive coordinates) are handled at the boundary rather than assumed.
+rest: that the vendored code is byte-identical to the pinned, unmodified upstream commit
+(the condition of the collaboration — docs/collaborations.md), that only ATCC 6919 is
+reachable, and that the three measured traps in their data (UTF-8 BOM, two same-shaped
+codon tables with different meanings, 1-based inclusive coordinates) are handled at the
+boundary rather than assumed.
 """
 
 import csv
 import importlib
 import inspect
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -23,8 +22,10 @@ from engine.gates.tools.ais_china import (
     PINNED_COMMIT,
     REFERENCE_VERSION,
     STRATEGY_IDS,
+    VENDORED_TREE_SHA256,
     AisChinaCodons,
     _convert_edit,
+    vendored_tree_sha256,
 )
 
 REPO = Path(__file__).resolve().parents[2]
@@ -49,46 +50,74 @@ def run(codons):
     return codons.optimize(CDS, seed=42, strategies=STRATEGIES)
 
 
-def _git(*args: str) -> str:
-    if shutil.which("git") is None:
-        pytest.skip("git is not available")
-    done = subprocess.run(
-        ["git", "-C", str(DEFAULT_ROOT), *args], capture_output=True, text=True, check=False
-    )
-    if done.returncode != 0:
-        pytest.skip(f"vendor/ is not a git checkout here ({done.stderr.strip()})")
-    return done.stdout.strip()
+# --- the vendored tree is the pinned, unmodified upstream content --------------------
 
 
-# --- the submodule is the pinned, unmodified commit ----------------------------------
-
-
-def test_the_submodule_is_checked_out_where_the_adapter_looks():
+def test_the_vendored_library_is_present_where_the_adapter_looks():
     assert (DEFAULT_ROOT / "codon_v2" / "pipeline.py").is_file(), (
-        "vendor/ais-china-codon-optimization-v2 is empty. Run "
-        "`git submodule update --init` (CI must check out with submodules)."
+        "vendor/ais-china-codon-optimization-v2 is empty. It is vendored into this "
+        "repository (see its PROVENANCE.md), not a submodule, so a normal clone has it."
     )
 
 
-def test_the_submodule_is_at_the_pinned_commit():
-    """A bump is a deliberate edit to ``PINNED_COMMIT`` and docs/collaborations.md."""
-    assert _git("rev-parse", "HEAD") == PINNED_COMMIT
-
-
-def test_nothing_tracked_under_vendor_has_been_modified():
+def test_the_vendored_tree_is_byte_identical_to_what_was_recorded():
     """The collaboration's condition: their code is used as an unmodified library.
 
-    Apache-2.0 §4(b) requires modified files to carry notices; we state instead that there
-    are none, so this must hold. Untracked files (bytecode) are ignored; edits, including
-    line-ending conversion, are not.
+    Apache-2.0 §4(b) requires modified files to carry notices. CERNAL states instead that
+    there are none, so this has to be machine-checked rather than asserted in prose.
+
+    This replaces two earlier tests that ran ``git rev-parse HEAD`` and
+    ``git status --porcelain`` inside ``vendor/`` when it was a submodule. Both would now
+    *skip*, because there is no ``.git`` there any more — and a provenance check that
+    quietly skips is worse than none, because it reads as green forever. Hashing the bytes
+    is also strictly stronger: a gitlink only claims the submodule sits at a commit, while
+    this verifies what will actually be imported and read.
+
+    A deliberate update means re-copying from upstream, then updating
+    ``VENDORED_TREE_SHA256``, ``PINNED_COMMIT`` and ``PROVENANCE.md`` together.
     """
-    assert _git("status", "--porcelain", "--untracked-files=no") == ""
+    assert vendored_tree_sha256() == VENDORED_TREE_SHA256, (
+        "The vendored AIS-China tree does not match VENDORED_TREE_SHA256. Either a file "
+        "under vendor/ais-china-codon-optimization-v2 was edited -- which breaks the "
+        "'used unmodified' statement the collaboration rests on -- or the tree was "
+        "updated without updating that constant, PINNED_COMMIT and PROVENANCE.md."
+    )
 
 
-def test_gitmodules_points_at_the_igem_gitlab_repository():
-    text = (REPO / ".gitmodules").read_text(encoding="utf-8")
-    assert "path = vendor/ais-china-codon-optimization-v2" in text
-    assert "url = https://gitlab.igem.org/2026/software/ais-china/codon-optimization-v2.git" in text
+def test_provenance_records_the_upstream_repository_and_commit():
+    """Vendored code without recorded provenance is indistinguishable from our own."""
+    text = (DEFAULT_ROOT / "PROVENANCE.md").read_text(encoding="utf-8")
+    assert "gitlab.igem.org/2026/software/ais-china/codon-optimization-v2" in text
+    assert PINNED_COMMIT in text
+    assert VENDORED_TREE_SHA256 in text
+    assert "Apache-2.0" in text
+
+
+def test_gitattributes_keeps_git_from_rewriting_their_bytes():
+    """`* text=auto` would silently convert their CRLF files to LF on commit.
+
+    This is not cosmetic and it is not hypothetical — it happened while vendoring. Their
+    own ``config/rna_model.json`` records ``energy_parameter_sha256`` over the **CRLF**
+    bytes of ``config/rna_turner2004.par``; the LF version hashes to something else
+    entirely. Normalised, a fresh clone would fail the energy-model guard and
+    ``VENDORED_TREE_SHA256``, and the "no modifications" statement Apache-2.0 §4(b) asks
+    for would be false, because a line-ending conversion is a modification.
+
+    ``VENDORED_TREE_SHA256`` catches the damage on a fresh checkout, which is where CI
+    runs. This test names the cause, so whoever hits it knows to look at `.gitattributes`
+    rather than at their own copy of the files.
+    """
+    rules = (REPO / ".gitattributes").read_text(encoding="utf-8")
+    assert "vendor/ais-china-codon-optimization-v2/** -text" in rules, (
+        "`.gitattributes` no longer exempts the vendored AIS-China tree from line-ending "
+        "normalisation. Restore `vendor/ais-china-codon-optimization-v2/** -text`, then "
+        "re-stage the tree (git rm -r --cached, git add) so the blobs hold their bytes."
+    )
+
+
+def test_their_license_file_travels_with_their_code():
+    """Apache-2.0 §4(a): redistribution must carry the license."""
+    assert "Apache License" in (DEFAULT_ROOT / "LICENSE").read_text(encoding="utf-8")
 
 
 # --- one host only ----------------------------------------------------------------------
@@ -332,6 +361,6 @@ def test_malformed_cds_raises_value_error(codons, cds):
         codons.optimize(cds, seed=1)
 
 
-def test_a_missing_submodule_says_how_to_fix_it(tmp_path):
-    with pytest.raises(FileNotFoundError, match="submodule update --init"):
+def test_a_missing_vendored_tree_says_how_to_fix_it(tmp_path):
+    with pytest.raises(FileNotFoundError, match="working tree is incomplete"):
         AisChinaCodons(root=tmp_path)
