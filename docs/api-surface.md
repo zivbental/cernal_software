@@ -38,6 +38,10 @@ so that convention is the only rule there is.
 | | Count |
 | --- | ---: |
 | Modules | 64 |
+| Public classes | 109 |
+| Public callables (excluding `__init__`) | 330 |
+| — `BUILT` | 299 |
+| — `STUB` | 23 |
 | Public classes | 108 |
 | Public callables (excluding `__init__`) | 329 |
 | — `BUILT` | 296 |
@@ -61,7 +65,7 @@ layers above it, never the ones below.
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
 | gate_tools | `engine.gates.tools.ais_china` |  | 4 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 5 | 0 | S3 — trigger/switch hybridisation energy. |
-| gate_tools | `engine.gates.tools.codons` | S8 | 0 | 2 | S8 — codon usage and synonymous rewriting. |
+| gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
 | gate_tools | `engine.gates.tools.folding` | S2, S4 | 13 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
@@ -989,15 +993,40 @@ S3 — trigger/switch hybridisation energy.
 
 S8 — codon usage and synonymous rewriting.
 
+| Constant | Type | Value |
+| --- | --- | --- |
+| `RECOMBINATION_MODE` |  | `'thorough'` |
+| `SLIPPAGE_MODE` |  | `'default'` |
+
+#### `class CodonVariant`
+
+`@dataclass(frozen=True, slots=True)`
+
+One synonymous rewrite of a coding sequence, with what is known to be wrong with it.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `sequence` | `str` |  |
+| `translation_score` | `float \| None` |  |
+| `structure_deviation` | `float \| None` |  |
+| `codons_changed` | `int` |  |
+| `unresolved` | `tuple[str, ...]` |  |
+| `seed` | `int \| None` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def clean(self) -> bool` | True when nothing is recorded as unresolved. |
+
 #### `class CodonOptimizer`
 
 Synonymous-codon search and translation scoring for one host.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, usage_table: dict[str, float] \| None = None) -> None` |  |
-| `STUB` | `def variants(self, cds: str, target_pairing: str \| None = None) -> list[str]` | Synonymous rewrites of a coding sequence: same protein, different bases. |
-| `STUB` | `def translation_score(self, cds: str) -> float` | How well a sequence's codons suit the host. |
+| `BUILT` | `def __init__(self, host: Host, usage_table: dict[str, float] \| None = None, *, folder: FoldEngine \| None = None, seed: int = 0) -> None` |  |
+| `BUILT` | `def versions(self) -> dict[str, str]` | What this tool's numbers depend on — written into the run's provenance. |
+| `BUILT` | `def variants(self, cds: str, target_pairing: str \| None = None, *, count: int = 4, avoid_enzymes: Sequence[str] = (), acceptable: Callable[[str], bool] \| None = None, on_rejected: Callable[[str, tuple[str, ...]], None] \| None = None, gc_range: tuple[float, float] = (30.0, 70.0), gc_window: int = 50) -> list[CodonVariant]` | Synonymous rewrites of a coding sequence: same protein, different bases. |
+| `BUILT` | `def translation_score(self, cds: str) -> float \| None` | How well a sequence's codons suit the host: its Codon Adaptation Index. |
 
 ### `engine.gates.tools.folding` · S2, S4
 

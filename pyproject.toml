@@ -22,6 +22,20 @@ dependencies = [
     # by ADR 0007. sbol-utilities is deliberately NOT used: its GenBank converter calls
     # SeqFeature.strand, removed in the biopython above, and it costs 36 packages.
     "sbol3>=1.2",
+    # Evolutionary-stability repair of coding sequences (replication slippage,
+    # recombination-mediated deletion, methylation motifs), confined to
+    # gates/tools/codons.py exactly as sbol3 is to stages/plasmids.py. Pinned EXACTLY:
+    # 0.1.2 is the release whose API was measured (suspect_site_extractor takes num_sites
+    # positionally; the GitHub README documents modules that this wheel does not ship),
+    # and it is stochastic, so a drifting version changes results with no code change.
+    "evolutionary-stability-optimizer==0.1.2",
+    # Imported directly by gates/tools/codons.py, which also reads them through ESO's own
+    # dependency tree — declared here so a change in that tree cannot silently remove
+    # them. The codon-usage tables decide every CAI this engine reports, so they are
+    # pinned exactly like ESO; numpy is imported only to seed DNAChisel's global generator
+    # (ESO draws from numpy.random as well as random — see codons._deterministic).
+    "python-codon-tables==0.1.18",
+    "numpy>=2.0",
     # Platform-side only: apps/expression's provider adapters, run offline by
     # manage.py sync_expression_catalog. Never imported by src/engine/.
     "requests>=2.31",

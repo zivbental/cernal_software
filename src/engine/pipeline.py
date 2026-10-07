@@ -197,7 +197,11 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
     folder = FoldEngine()
     constraints = _build_constraints(request.params)
     screener = MotifScreener(constraints.standard)
-    codons = CodonOptimizer(host)
+    # The run's seed, so ESO's stochastic repair is reproducible; folder, so a structural
+    # objective folds through the one shared FoldEngine and not a second library.
+    codons = CodonOptimizer(
+        host, folder=folder, seed=request.seed if request.seed is not None else 0
+    )
     backbone = _resolve_backbone(request.params)
 
     tools: dict[str, object] = {
