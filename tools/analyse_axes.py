@@ -55,14 +55,18 @@ OBJECTIVES = ("f1_opening_sep", "a_m_ratio", "ied_gain", "open_11")
 #: How each objective is built from the row. Kept here rather than assumed so a reader can see
 #: that `a_m_ratio` is a RATIO of two measured openings and inherits a collapsing denominator.
 CATEGORICAL = ("closure", "upper3", "lower3", "scheme", "geom")
+#: Axes that vary BETWEEN designs of one cell -- the design decisions.
 CONTINUOUS = (
     "a_site_energy",
     "lock_energy",
     "lock_minus_a_site",
     "ddg_pref",
-    "l_local_min",
-    "len_x",
 )
+
+#: Axes that belong to the TRIGGER PAIR, so they are constant inside every cell and cannot be
+#: studied within one. They get their own between-cell section; binning a constant produced two
+#: byte-identical "shapes" before this was separated.
+PAIR_LEVEL = ("l_local_min", "len_x")
 
 
 def read_rows(out: str, shards: int = 6) -> list[dict]:
@@ -277,6 +281,7 @@ def main(argv=None) -> int:
     correlation_table: list[tuple] = []
     shape_table: list[tuple] = []
     interaction_table: list[tuple] = []
+    pair_level_table: list[tuple] = []
 
     # ---- 4. survival first, because every table after it is conditioned on it ------------
     print(f"\n{'=' * 100}\nSURVIVAL -- the outcome, over ALL rows")
@@ -365,6 +370,41 @@ def main(argv=None) -> int:
                 if bucket:
                     shape_table.append((axis, objective, q, st.fmean(bucket), len(bucket)))
 
+    # ---- 2b. pair-level axes, BETWEEN cells ---------------------------------------------
+    print(f"\n{'=' * 100}\nPAIR-LEVEL AXES -- between cells, because a cell holds them fixed")
+    print("  `l_local_min` and `len_x` are properties of the trigger pair, so they are constant")
+    print("  inside a cell and a within-cell bin of them is a bin of a constant. One point per")
+    print("  cell instead: the pair's value against that cell's BEST and MEDIAN objective.")
+    for axis in PAIR_LEVEL:
+        print(f"\n  {axis}")
+        print(f"    {'objective':18s}{'cells':>8s}{'rho(best)':>11s}{'rho(med)':>10s}{'p':>9s}")
+        for objective in OBJECTIVES:
+            points = []
+            for group in cells.values():
+                values = [r[objective] for r in group if r.get(objective) is not None]
+                axis_values = {r.get(axis) for r in group if r.get(axis) is not None}
+                if not values or len(axis_values) != 1:
+                    continue
+                points.append((axis_values.pop(), min(values), st.median(values)))
+            if len(points) < 5:
+                print(f"    {objective:18s}{len(points):>9,}  too few cells")
+                continue
+            xs = [p[0] for p in points]
+            rho_best = spearman(xs, [p[1] for p in points])
+            rho_med = spearman(xs, [p[2] for p in points])
+            # A permutation-free p for a between-cell rho: the sign test does not apply here, so
+            # the large-sample approximation is used and labelled as such.
+            p_text = "--"
+            if rho_best is not None and len(points) > 10:
+                z = rho_best * math.sqrt(len(points) - 1)
+                p_text = f"{math.erfc(abs(z) / math.sqrt(2)):.2g}"
+            print(
+                f"    {objective:18s}{len(points):>9,}"
+                f"{(f'{rho_best:+.3f}' if rho_best is not None else '--'):>11s}"
+                f"{(f'{rho_med:+.3f}' if rho_med is not None else '--'):>13s}{p_text:>10s}"
+            )
+            pair_level_table.append((axis, objective, len(points), rho_best, rho_med, p_text))
+
     # ---- 3. interactions ----------------------------------------------------------------
     print(f"\n{'=' * 100}\nINTERACTIONS -- mean within-cell z-score per combination, n in brackets")
     print("  A box that beats both of its margins is an interaction; no single-axis table can")
@@ -428,6 +468,11 @@ def main(argv=None) -> int:
             shape_table,
         )
         write_tidy(
+            into / "pair_level.csv",
+            ("axis", "objective", "n_cells", "rho_best", "rho_median", "p_best"),
+            pair_level_table,
+        )
+        write_tidy(
             into / "interaction.csv",
             ("axis_a", "level_a", "axis_b", "level_b", "objective", "mean_z", "n"),
             interaction_table,
@@ -444,6 +489,7 @@ def main(argv=None) -> int:
             f"    correlation.csv   {len(correlation_table):>6,} rows -- rho per (objective, axis)"
         )
         print(f"    shape.csv         {len(shape_table):>6,} rows -- the non-monotonic check")
+        print(f"    pair_level.csv    {len(pair_level_table):>6,} rows -- between-cell, pair props")
         print(f"    interaction.csv   {len(interaction_table):>6,} rows -- the two-way tables")
         print(f"    rows.csv          {len(rows):>6,} rows -- one per design, {len(keys)} columns")
         print("    Tidy (long) format: one observation per line, so a plot is a group-by.")
