@@ -1,0 +1,62 @@
+﻿locus_tag,protein_id,gene,product,location,strand,length_nt,included,reason
+PPA_RS01645,WP_002550589.1,,30S ribosomal protein bS22,[371818:371920](+),1,102,True,included
+PPA_RS02740,WP_002516656.1,,50S ribosomal protein L25/general stress protein Ctc,[588590:589208](+),1,618,True,included
+PPA_RS03985,WP_002516168.1,rpsA,30S ribosomal protein S1,[854596:856093](+),1,1497,True,included
+PPA_RS04215,WP_009639958.1,rplU,50S ribosomal protein L21,[909690:909999](+),1,309,True,included
+PPA_RS04220,WP_002513859.1,rpmA,50S ribosomal protein L27,[910010:910280](+),1,270,True,included
+PPA_RS04545,WP_002515457.1,rpsT,30S ribosomal protein S20,[979040:979307](-),-1,267,True,included
+PPA_RS06320,WP_002513455.1,rpmE,50S ribosomal protein L31,[1357164:1357374](-),-1,210,True,included
+PPA_RS14735,WP_369797015.1,,50S ribosomal protein bL37,[1372866:1372941](+),1,75,True,included
+PPA_RS07135,WP_002514221.1,rplT,50S ribosomal protein L20,[1534571:1534943](-),-1,372,True,included
+PPA_RS07140,WP_002514222.1,rpmI,50S ribosomal protein L35,[1535046:1535253](-),-1,207,True,included
+PPA_RS07245,WP_002514242.1,rplS,50S ribosomal protein L19,[1552977:1553331](-),-1,354,True,included
+PPA_RS07285,WP_002516115.1,rpsP,30S ribosomal protein S16,[1558889:1559333](-),-1,444,True,included
+PPA_RS07345,WP_002514262.1,rpmF,50S ribosomal protein L32,[1568602:1568794](-),-1,192,True,included
+PPA_RS07415,WP_002514277.1,rpmB,50S ribosomal protein L28,[1583708:1583894](-),-1,186,True,included
+PPA_RS07445,WP_002514283.1,rpsO,30S ribosomal protein S15,[1592273:1592537](-),-1,264,True,included
+PPA_RS07680,WP_002516927.1,rpsB,30S ribosomal protein S2,[1643102:1643954](-),-1,852,True,included
+PPA_RS09090,WP_002523480.1,rpsI,30S ribosomal protein S9,[1966655:1967177](-),-1,522,True,included
+PPA_RS09095,WP_011183929.1,rplM,50S ribosomal protein L13,[1967199:1967643](-),-1,444,True,included
+PPA_RS09195,WP_011183932.1,rplQ,50S ribosomal protein L17,[1994108:1994645](-),-1,537,True,included
+PPA_RS09205,WP_002514832.1,rpsD,30S ribosomal protein S4,[1996209:1996815](-),-1,606,True,included
+PPA_RS09210,WP_002514833.1,rpsK,30S ribosomal protein S11,[1996845:1997253](-),-1,408,True,included
+PPA_RS09215,WP_002514834.1,rpsM,30S ribosomal protein S13,[1997324:1997696](-),-1,372,True,included
+PPA_RS09220,WP_002514836.1,rpmJ,50S ribosomal protein L36,[1998074:1998188](-),-1,114,True,included
+PPA_RS09270,WP_002516008.1,rplO,50S ribosomal protein L15,[2007191:2007632](-),-1,441,True,included
+PPA_RS09275,WP_002514851.1,rpmD,50S ribosomal protein L30,[2007633:2007816](-),-1,183,True,included
+PPA_RS09280,WP_002516004.1,rpsE,30S ribosomal protein S5,[2007815:2008463](-),-1,648,True,included
+PPA_RS09285,WP_002514853.1,rplR,50S ribosomal protein L18,[2008487:2008871](-),-1,384,True,included
+PPA_RS09290,WP_002516006.1,rplF,50S ribosomal protein L6,[2008872:2009415](-),-1,543,True,included
+PPA_RS09295,WP_002514855.1,rpsH,30S ribosomal protein S8,[2009443:2009851](-),-1,408,True,included
+PPA_RS09300,WP_002515981.1,,type Z 30S ribosomal protein S14,[2010010:2010196](-),-1,186,True,included
+PPA_RS09305,WP_011183934.1,rplE,50S ribosomal protein L5,[2010203:2010836](-),-1,633,True,included
+PPA_RS09310,WP_002514858.1,rplX,50S ribosomal protein L24,[2010832:2011201](-),-1,369,True,included
+PPA_RS09315,WP_002514859.1,rplN,50S ribosomal protein L14,[2011201:2011570](-),-1,369,True,included
+PPA_RS09320,WP_002516022.1,rpsQ,30S ribosomal protein S17,[2012166:2012439](-),-1,273,True,included
+PPA_RS09325,WP_002514861.1,rpmC,50S ribosomal protein L29,[2012441:2012675](-),-1,234,True,included
+PPA_RS09330,WP_002516060.1,rplP,50S ribosomal protein L16,[2012674:2013094](-),-1,420,True,included
+PPA_RS09335,WP_002515984.1,rpsC,30S ribosomal protein S3,[2013095:2013905](-),-1,810,True,included
+PPA_RS09340,WP_002515971.1,rplV,50S ribosomal protein L22,[2013906:2014368](-),-1,462,True,included
+PPA_RS09345,WP_002516048.1,rpsS,30S ribosomal protein S19,[2014385:2014667](-),-1,282,True,included
+PPA_RS09350,WP_002514866.1,rplB,50S ribosomal protein L2,[2014682:2015519](-),-1,837,True,included
+PPA_RS09355,WP_002514867.1,rplW,50S ribosomal protein L23,[2015545:2015854](-),-1,309,True,included
+PPA_RS09360,WP_002531292.1,rplD,"50S ribosomal protein L4, sunset domain variant",[2015850:2016756](-),-1,906,True,included
+PPA_RS09365,WP_002516019.1,rplC,50S ribosomal protein L3,[2016752:2017424](-),-1,672,True,included
+PPA_RS09370,WP_002514870.1,rpsJ,30S ribosomal protein S10,[2017435:2017747](-),-1,312,True,included
+PPA_RS09430,WP_002514883.1,rpsG,30S ribosomal protein S7,[2036350:2036821](-),-1,471,True,included
+PPA_RS09435,WP_002514884.1,rpsL,30S ribosomal protein S12,[2036824:2037196](-),-1,372,True,included
+PPA_RS09475,WP_002514890.1,rplL,50S ribosomal protein L7/L12,[2048985:2049378](-),-1,393,True,included
+PPA_RS09480,WP_002531301.1,rplJ,50S ribosomal protein L10,[2049391:2050006](-),-1,615,True,included
+PPA_RS09485,WP_002531302.1,rplA,50S ribosomal protein L1,[2050433:2051132](-),-1,699,True,included
+PPA_RS09490,WP_002516066.1,rplK,50S ribosomal protein L11,[2051221:2051653](-),-1,432,True,included
+PPA_RS09530,WP_002514900.1,rpmG,50S ribosomal protein L33,[2057299:2057470](-),-1,171,True,included
+PPA_RS10695,WP_002514554.1,ykgO,type B 50S ribosomal protein L36,[2301155:2301281](-),-1,126,True,included
+PPA_RS10865,WP_002516274.1,,type B 50S ribosomal protein L31,[2341922:2342168](-),-1,246,True,included
+PPA_RS10870,WP_002514593.1,rpmB,50S ribosomal protein L28,[2342264:2342501](+),1,237,True,included
+PPA_RS10875,WP_002514594.1,rpmG,50S ribosomal protein L33,[2342500:2342671](+),1,171,True,included
+PPA_RS10880,WP_002516294.1,rpsN,30S ribosomal protein S14,[2342670:2342976](+),1,306,True,included
+PPA_RS10885,WP_002514596.1,rpmF,50S ribosomal protein L32,[2342980:2343151](+),1,171,True,included
+PPA_RS11265,WP_002514172.1,rplI,50S ribosomal protein L9,[2411882:2412332](-),-1,450,True,included
+PPA_RS11270,WP_002514173.1,rpsR,30S ribosomal protein S18,[2412345:2412585](-),-1,240,True,included
+PPA_RS11280,WP_002514175.1,rpsF,30S ribosomal protein S6,[2413393:2413684](-),-1,291,True,included
+PPA_RS11875,WP_002512704.1,rpmH,50S ribosomal protein L34,[2560015:2560150](-),-1,135,True,included

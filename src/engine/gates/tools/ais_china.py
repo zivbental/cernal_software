@@ -60,6 +60,7 @@ every submodule bump (CLAUDE.md §5).
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import importlib.util
 import math
@@ -75,6 +76,44 @@ from engine import sequences
 #: submodule against this, so a bump is a deliberate edit to this line, the test run, and
 #: docs/collaborations.md in the same commit.
 PINNED_COMMIT = "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9"
+
+#: SHA-256 over every vendored file's own SHA-256, in sorted path order, excluding
+#: ``PROVENANCE.md`` (which records this value and so cannot contribute to it).
+#:
+#: This replaces what used to be a ``git rev-parse HEAD`` check against
+#: :data:`PINNED_COMMIT` back when ``vendor/`` was a submodule. It is a stronger
+#: guarantee, not a weaker one: a gitlink only asserts "the submodule is at commit X"
+#: and trusts git to have checked out that commit faithfully, whereas this verifies the
+#: bytes that will actually be imported and read. It is also the only check available
+#: now that there is no ``.git`` under ``vendor/`` — and a provenance check that
+#: silently skips when it cannot run would be worse than no check at all.
+VENDORED_TREE_SHA256 = "fa75b595515c943bb855de1574cf8a66589205f66421c3e57eaf5a58224239c2"
+
+
+def vendored_tree_sha256(root: Path | str | None = None) -> str:
+    """Recompute the recursive content hash of the vendored tree.
+
+    Args:
+        root: The vendored directory. Defaults to the bundled one.
+
+    Returns:
+        Hex SHA-256 to compare against :data:`VENDORED_TREE_SHA256`.
+    """
+    base = Path(root) if root is not None else DEFAULT_ROOT
+    digest = hashlib.sha256()
+    for path in sorted(p for p in base.rglob("*") if p.is_file()):
+        # Bytecode is generated the first time their package is imported, inside their
+        # own tree. Hashing it would make this check pass once and fail forever after.
+        if path.suffix == ".pyc" or "__pycache__" in path.parts:
+            continue
+        # PROVENANCE.md is ours and records this very value, so it cannot contribute.
+        if path.name == "PROVENANCE.md" and path.parent == base:
+            continue
+        relative = path.relative_to(base).as_posix()
+        digest.update(f"{relative}\0".encode())
+        digest.update(hashlib.sha256(path.read_bytes()).hexdigest().encode())
+    return digest.hexdigest()
+
 
 #: The only host this adapter exposes: *Cutibacterium acnes* ATCC 6919, RefSeq assembly
 #: GCF_008728435.1. Their ``defaults.json`` also declares KPA171202; it stays unreachable.
@@ -232,8 +271,10 @@ def _load_package(root: Path) -> ModuleType:
     init = package_dir / "__init__.py"
     if not init.is_file():
         raise FileNotFoundError(
-            f"{init} does not exist. The AIS-China submodule is not checked out; run "
-            "`git submodule update --init vendor/ais-china-codon-optimization-v2`."
+            f"{init} does not exist. The vendored AIS-China library is missing from "
+            "vendor/ais-china-codon-optimization-v2. It is committed to this repository "
+            "(see its PROVENANCE.md) and is not a submodule, so a normal clone has it; "
+            "if it is absent, the working tree is incomplete."
         )
     existing = sys.modules.get("codon_v2")
     if existing is not None:

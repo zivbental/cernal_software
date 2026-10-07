@@ -88,7 +88,8 @@ authoritative pins are [`uv.lock`](../uv.lock) and
 ### Work by other iGEM teams
 
 **iGEM AIS-China — `codon-optimization-v2`** (Apache-2.0), used as an unmodified git
-submodule at `vendor/ais-china-codon-optimization-v2` with the authors' written approval.
+vendored, unmodified, at `vendor/ais-china-codon-optimization-v2` with the authors'
+written approval. See that directory's `PROVENANCE.md` for the exact upstream commit.
 Version, pinned commit, reference data and the Apache-2.0 §4(b) statement are in
 [collaborations.md](collaborations.md). Credit it on the wiki's collaboration page.
 
