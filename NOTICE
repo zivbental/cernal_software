@@ -22,3 +22,20 @@ and the disclosure of AI-assisted work required by iGEM.
 Of particular note: the ViennaRNA Package, used by the scientific engine for RNA
 secondary-structure prediction, is NOT distributed under an OSI-approved license.
 It is a dependency installed by the user, not redistributed as part of CERNAL.
+
+--------------------------------------------------------------------------------
+
+Third-party software included in this repository as an unmodified git submodule:
+
+  c-acnes-codon-optimization-version2 ("codon-optimization-v2")
+  Copyright 2026 iGEM AIS-China team and the contributors to that repository
+  Licensed under the Apache License, Version 2.0
+  Location:   vendor/ais-china-codon-optimization-v2  (git submodule)
+  Source:     https://gitlab.igem.org/2026/software/ais-china/codon-optimization-v2
+  Commit:     e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9
+  Modified:   NO. CERNAL has made no modification to any file of this work.
+
+CERNAL uses it, with the written approval of its authors, as a library: Cutibacterium
+acnes ATCC 6919 codon-usage references (RefSeq GCF_008728435.1, accession NZ_CP044255.1,
+reference version 2026-09-06.v1) and codon-optimization strategies. It carries its own
+LICENSE file, which governs it. See docs/collaborations.md.
