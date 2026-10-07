@@ -42,6 +42,10 @@ so that convention is the only rule there is.
 | Public callables (excluding `__init__`) | 330 |
 | — `BUILT` | 299 |
 | — `STUB` | 23 |
+| Public classes | 108 |
+| Public callables (excluding `__init__`) | 329 |
+| — `BUILT` | 296 |
+| — `STUB` | 25 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
 | `__init__` constructors | 22 |
@@ -53,7 +57,7 @@ layers above it, never the ones below.
 
 | Layer | Module | S | Not `STUB` | `STUB` | Purpose |
 | --- | --- | --- | ---: | ---: | --- |
-| domain | `engine.domain` |  | 30 | 0 | The engine's scientific vocabulary. |
+| domain | `engine.domain` |  | 31 | 0 | The engine's scientific vocabulary. |
 | sequences | `engine.sequences` | S6 | 12 | 0 | S6 — sequence facts. Pure functions, no state, no dependencies. |
 | scoring | `engine.scoring` |  | 0 | 0 |  |
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
@@ -128,6 +132,23 @@ Data and arithmetic only, no science. Every value that crosses a module boundary
 
 The engine's scientific vocabulary.
 
+| Constant | Type | Value |
+| --- | --- | --- |
+| `HOST_TRACKS` | `Mapping[Host, Track]` | `MappingProxyType({Host.ECOLI: Track.PROKARYOTIC, Host.YEAST: Track.EUKARYOTIC, Host.HUM…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def require_track_for_every_host(hosts: Iterable[Host], tracks: Mapping[Host, Track]) -> None` | Raise unless ``tracks`` names a ``Track`` for every one of ``hosts``, and nothing else. |
+
+#### `class Track(StrEnum)`
+
+Translation machinery. Decides RBS-in-loop versus Kozak, among other rules.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `PROKARYOTIC` |  | `'prokaryotic'` |
+| `EUKARYOTIC` |  | `'eukaryotic'` |
+
 #### `class Host(StrEnum)`
 
 The organism a circuit is designed for.
@@ -140,16 +161,7 @@ The organism a circuit is designed for.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `@property def track(self) -> 'Track'` | Design rules follow the track, not the individual organism. |
-
-#### `class Track(StrEnum)`
-
-Translation machinery. Decides RBS-in-loop versus Kozak, among other rules.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `PROKARYOTIC` |  | `'prokaryotic'` |
-| `EUKARYOTIC` |  | `'eukaryotic'` |
+| `BUILT` | `@property def track(self) -> Track` | Design rules follow the track, not the individual organism. |
 
 #### `class GateKind(StrEnum)`
 

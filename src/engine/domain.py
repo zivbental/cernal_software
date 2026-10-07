@@ -9,10 +9,19 @@ here imports anything else from the engine: `domain` is the bottom of the import
 graph (docs/engine.md §4).
 """
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
+from types import MappingProxyType
 
 # --- Vocabularies -----------------------------------------------------------------
+
+
+class Track(StrEnum):
+    """Translation machinery. Decides RBS-in-loop versus Kozak, among other rules."""
+
+    PROKARYOTIC = "prokaryotic"
+    EUKARYOTIC = "eukaryotic"
 
 
 class Host(StrEnum):
@@ -23,16 +32,53 @@ class Host(StrEnum):
     HUMAN = "human"
 
     @property
-    def track(self) -> "Track":
-        """Design rules follow the track, not the individual organism."""
-        return Track.PROKARYOTIC if self is Host.ECOLI else Track.EUKARYOTIC
+    def track(self) -> Track:
+        """Design rules follow the track, not the individual organism.
+
+        Looked up in ``HOST_TRACKS``, where every member must name its track
+        explicitly. This used to be ``PROKARYOTIC if self is ECOLI else EUKARYOTIC``,
+        which made EUKARYOTIC the silent default: a bacterium added as a new ``Host``
+        would have been given a Kozak context and the eukaryotic ``TranslationScorer``
+        branch instead of a Shine-Dalgarno RBS, and nothing would have raised. There is
+        deliberately no default here. A member without an entry fails at import time
+        (see ``require_track_for_every_host``), never at design time.
+        """
+        return HOST_TRACKS[self]
 
 
-class Track(StrEnum):
-    """Translation machinery. Decides RBS-in-loop versus Kozak, among other rules."""
+#: The translation track of every ``Host``. The single place a host declares it. Adding a
+#: ``Host`` member without an entry here raises when this module is imported.
+HOST_TRACKS: Mapping[Host, Track] = MappingProxyType(
+    {
+        Host.ECOLI: Track.PROKARYOTIC,
+        Host.YEAST: Track.EUKARYOTIC,
+        Host.HUMAN: Track.EUKARYOTIC,
+    }
+)
 
-    PROKARYOTIC = "prokaryotic"
-    EUKARYOTIC = "eukaryotic"
+
+def require_track_for_every_host(hosts: Iterable[Host], tracks: Mapping[Host, Track]) -> None:
+    """Raise unless ``tracks`` names a ``Track`` for every one of ``hosts``, and nothing else.
+
+    Explicit ``raise``, not ``assert``: an assert disappears under ``python -O``, and this is
+    the guard against a silently wrong translation track.
+    """
+    hosts = tuple(hosts)
+    missing = [host.name for host in hosts if host not in tracks]
+    if missing:
+        raise TypeError(
+            f"Host member(s) {missing} have no entry in HOST_TRACKS. Declare PROKARYOTIC or "
+            "EUKARYOTIC explicitly; there is deliberately no default track."
+        )
+    unknown = [str(host) for host in tracks if host not in hosts]
+    if unknown:
+        raise TypeError(f"HOST_TRACKS names {unknown}, which are not Host members.")
+    bad = [host.name for host in hosts if not isinstance(tracks[host], Track)]
+    if bad:
+        raise TypeError(f"HOST_TRACKS entries for {bad} are not Track members.")
+
+
+require_track_for_every_host(Host, HOST_TRACKS)
 
 
 class GateKind(StrEnum):
