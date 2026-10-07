@@ -87,6 +87,10 @@ SHARED_TOOLS = (
     "MotifScreener",
     "CodonOptimizer",
     "TranslationScorer",
+    # Holds the AIS-China reference store and triggers their process-global ViennaRNA
+    # parameter load; one instance per run, like every tool whose configuration decides
+    # what its numbers mean.
+    "AisChinaCodons",
 )
 
 #: The one module allowed to call those constructors (``build_tools``).

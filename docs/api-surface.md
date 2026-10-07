@@ -42,9 +42,14 @@ so that convention is the only rule there is.
 | Public callables (excluding `__init__`) | 326 |
 | — `BUILT` | 295 |
 | — `STUB` | 23 |
+| Modules | 64 |
+| Public classes | 108 |
+| Public callables (excluding `__init__`) | 328 |
+| — `BUILT` | 295 |
+| — `STUB` | 25 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
-| `__init__` constructors | 21 |
+| `__init__` constructors | 22 |
 
 ## Index
 
@@ -59,6 +64,7 @@ layers above it, never the ones below.
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
 | scoring | `engine.scoring.profiles` |  | 8 | 0 | Versioned scoring profiles. |
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
+| gate_tools | `engine.gates.tools.ais_china` |  | 4 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 5 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
 | gate_tools | `engine.gates.tools.folding` | S2, S4 | 13 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
@@ -831,6 +837,134 @@ Constructed once per run by `engine.pipeline.build_tools` and injected. `engine.
 Scientific primitives shared across the gate families.
 
 *No public symbols — the docstring is the whole file.*
+
+### `engine.gates.tools.ais_china`
+
+`src/engine/gates/tools/ais_china.py`
+
+Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `PINNED_COMMIT` |  | `'e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9'` |
+| `HOST_ID` |  | `'atcc6919_GCF_008728435.1'` |
+| `REFERENCE_VERSION` |  | `'2026-09-06.v1'` |
+| `STRATEGY_IDS` | `tuple[str, ...]` | `('rna_start', 'host_sampling', 'cai_max', 'tai_max', 'harmonize')` |
+| `DEFAULT_ROOT` |  | `Path(__file__).resolve().parents[4] / 'vendor' / 'ais-china-codon-optimization-v2'` |
+
+#### `class CodonEdit`
+
+`@dataclass(frozen=True, slots=True)`
+
+One synonymous codon substitution, in CERNAL coordinates.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `codon_index` | `int` |  |
+| `start` | `int` |  |
+| `end` | `int` |  |
+| `before` | `str` |  |
+| `after` | `str` |  |
+| `amino_acid` | `str` |  |
+
+#### `class AisChinaMetric`
+
+`@dataclass(frozen=True, slots=True)`
+
+One of their per-candidate measurements, in their vocabulary.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` | `str` |  |
+| `value` | `float \| None` |  |
+| `unit` | `str \| None` |  |
+| `status` | `str` |  |
+| `reason` | `str \| None` |  |
+
+#### `class AisChinaCandidate`
+
+`@dataclass(frozen=True, slots=True)`
+
+A synonymous variant of the input CDS, RNA alphabet, with the edits that made it.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `candidate_id` | `str` |  |
+| `sequence` | `str` |  |
+| `sequence_sha256` | `str` |  |
+| `protein` | `str` |  |
+| `metrics` | `tuple[AisChinaMetric, ...]` |  |
+| `constraints_passed` | `bool` |  |
+| `violations` | `tuple[str, ...]` |  |
+| `edits` | `tuple[CodonEdit, ...]` |  |
+| `strategies` | `tuple[str, ...]` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def metric(self, name: str) -> AisChinaMetric` | The named metric, or ``KeyError``. Never a default value. |
+
+#### `class StrategyOutcome`
+
+`@dataclass(frozen=True, slots=True)`
+
+What one strategy did — including that it found nothing, or could not run.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `strategy_id` | `str` |  |
+| `status` | `str` |  |
+| `reason` | `str \| None` |  |
+| `solver` | `str \| None` |  |
+| `seed` | `int \| None` |  |
+| `returned_count` | `int` |  |
+| `termination_reason` | `str \| None` |  |
+
+#### `class AisChinaProvenance`
+
+`@dataclass(frozen=True, slots=True)`
+
+What produced the numbers: enough to say which reference and which code.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `host_id` | `str` |  |
+| `display_name` | `str` |  |
+| `assembly` | `str` |  |
+| `accession` | `str` |  |
+| `reference_version` | `str` |  |
+| `code_version` | `str` |  |
+| `pinned_commit` | `str` |  |
+| `implementation_sha256` | `tuple[tuple[str, str], ...]` |  |
+| `consumed_file_sha256` | `tuple[tuple[str, str], ...]` |  |
+| `coding_gc_bounds` | `tuple[float, float]` |  |
+
+#### `class AisChinaRun`
+
+`@dataclass(frozen=True, slots=True)`
+
+The outcome of one :meth:`AisChinaCodons.optimize` call.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `status` | `str` |  |
+| `input_sequence` | `str` |  |
+| `protein` | `str` |  |
+| `original` | `AisChinaCandidate` |  |
+| `candidates` | `tuple[AisChinaCandidate, ...]` |  |
+| `strategies` | `tuple[StrategyOutcome, ...]` |  |
+| `warnings` | `tuple[str, ...]` |  |
+| `provenance` | `AisChinaProvenance` |  |
+
+#### `class AisChinaCodons`
+
+*C. acnes* ATCC 6919 codon optimization through the AIS-China library, unmodified.
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def __init__(self, root: Path \| str \| None = None) -> None` |  |
+| `BUILT` | `def usage_frequencies(self) -> dict[str, float]` | Codon -> **relative frequency** within its synonymous family, RNA keys. |
+| `BUILT` | `def cai_relative_adaptiveness(self) -> dict[str, float]` | Codon -> CAI weight ``w`` (**relative adaptiveness**), RNA keys. |
+| `BUILT` | `def optimize(self, cds: str, *, seed: int, strategies: Sequence[str] \| None = None, upstream: str = '', locked_codons: Sequence[int] = (), source_codon_counts: Mapping[str, float] \| None = None, source_name: str = 'source') -> AisChinaRun` | Run their pipeline on one CDS and return it in CERNAL's conventions. |
 
 ### `engine.gates.tools.binding` · S3
 

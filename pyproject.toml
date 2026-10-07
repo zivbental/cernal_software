@@ -55,7 +55,10 @@ dev = [
 line-length = 100
 target-version = "py313"
 src = ["src", "tests"]
-extend-exclude = ["**/migrations/*", "frontend", "var"]
+# vendor/ is third-party code used as an unmodified git submodule (docs/collaborations.md):
+# it is never linted, reformatted or lint-fixed, because the collaboration requires that
+# not one byte of it differs from the upstream commit pinned in .gitmodules.
+extend-exclude = ["**/migrations/*", "frontend", "var", "vendor"]
 
 # The notebook formatter rewrites each cell's "source" from a single JSON string into a
 # list of lines and renormalises quotes. That is pure churn on a file type the team edits
@@ -93,4 +96,6 @@ DJANGO_SETTINGS_MODULE = "config.settings.dev"
 pythonpath = ["src"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-ra --strict-markers"
+# --ignore=vendor: the submodule carries its own tests (Flask, Python 3.12). They are
+# upstream's to run, not ours. testpaths already keeps them out; this keeps `pytest .` out too.
+addopts = "-ra --strict-markers --ignore=vendor"
