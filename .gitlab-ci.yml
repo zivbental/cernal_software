@@ -17,6 +17,9 @@ default:
   interruptible: true
 
 variables:
+  # vendor/ais-china-codon-optimization-v2 is a git submodule (docs/collaborations.md);
+  # tests/engine/test_ais_china*.py need it checked out.
+  GIT_SUBMODULE_STRATEGY: normal
   UV_CACHE_DIR: .uv-cache
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 

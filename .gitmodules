@@ -1,0 +1,3 @@
+[submodule "vendor/ais-china-codon-optimization-v2"]
+	path = vendor/ais-china-codon-optimization-v2
+	url = https://gitlab.igem.org/2026/software/ais-china/codon-optimization-v2.git
