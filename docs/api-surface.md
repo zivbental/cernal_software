@@ -37,14 +37,14 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 38 |
-| Public classes | 87 |
-| Public callables (excluding `__init__`) | 173 |
-| — `BUILT` | 140 |
-| — `STUB` | 26 |
+| Modules | 66 |
+| Public classes | 107 |
+| Public callables (excluding `__init__`) | 350 |
+| — `BUILT` | 317 |
+| — `STUB` | 25 |
 | — `ABSTRACT` | 5 |
-| — `PROTOCOL` | 2 |
-| `__init__` constructors | 20 |
+| — `PROTOCOL` | 3 |
+| `__init__` constructors | 21 |
 
 ## Index
 
@@ -59,25 +59,52 @@ layers above it, never the ones below.
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
 | scoring | `engine.scoring.profiles` |  | 8 | 0 | Versioned scoring profiles. |
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
-| gate_tools | `engine.gates.tools.binding` | S3 | 1 | 0 | S3 — trigger/switch hybridisation energy. |
+| gate_tools | `engine.gates.tools.binding` | S3 | 5 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 0 | 2 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 5 | 3 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 14 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
 | gates | `engine.gates.base` |  | 8 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
-| gates | `engine.gates.toehold` |  | 5 | 1 | Toehold switches — single input, and two-input AND. |
+| gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
+| gates | `engine.gates.notebooks.toehold_and._context_loader` |  | 3 | 0 | Loader for a hand-made "toehold + context" CSV (``toeohld_daniel.csv``-style). |
+| gates | `engine.gates.notebooks.toehold_and._joint_state_parallel` |  | 18 | 0 | Parallel worker for ``joint_state()`` (see ``toehold_and_eu_test.ipynb``'s "joint-state helpers" cell for the serial, documented original). |
+| gates | `engine.gates.notebooks.toehold_and._switch_construct` |  | 4 | 0 | Shared AND-construct builder and single-switch loader/measurement. |
+| gates | `engine.gates.notebooks.toehold_and.build_report` |  | 1 | 0 | Assemble the architecture decision report, inlining the eight structure figures. |
+| gates | `engine.gates.notebooks.toehold_and.bulge_geometry` |  | 6 | 0 | What the AUG bulge actually is, which side is designable, and what the two hairpins weigh. |
+| gates | `engine.gates.notebooks.toehold_and.design_panel` |  | 4 | 0 | The whole A0 pipeline, end to end, for a wet-lab panel. One command, no hand-holding. |
+| gates | `engine.gates.notebooks.toehold_and.factorisation` |  | 3 | 0 | Can the AUG-closure choice be made separately from the secondary-stem choice? |
+| gates | `engine.gates.notebooks.toehold_and.find_candidates` |  | 3 | 0 | Stage 1 for the A0 two-input AND gate: find usable trigger pairs in one transcript. |
+| gates | `engine.gates.notebooks.toehold_and.folding_barriers` |  | 3 | 0 | Real refolding barriers, from ViennaRNA's findpath, for the step kinetics turns on. |
+| gates | `engine.gates.notebooks.toehold_and.four_state_figures` |  | 5 | 0 | One candidate, four separate nucleotide plots — the switch alone and with each trigger. |
+| gates | `engine.gates.notebooks.toehold_and.full_sweep` |  | 5 | 0 | The full design sweep, staged so the expensive half only ever sees survivors. |
+| gates | `engine.gates.notebooks.toehold_and.green_calibration` |  | 4 | 0 | Does our ranking observable rank switches that were actually measured? |
+| gates | `engine.gates.notebooks.toehold_and.kim2019_benchmark` |  | 3 | 0 | Benchmark: put Kim 2019's bench-tested constructs through our own scoring. |
+| gates | `engine.gates.notebooks.toehold_and.kinetic_pathway` |  | 4 | 0 | The kinetic test done properly: what foothold does trigger A see *before* it binds? |
+| gates | `engine.gates.notebooks.toehold_and.kinetic_proxy` |  | 4 | 0 | A kinetic proxy, reported beside the equilibrium numbers and never scored. |
+| gates | `engine.gates.notebooks.toehold_and.modification_panel` |  | 6 | 0 | Measure every proposed architecture modification side by side, on the same candidates. |
+| gates | `engine.gates.notebooks.toehold_and.narrate` |  | 5 | 0 | Progress bars, running commentary and closing findings for the long-running drivers. |
+| gates | `engine.gates.notebooks.toehold_and.nucleation_state` |  | 4 | 0 | Who is holding trigger A's nucleation site: the switch, trigger A, or nobody? |
+| gates | `engine.gates.notebooks.toehold_and.population_survey` |  | 4 | 0 | The four tubes across many trigger pairs, for a distribution instead of an anecdote. |
+| gates | `engine.gates.notebooks.toehold_and.rank_candidates` |  | 6 | 0 | Stages 3-5 for the A0 AND gate: assemble, fold four tubes, gate, and rank. |
+| gates | `engine.gates.notebooks.toehold_and.state_diagrams` |  | 9 | 0 | Schematics of the four logic states — what the gate is *meant* to do, and what it does. |
+| gates | `engine.gates.notebooks.toehold_and.strand_occupancy` |  | 3 | 0 | Where does each strand actually go, in each of the four tubes? |
+| gates | `engine.gates.notebooks.toehold_and.strength_window` |  | 7 | 0 | Generate the experiment that asks whether a thermodynamic AND is reachable at all. |
+| gates | `engine.gates.notebooks.toehold_and.structure_figures` |  | 7 | 0 | Nucleotide-level plots of each design's folded OFF state, with its own four-tube results. |
+| gates | `engine.gates.notebooks.toehold_and.survey_summary` |  | 3 | 0 | Read the population survey's shards and report distributions, not headlines. |
+| gates | `engine.gates.notebooks.toehold_and.trigger_accessibility` |  | 8 | 0 | Stage 1b — accessibility scores for every trigger pair, in Green's and VISTA's terms. |
+| gates | `engine.gates.notebooks.toehold_and.window_probabilities` |  | 4 | 0 | The ribosome window as probabilities, base by base, in all four tubes. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
 | stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
 | stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
 | stages | `engine.stages.off_target` | S5 | 0 | 4 | S5 — off-target scanning, in both directions. |
-| stages | `engine.stages.plasmids` |  | 5 | 0 | Stage 5 — plasmid construction. |
+| stages | `engine.stages.plasmids` |  | 7 | 0 | Stage 5 — plasmid construction. |
 | stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
 | stages | `engine.stages.switches` |  | 3 | 0 | Stage 3 — switch design and validation. |
@@ -89,6 +116,7 @@ layers above it, never the ones below.
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``. |
 | top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
+| top | `engine.safety` |  | 12 | 0 | Offline-first, fail-closed release control for output sequences. |
 | top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
 | top | `engine.transcriptome` |  | 2 | 0 | Reference transcript sequences, by organism — Q1's first real answer. |
 
@@ -815,6 +843,10 @@ S3 — trigger/switch hybridisation energy.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
+| `BUILT` | `def can_pair(first: str, second: str) -> bool` | Whether two bases can hydrogen-bond, **G:U wobbles included**. |
+| `BUILT` | `def alignment_pairs(first: str, second: str) -> list[bool]` | Which positions can pair when the two strands are held antiparallel. |
+| `BUILT` | `def longest_complementary_run(first: str, second: str) -> int` | Longest unbroken stretch the two strands can pair over, in this alignment. |
+| `BUILT` | `def fixed_alignment_energy(first: str, second: str, folder: FoldEngine) -> float \| None` | Free energy of two strands held in the alignment the **design** imposes. |
 | `BUILT` | `def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float` | Free energy released when a trigger binds its switch. |
 
 ### `engine.gates.tools.codons` · S8
@@ -851,10 +883,18 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, temperature: float = 37.0, cache_size: int = 100000) -> None` |  |
 | `BUILT` | `@cache def mfe(self, strands: str) -> FoldResult` | Fold a sequence — or a multi-strand complex — and return its most stable predicted structure. |
+| `BUILT` | `@cache def structure_energy(self, strands: str, structure: str) -> float \| None` | Energy of one **given** structure, rather than the best one. |
 | `BUILT` | `@cache def partition(self, sequence: str) -> float` | Ensemble free energy over all structures, not just the most stable one. |
-| `STUB` | `def ensemble_defect(self, sequence: str, target: str) -> float` | How far the predicted ensemble sits from an intended structure. |
+| `BUILT` | `@property def rt(self) -> float` | ``RT`` in kcal/mol at this engine's temperature. |
+| `BUILT` | `def p_open(self, strands: str, window: tuple[int, int]) -> float \| None` | Joint probability that **every** base in ``window`` is unpaired at once. |
+| `BUILT` | `def p_open_by_order(self, strands: str, window: tuple[int, int]) -> tuple[list[float], list[float], list[float]] \| None` | ``p_open`` resolved per strand ordering, for auditing the spread above. |
+| `BUILT` | `def ensemble_defect(self, sequence: str, target: str) -> float` | How far the predicted ensemble sits from an intended structure. |
 | `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` | Probability that each pair of positions is bonded, over the whole ensemble. |
+| `BUILT` | `def pooled_pair_probabilities(self, strands: str) -> list[list[float]]` | ``base_pair_probabilities`` Boltzmann-averaged over all strand orderings. |
+| `BUILT` | `def constrained_probability(self, strands: str, forced_pairs: Sequence[tuple[int, int]]) -> float \| None` | Exact probability that **all** of ``forced_pairs`` are present at once. |
 | `STUB` | `def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]` | Every structure within an energy window of the MFE. |
+| `BUILT` | `def mfe_with_window_open(self, strands: str, window: tuple[int, int]) -> tuple[str, float]` | The most stable structure that leaves ``window`` single-stranded. |
+| `BUILT` | `def refolding_saddle(self, strands: str, start: str, target: str, *, width: int = 20) -> float \| None` | Highest energy on a direct refolding path from ``start`` to ``target``. |
 | `BUILT` | `def layout_coordinates(self, structure: str) -> list[tuple[float, float]]` | Where each nucleotide sits when a structure is drawn, one point per base. |
 | `BUILT` | `def versions(self) -> dict[str, str]` | The tool versions this run was computed with. |
 
@@ -1054,9 +1094,36 @@ Two-input AND toehold.
 | `label` |  | `'AND Toehold'` |
 | `description` |  | `'Two-input translational AND'` |
 | `max_inputs` |  | `2` |
+| `TOEHOLD_B_LEN` | `ClassVar[int]` | `32` |
+| `MIN_OVERLAP` | `ClassVar[int]` | `4` |
+| `MIN_WINDOW_GAP` | `ClassVar[int]` | `50` |
+| `RBS_FLANK` | `ClassVar[str]` | `'AGACAAG'` |
+| `SECONDARY_LOOP` | `ClassVar[str]` | `'CAAGAACUUAGACAA'` |
+| `BULGE_LEN` | `ClassVar[int]` | `3` |
+| `FORBIDDEN_MOTIFS` | `ClassVar[dict[str, str]]` | `{'RNase_E': '[AG]AUGA', 'G_quadruplex': 'G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,7}G{3,}[ACGU]{1,…` |
+| `RARE_CODONS` | `ClassVar[frozenset[str]]` | `frozenset({'AGG', 'AGA', 'CGA', 'AUA', 'CUA'})` |
+| `THRESHOLDS` | `ClassVar[tuple[tuple[str, str, float], ...]]` | `(('A_S_00', '<', 0.2), ('A_M_00', '<', 0.2), ('A_S_10', '<', 0.2), ('A_M_10', '<', 0.2)…` |
+| `STEM_INDEPENDENT` | `ClassVar[frozenset[str]]` | `frozenset({'dG_open_00', 'dG_open_10', 'dG_open_11', 'dG_open_flank_00', 'flank_penalty…` |
+| `ARM_LEN` | `ClassVar[int]` | `18` |
+| `MAX_INVASION_STALL` | `ClassVar[int]` | `2` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
+| `BUILT` | `def screen_trigger_window(self, window_a: str, main_pre: str) -> tuple[str, ...]` | Sequence restrictions on trigger A's window. Empty means clean. |
+| `BUILT` | `def knockout_possible(self, transcript: str, start: int, length: int, partner: str) -> bool` | Could synonymous substitution alone leave this trigger unable to nucleate? |
+| `BUILT` | `def controls_constructible(self, transcript: str, pair: '_TriggerPair') -> tuple[bool, bool]` | Whether states 01 and 10 can both be built for this pair, as ``(ko_A, ko_B)``. |
+| `BUILT` | `def assemble(self, trigger_a: str, trigger_b: str, len_x: int, stem: '_SecondaryStem') -> '_AssembledSwitch'` | Build the switch for one trigger pair and one secondary stem. |
+| `BUILT` | `def assembly_violations(self, switch: '_AssembledSwitch') -> tuple[str, ...]` | Sequence-level faults in a finished switch. Empty means clean. |
+| `BUILT` | `def gate_violations(self, observables: dict[str, float \| None], thresholds: tuple[tuple[str, str, float], ...] \| None = None) -> tuple[str, ...]` | Every threshold this design fails. Empty means it enters the ranking. |
+| `BUILT` | `def probe_switch(self, trigger_a: str, trigger_b: str, len_x: int) -> '_AssembledSwitch'` | A switch on the un-traded secondary stem, for screening the pair itself. |
+| `BUILT` | `def screen_pair(self, trigger_a: str, trigger_b: str, len_x: int) -> dict[str, float \| None]` | The stem-independent observables for one trigger pair: one fold, not a hundred. |
+| `BUILT` | `def pair_gate_violations(self, screened: dict[str, float \| None]) -> tuple[str, ...]` | The thresholds a pair fails on its own, before any stem is designed. |
+| `BUILT` | `def four_tube_observables(self, switch: '_AssembledSwitch', trigger_a: str, trigger_b: str) -> dict[str, float \| None]` | Fold the four logic states at equilibrium and read the gate's behaviour off them. |
+| `BUILT` | `def knockout(self, transcript: str, start: int, length: int, partner: str) -> '_Knockout \| None'` | The **fewest** synonymous substitutions that stop this region nucleating. |
+| `BUILT` | `def bench_constructs(self, transcript: str, pair: '_TriggerPair') -> dict[str, str \| None]` | The four logic states as four transcripts on **one background**. |
+| `BUILT` | `def main_stem_energies(self, trigger_a: str, len_x: int, main_z: str) -> tuple[float \| None, float \| None, float \| None]` | The three energies that decide whether the AND is thermodynamic or only kinetic. |
+| `BUILT` | `def find_trigger_pairs(self, transcript: str, *, min_window_gap: int \| None = None) -> Iterator['_TriggerPair']` | Every pair of windows in one transcript that can serve as triggers A and B. |
+| `BUILT` | `def secondary_stems(self, trigger_a: str, trigger_b: str, len_x: int) -> list['_SecondaryStem']` | Every secondary stem worth folding, for one trigger pair and overlap length. |
 | `STUB` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build a switch that opens only when **both** triggers are present. |
 
 #### `class ProkaryoticToeholdGate(ToeholdGate)`
@@ -1155,6 +1222,616 @@ Render an HTML report to PDF via headless Chromium (Playwright).
 | --- | --- | --- |
 | `BUILT` | `def render_pdf(html_path: Path, pdf_path: Path, *, landscape: bool = True) -> None` |  |
 | `BUILT` | `def main() -> None` |  |
+
+### `engine.gates.notebooks.toehold_and._context_loader`
+
+`src/engine/gates/notebooks/toehold_and/_context_loader.py`
+
+Loader for a hand-made "toehold + context" CSV (``toeohld_daniel.csv``-style).
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def locate_trigger_site(core, gene, wobble_max_fraction)` | Longest antiparallel-complementary run between ``core`` and ``gene``. |
+| `BUILT` | `def hairpin_chains(structure, max_unpaired_per_side, lo, hi)` | Every hairpin in ``structure`` as the stack of pairs from its loop outwards. |
+| `BUILT` | `def load_context_designs(path, folder, *, tx_start_marker, kozak_nt, wobble_max_fraction, trigger_flank_nt, max_bulge_nt)` | Rows of a toehold+context CSV as design dicts, plus ``(line_no, reason)`` problems. |
+
+### `engine.gates.notebooks.toehold_and._joint_state_parallel`
+
+`src/engine/gates/notebooks/toehold_and/_joint_state_parallel.py`
+
+Parallel worker for ``joint_state()`` (see ``toehold_and_eu_test.ipynb``'s "joint-state helpers" cell for the serial, documented original).
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `FAKE_SWEEP_STATES` |  | `(('alone', ()), ('+fake1', ('fake_a',)), ('+fake2', ('fake_b',)), ('+fake1+fake2', ('fa…` |
+| `FAKE_SWEEP_MATRIX_STATES` |  | `frozenset({'+A', '+B', '+A+B'})` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def use_fold_engine(engine) -> None` | Publish the single shared ``FoldEngine`` for the workers to fold through. |
+| `BUILT` | `def stem_closed_fraction(structure: str, stem_up_span: tuple[int, int], stem_down_span: tuple[int, int]) -> float` | Fraction of ``stem_up_span`` paired SPECIFICALLY to ``stem_down_span`` in one sampled structure -- the intended OFF hairpin actually closing, not just "paired to something". |
+| `BUILT` | `def misfolded_fraction(structure: str, footprint_span: tuple[int, int], stem_down_span: tuple[int, int], n_self: int) -> float` | Fraction of ``footprint_span`` paired INTRAMOLECULARLY but NOT to its own ``stem_down_span`` -- paired to something other than what either the OFF hairpin (``stem_closed_fraction``) or a real binding event (``_frac_paired_to_external``, ``trigger_bound``) would call correct, e.g. |
+| `BUILT` | `def run_parallel_single(jobs: list[SingleStateJob], max_workers: int = 6) -> dict[str, dict]` | Single-input counterpart to ``run_parallel`` -- same fork-context reasoning. |
+| `BUILT` | `def both_triggers_extra(trigger_a: str, trigger_b: str) -> tuple[str, str]` | The ONE place the strand order of a two-real-trigger AND state is decided. |
+| `BUILT` | `def trigger_pair_too_similar(trigger_a: str, trigger_b: str, *, max_overlap_nt: int, wobble_max_fraction: float) -> bool` | True when an AND pair's own two REAL triggers (trigger A, trigger B) are too similar to each other by EITHER of two independent checks, each compared against ``max_overlap_nt``: a complementary run (wobble included, :func:`_longest_complementary_run_wobble` -- would they hybridize to each other) or a same-direction identity run (:func:`_longest_identity_run` -- are they (nearly) the same sequence, i.e. |
+| `BUILT` | `def pick_fake_design(design_5p, design_3p, exclude_ranks, pool, start_offset = 0, *, max_overlap_nt = None, wobble_max_fraction = None)` | Pool design with no meaningful sequence complementarity to EITHER A's or B's own footprint (toehold+stem_up) -- a real off-target trigger picked by sequence dissimilarity, not by genomic position (two triggers from non-overlapping windows… |
+| `BUILT` | `def pick_fake_trigger(real_triggers, exclude_ranks, pool, start_offset = 0, *, max_overlap_nt = 8)` | Next pool design whose TRIGGER shares at most ``max_overlap_nt`` nt of identical sequence with EVERY real trigger in ``real_triggers``. |
+| `BUILT` | `def pick_fake_triggers(real_triggers, exclude_ranks, pool, n, start_offset = 0, *, max_overlap_nt)` | Up to ``n`` distinct fakes for one footprint set: :func:`pick_fake_trigger` called with ``start_offset``, ``start_offset + 1``, ... |
+| `BUILT` | `def generate_spacer_candidates(n: int, min_length: int = 15, max_length: int = 20, seed: int = 1) -> list[str]` | A fixed, reproducible pool of low-GC candidate spacer sequences -- lengths cycle 15..20 so the whole requested range is covered, and every base is drawn A/U-biased (A-U pairs are weaker than G-C, hence a low-GC spacer). |
+| `BUILT` | `def pick_optimized_spacer(design_5p, design_3p, candidates: list[str]) -> tuple[str, int]` | Picks the candidate spacer with the smallest worst-case complementary run against either design's toehold OR trigger ("minimal interaction" estimated as no hybridization with triggers or toeholds). |
+| `BUILT` | `def run_parallel_fake_sweep(jobs: list[FakeSweepJob], max_workers: int = 6) -> dict[str, dict]` | Same fork-context reasoning as every other ``run_parallel*`` in this module. |
+| `BUILT` | `def run_parallel_constrained_bind(jobs: list[ConstrainedBindJob], max_workers: int = 6) -> dict[str, dict]` | Same fork-context reasoning as every other ``run_parallel*`` in this module. |
+| `BUILT` | `def run_parallel_single_decomp(jobs: list[SingleDecompJob], max_workers: int = 6) -> dict[str, dict]` | Same fork-context reasoning as every other ``run_parallel*`` in this module. |
+| `BUILT` | `def designed_pairs(fused: str, duplexes: tuple[tuple[int, str, int], ...]) -> list[tuple[int, int]] \| None` | The designed footprint-trigger duplex(es), from the sequences -- not from an MFE. |
+| `BUILT` | `def run_parallel_single_exact(jobs: list[SingleExactJob], max_workers: int = 6) -> dict[str, dict]` | Same fork-context reasoning as every other ``run_parallel*`` in this module. |
+| `BUILT` | `def and_pair_jobs(built: dict, key_prefix: str, trigger_a: str, trigger_b: str, fakes_a: list[dict], fakes_b: list[dict], *, temperature: float) -> list[AndDecompJob]` | Every state job of one (pair, spacer): ``alone``, ``+A`` / ``+B`` (``own_side``: the exact P of that hairpin's own duplex), ``+A+B`` (the only one with ``with_joint``; strands via :func:`both_triggers_extra`), then per side each fake alone and with its own real trigger (``+fakeA{i}``/``+A+fakeA{i}``, ``+fakeB{i}``/``+B+fakeB{i}``). |
+| `BUILT` | `def run_parallel_and_decomp(jobs: list[AndDecompJob], max_workers: int = 6) -> dict[str, dict]` | Same fork-context reasoning as every other ``run_parallel*`` in this module. |
+
+#### `class SingleStateJob(NamedTuple)`
+
+Single-input state job -- one switch, one trigger (or none), one footprint. There is no "both" state to speak of; the only question is whether the footprint reads as paired in a real sampled structure, not just on average.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `key` | `str` |  |
+| `switch` | `str` |  |
+| `trigger` | `str` |  |
+| `footprint` | `tuple[int, int]` |  |
+| `temperature` | `float` |  |
+| `n_samples` | `int` | `1200` |
+| `threshold` | `float` | `0.8` |
+
+#### `class FakeSweepJob(NamedTuple)`
+
+One AND pair, checked across ten states: the fused switch alone, with each of two off-target ("fake") triggers alone and together, with each real trigger alone, with both real triggers, and with each real trigger paired against a fake in the other slot -- the full leakage/specificity sweep, not just the "both real" state every other job type here checks.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `key` | `str` |  |
+| `fused` | `str` |  |
+| `trigger_a` | `str` |  |
+| `trigger_b` | `str` |  |
+| `fake_a` | `str` |  |
+| `fake_b` | `str` |  |
+| `footprint_5p` | `tuple[int, int]` |  |
+| `footprint_3p` | `tuple[int, int]` |  |
+| `temperature` | `float` |  |
+| `n_samples` | `int` | `1200` |
+| `threshold` | `float` | `0.8` |
+
+#### `class ConstrainedBindJob(NamedTuple)`
+
+Real Boltzmann sampling of the fused AND molecule with ONE role's footprint HARD-CONSTRAINED to the exact base pairs it forms when bound to its own trigger in isolation (read off a real MFE fold, not an idealized/assumed alignment) -- then…
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `key` | `str` |  |
+| `fused` | `str` |  |
+| `trigger_bound` | `str` |  |
+| `trigger_check` | `str` |  |
+| `footprint_bound` | `tuple[int, int]` |  |
+| `footprint_check` | `tuple[int, int]` |  |
+| `fake` | `str` |  |
+| `temperature` | `float` |  |
+| `n_samples` | `int` | `1200` |
+| `threshold` | `float` | `0.8` |
+
+#### `class SingleDecompJob(NamedTuple)`
+
+One state of one single-input switch: ``extra`` is the second strand (the real trigger, or a fake), or ``""`` for the switch alone.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `key` | `str` |  |
+| `switch` | `str` |  |
+| `extra` | `str` |  |
+| `footprint` | `tuple[int, int]` |  |
+| `stem_up` | `tuple[int, int]` |  |
+| `stem_down` | `tuple[int, int]` |  |
+| `temperature` | `float` |  |
+| `n_samples` | `int` | `1200` |
+| `threshold` | `float` | `0.7` |
+
+#### `class SingleExactJob(NamedTuple)`
+
+One state of one single-input switch, exact-only. ``extra`` is the second strand (the real trigger, or a fake), or ``""`` for the switch alone.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `key` | `str` |  |
+| `switch` | `str` |  |
+| `extra` | `str` |  |
+| `footprint` | `tuple[int, int]` |  |
+| `stem_up` | `tuple[int, int]` |  |
+| `stem_down` | `tuple[int, int]` |  |
+| `temperature` | `float` |  |
+| `with_joint` | `bool` | `False` |
+
+#### `class AndDecompJob(NamedTuple)`
+
+One state of one AND pair, exact-only: ``extra`` lists whichever trigger/fake strands ride along with ``fused`` for this state (``()`` = alone).
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `key` | `str` |  |
+| `fused` | `str` |  |
+| `extra` | `tuple[str, ...]` |  |
+| `footprint_a` | `tuple[int, int]` |  |
+| `stem_up_a` | `tuple[int, int]` |  |
+| `stem_down_a` | `tuple[int, int]` |  |
+| `footprint_b` | `tuple[int, int]` |  |
+| `stem_up_b` | `tuple[int, int]` |  |
+| `stem_down_b` | `tuple[int, int]` |  |
+| `temperature` | `float` |  |
+| `with_joint` | `bool` | `False` |
+| `own_side` | `str` | `''` |
+| `trigger_a` | `str` | `''` |
+| `trigger_b` | `str` | `''` |
+
+### `engine.gates.notebooks.toehold_and._switch_construct`
+
+`src/engine/gates/notebooks/toehold_and/_switch_construct.py`
+
+Shared AND-construct builder and single-switch loader/measurement.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def motif_self_bind_score(sequence, motif_seq)` | Best fractional match, sliding a window the length of ``motif_seq`` across ``sequence``, against the reverse complement of ``motif_seq`` -- built entirely from existing engine functions (``windows`` for the scan, ``reverse_complement`` for… |
+| `BUILT` | `def load_ranked_designs(path, folder, columns, carry_metrics, limit = None)` | Rows of a NucSyn ``results_ranked.csv``, kept in file order (already ranked). |
+| `BUILT` | `def fuse(design_5p, design_3p, cut_before, keep_after, spacer)` | One AND candidate: every domain from both halves, relocated into the fused frame. |
+| `BUILT` | `def measure(built, trigger_5p, trigger_3p, folder, own_kozak_rc_3p, own_prefix_rc_5p)` | Energies for the four states, both toehold accessibilities, and the Kozak/prefix self-binding risk of whichever toehold each fixed element could actually reach. |
+
+### `engine.gates.notebooks.toehold_and.build_report`
+
+`src/engine/gates/notebooks/toehold_and/build_report.py`
+
+Assemble the architecture decision report, inlining the eight structure figures.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `HERE` |  | `pathlib.Path(__file__).resolve().parent / 'results'` |
+| `STATES` |  | `('00', '01', '10', '11')` |
+| `STATE_NOTE` |  | `{'00': 'neither trigger', '01': 'trigger B only', '10': 'trigger A only &mdash; must st…` |
+| `HEAD` |  | `'<title>A0 Architecture Review</title>\n<link rel="stylesheet" href="https://fonts.goog…` |
+| `BODY` |  | `f"""\n<div class="wrap">\n<p class="eyebrow">A0 prokaryotic two-input AND gate &middot;…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def figure_panels(variant: str) -> str` |  |
+
+### `engine.gates.notebooks.toehold_and.bulge_geometry`
+
+`src/engine/gates/notebooks/toehold_and/bulge_geometry.py`
+
+What the AUG bulge actually is, which side is designable, and what the two hairpins weigh.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `AUG_FACES` |  | `'GUA'` |
+| `AUG_PARTNER` |  | `'CAU'` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def bulge_pattern(trigger_a: str) -> tuple[str, int]` | Which of the three AUG positions pair, as a pattern and a count. |
+| `BUILT` | `def retained_by_a(trigger_a: str) -> int` | How many of its three bulge pairs trigger A keeps once ``bulge*`` becomes ``CAU``. |
+| `BUILT` | `def hairpin_energies(gate, switch) -> tuple[float, float]` | Folding energy of each hairpin alone, main and secondary, in kcal/mol. |
+| `BUILT` | `def spearman(pairs: list[tuple[float, float]]) -> tuple[float, int]` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.design_panel`
+
+`src/engine/gates/notebooks/toehold_and/design_panel.py`
+
+The whole A0 pipeline, end to end, for a wet-lab panel. One command, no hand-holding.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `FAMILIES` |  | `('A-anchored', 'B-anchored', 'mixed')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def select_pairs(gate, transcript, *, lab_filter: bool, wanted: int, verbose: bool)` | Stage 1, then the longest overlaps. Long overlaps come first because `x*` is the one domain scheme C cannot design, so its length is the only lever on how firmly trigger A's nucleation site is held shut. |
+| `BUILT` | `def pick_by_family(stems, per_family: int)` | Up to ``per_family`` builds from each scheme, strongest lock first. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.factorisation`
+
+`src/engine/gates/notebooks/toehold_and/factorisation.py`
+
+Can the AUG-closure choice be made separately from the secondary-stem choice?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `CLOSURES` |  | `('baseline', 'aug_pair1', 'aug_pair2', 'aug_paired')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def spearman(pairs)` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.find_candidates`
+
+`src/engine/gates/notebooks/toehold_and/find_candidates.py`
+
+Stage 1 for the A0 two-input AND gate: find usable trigger pairs in one transcript.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def bootstrap() -> Path` | Put ``<repo>/src`` on ``sys.path``, as the notebooks beside this one do. |
+| `BUILT` | `def read_fasta(path: str) -> str` | The first record of a FASTA, as RNA. Accepts a bare sequence file too. |
+| `BUILT` | `def main(argv: list[str] \| None = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.folding_barriers`
+
+`src/engine/gates/notebooks/toehold_and/folding_barriers.py`
+
+Real refolding barriers, from ViennaRNA's findpath, for the step kinetics turns on.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `SEARCH_WIDTH` |  | `20` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def barrier_to_open(folder: FoldEngine, strands: str, window: tuple[int, int]) -> dict` | Saddle height for refolding from the MFE to a structure with ``window`` open. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.four_state_figures`
+
+`src/engine/gates/notebooks/toehold_and/four_state_figures.py`
+
+One candidate, four separate nucleotide plots — the switch alone and with each trigger.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `TRIGGER_A_STYLE` |  | `('#C2620F', '#7A3D08', 'trigger A')` |
+| `TRIGGER_B_STYLE` |  | `('#0E6B54', '#084637', 'trigger B')` |
+| `STATES` |  | `{'00': ('switch alone', 'neither trigger — both hairpins should be shut'), '01': ('swit…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def letter_colour(fill: str) -> str` | Black on a pale fill, white on a dark one, by relative luminance. |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def style_for(index: int, switch_len: int, breaks: list[int], domains: dict, order: list[str])` | Fill, stroke and legend key for one position of the concatenation. |
+| `BUILT` | `def draw_state(design: dict, state: str, out_path: Path) -> None` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.full_sweep`
+
+`src/engine/gates/notebooks/toehold_and/full_sweep.py`
+
+The full design sweep, staged so the expensive half only ever sees survivors.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `CLOSURES` | `tuple[tuple[str, str], ...]` | `(('open_3x3', None), ('closed_UAU', 'UAU'), ('closed_CAU', 'CAU'), ('closed_CGU', 'CGU'…` |
+| `UPPER3` | `tuple[tuple[str, str], ...]` | `(('trigger_derived', None), ('WWW_AUA', 'AUA'), ('WWW_UAU', 'UAU'), ('WWS_AUG', 'AUG'),…` |
+| `LOWER3` | `tuple[tuple[str, str], ...]` | `(('trigger_derived', None), ('SSW', 'GGA'), ('SWS', 'GAG'), ('WSS', 'AGG'), ('SSS', 'GG…` |
+| `ISLAND` | `tuple[tuple[str, str], ...]` | `(('trigger_derived', None), ('WWW', 'AUA'))` |
+| `PENDING_LENGTH_AXES` |  | `('toehold_trim', 'rbs_loop_len', 'secondary_arm')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def gc_fraction(sequence: str) -> float` |  |
+| `BUILT` | `def cheap_metrics(gate, trigger_a: str, trigger_b: str, pair) -> dict` | Everything about a trigger PAIR that needs no switch folding. |
+| `BUILT` | `def build(base, axes: dict)` | Apply one point of the axis grid to an assembled switch. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.green_calibration`
+
+`src/engine/gates/notebooks/toehold_and/green_calibration.py`
+
+Does our ranking observable rank switches that were actually measured?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `TABLE_S1` |  | `'C:/Users/Dell/OneDrive - mail.tau.ac.il/IGEM/Toehold/Prokaryotic And Gate/Prokaryotic-…` |
+| `RBS` |  | `'AGAGGAGA'` |
+| `RBS_TO_AUG` |  | `6` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def load_switches(path: str) -> list[dict]` | Every row of Table S1 sections A and B that carries a sequence pair and a ratio. |
+| `BUILT` | `def spearman(pairs: list[tuple[float, float]]) -> tuple[float, int]` | Rank correlation, average ranks for ties. Returns ``(rho, n)``. |
+| `BUILT` | `def score(folder: FoldEngine, row: dict) -> dict \| None` | Our four-tube observables, reduced to the two tubes a one-input switch has. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.kim2019_benchmark`
+
+`src/engine/gates/notebooks/toehold_and/kim2019_benchmark.py`
+
+Benchmark: put Kim 2019's bench-tested constructs through our own scoring.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `SWITCHES` | `dict[str, str]` | `{'G5-G3n5': 'TATGTAATTGATTTGGCTTCTGTTAGTTTCATACAAGAACTTAGACAATATGAAATCAACAGAAGCTATTACTA…` |
+| `PRIMARY_TRIGGER` | `dict[str, str]` | `{'G5-G3n5': 'AGAGCAAGACAATGGTAAGTAGTAATAGCT', 'G5-G3n8': 'AGAGCAAGACAATGGTAAGTAGTAGCTTC…` |
+| `SECONDARY_TRIGGER` |  | `'GAAACTAACAGAAGCCAAATCAATTACATA'` |
+| `REPORTED` | `dict[str, tuple[str, str]]` | `{'G5-G3n5': ('a = 10', 'behaves as a one-input switch'), 'G5-G3n8': ('a = 7', 'intermed…` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def longest_shared(probe: str, target: str) -> str` | Longest substring of ``probe`` occurring in ``target``. |
+| `BUILT` | `def analyse(name: str, folder: FoldEngine) -> dict[str, object]` | Our four tubes, our ranking window, and our stem/AUG accessibility, for one construct. |
+| `BUILT` | `def main() -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.kinetic_pathway`
+
+`src/engine/gates/notebooks/toehold_and/kinetic_pathway.py`
+
+The kinetic test done properly: what foothold does trigger A see *before* it binds?
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `DECADES_PER_NT` |  | `1.0` |
+| `SATURATION_NT` |  | `6.0` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def free_fraction(matrix, span) -> float` |  |
+| `BUILT` | `def decades(toehold_nt: float) -> float` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.kinetic_proxy`
+
+`src/engine/gates/notebooks/toehold_and/kinetic_proxy.py`
+
+A kinetic proxy, reported beside the equilibrium numbers and never scored.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `DECADES_PER_NT` |  | `1.0` |
+| `SATURATION_NT` |  | `6.0` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def free_fraction(matrix, span) -> float` | Mean probability that a base of ``span`` is unpaired. |
+| `BUILT` | `def decades(toehold_nt: float) -> float` | Rate contribution of a foothold of this length, in orders of magnitude. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.modification_panel`
+
+`src/engine/gates/notebooks/toehold_and/modification_panel.py`
+
+Measure every proposed architecture modification side by side, on the same candidates.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `STATES` |  | `('00', '01', '10', '11')` |
+| `STABILISER` |  | `sq.to_rna('AACGGGCTGCAATAACGCAGCCCAAT')` |
+| `WEAK_TOP` |  | `'AUA'` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def patch(switch, **pieces)` | Replace whole domains by name, lengths unchanged. |
+| `BUILT` | `def bulge_class(trigger_a: str) -> int` | How many of the AUG's three bases the ascending arm can pair (wobbles counted). |
+| `BUILT` | `def variants(gate, switch, trigger_a: str) -> dict` | Every modification, built on one base switch. |
+| `BUILT` | `def observe(gate, switch, trigger_a: str, trigger_b: str) -> dict` | Four tubes plus the probabilities and the start codon, for one built switch. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.narrate`
+
+`src/engine/gates/notebooks/toehold_and/narrate.py`
+
+Progress bars, running commentary and closing findings for the long-running drivers.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def banner(title: str, lines: list[str] = (), estimate: float \| None = None) -> None` | Announce a run: what, how much, and how long it is expected to take. |
+| `BUILT` | `def interim(title: str, facts: list[tuple[str, str]]) -> None` | A mid-run reading, so a result can be seen forming rather than only at the end. |
+| `BUILT` | `def conclude(findings: list[str], wrote: list[str] = ()) -> None` | Close with what was learned. File paths come last, and only as a footnote. |
+
+#### `class Progress`
+
+A throttled progress bar that reports rate and ETA, not just a count.
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def __init__(self, total: int, label: str = 'items', every: float = 0.5) -> None` |  |
+| `BUILT` | `def step(self, note: str = '', count: int = 1) -> None` |  |
+| `BUILT` | `def finish(self, note: str = '') -> None` |  |
+
+### `engine.gates.notebooks.toehold_and.nucleation_state`
+
+`src/engine/gates/notebooks/toehold_and/nucleation_state.py`
+
+Who is holding trigger A's nucleation site: the switch, trigger A, or nobody?
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def decompose(matrix, site, partner, strands) -> dict[str, float]` | Mean probability per base of ``site`` that it is locked, engaged, or free. |
+| `BUILT` | `def spearman(pairs)` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.population_survey`
+
+`src/engine/gates/notebooks/toehold_and/population_survey.py`
+
+The four tubes across many trigger pairs, for a distribution instead of an anecdote.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `STATES` |  | `('00', '01', '10', '11')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def surviving_pairs(gate, transcript: str) -> list` | Stage 1, in a fixed order, so a slice means the same thing on every run. |
+| `BUILT` | `def survey_one(gate, transcript: str, pair, stem_index: int) -> dict \| None` | One trigger pair, one build, every raw number. ``None`` if it will not assemble. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.rank_candidates`
+
+`src/engine/gates/notebooks/toehold_and/rank_candidates.py`
+
+Stages 3-5 for the A0 AND gate: assemble, fold four tubes, gate, and rank.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `DEFAULT_W` |  | `0.5` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def build_gate() -> ProkaryoticToeholdAndGate` |  |
+| `BUILT` | `def stage_one(gate, transcript)` | Trigger pairs whose windows fit, are motif-clean, and can be knocked out. |
+| `BUILT` | `def pass_one(gate, transcript, limit, verbose = True)` | Generate, fold and gate. Returns survivors and a census of what killed the rest. |
+| `BUILT` | `def score(survivors, w = DEFAULT_W)` | The population boundary, then pass 2. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.state_diagrams`
+
+`src/engine/gates/notebooks/toehold_and/state_diagrams.py`
+
+Schematics of the four logic states — what the gate is *meant* to do, and what it does.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `INK` |  | `'#141413'` |
+| `GREY` |  | `'#3D3D3A'` |
+| `MUTED` |  | `'#5F5E5A'` |
+| `PAPER` |  | `'#F1EFE8'` |
+| `GREEN_DK` |  | `'#3B6D11'` |
+| `ORANGE_DK` |  | `'#A0521E'` |
+| `FONT` |  | `"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"` |
+| `W` |  | `920` |
+| `PANEL_H` |  | `268` |
+| `BASE` |  | `178` |
+| `STEM_TOP` |  | `62` |
+| `LOOP_R` |  | `26` |
+| `LEFT` |  | `56` |
+| `RIGHT` |  | `864` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def esc(t: str) -> str` |  |
+| `BUILT` | `def text(x, y, s, *, size = 12, fill = GREY, anchor = 'middle', weight = '400')` |  |
+| `BUILT` | `def closed_hairpin(x_l, x_r, y0, *, bulge = False)` | A shut hairpin: up the left arm, round the loop, down the right arm. |
+| `BUILT` | `def rungs(x_l, x_r, y0, *, skip = ())` |  |
+| `BUILT` | `def duplex(x1, x2, y0, offset, colour, *, label = None, label_dy = -26)` | A trigger lying alongside the backbone, with pairing rungs between the two. |
+| `BUILT` | `def highlight(d, colour, width = 7)` |  |
+| `BUILT` | `def panel(state, top)` | One logic state. Returns the SVG fragments for the panel at vertical offset ``top``. |
+| `BUILT` | `def build_svg() -> str` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.strand_occupancy`
+
+`src/engine/gates/notebooks/toehold_and/strand_occupancy.py`
+
+Where does each strand actually go, in each of the four tubes?
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def occupancy(folder, strands: str, lengths: list[tuple[str, int]]) -> dict[str, float]` | Expected paired bases for every pair of strands in one tube. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.strength_window`
+
+`src/engine/gates/notebooks/toehold_and/strength_window.py`
+
+Generate the experiment that asks whether a thermodynamic AND is reachable at all.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `STATES` |  | `('00', '01', '10', '11')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def sweep_spacers(gate, trigger_a: str, len_x: int, rbs_loop: str) -> list[dict]` | Every 6-nt spacer, scored on the three energies. No folding. |
+| `BUILT` | `def in_window(row) -> bool` |  |
+| `BUILT` | `def stratify(rows: list[dict], wanted: int) -> list[dict]` | ``wanted`` spacers spread evenly across the window's margin range. |
+| `BUILT` | `def with_spacer(gate, switch, main_z: str)` | The same switch with ``mainZ`` and ``k1*`` replaced, lengths unchanged. |
+| `BUILT` | `def fold_row(gate, switch, trigger_a: str, trigger_b: str, row: dict) -> dict` | Four tubes on one patched switch, flattened into the row. |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.structure_figures`
+
+`src/engine/gates/notebooks/toehold_and/structure_figures.py`
+
+Nucleotide-level plots of each design's folded OFF state, with its own four-tube results.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `INK` |  | `'#141413'` |
+| `GREY` |  | `'#3D3D3A'` |
+| `MUTED` |  | `'#5F5E5A'` |
+| `PAPER` |  | `'#F1EFE8'` |
+| `RED_DK` |  | `'#791F1F'` |
+| `FONT` |  | `"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"` |
+| `DOMAIN_STYLE` |  | `{'r2_star': ('#DCD8F2', '#4A42A8', "r2* toehold (trigger B's site)"), 'sw_x': ('#CBDFF5…` |
+| `NEUTRAL` |  | `('#EDEBE4', '#9A9890', None)` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def esc(text: str) -> str` |  |
+| `BUILT` | `def pair_table(structure: str) -> dict[int, int]` |  |
+| `BUILT` | `def place(points, spacing = 23.0, pad = 32.0)` | Scale the layout so neighbouring bases sit ``spacing`` apart, and flip y for SVG. |
+| `BUILT` | `def domain_of(index, domains)` |  |
+| `BUILT` | `def draw(design, out_path: Path) -> None` |  |
+| `BUILT` | `def build(gate, transcript, pair, stem, label)` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.survey_summary`
+
+`src/engine/gates/notebooks/toehold_and/survey_summary.py`
+
+Read the population survey's shards and report distributions, not headlines.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def load(prefix: str) -> list[dict]` | Every shard CSV, concatenated. CSV cells are strings, so convert explicitly — never with ``float(x or 0)``, which turns an unmeasured value into a real one. |
+| `BUILT` | `def quantiles(values: list[float]) -> str` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.trigger_accessibility`
+
+`src/engine/gates/notebooks/toehold_and/trigger_accessibility.py`
+
+Stage 1b — accessibility scores for every trigger pair, in Green's and VISTA's terms.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `VISTA_FLANKS` |  | `(0, 10, 25, 50, 100)` |
+| `FOOTPRINTS` |  | `(4, 5, 6, 7, 8, 9, 10)` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def load_codon_fractions(path: str) -> dict[str, float]` | Relative synonymous codon fraction per codon, keyed on RNA codons. |
+| `BUILT` | `def paired_profile(folder: FoldEngine, sequence: str) -> list[float]` | ``P(paired)`` per position, from a global fold of exactly this sequence. |
+| `BUILT` | `def vista_window_features(folder: FoldEngine, transcript: str, start: int, end: int) -> dict` | VISTA's MFE / SED / NED at each flank size, by global folding of a literal slice. |
+| `BUILT` | `def subwindow_pairedness(profile: list[float], start: int, end: int) -> dict` | Mean ``P(paired)`` over VISTA's seven sub-windows of the binding site. |
+| `BUILT` | `def codon_features(transcript: str, start: int, end: int, fractions: dict[str, float]) -> dict` | Codon usage in and around the window, as a ribosome-occupancy proxy. |
+| `BUILT` | `def score_window(folder: FoldEngine, transcript: str, global_paired: list[float], start: int, end: int, fractions: dict[str, float]) -> dict` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
+
+### `engine.gates.notebooks.toehold_and.window_probabilities`
+
+`src/engine/gates/notebooks/toehold_and/window_probabilities.py`
+
+The ribosome window as probabilities, base by base, in all four tubes.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `STATES` |  | `('00', '01', '10', '11')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_fasta(path: str) -> str` |  |
+| `BUILT` | `def unpaired_profile(matrix: list[list[float]], start: int, end: int) -> list[float]` | ``P(unpaired)`` per position over ``[start, end)``. |
+| `BUILT` | `def domain_at(switch, index: int) -> str` |  |
+| `BUILT` | `def main(argv = None) -> int` |  |
 
 ## Layer 6 · Stages — the six steps of a run
 
@@ -1306,16 +1983,20 @@ Stage 5 — plasmid construction.
 
 | Constant | Type | Value |
 | --- | --- | --- |
+| `REGISTRY_PARTS` | `dict[str, str]` | `{'J23119': 'BBa_J23119', 'K124002': 'BBa_K124002', 'B0015': 'BBa_B0015', 'K1486025': 'B…` |
 | `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.YEAST: ('K124002',…` |
 | `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |
+| `SBOL_NAMESPACE` |  | `'https://cernal.igem.org/2026'` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def validate_payload_cds(name: str, sequence: str) -> str` | Validate a payload coding sequence and return it as uppercase DNA. |
 | `BUILT` | `def parse_custom_backbone(genbank_text: str) -> Segment` | Parse a researcher-supplied backbone from raw GenBank text (docs/plasmids.md Q13, docs/ROADMAP.md E5b) — the second and last function in this module that touches Biopython (ADR 0007), confined here for the same reason ``to_genbank`` is: a… |
 | `BUILT` | `def to_genbank(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an annotated circular GenBank file. |
+| `BUILT` | `@cache def load_registry_catalog() -> dict[str, dict]` | The bundled Registry metadata, keyed by local part name. Empty if never synced. |
+| `BUILT` | `def to_sbol3(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an SBOL 3 document (sorted N-Triples). |
 
 #### `class PlasmidBuilder`
 
@@ -1730,6 +2411,187 @@ The real scientific pipeline.
 | --- | --- | --- |
 | `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
 | `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`- or `de`-mode job. |
+
+### `engine.safety`
+
+`src/engine/safety.py`
+
+Offline-first, fail-closed release control for output sequences.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def fail_closed_release(sequence_id: str, sequence: str, *, host_context: str) -> SafetyScreenResult` | Return auditable HOLD_SYSTEM evidence when no local screening stack is provisioned. |
+
+#### `class Decision(StrEnum)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `PASS` |  | `'PASS'` |
+| `REVIEW` |  | `'REVIEW'` |
+| `BLOCK` |  | `'BLOCK'` |
+| `HOLD_SYSTEM` |  | `'HOLD_SYSTEM'` |
+
+#### `class AdapterStatus(StrEnum)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `COMPLETE` |  | `'COMPLETE'` |
+| `UNAVAILABLE` |  | `'UNAVAILABLE'` |
+| `STALE` |  | `'STALE'` |
+| `FAILED` |  | `'FAILED'` |
+| `TIMEOUT` |  | `'TIMEOUT'` |
+
+#### `class FindingKind(StrEnum)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `AMR` |  | `'AMR'` |
+| `OTHER_HAZARD` |  | `'OTHER_HAZARD'` |
+
+#### `class DeclaredSelectableMarker`
+
+`@dataclass(frozen=True, slots=True)`
+
+A specific intended selectable marker; never a general AMR bypass.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `gene_identity` | `str` |  |
+| `role` | `str` |  |
+| `host_context` | `str` |  |
+| `plasmid_context` | `str` |  |
+| `justification` | `str` |  |
+| `approval_reference` | `str` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def is_complete(self) -> bool` |  |
+
+#### `class SequenceSubmission`
+
+`@dataclass(frozen=True, slots=True)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `sequence_id` | `str` |  |
+| `sequence` | `str` |  |
+| `delivery_method` | `str` |  |
+| `host_context` | `str` |  |
+| `declared_markers` | `tuple[DeclaredSelectableMarker, ...]` | `()` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def sequence_sha256(self) -> str` |  |
+| `BUILT` | `def validation_errors(self) -> tuple[str, ...]` |  |
+
+#### `class LocalScreeningManifest`
+
+`@dataclass(frozen=True, slots=True)`
+
+Immutable identity and validation window for a local screening deployment.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `adapter_name` | `str` |  |
+| `adapter_version` | `str` |  |
+| `database_id` | `str` |  |
+| `database_sha256` | `str` |  |
+| `validated_at` | `datetime` |  |
+| `expires_at` | `datetime` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def is_valid_at(self, now: datetime) -> bool` |  |
+
+#### `class Finding`
+
+`@dataclass(frozen=True, slots=True)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `kind` | `FindingKind` |  |
+| `identity` | `str` |  |
+| `confidence` | `str` |  |
+| `evidence_reference` | `str` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def is_ambiguous(self) -> bool` |  |
+
+#### `class ScreeningEvidence`
+
+`@dataclass(frozen=True, slots=True)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `manifest` | `LocalScreeningManifest` |  |
+| `adapter_status` | `AdapterStatus` |  |
+| `findings` | `tuple[Finding, ...]` | `()` |
+
+#### `class LocalScreeningAdapter(Protocol)`
+
+Local-only adapter contract. Implementations must not transmit the sequence.
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `PROTOCOL` | `def screen(self, submission: SequenceSubmission) -> ScreeningEvidence` |  |
+
+#### `class UnavailableLocalAdapter`
+
+`@dataclass(frozen=True, slots=True)`
+
+Safe default when a validated local tool/database has not been provisioned.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `manifest` | `LocalScreeningManifest` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def screen(self, submission: SequenceSubmission) -> ScreeningEvidence` |  |
+
+#### `class ReviewTokenSigner`
+
+`@dataclass(frozen=True, slots=True)`
+
+Signs review-only release tokens bound to one exact screening result.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `secret` | `bytes` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def issue(self, result: SafetyScreenResult, *, approver: str, expires_at: datetime) -> str` |  |
+| `BUILT` | `def authorizes(self, token: str \| None, result: SafetyScreenResult, *, now: datetime) -> bool` |  |
+
+#### `class SafetyScreenResult`
+
+`@dataclass(frozen=True, slots=True)`
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `decision` | `Decision` |  |
+| `sequence_sha256` | `str` |  |
+| `manifest` | `LocalScreeningManifest` |  |
+| `findings` | `tuple[Finding, ...]` |  |
+| `declared_marker_findings` | `tuple[Finding, ...]` |  |
+| `unexpected_marker_findings` | `tuple[Finding, ...]` |  |
+| `reasons` | `tuple[str, ...]` |  |
+| `release_allowed` | `bool` | `False` |
+| `result_sha256` | `str` | `field(init=False)` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def audit_manifest(self) -> dict` |  |
+
+#### `class SafetyGate`
+
+Deterministic policy evaluator: no evidence gap can become a release.
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def evaluate(self, submission: SequenceSubmission, evidence: ScreeningEvidence, *, now: datetime, review_token: str \| None = None, signer: ReviewTokenSigner \| None = None) -> SafetyScreenResult` |  |
 
 ### `engine.store` · S11, S13
 

@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1300" viewBox="0 0 1600 1300" role="img" aria-labelledby="title desc">
+  <title id="title">CERNAL capability maturity matrix</title>
+  <desc id="desc">A fourteen-row matrix reproducing the current, configuration-dependent, and planned or incomplete state of browser features, engines, design paths, gate families, plasmid assembly, API clients, deployment, and wet-lab validation.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 36px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .subtitle { font: 400 18px Inter, "Segoe UI", Arial, sans-serif; fill: #526777; }
+      .head { font: 700 15px Inter, "Segoe UI", Arial, sans-serif; letter-spacing: 0.8px; fill: #17324d; }
+      .capability { font: 700 14px Inter, "Segoe UI", Arial, sans-serif; fill: #17324d; }
+      .cell { font: 400 13.5px Inter, "Segoe UI", Arial, sans-serif; fill: #334e60; }
+      .note { font: 400 14px Inter, "Segoe UI", Arial, sans-serif; fill: #526777; }
+      .table { fill: #ffffff; stroke: #c8d6e0; stroke-width: 2; }
+      .row-a { fill: #ffffff; }
+      .row-b { fill: #f4f7f9; }
+      .current { fill: #e8f5f3; }
+      .config { fill: #fff6df; }
+      .planned { fill: #f3effa; }
+      .rule { stroke: #d8e2e9; stroke-width: 1; }
+      .col-rule { stroke: #b9c8d3; stroke-width: 1.5; }
+      .chip-current { fill: #0f766e; }
+      .chip-config { fill: #b45309; }
+      .chip-planned { fill: #6d28d9; }
+      .chip-text { font: 700 13px Inter, "Segoe UI", Arial, sans-serif; fill: #ffffff; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="1300"/>
+  <g id="header">
+    <text class="title" x="60" y="60">CERNAL capability maturity</text>
+    <text class="subtitle" x="60" y="92">Current implementation, configuration requirements, and explicitly planned or incomplete work</text>
+  </g>
+
+  <g id="matrix-background">
+    <rect class="table" x="40" y="125" width="1520" height="1085" rx="22"/>
+    <rect class="current" x="330" y="125" width="360" height="1085" opacity="0.55"/>
+    <rect class="config" x="690" y="125" width="400" height="1085" opacity="0.55"/>
+    <rect class="planned" x="1090" y="125" width="470" height="1085" opacity="0.55"/>
+
+    <rect class="chip-current" x="350" y="151" width="30" height="30" rx="9"/>
+    <text class="chip-text" x="361" y="171">I</text>
+    <text class="head" x="392" y="171">CURRENT / IMPLEMENTED STATE</text>
+
+    <rect class="chip-config" x="710" y="151" width="30" height="30" rx="9"/>
+    <text class="chip-text" x="720" y="171">C</text>
+    <text class="head" x="752" y="171">CONFIGURATION-DEPENDENT</text>
+
+    <rect class="chip-planned" x="1110" y="151" width="30" height="30" rx="9"/>
+    <text class="chip-text" x="1120" y="171">P</text>
+    <text class="head" x="1152" y="171">PLANNED / INCOMPLETE</text>
+
+    <text class="head" x="60" y="171">CAPABILITY</text>
+    <line class="col-rule" x1="330" y1="125" x2="330" y2="1210"/>
+    <line class="col-rule" x1="690" y1="125" x2="690" y2="1210"/>
+    <line class="col-rule" x1="1090" y1="125" x2="1090" y2="1210"/>
+    <line class="col-rule" x1="40" y1="205" x2="1560" y2="205"/>
+  </g>
+
+  <g id="rows">
+    <rect class="row-b" x="40" y="273" width="1520" height="68" opacity="0.35"/>
+    <rect class="row-b" x="40" y="409" width="1520" height="68" opacity="0.35"/>
+    <rect class="row-b" x="40" y="545" width="1520" height="68" opacity="0.35"/>
+    <rect class="row-b" x="40" y="681" width="1520" height="68" opacity="0.35"/>
+    <rect class="row-b" x="40" y="817" width="1520" height="68" opacity="0.35"/>
+    <rect class="row-b" x="40" y="953" width="1520" height="68" opacity="0.35"/>
+    <rect class="row-b" x="40" y="1089" width="1520" height="68" opacity="0.35"/>
+
+    <g id="row-1">
+      <text class="capability" x="60" y="234"><tspan x="60">Browser accounts, runs,</tspan><tspan x="60" dy="18">results, downloads</tspan></text>
+      <text class="cell" x="350" y="244">Implemented</text>
+      <text class="cell" x="710" y="235"><tspan x="710">Staff approval,</tspan><tspan x="710" dy="18">worker running</tspan></text>
+      <text class="cell" x="1110" y="244">—</text>
+    </g>
+    <line class="rule" x1="40" y1="273" x2="1560" y2="273"/>
+
+    <g id="row-2">
+      <text class="capability" x="60" y="312">Mock engine</text>
+      <text class="cell" x="350" y="312">Implemented and default</text>
+      <text class="cell" x="710" y="303"><tspan x="710">Candidate count/delay/failure</tspan><tspan x="710" dy="18">test options</tspan></text>
+      <text class="cell" x="1110" y="312">—</text>
+    </g>
+    <line class="rule" x1="40" y1="341" x2="1560" y2="341"/>
+
+    <g id="row-3">
+      <text class="capability" x="60" y="380">Local direct path</text>
+      <text class="cell" x="350" y="371"><tspan x="350">Implemented for compatible</tspan><tspan x="350" dy="18">hosts/families</tspan></text>
+      <text class="cell" x="710" y="371"><tspan x="710">CERNAL_ENGINE=LocalEngine,</tspan><tspan x="710" dy="18">valid parts/output</tspan></text>
+      <text class="cell" x="1110" y="380">Broader gate support/calibration</text>
+    </g>
+    <line class="rule" x1="40" y1="409" x2="1560" y2="409"/>
+
+    <g id="row-4">
+      <text class="capability" x="60" y="448">Local DE path</text>
+      <text class="cell" x="350" y="439"><tspan x="350">Implemented for</tspan><tspan x="350" dy="18">E. coli/yeast</tspan></text>
+      <text class="cell" x="710" y="439"><tspan x="710">Bundled transcriptome and</tspan><tspan x="710" dy="18">accepted table</tspan></text>
+      <text class="cell" x="1110" y="448">Human transcriptome/count-based QC</text>
+    </g>
+    <line class="rule" x1="40" y1="477" x2="1560" y2="477"/>
+
+    <g id="row-5">
+      <text class="capability" x="60" y="516">Toehold single-input</text>
+      <text class="cell" x="350" y="516">Implemented</text>
+      <text class="cell" x="710" y="516">Host-specific variants</text>
+      <text class="cell" x="1110" y="516">Experimental calibration</text>
+    </g>
+    <line class="rule" x1="40" y1="545" x2="1560" y2="545"/>
+
+    <g id="row-6">
+      <text class="capability" x="60" y="584">Toehold AND</text>
+      <text class="cell" x="350" y="584">Registry-visible</text>
+      <text class="cell" x="710" y="584">—</text>
+      <text class="cell" x="1110" y="584">Generation and evaluation</text>
+    </g>
+    <line class="rule" x1="40" y1="613" x2="1560" y2="613"/>
+
+    <g id="row-7">
+      <text class="capability" x="60" y="652">Antisense NOT</text>
+      <text class="cell" x="350" y="652">Family implementation/tests</text>
+      <text class="cell" x="710" y="643"><tspan x="710">Not constructible through</tspan><tspan x="710" dy="18">normal pipeline</tspan></text>
+      <text class="cell" x="1110" y="652">Payload-aware pipeline integration</text>
+    </g>
+    <line class="rule" x1="40" y1="681" x2="1560" y2="681"/>
+
+    <g id="row-8">
+      <text class="capability" x="60" y="720">CRISPR</text>
+      <text class="cell" x="350" y="720">Registered unavailable</text>
+      <text class="cell" x="710" y="720">—</text>
+      <text class="cell" x="1110" y="702"><tspan x="1110">Scientific implementation and</tspan><tspan x="1110" dy="18">genomic off-target model</tspan></text>
+    </g>
+    <line class="rule" x1="40" y1="749" x2="1560" y2="749"/>
+
+    <g id="row-9">
+      <text class="capability" x="60" y="788">Plasmid assembly</text>
+      <text class="cell" x="350" y="779"><tspan x="350">Implemented for</tspan><tspan x="350" dy="18">available parts</tspan></text>
+      <text class="cell" x="710" y="779"><tspan x="710">No/catalog/custom backbone;</tspan><tspan x="710" dy="18">GFP/custom payload</tspan></text>
+      <text class="cell" x="1110" y="770"><tspan x="1110">Additional validated host</tspan><tspan x="1110" dy="18">parts/payloads/protocols</tspan></text>
+    </g>
+    <line class="rule" x1="40" y1="817" x2="1560" y2="817"/>
+
+    <g id="row-10">
+      <text class="capability" x="60" y="856">API and keys</text>
+      <text class="cell" x="350" y="856">Implemented</text>
+      <text class="cell" x="710" y="856">Session or key scope/quota</text>
+      <text class="cell" x="1110" y="847"><tspan x="1110">Delegated auth/webhooks</tspan><tspan x="1110" dy="18">if ever required</tspan></text>
+    </g>
+    <line class="rule" x1="40" y1="885" x2="1560" y2="885"/>
+
+    <g id="row-11">
+      <text class="capability" x="60" y="924">Python client</text>
+      <text class="cell" x="350" y="924">Implemented/tested</text>
+      <text class="cell" x="710" y="924">Deployment URL/key</text>
+      <text class="cell" x="1110" y="924">Packaging/release operations</text>
+    </g>
+    <line class="rule" x1="40" y1="953" x2="1560" y2="953"/>
+
+    <g id="row-12">
+      <text class="capability" x="60" y="992">R/MATLAB clients</text>
+      <text class="cell" x="350" y="992">Implemented source/tests</text>
+      <text class="cell" x="710" y="992">Runtime environments/live server</text>
+      <text class="cell" x="1110" y="992">Independent runtime verification</text>
+    </g>
+    <line class="rule" x1="40" y1="1021" x2="1560" y2="1021"/>
+
+    <g id="row-13">
+      <text class="capability" x="60" y="1060">Deployment</text>
+      <text class="cell" x="350" y="1051"><tspan x="350">Development operation</tspan><tspan x="350" dy="18">documented</tspan></text>
+      <text class="cell" x="710" y="1051"><tspan x="710">Operator-provided</tspan><tspan x="710" dy="18">infrastructure</tspan></text>
+      <text class="cell" x="1110" y="1042"><tspan x="1110">Committed deployment artifacts</tspan><tspan x="1110" dy="18">and public service</tspan></text>
+    </g>
+    <line class="rule" x1="40" y1="1089" x2="1560" y2="1089"/>
+
+    <g id="row-14">
+      <text class="capability" x="60" y="1128">Wet-lab validation</text>
+      <text class="cell" x="350" y="1128">None in repository</text>
+      <text class="cell" x="710" y="1128">—</text>
+      <text class="cell" x="1110" y="1119"><tspan x="1110">Experimental campaign and</tspan><tspan x="1110" dy="18">model recalibration</tspan></text>
+    </g>
+    <line class="rule" x1="40" y1="1157" x2="1560" y2="1157"/>
+  </g>
+
+  <g id="footer">
+    <text class="note" x="60" y="1247">Text mirrors the detailed capability table in section 16; “—” means that column contains no additional item.</text>
+    <text class="note" x="60" y="1272">Current registration or source availability is not presented as operational pipeline support.</text>
+  </g>
+</svg>

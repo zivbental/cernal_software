@@ -16,6 +16,7 @@ import io
 import re
 
 import pytest
+import sbol3
 from Bio import SeqIO
 
 from engine.domain import (
@@ -30,6 +31,7 @@ from engine.domain import (
     LogicGene,
     LogicGraph,
     LogicOperator,
+    Segment,
     SegmentKind,
     TriggerCandidate,
     TriggerSet,
@@ -41,10 +43,13 @@ from engine.stages.plasmids import (
     BACKBONES,
     PAYLOADS,
     PROMOTERS,
+    SBOL_NAMESPACE,
     TERMINATORS,
     PlasmidBuilder,
+    _safe_id,
     parse_custom_backbone,
     to_genbank,
+    to_sbol3,
     validate_payload_cds,
 )
 
@@ -508,3 +513,123 @@ def test_every_configured_promoter_and_terminator_is_valid_dna():
 def test_every_configured_payload_passes_its_own_validation():
     for outcome, (name, seq) in PAYLOADS.items():
         assert validate_payload_cds(name, seq), f"{outcome} payload failed validation"
+
+
+# --- SBOL 3 export (ADR 0008) -------------------------------------------------------
+
+
+def test_sbol_round_trips_and_validates_clean(builder):
+    """It is real SBOL, not a file that merely has the extension."""
+    design = builder.build(_circuit(), DesiredOutcome.GFP)
+
+    document = sbol3.Document()
+    document.read_string(to_sbol3(design).decode(), sbol3.SORTED_NTRIPLES)
+
+    assert list(document.validate().errors) == []
+    components = [o for o in document.objects if isinstance(o, sbol3.Component)]
+    # One component for the construct, one per segment it is assembled from.
+    assert len(components) == len(design.plasmid.segments) + 1
+
+
+def test_sbol_export_is_byte_identical_across_runs(builder):
+    """``write_artifact`` checksums this, and CLAUDE.md §6 bans a clock or a uuid in
+    anything reaching output — so two exports of one design must not differ."""
+    design = builder.build(_circuit(), DesiredOutcome.GFP)
+
+    assert to_sbol3(design) == to_sbol3(design)
+
+
+def test_sbol_export_contains_no_uuid_or_timestamp(builder):
+    """The two ways a serializer usually breaks determinism, asserted directly so a
+    future sbol3 upgrade that starts stamping documents fails here and not in a
+    confusing checksum mismatch somewhere downstream."""
+    text = to_sbol3(builder.build(_circuit(), DesiredOutcome.GFP)).decode()
+
+    assert not re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", text)
+    assert not re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}", text)
+
+
+def test_sbol_carries_the_whole_construct_sequence_once(builder):
+    design = builder.build(_circuit(), DesiredOutcome.GFP)
+
+    document = sbol3.Document()
+    document.read_string(to_sbol3(design).decode(), sbol3.SORTED_NTRIPLES)
+
+    sequences = [o for o in document.objects if isinstance(o, sbol3.Sequence)]
+    assert len(sequences) == 1
+    assert sequences[0].elements.upper() == design.plasmid.sequence
+
+
+def test_sbol_segment_roles_are_real_sequence_ontology_terms(builder):
+    """Each segment gets the SO term for what it actually is — and the switch, which is
+    designed for this run and exists in no registry, gets engineered_region rather than
+    being dressed up as a catalogued part."""
+    design = builder.build(_circuit(), DesiredOutcome.GFP)
+    text = to_sbol3(design).decode()
+
+    assert "SO:0000167" in text  # promoter
+    assert "SO:0000316" in text  # CDS, the payload
+    assert "SO:0000141" in text  # terminator
+    assert "SO:0000804" in text  # engineered_region, the CERNAL-designed switch
+
+
+def test_sbol_cites_the_registry_part_a_segment_came_from(builder):
+    """The provenance that makes the BioBrick claim checkable by a reader of the file."""
+    design = builder.build(_circuit(), DesiredOutcome.GFP)
+    text = to_sbol3(design).decode()
+
+    assert "BBa_J23119" in text
+    assert "BBa_E0040" in text
+    assert "registry.igem.org/parts" in text
+
+
+def test_sbol_never_invents_an_so_accession_for_a_non_so_registry_role():
+    """BBa_K124002's Registry role is ``IGEM:0000006``, which is not a Sequence Ontology
+    term. Emitting it as ``SO:0000006`` would be a fabricated accession that happens to
+    resolve to an unrelated term, so the kind-based SO role is used instead."""
+    from engine.stages.plasmids import _role_uri, load_registry_catalog
+
+    entry = load_registry_catalog().get("K124002")
+    assert entry and entry["role_accession"].startswith("IGEM:")
+
+    uri = _role_uri(Segment(SegmentKind.PROMOTER, "K124002", "ACGT"), entry)
+    assert "IGEM" not in uri
+    assert uri.endswith("SO:0000167")
+
+
+def test_sbol_identities_are_legal_display_ids(builder):
+    """Every CERNAL id carries a hyphen (``plas-000001``), which SBOL forbids. sbol3
+    raises on an invalid display id, so this guards the whole export, not cosmetics."""
+    design = builder.build(_circuit(), DesiredOutcome.GFP)
+
+    document = sbol3.Document()
+    document.read_string(to_sbol3(design).decode(), sbol3.SORTED_NTRIPLES)
+
+    for obj in document.objects:
+        assert re.fullmatch(r"[A-Za-z_]\w*", obj.display_id), obj.display_id
+        assert str(obj.identity).startswith(SBOL_NAMESPACE)
+
+
+def test_sbol_and_genbank_agree_on_every_feature_coordinate(builder):
+    """The interop claim, end to end: a tool reading either file must place the same
+    part at the same bases. SBOL Range is 1-based inclusive, GenBank's parsed location
+    is 0-based exclusive-end, so this also pins the conversion (CLAUDE.md §6)."""
+    design = builder.build(_circuit(), DesiredOutcome.GFP)
+
+    record = SeqIO.read(io.StringIO(to_genbank(design).decode()), "genbank")
+    genbank_spans = [(int(f.location.start), int(f.location.end)) for f in record.features]
+
+    document = sbol3.Document()
+    document.read_string(to_sbol3(design).decode(), sbol3.SORTED_NTRIPLES)
+    construct = next(
+        o
+        for o in document.objects
+        if isinstance(o, sbol3.Component) and o.display_id == _safe_id(design.plasmid_id)
+    )
+    sbol_spans = sorted(
+        (location.start - 1, location.end)
+        for feature in construct.features
+        for location in feature.locations
+    )
+
+    assert sbol_spans == sorted(genbank_spans)

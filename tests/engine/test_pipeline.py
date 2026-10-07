@@ -225,16 +225,17 @@ def test_the_design_table_has_one_row_per_candidate(direct_request, always_conti
     assert len(rows) - 1 == len(result.candidates)  # header + one row each
 
 
-def test_fasta_is_written_only_for_accepted_candidates(direct_request, always_continue):
+def test_unprovisioned_screening_withholds_fasta_for_all_candidates(
+    direct_request, always_continue
+):
     request = direct_request()
     result = LocalEngine().run(request, always_continue)
 
     fasta_refs = {a.candidate_ref for a in result.artifacts if a.kind == "sequence_fasta"}
     accepted_refs = {c.ref for c in result.candidates if not c.is_rejected}
-    rejected_refs = {c.ref for c in result.candidates if c.is_rejected}
 
-    assert fasta_refs == accepted_refs
-    assert not (fasta_refs & rejected_refs)
+    assert not fasta_refs
+    assert accepted_refs
 
 
 # --- Determinism ----------------------------------------------------------------------
@@ -280,26 +281,18 @@ def test_a_direct_run_populates_real_plasmid_segments(direct_request, always_con
         assert candidate.design["logic_graph"]["output"] == "GFP"
 
 
-def test_a_genbank_artifact_is_written_per_accepted_candidate(direct_request, always_continue):
+def test_unprovisioned_screening_writes_audits_and_withholds_sequence_exports(
+    direct_request, always_continue
+):
     result = LocalEngine().run(direct_request(), always_continue)
 
     accepted = [c for c in result.candidates if not c.is_rejected]
-    genbank_refs = {a.candidate_ref for a in result.artifacts if a.kind == "genbank"}
-    assert genbank_refs == {c.ref for c in accepted}
-
-
-def test_the_genbank_artifact_parses_back_as_a_circular_plasmid(direct_request, always_continue):
-    from Bio import SeqIO
-
-    request = direct_request(idempotency_key="genbank-parse-back")
-    result = LocalEngine().run(request, always_continue)
-    genbank = next(a for a in result.artifacts if a.kind == "genbank")
-
-    with open(os.path.join(request.output_dir, genbank.path)) as handle:
-        record = SeqIO.read(handle, "genbank")
-
-    assert record.annotations.get("topology") == "circular"
-    assert len(record.features) == 4
+    audit_refs = [a for a in result.artifacts if a.kind == "safety_audit"]
+    assert len(audit_refs) == 2 * len(accepted)
+    # Every sequence-bearing export, not just the two that existed when the gate was
+    # written: SBOL carries the whole construct too, so leaving it out of this set would
+    # let a new export quietly become the one way sequences escape a blocked release.
+    assert not [a for a in result.artifacts if a.kind in {"sequence_fasta", "genbank", "sbol"}]
 
 
 def test_an_unconfigured_output_fails_the_whole_run_cleanly(direct_request, always_continue):
@@ -413,27 +406,18 @@ def test_an_unknown_catalog_key_fails_the_whole_run_cleanly(direct_request, alwa
     assert "not-a-real-backbone" in result.error
 
 
-def test_a_custom_genbank_backbone_is_assembled_into_the_plasmid(direct_request, always_continue):
-    """A real backbone built and exported once, then handed back in as if a researcher
-    uploaded it — the same round-trip discipline test_plasmids.py applies directly to
-    parse_custom_backbone, exercised here through the whole pipeline instead."""
-    source_request = direct_request(
-        params={"backbone": {"catalog_key": "psb1c3"}}, idempotency_key="custom-backbone-src"
-    )
-    baseline = LocalEngine().run(source_request, always_continue)
-    genbank_artifact = next(a for a in baseline.artifacts if a.kind == "genbank")
-    with open(os.path.join(source_request.output_dir, genbank_artifact.path)) as handle:
-        gb_text = handle.read()
-
-    custom_request = direct_request(
-        params={"backbone": {"custom_genbank": gb_text}}, idempotency_key="custom-backbone-use"
-    )
-    result = LocalEngine().run(custom_request, always_continue)
+def test_a_catalog_backbone_is_built_but_not_exported_without_local_screening(
+    direct_request, always_continue
+):
+    request = direct_request(params={"backbone": {"catalog_key": "psb1c3"}})
+    result = LocalEngine().run(request, always_continue)
 
     assert result.status == "succeeded"
-    for candidate in result.candidates:
-        kinds = [s["kind"] for s in candidate.design["plasmid_segments"]]
-        assert kinds[-1] == "backbone"
+    assert all(
+        candidate.design["plasmid_segments"][-1]["kind"] == "backbone"
+        for candidate in result.candidates
+    )
+    assert not [artifact for artifact in result.artifacts if artifact.kind in {"genbank", "sbol"}]
 
 
 def test_providing_both_catalog_key_and_custom_genbank_fails_cleanly(
@@ -864,3 +848,40 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
 def test_gate_aware_trigger_ranking_bumps_engine_version():
     assert LocalEngine.ENGINE_VERSION == "local-0.5.0-direct-and-de-ecoli-yeast"
+
+
+def test_a_released_run_exports_fasta_genbank_and_sbol_together(
+    direct_request, always_continue, monkeypatch
+):
+    """The positive half of the release gate.
+
+    Every other test here runs with screening unprovisioned, so the gate blocks and no
+    sequence-bearing artifact is written at all — which means the export code below the
+    gate is never actually executed by the suite. Patching the gate open is the only way
+    to prove the SBOL export is wired in rather than dead, and that it travels with
+    FASTA and GenBank rather than on some separate path of its own.
+    """
+    import dataclasses
+
+    import engine.pipeline as pipeline_module
+
+    real = pipeline_module.fail_closed_release
+
+    def allow(reference, sequence, *, host_context):
+        # Flip only release_allowed on the real result, so the audit manifest and the
+        # recomputed result_sha256 stay exactly what the gate produced.
+        return dataclasses.replace(
+            real(reference, sequence, host_context=host_context), release_allowed=True
+        )
+
+    monkeypatch.setattr(pipeline_module, "fail_closed_release", allow)
+    result = LocalEngine().run(direct_request(), always_continue)
+
+    kinds = {a.kind for a in result.artifacts}
+    assert {"sequence_fasta", "genbank", "sbol"} <= kinds
+
+    accepted = [c for c in result.candidates if not c.is_rejected]
+    sbol = [a for a in result.artifacts if a.kind == "sbol"]
+    assert len(sbol) == len(accepted)
+    assert all(a.media_type == "application/n-triples" for a in sbol)
+    assert all(a.path.startswith("sbol/") and a.path.endswith(".nt") for a in sbol)

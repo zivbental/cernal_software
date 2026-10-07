@@ -44,6 +44,70 @@ def alignment_pairs(first: str, second: str) -> list[bool]:
     return [can_pair(first[i], second[n - 1 - i]) for i in range(n)]
 
 
+def longest_complementary_run(first: str, second: str) -> int:
+    """Longest unbroken stretch the two strands can pair over, in this alignment.
+
+    The question behind "can this trigger still nucleate?" — nucleation needs a few
+    contiguous pairs, and scattered ones do not substitute. It is also what decides
+    whether a negative control is really disabled.
+
+    **G:U wobbles count**, via ``can_pair``. Scored on Watson-Crick pairs alone, a
+    synonymous-substitution knockout on this project read as disabled while retaining a
+    fully wobble-paired 8-nt run — a negative control that was not one, and one that
+    could not be recognised as such from the experimental result.
+
+    Shorter strand wins: the alignment is taken over ``min(len(first), len(second))``
+    positions, so this tolerates the unequal lengths ``alignment_pairs`` rejects.
+    """
+    n = min(len(first), len(second))
+    best = run = 0
+    for i in range(n):
+        run = run + 1 if can_pair(first[i], second[n - 1 - i]) else 0
+        best = max(best, run)
+    return best
+
+
+def fixed_alignment_energy(first: str, second: str, folder: FoldEngine) -> float | None:
+    """Free energy of two strands held in the alignment the **design** imposes.
+
+    Distinct from ``hybridization_energy`` above, and the distinction matters. That one
+    folds the strands freely and lets ViennaRNA choose the best structure — the right
+    question for "will this trigger open this switch?". This one forces ``first[i]``
+    against ``second[n-1-i]`` and leaves mismatched positions unpaired, priced as internal
+    loops — the right question for "how strong is the stem I am building here?", where the
+    register is fixed by the architecture and the mismatches are the design decision.
+
+    Args:
+        first: RNA, uppercase, 5'→3'.
+        second: RNA, uppercase, 5'→3', same length as ``first``. It is reversed here, so
+            pass both as they read on the molecule rather than pre-reversing one.
+        folder: The run's shared ``FoldEngine`` — injected, so this shares its cache and
+            its temperature rather than quietly folding at a different one.
+
+    Returns:
+        Free energy in kcal/mol, **more negative meaning a stronger duplex**; ``0.0`` when
+        the alignment permits no pair at all, which is a real answer rather than a failure;
+        or ``None`` if the model cannot evaluate the forced structure.
+
+    Note:
+        ``None`` rather than a sentinel is the whole point. ViennaRNA reports an
+        unevaluable structure by *returning* ``1e5``, and two such values subtracted give
+        ``0.00`` — which passes a ``>= 0`` gate. That is not hypothetical: it is why every
+        stem energy in the upstream A0 scripts reads as a pass.
+    """
+    paired = alignment_pairs(first, second)
+    if not any(paired):
+        return 0.0
+    n = len(first)
+    left = ["."] * n
+    right = ["."] * n
+    for i, is_paired in enumerate(paired):
+        if is_paired:
+            left[i] = "("
+            right[n - 1 - i] = ")"
+    return folder.structure_energy(f"{first}&{second}", "".join(left + right))
+
+
 def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float:
     """Free energy released when a trigger binds its switch.
 

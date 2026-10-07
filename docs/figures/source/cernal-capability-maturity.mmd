@@ -1,0 +1,66 @@
+flowchart LR
+    subgraph CURRENT[Current / implemented state]
+      C1[Browser accounts, runs, results, downloads: Implemented]
+      C2[Mock engine: Implemented and default]
+      C3[Local direct path: Implemented for compatible hosts/families]
+      C4[Local DE path: Implemented for E. coli/yeast]
+      C5[Toehold single-input: Implemented]
+      C6[Toehold AND: Registry-visible]
+      C7[Antisense NOT: Family implementation/tests]
+      C8[CRISPR: Registered unavailable]
+      C9[Plasmid assembly: Implemented for available parts]
+      C10[API and keys: Implemented]
+      C11[Python client: Implemented/tested]
+      C12[R/MATLAB clients: Implemented source/tests]
+      C13[Deployment: Development operation documented]
+      C14[Wet-lab validation: None in repository]
+    end
+
+    subgraph CONFIG[Configuration-dependent]
+      D1[Staff approval, worker running]
+      D2[Candidate count/delay/failure test options]
+      D3[CERNAL_ENGINE=LocalEngine, valid parts/output]
+      D4[Bundled transcriptome and accepted table]
+      D5[Host-specific variants]
+      D6[—]
+      D7[Not constructible through normal pipeline]
+      D8[—]
+      D9[No/catalog/custom backbone; GFP/custom payload]
+      D10[Session or key scope/quota]
+      D11[Deployment URL/key]
+      D12[Runtime environments/live server]
+      D13[Operator-provided infrastructure]
+      D14[—]
+    end
+
+    subgraph PLANNED[Planned / incomplete]
+      P1[—]
+      P2[—]
+      P3[Broader gate support/calibration]
+      P4[Human transcriptome/count-based QC]
+      P5[Experimental calibration]
+      P6[Generation and evaluation]
+      P7[Payload-aware pipeline integration]
+      P8[Scientific implementation and genomic off-target model]
+      P9[Additional validated host parts/payloads/protocols]
+      P10[Delegated auth/webhooks if ever required]
+      P11[Packaging/release operations]
+      P12[Independent runtime verification]
+      P13[Committed deployment artifacts and public service]
+      P14[Experimental campaign and model recalibration]
+    end
+
+    C1 --- D1 --- P1
+    C2 --- D2 --- P2
+    C3 --- D3 --- P3
+    C4 --- D4 --- P4
+    C5 --- D5 --- P5
+    C6 --- D6 --- P6
+    C7 --- D7 --- P7
+    C8 --- D8 --- P8
+    C9 --- D9 --- P9
+    C10 --- D10 --- P10
+    C11 --- D11 --- P11
+    C12 --- D12 --- P12
+    C13 --- D13 --- P13
+    C14 --- D14 --- P14
