@@ -1,50 +1,50 @@
-  223,655 rows, 57,250 in full (25.6%)
-  466 cells (trigger pair x geometry)
+  267,081 rows, 67,944 in full (25.4%)
+  556 cells (trigger pair x geometry)
 
 ====================================================================================================
 SURVIVAL -- the outcome, over ALL rows
-  on_ceiling                    166,405   74.4%
-  measured                       57,250   25.6%
+  on_ceiling                    199,137   74.6%
+  measured                       67,944   25.4%
 
   survival by closure
     level                    rows  measured    rate
-    closed_CAU             13,996     1,080    7.7%
-    closed_CGU             13,991     1,946   13.9%
-    closed_UAU             13,996     2,391   17.1%
-    d0_gc0_AUA             13,964     4,098   29.3%
-    d0_gc1_ACA             13,964     3,961   28.4%
-    d0_gc2_ACC             13,964     4,106   29.4%
-    d0_gc3_GCC             13,964     4,029   28.9%
-    d1_gc0_AAA             13,965     4,046   29.0%
-    d1_gc1_AAC             13,968     4,034   28.9%
-    d1_gc2_AGC             13,970     4,254   30.5%
-    d2_gc0_AAU             13,981     3,214   23.0%
-    d2_gc1_AGU             13,984     3,758   26.9%
-    d2_gc3_CGC             13,984     3,793   27.1%
-    open_3x3               13,996     5,040   36.0%
-    pair1_CCC              13,984     3,747   26.8%
-    pair2_CCU              13,984     3,753   26.8%
+    closed_CAU             16,704     1,321    7.9%
+    closed_CGU             16,699     2,343   14.0%
+    closed_UAU             16,708     2,792   16.7%
+    d0_gc0_AUA             16,684     4,887   29.3%
+    d0_gc1_ACA             16,684     4,693   28.1%
+    d0_gc2_ACC             16,684     4,881   29.3%
+    d0_gc3_GCC             16,684     4,755   28.5%
+    d1_gc0_AAA             16,684     4,812   28.8%
+    d1_gc1_AAC             16,688     4,770   28.6%
+    d1_gc2_AGC             16,688     4,982   29.9%
+    d2_gc0_AAU             16,688     3,798   22.8%
+    d2_gc1_AGU             16,688     4,462   26.7%
+    d2_gc3_CGC             16,694     4,496   26.9%
+    open_3x3               16,716     5,981   35.8%
+    pair1_CCC              16,694     4,530   27.1%
+    pair2_CCU              16,694     4,441   26.6%
 
   survival by upper3
     level                    rows  measured    rate
-    WWW_AUA                61,295    16,534   27.0%
-    WWW_UAU                85,817    23,010   26.8%
-    trigger_derived        76,543    17,706   23.1%
+    WWW_AUA                71,769    19,276   26.9%
+    WWW_UAU               102,679    27,309   26.6%
+    trigger_derived        92,633    21,359   23.1%
 
   survival by lower3
     level                    rows  measured    rate
-    trigger_derived       111,829    29,240   26.1%
-    wobble_GU             111,826    28,010   25.0%
+    trigger_derived       133,542    34,637   25.9%
+    wobble_GU             133,539    33,307   24.9%
 
   survival by scheme
     level                    rows  measured    rate
-    B-anchored             27,904     6,815   24.4%
-    mixed                 195,751    50,435   25.8%
+    B-anchored             32,000     7,832   24.5%
+    mixed                 235,081    60,112   25.6%
 
   survival by geom
     level                    rows  measured    rate
-    arm18/inv18/capnone   114,437    29,361   25.7%
-    arm20/inv17/capAUA    109,218    27,889   25.5%
+    arm18/inv18/capnone   136,436    34,875   25.6%
+    arm20/inv17/capAUA    130,645    33,069   25.3%
 
 ====================================================================================================
 CONTINUOUS AXES -- Spearman rho WITHIN each cell
@@ -52,28 +52,28 @@ CONTINUOUS AXES -- Spearman rho WITHIN each cell
   objective here is oriented lower-is-better. p is a two-sided sign test on the split.
 
   f1_opening_sep
-  a_site_energy                     n   235  median  -0.594  mean  -0.533  sd 0.285  +11/-224  p  9.1e-53
-  lock_energy                       n   235  median  +0.479  mean  +0.477  sd 0.269  +222/-13  p  2.9e-50
-  lock_minus_a_site                 n   235  median  +0.590  mean  +0.537  sd 0.280  +223/-12  p  1.7e-51
-  ddg_pref                          n   235  median  +0.192  mean  +0.176  sd 0.295  +173/-62  p  2.6e-13
+  a_site_energy                     n   283  median  -0.594  mean  -0.525  sd 0.299  +16/-267  p  7.2e-60
+  lock_energy                       n   283  median  +0.485  mean  +0.471  sd 0.283  +265/-18  p  1.7e-57
+  lock_minus_a_site                 n   283  median  +0.591  mean  +0.528  sd 0.295  +266/-17  p  1.1e-58
+  ddg_pref                          n   283  median  +0.187  mean  +0.177  sd 0.288  +209/-74  p  4.5e-16
 
   a_m_ratio
-  a_site_energy                     n   235  median  -0.765  mean  -0.699  sd 0.253  +10/-225  p  4.4e-54
-  lock_energy                       n   235  median  +0.700  mean  +0.624  sd 0.256  +226/-9  p  1.9e-55
-  lock_minus_a_site                 n   235  median  +0.774  mean  +0.710  sd 0.242  +226/-9  p  1.9e-55
-  ddg_pref                          n   235  median  +0.294  mean  +0.241  sd 0.345  +176/-59  p    1e-14
+  a_site_energy                     n   283  median  -0.769  mean  -0.695  sd 0.262  +12/-271  p  5.9e-65
+  lock_energy                       n   283  median  +0.704  mean  +0.622  sd 0.266  +272/-11  p  2.6e-66
+  lock_minus_a_site                 n   283  median  +0.771  mean  +0.702  sd 0.255  +272/-11  p  2.6e-66
+  ddg_pref                          n   283  median  +0.294  mean  +0.243  sd 0.339  +213/-70  p  5.9e-18
 
   ied_gain
-  a_site_energy                     n   235  median  -0.611  mean  -0.537  sd 0.298  +13/-222  p  2.9e-50
-  lock_energy                       n   235  median  +0.485  mean  +0.480  sd 0.272  +220/-15  p  6.9e-48
-  lock_minus_a_site                 n   235  median  +0.611  mean  +0.542  sd 0.291  +222/-13  p  2.9e-50
-  ddg_pref                          n   235  median  +0.201  mean  +0.178  sd 0.296  +170/-65  p  5.2e-12
+  a_site_energy                     n   283  median  -0.611  mean  -0.533  sd 0.303  +16/-267  p  7.2e-60
+  lock_energy                       n   283  median  +0.491  mean  +0.478  sd 0.279  +264/-19  p  2.4e-56
+  lock_minus_a_site                 n   283  median  +0.616  mean  +0.536  sd 0.297  +266/-17  p  1.1e-58
+  ddg_pref                          n   283  median  +0.195  mean  +0.179  sd 0.292  +205/-78  p  2.5e-14
 
   open_11
-  a_site_energy                     n   465  median  +0.011  mean  +0.030  sd 0.062  +457/-8  p 1.1e-123
-  lock_energy                       n   465  median  -0.009  mean  -0.025  sd 0.057  +19/-446  p   6e-107
-  lock_minus_a_site                 n   465  median  -0.011  mean  -0.029  sd 0.061  +9/-456  p 5.5e-122
-  ddg_pref                          n   465  median  -0.002  mean  -0.006  sd 0.035  +148/-317  p  3.3e-15
+  a_site_energy                     n   556  median  +0.011  mean  +0.027  sd 0.056  +547/-9  p 1.1e-148
+  lock_energy                       n   556  median  -0.009  mean  -0.023  sd 0.051  +19/-537  p 7.6e-133
+  lock_minus_a_site                 n   556  median  -0.011  mean  -0.027  sd 0.055  +10/-546  p 6.2e-147
+  ddg_pref                          n   556  median  -0.002  mean  -0.007  sd 0.029  +172/-384  p  1.3e-19
 
 ====================================================================================================
 SHAPE -- mean within-cell z-score per within-cell quintile
@@ -82,31 +82,31 @@ SHAPE -- mean within-cell z-score per within-cell quintile
 
   a_site_energy
     objective                 Q1        Q2        Q3        Q4        Q5    n/bin
-    f1_opening_sep        +0.361    +0.289    +0.132    +0.012    -0.803   11,442
-    a_m_ratio             +0.258    +0.190    +0.071    -0.007    -0.517   11,442
-    ied_gain              +0.362    +0.290    +0.133    +0.013    -0.805   11,442
-    open_11               +0.069    -0.002    -0.032    -0.047    +0.011   44,731
+    f1_opening_sep        +0.359    +0.293    +0.135    +0.020    -0.816   13,582
+    a_m_ratio             +0.256    +0.194    +0.072    -0.005    -0.523   13,582
+    ied_gain              +0.360    +0.294    +0.136    +0.020    -0.819   13,582
+    open_11               +0.070    -0.003    -0.030    -0.045    +0.008   53,416
 
   lock_energy
     objective                 Q1        Q2        Q3        Q4        Q5    n/bin
-    f1_opening_sep        -0.798    -0.005    +0.169    +0.282    +0.361   11,442
-    a_m_ratio             -0.567    -0.014    +0.120    +0.208    +0.259   11,442
-    ied_gain              -0.800    -0.004    +0.169    +0.284    +0.360   11,442
-    open_11               +0.139    +0.003    -0.027    -0.058    -0.058   44,731
+    f1_opening_sep        -0.810    -0.003    +0.178    +0.290    +0.353   13,582
+    a_m_ratio             -0.568    -0.014    +0.126    +0.211    +0.252   13,582
+    ied_gain              -0.813    -0.001    +0.178    +0.291    +0.353   13,582
+    open_11               +0.134    +0.001    -0.027    -0.055    -0.054   53,416
 
   lock_minus_a_site
     objective                 Q1        Q2        Q3        Q4        Q5    n/bin
-    f1_opening_sep        -0.873    -0.023    +0.211    +0.325    +0.370   11,442
-    a_m_ratio             -0.621    -0.024    +0.151    +0.230    +0.270   11,442
-    ied_gain              -0.875    -0.023    +0.211    +0.326    +0.370   11,442
-    open_11               +0.144    +0.005    -0.030    -0.060    -0.060   44,731
+    f1_opening_sep        -0.878    -0.019    +0.210    +0.328    +0.368   13,582
+    a_m_ratio             -0.619    -0.025    +0.152    +0.232    +0.266   13,582
+    ied_gain              -0.881    -0.018    +0.211    +0.329    +0.368   13,582
+    open_11               +0.138    +0.003    -0.030    -0.057    -0.056   53,416
 
   ddg_pref
     objective                 Q1        Q2        Q3        Q4        Q5    n/bin
-    f1_opening_sep        -0.208    -0.154    -0.018    +0.109    +0.275   11,442
-    a_m_ratio             -0.175    -0.106    +0.010    +0.081    +0.192   11,442
-    ied_gain              -0.208    -0.154    -0.019    +0.110    +0.274   11,442
-    open_11               +0.094    +0.026    -0.015    -0.053    -0.053   44,731
+    f1_opening_sep        -0.171    -0.192    -0.026    +0.122    +0.270   13,582
+    a_m_ratio             -0.150    -0.136    +0.014    +0.084    +0.190   13,582
+    ied_gain              -0.172    -0.191    -0.027    +0.123    +0.270   13,582
+    open_11               +0.092    +0.023    -0.014    -0.051    -0.051   53,416
 
 ====================================================================================================
 PAIR-LEVEL AXES -- between cells, because a cell holds them fixed
@@ -116,17 +116,17 @@ PAIR-LEVEL AXES -- between cells, because a cell holds them fixed
 
   l_local_min
     objective            cells  rho(best)  rho(med)        p
-    f1_opening_sep          237     -0.055       -0.015       0.4
-    a_m_ratio               237     -0.162       -0.055     0.013
-    ied_gain                237     -0.057       -0.038      0.38
-    open_11                 466     -0.201       -0.195   1.4e-05
+    f1_opening_sep          284     +0.029       +0.061      0.63
+    a_m_ratio               284     -0.099       +0.031     0.097
+    ied_gain                284     +0.028       +0.058      0.64
+    open_11                 556     -0.226       -0.232   9.7e-08
 
   len_x
     objective            cells  rho(best)  rho(med)        p
-    f1_opening_sep          237     +0.143       +0.057     0.028
-    a_m_ratio               237     +0.094       +0.043      0.15
-    ied_gain                237     +0.141       +0.055     0.031
-    open_11                 466     -0.013       +0.019      0.78
+    f1_opening_sep          284     +0.070       +0.003      0.24
+    a_m_ratio               284     +0.058       +0.010      0.33
+    ied_gain                284     +0.070       -0.004      0.24
+    open_11                 556     +0.028       +0.054      0.51
 
 ====================================================================================================
 INTERACTIONS -- mean within-cell z-score per combination, n in brackets
@@ -135,221 +135,221 @@ INTERACTIONS -- mean within-cell z-score per combination, n in brackets
 
   closure x upper3   objective f1_opening_sep (lower is better)
                               WWW_AUA        WWW_UAU  trigger_deriv
-    closed_CAU            -0.71( 250)    -0.66( 254)    -0.49( 576)
-    closed_CGU            -0.75( 523)    -0.62( 645)    -0.44( 778)
-    closed_UAU            -0.65( 698)    -0.66( 854)    -0.35( 839)
-    d0_gc0_AUA            +0.07(1148)    +0.01(1732)    +0.20(1218)
-    d0_gc1_ACA            +0.01(1153)    -0.04(1567)    +0.16(1241)
-    d0_gc2_ACC            +0.16(1254)    +0.11(1630)    +0.23(1222)
-    d0_gc3_GCC            +0.24(1144)    +0.19(1662)    +0.28(1223)
-    d1_gc0_AAA            +0.06(1154)    +0.02(1673)    +0.20(1219)
-    d1_gc1_AAC            +0.12(1182)    +0.07(1653)    +0.21(1199)
-    d1_gc2_AGC            +0.18(1286)    +0.15(1743)    +0.27(1225)
-    d2_gc0_AAU            -0.09( 859)    -0.14(1301)    +0.01(1054)
-    d2_gc1_AGU            -0.06(1051)    -0.10(1548)    +0.07(1159)
-    d2_gc3_CGC            -0.22(1153)    -0.26(1461)    -0.03(1179)
-    open_3x3              +0.29(1506)    +0.30(2269)    +0.35(1265)
-    pair1_CCC             -0.06(1123)    -0.16(1438)    +0.03(1186)
-    pair2_CCU             -0.27(1050)    -0.33(1580)    -0.12(1123)
+    closed_CAU            -0.82( 293)    -0.69( 325)    -0.52( 703)
+    closed_CGU            -0.76( 612)    -0.56( 789)    -0.38( 942)
+    closed_UAU            -0.66( 770)    -0.65( 964)    -0.39(1058)
+    d0_gc0_AUA            +0.05(1319)    +0.01(2093)    +0.20(1475)
+    d0_gc1_ACA            -0.00(1311)    -0.04(1884)    +0.16(1498)
+    d0_gc2_ACC            +0.16(1484)    +0.12(1940)    +0.23(1457)
+    d0_gc3_GCC            +0.24(1350)    +0.20(1936)    +0.27(1469)
+    d1_gc0_AAA            +0.05(1325)    +0.03(2012)    +0.20(1475)
+    d1_gc1_AAC            +0.11(1389)    +0.07(1927)    +0.21(1454)
+    d1_gc2_AGC            +0.17(1471)    +0.15(2031)    +0.26(1480)
+    d2_gc0_AAU            -0.10( 996)    -0.14(1535)    +0.03(1267)
+    d2_gc1_AGU            -0.07(1217)    -0.10(1838)    +0.06(1407)
+    d2_gc3_CGC            -0.25(1357)    -0.28(1730)    -0.02(1409)
+    open_3x3              +0.30(1764)    +0.30(2695)    +0.34(1522)
+    pair1_CCC             -0.07(1372)    -0.15(1756)    +0.05(1402)
+    pair2_CCU             -0.26(1246)    -0.30(1854)    -0.11(1341)
 
   closure x upper3   objective a_m_ratio (lower is better)
                               WWW_AUA        WWW_UAU  trigger_deriv
-    closed_CAU            -0.71( 250)    -0.70( 254)    -0.74( 576)
-    closed_CGU            -0.88( 523)    -0.83( 645)    -0.98( 778)
-    closed_UAU            -0.87( 698)    -0.90( 854)    -1.13( 839)
-    d0_gc0_AUA            +0.15(1148)    +0.11(1732)    +0.16(1218)
-    d0_gc1_ACA            +0.06(1153)    -0.02(1567)    +0.08(1241)
-    d0_gc2_ACC            +0.19(1254)    +0.17(1630)    +0.19(1222)
-    d0_gc3_GCC            +0.22(1144)    +0.19(1662)    +0.22(1223)
-    d1_gc0_AAA            +0.16(1154)    +0.15(1673)    +0.18(1219)
-    d1_gc1_AAC            +0.18(1182)    +0.15(1653)    +0.18(1199)
-    d1_gc2_AGC            +0.19(1286)    +0.17(1743)    +0.22(1225)
-    d2_gc0_AAU            +0.07( 859)    -0.00(1301)    +0.01(1054)
-    d2_gc1_AGU            +0.03(1051)    -0.04(1548)    +0.03(1159)
-    d2_gc3_CGC            -0.11(1153)    -0.17(1461)    -0.10(1179)
-    open_3x3              +0.16(1506)    +0.20(2269)    +0.23(1265)
-    pair1_CCC             +0.10(1123)    +0.04(1438)    +0.08(1186)
-    pair2_CCU             -0.07(1050)    -0.14(1580)    -0.06(1123)
+    closed_CAU            -0.81( 293)    -0.71( 325)    -0.83( 703)
+    closed_CGU            -0.96( 612)    -0.80( 789)    -0.90( 942)
+    closed_UAU            -0.87( 770)    -0.88( 964)    -1.12(1058)
+    d0_gc0_AUA            +0.15(1319)    +0.11(2093)    +0.16(1475)
+    d0_gc1_ACA            +0.06(1311)    -0.01(1884)    +0.09(1498)
+    d0_gc2_ACC            +0.19(1484)    +0.17(1940)    +0.19(1457)
+    d0_gc3_GCC            +0.21(1350)    +0.20(1936)    +0.22(1469)
+    d1_gc0_AAA            +0.16(1325)    +0.15(2012)    +0.18(1475)
+    d1_gc1_AAC            +0.17(1389)    +0.15(1927)    +0.18(1454)
+    d1_gc2_AGC            +0.19(1471)    +0.17(2031)    +0.21(1480)
+    d2_gc0_AAU            +0.06( 996)    +0.00(1535)    +0.03(1267)
+    d2_gc1_AGU            +0.02(1217)    -0.04(1838)    +0.02(1407)
+    d2_gc3_CGC            -0.12(1357)    -0.17(1730)    -0.09(1409)
+    open_3x3              +0.17(1764)    +0.20(2695)    +0.22(1522)
+    pair1_CCC             +0.09(1372)    +0.03(1756)    +0.09(1402)
+    pair2_CCU             -0.08(1246)    -0.14(1854)    -0.05(1341)
 
   closure x lower3   objective f1_opening_sep (lower is better)
                         trigger_deriv      wobble_GU
-    closed_CAU            -0.56( 630)    -0.61( 450)
-    closed_CGU            -0.51(1045)    -0.66( 901)
-    closed_UAU            -0.50(1287)    -0.61(1104)
-    d0_gc0_AUA            +0.14(2081)    +0.02(2017)
-    d0_gc1_ACA            +0.10(2000)    -0.03(1961)
-    d0_gc2_ACC            +0.21(2084)    +0.12(2022)
-    d0_gc3_GCC            +0.25(2025)    +0.21(2004)
-    d1_gc0_AAA            +0.14(2050)    +0.03(1996)
-    d1_gc1_AAC            +0.17(2064)    +0.08(1970)
-    d1_gc2_AGC            +0.22(2157)    +0.16(2097)
-    d2_gc0_AAU            -0.01(1611)    -0.14(1603)
-    d2_gc1_AGU            +0.02(1892)    -0.09(1866)
-    d2_gc3_CGC            -0.13(1967)    -0.23(1826)
-    open_3x3              +0.33(2514)    +0.29(2526)
-    pair1_CCC             -0.01(1922)    -0.13(1825)
-    pair2_CCU             -0.18(1911)    -0.32(1842)
+    closed_CAU            -0.60( 780)    -0.66( 541)
+    closed_CGU            -0.46(1250)    -0.64(1093)
+    closed_UAU            -0.49(1513)    -0.63(1279)
+    d0_gc0_AUA            +0.14(2485)    +0.02(2402)
+    d0_gc1_ACA            +0.10(2370)    -0.04(2323)
+    d0_gc2_ACC            +0.21(2468)    +0.12(2413)
+    d0_gc3_GCC            +0.26(2379)    +0.21(2376)
+    d1_gc0_AAA            +0.14(2442)    +0.03(2370)
+    d1_gc1_AAC            +0.17(2442)    +0.08(2328)
+    d1_gc2_AGC            +0.22(2525)    +0.15(2457)
+    d2_gc0_AAU            +0.00(1901)    -0.15(1897)
+    d2_gc1_AGU            +0.02(2249)    -0.11(2213)
+    d2_gc3_CGC            -0.13(2317)    -0.25(2179)
+    open_3x3              +0.33(2981)    +0.30(3000)
+    pair1_CCC             -0.01(2305)    -0.12(2225)
+    pair2_CCU             -0.15(2230)    -0.30(2211)
 
   closure x lower3   objective a_m_ratio (lower is better)
                         trigger_deriv      wobble_GU
-    closed_CAU            -0.76( 630)    -0.68( 450)
-    closed_CGU            -0.92(1045)    -0.88( 901)
-    closed_UAU            -0.99(1287)    -0.95(1104)
-    d0_gc0_AUA            +0.16(2081)    +0.11(2017)
-    d0_gc1_ACA            +0.06(2000)    +0.01(1961)
-    d0_gc2_ACC            +0.20(2084)    +0.16(2022)
-    d0_gc3_GCC            +0.22(2025)    +0.19(2004)
-    d1_gc0_AAA            +0.18(2050)    +0.14(1996)
-    d1_gc1_AAC            +0.18(2064)    +0.14(1970)
-    d1_gc2_AGC            +0.21(2157)    +0.17(2097)
-    d2_gc0_AAU            +0.03(1611)    +0.02(1603)
-    d2_gc1_AGU            +0.01(1892)    -0.01(1866)
-    d2_gc3_CGC            -0.14(1967)    -0.13(1826)
-    open_3x3              +0.22(2514)    +0.17(2526)
-    pair1_CCC             +0.09(1922)    +0.06(1825)
-    pair2_CCU             -0.10(1911)    -0.09(1842)
+    closed_CAU            -0.82( 780)    -0.76( 541)
+    closed_CGU            -0.87(1250)    -0.90(1093)
+    closed_UAU            -0.96(1513)    -0.99(1279)
+    d0_gc0_AUA            +0.16(2485)    +0.11(2402)
+    d0_gc1_ACA            +0.07(2370)    +0.02(2323)
+    d0_gc2_ACC            +0.20(2468)    +0.16(2413)
+    d0_gc3_GCC            +0.22(2379)    +0.20(2376)
+    d1_gc0_AAA            +0.18(2442)    +0.14(2370)
+    d1_gc1_AAC            +0.18(2442)    +0.15(2328)
+    d1_gc2_AGC            +0.21(2525)    +0.17(2457)
+    d2_gc0_AAU            +0.04(1901)    +0.01(1897)
+    d2_gc1_AGU            +0.01(2249)    -0.02(2213)
+    d2_gc3_CGC            -0.13(2317)    -0.13(2179)
+    open_3x3              +0.22(2981)    +0.18(3000)
+    pair1_CCC             +0.08(2305)    +0.05(2225)
+    pair2_CCU             -0.08(2230)    -0.11(2211)
 
   closure x scheme   objective f1_opening_sep (lower is better)
                            B-anchored          mixed
-    closed_CAU            -1.51( 117)    -0.47( 963)
-    closed_CGU            -1.36( 222)    -0.48(1724)
-    closed_UAU            -1.17( 282)    -0.46(2109)
-    d0_gc0_AUA            -0.12( 499)    +0.11(3599)
-    d0_gc1_ACA            -0.16( 474)    +0.07(3487)
-    d0_gc2_ACC            +0.08( 473)    +0.17(3633)
-    d0_gc3_GCC            +0.14( 474)    +0.24(3555)
-    d1_gc0_AAA            -0.09( 483)    +0.11(3563)
-    d1_gc1_AAC            -0.02( 477)    +0.15(3557)
-    d1_gc2_AGC            +0.13( 505)    +0.20(3749)
-    d2_gc0_AAU            -0.38( 404)    -0.03(2810)
-    d2_gc1_AGU            -0.28( 454)    -0.00(3304)
-    d2_gc3_CGC            -0.79( 450)    -0.10(3343)
-    open_3x3              +0.31( 617)    +0.31(4423)
-    pair1_CCC             -0.39( 426)    -0.03(3321)
-    pair2_CCU             -0.69( 458)    -0.19(3295)
+    closed_CAU            -1.86( 142)    -0.48(1179)
+    closed_CGU            -1.33( 264)    -0.44(2079)
+    closed_UAU            -1.28( 321)    -0.46(2471)
+    d0_gc0_AUA            -0.15( 568)    +0.11(4319)
+    d0_gc1_ACA            -0.20( 537)    +0.06(4156)
+    d0_gc2_ACC            +0.06( 549)    +0.18(4332)
+    d0_gc3_GCC            +0.12( 547)    +0.25(4208)
+    d1_gc0_AAA            -0.12( 550)    +0.12(4262)
+    d1_gc1_AAC            -0.05( 550)    +0.15(4220)
+    d1_gc2_AGC            +0.08( 578)    +0.20(4404)
+    d2_gc0_AAU            -0.41( 457)    -0.03(3341)
+    d2_gc1_AGU            -0.32( 525)    -0.01(3937)
+    d2_gc3_CGC            -0.76( 520)    -0.12(3976)
+    open_3x3              +0.31( 700)    +0.31(5281)
+    pair1_CCC             -0.38( 504)    -0.02(4026)
+    pair2_CCU             -0.67( 520)    -0.17(3921)
 
   closure x scheme   objective a_m_ratio (lower is better)
                            B-anchored          mixed
-    closed_CAU            -1.77( 117)    -0.60( 963)
-    closed_CGU            -1.65( 222)    -0.81(1724)
-    closed_UAU            -1.66( 282)    -0.88(2109)
-    d0_gc0_AUA            +0.02( 499)    +0.15(3599)
-    d0_gc1_ACA            -0.10( 474)    +0.06(3487)
-    d0_gc2_ACC            +0.14( 473)    +0.19(3633)
-    d0_gc3_GCC            +0.15( 474)    +0.21(3555)
-    d1_gc0_AAA            +0.11( 483)    +0.17(3563)
-    d1_gc1_AAC            +0.09( 477)    +0.17(3557)
-    d1_gc2_AGC            +0.14( 505)    +0.20(3749)
-    d2_gc0_AAU            -0.06( 404)    +0.03(2810)
-    d2_gc1_AGU            -0.13( 454)    +0.02(3304)
-    d2_gc3_CGC            -0.46( 450)    -0.09(3343)
-    open_3x3              +0.21( 617)    +0.19(4423)
-    pair1_CCC             -0.04( 426)    +0.09(3321)
-    pair2_CCU             -0.27( 458)    -0.07(3295)
+    closed_CAU            -2.11( 142)    -0.64(1179)
+    closed_CGU            -1.69( 264)    -0.78(2079)
+    closed_UAU            -1.73( 321)    -0.87(2471)
+    d0_gc0_AUA            +0.03( 568)    +0.15(4319)
+    d0_gc1_ACA            -0.10( 537)    +0.06(4156)
+    d0_gc2_ACC            +0.14( 549)    +0.19(4332)
+    d0_gc3_GCC            +0.15( 547)    +0.21(4208)
+    d1_gc0_AAA            +0.11( 550)    +0.17(4262)
+    d1_gc1_AAC            +0.09( 550)    +0.18(4220)
+    d1_gc2_AGC            +0.14( 578)    +0.20(4404)
+    d2_gc0_AAU            -0.07( 457)    +0.04(3341)
+    d2_gc1_AGU            -0.16( 525)    +0.02(3937)
+    d2_gc3_CGC            -0.44( 520)    -0.09(3976)
+    open_3x3              +0.21( 700)    +0.20(5281)
+    pair1_CCC             -0.04( 504)    +0.08(4026)
+    pair2_CCU             -0.29( 520)    -0.07(3921)
 
   closure x geom   objective f1_opening_sep (lower is better)
                         arm18/inv18/c  arm20/inv17/c
-    closed_CAU            -0.55( 554)    -0.62( 526)
-    closed_CGU            -0.55(1001)    -0.61( 945)
-    closed_UAU            -0.53(1221)    -0.56(1170)
-    d0_gc0_AUA            +0.08(2099)    +0.08(1999)
-    d0_gc1_ACA            +0.04(2031)    +0.04(1930)
-    d0_gc2_ACC            +0.16(2106)    +0.17(2000)
-    d0_gc3_GCC            +0.23(2069)    +0.24(1960)
-    d1_gc0_AAA            +0.08(2074)    +0.09(1972)
-    d1_gc1_AAC            +0.12(2072)    +0.13(1962)
-    d1_gc2_AGC            +0.19(2184)    +0.20(2070)
-    d2_gc0_AAU            -0.07(1643)    -0.08(1571)
-    d2_gc1_AGU            -0.04(1924)    -0.03(1834)
-    d2_gc3_CGC            -0.18(1945)    -0.18(1848)
-    open_3x3              +0.31(2586)    +0.31(2454)
-    pair1_CCC             -0.08(1928)    -0.06(1819)
-    pair2_CCU             -0.25(1924)    -0.25(1829)
+    closed_CAU            -0.58( 679)    -0.67( 642)
+    closed_CGU            -0.51(1208)    -0.57(1135)
+    closed_UAU            -0.54(1439)    -0.57(1353)
+    d0_gc0_AUA            +0.08(2501)    +0.08(2386)
+    d0_gc1_ACA            +0.04(2402)    +0.03(2291)
+    d0_gc2_ACC            +0.16(2499)    +0.17(2382)
+    d0_gc3_GCC            +0.23(2443)    +0.24(2312)
+    d1_gc0_AAA            +0.08(2463)    +0.09(2349)
+    d1_gc1_AAC            +0.12(2445)    +0.13(2325)
+    d1_gc2_AGC            +0.18(2551)    +0.19(2431)
+    d2_gc0_AAU            -0.07(1955)    -0.08(1843)
+    d2_gc1_AGU            -0.04(2290)    -0.04(2172)
+    d2_gc3_CGC            -0.19(2308)    -0.19(2188)
+    open_3x3              +0.30(3071)    +0.32(2910)
+    pair1_CCC             -0.07(2334)    -0.05(2196)
+    pair2_CCU             -0.22(2287)    -0.24(2154)
 
   closure x geom   objective a_m_ratio (lower is better)
                         arm18/inv18/c  arm20/inv17/c
-    closed_CAU            -0.68( 554)    -0.77( 526)
-    closed_CGU            -0.95(1001)    -0.85( 945)
-    closed_UAU            -0.96(1221)    -0.99(1170)
-    d0_gc0_AUA            +0.14(2099)    +0.13(1999)
-    d0_gc1_ACA            +0.04(2031)    +0.03(1930)
-    d0_gc2_ACC            +0.18(2106)    +0.18(2000)
-    d0_gc3_GCC            +0.21(2069)    +0.21(1960)
-    d1_gc0_AAA            +0.16(2074)    +0.16(1972)
-    d1_gc1_AAC            +0.17(2072)    +0.16(1962)
-    d1_gc2_AGC            +0.19(2184)    +0.19(2070)
-    d2_gc0_AAU            +0.03(1643)    +0.01(1571)
-    d2_gc1_AGU            -0.01(1924)    +0.01(1834)
-    d2_gc3_CGC            -0.13(1945)    -0.13(1848)
-    open_3x3              +0.19(2586)    +0.20(2454)
-    pair1_CCC             +0.08(1928)    +0.07(1819)
-    pair2_CCU             -0.11(1924)    -0.08(1829)
+    closed_CAU            -0.75( 679)    -0.85( 642)
+    closed_CGU            -0.90(1208)    -0.87(1135)
+    closed_UAU            -0.96(1439)    -0.98(1353)
+    d0_gc0_AUA            +0.13(2501)    +0.13(2386)
+    d0_gc1_ACA            +0.05(2402)    +0.04(2291)
+    d0_gc2_ACC            +0.18(2499)    +0.18(2382)
+    d0_gc3_GCC            +0.21(2443)    +0.21(2312)
+    d1_gc0_AAA            +0.16(2463)    +0.17(2349)
+    d1_gc1_AAC            +0.17(2445)    +0.17(2325)
+    d1_gc2_AGC            +0.19(2551)    +0.19(2431)
+    d2_gc0_AAU            +0.03(1955)    +0.02(1843)
+    d2_gc1_AGU            -0.01(2290)    -0.00(2172)
+    d2_gc3_CGC            -0.12(2308)    -0.13(2188)
+    open_3x3              +0.19(3071)    +0.21(2910)
+    pair1_CCC             +0.07(2334)    +0.06(2196)
+    pair2_CCU             -0.10(2287)    -0.09(2154)
 
   upper3 x lower3   objective f1_opening_sep (lower is better)
                         trigger_deriv      wobble_GU
-    WWW_AUA               +0.02(8645)    -0.07(7889)
-    WWW_UAU               +0.01(11496)    -0.09(11514)
-    trigger_derived       +0.11(9099)    +0.04(8607)
+    WWW_AUA               +0.02(10045)    -0.08(9231)
+    WWW_UAU               +0.01(13659)    -0.10(13650)
+    trigger_derived       +0.11(10933)    +0.04(10426)
 
   upper3 x lower3   objective a_m_ratio (lower is better)
                         trigger_deriv      wobble_GU
-    WWW_AUA               +0.04(8645)    +0.01(7889)
-    WWW_UAU               +0.01(11496)    -0.00(11514)
-    trigger_derived       -0.03(9099)    -0.02(8607)
+    WWW_AUA               +0.03(10045)    +0.00(9231)
+    WWW_UAU               +0.01(13659)    -0.00(13650)
+    trigger_derived       -0.02(10933)    -0.03(10426)
 
   upper3 x scheme   objective f1_opening_sep (lower is better)
                            B-anchored          mixed
-    WWW_AUA               -0.29(1910)    +0.02(14624)
-    WWW_UAU               -0.37(2702)    -0.00(20308)
-    trigger_derived       -0.09(2203)    +0.10(15503)
+    WWW_AUA               -0.35(2144)    +0.01(17132)
+    WWW_UAU               -0.39(3094)    +0.00(24215)
+    trigger_derived       -0.11(2594)    +0.10(18765)
 
   upper3 x scheme   objective a_m_ratio (lower is better)
                            B-anchored          mixed
-    WWW_AUA               -0.08(1910)    +0.04(14624)
-    WWW_UAU               -0.19(2702)    +0.03(20308)
-    trigger_derived       -0.19(2203)    +0.00(15503)
+    WWW_AUA               -0.12(2144)    +0.03(17132)
+    WWW_UAU               -0.20(3094)    +0.03(24215)
+    trigger_derived       -0.19(2594)    +0.00(18765)
 
   upper3 x geom   objective f1_opening_sep (lower is better)
                         arm18/inv18/c  arm20/inv17/c
-    WWW_AUA               -0.02(8437)    -0.02(8097)
-    WWW_UAU               -0.04(11825)    -0.05(11185)
-    trigger_derived       +0.07(9099)    +0.08(8607)
+    WWW_AUA               -0.03(9846)    -0.03(9430)
+    WWW_UAU               -0.04(14066)    -0.04(13243)
+    trigger_derived       +0.08(10963)    +0.08(10396)
 
   upper3 x geom   objective a_m_ratio (lower is better)
                         arm18/inv18/c  arm20/inv17/c
-    WWW_AUA               +0.02(8437)    +0.02(8097)
-    WWW_UAU               +0.00(11825)    -0.00(11185)
-    trigger_derived       -0.03(9099)    -0.02(8607)
+    WWW_AUA               +0.02(9846)    +0.02(9430)
+    WWW_UAU               +0.01(14066)    +0.00(13243)
+    trigger_derived       -0.03(10963)    -0.01(10396)
 
   lower3 x scheme   objective f1_opening_sep (lower is better)
                            B-anchored          mixed
-    trigger_derived       -0.20(3377)    +0.07(25863)
-    wobble_GU             -0.32(3438)    -0.01(24572)
+    trigger_derived       -0.21(3875)    +0.08(30762)
+    wobble_GU             -0.36(3957)    -0.01(29350)
 
   lower3 x scheme   objective a_m_ratio (lower is better)
                            B-anchored          mixed
-    trigger_derived       -0.17(3377)    +0.03(25863)
-    wobble_GU             -0.14(3438)    +0.01(24572)
+    trigger_derived       -0.18(3875)    +0.03(30762)
+    wobble_GU             -0.17(3957)    +0.01(29350)
 
   lower3 x geom   objective f1_opening_sep (lower is better)
                         arm18/inv18/c  arm20/inv17/c
-    trigger_derived       +0.04(15021)    +0.05(14219)
-    wobble_GU             -0.04(14340)    -0.05(13670)
+    trigger_derived       +0.05(17815)    +0.05(16822)
+    wobble_GU             -0.05(17060)    -0.05(16247)
 
   lower3 x geom   objective a_m_ratio (lower is better)
                         arm18/inv18/c  arm20/inv17/c
-    trigger_derived       +0.00(15021)    +0.01(14219)
-    wobble_GU             -0.00(14340)    -0.01(13670)
+    trigger_derived       +0.01(17815)    +0.01(16822)
+    wobble_GU             -0.01(17060)    -0.01(16247)
 
   scheme x geom   objective f1_opening_sep (lower is better)
                         arm18/inv18/c  arm20/inv17/c
-    B-anchored            -0.17(2687)    -0.32(4128)
-    mixed                 +0.02(26674)    +0.05(23761)
+    B-anchored            -0.16(2919)    -0.36(4913)
+    mixed                 +0.01(31956)    +0.06(28156)
 
   scheme x geom   objective a_m_ratio (lower is better)
                         arm18/inv18/c  arm20/inv17/c
-    B-anchored            -0.10(2687)    -0.20(4128)
-    mixed                 +0.01(26674)    +0.03(23761)
+    B-anchored            -0.10(2919)    -0.22(4913)
+    mixed                 +0.01(31956)    +0.04(28156)
 
   WHERE THE RESULTS ARE: C:\Users\Dell\source\repos\cernal_software\docs\assets\axes_pfas
     report.txt        this whole report, kept
@@ -358,5 +358,5 @@ INTERACTIONS -- mean within-cell z-score per combination, n in brackets
     shape.csv             80 rows -- the non-monotonic check
     pair_level.csv         8 rows -- between-cell, pair props
     interaction.csv      348 rows -- the two-way tables
-    rows.csv          223,655 rows -- one per design, 50 columns
+    rows.csv          267,081 rows -- one per design, 50 columns
     Tidy (long) format: one observation per line, so a plot is a group-by.
