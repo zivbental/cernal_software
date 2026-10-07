@@ -72,7 +72,13 @@ export function GenePicker({
                 value={geneId}
                 onChange={(e) => setGeneId(e.target.value)}
                 placeholder={
-                  organism === "human" ? "SELE" : organism === "yeast" ? "CDC28" : "thrA"
+                  organism === "human"
+                    ? "SELE"
+                    : organism === "yeast"
+                      ? "CDC28"
+                      : organism === "c_acnes"
+                        ? "F6X01_RS00005"
+                        : "thrA"
                 }
                 className="w-full rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-foreground focus:border-mint focus:outline-none"
               />

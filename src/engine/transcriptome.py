@@ -39,6 +39,14 @@ _DATA_DIR = Path(__file__).resolve().parent / "data" / "transcriptomes"
 _FILES: dict[Host, str] = {
     Host.ECOLI: "ecoli.fasta",
     Host.YEAST: "yeast.fasta",
+    # The AIS-China team's own QC-passing CDS set for C. acnes ATCC 6919 (2,312 records,
+    # NCBI locus tags, assembly GCF_008728435.1) — the same shape and the same CDS-only
+    # limitation as the two above, so it needs no special handling here. It is a copy of
+    # vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/
+    # 2026-09-06.v1/reference_cds.fasta, kept here so this module stays self-contained
+    # rather than reaching into vendor/. tests/engine/test_transcriptome.py asserts the
+    # two are byte-identical, so the copy cannot drift when the vendored tree is updated.
+    Host.C_ACNES: "c_acnes.fasta",
 }
 
 

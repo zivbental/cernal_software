@@ -19,7 +19,16 @@ import {
 } from "@/api/queries";
 import type { Organism } from "@/components/compile/Steps";
 
-const ORGANISM_KEY: Record<Organism, string> = { ecoli: "ecoli", yeast: "yeast", human: "human" };
+// Maps a wizard organism onto the public-dataset catalog's own organism key. C. acnes has
+// no curated public transcriptomics datasets in the catalog, so it maps to its engine key
+// and the picker simply finds nothing to offer — the honest outcome. A `direct` run, or an
+// uploaded DGE table, is the path for this host today.
+const ORGANISM_KEY: Record<Organism, string> = {
+  ecoli: "ecoli",
+  yeast: "yeast",
+  human: "human",
+  c_acnes: "c_acnes",
+};
 
 export function PublicDatasetPicker({
   organism,
