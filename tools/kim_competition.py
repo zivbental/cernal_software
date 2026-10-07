@@ -42,12 +42,12 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(NB))
 
 # ruff: noqa: E402 - the engine and notebook imports must follow the sys.path inserts.
+from kim2019_benchmark import PRIMARY_TRIGGER, REPORTED, SWITCHES
+
 from engine import sequences as sq
+from engine.gates.toehold import ToeholdAndGate
 from engine.gates.tools.binding import fixed_alignment_energy
 from engine.gates.tools.folding import FoldEngine
-from engine.gates.toehold import ToeholdAndGate
-
-from kim2019_benchmark import PRIMARY_TRIGGER, REPORTED, SWITCHES
 
 
 def footprint_start(primary: str, switch: str) -> tuple[int, int]:
