@@ -18,7 +18,7 @@ import { GenePicker } from "@/components/compile/GenePicker";
 
 /* ---------- shared config ---------- */
 
-export type Organism = "ecoli" | "yeast" | "human";
+export type Organism = "ecoli" | "yeast" | "human" | "c_acnes";
 /** "gene" is informational only — it never submits by itself. Picking a gene stashes
  * `targetGene` and hands the researcher to "direct" to paste its sequence, since no
  * gene->sequence lookup exists yet (docs/public-datasets.md's deliberate scope cut). */
@@ -92,10 +92,40 @@ export const DEFAULT_CONFIG: CompileConfig = {
  * this documented safety threshold, only tighten it. */
 const MAX_SAFE_LEAKAGE = 0.85;
 
+/** Collaboration credit shown at the point of use, not only on a credits page.
+ *
+ * `logo` is deliberately a path to an asset that is NOT committed yet. Apache-2.0 §6 is
+ * explicit that the licence "does not grant permission to use the trade names, trademarks,
+ * service marks, or product names of the Licensor" — the AIS-China team's approval covered
+ * their *code*, and their team logo is a separate ask. Drop the file in once that approval
+ * is in writing; until then the badge falls back to the team name as text, which needs no
+ * permission at all.
+ *
+ * TODO(ziv): replace `href` with the real Human Practices anchor once the wiki section is
+ * published, and add `public/assets/collaborators/ais-china.svg` once logo use is granted.
+ */
+const COLLABORATOR_CREDIT = {
+  aisChina: {
+    team: "iGEM AIS-China 2026",
+    logo: "/assets/collaborators/ais-china.svg",
+    href: "/about#collaboration-ais-china",
+    why: "Cutibacterium acnes is a skin commensal and a tractable live-biotherapeutic chassis. Its codon model here is the iGEM AIS-China team's, derived from strain ATCC 6919's own genome and integrated unmodified into this pipeline.",
+  },
+} as const;
+
 const ORGANISMS = [
   { key: "ecoli", label: "E. coli", Icon: BacteriaIcon, anim: "animate-bacteria" },
   { key: "yeast", label: "Yeast", Icon: YeastIcon, anim: "animate-yeast" },
   { key: "human", label: "Human", Icon: HumanIcon, anim: "animate-human" },
+  // Reuses BacteriaIcon rather than inventing a new glyph: C. acnes is a bacterium and the
+  // credit badge below is what distinguishes the tile, not a bespoke icon.
+  {
+    key: "c_acnes",
+    label: "C. acnes",
+    Icon: BacteriaIcon,
+    anim: "animate-bacteria",
+    credit: COLLABORATOR_CREDIT.aisChina,
+  },
 ] as const;
 
 /** The organism key submitted with a run needs a readable label, not the enum value. */
@@ -103,6 +133,7 @@ export const ORGANISM_LABELS: Record<Organism, string> = {
   ecoli: "E. coli",
   yeast: "Yeast",
   human: "Human",
+  c_acnes: "C. acnes",
 };
 
 const sanitizeRna = (v: string) => v.toUpperCase().replace(/[^ACGUT]/g, "").replace(/T/g, "U");
@@ -161,9 +192,48 @@ export function StepInputs({
             >
               <o.Icon className={`h-4 w-4 ${o.anim}`} />
               <span>{o.label}</span>
+              {"credit" in o && (
+                <span
+                  title={`Codon model contributed by ${o.credit.team}`}
+                  className="ml-1 inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground"
+                >
+                  {/* The logo asset is intentionally absent until logo permission is in
+                      writing (Apache-2.0 §6 covers code, not trademarks). onError hides the
+                      broken image and the team name carries the credit on its own. */}
+                  <img
+                    src={o.credit.logo}
+                    alt=""
+                    aria-hidden
+                    className="h-3 w-3"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                  collab
+                </span>
+              )}
             </button>
           ))}
         </div>
+
+        {ORGANISMS.map((o) =>
+          "credit" in o && config.organism === o.key ? (
+            <p
+              key={o.key}
+              className="mt-3 max-w-prose text-xs leading-relaxed text-muted-foreground"
+            >
+              <span className="font-medium text-foreground">Why this organism? </span>
+              {o.credit.why}{" "}
+              <a
+                href={o.credit.href}
+                className="text-mint underline decoration-dotted underline-offset-2 hover:text-foreground"
+              >
+                Read about our collaboration with {o.credit.team}
+              </a>
+              .
+            </p>
+          ) : null,
+        )}
       </div>
 
       <div className="mb-6">

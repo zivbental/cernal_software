@@ -58,3 +58,40 @@ def test_repeated_calls_return_the_same_cached_object(host):
 def test_an_unbundled_host_raises_naming_the_limitation():
     with pytest.raises(InputValidationError, match="No reference transcriptome"):
         load_transcriptome(Host.HUMAN)
+
+
+# ---------------------------------------------------------------------------
+# C. acnes: the bundled copy must not drift from the vendored original
+# ---------------------------------------------------------------------------
+
+
+def test_c_acnes_transcriptome_matches_the_vendored_reference_cds():
+    """``c_acnes.fasta`` is a copy of the AIS-China team's own QC-passing CDS set.
+
+    ``engine.transcriptome`` keeps its data under ``src/engine/data/transcriptomes/``
+    rather than reaching into ``vendor/``, so the file exists twice. That is a drift
+    hazard: update the vendored tree and the engine's copy silently becomes a different
+    transcriptome, while every gene id still resolves and nothing raises.
+
+    The comparison is on **parsed records**, not bytes, and deliberately so. The vendored
+    original is CRLF and exempt from line-ending normalisation
+    (``.gitattributes``: ``vendor/** -text``), while this copy is LF like ``ecoli.fasta``
+    and ``yeast.fasta``. Comparing bytes would fail for a reason that has nothing to do
+    with the sequences. What has to match is the biology: the same gene ids mapping to the
+    same coding sequences.
+    """
+    from Bio import SeqIO
+
+    from engine.gates.tools.ais_china import DEFAULT_ROOT, HOST_ID, REFERENCE_VERSION
+
+    vendored = DEFAULT_ROOT / "data/hosts" / HOST_ID / REFERENCE_VERSION / "reference_cds.fasta"
+    assert vendored.is_file(), f"the vendored reference CDS is missing at {vendored}"
+
+    theirs = {r.id: str(r.seq).upper().replace("T", "U") for r in SeqIO.parse(vendored, "fasta")}
+    ours = load_transcriptome(Host.C_ACNES)
+
+    assert ours == theirs, (
+        "src/engine/data/transcriptomes/c_acnes.fasta no longer matches the vendored "
+        "reference_cds.fasta. Re-copy it from "
+        f"{vendored.relative_to(DEFAULT_ROOT.parents[1])} and convert CRLF to LF."
+    )
