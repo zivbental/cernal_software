@@ -79,6 +79,18 @@ export function useLogin() {
   });
 }
 
+/** Instant sign-in as the shared reviewer account — only offered when
+ * `Version.reviewer_login_enabled` is true. */
+export function useReviewerLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<User>("/auth/reviewer-login"),
+    onSuccess: (user) => {
+      queryClient.setQueryData(keys.me, user);
+    },
+  });
+}
+
 export function useRegister() {
   return useMutation({
     mutationFn: (body: {

@@ -565,3 +565,4 @@ class VersionOut(Schema):
     metrics: list[MetricInfoOut] = Field(default_factory=list)
     hard_filters: list[HardFilterOut] = Field(default_factory=list)
     available_backbones: list[BackboneInfoOut] = Field(default_factory=list)
+    reviewer_login_enabled: bool = False

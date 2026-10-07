@@ -1,10 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Clock, Loader2, LogIn } from "lucide-react";
+import { Clock, Loader2, LogIn, UserCheck } from "lucide-react";
 
 import cernalLogo from "@/assets/cernal-logo-animated.svg";
 import { ApiError } from "@/api/client";
-import { useLogin } from "@/api/queries";
+import { useLogin, useReviewerLogin, useVersion } from "@/api/queries";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -17,6 +17,8 @@ function LoginPage() {
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
   const login = useLogin();
+  const reviewerLogin = useReviewerLogin();
+  const version = useVersion();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -37,6 +39,11 @@ function LoginPage() {
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     await login.mutateAsync({ username, password });
+    navigate({ to: redirect ?? "/dashboard" });
+  }
+
+  async function onReviewerLogin() {
+    await reviewerLogin.mutateAsync();
     navigate({ to: redirect ?? "/dashboard" });
   }
 
@@ -121,6 +128,36 @@ function LoginPage() {
             )}
             Sign in
           </button>
+
+          {version.data?.reviewer_login_enabled && (
+            <>
+              <div className="mt-6 flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                reviewing CERNAL?
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
+              <button
+                type="button"
+                onClick={onReviewerLogin}
+                disabled={reviewerLogin.isPending}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-muted disabled:opacity-60"
+              >
+                {reviewerLogin.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <UserCheck className="h-4 w-4" />
+                )}
+                Continue as a reviewer
+              </button>
+
+              {reviewerLogin.isError && (
+                <p role="alert" className="mt-3 text-center text-sm text-destructive">
+                  Could not start a reviewer session.
+                </p>
+              )}
+            </>
+          )}
 
           <p className="mt-5 text-center text-sm text-muted-foreground">
             No account yet?{" "}

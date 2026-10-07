@@ -148,6 +148,16 @@ Q_CLUSTER = {
 # Dotted path to an engine.client.EngineClient implementation.
 CERNAL_ENGINE = env.str("CERNAL_ENGINE", default="engine.client.LocalEngine")
 
+# --- Reviewer instant login ------------------------------------------------------
+
+# Off unless explicitly turned on. When set, the login page offers a button that signs
+# in as a shared, unprivileged, passwordless account — for iGEM judges trying the
+# product without registering and waiting for approval. Never turn this on against a
+# deployment holding real user data: it is an intentional, unauthenticated way to get
+# a session. dev.py defaults it to on for local convenience; prod.py takes whatever
+# the operator sets, off by default.
+REVIEWER_LOGIN_ENABLED = env.bool("REVIEWER_LOGIN_ENABLED", default=False)
+
 # --- Logging --------------------------------------------------------------------
 
 LOG_LEVEL = env.str("LOG_LEVEL", default="INFO")

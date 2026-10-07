@@ -40,4 +40,5 @@ def version(request):
         available_backbones=[
             BackboneInfoOut(**asdict(b)) for b in capabilities.available_backbones
         ],
+        reviewer_login_enabled=settings.REVIEWER_LOGIN_ENABLED,
     )

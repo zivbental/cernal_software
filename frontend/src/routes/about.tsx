@@ -51,7 +51,7 @@ function AboutPage() {
             lab, wet lab and human practices.
           </p>
           <a
-            href="https://2025.igem.wiki/tau-israel"
+            href="https://2026.igem.wiki/tau-israel/"
             target="_blank"
             rel="noreferrer"
             className="mt-6 inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"

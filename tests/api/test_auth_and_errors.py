@@ -58,6 +58,55 @@ def test_logout_ends_the_session(auth_client):
     assert auth_client.get("/api/auth/me").status_code == 401
 
 
+# --- Reviewer instant login ---------------------------------------------------------
+
+
+def test_reviewer_login_is_404_when_disabled(client, db, settings):
+    settings.REVIEWER_LOGIN_ENABLED = False
+
+    response = client.post("/api/auth/reviewer-login")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+
+
+def test_reviewer_login_signs_in_as_an_unprivileged_account(client, db, settings):
+    settings.REVIEWER_LOGIN_ENABLED = True
+
+    response = client.post("/api/auth/reviewer-login")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["username"] == "reviewer"
+    assert body["is_staff"] is False
+    assert client.get("/api/auth/me").json()["username"] == "reviewer"
+
+
+def test_reviewer_login_reuses_the_same_account(client, db, settings):
+    settings.REVIEWER_LOGIN_ENABLED = True
+
+    first = client.post("/api/auth/reviewer-login").json()
+    client.post("/api/auth/logout")
+    second = client.post("/api/auth/reviewer-login").json()
+
+    assert first["id"] == second["id"]
+
+
+def test_reviewer_account_has_no_usable_password(client, db, settings):
+    """The button is the only door in — a correct-looking guess at the normal login
+    form must never work."""
+    settings.REVIEWER_LOGIN_ENABLED = True
+    client.post("/api/auth/reviewer-login")
+
+    response = client.post(
+        "/api/auth/login",
+        data={"username": "reviewer", "password": ""},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 401
+
+
 # --- Envelope ---------------------------------------------------------------------
 
 
@@ -120,6 +169,14 @@ def test_version_advertises_the_scoring_vocabulary(client, db):
     assert families["toehold"]["label"] == "Toehold Riboswitch"
     # Planned mechanisms are advertised so the UI can grey them out honestly.
     assert not families["crispr"]["available"]
+
+
+def test_version_advertises_reviewer_login_flag(client, db, settings):
+    settings.REVIEWER_LOGIN_ENABLED = True
+    assert client.get("/api/version").json()["reviewer_login_enabled"] is True
+
+    settings.REVIEWER_LOGIN_ENABLED = False
+    assert client.get("/api/version").json()["reviewer_login_enabled"] is False
 
 
 def test_version_exposes_no_secrets(client, db, settings):

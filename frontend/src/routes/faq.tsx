@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CircleHelp } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { HelpLink, HelpNav } from "@/components/docs/HelpNav";
+import { HelpLink } from "@/components/docs/HelpNav";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
 import { Panel } from "@/components/layout/Primitives";
@@ -345,7 +345,6 @@ export function FaqContent() {
         title="Frequently asked questions"
         description="Direct answers about setup, supported inputs, results, and repeatability."
       />
-      <HelpNav current="/faq" />
       <nav
         aria-label="FAQ topics"
         className="mb-6 flex flex-wrap gap-3 text-sm text-mint"

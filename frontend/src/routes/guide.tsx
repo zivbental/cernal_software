@@ -3,7 +3,7 @@ import { BookOpen } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CodeBlock } from "@/components/docs/CodeBlock";
-import { Caveat, HelpLink, HelpNav } from "@/components/docs/HelpNav";
+import { Caveat, HelpLink } from "@/components/docs/HelpNav";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
 import { Panel } from "@/components/layout/Primitives";
@@ -72,7 +72,6 @@ export function GuideContent() {
         title="How to compile a circuit"
         description="A task-first path from a supported input to an inspectable run."
       />
-      <HelpNav current="/guide" />
       <nav
         aria-label="On this page"
         className="mb-6 rounded-xl border border-border bg-surface p-4"

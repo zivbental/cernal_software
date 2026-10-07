@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Lightbulb } from "lucide-react";
-import { Caveat, HelpNav } from "@/components/docs/HelpNav";
+import { Caveat } from "@/components/docs/HelpNav";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
 import { Panel } from "@/components/layout/Primitives";
@@ -81,7 +81,6 @@ export function UseCasesContent() {
         title="Choose a supported workflow"
         description="Start with the input you have and the kind of inspection you need."
       />
-      <HelpNav current="/use-cases" />
       <Caveat>
         <strong>Scope:</strong> the current LocalEngine designs from one
         transcript or selects single-gene triggers from DE data. Multi-gene

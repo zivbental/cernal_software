@@ -53,6 +53,7 @@ export interface Version {
   gate_families: GateFamily[];
   scoring_profiles: string[];
   available_backbones: Backbone[];
+  reviewer_login_enabled: boolean;
 }
 
 export interface ExampleDataset {
