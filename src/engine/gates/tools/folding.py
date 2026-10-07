@@ -37,6 +37,18 @@ import RNA
 
 from engine.domain import FoldResult, StructureMatch
 
+# ViennaRNA's ``pf()`` returns a C ``float``, so every ensemble free energy this module
+# handles lands exactly on the single-precision grid — verified by round-tripping real
+# outputs through ``struct.pack("<f", ...)``. At the magnitudes an AND-gate tube reaches
+# (|G| of 40 to 210 kcal/mol) one step is 3.8e-06 to 1.5e-05 kcal/mol, so a *difference*
+# of two such energies -- which is what every opening cost and every ``separation`` is --
+# carries about 3e-05 kcal/mol of quantisation.
+#
+# **Two numbers closer than this are not equal, they are unresolved.** Nothing here can
+# distinguish them, and no threshold should be set inside that band. Quoted as the
+# coarsest case so it is a bound rather than an estimate.
+_FLOAT32_ENERGY_ULP = 3.1e-05
+
 
 def _contains_pairs(structure: str, pairs: Sequence[tuple[int, int]]) -> bool:
     """Whether a dot-bracket string (``&`` ignored) pairs every ``(i, j)`` in ``pairs``."""
@@ -163,6 +175,15 @@ class FoldEngine:
         fold_compound = self._compound(sequence)
         _, energy = fold_compound.pf()
         return energy
+
+    @property
+    def rt(self) -> float:
+        """``RT`` in kcal/mol at this engine's temperature.
+
+        Taken from ViennaRNA's own constants rather than a literal, so it cannot drift
+        from the model the energies were computed under.
+        """
+        return (RNA.GASCONST / 1000.0) * (self.temperature + RNA.K0)
 
     def ensemble_defect(self, sequence: str, target: str) -> float:
         """How far the predicted ensemble sits from an intended structure.
@@ -313,7 +334,7 @@ class FoldEngine:
 
         where ``Z(forced)`` is the partition function restricted to structures that
         contain every forced pair, ``G`` the unconstrained ensemble free energy, and
-        ``RT = R * T`` with ``R = 0.0019872`` kcal/mol/K and ``T = temperature + 273.15``.
+        ``RT`` is :attr:`rt` (ViennaRNA's own gas constant at this engine's temperature).
         For a single forced pair this equals the matching
         :meth:`base_pair_probabilities` entry exactly.
 
@@ -342,8 +363,7 @@ class FoldEngine:
     def _constrained_probability_cached(
         self, strands: str, forced_pairs: tuple[tuple[int, int], ...]
     ) -> float | None:
-        gas_constant = 0.0019872  # kcal/mol/K
-        rt = gas_constant * (self.temperature + 273.15)
+        rt = self.rt
 
         def free_energy(pairs: tuple[tuple[int, int], ...]) -> float | None:
             fold_compound = self._compound(strands)
@@ -372,10 +392,16 @@ class FoldEngine:
             return None
         if free_forced - free_all > 100.0:
             return None
-        probability = math.exp(-(free_forced - free_all) / rt)
-        if not 0.0 < probability <= 1.0 + 1e-9:
+        cost = free_forced - free_all
+        probability = math.exp(-cost / rt)
+        if probability == 0.0:
             return None
-        return min(probability, 1.0)
+        # Same clamp as ``p_open``: the constrained ensemble is a subset of the free one,
+        # so ``cost`` is non-negative in exact arithmetic; single-precision energies can put
+        # a near-certain event one ulp the wrong way (probability just above 1).
+        if probability > 1.0:
+            return 1.0 if cost > -_FLOAT32_ENERGY_ULP else None
+        return probability
 
     def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]:
         """Every structure within an energy window of the MFE.

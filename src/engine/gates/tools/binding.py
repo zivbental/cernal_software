@@ -12,6 +12,37 @@ normalise onto one axis as though they were comparable.
 
 from engine.gates.tools.folding import FoldEngine
 
+#: Every pairing the design may rely on. **G:U wobbles count** — a duplex scored on
+#: Watson-Crick pairs alone reads as broken while still holding perfectly well, which on
+#: this project produced a "knockout" retaining a fully wobble-paired 8-nt run.
+_PAIRABLE = frozenset({("A", "U"), ("U", "A"), ("G", "C"), ("C", "G"), ("G", "U"), ("U", "G")})
+
+
+def can_pair(first: str, second: str) -> bool:
+    """Whether two bases can hydrogen-bond, **G:U wobbles included**.
+
+    See ``_PAIRABLE``: excluding wobbles makes a duplex read as broken while it still
+    holds, which is how a negative control stops being one.
+    """
+    return (first, second) in _PAIRABLE
+
+
+def alignment_pairs(first: str, second: str) -> list[bool]:
+    """Which positions can pair when the two strands are held antiparallel.
+
+    ``first[i]`` faces ``second[n-1-i]``, the 5'→3'/3'→5' convention both strands are
+    written in. Returns one flag per position of ``first``.
+
+    Raises:
+        ValueError: if the strands are different lengths. A fixed alignment between
+            unequal strands is undefined, and silently truncating would score a shorter
+            duplex than the design describes.
+    """
+    if len(first) != len(second):
+        raise ValueError(f"fixed alignment needs equal lengths, got {len(first)} and {len(second)}")
+    n = len(first)
+    return [can_pair(first[i], second[n - 1 - i]) for i in range(n)]
+
 
 def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float:
     """Free energy released when a trigger binds its switch.
