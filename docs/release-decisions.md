@@ -24,6 +24,7 @@ source provenance but still need biological contrast review.
 
 Researcher notes and tags are part of the existing local review workflow. Shortlisting
 records a research decision; it does not authorize sequence release or synthesis.
-Ordering remains planned/unavailable. R/MATLAB clients remain experimental until
-runtime conformance passes. Packages are installed from source in this checkout;
+Ordering remains planned/unavailable. R runtime conformance passed hosted Linux CI;
+MATLAB remains experimental pending native runtime conformance. Packages are installed
+from source in this checkout;
 no PyPI/CRAN/MATLAB publication is claimed.

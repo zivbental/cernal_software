@@ -46,6 +46,7 @@ def test_resolved_echoes_every_default(client, design_key):
     assert resolved["scoring_profile"] == "default"
     assert "toehold" in resolved["gate_families"]
     assert resolved.get("seed") is None
+    assert resolved["payload"] == {"outputs": ["gfp"], "optimize_codons": False}
 
 
 def test_response_carries_poll_and_results_urls(client, design_key):

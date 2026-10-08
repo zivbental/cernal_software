@@ -273,6 +273,46 @@ PAYLOADS: dict[DesiredOutcome, tuple[str, str]] = {
         "AACCGCGAAAAAGTTGCGCGGAGGAGTTGTGTTTGTGGACGAAGTACCGAAAGGTCTTACCGGAAAACTCGACGCAAGAA"
         "AAATCAGAGAGATCCTCATAAAGGCCAAGAAGGGCGGAAAGATCGCCGTGTAA",
     ),
+    # GenBank J01749.1, annotated beta-lactamase CDS; exact protein checked.
+    DesiredOutcome.ANTIBIOTIC: (
+        "AmpR",
+        "ATGAGTATTCAACATTTCCGTGTCGCCCTTATTCCCTTTTTTGCGGCATTTTGCCTTCCTGTTTTTGCTCACCCAGAAAC"
+        "GCTGGTGAAAGTAAAAGATGCTGAAGATCAGTTGGGTGCACGAGTGGGTTACATCGAACTGGATCTCAACAGCGGTAAGA"
+        "TCCTTGAGAGTTTTCGCCCCGAAGAACGTTTTCCAATGATGAGCACTTTTAAAGTTCTGCTATGTGGCGCGGTATTATCC"
+        "CGTGTTGACGCCGGGCAAGAGCAACTCGGTCGCCGCATACACTATTCTCAGAATGACTTGGTTGAGTACTCACCAGTCAC"
+        "AGAAAAGCATCTTACGGATGGCATGACAGTAAGAGAATTATGCAGTGCTGCCATAACCATGAGTGATAACACTGCGGCCA"
+        "ACTTACTTCTGACAACGATCGGAGGACCGAAGGAGCTAACCGCTTTTTTGCACAACATGGGGGATCATGTAACTCGCCTT"
+        "GATCGTTGGGAACCGGAGCTGAATGAAGCCATACCAAACGACGAGCGTGACACCACGATGCCTGCAGCAATGGCAACAAC"
+        "GTTGCGCAAACTATTAACTGGCGAACTACTTACTCTAGCTTCCCGGCAACAATTAATAGACTGGATGGAGGCGGATAAAG"
+        "TTGCAGGACCACTTCTGCGCTCGGCCCTTCCGGCTGGCTGGTTTATTGCTGATAAATCTGGAGCCGGTGAGCGTGGGTCT"
+        "CGCGGTATCATTGCAGCACTGGGGCCAGATGGTAAGCCCTCCCGTATCGTAGTTATCTACACGACGGGGAGTCAGGCAAC"
+        "TATGGATGAACGAAATAGACAGATCGCTGAGATAGGTGCCTCACTGATTAAGCATTGGTAA",
+    ),
+    # GenBank V00618.1, annotated neomycin phosphotransferase CDS; exact protein checked.
+    DesiredOutcome.KANAMYCIN: (
+        "KanR",
+        "ATGATTGAACAAGATGGATTGCACGCAGGTTCTCCGGCCGCTTGGGTGGAGAGGCTATTCGGCTATGACTGGGCACAACA"
+        "GACAATCGGCTGCTCTGATGCCGCCGTGTTCCGGCTGTCAGCGCAGGGGCGCCCGGTTCTTTTTGTCAAGACCGACCTGT"
+        "CCGGTGCCCTGAATGAACTGCAGGACGAGGCAGCGCGGCTATCGTGGCTGGCCACGACGGGCGTTCCTTGCGCAGCTGTG"
+        "CTCGACGTTGTCACTGAAGCGGGAAGGGACTGGCTGCTATTGGGCGAAGTGCCGGGGCAGGATCTCCTGTCATCTCACCT"
+        "TGCTCCTGCCGAGAAAGTATCCATCATGGCTGATGCAATGCGGCGGCTGCATACGCTTGATCCGGCTACCTGCCCATTCG"
+        "ACCACCAAGCGAAACATCGCATCGAGCGAGCACGTACTCGGATGGAAGCCGGTCTTGTCGATCAGGATGATCTGGACGAA"
+        "GAGCATCAGGGGCTCGCGCCAGCCGAACTGTTCGCCAGGCTCAAGGCGCGCATGCCCGACGGCGAGGATCTCGTCGTGAC"
+        "CCATGGCGATGCCTGCTTGCCGAATATCATGGTGGAAAATGGCCGCTTTTCTGGATTCATCGACTGTGGCCGGCTGGGTG"
+        "TGGCGGACCGCTATCAGGACATAGCGTTGGCTACCCGTGATATTGCTGAAGAGCTTGGCGGCGAATGGGCTGACCGCTTC"
+        "CTCGTGCTTTACGGTATCGCCGCTCCCGATTCGCAGCGCATCGCCTTCTATCGCCTTCTTGACGAGTTCTTCTGA",
+    ),
+}
+
+
+EXTERNAL_PARTS = {"AmpR": "J01749.1", "KanR": "V00618.1"}
+PAYLOAD_HOSTS = {
+    outcome: (
+        (Host.ECOLI,)
+        if outcome in (DesiredOutcome.ANTIBIOTIC, DesiredOutcome.KANAMYCIN)
+        else tuple(Host)
+    )
+    for outcome in (*PAYLOADS, DesiredOutcome.CUSTOM)
 }
 
 
@@ -530,6 +570,12 @@ class PlasmidBuilder:
                 "Unsupported physical inversion: this builder compiles activating gates only."
             )
         host = circuit.designs[0].host
+        if host is not Host.ECOLI and any(
+            (segment.name, segment.sequence) in BACKBONES.values() for segment in self.backbone
+        ):
+            raise InputValidationError("Catalog vectors are currently supported only for E. coli.")
+        if outcome in PAYLOAD_HOSTS and host not in PAYLOAD_HOSTS[outcome]:
+            raise InputValidationError(f"Payload {outcome.value!r} has E. coli-only host scope.")
         promoter_name, promoter_seq = _lookup_part(PROMOTERS, host, "promoter")
         terminator_name, terminator_seq = _lookup_part(TERMINATORS, host, "terminator")
 
@@ -802,11 +848,11 @@ def parse_custom_backbone(genbank_text: str) -> Segment:
         genbank_text: The uploaded file's raw text content.
 
     Returns:
-        One opaque ``Segment`` of kind ``BACKBONE`` — the whole file's sequence,
-        uppercased DNA. The registry has no feature-level record of where an origin
-        ends and a marker begins for the catalog entries either (see ``BACKBONES``
-        above), so a custom upload is treated the same way rather than guessing at
-        boundaries inside an uploaded file's own annotations.
+        One BACKBONE segment containing uppercase DNA and immutable serialized
+        local feature coordinates, strands, compound operators and qualifiers.
+        Fuzzy and remote positions are rejected; coordinates are shifted when the
+        compiled cassette is inserted. Parsing supplies no host-functional or cloning
+        protocol certification.
 
     Raises:
         InputValidationError: the text does not parse as GenBank, the record is not
@@ -995,6 +1041,13 @@ def load_registry_catalog() -> dict[str, dict]:
     return json.loads(_REGISTRY_CATALOG_PATH.read_text(encoding="utf-8"))
 
 
+@cache
+def load_part_catalog() -> dict[str, dict]:
+    """Registry plus separately pinned primary GenBank CDS metadata."""
+    external = Path(__file__).resolve().parents[1] / "data" / "marker_sources.json"
+    return {**load_registry_catalog(), **json.loads(external.read_text(encoding="utf-8"))}
+
+
 def _role_uri(segment: Segment, entry: dict | None) -> str:
     """The SO role URI for one segment, preferring the Registry's own accession."""
     accession = (entry or {}).get("role_accession", "")
@@ -1048,7 +1101,7 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
     Returns:
         The SBOL 3 document as UTF-8 encoded sorted N-Triples.
     """
-    catalog = load_registry_catalog()
+    catalog = load_part_catalog()
     sbol3.set_namespace(SBOL_NAMESPACE)
     document = sbol3.Document()
 
@@ -1092,7 +1145,10 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
         if entry:
             # Provenance, not a second copy of the part: the Registry's own identifier
             # for the thing this segment is, so a reader can go and look it up.
-            part.description = f"iGEM Registry part {entry['registry_name']} — {entry['url']}"
+            part.description = (
+                f"Primary-source part {entry.get('registry_name', entry.get('accession'))} "
+                f"— {entry['url']}"
+            )
             part.derived_from = [entry["url"]]
 
         feature = sbol3.SubComponent(part)

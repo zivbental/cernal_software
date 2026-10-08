@@ -1,0 +1,235 @@
+{
+  "schema": "cernal-final-remediation-evidence-v1",
+  "date": "2026-10-08",
+  "final_code_revision": "d485d20e2df8cff795b20c0f4a690db3c67af503",
+  "full_backend_revision": "e6508f98b0418c9fdc0ca3af04fdc3e7445bdab8",
+  "full_backend": {
+    "passed": 2042,
+    "failed": 0,
+    "seconds": 661.85,
+    "exitstatus": 0
+  },
+  "additional_advisory_helper_tests": {
+    "passed": 8,
+    "seconds": 0.05,
+    "revision": "dc41b0e081cb9fa3d8317dd7217cd2b647817737"
+  },
+  "limits": [
+    "Command totals overlap; do not sum them as a unique suite.",
+    "Full local backend snapshot predates the advisory helper and native child bootstrap follow-up. Those were tested separately with PYTHONPATH removed; final full hosted regression is the PR check gate. Frontend wording and gitlink cleanup were separately verified.",
+    "Hosted native Windows selected tests include mocked process launch/shutdown; full native process drills remain open.",
+    "No deployment, MATLAB runtime, experimental efficacy or operational screening certification is claimed.",
+    "Original user database/media/source working tree was preserved; QA uses isolated copies."
+  ],
+  "files": [
+    {
+      "path": "backend/advisory-guard.log",
+      "bytes": 98,
+      "sha256": "58745d8011883213acd6d3ad00c73a2860f68e432f60fc956b8cb2a8bb6d8181"
+    },
+    {
+      "path": "backend/api-corrections.log",
+      "bytes": 261,
+      "sha256": "3aa9090df033d1d14921be23f5908b5907618cb96acda678ec38f5ef950ed58c"
+    },
+    {
+      "path": "backend/evidence-runner.py",
+      "bytes": 686,
+      "sha256": "1cacfd999153dc95a00e5a67431054edec6db97c17b74fb85c5210fda8e26cdf"
+    },
+    {
+      "path": "backend/final-collected.txt",
+      "bytes": 195950,
+      "sha256": "d542df04c2a8c7898abd751c18083083185ebd8b231d1839b6e88683f0553415"
+    },
+    {
+      "path": "backend/full.log",
+      "bytes": 4354,
+      "sha256": "c1159d16c2fcdeea8ad528eb3c1f45fcd139d2bcdc6232f3bb46ad815cf0c96d"
+    },
+    {
+      "path": "backend/native-bootstrap.log",
+      "bytes": 179,
+      "sha256": "7716e0e2220aa23d85944b32cd514b7255638d0dba9f2c61593ec4167ec6f7f7"
+    },
+    {
+      "path": "backend/queue-deadline.log",
+      "bytes": 100,
+      "sha256": "200cb7d125a593e314926894ae4c974c08c178c5f9f91f7f03e4b2f529a5f8bf"
+    },
+    {
+      "path": "backend/static.json",
+      "bytes": 1667,
+      "sha256": "f9f01a6980c699b46d00d799808a90cb91933afa3f1feb87e9faf631e732f6be"
+    },
+    {
+      "path": "backend/test-cases.json",
+      "bytes": 1329416,
+      "sha256": "fb9c5574cbe9b961cc1352d67821d987ab93b6d3e0b92eeea0d4ccd3c6fee9a5"
+    },
+    {
+      "path": "browser/contracts-original.log",
+      "bytes": 357,
+      "sha256": "51f37cabf7a1bf7548aa4166761d570e9a2a839ddbcd00b8032428298eec7744"
+    },
+    {
+      "path": "browser/final-frontend.log",
+      "bytes": 4082,
+      "sha256": "f544be83f6035903f37550f883fd8a0f18673c67fcb8e6c3175cb664b47fcb1c"
+    },
+    {
+      "path": "browser/human-arthritis-completed.png",
+      "bytes": 593413,
+      "sha256": "b7ad45d171e076ab7ce965b4153f6f6ff9d9896fac999ed7dad621b60f397557"
+    },
+    {
+      "path": "browser/human-arthritis-evidence.json",
+      "bytes": 10363,
+      "sha256": "2404de1f688aa047217d8e0cf567dd5499e7ebe96c32608bc9b9219f15facbf1"
+    },
+    {
+      "path": "browser/human-arthritis-harness.mjs",
+      "bytes": 5707,
+      "sha256": "397c96478042e6047ac80a0cdb1b488bdf9cfa7848875efb83c849fbb4032535"
+    },
+    {
+      "path": "browser/human-arthritis-selected.png",
+      "bytes": 396165,
+      "sha256": "5a764bfe079c72eae44b5e74e29a89128218d957052ca02ace67051e6ed5aa52"
+    },
+    {
+      "path": "browser/human-arthritis.log",
+      "bytes": 323,
+      "sha256": "b241fa2af23d226ae4bd0d830968fd52ee5ab7a15b7ff64cce9f8cf4a71dece1"
+    },
+    {
+      "path": "browser/queued-evidence.json",
+      "bytes": 787,
+      "sha256": "a4c8e30cd6d0e5022ac2b06d3f773f439bcd21ae6ff9070b3d35c433fe289ea1"
+    },
+    {
+      "path": "browser/queued.log",
+      "bytes": 308,
+      "sha256": "6d360f41ed5e796ff723ad21c506d69b93e32163ae27486ec88e68d6701bb6fb"
+    },
+    {
+      "path": "clients/python-sdk.log",
+      "bytes": 141,
+      "sha256": "62bd78117ae082138be8f64566f2ea1b8a36cea00cba33e5b072defd8d74fe36"
+    },
+    {
+      "path": "environment.json",
+      "bytes": 504,
+      "sha256": "60e975d0da6e695a7a2a041e3094fb2da400f220b51c342b5154437969901de0"
+    },
+    {
+      "path": "historical/before-test-corrections.log",
+      "bytes": 10121,
+      "sha256": "1eff6034818e489856837692ee014bb0839a965e17d95b77ecd777aa516e4af4"
+    },
+    {
+      "path": "historical/hosted-backend-before-bootstrap.log",
+      "bytes": 34906,
+      "sha256": "6801e8a696efe64120b80dcafea91f10973382123053096948de1c8387ec2818"
+    },
+    {
+      "path": "historical/invalid-empty-python-audit.json",
+      "bytes": 34,
+      "sha256": "87b8b6a2ed1cf98ddb395969c074495e7ed2149897c07778f0052effe75cb8cf"
+    },
+    {
+      "path": "historical/native-import-reproduction.log",
+      "bytes": 210,
+      "sha256": "e86cf2a9b44a41ba741456b94d0fd3e6efe7dc3fc9258f63cc72164e82544746"
+    },
+    {
+      "path": "hosted/final-javascript-advisories.json",
+      "bytes": 365,
+      "sha256": "e51f9b78cc5e58eb010394f4e1c366bee4f8c7f531df4d1aafc15333e76ec0c4"
+    },
+    {
+      "path": "hosted/final-python-advisories.json",
+      "bytes": 3014,
+      "sha256": "e422c18a5902506ccab972d61e767a61a9369e4c9347e528482c3745fee933bc"
+    },
+    {
+      "path": "hosted/final-python-audit-coverage.json",
+      "bytes": 185,
+      "sha256": "8548598a77e2a39ff6982ea883fa3aa1823a7209102457b47b3274ee01e2b8e7"
+    },
+    {
+      "path": "hosted/final-python-production-requirements.txt",
+      "bytes": 1069,
+      "sha256": "78b4691a270b877eed77aa81271f8d55f2f7d849215af5d8deaf7d3bf677434d"
+    },
+    {
+      "path": "hosted/final-release-evidence.json",
+      "bytes": 4072,
+      "sha256": "a8f756bfd441e4a004f62799a5300d50af7551af057c6e3ba57fdb9d406ebbc9"
+    },
+    {
+      "path": "hosted/final-release-run.json",
+      "bytes": 6879,
+      "sha256": "50cebd3b301eb618220063c7baf23eb0784b9b1b894f98c57e19e916bae0c146"
+    },
+    {
+      "path": "hosted/final-static.log",
+      "bytes": 398,
+      "sha256": "47e548db09e142169bad06814fe32704d177fe61ef483ba9383392b39e5233c3"
+    },
+    {
+      "path": "hosted/final-windows.log",
+      "bytes": 23048,
+      "sha256": "9ba0dcb6d1a63a4061d78db2158788e19efd134204b19124902c6d567ed8d478"
+    },
+    {
+      "path": "hosted/javascript-advisories.json",
+      "bytes": 365,
+      "sha256": "e51f9b78cc5e58eb010394f4e1c366bee4f8c7f531df4d1aafc15333e76ec0c4"
+    },
+    {
+      "path": "hosted/python-advisories.json",
+      "bytes": 3014,
+      "sha256": "e422c18a5902506ccab972d61e767a61a9369e4c9347e528482c3745fee933bc"
+    },
+    {
+      "path": "hosted/python-coverage.json",
+      "bytes": 185,
+      "sha256": "8548598a77e2a39ff6982ea883fa3aa1823a7209102457b47b3274ee01e2b8e7"
+    },
+    {
+      "path": "hosted/python-production-requirements.txt",
+      "bytes": 1069,
+      "sha256": "78b4691a270b877eed77aa81271f8d55f2f7d849215af5d8deaf7d3bf677434d"
+    },
+    {
+      "path": "hosted/release-evidence.json",
+      "bytes": 3577,
+      "sha256": "296af88b8fb7aba549680118babe2d8822b9cd2de5b4388eac53781ba1a518de"
+    },
+    {
+      "path": "hosted/release-run.json",
+      "bytes": 6572,
+      "sha256": "0356a9a3db4cb2f5f073dbab65fd7745dcd19954c3355862acc4ad793db1d74e"
+    },
+    {
+      "path": "hosted/windows.log",
+      "bytes": 44293,
+      "sha256": "274b0aaae45d09dff7df5c6cb402a96ddf9a2a90ae90d4249114133ba802f518"
+    }
+  ],
+  "final_collected_tests": 2052,
+  "native_bootstrap_followup": {
+    "revision": "3da3189",
+    "command": "env -u PYTHONPATH uv run --no-sync pytest tests/engine/test_scientific_qa.py tests/test_advisory_coverage.py -q",
+    "passed": 86,
+    "seconds": 0.78
+  },
+  "hosted_windows_final": {
+    "revision": "d485d20",
+    "url": "https://github.com/zivbental/cernal_software/actions/runs/37812568608",
+    "passed": 51,
+    "seconds": 35.2,
+    "actual_native_folding_cases": 3
+  }
+}

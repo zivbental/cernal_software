@@ -28,6 +28,7 @@ questions 2 through 5, and says so through ``on_warning`` rather than pretending
 otherwise.
 """
 
+import re
 from bisect import bisect_right
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -601,6 +602,61 @@ class GeneSelector:
         if not self.constraints.trigger_lengths:
             return None, None
 
+        if type(self.screener) is not MotifScreener:
+            # A custom screener may implement additional window-specific rules.
+            return self._trigger_yield_windows(transcript)
+
+        size = len(transcript)
+        lengths = [length for length in self.constraints.trigger_lengths if 0 < length <= size]
+        if not lengths:
+            return None, None
+
+        # The screen is identical to the per-window rule. A motif at [start, end)
+        # invalidates only windows containing it completely, including overlapping
+        # occurrences. A long homopolymer contains many prohibited minimum-length
+        # runs; represent their union rather than requiring the whole run to fit.
+        intervals = []
+        for violation in self.screener.violations(transcript):
+            width = len(violation.motif)
+            minimum = (
+                self.screener.max_homopolymer + 1 if violation.kind == "homopolymer" else width
+            )
+            intervals.append((violation.start, violation.start + width, minimum))
+        intervals.extend(
+            (match.start(), match.start() + 3, 3)
+            for match in re.finditer("(?=AUG|CAU)", sq.to_rna(transcript))
+        )
+
+        gc_prefix = [0]
+        for base in transcript.upper():
+            gc_prefix.append(gc_prefix[-1] + (base in "GC"))
+
+        low, high = self.constraints.trigger_gc_range
+        scanned = surviving = 0
+        for length in lengths:
+            windows = size - length + 1
+            blocked = [0] * (windows + 1)
+            for start, end, minimum in intervals:
+                if minimum > length:
+                    continue
+                first = max(0, start + minimum - length)
+                last = min(windows - 1, end - minimum)
+                if first <= last:
+                    blocked[first] += 1
+                    blocked[last + 1] -= 1
+            active = 0
+            for start in range(windows):
+                active += blocked[start]
+                if active:
+                    continue
+                gc = 100.0 * (gc_prefix[start + length] - gc_prefix[start]) / length
+                if low <= gc <= high:
+                    surviving += 1
+            scanned += windows
+        return surviving / scanned, surviving
+
+    def _trigger_yield_windows(self, transcript: str) -> tuple[float | None, int | None]:
+        """Compatibility path for screeners with custom per-window behavior."""
         low, high = self.constraints.trigger_gc_range
         scanned = 0
         surviving = 0

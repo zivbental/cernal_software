@@ -57,6 +57,8 @@ export interface Version {
   supported_hosts: string[];
   family_hosts: Record<string, string[]>;
   supported_outputs: string[];
+  output_hosts?: Record<string, string[]>;
+  backbone_hosts?: Record<string, string[]>;
   input_modes: string[];
   limits: Record<string, number>;
   constraints: Record<string, unknown>;
@@ -347,7 +349,7 @@ export interface RunParams {
   logic?: { set_a: string[]; set_b: string[]; expression: string };
   mechanism?: string;
   /** All outputs are equivalent; each selected one gets its own plasmid candidates. */
-  payload?: { outputs: string[]; custom_sequence: string | null };
+  payload?: { outputs: string[]; custom_sequence: string | null; optimize_codons?: boolean };
   /**
    * A per-run override of the scoring profile's hard filters (engine.scoring.profiles
    * X7) — the same shape POST /api/design validates. Metric names must be ones the

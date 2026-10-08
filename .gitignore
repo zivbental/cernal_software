@@ -41,3 +41,6 @@ staticfiles/
 .DS_Store
 desktop.ini
 *:Zone.Identifier
+
+# Local agent checkouts are not project submodules.
+.claude/worktrees/

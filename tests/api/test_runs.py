@@ -261,7 +261,7 @@ def test_a_valid_backbone_catalog_key_is_accepted_and_stored(
 
     assert response.status_code == 202
     run = AnalysisRun.objects.get(pk=response.json()["id"])
-    assert run.params_snapshot["backbone"] == {"catalog_key": "psb1c3"}
+    assert run.params_snapshot["backbone"] == {"catalog_key": "psb1c3", "insertion_index": 0}
 
 
 def test_cannot_submit_using_another_users_dataset(other_client, dataset):

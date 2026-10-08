@@ -2,5 +2,7 @@
 cernal.example.org {
     encode zstd gzip
     # All media downloads pass through Django authorization.
-    reverse_proxy 127.0.0.1:8000
+    reverse_proxy 127.0.0.1:8000 {
+        header_up X-Cernal-Client-IP {remote_host}
+    }
 }

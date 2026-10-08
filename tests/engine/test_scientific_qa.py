@@ -341,3 +341,108 @@ def test_suboptimal_timeout_returns_no_partial_ensemble(monkeypatch):
     monkeypatch.setattr(subprocess, "run", timeout)
     with pytest.raises(TimeoutError, match="time limit"):
         FoldEngine().suboptimal("GGGAAACCC")
+
+
+@pytest.mark.parametrize("host", ["yeast", "human", "c_acnes"])
+@pytest.mark.parametrize("output", ["ampr", "kanr"])
+def test_marker_host_scope_rejects_before_queue(host, output):
+    with pytest.raises(ValueError, match=r"E\. coli"):
+        validate_job_configuration(
+            {"payload": {"outputs": [output]}},
+            ["toehold"],
+            "default",
+            "direct",
+            "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA",
+            host,
+        )
+
+
+@pytest.mark.parametrize("host", ["yeast", "human", "c_acnes"])
+def test_catalog_vector_host_scope_rejects_before_queue(host):
+    with pytest.raises(ValueError, match=r"currently supported only for E\. coli"):
+        validate_job_configuration(
+            {"backbone": {"catalog_key": "psb1a3"}},
+            ["toehold"],
+            "default",
+            "direct",
+            "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA",
+            host,
+        )
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"host": ["ecoli"]},
+        {"host": False},
+        {"organism": {"name": "ecoli"}},
+        {"budget": False},
+        {"budget": []},
+        {"budget": ""},
+        {"budget": None},
+    ],
+)
+def test_malformed_falsy_budget_and_unhashable_host_fail_consistently(params):
+    with pytest.raises(ValueError):
+        validate_job_configuration(params, ["toehold"], "default", "direct", "ACGU")
+
+
+def test_normalized_configuration_does_not_share_mutable_request_blocks():
+    params = {"annotation": {"nested": ["original"]}}
+    normalized = validate_job_configuration(params, ["toehold"], "default", "direct", "ACGU")
+    normalized["annotation"]["nested"].append("changed")
+    assert params["annotation"]["nested"] == ["original"]
+
+
+def test_suboptimal_child_imports_source_without_pythonpath(monkeypatch, tmp_path):
+    """A pytest sys.path entry is process-local, unlike exported PYTHONPATH."""
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    monkeypatch.chdir(tmp_path)
+    folder = FoldEngine()
+    results = folder.suboptimal("GGGAAACCC", 0.5)
+    assert results
+    assert results[0] == folder.mfe("GGGAAACCC")
+    with pytest.raises(ValueError, match="count limit"):
+        folder.suboptimal("GGGAAACCC", 0.5, max_structures=1)
+
+
+def test_suboptimal_child_imports_same_installed_package_layout_without_pythonpath(tmp_path):
+    import os
+    import shutil
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    import engine.gates.tools.folding as folding
+
+    source = Path(folding.__file__).resolve().parents[3]
+    installed = tmp_path / "site packages' quoted"
+    for relative in (
+        "engine/__init__.py",
+        "engine/domain.py",
+        "engine/gates/__init__.py",
+        "engine/gates/tools/__init__.py",
+        "engine/gates/tools/folding.py",
+    ):
+        target = installed / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / relative, target)
+    script = (
+        "import sys\n"
+        f"sys.path.insert(0, {str(installed)!r})\n"
+        "from pathlib import Path\n"
+        "import engine.gates.tools.folding as folding\n"
+        f"assert Path(folding.__file__).is_relative_to({str(installed)!r})\n"
+        "folder = folding.FoldEngine()\n"
+        "assert folder.suboptimal('GGGAAACCC', 0.5)[0] == folder.mfe('GGGAAACCC')\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr

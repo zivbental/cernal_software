@@ -169,6 +169,7 @@ class DesiredOutcome(StrEnum):
     MCHERRY = "mcherry"
     LUCIFERASE = "luciferase"
     ANTIBIOTIC = "ampr"
+    KANAMYCIN = "kanr"
     APOPTOSIS = "apoptosis"
     CUSTOM = "other"
 
@@ -181,6 +182,7 @@ class DesiredOutcome(StrEnum):
             DesiredOutcome.MCHERRY: "mCherry",
             DesiredOutcome.LUCIFERASE: "Luciferase",
             DesiredOutcome.ANTIBIOTIC: "AmpR",
+            DesiredOutcome.KANAMYCIN: "KanR",
             DesiredOutcome.APOPTOSIS: "Apoptosis inducer",
             DesiredOutcome.CUSTOM: "Custom",
         }[self]
