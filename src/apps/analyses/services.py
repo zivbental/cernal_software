@@ -621,9 +621,36 @@ def _reconcile_running(run):
     return True
 
 
+def _expire_queued(run):
+    """Fence a timed-out submission without interrupting a worker that already claimed it."""
+    with transaction.atomic():
+        waiting = AnalysisRun.objects.filter(pk=run.pk, status=RunStatus.QUEUED)
+        if not waiting.update(updated_at=timezone.now()):
+            return False
+        cancelled = waiting.values_list("cancel_requested", flat=True).get()
+        _finish(
+            run,
+            RunStatus.CANCELLED if cancelled else RunStatus.FAILED,
+            stage="Cancelled" if cancelled else "Queue wait expired",
+            error_summary=(
+                ""
+                if cancelled
+                else "No worker started this run within the queue wait limit. "
+                "Check worker availability and queue capacity, then submit a new run to retry."
+            ),
+        )
+    return True
+
+
 def reconcile_runs():
-    """Recover dispatch gaps and terminate expired leases; never recompute silently."""
-    cutoff = timezone.now() - timedelta(seconds=settings.RUN_QUEUE_REPUBLISH_SECONDS)
+    """Recover dispatch gaps and terminate expired waits/leases; never recompute silently."""
+    now = timezone.now()
+    wait_cutoff = now - timedelta(seconds=settings.RUN_QUEUE_TIMEOUT)
+    expired_waits = AnalysisRun.objects.filter(status=RunStatus.QUEUED).filter(
+        Q(submitted_at__lt=wait_cutoff) | Q(submitted_at__isnull=True, created_at__lt=wait_cutoff)
+    )
+    queue_timeouts = sum(_expire_queued(run) for run in expired_waits.iterator())
+    cutoff = now - timedelta(seconds=settings.RUN_QUEUE_REPUBLISH_SECONDS)
     queued = AnalysisRun.objects.filter(status=RunStatus.QUEUED).filter(
         Q(enqueued_at__isnull=True) | Q(enqueued_at__lt=cutoff)
     )
@@ -637,7 +664,11 @@ def reconcile_runs():
             status=RunStatus.RUNNING,
         ).iterator()
     )
-    return {"dispatch_attempts": published, "interrupted": interrupted}
+    return {
+        "dispatch_attempts": published,
+        "queue_timeouts": queue_timeouts,
+        "interrupted": interrupted,
+    }
 
 
 def _staging_dir(run):

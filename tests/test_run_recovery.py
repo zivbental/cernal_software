@@ -69,6 +69,51 @@ def test_stale_worker_cannot_undo_terminal_cancel(run):
     assert run.finished_at is not None
 
 
+@pytest.mark.parametrize("published", [False, True])
+@pytest.mark.parametrize("legacy_timestamp", [False, True])
+def test_never_started_run_expires_without_republishing_or_computing(
+    run, monkeypatch, settings, published, legacy_timestamp
+):
+    settings.RUN_QUEUE_TIMEOUT = 60
+    old = timezone.now() - timedelta(seconds=120)
+    AnalysisRun.objects.filter(pk=run.pk).update(
+        submitted_at=None if legacy_timestamp else old,
+        created_at=old,
+        enqueued_at=timezone.now() if published else None,
+    )
+    publish = Mock()
+    compute = Mock()
+    monkeypatch.setattr("django_q.tasks.async_task", publish)
+    monkeypatch.setattr(services, "_execute", compute)
+    result = services.reconcile_runs()
+    run.refresh_from_db()
+    assert result["queue_timeouts"] == 1
+    assert result["dispatch_attempts"] == 0
+    assert run.status == RunStatus.FAILED
+    assert run.stage == "Queue wait expired"
+    assert run.finished_at is not None
+    assert "No worker started" in run.error_summary
+    services.execute_run(str(run.pk))
+    publish.assert_not_called()
+    compute.assert_not_called()
+
+
+def test_queue_expiry_does_not_overwrite_an_already_claimed_run(run):
+    waiting = AnalysisRun.objects.get(pk=run.pk)
+    running(run)
+    assert not services._expire_queued(waiting)
+    run.refresh_from_db()
+    assert run.status == RunStatus.RUNNING
+
+
+def test_queue_expiry_preserves_a_cancellation_request(run):
+    AnalysisRun.objects.filter(pk=run.pk).update(cancel_requested=True)
+    assert services._expire_queued(run)
+    run.refresh_from_db()
+    assert run.status == RunStatus.CANCELLED
+    assert run.error_summary == ""
+
+
 def test_stale_running_redelivery_fails_without_recomputing(run, monkeypatch):
     running(run, age=300)
     compute = Mock()

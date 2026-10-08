@@ -8,7 +8,7 @@ from apps.analyses.services import reconcile_runs
 
 
 class Command(BaseCommand):
-    help = "Retry unpublished runs and fail stale execution leases (never recompute science)."
+    help = "Retry dispatch and expire queue waits or stale leases (never recompute science)."
 
     def add_arguments(self, parser):
         parser.add_argument("--watch", action="store_true")

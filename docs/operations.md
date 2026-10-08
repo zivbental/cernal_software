@@ -83,7 +83,11 @@ run terminal; it does **not** silently repeat the scientific computation. A stal
 worker's later progress/result cannot overwrite the new terminal state.
 
 Defaults: heartbeat every 10 seconds, expiry at 120 seconds, execution deadline 3630
-seconds, queue republish after 3660 seconds. django-q2 has a 3600-second task timeout
+seconds, queue republish after 3660 seconds, and queue wait deadline 7200 seconds from
+submission (`RUN_QUEUE_TIMEOUT`). A run never claimed by any worker becomes FAILED
+with an explicit queue-wait error at reconciliation; broker retries do not reset this
+deadline. Late delivery cannot restart it. Adjust this limit deliberately for expected
+queue capacity: an overlong legitimate queue also expires. django-q2 has a 3600-second task timeout
 and 3660-second delivery retry. Keep heartbeat expiry comfortably above scheduling
 delays. Changing the timeout settings independently of Q_CLUSTER requires review.
 Reconciliation fences a stale worker; it is not itself a process killer. The queue

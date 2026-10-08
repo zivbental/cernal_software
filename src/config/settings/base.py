@@ -163,6 +163,7 @@ RUN_HEARTBEAT_SECONDS = env.int("RUN_HEARTBEAT_SECONDS", default=10)
 RUN_HEARTBEAT_TIMEOUT = env.int("RUN_HEARTBEAT_TIMEOUT", default=120)
 RUN_EXECUTION_TIMEOUT = env.int("RUN_EXECUTION_TIMEOUT", default=Q_CLUSTER["timeout"] + 30)
 RUN_QUEUE_REPUBLISH_SECONDS = env.int("RUN_QUEUE_REPUBLISH_SECONDS", default=Q_CLUSTER["retry"])
+RUN_QUEUE_TIMEOUT = env.int("RUN_QUEUE_TIMEOUT", default=7200)
 RUN_STAGING_ROOT = VAR_DIR / "result-staging"
 
 # --- Reviewer instant login ------------------------------------------------------
