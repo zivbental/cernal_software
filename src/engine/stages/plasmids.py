@@ -573,7 +573,7 @@ class PlasmidBuilder:
         if host is not Host.ECOLI and any(
             (segment.name, segment.sequence) in BACKBONES.values() for segment in self.backbone
         ):
-            raise InputValidationError("Catalog vectors have E. coli-only host scope.")
+            raise InputValidationError("Catalog vectors are currently supported only for E. coli.")
         if outcome in PAYLOAD_HOSTS and host not in PAYLOAD_HOSTS[outcome]:
             raise InputValidationError(f"Payload {outcome.value!r} has E. coli-only host scope.")
         promoter_name, promoter_seq = _lookup_part(PROMOTERS, host, "promoter")

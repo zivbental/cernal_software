@@ -305,8 +305,8 @@ def validate_job_configuration(
         validate_backbone_insertion(backbone_segments, insertion)
         if host is not Host.ECOLI and (params.get("backbone") or {}).get("catalog_key"):
             raise ValueError(
-                "Bundled catalog backbones have E. coli host scope; a "
-                "mammalian/yeast/C. acnes vector must be supplied and its host function verified."
+                "Catalog vectors are currently supported only for E. coli; provide an explicit "
+                "custom vector/cassette for mammalian, yeast or C. acnes context."
             )
         if input_mode == "direct":
             normalized = normalize_trigger_sequence(trigger_sequence)

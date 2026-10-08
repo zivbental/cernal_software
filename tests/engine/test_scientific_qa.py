@@ -359,7 +359,7 @@ def test_marker_host_scope_rejects_before_queue(host, output):
 
 @pytest.mark.parametrize("host", ["yeast", "human", "c_acnes"])
 def test_catalog_vector_host_scope_rejects_before_queue(host):
-    with pytest.raises(ValueError, match=r"E\. coli host scope"):
+    with pytest.raises(ValueError, match=r"currently supported only for E\. coli"):
         validate_job_configuration(
             {"backbone": {"catalog_key": "psb1a3"}},
             ["toehold"],
