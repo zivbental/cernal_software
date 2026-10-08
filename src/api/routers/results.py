@@ -1,7 +1,8 @@
 """Candidates, artifacts, annotations and exports."""
 
+import shutil
 import zipfile
-from io import BytesIO
+from tempfile import SpooledTemporaryFile
 from uuid import UUID
 
 from django.db.models import F
@@ -10,7 +11,7 @@ from ninja import Query, Router, Status
 from ninja.pagination import LimitOffsetPagination, paginate
 
 from api.auth import get_owned
-from api.errors import NotFound, ValidationFailed
+from api.errors import Conflict, NotFound, ValidationFailed
 from api.schemas import AnnotationIn, AnnotationOut, ArtifactOut, CandidateDetailOut, CandidateOut
 from api.security import require_scope
 from apps.accounts.models import ApiKeyScope
@@ -152,19 +153,38 @@ def download_artifacts_zip(
     if not artifacts:
         raise NotFound("No matching artifacts were found for this run.")
 
-    buffer = BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        used_names: set[str] = set()
-        for artifact in artifacts:
-            if not artifact.file or not artifact.file.storage.exists(artifact.file.name):
-                continue
-            arcname = _unique_arcname(f"{artifact.category}/{artifact.display_name}", used_names)
-            with artifact.file.open("rb") as handle:
-                archive.writestr(arcname, handle.read())
-
-    buffer.seek(0)
-    response = HttpResponse(buffer.getvalue(), content_type="application/zip")
+    missing = [
+        artifact
+        for artifact in artifacts
+        if not artifact.file or not artifact.file.storage.exists(artifact.file.name)
+    ]
+    if missing:
+        raise Conflict(
+            "This archive is incomplete because stored artifacts are missing.",
+            detail={"missing_artifact_ids": [str(artifact.id) for artifact in missing]},
+        )
+    buffer = SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode="w+b")
+    try:
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            used_names: set[str] = set()
+            for artifact in artifacts:
+                arcname = _unique_arcname(
+                    f"{artifact.category}/{artifact.display_name}", used_names
+                )
+                with (
+                    artifact.file.open("rb") as handle,
+                    archive.open(arcname, "w", force_zip64=True) as entry,
+                ):
+                    shutil.copyfileobj(handle, entry, length=1024 * 1024)
+        buffer.seek(0)
+    except OSError:
+        buffer.close()
+        raise Conflict(
+            "This archive could not be completed because artifact storage is unavailable."
+        ) from None
+    response = FileResponse(buffer, content_type="application/zip")
     response["Content-Disposition"] = f'attachment; filename="run-{str(run.id)[:8]}-{label}.zip"'
+
     return response
 
 

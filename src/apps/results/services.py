@@ -14,6 +14,7 @@ import json
 import logging
 import math
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -40,7 +41,14 @@ class ImportSummary:
     artifacts: int
 
 
-def import_job_result(run, result: JobResult, output_dir: str | Path) -> ImportSummary:
+def import_job_result(
+    run,
+    result: JobResult,
+    output_dir: str | Path,
+    *,
+    prepare: Callable[[], None] | None = None,
+    finalize: Callable[[], None] | None = None,
+) -> ImportSummary:
     """Write one engine result into the database, atomically.
 
     Either the whole result lands or none of it does — a half-imported run must be
@@ -53,7 +61,12 @@ def import_job_result(run, result: JobResult, output_dir: str | Path) -> ImportS
     written = []
     try:
         with transaction.atomic():
-            return _import_job_result(run, result, output_dir, written)
+            if prepare is not None:
+                prepare()
+            summary = _import_job_result(run, result, output_dir, written)
+            if finalize is not None:
+                finalize()
+            return summary
     except Exception:
         for storage, name in reversed(written):
             try:
@@ -378,6 +391,7 @@ def build_run_manifest(run, result: JobResult) -> dict:
         "seed": run.seed,
         "engine_version": result.engine_version,
         "params": run.params_snapshot,
+        "scientific_provenance": getattr(result, "scientific_provenance", {}),
         "warnings": list(result.warnings),
         "candidate_count": run.candidates.count(),
         "submitted_at": run.submitted_at,

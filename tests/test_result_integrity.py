@@ -132,3 +132,45 @@ def test_csv_preserves_zero_negative_positive_and_missing_values(run, tmp_path):
     assert row["negative_raw"] == "-1.5"
     assert row["positive_raw"] == "2.0"
     assert run.artifacts.get(kind="summary_table").file.read().decode() == exported
+
+
+def test_zip_refuses_missing_selected_artifacts(auth_client, run, tmp_path):
+    import_job_result(run, empty_result(run), tmp_path)
+    artifact = run.artifacts.get(kind="summary_table")
+    artifact.file.storage.delete(artifact.file.name)
+    response = auth_client.get(f"/api/runs/{run.id}/artifacts/download")
+    assert response.status_code == 409
+    assert response.json()["error"]["detail"]["missing_artifact_ids"] == [str(artifact.id)]
+
+
+def test_zip_streams_complete_archive_from_spooled_storage(auth_client, run, tmp_path):
+    import zipfile
+
+    import_job_result(run, empty_result(run), tmp_path)
+    response = auth_client.get(f"/api/runs/{run.id}/artifacts/download")
+    assert response.status_code == 200
+    assert response.streaming
+    with zipfile.ZipFile(io.BytesIO(b"".join(response.streaming_content))) as archive:
+        assert len(archive.namelist()) == 2
+        assert archive.testzip() is None
+
+
+def test_failed_finalization_rolls_back_rows_and_artifact_bytes(run, tmp_path, media_root):
+    callbacks = []
+
+    def prepare():
+        callbacks.append("prepare")
+        assert not run.artifacts.exists()
+
+    def finalize():
+        callbacks.append("finalize")
+        assert run.artifacts.count() == 2
+        raise RuntimeError("injected terminal transition failure")
+
+    with pytest.raises(RuntimeError, match="terminal transition"):
+        import_job_result(run, empty_result(run), tmp_path, prepare=prepare, finalize=finalize)
+    assert callbacks == ["prepare", "finalize"]
+    assert not run.artifacts.exists()
+    assert not [
+        path for path in Path(media_root).rglob("*") if path.is_file() and "artifacts" in path.parts
+    ]
