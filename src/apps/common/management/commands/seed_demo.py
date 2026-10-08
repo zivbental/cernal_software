@@ -14,7 +14,7 @@ import uuid
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
@@ -23,7 +23,7 @@ from apps.common.checksums import sha256_bytes
 from apps.datasets.models import Dataset, ValidationStatus
 from apps.results.models import Annotation, DecisionTag
 from apps.results.services import import_job_result
-from engine.client import load_engine
+from engine.client import load_engine, validate_job_configuration
 from engine.contract import INPUT_DE, SCHEMA_VERSION, JobRequest
 
 DEMO_USERNAME = "demo"
@@ -123,12 +123,23 @@ class Command(BaseCommand):
 
     def _run(self, dataset, user) -> AnalysisRun:
         now = timezone.now()
+        params = validate_job_configuration(
+            {
+                "constraints": {"max_triggers": 1, "max_circuit_gates": 1},
+                "budget": {"max_designs": 3},
+                "payload": {"outputs": ["gfp"]},
+            },
+            ["toehold"],
+            "default",
+            INPUT_DE,
+            organism="ecoli",
+        )
         run = AnalysisRun.objects.create(
             dataset=dataset,
             organism="ecoli",
             created_by=user,
             idempotency_key=f"seed-demo-{uuid.uuid4().hex}",
-            params_snapshot={"max_triggers": 2},
+            params_snapshot=params,
             gate_families=["toehold"],
             scoring_profile="default",
             seed=42,
@@ -159,6 +170,10 @@ class Command(BaseCommand):
             )
             engine = load_engine(settings.CERNAL_ENGINE)
             result = engine.run(request, lambda pct, stage: True)
+            if result.status != "succeeded" or not result.accepted:
+                raise CommandError(
+                    f"Demo engine did not produce a successful candidate pool: {result.error}"
+                )
             import_job_result(run, result, output_dir)
 
         run.status = RunStatus.COMPLETED

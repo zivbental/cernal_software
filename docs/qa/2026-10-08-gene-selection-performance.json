@@ -1,0 +1,88 @@
+{
+  "catalog": "src/apps/expression/catalog/ecoli/92117__44313016.csv",
+  "catalog_sha256": "f3c666e557f115dcf9e82ae116b66c686c84157287e8572b19ec7115b0853cb2",
+  "python": "3.13.15",
+  "input_rows": 3000,
+  "constraints": {
+    "max_triggers": 1,
+    "max_circuit_gates": 1,
+    "min_separation": 0.5,
+    "max_p_adj": 0.05,
+    "trigger_lengths": [
+      30,
+      33,
+      36
+    ],
+    "max_switch_length": 200,
+    "forbidden_motifs": [],
+    "standard": "RFC10",
+    "max_genes": 3,
+    "max_separation": null,
+    "min_base_expression": null,
+    "max_base_expression": null,
+    "trigger_gc_range": [
+      30.0,
+      70.0
+    ],
+    "direction_balance": true
+  },
+  "measurements": {
+    "original": {
+      "seconds": 58.52380176000588,
+      "transcripts_screened": 1192,
+      "transcript_bases": 1161495,
+      "selected_genes": 3
+    },
+    "optimized": {
+      "seconds": 0.6399610669905087,
+      "transcripts_screened": 1192,
+      "transcript_bases": 1161495,
+      "selected_genes": 3
+    }
+  },
+  "speedup": 91.44900335143959,
+  "selected": [
+    {
+      "gene_id": "b1923",
+      "symbol": "fliC",
+      "regulation": "down",
+      "log2_fold_change": -5.716,
+      "score": 0.4988985665529011,
+      "p_adj": null,
+      "control_percentile": null,
+      "condition_percentile": null,
+      "condition_specificity": null,
+      "trigger_yield": 0.46484641638225255,
+      "usable_windows": 2043
+    },
+    {
+      "gene_id": "b1887",
+      "symbol": "cheW",
+      "regulation": "down",
+      "log2_fold_change": -3.993,
+      "score": 0.42596418079096043,
+      "p_adj": null,
+      "control_percentile": null,
+      "condition_percentile": null,
+      "condition_specificity": null,
+      "trigger_yield": 0.5409604519774012,
+      "usable_windows": 766
+    },
+    {
+      "gene_id": "b0163",
+      "symbol": "yaeH",
+      "regulation": "up",
+      "log2_fold_change": 1.33,
+      "score": 0.3701755868544601,
+      "p_adj": null,
+      "control_percentile": null,
+      "condition_percentile": null,
+      "condition_specificity": null,
+      "trigger_yield": 0.8009389671361502,
+      "usable_windows": 853
+    }
+  ],
+  "selection_and_warnings_identical": true,
+  "budget_pruned_genes": 0,
+  "policy": "Every eligible transcript is screened; no changed ranking or pre-pruning."
+}

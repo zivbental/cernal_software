@@ -13,12 +13,14 @@ ones (every other host/outcome), since both are load-bearing behaviour.
 """
 
 import io
+import json
 import re
 
 import pytest
 import sbol3
 from Bio import SeqIO
 
+from engine import sequences as sq
 from engine.domain import (
     AssemblyStandard,
     BooleanExpression,
@@ -174,13 +176,13 @@ def test_payload_segment_looks_up_the_configured_gfp(builder):
 
 
 def test_payload_segment_refuses_an_unconfigured_outcome(builder):
-    with pytest.raises(InputValidationError, match="mcherry"):
-        builder.payload_segment(DesiredOutcome.MCHERRY)
+    with pytest.raises(InputValidationError, match="apoptosis"):
+        builder.payload_segment(DesiredOutcome.APOPTOSIS)
 
 
 def test_payload_segment_names_what_is_configured_in_the_error(builder):
     with pytest.raises(InputValidationError, match="gfp"):
-        builder.payload_segment(DesiredOutcome.LUCIFERASE)
+        builder.payload_segment(DesiredOutcome.APOPTOSIS)
 
 
 def test_payload_segment_refuses_custom_directly(builder):
@@ -279,8 +281,8 @@ def test_build_uses_mammalian_parts_for_human(builder):
 
 
 def test_build_refuses_an_unconfigured_outcome(builder):
-    with pytest.raises(InputValidationError, match="ampr"):
-        builder.build(_circuit(), DesiredOutcome.ANTIBIOTIC)
+    with pytest.raises(InputValidationError, match="apoptosis"):
+        builder.build(_circuit(), DesiredOutcome.APOPTOSIS)
 
 
 # --- build: DesiredOutcome.CUSTOM ---------------------------------------------------
@@ -643,3 +645,131 @@ def test_sbol_and_genbank_agree_on_every_feature_coordinate(builder):
     )
 
     assert sbol_spans == sorted(genbank_spans)
+
+
+def test_custom_backbone_features_survive_coordinate_insertion():
+    from Bio.Seq import Seq
+    from Bio.SeqFeature import SeqFeature, SimpleLocation
+    from Bio.SeqRecord import SeqRecord
+
+    record = SeqRecord(Seq("ACGT" * 30), id="annotated-vector", name="annotated_vector")
+    record.annotations.update(molecule_type="DNA", topology="circular")
+    record.features = [
+        SeqFeature(
+            SimpleLocation(40, 60, strand=-1),
+            type="rep_origin",
+            qualifiers={"label": ["ori"], "note": ["source annotation"]},
+        ),
+        SeqFeature(
+            SimpleLocation(80, 100, strand=1),
+            type="CDS",
+            qualifiers={"label": ["marker"], "gene": ["marker_test"]},
+        ),
+    ]
+    segment = parse_custom_backbone(record.format("genbank"))
+    assert len(segment.annotations) == 2
+    builder = PlasmidBuilder(
+        MotifScreener(AssemblyStandard.NONE),
+        CodonOptimizer(Host.ECOLI),
+        AssemblyStandard.NONE,
+        (segment,),
+        insertion_index=20,
+    )
+    design = builder.build(_circuit(), DesiredOutcome.CUSTOM, custom_payload="ATGGCTGCTTAA")
+    inserted = design.plasmid.length_bp - len(record.seq)
+    assert design.plasmid.sequence[:20] == str(record.seq[:20])
+    assert design.plasmid.sequence[-100:] == str(record.seq[20:])
+    output = SeqIO.read(io.StringIO(to_genbank(design).decode()), "genbank")
+    ori = next(f for f in output.features if f.type == "rep_origin")
+    assert (int(ori.location.start), int(ori.location.end), ori.location.strand) == (
+        40 + inserted,
+        60 + inserted,
+        -1,
+    )
+    assert ori.qualifiers["note"] == ["source annotation"]
+    assert str(ori.extract(output.seq)) == str(record.features[0].extract(record.seq))
+    assert design.insertion_index == 20
+    assert design.assembly_method == "sequence_insertion"
+    assert design.assembly_notes
+    with pytest.raises(InputValidationError, match="disrupts"):
+        PlasmidBuilder(
+            MotifScreener(AssemblyStandard.NONE),
+            CodonOptimizer(Host.ECOLI),
+            AssemblyStandard.NONE,
+            (segment,),
+            insertion_index=50,
+        )
+
+
+def test_payload_compute_limit_precedes_thermodynamic_work():
+    with pytest.raises(InputValidationError, match="compute limit"):
+        validate_payload_cds("enormous", "ATG" + "GCT" * 1000 + "TAA")
+
+
+@pytest.mark.parametrize("host", list(Host))
+@pytest.mark.parametrize("outcome", [DesiredOutcome.MCHERRY, DesiredOutcome.LUCIFERASE])
+def test_pinned_reporters_compile_for_each_computational_host(make_request, host, outcome):
+    from engine.pipeline import build_tools
+
+    tools = build_tools(make_request(organism=host.value), host)
+    assembled = tools["plasmid_builder"].build(_circuit(host=host), outcome)
+    _, original = PAYLOADS[outcome]
+    combined = assembled.coding_regions[0][3]
+    assert combined.endswith(sq.translate(sq.to_rna(original[3:]), stop_at_stop=True))
+    assert not assembled.eligibility_violations
+
+
+@pytest.mark.parametrize("host", list(Host))
+def test_opt_in_codon_rewrite_preserves_protein_and_records_exact_mutations(make_request, host):
+    from engine.pipeline import build_tools
+
+    builder = build_tools(
+        make_request(
+            organism=host.value,
+            params={"payload": {"optimize_codons": True}, "constraints": {"standard": "RFC10"}},
+        ),
+        host,
+    )["plasmid_builder"]
+    original = "ATGGAATTCTAA"
+    compiled = builder.build(_circuit(host=host), DesiredOutcome.CUSTOM, custom_payload=original)
+    provenance = json.loads(compiled.payload_optimization)
+    assert provenance["status"] == "synonymous_variant_selected"
+    assert provenance["protein_preserved"]
+    assert provenance["codons_changed"] >= 1
+    assert provenance["original_sha256"] != provenance["optimized_sha256"]
+    payload = next(s for s in compiled.plasmid.segments if s.kind is SegmentKind.PAYLOAD)
+    assert sq.translate("AUG" + sq.to_rna(payload.sequence), stop_at_stop=False) == sq.translate(
+        sq.to_rna(original), stop_at_stop=False
+    )
+    assert builder.screener.is_compliant(payload.sequence)
+    again = builder.build(_circuit(host=host), DesiredOutcome.CUSTOM, custom_payload=original)
+    assert again.payload_optimization == compiled.payload_optimization
+
+
+def test_candidate_provenance_cannot_mutate_cached_primary_source_catalog(builder, tmp_path):
+    from types import SimpleNamespace
+
+    from engine.pipeline import _candidate_result
+    from engine.stages.plasmids import load_part_catalog
+    from engine.store import CandidateStore
+
+    circuit = _circuit()
+    assembled = builder.build(circuit, DesiredOutcome.ANTIBIOTIC)
+    source = load_part_catalog()["AmpR"]
+    expected_start = source["coordinates"]["start"]
+    candidate = _candidate_result(
+        CandidateStore(str(tmp_path), "provenance"),
+        circuit.designs[0],
+        SimpleNamespace(
+            name="toehold",
+            version="test",
+            folder=SimpleNamespace(versions=lambda: {"model": "test"}),
+        ),
+        _trigger(),
+        [],
+        None,
+        assembled,
+        DesiredOutcome.ANTIBIOTIC,
+    )
+    candidate.design["payload_source"]["coordinates"]["start"] = 0
+    assert source["coordinates"]["start"] == expected_start

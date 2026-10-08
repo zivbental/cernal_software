@@ -134,6 +134,8 @@ class EngineCapabilities:
     supported_hosts: list[str] = field(default_factory=list)
     family_hosts: dict[str, list[str]] = field(default_factory=dict)
     supported_outputs: list[str] = field(default_factory=list)
+    output_hosts: dict[str, list[str]] = field(default_factory=dict)
+    backbone_hosts: dict[str, list[str]] = field(default_factory=dict)
     input_modes: list[str] = field(default_factory=list)
     limits: dict = field(default_factory=dict)
     constraints: dict = field(default_factory=dict)

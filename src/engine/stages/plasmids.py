@@ -16,10 +16,11 @@ trigger and one switch, so ``pipeline.py`` hand-builds a trivial one-gene
 ``CircuitCandidate`` the same way it hand-builds the one ``TriggerCandidate`` for
 stages 1-2, and this stage does not need stage 4 (``CircuitDesigner``) to exist.
 
-**No codon optimisation.** ``CodonOptimizer.translation_score``/``.variants`` are still
-Step-5 stubs with an empty usage table (docs/plasmids.md §2), so ``self.codons`` is held
-but never called here — every payload is emitted verbatim from the table in
-``PAYLOADS``, unmodified.
+**Optional explicit codon optimisation.** ``params.payload.optimize_codons`` selects
+one clean synonymous variant through the
+shared host optimizer before context folding. Exact source/optimized digests, changed
+codon count, seed and unresolved constraints are recorded. Without this explicit flag,
+source payloads remain unchanged before the defined fusion junction.
 
 **Biopython stays confined to this module** (ADR 0007, docs/plasmids.md §5) —
 ``PlasmidBuilder`` itself works entirely in CERNAL's own
@@ -35,6 +36,7 @@ Platform code either. ``sbol-utilities`` is deliberately absent — its GenBank 
 calls ``SeqFeature.strand``, which the Biopython above removed.
 """
 
+import hashlib
 import io
 import json
 from functools import cache
@@ -43,7 +45,7 @@ from pathlib import Path
 import sbol3
 from Bio import SeqIO
 from Bio.Seq import Seq
-from Bio.SeqFeature import SeqFeature, SimpleLocation
+from Bio.SeqFeature import CompoundLocation, ExactPosition, SeqFeature, SimpleLocation
 from Bio.SeqRecord import SeqRecord
 
 from engine import sequences as sq
@@ -95,6 +97,8 @@ REGISTRY_PARTS: dict[str, str] = {
     "B0015": "BBa_B0015",
     "K1486025": "BBa_K1486025",
     "GFP": "BBa_E0040",
+    "mCherry": "BBa_J06504",
+    "Firefly_luciferase": "BBa_I712019",
     "pSB1A3": "pSB1A3",
     "pSB1C3": "pSB1C3",
     "pSB1K3": "pSB1K3",
@@ -208,7 +212,7 @@ TERMINATORS: dict[Host, tuple[str, str]] = {
     ),
 }
 
-#: (part name, DNA sequence) per requested outcome. Only GFP is populated today —
+#: (part name, DNA sequence) per requested outcome. GFP, mCherry and firefly luciferase are pinned —
 #: docs/ROADMAP.md Q11. ``DesiredOutcome.CUSTOM`` is never a key here; a custom payload
 #: always comes from the caller (``params["payload"]["custom_sequence"]``), validated
 #: by the same :func:`validate_payload_cds` every table entry passes through too.
@@ -231,6 +235,84 @@ PAYLOADS: dict[DesiredOutcome, tuple[str, str]] = {
         "CCATTACCTGTCCACACAATCTGCCCTTTCGAAAGATCCCAACGAAAAGAGAGACCACATGGTCCTTCTTGAGT"
         "TTGTAACAGCTGCTGGGATTACACATGGCATGGATGAACTATACAAATAATAA",
     ),
+    # BBa_J06504: exact Registry CDS, revision 2021-09-08T20:23:04.000Z.
+    DesiredOutcome.MCHERRY: (
+        "mCherry",
+        "ATGGTGAGCAAGGGCGAGGAGGATAACATGGCCATCATCAAGGAGTTCATGCGCTTCAAGGTGCACATGGAGGGCTCCGT"
+        "GAACGGCCACGAGTTCGAGATCGAGGGCGAGGGCGAGGGCCGCCCCTACGAGGGCACCCAGACCGCCAAGCTGAAGGTGA"
+        "CCAAGGGTGGCCCCCTGCCCTTCGCCTGGGACATCCTGTCCCCTCAGTTCATGTACGGCTCCAAGGCCTACGTGAAGCAC"
+        "CCCGCCGACATCCCCGACTACTTGAAGCTGTCCTTCCCCGAGGGCTTCAAGTGGGAGCGCGTGATGAACTTCGAGGACGG"
+        "CGGCGTGGTGACCGTGACCCAGGACTCCTCCTTGCAGGACGGCGAGTTCATCTACAAGGTGAAGCTGCGCGGCACCAACT"
+        "TCCCCTCCGACGGCCCCGTAATGCAGAAGAAGACCATGGGCTGGGAGGCCTCCTCCGAGCGGATGTACCCCGAGGACGGC"
+        "GCCCTGAAGGGCGAGATCAAGCAGAGGCTGAAGCTGAAGGACGGCGGCCACTACGACGCTGAGGTCAAGACCACCTACAA"
+        "GGCCAAGAAGCCCGTGCAGCTGCCCGGCGCCTACAACGTCAACATCAAGTTGGACATCACCTCCCACAACGAGGACTACA"
+        "CCATCGTGGAACAGTACGAACGCGCCGAGGGCCGCCACTCCACCGGCGGCATGGACGAGCTGTACAAGTAATAA",
+    ),
+    # BBa_I712019: exact Registry CDS, revision 2021-09-08T20:22:52.000Z.
+    DesiredOutcome.LUCIFERASE: (
+        "Firefly_luciferase",
+        "ATGGAAGACGCCAAAAACATAAAGAAAGGCCCGGCGCCATTCTATCCGCTGGAAGATGGAACCGCTGGAGAGCAACTGCA"
+        "TAAGGCTATGAAGAGATACGCCCTGGTTCCTGGAACAATTGCTTTTACAGATGCACATATCGAGGTGGACATCACTTACG"
+        "CTGAGTACTTCGAAATGTCCGTTCGGTTGGCAGAAGCTATGAAACGATATGGGCTGAATACAAATCACAGAATCGTCGTA"
+        "TGCAGTGAAAACTCTCTTCAATTCTTTATGCCGGTGTTGGGCGCGTTATTTATCGGAGTTGCAGTTGCGCCCGCGAACGA"
+        "CATTTATAATGAACGTGAATTGCTCAACAGTATGGGCATTTCGCAGCCTACCGTGGTGTTCGTTTCCAAAAAGGGGTTGC"
+        "AAAAAATTTTGAACGTGCAAAAAAAGCTCCCAATCATCCAAAAAATTATTATCATGGATTCTAAAACGGATTACCAGGGA"
+        "TTTCAGTCGATGTACACGTTCGTCACATCTCATCTACCTCCCGGTTTTAATGAATACGATTTTGTGCCAGAGTCCTTCGA"
+        "TAGGGACAAGACAATTGCACTGATCATGAACTCCTCTGGATCTACTGGTCTGCCTAAAGGTGTCGCTCTGCCTCATAGAA"
+        "CTGCCTGCGTGAGATTCTCGCATGCCAGAGATCCTATTTTTGGCAATCAAATCATTCCGGATACTGCGATTTTAAGTGTT"
+        "GTTCCATTCCATCACGGTTTTGGAATGTTTACTACACTCGGATATTTGATATGTGGATTTCGAGTCGTCTTAATGTATAG"
+        "ATTTGAAGAAGAGCTGTTTCTGAGGAGCCTTCAGGATTACAAGATTCAAAGTGCGCTGCTGGTGCCAACCCTATTCTCCT"
+        "TCTTCGCCAAAAGCACTCTGATTGACAAATACGATTTATCTAATTTACACGAAATTGCTTCTGGTGGCGCTCCCCTCTCT"
+        "AAGGAAGTCGGGGAAGCGGTTGCCAAGAGGTTCCATCTGCCAGGTATCAGGCAAGGATATGGGCTCACTGAGACTACATC"
+        "AGCTATTCTGATTACACCCGAGGGGGATGATAAACCGGGCGCGGTCGGTAAAGTTGTTCCATTTTTTGAAGCGAAGGTTG"
+        "TGGATCTGGATACCGGGAAAACGCTGGGCGTTAATCAAAGAGGCGAACTGTGTGTGAGAGGTCCTATGATTATGTCCGGT"
+        "TATGTAAACAATCCGGAAGCGACCAACGCCTTGATTGACAAGGATGGATGGCTACATTCTGGAGACATAGCTTACTGGGA"
+        "CGAAGACGAACACTTCTTCATCGTTGACCGCCTGAAGTCTCTGATTAAGTACAAAGGCTATCAGGTGGCTCCCGCTGAAT"
+        "TGGAATCCATCTTGCTCCAACACCCCAACATCTTCGACGCAGGTGTCGCAGGTCTTCCCGACGATGACGCCGGTGAACTT"
+        "CCCGCCGCCGTTGTTGTTTTGGAGCACGGAAAGACGATGACGGAAAAAGAGATCGTGGATTACGTCGCCAGTCAAGTAAC"
+        "AACCGCGAAAAAGTTGCGCGGAGGAGTTGTGTTTGTGGACGAAGTACCGAAAGGTCTTACCGGAAAACTCGACGCAAGAA"
+        "AAATCAGAGAGATCCTCATAAAGGCCAAGAAGGGCGGAAAGATCGCCGTGTAA",
+    ),
+    # GenBank J01749.1, annotated beta-lactamase CDS; exact protein checked.
+    DesiredOutcome.ANTIBIOTIC: (
+        "AmpR",
+        "ATGAGTATTCAACATTTCCGTGTCGCCCTTATTCCCTTTTTTGCGGCATTTTGCCTTCCTGTTTTTGCTCACCCAGAAAC"
+        "GCTGGTGAAAGTAAAAGATGCTGAAGATCAGTTGGGTGCACGAGTGGGTTACATCGAACTGGATCTCAACAGCGGTAAGA"
+        "TCCTTGAGAGTTTTCGCCCCGAAGAACGTTTTCCAATGATGAGCACTTTTAAAGTTCTGCTATGTGGCGCGGTATTATCC"
+        "CGTGTTGACGCCGGGCAAGAGCAACTCGGTCGCCGCATACACTATTCTCAGAATGACTTGGTTGAGTACTCACCAGTCAC"
+        "AGAAAAGCATCTTACGGATGGCATGACAGTAAGAGAATTATGCAGTGCTGCCATAACCATGAGTGATAACACTGCGGCCA"
+        "ACTTACTTCTGACAACGATCGGAGGACCGAAGGAGCTAACCGCTTTTTTGCACAACATGGGGGATCATGTAACTCGCCTT"
+        "GATCGTTGGGAACCGGAGCTGAATGAAGCCATACCAAACGACGAGCGTGACACCACGATGCCTGCAGCAATGGCAACAAC"
+        "GTTGCGCAAACTATTAACTGGCGAACTACTTACTCTAGCTTCCCGGCAACAATTAATAGACTGGATGGAGGCGGATAAAG"
+        "TTGCAGGACCACTTCTGCGCTCGGCCCTTCCGGCTGGCTGGTTTATTGCTGATAAATCTGGAGCCGGTGAGCGTGGGTCT"
+        "CGCGGTATCATTGCAGCACTGGGGCCAGATGGTAAGCCCTCCCGTATCGTAGTTATCTACACGACGGGGAGTCAGGCAAC"
+        "TATGGATGAACGAAATAGACAGATCGCTGAGATAGGTGCCTCACTGATTAAGCATTGGTAA",
+    ),
+    # GenBank V00618.1, annotated neomycin phosphotransferase CDS; exact protein checked.
+    DesiredOutcome.KANAMYCIN: (
+        "KanR",
+        "ATGATTGAACAAGATGGATTGCACGCAGGTTCTCCGGCCGCTTGGGTGGAGAGGCTATTCGGCTATGACTGGGCACAACA"
+        "GACAATCGGCTGCTCTGATGCCGCCGTGTTCCGGCTGTCAGCGCAGGGGCGCCCGGTTCTTTTTGTCAAGACCGACCTGT"
+        "CCGGTGCCCTGAATGAACTGCAGGACGAGGCAGCGCGGCTATCGTGGCTGGCCACGACGGGCGTTCCTTGCGCAGCTGTG"
+        "CTCGACGTTGTCACTGAAGCGGGAAGGGACTGGCTGCTATTGGGCGAAGTGCCGGGGCAGGATCTCCTGTCATCTCACCT"
+        "TGCTCCTGCCGAGAAAGTATCCATCATGGCTGATGCAATGCGGCGGCTGCATACGCTTGATCCGGCTACCTGCCCATTCG"
+        "ACCACCAAGCGAAACATCGCATCGAGCGAGCACGTACTCGGATGGAAGCCGGTCTTGTCGATCAGGATGATCTGGACGAA"
+        "GAGCATCAGGGGCTCGCGCCAGCCGAACTGTTCGCCAGGCTCAAGGCGCGCATGCCCGACGGCGAGGATCTCGTCGTGAC"
+        "CCATGGCGATGCCTGCTTGCCGAATATCATGGTGGAAAATGGCCGCTTTTCTGGATTCATCGACTGTGGCCGGCTGGGTG"
+        "TGGCGGACCGCTATCAGGACATAGCGTTGGCTACCCGTGATATTGCTGAAGAGCTTGGCGGCGAATGGGCTGACCGCTTC"
+        "CTCGTGCTTTACGGTATCGCCGCTCCCGATTCGCAGCGCATCGCCTTCTATCGCCTTCTTGACGAGTTCTTCTGA",
+    ),
+}
+
+
+EXTERNAL_PARTS = {"AmpR": "J01749.1", "KanR": "V00618.1"}
+PAYLOAD_HOSTS = {
+    outcome: (
+        (Host.ECOLI,)
+        if outcome in (DesiredOutcome.ANTIBIOTIC, DesiredOutcome.KANAMYCIN)
+        else tuple(Host)
+    )
+    for outcome in (*PAYLOADS, DesiredOutcome.CUSTOM)
 }
 
 
@@ -320,7 +402,13 @@ def validate_payload_cds(name: str, sequence: str) -> str:
     premature ones — real parts carry them. BBa_E0040 ends ``...UAC AAA UAA UAA``, two
     tandem stops, a common belt-and-braces pattern against ribosomal readthrough.
     """
+    if not isinstance(sequence, str):
+        raise InputValidationError(f"{name}: payload CDS must be a sequence string.")
     rna = sq.to_rna(sequence)
+    if len(rna) > 2000:
+        raise InputValidationError(
+            f"{name}: payload exceeds the 2,000-nt thermodynamic compute limit."
+        )
     if not sq.is_valid_rna(rna):
         raise InputValidationError(f"Payload {name!r} is not a valid RNA or DNA sequence.")
     if rna[:3] != sq.START_CODON:
@@ -357,6 +445,29 @@ def _lookup_part(table: dict, key, label: str) -> tuple[str, str]:
         ) from None
 
 
+def validate_backbone_insertion(backbone: tuple[Segment, ...], insertion: int) -> None:
+    """Reject insertion through known local functional feature intervals."""
+    offset = 0
+    for segment in backbone:
+        for raw in segment.annotations:
+            feature = json.loads(raw)
+            if feature["type"] in {
+                "CDS",
+                "gene",
+                "rep_origin",
+                "promoter",
+                "regulatory",
+                "terminator",
+            }:
+                for start, end, _strand in feature["parts"]:
+                    if start + offset < insertion < end + offset:
+                        raise InputValidationError(
+                            f"Insertion disrupts backbone {feature['type']} "
+                            f"at {start + offset}:{end + offset}."
+                        )
+        offset += segment.length_bp
+
+
 class PlasmidBuilder:
     """Assembles a circuit onto a backbone and checks it can be built.
 
@@ -379,11 +490,26 @@ class PlasmidBuilder:
         codons: CodonOptimizer,
         standard: AssemblyStandard = AssemblyStandard.RFC10,
         backbone: tuple[Segment, ...] = (),
+        *,
+        insertion_index: int = 0,
+        optimize_codons: bool = False,
     ) -> None:
         self.screener = screener
         self.codons = codons
         self.standard = standard
         self.backbone = backbone
+        if (
+            isinstance(insertion_index, bool)
+            or not isinstance(insertion_index, int)
+            or not 0 <= insertion_index <= sum(s.length_bp for s in backbone)
+        ):
+            raise InputValidationError(
+                "backbone.insertion_index must be a 0-based boundary within the vector."
+            )
+        validate_backbone_insertion(backbone, insertion_index)
+        self.insertion_index = insertion_index
+        self.optimize_codons = optimize_codons
+        self._optimized_payloads: dict[str, tuple[Segment, str]] = {}
 
     def build(
         self,
@@ -444,6 +570,12 @@ class PlasmidBuilder:
                 "Unsupported physical inversion: this builder compiles activating gates only."
             )
         host = circuit.designs[0].host
+        if host is not Host.ECOLI and any(
+            (segment.name, segment.sequence) in BACKBONES.values() for segment in self.backbone
+        ):
+            raise InputValidationError("Catalog vectors are currently supported only for E. coli.")
+        if outcome in PAYLOAD_HOSTS and host not in PAYLOAD_HOSTS[outcome]:
+            raise InputValidationError(f"Payload {outcome.value!r} has E. coli-only host scope.")
         promoter_name, promoter_seq = _lookup_part(PROMOTERS, host, "promoter")
         terminator_name, terminator_seq = _lookup_part(TERMINATORS, host, "terminator")
 
@@ -457,6 +589,52 @@ class PlasmidBuilder:
             )
         else:
             payload = self.payload_segment(outcome)
+
+        optimization = ""
+        if self.optimize_codons:
+            original = payload.sequence
+            if original not in self._optimized_payloads:
+                rejected = []
+                variants = self.codons.variants(
+                    original,
+                    count=1,
+                    avoid_enzymes=tuple(
+                        name for name in self.screener.sites if not name.endswith("_rc")
+                    ),
+                    acceptable=self.screener.is_compliant,
+                    on_rejected=lambda _sequence, reasons: rejected.extend(reasons),
+                )
+                clean = next((variant for variant in variants if variant.clean), None)
+                if clean is None:
+                    raise InputValidationError(
+                        "No clean synonymous payload variant: " + "; ".join(rejected)
+                    )
+                provenance = json.dumps(
+                    {
+                        "status": "synonymous_variant_selected",
+                        "original_sha256": hashlib.sha256(original.encode()).hexdigest(),
+                        "optimized_sha256": hashlib.sha256(
+                            sq.to_dna(clean.sequence).encode()
+                        ).hexdigest(),
+                        "codons_changed": clean.codons_changed,
+                        "seed": clean.seed,
+                        "translation_score": clean.translation_score,
+                        "unresolved": list(clean.unresolved),
+                        "host": host.value,
+                        "protein_preserved": True,
+                    },
+                    sort_keys=True,
+                    allow_nan=False,
+                )
+                self._optimized_payloads[original] = (
+                    Segment(
+                        payload.kind,
+                        payload.name,
+                        validate_payload_cds(payload.name, clean.sequence),
+                    ),
+                    provenance,
+                )
+            payload, optimization = self._optimized_payloads[original]
 
         design = circuit.designs[0]
         aug = design.architecture.get("aug_index")
@@ -485,18 +663,76 @@ class PlasmidBuilder:
         # Payload, in frame with the last switch's start codon — the join checked below.
         segments.append(payload)
         segments.append(Segment(SegmentKind.TERMINATOR, terminator_name, terminator_seq))
-        segments.extend(self.backbone)
-
+        cassette_length = sum(segment.length_bp for segment in segments)
+        insertion_index = self.insertion_index if self.backbone else 0
+        transformed_annotations = []
+        source_offset = 0
+        for segment in self.backbone:
+            for annotation in segment.annotations:
+                feature = json.loads(annotation)
+                transformed_parts = []
+                for start, end, strand in feature["parts"]:
+                    start, end = start + source_offset, end + source_offset
+                    if start < insertion_index < end:
+                        transformed_parts.extend(
+                            [
+                                [start, insertion_index, strand],
+                                [insertion_index + cassette_length, end + cassette_length, strand],
+                            ]
+                        )
+                    else:
+                        transformed_parts.append(
+                            [
+                                start + (cassette_length if start >= insertion_index else 0),
+                                end + (cassette_length if start >= insertion_index else 0),
+                                strand,
+                            ]
+                        )
+                feature["parts"] = transformed_parts
+                if len(transformed_parts) > 1 and not feature.get("operator"):
+                    feature["operator"] = "join"
+                transformed_annotations.append(json.dumps(feature, sort_keys=True))
+            source_offset += segment.length_bp
+        if self.backbone:
+            prefix: list[Segment] = []
+            suffix: list[Segment] = []
+            remaining = insertion_index
+            for segment in self.backbone:
+                split = min(remaining, segment.length_bp)
+                if split:
+                    prefix.append(Segment(segment.kind, segment.name, segment.sequence[:split]))
+                if split < segment.length_bp:
+                    suffix.append(Segment(segment.kind, segment.name, segment.sequence[split:]))
+                remaining -= split
+            segments = [*prefix, *segments, *suffix]
         plasmid = Plasmid(tuple(segments))
 
-        violations = [
-            str(v) for v in self.screener.violations(plasmid.sequence, circular=bool(self.backbone))
-        ]
-        violations.extend(_frame_violations(circuit.designs, payload))
+        motif_findings = self.screener.violations(plasmid.sequence, circular=bool(self.backbone))
+        violations = [str(v) for v in motif_findings]
+        frames = _frame_violations(circuit.designs, payload)
+        violations.extend(frames)
+        backbone_ranges = []
+        offset = 0
+        for segment in segments:
+            if segment.kind is SegmentKind.BACKBONE:
+                backbone_ranges.append((offset, offset + segment.length_bp))
+            offset += segment.length_bp
+        eligible = list(frames)
+        for finding in motif_findings:
+            preexisting = any(
+                start <= finding.start and finding.start + len(finding.motif) <= end
+                for start, end in backbone_ranges
+            )
+            if finding.kind == "forbidden motif" or (
+                finding.kind == "restriction site" and not preexisting
+            ):
+                eligible.append(str(finding))
+        # Full-construct homopolymers and pre-existing vector restriction sites remain
+        # visible assembly caveats. They do not establish a nonfunctional ORF.
         coding_regions = ()
         if aug is not None:
-            start = len(promoter_seq) + aug
-            end = len(promoter_seq) + len(design.sequence) + payload.length_bp
+            start = insertion_index + len(promoter_seq) + aug
+            end = insertion_index + len(promoter_seq) + len(design.sequence) + payload.length_bp
             protein = sq.translate(sq.to_rna(plasmid.sequence[start:end]))
             coding_regions = ((start, end, payload.name + " N-terminal fusion", protein),)
 
@@ -507,6 +743,19 @@ class PlasmidBuilder:
             standard=self.standard,
             violations=tuple(violations),
             coding_regions=coding_regions,
+            eligibility_violations=tuple(eligible),
+            payload_optimization=optimization,
+            backbone_annotations=tuple(transformed_annotations),
+            insertion_index=insertion_index if self.backbone else None,
+            assembly_method="sequence_insertion" if self.backbone else "expression_cassette",
+            assembly_notes=(
+                (
+                    "Sequence insertion defines coordinates only; a validated cloning "
+                    "protocol and overlaps/enzyme cuts are not supplied.",
+                )
+                if self.backbone
+                else ()
+            ),
         )
 
     def payload_segment(self, outcome: DesiredOutcome) -> Segment:
@@ -599,11 +848,11 @@ def parse_custom_backbone(genbank_text: str) -> Segment:
         genbank_text: The uploaded file's raw text content.
 
     Returns:
-        One opaque ``Segment`` of kind ``BACKBONE`` — the whole file's sequence,
-        uppercased DNA. The registry has no feature-level record of where an origin
-        ends and a marker begins for the catalog entries either (see ``BACKBONES``
-        above), so a custom upload is treated the same way rather than guessing at
-        boundaries inside an uploaded file's own annotations.
+        One BACKBONE segment containing uppercase DNA and immutable serialized
+        local feature coordinates, strands, compound operators and qualifiers.
+        Fuzzy and remote positions are rejected; coordinates are shifted when the
+        compiled cassette is inserted. Parsing supplies no host-functional or cloning
+        protocol certification.
 
     Raises:
         InputValidationError: the text does not parse as GenBank, the record is not
@@ -626,8 +875,35 @@ def parse_custom_backbone(genbank_text: str) -> Segment:
     if not rna or not sq.is_valid_rna(rna):
         raise InputValidationError("The uploaded backbone has no valid DNA/RNA sequence.")
 
+    annotations = []
+    for feature in record.features:
+        if feature.location is None:
+            raise InputValidationError("Backbone annotations require known feature locations.")
+        parts = []
+        for location in feature.location.parts:
+            if (
+                not isinstance(location.start, ExactPosition)
+                or not isinstance(location.end, ExactPosition)
+                or location.ref
+            ):
+                raise InputValidationError("Backbone annotations require exact local coordinates.")
+            start, end = int(location.start), int(location.end)
+            if not 0 <= start < end <= len(rna):
+                raise InputValidationError("Backbone annotation is outside the supplied sequence.")
+            parts.append([start, end, location.strand])
+        annotations.append(
+            json.dumps(
+                {
+                    "type": feature.type,
+                    "parts": parts,
+                    "operator": getattr(feature.location, "operator", None),
+                    "qualifiers": feature.qualifiers,
+                },
+                sort_keys=True,
+            )
+        )
     name = record.name or record.id or "Custom"
-    return Segment(SegmentKind.BACKBONE, name, sq.to_dna(rna))
+    return Segment(SegmentKind.BACKBONE, name, sq.to_dna(rna), annotations=tuple(annotations))
 
 
 #: GenBank feature type per segment kind. Standard keys only (CLAUDE.md §7's own
@@ -703,6 +979,19 @@ def to_genbank(design: PlasmidDesign) -> bytes:
                 },
             )
         )
+    for annotation in design.backbone_annotations:
+        feature = json.loads(annotation)
+        parts = [
+            SimpleLocation(start, end, strand=strand) for start, end, strand in feature["parts"]
+        ]
+        location = (
+            parts[0]
+            if len(parts) == 1
+            else CompoundLocation(parts, operator=feature.get("operator") or "join")
+        )
+        record.features.append(
+            SeqFeature(location, type=feature["type"], qualifiers=feature["qualifiers"])
+        )
     return record.format("genbank").encode("utf-8")
 
 
@@ -750,6 +1039,13 @@ def load_registry_catalog() -> dict[str, dict]:
     if not _REGISTRY_CATALOG_PATH.is_file():
         return {}
     return json.loads(_REGISTRY_CATALOG_PATH.read_text(encoding="utf-8"))
+
+
+@cache
+def load_part_catalog() -> dict[str, dict]:
+    """Registry plus separately pinned primary GenBank CDS metadata."""
+    external = Path(__file__).resolve().parents[1] / "data" / "marker_sources.json"
+    return {**load_registry_catalog(), **json.loads(external.read_text(encoding="utf-8"))}
 
 
 def _role_uri(segment: Segment, entry: dict | None) -> str:
@@ -805,7 +1101,7 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
     Returns:
         The SBOL 3 document as UTF-8 encoded sorted N-Triples.
     """
-    catalog = load_registry_catalog()
+    catalog = load_part_catalog()
     sbol3.set_namespace(SBOL_NAMESPACE)
     document = sbol3.Document()
 
@@ -849,7 +1145,10 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
         if entry:
             # Provenance, not a second copy of the part: the Registry's own identifier
             # for the thing this segment is, so a reader can go and look it up.
-            part.description = f"iGEM Registry part {entry['registry_name']} — {entry['url']}"
+            part.description = (
+                f"Primary-source part {entry.get('registry_name', entry.get('accession'))} "
+                f"— {entry['url']}"
+            )
             part.derived_from = [entry["url"]]
 
         feature = sbol3.SubComponent(part)
@@ -867,5 +1166,27 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
             name=name,
         )
         construct.features.append(coding)
+    for annotation in design.backbone_annotations:
+        feature = json.loads(annotation)
+        locations = [
+            sbol3.Range(
+                sequence,
+                start + 1,
+                end,
+                orientation=sbol3.SBOL_REVERSE_COMPLEMENT if strand == -1 else sbol3.SBOL_INLINE,
+            )
+            for start, end, strand in feature["parts"]
+        ]
+        label = (
+            feature["qualifiers"].get("label")
+            or feature["qualifiers"].get("gene")
+            or [feature["type"]]
+        )[0]
+        role = "SO:0000316" if feature["type"] == "CDS" else "SO:0000804"
+        construct.features.append(
+            sbol3.SequenceFeature(
+                locations=locations, roles=[_ONTOLOGY_URI["SO"].format(accession=role)], name=label
+            )
+        )
     document.add(construct)
     return document.write_string(sbol3.SORTED_NTRIPLES).encode("utf-8")

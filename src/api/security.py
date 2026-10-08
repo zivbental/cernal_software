@@ -171,18 +171,31 @@ def protect_auth_entry(request) -> None:
     if check_csrf(request) is not None:
         raise PermissionDenied("A valid CSRF token and same-origin request are required.")
     limit = getattr(settings, "AUTH_ATTEMPTS_PER_MINUTE", 30)
-    ident = hashlib.sha256(request.META.get("REMOTE_ADDR", "unknown").encode()).hexdigest()
+    ident = hashlib.sha256(_auth_client_address(request).encode()).hexdigest()
     bucket = int(timezone.now().timestamp()) // 60
-    key = f"auth-attempts:{ident}:{bucket}"
-    if cache.add(key, 1, timeout=120):
-        attempts = 1
-    else:
-        try:
-            attempts = cache.incr(key)
-        except ValueError:
-            cache.add(key, 1, timeout=120)
-            attempts = 1
-    if attempts > limit:
+    # Per-minute slots use cache.add's insert-if-absent operation. Avoid read/incr
+    # counters: several supported backends implement incr as a non-atomic get/set.
+    admitted = any(
+        cache.add(f"auth-attempts:{ident}:{bucket}:{slot}", True, timeout=120)
+        for slot in range(limit)
+    )
+    if not admitted:
         from ninja.errors import Throttled
 
         raise Throttled(wait=60)
+
+
+def _auth_client_address(request) -> str:
+    """Only an explicitly trusted immediate proxy can supply the client address."""
+    from ipaddress import ip_address
+
+    from django.conf import settings
+
+    peer = request.META.get("REMOTE_ADDR", "unknown")
+    if peer in settings.AUTH_TRUSTED_PROXY_ADDRESSES:
+        supplied = request.META.get("HTTP_X_CERNAL_CLIENT_IP", "")
+        try:
+            return str(ip_address(supplied))
+        except ValueError:
+            pass
+    return peer

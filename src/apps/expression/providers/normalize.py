@@ -6,6 +6,7 @@ all (Expression Atlas's analytics.tsv has no such column), reports ``None`` — 
 fabricated number, never 0.0 or 1.0. See docs on each provider's real, discovered gaps.
 """
 
+import re
 from dataclasses import dataclass, field
 
 
@@ -41,6 +42,11 @@ class NormalizedComparison:
     label: str
     experimental_condition: str
     reference_condition: str
+    comparison_context: str = ""
+    test_assay_group: str = ""
+    reference_assay_group: str = ""
+    test_assays: tuple[str, ...] = ()
+    reference_assays: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,3 +65,27 @@ class NormalizedExperiment:
 
 
 CSV_FIELDNAMES = ["gene_id", "gene_symbol", "log2fc", "pvalue", "padj"]
+
+
+def parse_contrast_label(label: str) -> tuple[str, str, str]:
+    """Separate both contrasted conditions from a shared quoted sample context.
+
+    Preserve time qualifiers and the raw label. An experiment title is not a contrast.
+    Atlas writes e.g. 'Growth Medium' vs 'none' in 'normal'; normal applies to both sides.
+    """
+    experimental, separator, reference = label.strip().partition(" vs ")
+    if not separator or not experimental.strip() or not reference.strip():
+        raise ValueError(
+            f"Contrast label has no explicit experimental vs reference pair: {label!r}"
+        )
+    reference, context_separator, context = reference.partition("' in '")
+
+    def clean(value: str) -> str:
+        value = value.strip()
+        if value.startswith("'"):
+            value = value[1:]
+        if value.endswith("'"):
+            value = value[:-1]
+        return re.sub(r"'\s+(at|in)\s+'", r" \1 ", value).strip()
+
+    return clean(experimental), clean(reference), clean(context) if context_separator else ""

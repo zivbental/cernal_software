@@ -39,9 +39,9 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 63 |
 | Public classes | 105 |
-| Public callables (excluding `__init__`) | 331 |
-| — `BUILT` | 307 |
-| — `STUB` | 16 |
+| Public callables (excluding `__init__`) | 338 |
+| — `BUILT` | 323 |
+| — `STUB` | 7 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
 | `__init__` constructors | 20 |
@@ -62,7 +62,7 @@ layers above it, never the ones below.
 | gate_tools | `engine.gates.tools.ais_china` |  | 5 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 7 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 13 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 16 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
@@ -97,24 +97,24 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold_and.trigger_accessibility` |  | 8 | 0 | Stage 1b — accessibility scores for every trigger pair, in Green's and VISTA's terms. |
 | gates | `engine.gates.notebooks.toehold_and.window_probabilities` |  | 4 | 0 | The ribosome window as probabilities, base by base, in all four tubes. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
-| stages | `engine.stages.circuits` |  | 2 | 1 | Stage 4 — circuit design and scoring. |
+| stages | `engine.stages.circuits` |  | 3 | 0 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
 | stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
-| stages | `engine.stages.plasmids` |  | 7 | 0 | Stage 5 — plasmid construction. |
-| stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
-| stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
+| stages | `engine.stages.plasmids` |  | 9 | 0 | Stage 5 — plasmid construction. |
+| stages | `engine.stages.quality` | S15 | 1 | 0 | S15 — input quality control. |
+| stages | `engine.stages.reporting` |  | 4 | 0 | Stage 6 — the compiler's output. |
 | stages | `engine.stages.switches` |  | 3 | 0 | Stage 3 — switch design and validation. |
 | stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
-| top | `engine.client` |  | 7 | 0 | The Platform-facing engine interface. |
+| top | `engine.client` |  | 10 | 0 | The Platform-facing engine interface. |
 | top | `engine.contract` |  | 4 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
-| top | `engine.inputs` |  | 1 | 0 | Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``. |
+| top | `engine.inputs` |  | 1 | 0 | Shared differential-expression parsing for upload, preview and engine execution. |
 | top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
 | top | `engine.safety` |  | 12 | 0 | Offline-first, fail-closed release control for output sequences. |
-| top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
+| top | `engine.store` | S11, S13 | 5 | 0 | S11, S13 — provenance and pruning. |
 | top | `engine.transcriptome` |  | 5 | 0 | Pinned, offline reference sequences and identifier aliases for all four hosts. |
 
 ## Layer 1 · Domain — the vocabulary
@@ -231,6 +231,7 @@ What a circuit expresses when it fires.
 | `MCHERRY` |  | `'mcherry'` |
 | `LUCIFERASE` |  | `'luciferase'` |
 | `ANTIBIOTIC` |  | `'ampr'` |
+| `KANAMYCIN` |  | `'kanr'` |
 | `APOPTOSIS` |  | `'apoptosis'` |
 | `CUSTOM` |  | `'other'` |
 
@@ -281,6 +282,10 @@ The parsed differential-expression input.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `rows` | `tuple[DgeRow, ...]` |  |
+| `hypothesis_universe_complete` | `bool \| None` | `None` |
+| `source_row_count` | `int \| None` | `None` |
+| `columns` | `tuple[str, ...]` | `()` |
+| `detected_columns` | `tuple[tuple[str, str], ...]` | `()` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -359,6 +364,10 @@ Stage 2 output — a sub-segment of a transcript, ranked as a possible input.
 | `stop_indexes` | `tuple[int, ...]` | `()` |
 | `ribosome_occupancy` | `float \| None` | `None` |
 | `score` | `float` | `0.0` |
+| `transcript_id` | `str` | `''` |
+| `reference_accession` | `str` | `''` |
+| `reference_selection_method` | `str` | `''` |
+| `transcript_sequence_sha256` | `str` | `''` |
 | `gate_toehold_length` | `int \| None` | `None` |
 | `hypothesis_start` | `int \| None` | `None` |
 | `hypothesis_end` | `int \| None` | `None` |
@@ -387,8 +396,8 @@ The researcher's limits, carried into every stage that has to respect them.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `max_triggers` | `int` | `2` |
-| `max_circuit_gates` | `int` | `2` |
+| `max_triggers` | `int` | `1` |
+| `max_circuit_gates` | `int` | `1` |
 | `min_separation` | `float` | `0.5` |
 | `max_p_adj` | `float` | `0.05` |
 | `trigger_lengths` | `tuple[int, ...]` | `(30, 33, 36)` |
@@ -531,6 +540,7 @@ One stretch of the assembled construct.
 | `kind` | `SegmentKind` |  |
 | `name` | `str` |  |
 | `sequence` | `str` |  |
+| `annotations` | `tuple[str, ...]` | `()` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -606,6 +616,13 @@ Stage 5 output — an orderable construct.
 | `plasmid` | `Plasmid` |  |
 | `standard` | `AssemblyStandard` |  |
 | `violations` | `tuple[str, ...]` | `()` |
+| `coding_regions` | `tuple[tuple[int, int, str, str], ...]` | `()` |
+| `backbone_annotations` | `tuple[str, ...]` | `()` |
+| `insertion_index` | `int \| None` | `None` |
+| `assembly_method` | `str` | `'expression_cassette'` |
+| `assembly_notes` | `tuple[str, ...]` | `()` |
+| `payload_optimization` | `str` | `''` |
+| `eligibility_violations` | `tuple[str, ...]` | `()` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -643,7 +660,7 @@ How closely a predicted fold matches the intended one.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `deviation` | `float` |  |
-| `p_target_fold` | `float` |  |
+| `p_target_fold` | `float \| None` |  |
 
 #### `class ValidationResult`
 
@@ -655,6 +672,7 @@ Whether a design passes the hard rules, and every reason it does not.
 | --- | --- | --- |
 | `ok` | `bool` |  |
 | `violations` | `tuple[str, ...]` | `()` |
+| `structure_deviation` | `float \| None` | `None` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -729,7 +747,7 @@ Turning heterogeneous raw metrics into comparable normalized values.
 | `BUILT` | `def build_metrics(raw_values: dict[str, float \| None], profile: ScoringProfile) -> list[MetricValue]` | Build the full metric list for one candidate, in profile order. |
 | `BUILT` | `def weighted_score(metrics: list[MetricValue], profile: ScoringProfile) -> float \| None` | Weighted mean of normalized values, on 0-1. |
 | `BUILT` | `def failed_filter(raw_values: dict[str, float \| None], profile: ScoringProfile) -> HardFilter \| None` | Return the first hard filter this candidate fails, or ``None`` if it passes all. |
-| `BUILT` | `def rank_candidates(scored: list[tuple[str, float \| None]]) -> dict[str, int]` | Assign contiguous 1-based ranks, best first. Unscored candidates are not ranked. |
+| `BUILT` | `def rank_candidates(scored: list[tuple[str, float \| None]], *, raw_values: dict[str, dict[str, float \| None]] \| None = None, profile: ScoringProfile \| None = None) -> dict[str, int]` | Rank by score, configured metric directions, then stable candidate identifier. |
 
 ### `engine.scoring.profiles`
 
@@ -741,7 +759,7 @@ Versioned scoring profiles.
 | --- | --- | --- |
 | `TREAT_AS_WORST` |  | `'worst'` |
 | `SKIP` |  | `'skip'` |
-| `DEFAULT_V1` |  | `ScoringProfile(name='default', version='v2', metrics=[MetricSpec(name='state_separation…` |
+| `DEFAULT_V1` |  | `ScoringProfile(name='default', version='v3-computational-proxies', metrics=[MetricSpec(…` |
 | `PROFILES` | `dict[str, ScoringProfile]` | `{DEFAULT_V1.name: DEFAULT_V1}` |
 
 | Status | Function | Purpose |
@@ -1016,7 +1034,7 @@ S2, S4 — RNA secondary structure prediction for gate designs.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `STUB` | `def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch` | **S4** · S4 — compare a predicted structure against the one a generator intended. |
+| `BUILT` | `def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch` | **S4** · S4 — compare a predicted structure against the one a generator intended. |
 
 #### `class FoldEngine` · S2
 
@@ -1024,17 +1042,18 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, temperature: float = 37.0, cache_size: int = 100000) -> None` |  |
-| `BUILT` | `@cache def mfe(self, strands: str) -> FoldResult` | Fold a sequence — or a multi-strand complex — and return its most stable predicted structure. |
-| `BUILT` | `@cache def structure_energy(self, strands: str, structure: str) -> float \| None` | Energy of one **given** structure, rather than the best one. |
-| `BUILT` | `@cache def partition(self, sequence: str) -> float` | Ensemble free energy over all structures, not just the most stable one. |
+| `BUILT` | `def __init__(self, temperature: float = 37.0, cache_size: int = 1024) -> None` |  |
+| `BUILT` | `def mfe(self, strands: str) -> FoldResult` | Fold a sequence — or a multi-strand complex — and return its most stable predicted structure. |
+| `BUILT` | `def structure_energy(self, strands: str, structure: str) -> float \| None` | Energy of one **given** structure, rather than the best one. |
+| `BUILT` | `def partition(self, sequence: str) -> float` | Ensemble free energy over all structures, not just the most stable one. |
 | `BUILT` | `@property def rt(self) -> float` | ``RT`` in kcal/mol at this engine's temperature. |
 | `BUILT` | `def p_open(self, strands: str, window: tuple[int, int]) -> float \| None` | Joint probability that **every** base in ``window`` is unpaired at once. |
 | `BUILT` | `def p_open_by_order(self, strands: str, window: tuple[int, int]) -> tuple[list[float], list[float], list[float]] \| None` | ``p_open`` resolved per strand ordering, for auditing the spread above. |
+| `BUILT` | `@staticmethod def validate_target(sequence: str, target: str) -> None` | Reject malformed single-strand dot-bracket structures before native calls. |
 | `BUILT` | `def ensemble_defect(self, sequence: str, target: str) -> float` | How far the predicted ensemble sits from an intended structure. |
 | `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` | Probability that each pair of positions is bonded, over the whole ensemble. |
 | `BUILT` | `def pooled_pair_probabilities(self, strands: str) -> list[list[float]]` | ``base_pair_probabilities`` Boltzmann-averaged over all strand orderings. |
-| `STUB` | `def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]` | Every structure within an energy window of the MFE. |
+| `BUILT` | `def suboptimal(self, sequence: str, delta: float = 2.0, *, max_structures: int = 1000, timeout_seconds: float = 2.0) -> list[FoldResult]` | Enumerate exact structures within ``delta`` kcal/mol of MFE. |
 | `BUILT` | `def mfe_with_window_open(self, strands: str, window: tuple[int, int]) -> tuple[str, float]` | The most stable structure that leaves ``window`` single-stranded. |
 | `BUILT` | `def refolding_saddle(self, strands: str, start: str, target: str, *, width: int = 20) -> float \| None` | Highest energy on a direct refolding path from ``start`` to ``target``. |
 | `BUILT` | `def layout_coordinates(self, structure: str) -> list[tuple[float, float]]` | Where each nucleotide sits when a structure is drawn, one point per base. |
@@ -1196,7 +1215,7 @@ Single-input toehold switch.
 | --- | --- | --- |
 | `name` |  | `'toehold'` |
 | `design_prefix` |  | `'toehold'` |
-| `version` |  | `'0.9.0'` |
+| `version` |  | `'0.10.0-payload-context'` |
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
 | `description` |  | `'Translational control · pre-mRNA'` |
@@ -1853,7 +1872,7 @@ Scores a circuit by how it behaves on the actual samples.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `STUB` | `def evaluate(self, expression: BooleanExpression, counts: CountMatrix, threshold: float) -> ConfusionMatrix` | Run an expression over every sample and tally the four outcomes. |
+| `BUILT` | `def evaluate(self, expression: BooleanExpression, counts: CountMatrix, threshold: float) -> ConfusionMatrix` | Run an expression over every sample and tally the four outcomes. |
 
 ### `engine.stages.folding` · S1
 
@@ -1953,15 +1972,19 @@ Stage 5 — plasmid construction.
 | `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.HUMAN: ('I712004', 'CGATGTACGGGCCAGATATACGCGTTGACATTGATTATTGCCTAGTTATTAATAGTAATCA…` |
 | `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.HUMAN: ('K404108', 'GACGGGTGGCATCCCTGTGACCCCTCCCCAGTGCCTCTCCTGGCCCTGGAAGTTGCCACTC…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
+| `EXTERNAL_PARTS` |  | `{'AmpR': 'J01749.1', 'KanR': 'V00618.1'}` |
+| `PAYLOAD_HOSTS` |  | `{outcome: (Host.ECOLI,) if outcome in (DesiredOutcome.ANTIBIOTIC, DesiredOutcome.KANAMY…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |
 | `SBOL_NAMESPACE` |  | `'https://cernal.igem.org/2026'` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def validate_payload_cds(name: str, sequence: str) -> str` | Validate a payload coding sequence and return it as uppercase DNA. |
+| `BUILT` | `def validate_backbone_insertion(backbone: tuple[Segment, ...], insertion: int) -> None` | Reject insertion through known local functional feature intervals. |
 | `BUILT` | `def parse_custom_backbone(genbank_text: str) -> Segment` | Parse a researcher-supplied backbone from raw GenBank text (docs/plasmids.md Q13, docs/ROADMAP.md E5b) — the second and last function in this module that touches Biopython (ADR 0007), confined here for the same reason ``to_genbank`` is: a… |
 | `BUILT` | `def to_genbank(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an annotated circular GenBank file. |
 | `BUILT` | `@cache def load_registry_catalog() -> dict[str, dict]` | The bundled Registry metadata, keyed by local part name. Empty if never synced. |
+| `BUILT` | `@cache def load_part_catalog() -> dict[str, dict]` | Registry plus separately pinned primary GenBank CDS metadata. |
 | `BUILT` | `def to_sbol3(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an SBOL 3 document (sorted N-Triples). |
 
 #### `class PlasmidBuilder`
@@ -1970,7 +1993,7 @@ Assembles a circuit onto a backbone and checks it can be built.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, screener: MotifScreener, codons: CodonOptimizer, standard: AssemblyStandard = AssemblyStandard.RFC10, backbone: tuple[Segment, ...] = ()) -> None` |  |
+| `BUILT` | `def __init__(self, screener: MotifScreener, codons: CodonOptimizer, standard: AssemblyStandard = AssemblyStandard.RFC10, backbone: tuple[Segment, ...] = (), *, insertion_index: int = 0, optimize_codons: bool = False) -> None` |  |
 | `BUILT` | `def build(self, circuit: CircuitCandidate, outcome: DesiredOutcome, *, custom_payload: str \| None = None) -> PlasmidDesign` | Lay out one circuit as an orderable construct. |
 | `BUILT` | `def payload_segment(self, outcome: DesiredOutcome) -> Segment` | The coding sequence for the chosen output. |
 
@@ -1987,7 +2010,7 @@ Validates the uploaded count matrix before the pipeline starts.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, min_samples_per_group: int = 2) -> None` |  |
-| `STUB` | `def check(self, counts: CountMatrix, metadata: SampleMetadata) -> QcReport` | Inspect the matrix and report what is wrong with it. |
+| `BUILT` | `def check(self, counts: CountMatrix, metadata: SampleMetadata) -> QcReport` | Inspect the matrix and report what is wrong with it. |
 
 ### `engine.stages.reporting`
 
@@ -2001,8 +2024,8 @@ Figures for structures and circuits.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `STUB` | `def render_structure(self, design: GateDesign, output_dir: str) -> ArtifactRef` | Draw a switch's predicted secondary structure. |
-| `STUB` | `def render_circuit(self, circuit: CircuitCandidate, output_dir: str) -> ArtifactRef` | Draw a circuit's logic diagram. |
+| `BUILT` | `def render_structure(self, design: GateDesign, output_dir: str) -> ArtifactRef` | Draw a switch's predicted secondary structure. |
+| `BUILT` | `def render_circuit(self, circuit: CircuitCandidate, output_dir: str) -> ArtifactRef` | Draw a circuit's logic diagram. |
 
 #### `class ReportBuilder`
 
@@ -2011,7 +2034,8 @@ Assembles every artefact a run produces, including the PDF.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, renderer: StructureRenderer) -> None` |  |
-| `STUB` | `def build(self, circuits: list[CircuitCandidate], plasmids: list[PlasmidDesign], output_dir: str) -> list[ArtifactRef]` | Write every artefact and return references to them. |
+| `BUILT` | `def build(self, circuits: list[CircuitCandidate], plasmids: list[PlasmidDesign], output_dir: str) -> list[ArtifactRef]` | Write every artefact and return references to them. |
+| `BUILT` | `def build_result(self, candidates: list[CandidateResult], warnings: list[str], output_dir: str, *, engine_version: str, profile_version: str) -> ArtifactRef` | Write a sequence-free computational report while release remains held. |
 
 ### `engine.stages.switches`
 
@@ -2103,6 +2127,9 @@ The Platform-facing engine interface.
 | `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.LocalEngine``. |
 | `BUILT` | `def label_for_custom_scoring(base_name: str, overrides: dict \| None) -> str` | The label the engine will actually score under (docs/public-api.md §9.1) — computable from the request alone, before the engine ever runs, so the Platform can echo it in a submission's ``resolved`` field without building a ``ScoringProfile… |
 | `BUILT` | `def lookup_reference_gene(organism: str, identifier: str) -> dict` | Resolve a public reference gene without exposing engine internals to the API. |
+| `BUILT` | `def normalize_trigger_sequence(sequence: str) -> str` | Normalize one RNA/DNA sequence or one FASTA record without changing symbols. |
+| `BUILT` | `def inspect_expression_input(path: str, limit: int \| None = 100) -> dict` | Shared upload and preview interpretation, exposed through the engine boundary. |
+| `BUILT` | `def validate_job_configuration(params: dict, gate_families: list[str], scoring_profile: str, input_mode: str, trigger_sequence: str = '', organism: str = '') -> dict` | Validate a runnable configuration before queueing; return normalized parameters. |
 
 #### `class EngineClient(Protocol)`
 
@@ -2121,7 +2148,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.9.0-all-hosts-direct-de-gene'` |
+| `ENGINE_VERSION` |  | `'local-0.11.0-scientific-qa'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -2227,6 +2254,14 @@ What this engine build can do.
 | `metrics` | `list[MetricInfo]` | `field(default_factory=list)` |
 | `hard_filters` | `list[dict]` | `field(default_factory=list)` |
 | `available_backbones` | `list[BackboneInfo]` | `field(default_factory=list)` |
+| `supported_hosts` | `list[str]` | `field(default_factory=list)` |
+| `family_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
+| `supported_outputs` | `list[str]` | `field(default_factory=list)` |
+| `output_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
+| `backbone_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
+| `input_modes` | `list[str]` | `field(default_factory=list)` |
+| `limits` | `dict` | `field(default_factory=dict)` |
+| `constraints` | `dict` | `field(default_factory=dict)` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -2298,6 +2333,7 @@ The versioned result manifest.
 | `error` | `str \| None` | `None` |
 | `input_checksum` | `str` | `''` |
 | `params` | `dict` | `field(default_factory=dict)` |
+| `scientific_provenance` | `dict` | `field(default_factory=dict)` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -2338,7 +2374,7 @@ Raised internally when a progress callback reports that the run should stop.
 
 `src/engine/inputs.py`
 
-Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``.
+Shared differential-expression parsing for upload, preview and engine execution.
 
 | Constant | Type | Value |
 | --- | --- | --- |
@@ -2347,7 +2383,7 @@ Differential-expression input parsing — the edge where a CSV becomes a ``DgeTa
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def parse_dge_table(raw: bytes, filename: str = 'dge.csv') -> DgeTable` | Parse differential-expression CSV, TSV, TXT, or XLSX into a ``DgeTable``. |
+| `BUILT` | `def parse_dge_table(raw: bytes, filename: str = 'dge.csv', *, hypothesis_universe_complete: bool \| None = None) -> DgeTable` | Parse differential-expression CSV, TSV, TXT, or XLSX into a ``DgeTable``. |
 
 ### `engine.pipeline`
 
@@ -2561,8 +2597,8 @@ Stable IDs, provenance, and a CSV snapshot per stage.
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, output_dir: str, run_id: str) -> None` |  |
 | `BUILT` | `def mint_id(self, kind: str) -> str` | Allocate a stable, readable identifier. |
-| `STUB` | `def snapshot(self, stage: str, records: Sequence[Any]) -> ArtifactRef` | Write what a stage produced, as an inspectable CSV. |
-| `STUB` | `def load_snapshot(self, stage: str) -> list[dict]` | Read a snapshot back, to re-run one stage without re-running the pipeline. |
+| `BUILT` | `def snapshot(self, stage: str, records: Sequence[Any]) -> ArtifactRef` | Write what a stage produced, as an inspectable CSV. |
+| `BUILT` | `def load_snapshot(self, stage: str) -> list[dict]` | Read a snapshot back, to re-run one stage without re-running the pipeline. |
 
 #### `class Objective`
 

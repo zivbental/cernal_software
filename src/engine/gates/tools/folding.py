@@ -29,9 +29,14 @@ this module computes is in service of predicting whether that actually happens.
 Bodies land in Step 5 (docs/ROADMAP.md E1).
 """
 
+import json
 import math
+import os
+import subprocess
+import sys
 from functools import lru_cache
 from itertools import permutations
+from pathlib import Path
 
 import RNA
 
@@ -538,28 +543,97 @@ class FoldEngine:
                     matrix[j - 1][i - 1] = probability
         return tuple(tuple(row) for row in matrix)
 
-    def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]:
-        """Every structure within an energy window of the MFE.
+    def suboptimal(
+        self,
+        sequence: str,
+        delta: float = 2.0,
+        *,
+        max_structures: int = 1000,
+        timeout_seconds: float = 2.0,
+    ) -> list[FoldResult]:
+        """Enumerate exact structures within ``delta`` kcal/mol of MFE.
 
-        Why it matters: if a switch has an alternative fold only 0.5 kcal/mol above its
-        intended one, it will spend meaningful time in that state. Populating this early
-        catches designs that look fine by MFE and misbehave in vitro.
-
-        Args:
-            sequence: RNA, uppercase.
-            delta: Energy window in kcal/mol above the MFE. 2.0 is a reasonable default;
-                widening it grows the result set very quickly.
-
-        Returns:
-            ``FoldResult`` list, sorted by energy ascending, with the MFE structure
-            first.
-
-        Implementation (Step 5):
-            ``self._compound(sequence).subopt(int(delta * 100))`` — ViennaRNA takes the
-            window in dekacal/mol, not kcal/mol. Getting that conversion wrong returns
-            either one structure or millions.
+        Supports one uppercase RNA strand of at most 150 nt, delta 0..5,
+        max_structures 1..10000 and timeout_seconds (0,30]. An isolated native
+        process enforces time/count limits; exceeding either raises an error and
+        never returns a truncated ensemble. Results sort by energy and structure.
+        The set is thermodynamic and supplies no calibrated cellular kinetics.
         """
-        raise NotImplementedError("Step 5 — wrap RNA.subopt")
+        return self._bounded_suboptimal(
+            sequence, delta, max_structures=max_structures, timeout_seconds=timeout_seconds
+        )
+
+    def _bounded_suboptimal(
+        self,
+        sequence: str,
+        delta: float,
+        *,
+        max_structures: int = 1000,
+        timeout_seconds: float = 2.0,
+    ) -> list[FoldResult]:
+        """Exact enumeration in an isolated native process with count/time bounds."""
+        if not sequence or len(sequence) > 150 or any(base not in "ACGU" for base in sequence):
+            raise ValueError(
+                "Suboptimal enumeration requires one uppercase RNA strand of 1..150 nt."
+            )
+        if (
+            isinstance(delta, bool)
+            or not isinstance(delta, (int, float))
+            or not math.isfinite(delta)
+            or not 0 <= delta <= 5
+        ):
+            raise ValueError("Suboptimal delta must be finite and between 0 and 5 kcal/mol.")
+        if (
+            isinstance(max_structures, bool)
+            or not isinstance(max_structures, int)
+            or not 1 <= max_structures <= 10000
+        ):
+            raise ValueError("max_structures must be an integer between 1 and 10000.")
+        if (
+            isinstance(timeout_seconds, bool)
+            or not isinstance(timeout_seconds, (int, float))
+            or not math.isfinite(timeout_seconds)
+            or not 0 < timeout_seconds <= 30
+        ):
+            raise ValueError("timeout_seconds must be between 0 and 30 seconds.")
+        payload = json.dumps(
+            {
+                "sequence": sequence,
+                "temperature": self.temperature,
+                "delta": delta,
+                "max_structures": max_structures,
+            },
+            allow_nan=False,
+        )
+        # Pytest/source-checkout callers can import through sys.path without exporting
+        # PYTHONPATH. Bootstrap the same package tree explicitly; its parent is src
+        # in a checkout and site-packages for an installed package. Keep caller cwd
+        # and environment untouched while loading this exact engine implementation.
+        package_root = str(Path(__file__).resolve().parents[3])
+        try:
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys\n"
+                    f"sys.path.insert(0, {package_root!r})\n"
+                    "from engine.gates.tools.folding import _suboptimal_worker\n"
+                    "_suboptimal_worker()",
+                ],
+                input=payload,
+                text=True,
+                capture_output=True,
+                timeout=timeout_seconds,
+                check=True,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError(
+                "Suboptimal enumeration exceeded its native-process time limit."
+            ) from exc
+        response = json.loads(completed.stdout)
+        if response.get("error"):
+            raise ValueError(response["error"])
+        return [FoldResult(structure, energy) for structure, energy in response["results"]]
 
     def mfe_with_window_open(self, strands: str, window: tuple[int, int]) -> tuple[str, float]:
         """The most stable structure that leaves ``window`` single-stranded.
@@ -700,3 +774,32 @@ def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:
     # Structures alone carry no molecule or model energy: a Boltzmann probability
     # cannot be inferred from this signature and remains explicitly unavailable.
     return StructureMatch(deviation=deviation, p_target_fold=None)
+
+
+def _suboptimal_worker() -> None:
+    """Private subprocess entry: do not execute native enumeration in a long-lived worker."""
+    request = json.loads(sys.stdin.read())
+    model = RNA.md()
+    model.temperature = request["temperature"]
+    model.uniq_ML = 1
+    compound = RNA.fold_compound(request["sequence"], model)
+    results: dict[str, float] = {}
+
+    def collect(structure, energy, _data):
+        if structure is None:
+            return
+        results[structure] = float(energy)
+        if len(results) > request["max_structures"]:
+            print(
+                json.dumps(
+                    {"error": "Suboptimal count limit reached; complete ensemble unavailable."}
+                ),
+                flush=True,
+            )
+            # This is the isolated native-enumeration child, not a job worker. A hard
+            # exit stops the C callback/recursion immediately without retaining state.
+            os._exit(0)
+
+    compound.subopt_cb(round(request["delta"] * 100), collect)
+    ordered = sorted(results.items(), key=lambda item: (item[1], item[0]))
+    print(json.dumps({"results": ordered}, allow_nan=False), flush=True)

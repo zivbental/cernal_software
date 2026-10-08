@@ -62,6 +62,8 @@ def version(request):
         supported_hosts=capabilities.supported_hosts,
         family_hosts=capabilities.family_hosts,
         supported_outputs=capabilities.supported_outputs,
+        output_hosts=getattr(capabilities, "output_hosts", {}),
+        backbone_hosts=getattr(capabilities, "backbone_hosts", {}),
         input_modes=capabilities.input_modes,
         limits=capabilities.limits,
         constraints=capabilities.constraints,
