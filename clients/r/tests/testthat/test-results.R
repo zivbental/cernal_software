@@ -5,7 +5,7 @@ test_that("raw JSON and flattened metrics have distinct contracts", {
                     triggers = list(), warnings = list("held"), metrics = list(list(name = "gc_content", raw_value = NULL)))
   second <- candidate; second$id <- "two"; second$rank <- 1L; second$metrics <- list()
   rejected <- candidate; rejected$is_rejected <- TRUE; rejected$rank <- NULL
-  job <- list(response = list(candidates = list(rejected, candidate, second)))
+  job <- list(response = list(job_id = "run", status = "COMPLETED", candidates = list(rejected, candidate, second)))
   expect_identical(cernal_candidates(job)[[2]]$design, candidate$design)
   results <- cernal_results(job)
   expect_equal(nrow(results), 3L)
@@ -15,4 +15,10 @@ test_that("raw JSON and flattened metrics have distinct contracts", {
   expect_null(cernal_best(job))
   job$response$candidates <- list()
   expect_null(cernal_best(job))
+})
+
+
+test_that("dry run and failed inline candidates are not completion", {
+  expect_error(cernal_wait(list(response = list(job_id = NULL, candidates = list()))), "never submitted")
+  expect_error(cernal_wait(list(response = list(job_id = "run", status = "FAILED", candidates = list()))), "ended FAILED")
 })

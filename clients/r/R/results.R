@@ -12,7 +12,7 @@
 #' @export
 cernal_results <- function(job) {
   candidates <- job$response$candidates
-  if (is.null(candidates)) {
+  if (is.null(job$response$job_id) || !identical(job$response$status, "COMPLETED") || is.null(candidates)) {
     stop("Call cernal_wait() before cernal_results().", call. = FALSE)
   }
   if (length(candidates) == 0) {
@@ -95,6 +95,6 @@ cernal_artifact <- function(job, kind, path) {
 #' @param job A resolved cernal_job.
 #' @export
 cernal_candidates <- function(job) {
-  if (is.null(job$response$candidates)) stop("Call cernal_wait() before reading candidates.", call. = FALSE)
+  if (is.null(job$response$job_id) || !identical(job$response$status, "COMPLETED") || is.null(job$response$candidates)) stop("Call cernal_wait() before reading candidates.", call. = FALSE)
   job$response$candidates
 }
