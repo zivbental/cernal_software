@@ -368,3 +368,27 @@ def test_catalog_vector_host_scope_rejects_before_queue(host):
             "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA",
             host,
         )
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"host": ["ecoli"]},
+        {"host": False},
+        {"organism": {"name": "ecoli"}},
+        {"budget": False},
+        {"budget": []},
+        {"budget": ""},
+        {"budget": None},
+    ],
+)
+def test_malformed_falsy_budget_and_unhashable_host_fail_consistently(params):
+    with pytest.raises(ValueError):
+        validate_job_configuration(params, ["toehold"], "default", "direct", "ACGU")
+
+
+def test_normalized_configuration_does_not_share_mutable_request_blocks():
+    params = {"annotation": {"nested": ["original"]}}
+    normalized = validate_job_configuration(params, ["toehold"], "default", "direct", "ACGU")
+    normalized["annotation"]["nested"].append("changed")
+    assert params["annotation"]["nested"] == ["original"]

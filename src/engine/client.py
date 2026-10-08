@@ -11,6 +11,7 @@ An expected scientific failure is **data**: the engine returns a ``JobResult`` w
 Cancellation returns ``status="cancelled"``.
 """
 
+import copy
 import dataclasses
 import importlib
 from collections.abc import Callable
@@ -225,7 +226,7 @@ def validate_job_configuration(
     for block in ("constraints", "payload", "backbone", "scoring", "statistics", "target_gene"):
         if block in params and not isinstance(params[block], dict):
             raise ValueError(f"params.{block} must be an object.")
-    budget = params.get("budget") or {}
+    budget = params.get("budget", {})
     if not isinstance(budget, dict) or set(budget) - {"max_designs"}:
         raise ValueError("budget supports only max_designs (integer 1..1000).")
     max_designs = budget.get("max_designs", 20)
@@ -235,7 +236,14 @@ def validate_job_configuration(
         or not 1 <= max_designs <= 1000
     ):
         raise ValueError("budget.max_designs must be an integer between 1 and 1000.")
-    host_values = [v for v in (organism, params.get("host"), params.get("organism")) if v]
+    selections = [organism, *(params[key] for key in ("host", "organism") if key in params)]
+    if any(not isinstance(value, str) for value in selections):
+        raise ValueError("organism/host selections must be strings.")
+    if not isinstance(gate_families, list) or any(
+        not isinstance(name, str) for name in gate_families
+    ):
+        raise ValueError("gate_families must be a list of family names.")
+    host_values = [value for value in selections if value]
     if len(set(host_values)) > 1:
         raise ValueError("Conflicting organism/host selections are not allowed.")
     payload = params.get("payload") or {}
@@ -306,7 +314,7 @@ def validate_job_configuration(
                 raise ValueError("Trigger sequence exceeds the 10,000-nucleotide compute limit.")
     except (EngineError, TypeError, KeyError) as exc:
         raise ValueError(str(exc)) from exc
-    return {
+    normalized = {
         **params,
         "host": host.value,
         "payload": {
@@ -322,6 +330,7 @@ def validate_job_configuration(
         "constraints": dataclasses.asdict(constraints),
         "budget": {"max_designs": max_designs},
     }
+    return copy.deepcopy(normalized)
 
 
 def _installed_capabilities(engine_version: str) -> EngineCapabilities:
