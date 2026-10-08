@@ -1,22 +1,67 @@
 """Supervise the development web server and its background worker together."""
 
-import fcntl
 import os
 import signal
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 
 from django.conf import settings
 from django.contrib.staticfiles.management.commands.runserver import Command as RunserverCommand
 from django.core.management.base import CommandError
 from django.db import DatabaseError
 
+from apps.analyses.services import reconcile_runs
 from apps.analyses.worker import worker_available
+
+IS_WINDOWS = sys.platform == "win32"
+
+
+@contextmanager
+def supervisor_lock(path):
+    """One supervisor, using a native nonblocking lock on either supported OS."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as lock:
+        try:
+            if IS_WINDOWS:
+                import msvcrt
+
+                if lock.tell() == 0:
+                    lock.write(b"0")
+                    lock.flush()
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise CommandError("A supervised development server is already running.") from exc
+        try:
+            yield
+        finally:
+            if IS_WINDOWS:
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def process_options():
+    if IS_WINDOWS:
+        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 512)}
+    return {"start_new_session": True}
 
 
 def stop_process(process):
     if process is None or process.poll() is not None:
+        return
+    if IS_WINDOWS:
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            check=False,
+            capture_output=True,
+        )
+        process.wait(timeout=10)
         return
     try:
         os.killpg(process.pid, signal.SIGTERM)
@@ -36,11 +81,7 @@ class Command(RunserverCommand):
     def handle(self, *args, **options):
         if not settings.DEBUG:
             raise CommandError("devserver is only available with development settings.")
-        with (settings.VAR_DIR / "devserver.lock").open("w") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as exc:
-                raise CommandError("A supervised development server is already running.") from exc
+        with supervisor_lock(settings.VAR_DIR / "devserver.lock"):
             previous_handler = signal.signal(signal.SIGTERM, self.terminate)
             try:
                 self.supervise(options)
@@ -67,9 +108,7 @@ class Command(RunserverCommand):
         for key, flag in (("use_static_handler", "--nostatic"), ("insecure_serving", "--insecure")):
             if options.get(key) == (key == "insecure_serving"):
                 server_args.append(flag)
-        server = subprocess.Popen(
-            [*base, "runserver", *server_args], env=env, start_new_session=True
-        )
+        server = subprocess.Popen([*base, "runserver", *server_args], env=env, **process_options())
         worker = None
         last_healthy = time.monotonic()
         try:
@@ -78,6 +117,7 @@ class Command(RunserverCommand):
                     self.stderr.write("Analysis worker exited; restarting it.")
                     worker = None
                 try:
+                    reconcile_runs()
                     healthy = worker_available()
                 except DatabaseError:
                     # An unavailable status store is not proof the worker died.
@@ -93,7 +133,7 @@ class Command(RunserverCommand):
                     worker = None
                 if worker is None and not healthy:
                     self.stdout.write("Starting the analysis worker alongside the web server.")
-                    worker = subprocess.Popen([*base, "qcluster"], env=env, start_new_session=True)
+                    worker = subprocess.Popen([*base, "qcluster"], env=env, **process_options())
                     last_healthy = time.monotonic()
                 time.sleep(1)
         except KeyboardInterrupt:
