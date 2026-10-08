@@ -85,7 +85,7 @@ def test_whitespace_in_a_pasted_sequence_is_ignored(
     [
         ("", "Paste the trigger"),
         ("ACGU", "too short"),
-        ("AUGGCUAGCAAGGGCGAGGAGCUGXXZZ", "only A, C, G, U"),
+        ("AUGGCUAGCAAGGGCGAGGAGCUGXXZZ", "only A/C/G/T/U"),
     ],
 )
 def test_a_bad_trigger_sequence_is_refused(auth_client, sequence, expected):

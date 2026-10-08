@@ -21,6 +21,7 @@ from ninja import Router, Status
 from api.auth import get_owned
 from api.errors import Conflict, ValidationFailed
 from api.params import (
+    BACKBONE_KEYS,
     BUDGET_KEYS,
     CONSTRAINT_KEYS,
     PAYLOAD_KEYS,
@@ -43,7 +44,13 @@ from apps.analyses.worker import worker_available
 from apps.datasets.models import Dataset
 from apps.datasets.services import DatasetValidationError, create_dataset, validate_expression_file
 from apps.results.models import Artifact, Candidate
-from engine.client import label_for_custom_scoring, load_engine
+from engine.client import (
+    label_for_custom_scoring,
+    load_engine,
+    lookup_reference_gene,
+    normalize_trigger_sequence,
+    validate_job_configuration,
+)
 
 router = Router()
 
@@ -83,6 +90,8 @@ def _input_mode(body: DesignIn) -> str:
 
 def _resolve_gate_families(body: DesignIn, capabilities) -> list[str]:
     available = capabilities.available_families
+    if body.gate_families == []:
+        raise ValidationFailed("Choose at least one gate family.")
 
     if body.gate_families is not None:
         unknown = sorted(set(body.gate_families) - set(available))
@@ -93,7 +102,12 @@ def _resolve_gate_families(body: DesignIn, capabilities) -> list[str]:
             )
         return list(body.gate_families)
 
-    families = [name for name in available if name not in set(body.exclude_gate_families)]
+    families = [
+        name
+        for name in available
+        if name not in set(body.exclude_gate_families)
+        and body.organism in capabilities.family_hosts.get(name, [])
+    ]
     if not families:
         raise ValidationFailed("No gate family remains after applying exclude_gate_families.")
     return families
@@ -111,8 +125,8 @@ def _estimate(
     input_mode: str, rows: int | None, constraints: dict, gate_families: list[str]
 ) -> dict:
     """Rough, and labelled as such (docs/public-api.md §9.3). ``de`` mode can only be
-    bounded from the dataset's row count — gene selection (stage 1) doesn't exist yet,
-    so how many genes actually survive filtering is unknown until it does."""
+    bounded from the dataset's row count. The surviving gene count and generated trigger
+    windows are unknown before execution."""
     n_families = max(1, len(gate_families))
 
     if input_mode in (InputMode.DIRECT, InputMode.GENE):
@@ -144,6 +158,10 @@ def _resolved(run: AnalysisRun) -> dict:
         ),
         "seed": run.seed,
         "constraints": run.params_snapshot.get("constraints", {}),
+        "organism": run.organism,
+        "budget": run.params_snapshot.get("budget", {}),
+        "payload": run.params_snapshot.get("payload", {}),
+        "backbone": run.params_snapshot.get("backbone", {}),
     }
 
 
@@ -153,6 +171,8 @@ def _row_count_for_dry_run(request, body: DesignIn, input_mode: str) -> int | No
         return None
     if body.dataset_id:
         dataset = get_owned(Dataset, body.dataset_id, request.user)
+        if not dataset.is_usable:
+            raise ValidationFailed("This dataset did not pass validation and cannot be analysed.")
         return (dataset.validation_report or {}).get("rows")
 
     upload = SimpleUploadedFile("dge.csv", body.dge_csv.encode(), content_type="text/csv")
@@ -160,10 +180,14 @@ def _row_count_for_dry_run(request, body: DesignIn, input_mode: str) -> int | No
         report = validate_expression_file(upload)
     except DatasetValidationError as exc:
         raise ValidationFailed(str(exc)) from None
+    if report.get("errors"):
+        raise ValidationFailed(" ".join(report["errors"]))
     return report.get("rows")
 
 
-@router.post("/design", response={202: DesignAcceptedOut, 200: DesignResponseOut})
+@router.post(
+    "/design", response={202: DesignAcceptedOut, 200: DesignResponseOut}, exclude_none=True
+)
 def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = False):
     """Submit, or estimate without submitting (``?dry_run=true``), or block for a
     finished result (``?wait=<seconds>``, ceiling 300s — see ``WAIT_HARD_CEILING``)."""
@@ -175,13 +199,48 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
     scoring = _resolve_scoring(body, capabilities)
 
     if body.strict:
-        check_known_keys(body.constraints, CONSTRAINT_KEYS, "constraint")
+        check_known_keys(
+            body.constraints, set(capabilities.constraints) or CONSTRAINT_KEYS, "constraint"
+        )
         check_known_keys(body.budget, BUDGET_KEYS, "budget field")
         check_known_keys(body.payload, PAYLOAD_KEYS, "payload field")
+        check_known_keys(body.backbone, BACKBONE_KEYS, "backbone field")
+
+    params = {
+        "constraints": body.constraints,
+        "scoring": scoring,
+        "payload": body.payload,
+        "backbone": body.backbone,
+        "top_n": body.top_n,
+        "notes": body.notes,
+    }
+    if body.budget:
+        params["budget"] = body.budget
+    if input_mode == InputMode.GENE:
+        params["target_gene"] = {"gene_id": body.gene_id}
+    try:
+        sequence = body.trigger_sequence
+        if input_mode == InputMode.DIRECT:
+            sequence = normalize_trigger_sequence(sequence)
+            if len(sequence) < 20:
+                raise ValueError("The trigger sequence is too short — at least 20 nucleotides.")
+        elif input_mode == InputMode.GENE:
+            reference = lookup_reference_gene(body.organism, body.gene_id)
+            sequence = reference["sequence"]
+        params = validate_job_configuration(
+            params,
+            gate_families,
+            scoring.get("base", "default"),
+            input_mode,
+            sequence,
+            body.organism,
+        )
+    except ValueError as exc:
+        raise ValidationFailed(str(exc)) from None
 
     if dry_run:
         rows = _row_count_for_dry_run(request, body, input_mode)
-        estimate = _estimate(input_mode, rows, body.constraints, gate_families)
+        estimate = _estimate(input_mode, rows, params["constraints"], gate_families)
         return Status(
             200,
             {
@@ -192,11 +251,14 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                         scoring.get("base", "default"), scoring
                     ),
                     "seed": body.seed,
-                    "constraints": body.constraints,
+                    "constraints": params["constraints"],
+                    "organism": body.organism,
+                    "budget": params.get("budget", {}),
+                    "payload": params.get("payload", {}),
+                    "backbone": params.get("backbone", {}),
                 },
                 "estimate": estimate,
-                # No budget enforcement yet — engine-side work, blocked on the real
-                # pipeline (docs/public-api.md §9.3, §14 X6). True until it lands.
+                # The shared engine validator enforces the supported design-count budget.
                 "budget_ok": True,
             },
         )
@@ -216,23 +278,12 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         except DatasetValidationError as exc:
             raise ValidationFailed(str(exc)) from None
 
-    params = {
-        "constraints": body.constraints,
-        "scoring": scoring,
-        "budget": body.budget,
-        "payload": body.payload,
-        "top_n": body.top_n,
-        "notes": body.notes,
-    }
-    if input_mode == InputMode.GENE:
-        params["target_gene"] = {"gene_id": body.gene_id}
-
     try:
         run, _created = submit_run(
             user=request.user,
             dataset=dataset,
             input_mode=input_mode,
-            trigger_sequence=body.trigger_sequence,
+            trigger_sequence=sequence,
             organism=body.organism,
             params=params,
             gate_families=gate_families,
@@ -251,7 +302,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         raise ValidationFailed(str(exc)) from None
 
     rows = (dataset.validation_report or {}).get("rows") if dataset else None
-    estimate = _estimate(input_mode, rows, body.constraints, gate_families)
+    estimate = _estimate(input_mode, rows, params["constraints"], gate_families)
 
     wait = max(0.0, min(wait, WAIT_HARD_CEILING))
     if wait > 0:
@@ -271,6 +322,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                 top_n=body.top_n,
                 include_rejected=body.include_rejected,
                 include_artifacts=body.include_artifacts,
+                include_metrics=body.include_metrics,
             )
             return Status(200, {**results, "resolved": _resolved(run)})
 
@@ -309,13 +361,21 @@ def get_design_status(request, run_id: UUID):
 
 
 def _results_payload(
-    run: AnalysisRun, *, top_n: int, include_rejected: bool, include_artifacts: list[str]
+    run: AnalysisRun,
+    *,
+    top_n: int,
+    include_rejected: bool,
+    include_artifacts: list[str],
+    include_metrics: bool = True,
 ) -> dict:
     queryset = Candidate.objects.filter(run=run).prefetch_related("metrics")
     if not include_rejected:
         queryset = queryset.filter(is_rejected=False)
     queryset = queryset.order_by(F("rank").asc(nulls_last=True), "engine_ref")
     candidates = list(queryset[: max(1, top_n)])
+
+    for candidate in candidates:
+        candidate._include_metrics = include_metrics
 
     artifacts = []
     if include_artifacts:
@@ -329,7 +389,7 @@ def _results_payload(
     }
 
 
-@router.get("/design/{run_id}/results", response=DesignResponseOut)
+@router.get("/design/{run_id}/results", response=DesignResponseOut, exclude_none=True)
 def get_design_results(
     request,
     run_id: UUID,
@@ -337,6 +397,7 @@ def get_design_results(
     top_n: int = 25,
     include_rejected: bool = False,
     include_artifacts: str = "",
+    include_metrics: bool = True,
 ):
     """Ranked candidates with metric decomposition. ``?format=csv`` delegates to the
     same export the SPA and the old endpoint use — one code path (§8).
@@ -351,6 +412,10 @@ def get_design_results(
 
     kinds = [kind.strip() for kind in include_artifacts.split(",") if kind.strip()]
     results = _results_payload(
-        run, top_n=top_n, include_rejected=include_rejected, include_artifacts=kinds
+        run,
+        top_n=top_n,
+        include_rejected=include_rejected,
+        include_artifacts=kinds,
+        include_metrics=include_metrics,
     )
     return {**results, "resolved": _resolved(run)}

@@ -69,10 +69,11 @@ def create_run(request, payload: RunIn):
             raise ValidationFailed("A dataset is required for a differential-expression run.")
         dataset = get_owned(Dataset, payload.dataset_id, request.user)
 
-    constraints = payload.params.get("constraints") or {}
-    scoring = payload.params.get("scoring") or {}
-    backbone = payload.params.get("backbone") or {}
-    check_known_keys(constraints, CONSTRAINT_KEYS, "constraint")
+    constraints = payload.params.get("constraints", {})
+    scoring = payload.params.get("scoring", {})
+    backbone = payload.params.get("backbone", {})
+    capabilities = load_engine(settings.CERNAL_ENGINE).capabilities()
+    check_known_keys(constraints, set(capabilities.constraints) or CONSTRAINT_KEYS, "constraint")
     check_known_keys(scoring, SCORING_KEYS, "scoring field")
     check_known_keys(backbone, BACKBONE_KEYS, "backbone field")
     capabilities = load_engine(settings.CERNAL_ENGINE).capabilities()
