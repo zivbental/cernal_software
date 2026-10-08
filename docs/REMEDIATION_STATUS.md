@@ -17,6 +17,7 @@ engine/platform/runtime branches have their own PR evidence pending integration.
 | PD-10; PLAT-16 | Current docs and operative instructions corrected; old design narratives explicitly archived | Current status points to source/capabilities and dated verification; generated API surface refreshed at integration |
 | PD-11 | Research note/tag persistence shown through existing owned APIs and attributed JSON bulk export; synthesis ordering labeled unavailable | Annotation ownership remains server-enforced; funded external integration is not implemented |
 | PD-12 | Synthetic example/source installation labels corrected; decision/owner ledger written | Names, consent, governance, publishing and institutional approvals remain human decisions, not completed by code |
+| GAP-04 | Verified selected arthritis contrast from primary Atlas XML/GEO metadata; conditions/common context normalized; retained CSV digests/statistic counts/subset status shown; future sync retains full analysis rows | Primary evidence and deterministic parser/checksum/full-row tests; broader reference coverage, catalog smoke and biological review remain open |
 | GAP-05 | Productive fixture checks engine success/accepted results; clean generation order and browser CI lanes | Full integrated release jobs, supported R/MATLAB/Windows runtimes and deployment evidence remain distinct |
 
 Local product verification: TypeScript, ESLint, server-render/help checks and production

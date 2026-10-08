@@ -125,6 +125,7 @@ class DatasetProvenanceOut(Schema):
     retrieved_at: datetime
     analysis_method: str
     publication_doi: str
+    provider_metadata: dict = Field(default_factory=dict)
 
 
 class DatasetOut(ModelSchema):
@@ -218,6 +219,7 @@ class PublicDatasetInfoOut(Schema):
     genes_with_adjusted_p_value: int
     analysis_method: str = ""
     publication_doi: str = ""
+    provider_metadata: dict = Field(default_factory=dict)
 
 
 class MaterializePublicDatasetIn(Schema):

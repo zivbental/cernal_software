@@ -115,6 +115,7 @@ export interface PublicDatasetInfo {
   genes_with_adjusted_p_value: number;
   analysis_method: string;
   publication_doi: string;
+  provider_metadata?: Record<string, unknown>;
 }
 
 export interface DatasetProvenance {
@@ -130,6 +131,7 @@ export interface DatasetProvenance {
   retrieved_at: string;
   analysis_method: string;
   publication_doi: string;
+  provider_metadata?: Record<string, unknown>;
 }
 
 export interface DatasetPreviewRow {
