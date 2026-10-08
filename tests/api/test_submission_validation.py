@@ -144,3 +144,18 @@ def test_version_exposes_authoritative_host_family_output_limits(client):
     assert "ecoli" in document["family_hosts"]["toehold"]
     assert document["limits"]["max_de_rows"] == 200000
     assert document["constraints"]["trigger_lengths"]
+
+
+def test_canonical_wizard_organism_is_accepted_and_real_conflict_rejected(auth_client):
+    body = {
+        "input_mode": "direct",
+        "trigger_sequence": SEQUENCE,
+        "organism": "ecoli",
+        "params": {"organism": "ecoli", "constraints": {"max_circuit_gates": 1}},
+    }
+    response = auth_client.post("/api/runs", data=body, content_type="application/json")
+    assert response.status_code == 202, response.content
+    body["params"]["organism"] = "human"
+    response = auth_client.post("/api/runs", data=body, content_type="application/json")
+    assert response.status_code == 422
+    assert "agree" in response.json()["error"]["message"]
