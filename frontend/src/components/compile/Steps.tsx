@@ -89,8 +89,8 @@ export const DEFAULT_CONFIG: CompileConfig = {
 
 /** engine.scoring.profiles.DEFAULT_V1's own predicted_leakage hard-filter ceiling
  * (CLAUDE.md §2) — the wizard's slider must not be able to submit a run that loosens
- * this documented safety threshold, only tighten it. */
-const MAX_SAFE_LEAKAGE = 0.85;
+ * this scoring threshold, only tighten it. */
+const MAX_PROFILE_LEAKAGE = 0.85;
 
 /** Collaboration credit shown at the point of use, not only on a credits page.
  *
@@ -679,7 +679,7 @@ export function StepLogic({
             // The scoring profile's own predicted_leakage ceiling (CLAUDE.md §2) — this
             // control can only tighten it, never submit a run that loosens a documented
             // safety filter.
-            max={MAX_SAFE_LEAKAGE}
+            max={MAX_PROFILE_LEAKAGE}
             step={0.01}
             onChange={(v) => patch({ maxLeakage: v })}
           />

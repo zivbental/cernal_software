@@ -119,7 +119,7 @@ class Job:
             import pandas as pd
         except ImportError as exc:
             raise ImportError(
-                "to_dataframe() needs pandas. `pip install cernal[pandas]`, "
+                "to_dataframe() needs pandas. Install the source client with its pandas extra, "
                 "or use to_dicts() instead."
             ) from exc
         return pd.DataFrame(self.candidates())

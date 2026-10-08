@@ -441,6 +441,8 @@ function toDesignLogic(graph: import("@/api/types").LogicGraph | undefined) {
 const outputOf = (candidate: Candidate) => candidate.output;
 
 function WarningList({ title, warnings }: { title: string; warnings: string[] }) {
+  const [offset, setOffset] = useState(0);
   if (!warnings.length) return null;
-  return <details className="my-4 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4"><summary>{title} ({warnings.length})</summary><ul className="mt-2 space-y-1 text-sm">{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>;
+  const start = Math.min(offset, Math.floor((warnings.length - 1) / 50) * 50);
+  return <details className="my-4 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4"><summary>{title} ({warnings.length})</summary><ul className="mt-2 space-y-1 text-sm">{warnings.slice(start, start + 50).map((warning, index) => <li key={start + index}>{warning}</li>)}</ul>{warnings.length > 50 && <nav aria-label={`${title} pages`} className="mt-2 flex justify-between"><button disabled={start === 0} onClick={() => setOffset(Math.max(0, start - 50))}>Previous warnings</button><span>{start + 1}–{Math.min(start + 50, warnings.length)} of {warnings.length}</span><button disabled={start + 50 >= warnings.length} onClick={() => setOffset(start + 50)}>Next warnings</button></nav>}</details>;
 }
