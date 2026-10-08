@@ -37,6 +37,14 @@ across datasets** — see `no-metric-holds-sign` below before carrying any of th
 | The two geometries differ in the **secondary** arm, not the main one | `ARM_LEN` 18 in both; `SECONDARY_ARM_LEN` 20 (Kim) vs 18 (naive); switch 165 vs 161 nt | both | `ToeholdAndGate.geometry_name` | as above |
 | 33 of a 161-nt switch are gene bases nothing downstream can edit | `sw_x` 13 + `secondary_z` 5 + `main_z` 6 + `main_pre` 9 | PFAS | `review/step2_switch_construction.py` | as above |
 
+## Gaps found by reading the code, not by measuring
+
+| gap | what it is | consequence |
+|---|---|---|
+| **No partner-aware `x*` measure exists in the engine** | `A_S_00/01/10/11` are `_mean_unpaired` — **open or closed, partner-blind**. The partner-specific terms (`xstar_locked`, `free_xstar`, `xstar_engA`) live only in the notebook (`drift_fold.py`, `full_sweep.py`, `candidates.py`) and never came across | τ6 (`A_S_11 > 0.5`) passes a design whose `x*` is open but **not bound to trigger A** — refolded elsewhere. That is the exact failure `open_penalty`'s own docstring warns about, and the engine cannot see it |
+| **`free_xstar_01` is a declared column with 0 of 346,528 values** | I listed it in `characterise_axes.FIELDS`; `measure_design` never returns it | a header that promises a measurement and delivers an empty cell, which reads as "measured, came back None". Worse than an absent column |
+| **`A_M_*` includes the AUG; `open_*` excludes it** | `A_M = (main_z[0], main_pre[1])` is one contiguous span, so it covers `main_z → aug → main_pre`. `main_stem_arms = (main_z, main_pre)` is two spans with the bulge left out, on purpose | two measures both called "the main stem" over different regions, with nothing saying so. Same trap as `open_11` vs `dG_open_11`. **Both choices are right for their own purpose** — recommendation is to document, not to change, since changing either moves every stored number |
+
 ## The competition at `x*` — the clearest result this work has
 
 | finding | number | dataset | reasoning lives in | reproduce |
