@@ -37,6 +37,7 @@ export interface CompileConfig {
   /** Downstream outputs, all equivalent. Each selected one gets its own plasmids. */
   outputs: string[];
   customPayload: string;
+  optimizePayloadCodons: boolean;
   /**
    * UI-friendly sliders for a per-run override of the scoring profile's hard filters
    * (engine.scoring.profiles X7) — routes/compile.tsx's onSubmit turns these into
@@ -76,6 +77,7 @@ export const DEFAULT_CONFIG: CompileConfig = {
   mechanism: "toehold",
   outputs: ["gfp"],
   customPayload: "",
+  optimizePayloadCodons: false,
   maxLeakage: 0.08,
   minGateStability: -32,
   // Physical multi-gate constructs require reviewed integration; production uses one gate.
@@ -202,7 +204,7 @@ export function StepInputs({
                 aria-pressed={selected}
                 onClick={() => patch(o.key === "human"
                   ? { organism: o.key, datasetId: null, targetGene: null, backbone: "none", mechanism: "eukaryotic_toehold" }
-                  : { organism: o.key, datasetId: null, targetGene: null, backbone: o.key === "yeast" ? "none" : "psb1c3", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
+                  : { organism: o.key, datasetId: null, targetGene: null, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
                 className={`group relative flex items-center gap-2 rounded-md px-5 py-2.5 text-sm transition ${
                   credit
                     ? selected
@@ -734,15 +736,22 @@ const OUTPUTS = [
   {
     key: "luciferase",
     name: "Luciferase",
-    sub: "Bioluminescent readout",
-    note: "Visual readout",
+    sub: "Firefly luciferase",
+    note: "Requires substrate and cofactors",
     color: "oklch(0.85 0.16 90)",
   },
   {
     key: "ampr",
-    name: "Antibiotic resistance",
-    sub: "AmpR (KanR is a separate payload)",
-    note: "Positive selection",
+    name: "AmpR",
+    sub: "Beta-lactamase selectable marker",
+    note: "E. coli; fusion unvalidated",
+    color: "oklch(0.62 0.18 265)",
+  },
+  {
+    key: "kanr",
+    name: "KanR",
+    sub: "Kanamycin resistance marker",
+    note: "E. coli; fusion unvalidated",
     color: "oklch(0.62 0.18 265)",
   },
   {
@@ -777,7 +786,7 @@ export function StepPayload({ config, patch, supportedOutputs }: { config: Compi
       <SectionHeading
         kicker="Step 03 · Payload"
         title="Choose Downstream Output"
-        desc="Choose a supported coding output. Multiple outputs are alternatives assigned across candidates, not simultaneous co-expression or exhaustive combinations."
+        desc="Each retained gate design is evaluated with every selected output. Each candidate contains one payload; co-expression needs a separate reviewed construct."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -843,6 +852,12 @@ export function StepPayload({ config, patch, supportedOutputs }: { config: Compi
         </div>
       )}
 
+      <label className="mt-5 flex items-center gap-2 text-sm text-foreground">
+        <input type="checkbox" checked={config.optimizePayloadCodons}
+          onChange={(e) => patch({ optimizePayloadCodons: e.target.checked })} />
+        Optimize payload codons for the selected host (optional)
+      </label>
+      <p className="mt-2 text-xs text-muted-foreground">Off by default to preserve the pinned coding sequence. Optimization preserves the encoded protein and records sequence provenance. Reporter performance with the switch fusion remains experimentally unvalidated.</p>
       <p className="mt-6 rounded-lg border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground">
         {count === 0
           ? "Select at least one output."

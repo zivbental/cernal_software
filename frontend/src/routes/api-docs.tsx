@@ -235,6 +235,7 @@ const BUDGET_FIELDS: ParamRow[] = [
 ];
 
 const PAYLOAD_FIELDS: ParamRow[] = [
+  { field: "optimize_codons", type: "boolean", default: "false", notes: "Optional optimization for the selected host; preserves the encoded protein and records sequence checksums. Pinned reporter CDS is retained by default." },
   { field: "outputs", type: "string[]", default: "[]", notes: 'What the circuit expresses, e.g. ["gfp", "other"]; named outputs must be advertised by /api/version.' },
   { field: "custom_sequence", type: "string | null", default: "null", notes: "A custom payload sequence, in place of a named output." },
 ];
