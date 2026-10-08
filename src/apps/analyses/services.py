@@ -7,20 +7,36 @@ The invariant that matters most: a run must never be left in RUNNING. Every path
 ``execute_run`` reaches a terminal state, including unexpected exceptions.
 """
 
+import json
 import logging
-import tempfile
+import shutil
+import threading
 import uuid
+from contextlib import contextmanager
+from dataclasses import asdict, replace
+from datetime import timedelta
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import caches
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
 
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
 from apps.results.services import ResultImportError, import_job_result
 from engine.client import load_engine, lookup_reference_gene
-from engine.contract import CANCELLED, SCHEMA_VERSION, SUCCEEDED, JobRequest
+from engine.contract import (
+    CANCELLED,
+    SCHEMA_VERSION,
+    SUCCEEDED,
+    ArtifactRef,
+    CandidateResult,
+    JobRequest,
+    JobResult,
+    MetricValue,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -210,13 +226,28 @@ def _validate_against_capabilities(families, scoring_profile, capabilities) -> N
 
 
 def _enqueue(run_id) -> None:
+    """Publish a durable QUEUED row; reconciliation retries failed publication."""
     from django_q.tasks import async_task
 
-    async_task(
-        "apps.analyses.tasks.run_analysis",
-        str(run_id),
-        task_name=f"run-{str(run_id)[:8]}",
-    )
+    if not AnalysisRun.objects.filter(pk=run_id, status=RunStatus.QUEUED).exists():
+        return
+    try:
+        async_task(
+            "apps.analyses.tasks.run_analysis",
+            str(run_id),
+            task_name=f"run-{str(run_id)[:8]}",
+        )
+    except Exception:
+        logger.exception("Queue publication failed for run %s; reconciliation will retry", run_id)
+        AnalysisRun.objects.filter(pk=run_id, status=RunStatus.QUEUED).update(
+            stage="Dispatch pending; retrying",
+            enqueued_at=None,
+        )
+    else:
+        AnalysisRun.objects.filter(pk=run_id, status=RunStatus.QUEUED).update(
+            enqueued_at=timezone.now(),
+            stage="Queued",
+        )
 
 
 # --- Execution --------------------------------------------------------------------
@@ -233,6 +264,10 @@ def execute_run(run_id: str) -> None:
         logger.warning("execute_run called for unknown run %s", run_id)
         return
 
+    if run.status == RunStatus.RUNNING:
+        _reconcile_running(run)
+        return
+
     if run.is_terminal:
         logger.info("Run %s is already %s; nothing to do", run.id, run.status)
         return
@@ -242,29 +277,48 @@ def execute_run(run_id: str) -> None:
         return
 
     try:
-        _transition(run, RunStatus.RUNNING, stage="Starting", started_at=timezone.now())
+        _transition(
+            run,
+            RunStatus.RUNNING,
+            stage="Starting",
+            started_at=timezone.now(),
+            execution_token=uuid.uuid4(),
+        )
     except InvalidTransition:
         logger.warning("Run %s could not start from %s", run.id, run.status)
         return
 
     try:
-        _execute(run)
-    except Exception:
+        with _run_heartbeat(run):
+            _execute(run)
+    except BaseException as exc:
         # The last line of defence. A run stuck in RUNNING is the worst failure mode in
         # the system, so even a programming error must land somewhere terminal.
         logger.exception("Run %s failed unexpectedly", run.id)
-        _finish(
-            run,
-            RunStatus.FAILED,
-            stage="Failed",
-            error_summary="The analysis failed unexpectedly. The team has been notified.",
-        )
+        try:
+            _finish(
+                run,
+                RunStatus.FAILED,
+                stage="Interrupted" if not isinstance(exc, Exception) else "Failed",
+                error_summary=(
+                    "The analysis failed unexpectedly. You can submit a new run; "
+                    "diagnostics were recorded."
+                ),
+            )
+        except InvalidTransition:
+            logger.info("Run %s lost its execution lease or already finished", run.id)
+        if not isinstance(exc, Exception):
+            raise
 
 
 def _execute(run: AnalysisRun) -> None:
     engine = load_engine(settings.CERNAL_ENGINE)
 
-    with tempfile.TemporaryDirectory(prefix=f"cernal-run-{str(run.id)[:8]}-") as output_dir:
+    # Keep successful science until import is acknowledged. Failed import can be
+    # retried into a new run without rewriting a terminal run's history.
+    output_dir = _staging_dir(run)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
         request = JobRequest(
             schema_version=SCHEMA_VERSION,
             run_id=str(run.id),
@@ -278,10 +332,15 @@ def _execute(run: AnalysisRun) -> None:
             gate_families=run.gate_families,
             scoring_profile=run.scoring_profile,
             seed=run.seed,
-            output_dir=output_dir,
+            output_dir=str(output_dir),
         )
 
         result = engine.run(request, _progress_callback(run))
+        if not _owns_execution(run):
+            return
+        if AnalysisRun.objects.filter(pk=run.pk, cancel_requested=True).exists():
+            _finish(run, RunStatus.CANCELLED, stage="Cancelled")
+            return
 
         if result.status == CANCELLED:
             _finish(
@@ -300,8 +359,12 @@ def _execute(run: AnalysisRun) -> None:
             )
             return
 
+        manifest = output_dir / "result.json"
+        temporary = manifest.with_suffix(".tmp")
+        temporary.write_text(json.dumps(asdict(result), allow_nan=False), encoding="utf-8")
+        temporary.replace(manifest)
         try:
-            import_job_result(run, result, output_dir)
+            _import_and_complete(run, result, output_dir)
         except ResultImportError as exc:
             # The science succeeded; only the import failed. Say so plainly, so a retry
             # can re-import rather than recompute (design map 07).
@@ -309,12 +372,47 @@ def _execute(run: AnalysisRun) -> None:
             _finish(
                 run,
                 RunStatus.FAILED,
-                stage="Failed",
+                stage="Import failed; result retained",
                 engine_version=result.engine_version,
-                error_summary=f"The results could not be imported: {exc}",
+                error_summary=(
+                    "The results could not be imported. Computed results are retained for an "
+                    "operator to retry import without rerunning the analysis."
+                ),
             )
             return
 
+    finally:
+        current = AnalysisRun.objects.filter(pk=run.pk).values_list("status", flat=True).first()
+        if current in (RunStatus.COMPLETED, RunStatus.CANCELLED):
+            shutil.rmtree(output_dir, ignore_errors=True)
+
+
+def _owns_execution(run):
+    return AnalysisRun.objects.filter(
+        pk=run.pk,
+        status=RunStatus.RUNNING,
+        execution_token=run.execution_token,
+    ).exists()
+
+
+@transaction.atomic
+def _import_and_complete(run, result, output_dir):
+    # Acquire the SQLite write lock before reading cancellation or writing results.
+    active = AnalysisRun.objects.filter(
+        pk=run.pk,
+        status=RunStatus.RUNNING,
+        execution_token=run.execution_token,
+    )
+    if not active.update(updated_at=timezone.now()):
+        raise InvalidTransition("The run no longer owns its execution lease.")
+    if active.filter(cancel_requested=True).exists():
+        _finish(run, RunStatus.CANCELLED, stage="Cancelled")
+        return
+    import_job_result(run, result, output_dir)
+    # A cancellation invoked in the same transaction must also win; raising rolls
+    # back every candidate/metric row, then the caller completes cancellation.
+    if active.filter(cancel_requested=True).exists():
+        raise InvalidTransition("Cancellation requested during result import.")
     _finish(
         run,
         RunStatus.COMPLETED,
@@ -338,14 +436,23 @@ def _progress_callback(run: AnalysisRun):
         percent = max(0, min(100, int(percent)))
         if percent - state["last"] >= _PROGRESS_STEP or stage != run.stage:
             state["last"] = percent
-            AnalysisRun.objects.filter(pk=run.pk).update(progress_pct=percent, stage=stage)
+            updated = AnalysisRun.objects.filter(
+                pk=run.pk,
+                status=RunStatus.RUNNING,
+                execution_token=run.execution_token,
+                cancel_requested=False,
+            ).update(progress_pct=percent, stage=stage, updated_at=timezone.now())
+            if not updated:
+                return False
             run.progress_pct = percent
             run.stage = stage
 
-        cancelled = (
-            AnalysisRun.objects.filter(pk=run.pk).values_list("cancel_requested", flat=True).first()
-        )
-        return not cancelled
+        return AnalysisRun.objects.filter(
+            pk=run.pk,
+            status=RunStatus.RUNNING,
+            execution_token=run.execution_token,
+            cancel_requested=False,
+        ).exists()
 
     return on_progress
 
@@ -359,14 +466,22 @@ def cancel_run(run: AnalysisRun) -> str:
     Cancellation is cooperative: a RUNNING run is flagged, and the engine notices
     between stages. Nothing is killed (docs/architecture.md §6.2).
     """
+    run.refresh_from_db()
     if run.is_terminal:
         return "already_terminal"
 
     if run.status in (RunStatus.DRAFT, RunStatus.QUEUED):
-        _finish(run, RunStatus.CANCELLED, stage="Cancelled", cancel_requested=True)
+        try:
+            _finish(run, RunStatus.CANCELLED, stage="Cancelled", cancel_requested=True)
+        except InvalidTransition:
+            return cancel_run(run)
         return "cancelled"
 
-    AnalysisRun.objects.filter(pk=run.pk).update(cancel_requested=True)
+    if not AnalysisRun.objects.filter(pk=run.pk, status=RunStatus.RUNNING).update(
+        cancel_requested=True,
+        updated_at=timezone.now(),
+    ):
+        return "already_terminal"
     run.cancel_requested = True
     logger.info("Cancellation requested for running run %s", run.id)
     return "cancellation_requested"
@@ -380,14 +495,150 @@ def _transition(run: AnalysisRun, status: str, **fields) -> None:
     if not run.can_transition_to(status):
         raise InvalidTransition(f"Cannot move run {run.id} from {run.status} to {status}.")
 
+    expected_status = run.status
+    query = AnalysisRun.objects.filter(pk=run.pk, status=expected_status)
+    if expected_status == RunStatus.RUNNING:
+        query = query.filter(execution_token=run.execution_token)
+    if status == RunStatus.COMPLETED:
+        query = query.filter(cancel_requested=False)
+    now = timezone.now()
+    if not query.update(status=status, updated_at=now, **fields):
+        raise InvalidTransition(f"Run {run.id} changed before the transition could be applied.")
     run.status = status
+    run.updated_at = now
     for name, value in fields.items():
         setattr(run, name, value)
-
-    run.save(update_fields=["status", "updated_at", *fields.keys()])
 
 
 def _finish(run: AnalysisRun, status: str, **fields) -> None:
     """Transition into a terminal state, stamping ``finished_at``."""
     fields.setdefault("finished_at", timezone.now())
     _transition(run, status, **fields)
+
+
+def _heartbeat_key(run):
+    return f"run-heartbeat:{run.pk}:{run.execution_token}"
+
+
+@contextmanager
+def _run_heartbeat(run):
+    """An independent liveness signal while expensive science/import holds the DB."""
+    cache = caches["worker_status"]
+    key = _heartbeat_key(run)
+    stopped = threading.Event()
+
+    def beat():
+        cache.set(key, timezone.now().timestamp(), timeout=settings.RUN_HEARTBEAT_TIMEOUT * 2)
+
+    def maintain():
+        while not stopped.wait(settings.RUN_HEARTBEAT_SECONDS):
+            try:
+                beat()
+            except Exception:
+                logger.exception("Run heartbeat could not be stored for %s", run.id)
+
+    beat()
+    thread = threading.Thread(target=maintain, daemon=True, name=f"run-heartbeat-{run.pk}")
+    thread.start()
+    try:
+        yield
+    finally:
+        stopped.set()
+        thread.join(timeout=1)
+        cache.delete(key)
+
+
+def _reconcile_running(run):
+    now = timezone.now()
+    started = run.started_at or run.updated_at
+    last = caches["worker_status"].get(_heartbeat_key(run)) or started.timestamp()
+    expired = (now - started).total_seconds() > settings.RUN_EXECUTION_TIMEOUT
+    stale = now.timestamp() - last > settings.RUN_HEARTBEAT_TIMEOUT
+    if not (expired or stale):
+        return False
+    try:
+        _finish(
+            run,
+            RunStatus.CANCELLED if run.cancel_requested else RunStatus.FAILED,
+            stage="Cancelled" if run.cancel_requested else "Worker interrupted",
+            error_summary=(
+                "The worker stopped responding or exceeded its runtime limit. "
+                "This run was interrupted; submit a new run to retry."
+            ),
+        )
+    except InvalidTransition:
+        return False
+    return True
+
+
+def reconcile_runs():
+    """Recover dispatch gaps and terminate expired leases; never recompute silently."""
+    cutoff = timezone.now() - timedelta(seconds=settings.RUN_QUEUE_REPUBLISH_SECONDS)
+    queued = AnalysisRun.objects.filter(status=RunStatus.QUEUED).filter(
+        Q(enqueued_at__isnull=True) | Q(enqueued_at__lt=cutoff)
+    )
+    published = 0
+    for run_id in queued.values_list("pk", flat=True).iterator():
+        _enqueue(run_id)
+        published += 1
+    interrupted = sum(
+        _reconcile_running(run)
+        for run in AnalysisRun.objects.filter(
+            status=RunStatus.RUNNING,
+        ).iterator()
+    )
+    return {"dispatch_attempts": published, "interrupted": interrupted}
+
+
+def _staging_dir(run):
+    return Path(settings.RUN_STAGING_ROOT) / str(run.pk) / str(run.execution_token)
+
+
+def retry_result_import(source):
+    """Create a new, traceable result-import attempt; preserve the failed run unchanged."""
+    source.refresh_from_db()
+    if source.status != RunStatus.FAILED:
+        raise RunError("Only a failed run with retained results can be re-imported.")
+    path = _staging_dir(source)
+    try:
+        raw = json.loads((path / "result.json").read_text(encoding="utf-8"))
+        raw["candidates"] = [
+            CandidateResult(
+                **{
+                    **item,
+                    "metrics": [MetricValue(**m) for m in item.get("metrics", [])],
+                }
+            )
+            for item in raw.get("candidates", [])
+        ]
+        raw["artifacts"] = [ArtifactRef(**item) for item in raw.get("artifacts", [])]
+        result = JobResult(**raw)
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        raise RunError("No readable retained result is available for this run.") from exc
+    if result.status != SUCCEEDED:
+        raise RunError("Only a successful computation can be imported again.")
+    result = replace(
+        result,
+        warnings=[
+            *result.warnings,
+            f"Results re-imported from failed run {source.pk}; science was not recomputed.",
+        ],
+    )
+    with transaction.atomic():
+        new = AnalysisRun.objects.create(
+            created_by=source.created_by,
+            input_mode=source.input_mode,
+            dataset=source.dataset,
+            trigger_sequence=source.trigger_sequence,
+            organism=source.organism,
+            params_snapshot=source.params_snapshot,
+            gate_families=source.gate_families,
+            scoring_profile=source.scoring_profile,
+            seed=source.seed,
+            idempotency_key=f"import-{source.pk.hex}-{uuid.uuid4().hex[:16]}",
+            status=RunStatus.QUEUED,
+            submitted_at=timezone.now(),
+        )
+        _transition(new, RunStatus.RUNNING, started_at=timezone.now(), execution_token=uuid.uuid4())
+        _import_and_complete(new, result, path)
+    return new

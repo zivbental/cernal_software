@@ -108,7 +108,7 @@ CACHES = {
     "worker_status": {
         "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
         "LOCATION": str(VAR_DIR / "worker-status"),
-    }
+    },
 }
 
 # --- Internationalization -------------------------------------------------------
@@ -153,6 +153,13 @@ Q_CLUSTER = {
 
 # Dotted path to an engine.client.EngineClient implementation.
 CERNAL_ENGINE = env.str("CERNAL_ENGINE", default="engine.client.LocalEngine")
+
+# A separate heartbeat outlives long SQLite imports; reconciliation fences dead jobs.
+RUN_HEARTBEAT_SECONDS = env.int("RUN_HEARTBEAT_SECONDS", default=10)
+RUN_HEARTBEAT_TIMEOUT = env.int("RUN_HEARTBEAT_TIMEOUT", default=120)
+RUN_EXECUTION_TIMEOUT = env.int("RUN_EXECUTION_TIMEOUT", default=Q_CLUSTER["timeout"] + 30)
+RUN_QUEUE_REPUBLISH_SECONDS = env.int("RUN_QUEUE_REPUBLISH_SECONDS", default=Q_CLUSTER["retry"])
+RUN_STAGING_ROOT = VAR_DIR / "result-staging"
 
 # --- Reviewer instant login ------------------------------------------------------
 

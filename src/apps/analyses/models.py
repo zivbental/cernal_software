@@ -119,6 +119,8 @@ class AnalysisRun(UUIDModel, TimestampedModel):
     submitted_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
+    enqueued_at = models.DateTimeField(null=True, blank=True, editable=False)
+    execution_token = models.UUIDField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["-created_at"]

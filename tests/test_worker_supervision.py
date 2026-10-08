@@ -12,6 +12,13 @@ from apps.analyses.worker import worker_available
 from apps.web.management.commands import devserver
 
 
+@pytest.fixture(autouse=True)
+def isolate_supervisor_reconciliation(monkeypatch):
+    # Process-supervision unit tests do not operate a real queue/database. Recovery
+    # integration has separate transactional tests in test_run_recovery.py.
+    monkeypatch.setattr(devserver, "reconcile_runs", lambda: {})
+
+
 @pytest.mark.parametrize(
     "age,status,workers,expected",
     [
@@ -122,3 +129,30 @@ def test_supervisor_survives_a_temporary_status_store_error(monkeypatch):
     devserver.Command().supervise({})
     assert health.call_count == 2
     assert launch.call_count == 1
+
+
+def test_supervisor_lock_rejects_a_second_holder(tmp_path):
+    from django.core.management.base import CommandError
+
+    path = tmp_path / "supervisor.lock"
+    with devserver.supervisor_lock(path):
+        with pytest.raises(CommandError, match="already running"):
+            with devserver.supervisor_lock(path):
+                pytest.fail("The second supervisor acquired the lock")
+
+
+def test_windows_process_configuration_avoids_posix_sessions(monkeypatch):
+    monkeypatch.setattr(devserver, "IS_WINDOWS", True)
+    assert "creationflags" in devserver.process_options()
+    assert "start_new_session" not in devserver.process_options()
+
+
+def test_windows_shutdown_targets_the_owned_process_tree(monkeypatch):
+    monkeypatch.setattr(devserver, "IS_WINDOWS", True)
+    process = Mock(pid=4321)
+    process.poll.return_value = None
+    taskkill = Mock()
+    monkeypatch.setattr(devserver.subprocess, "run", taskkill)
+    devserver.stop_process(process)
+    assert taskkill.call_args.args[0] == ["taskkill", "/PID", "4321", "/T", "/F"]
+    process.wait.assert_called_once_with(timeout=10)
