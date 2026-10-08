@@ -19,6 +19,12 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      release_only:
+        description: Run Windows and dependency acceptance lanes only
+        type: boolean
+        required: false
+        default: false
   schedule:
     - cron: "0 2 * * 1"
   pull_request:
@@ -40,6 +46,7 @@ jobs:
   # reference transcriptomes, which are committed. Real folding makes this slower than
   # the removed MockEngine was; that is the cost of the suite testing real science.
   backend:
+    if: ${{ !inputs.release_only }}
     name: backend (ruff + django check + pytest)
     runs-on: ubuntu-latest
     steps:
@@ -75,6 +82,7 @@ jobs:
   # `--with` installs the client and its one runtime dependency (requests) into an
   # ephemeral overlay — the main project never depends on requests.
   client-python:
+    if: ${{ !inputs.release_only }}
     name: client-python (conformance)
     runs-on: ubuntu-latest
     steps:
@@ -92,6 +100,7 @@ jobs:
   # step renders the results views headlessly via esbuild + react-dom/server, so no
   # browser download is required and the job stays fast.
   frontend:
+    if: ${{ !inputs.release_only }}
     name: frontend (typecheck + eslint + build)
     runs-on: ubuntu-latest
     defaults:
@@ -154,6 +163,7 @@ jobs:
           path: '*-advisories.json'
 
   browser-queued:
+    if: ${{ !inputs.release_only }}
     name: browser (real SQLite queue + worker + LocalEngine)
     runs-on: ubuntu-latest
     steps:
@@ -171,6 +181,7 @@ jobs:
       - run: node frontend/e2e/queued.mjs
 
   client-r:
+    if: ${{ !inputs.release_only }}
     name: R (raw/table contracts + live HTTP conformance)
     runs-on: ubuntu-latest
     env:
