@@ -77,9 +77,8 @@ export const DEFAULT_CONFIG: CompileConfig = {
   customPayload: "",
   maxLeakage: 0.08,
   minGateStability: -32,
-  // 2, matching the engine's own Constraints default: single-gene circuits plus the
-  // pairs, which is "longer than one gate" without the combinatorics of triples.
-  maxCircuitGates: 2,
+  // Physical multi-gate constructs require reviewed integration; production uses one gate.
+  maxCircuitGates: 1,
   // A real backbone by default, not "none" — the whole point of this feature is a
   // researcher who just clicks through getting an orderable plasmid, not a bare
   // four-segment construct (docs/plasmids.md §13 note on this being a deliberate
@@ -696,12 +695,9 @@ export function StepLogic({
             label="Max Gates Per Circuit"
             value={config.maxCircuitGates}
             min={1}
-            // 4 rather than the gene count: combinations grow fast, and every extra
-            // gate is another switch to synthesise — circuit_complexity already
-            // penalises length, so this cap is about compute, not about quality.
-            max={4}
+            max={1}
             step={1}
-            onChange={(v) => patch({ maxCircuitGates: v })}
+            // Fixed until a physically specified multi-gate compiler is integrated.
           />
         </div>
       </AdvancedOptions>

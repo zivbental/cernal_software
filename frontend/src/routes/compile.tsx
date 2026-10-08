@@ -67,6 +67,8 @@ function CompilePage() {
       return "This mechanism is unavailable for the selected organism in the production pipeline.";
     if (config.outputs.some((output) => !version.data!.supported_outputs.includes(output)))
       return "One or more selected outputs have no supported payload. Choose GFP or a valid custom coding sequence.";
+    if (config.maxCircuitGates > (version.data.limits?.max_circuit_gates ?? 1))
+      return "Physical multi-gate compilation is unavailable. Choose one gate per circuit.";
     if (config.organism === "human" && !["none", "custom"].includes(config.backbone))
       return "For Human expression, choose no backbone or upload a custom mammalian GenBank backbone.";
     if (config.inputMode === "de") {
