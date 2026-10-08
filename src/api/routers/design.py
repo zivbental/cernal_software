@@ -42,7 +42,12 @@ from apps.analyses.models import AnalysisRun, InputMode, RunStatus
 from apps.analyses.services import RunError, RunQuotaExceeded, SubmissionConflict, submit_run
 from apps.analyses.worker import worker_available
 from apps.datasets.models import Dataset
-from apps.datasets.services import DatasetValidationError, create_dataset, validate_expression_file
+from apps.datasets.services import (
+    DatasetValidationError,
+    create_dataset,
+    delete_dataset,
+    validate_expression_file,
+)
 from apps.results.models import Artifact, Candidate
 from engine.client import (
     label_for_custom_scoring,
@@ -264,9 +269,12 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         )
 
     dataset = None
+    inline_created = False
     if body.dataset_id:
         dataset = get_owned(Dataset, body.dataset_id, request.user)
     elif body.dge_csv:
+        # Validate content before storing bytes. A rejected inline submission is not an upload.
+        _row_count_for_dry_run(request, body, input_mode)
         try:
             dataset = create_dataset(
                 uploaded_file=SimpleUploadedFile(
@@ -275,6 +283,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                 user=request.user,
                 name="dge.csv (inline)",
             )
+            inline_created = True
         except DatasetValidationError as exc:
             raise ValidationFailed(str(exc)) from None
 
@@ -295,12 +304,21 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
             idempotency_key=body.idempotency_key,
         )
     except SubmissionConflict as exc:
+        if inline_created:
+            delete_dataset(dataset)
         raise Conflict(str(exc)) from None
     except RunQuotaExceeded as exc:
+        if inline_created:
+            delete_dataset(dataset)
         raise TooManyActiveRuns(str(exc), headers={"Retry-After": "60"}) from None
     except RunError as exc:
+        if inline_created:
+            delete_dataset(dataset)
         raise ValidationFailed(str(exc)) from None
 
+    if inline_created and not _created:
+        # Byte-identical retries reuse the original immutable input record.
+        delete_dataset(dataset)
     rows = (dataset.validation_report or {}).get("rows") if dataset else None
     estimate = _estimate(input_mode, rows, params["constraints"], gate_families)
 

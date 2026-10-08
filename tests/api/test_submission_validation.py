@@ -159,3 +159,52 @@ def test_canonical_wizard_organism_is_accepted_and_real_conflict_rejected(auth_c
     response = auth_client.post("/api/runs", data=body, content_type="application/json")
     assert response.status_code == 422
     assert "agree" in response.json()["error"]["message"]
+
+
+def test_inline_retry_reuses_run_without_leaving_an_extra_dataset(auth_client, media_root):
+    body = {"dge_csv": "gene_id,log2fc,padj\nb0005,2,0.01\n", "idempotency_key": "inline-retry"}
+    first = auth_client.post("/api/design", data=body, content_type="application/json")
+    second = auth_client.post("/api/design", data=body, content_type="application/json")
+    assert first.status_code == second.status_code == 202
+    assert first.json()["job_id"] == second.json()["job_id"]
+    assert Dataset.objects.count() == AnalysisRun.objects.count() == 1
+    assert AnalysisRun.objects.get().dataset.file.storage.exists(
+        AnalysisRun.objects.get().dataset.file.name
+    )
+
+
+def test_inline_conflict_removes_unreferenced_new_input(auth_client, media_root):
+    body = {"dge_csv": "gene_id,log2fc,padj\nb0005,2,0.01\n", "idempotency_key": "inline-conflict"}
+    first = auth_client.post("/api/design", data=body, content_type="application/json")
+    assert first.status_code == 202
+    body["dge_csv"] = "gene_id,log2fc,padj\nb0005,3,0.01\n"
+    rejected = auth_client.post("/api/design", data=body, content_type="application/json")
+    assert rejected.status_code == 409
+    assert Dataset.objects.count() == AnalysisRun.objects.count() == 1
+
+
+def test_inline_quota_rejection_removes_unreferenced_input(auth_client, media_root, settings):
+    settings.MAX_ACTIVE_RUNS_PER_ACCOUNT = 1
+    first = auth_client.post(
+        "/api/design", data={"trigger_sequence": SEQUENCE}, content_type="application/json"
+    )
+    assert first.status_code == 202
+    rejected = auth_client.post(
+        "/api/design",
+        data={"dge_csv": "gene_id,log2fc\nb0005,2\n"},
+        content_type="application/json",
+    )
+    assert rejected.status_code == 429
+    assert not Dataset.objects.exists()
+    assert AnalysisRun.objects.count() == 1
+
+
+def test_inline_invalid_real_submission_never_stores_input(auth_client, media_root):
+    rejected = auth_client.post(
+        "/api/design",
+        data={"dge_csv": "gene_id,log2fc\nb0005,invalid\n"},
+        content_type="application/json",
+    )
+    assert rejected.status_code == 422
+    assert not Dataset.objects.exists()
+    assert not AnalysisRun.objects.exists()
