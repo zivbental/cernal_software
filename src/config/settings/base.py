@@ -135,6 +135,10 @@ MAX_DATASET_MB = env.int("MAX_DATASET_MB", default=100)
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_DATASET_MB * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
+# Empty outside a deliberately configured proxy deployment. Trusted proxies must
+# overwrite X-Cernal-Client-IP, not forward a user-supplied value.
+AUTH_TRUSTED_PROXY_ADDRESSES = env.list("AUTH_TRUSTED_PROXY_ADDRESSES", default=[])
+
 # --- Background work (docs/architecture.md §9) --------------------------------
 
 Q_CLUSTER = {

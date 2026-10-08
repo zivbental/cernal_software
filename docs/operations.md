@@ -19,6 +19,13 @@ The web process handles authentication and downloads. Do not add a Caddy `/media
 file-server rule: that bypasses owner and API-scope checks. Static files are served by
 WhiteNoise after the frontend build and `collectstatic`.
 
+The supplied Caddy configuration overwrites `X-Cernal-Client-IP`. Authentication
+rate limits use it only when the immediate peer is in `AUTH_TRUSTED_PROXY_ADDRESSES`
+(loopback in the supplied environment template). Without that explicit configuration,
+the app uses the peer address; behind a proxy that would share one quota across all
+users. Never trust this header from a directly exposed listener or a proxy that simply
+passes through caller-supplied headers. Ordinary `X-Forwarded-For` is not trusted here.
+
 ## First installation
 
 1. Create the unprivileged `cernal` account, install a reviewed source revision at
