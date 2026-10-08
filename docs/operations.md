@@ -125,6 +125,13 @@ a dry run and a 24-hour grace period; inspect the listing before `--apply`. Use 
 maintenance window for destructive cleanup. Referenced media is retained. Failed
 result staging follows its separate diagnostic retention policy.
 
+`manage.py cleanup_staging` previews removal of result directories older than 30 days
+for COMPLETED/CANCELLED runs. `--apply` performs that reviewed removal. Failed-run
+directories require the additional explicit `--include-failed` switch; use it only
+after deciding recovery is no longer needed. Active runs, unknown directories,
+unrecognized lease tokens and symlinks are preserved. This command is not scheduled
+automatically.
+
 ## Upgrade and rollback
 
 Record the current Git revision and take a verified maintenance-window backup before

@@ -595,15 +595,27 @@ def _reconcile_running(run):
     if not (expired or stale):
         return False
     try:
-        _finish(
-            run,
-            RunStatus.CANCELLED if run.cancel_requested else RunStatus.FAILED,
-            stage="Cancelled" if run.cancel_requested else "Worker interrupted",
-            error_summary=(
-                "The worker stopped responding or exceeded its runtime limit. "
-                "This run was interrupted; submit a new run to retry."
-            ),
-        )
+        with transaction.atomic():
+            active = AnalysisRun.objects.filter(
+                pk=run.pk, status=RunStatus.RUNNING, execution_token=run.execution_token
+            )
+            if not active.update(updated_at=now):
+                return False
+            # Cancellation may have arrived after the reconciler enumerated this run.
+            # Read it only after acquiring the write lock that serializes finalization.
+            cancelled = active.values_list("cancel_requested", flat=True).get()
+            last = caches["worker_status"].get(_heartbeat_key(run)) or started.timestamp()
+            if not expired and now.timestamp() - last <= settings.RUN_HEARTBEAT_TIMEOUT:
+                return False
+            _finish(
+                run,
+                RunStatus.CANCELLED if cancelled else RunStatus.FAILED,
+                stage="Cancelled" if cancelled else "Worker interrupted",
+                error_summary=(
+                    "The worker stopped responding or exceeded its runtime limit. "
+                    "This run was interrupted; submit a new run to retry."
+                ),
+            )
     except InvalidTransition:
         return False
     return True

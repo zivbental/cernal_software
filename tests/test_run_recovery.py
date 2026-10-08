@@ -108,6 +108,15 @@ def test_execution_deadline_expires_even_with_fresh_heartbeat(run, settings):
         cache.delete(services._heartbeat_key(run))
 
 
+def test_reconciler_honors_cancel_after_run_enumeration(run):
+    running(run, age=300)
+    assert not run.cancel_requested
+    AnalysisRun.objects.filter(pk=run.pk).update(cancel_requested=True)
+    assert services._reconcile_running(run)
+    run.refresh_from_db()
+    assert run.status == RunStatus.CANCELLED
+
+
 def test_fatal_exit_records_terminal_failure_then_propagates(run, monkeypatch):
     monkeypatch.setattr(services, "_execute", Mock(side_effect=SystemExit(12)))
     with pytest.raises(SystemExit):
