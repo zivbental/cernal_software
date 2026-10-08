@@ -12,6 +12,7 @@ fixed in one place rather than three.
 
 from collections.abc import Callable, Iterable, Iterator
 from itertools import combinations
+from math import comb
 
 from engine import sequences as sq
 from engine.domain import (
@@ -22,6 +23,7 @@ from engine.domain import (
     TriggerSet,
     ValidationResult,
 )
+from engine.errors import JobCancelled
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.stages.motifs import MotifScreener
@@ -53,6 +55,7 @@ class SwitchDesigner:
         *,
         on_incompatible: Callable[[str], None] | None = None,
         on_invalid: Callable[[str], None] | None = None,
+        on_progress: Callable[[int, int], bool] | None = None,
     ) -> Iterator[GateDesign]:
         """Yield validated switch designs.
 
@@ -107,7 +110,17 @@ class SwitchDesigner:
             ``evaluate_design`` exactly once per surviving design, the same pattern
             the scoring layer already uses.
         """
-        for trigger_set in self.build_trigger_sets(triggers, constraints):
+        pool = list(triggers)
+        arities = {family.max_inputs for family in self.families if family.supports(self.host)}
+        total = sum(comb(len(pool), arity) for arity in arities if arity <= len(pool))
+        completed = 0
+        for index, trigger_set in enumerate(self.build_trigger_sets(pool, constraints)):
+            active = trigger_set.arity in arities
+            if on_progress is not None and (active or index % 100 == 0):
+                if not on_progress(completed, total):
+                    raise JobCancelled("Designing switches")
+            if active:
+                completed += 1
             for family in self.families:
                 if not family.supports(self.host):
                     continue

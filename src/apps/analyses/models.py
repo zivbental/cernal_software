@@ -17,6 +17,7 @@ class InputMode(models.TextChoices):
 
     DE = "de", "Differential expression"
     DIRECT = "direct", "Direct trigger mRNA"
+    GENE = "gene", "Reference gene"
 
 
 class RunStatus(models.TextChoices):
@@ -136,7 +137,7 @@ class AnalysisRun(UUIDModel, TimestampedModel):
             models.CheckConstraint(
                 condition=(
                     models.Q(input_mode="de", dataset__isnull=False)
-                    | models.Q(input_mode="direct", dataset__isnull=True)
+                    | models.Q(input_mode__in=("direct", "gene"), dataset__isnull=True)
                 ),
                 name="run_has_exactly_one_input_source",
             ),

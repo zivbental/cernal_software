@@ -131,6 +131,13 @@ function RunProgress({ runId, status }: { runId: string; status: RunStatusRespon
         />
       </div>
 
+      {status.status === "QUEUED" && status.worker_available === false && (
+        <p className="mt-4 text-sm text-destructive" role="status">
+          The analysis worker is offline. Your submission is saved and will start when
+          the worker reconnects. If this persists, contact the team.
+        </p>
+      )}
+
       <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />

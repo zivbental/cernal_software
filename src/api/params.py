@@ -19,6 +19,7 @@ from api.errors import ApiError, ValidationFailed
 
 CONSTRAINT_KEYS = {
     "max_triggers",
+    "max_circuit_gates",
     "min_separation",
     "max_p_adj",
     "trigger_lengths",

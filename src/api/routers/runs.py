@@ -18,8 +18,9 @@ from api.params import (
 from api.schemas import CancelOut, RunCounts, RunIn, RunOut, RunStatusOut
 from api.security import enforce_concurrency_ceiling, require_scope
 from apps.accounts.models import ApiKeyScope
-from apps.analyses.models import AnalysisRun, InputMode
+from apps.analyses.models import AnalysisRun, InputMode, RunStatus
 from apps.analyses.services import RunError, cancel_run, submit_run
+from apps.analyses.worker import worker_available
 from apps.datasets.models import Dataset
 from engine.client import load_engine
 
@@ -74,13 +75,16 @@ def create_run(request, payload: RunIn):
     check_backbone_block(backbone, capabilities)
 
     try:
+        params = payload.params
+        if payload.input_mode == InputMode.GENE and payload.gene_id:
+            params = {**params, "target_gene": {"gene_id": payload.gene_id}}
         run, _created = submit_run(
             user=request.user,
             dataset=dataset,
             input_mode=payload.input_mode,
             trigger_sequence=payload.trigger_sequence,
             organism=payload.organism,
-            params=payload.params,
+            params=params,
             gate_families=payload.gate_families,
             scoring_profile=payload.scoring_profile,
             seed=payload.seed,
@@ -102,6 +106,7 @@ def get_run_status(request, run_id: UUID):
         status=run.status,
         stage=run.stage,
         progress_pct=run.progress_pct,
+        worker_available=worker_available() if run.status == RunStatus.QUEUED else None,
         error_summary=run.error_summary or None,
         warnings=run.warnings or [],
         submitted_at=run.submitted_at,

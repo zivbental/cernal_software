@@ -23,9 +23,9 @@ were removed rather than left as placeholders that read as measurements. No
 real confusion matrix — ``CircuitDesigner`` now builds circuits that combine up to
 ``Constraints.max_circuit_gates`` genes (``A AND NOT B``), but with no per-sample count
 matrix there is nothing to evaluate their *behaviour* against, so a circuit is scored on
-complexity and on its weakest member rather than on a measured separation. No human — no bundled reference
-transcriptome (a genomic CDS extraction is the wrong tool for a heavily-spliced genome,
-``tools/sync_transcriptome.py``), and no promoter/terminator either (Q12). No bundled
+complexity and on its weakest member rather than on a measured separation. Human direct
+constructs use CMV/hGH parts, but Human DE still has no bundled reference transcriptome
+(a genomic CDS extraction is the wrong tool for a heavily-spliced genome). No bundled
 yeast plasmid backbone either, deliberately — yeast's real BioBrick-family assembly
 grammar (the "Lim standard") could not be fully verified from public sources in the
 time this took, so a yeast run relies on ``params["backbone"]["custom_genbank"]``
@@ -62,6 +62,7 @@ from engine.contract import (
     HIGHER_BETTER,
     INPUT_DE,
     INPUT_DIRECT,
+    INPUT_GENE,
     SCHEMA_VERSION,
     SUCCEEDED,
     ArtifactRef,
@@ -119,7 +120,12 @@ from engine.stages.plasmids import (
 from engine.stages.switches import SwitchDesigner, SwitchValidator
 from engine.stages.triggers import TriggerScorer
 from engine.store import CandidateStore
-from engine.transcriptome import available_hosts, load_transcriptome
+from engine.transcriptome import (
+    available_hosts,
+    gene_reference,
+    load_transcriptome,
+    resolve_gene_id,
+)
 
 ProgressFn = Callable[[int, str], bool]
 
@@ -199,7 +205,19 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         the warning below says so, so a 0.0 penalty is never mistaken for a clean scan.
     """
     folder = FoldEngine()
-    constraints = _build_constraints(request.params)
+    if host is Host.HUMAN and (request.params.get("backbone") or {}).get("catalog_key"):
+        raise InputValidationError(
+            "The bundled backbones are bacterial BioBrick vectors. For Human expression, "
+            "supply backbone.custom_genbank with a mammalian vector or omit the backbone "
+            "to build an expression cassette."
+        )
+    constraint_params = request.params
+    if host is Host.HUMAN and "standard" not in (request.params.get("constraints") or {}):
+        constraint_params = {
+            **request.params,
+            "constraints": {**(request.params.get("constraints") or {}), "standard": "none"},
+        }
+    constraints = _build_constraints(constraint_params)
     screener = MotifScreener(constraints.standard)
     # The run's seed, so ESO's stochastic repair is reproducible; folder, so a structural
     # objective folds through the one shared FoldEngine and not a second library.
@@ -252,7 +270,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
 
 
 def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
-    """Execute the pipeline for one `direct`- or `de`-mode job.
+    """Execute a direct, differential-expression, or reference-gene job.
 
     Args:
         request: The immutable submission.
@@ -261,9 +279,9 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
 
     Raises:
         InputValidationError: An unrecognised ``input_mode``, a ``de`` submission for a
-            host with no bundled reference transcriptome (*E. coli* and yeast today,
-            not human — ``engine.transcriptome.available_hosts()``, docs/ROADMAP.md
-            Q1), an organism this engine does not recognise, an unusable dataset or
+            host with no bundled reference transcriptome (all four hosts have one
+            today — ``engine.transcriptome.available_hosts()``), an unrecognised organism,
+            an unusable dataset or
             trigger sequence, or constraints that do not parse. All are
             ``EngineError`` — **data**, per ``EngineClient``'s contract — and
             ``LocalEngine.run`` converts them into a terminal ``JobResult`` rather than
@@ -276,7 +294,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     if not on_progress(*_pct("Validating inputs")):
         raise JobCancelled("Validating inputs")
 
-    if request.input_mode not in (INPUT_DIRECT, INPUT_DE):
+    if request.input_mode not in (INPUT_DIRECT, INPUT_DE, INPUT_GENE):
         raise InputValidationError(f"Unrecognised input mode {request.input_mode!r}.")
 
     host = _resolve_host(request)
@@ -284,6 +302,22 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     constraints: Constraints = tools["constraints"]
     families: list = tools["families"]
     warnings: list[str] = list(tools["warnings"])
+    if host is Host.HUMAN:
+        warnings.append(
+            "Human expression constructs use a CMV promoter and hGH polyadenylation signal. "
+            "Mammalian expression and switch activity are computational predictions, not "
+            "wet-lab validated. The GFP payload is not human-codon-optimized."
+        )
+        if constraints.standard is AssemblyStandard.NONE:
+            warnings.append(
+                "No restriction-based assembly standard is selected for this Human construct; "
+                "cloning overlaps and a wet-lab assembly protocol have not been designed."
+            )
+        if not request.params.get("backbone"):
+            warnings.append(
+                "No backbone supplied: this is a Human expression cassette. Supply a custom "
+                "mammalian GenBank backbone to assemble a complete vector."
+            )
 
     if not families:
         raise InputValidationError(
@@ -305,8 +339,6 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     if request.input_mode == INPUT_DE:
         if not on_progress(*_pct("Selecting genes")):
             raise JobCancelled("Selecting genes")
-        if not on_progress(*_pct("Scoring triggers")):
-            raise JobCancelled("Scoring triggers")
         trigger_candidates, trigger_warnings = _de_trigger(
             request,
             store,
@@ -315,18 +347,43 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             tools["screener"],
             constraints,
             host,
+            on_progress,
         )
     else:
         if not on_progress(*_pct("Scoring triggers")):
             raise JobCancelled("Scoring triggers")
+        direct_request = request
+        reference = None
+        if request.input_mode == INPUT_GENE:
+            target = request.params.get("target_gene") or {}
+            if not isinstance(target, dict):
+                raise InputValidationError("target_gene must contain a reference gene ID.")
+            reference = gene_reference(host, target.get("gene_id", ""))
+            sequence = request.trigger_sequence or reference["sequence"]
+            if sq.to_rna(sequence) != reference["sequence"]:
+                raise InputValidationError(
+                    "The frozen gene sequence no longer matches its reference."
+                )
+            direct_request = dataclasses.replace(request, trigger_sequence=sequence)
         trigger_candidates, trigger_warnings = _direct_trigger(
-            request,
+            direct_request,
             store,
             tools["profiler"],
             tools["folder"],
             tools["screener"],
             constraints,
         )
+        if reference is not None:
+            trigger_candidates = [
+                dataclasses.replace(
+                    candidate, gene_id=reference["gene_id"], symbol=reference["gene_symbol"]
+                )
+                for candidate in trigger_candidates
+            ]
+            trigger_warnings.append(
+                f"Resolved {reference['gene_id']} to {reference['transcript_id']} "
+                f"using {reference['selection_method']}."
+            )
     warnings.extend(trigger_warnings)
 
     validator = SwitchValidator(
@@ -369,11 +426,21 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     #: combine. Rejected designs are excluded: a circuit built on a switch that
     #: already breached a hard filter is not a circuit worth proposing.
     single_gate: list[tuple[GateDesign, dict[str, float | None], float]] = []
+    switch_progress = [32]
+
+    def report_switch_progress(completed: int, total: int) -> bool:
+        switch_progress[0] = 32 + 44 * completed // max(total, 1)
+        return on_progress(switch_progress[0], "Designing switches")
+
     designs = designer.design(
-        trigger_candidates, constraints, on_incompatible=_on_incompatible, on_invalid=_on_invalid
+        trigger_candidates,
+        constraints,
+        on_incompatible=_on_incompatible,
+        on_invalid=_on_invalid,
+        on_progress=report_switch_progress,
     )
     for index, design in enumerate(designs):
-        if index % 5 == 0 and not on_progress(*_pct("Designing switches")):
+        if index % 5 == 0 and not on_progress(switch_progress[0], "Designing switches"):
             raise JobCancelled("Designing switches")
 
         family = families_by_kind[design.gate_kind]
@@ -401,6 +468,9 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         scored.append((candidate, score))
         if not breach:
             single_gate.append((design, raw, score or 0.0))
+
+    if not on_progress(*_pct("Designing circuits")):
+        raise JobCancelled("Designing circuits")
 
     # Stage 4: circuits longer than one gate, when the researcher allows them.
     for candidate, plasmid, score in _multi_gate_candidates(
@@ -707,7 +777,7 @@ def _direct_trigger(
             "The trigger sequence is too short to design a switch against "
             "(at least 20 nucleotides are needed)."
         )
-    if len(sequence) > MAX_TRIGGER_LENGTH:
+    if request.input_mode == INPUT_DIRECT and len(sequence) > MAX_TRIGGER_LENGTH:
         raise InputValidationError(
             f"The trigger sequence is {len(sequence)} nt, over the "
             f"{MAX_TRIGGER_LENGTH} nt limit for a direct submission."
@@ -799,6 +869,7 @@ def _de_trigger(
     screener: MotifScreener,
     constraints: Constraints,
     host: Host,
+    on_progress: ProgressFn | None = None,
 ) -> tuple[list[TriggerCandidate], list[str]]:
     """Resolve trigger candidates for a `de` submission (docs/genes.md, docs/ROADMAP.md
     Q1's first answer) — a scoped first cut, not the full `de` pipeline docs/ROADMAP.md
@@ -812,7 +883,7 @@ def _de_trigger(
            — the engine trusts nothing the Platform already checked, the same discipline
            ``_direct_trigger`` applies to a pasted sequence.
         2. Load the bundled reference transcriptome for ``host`` (``engine.transcriptome``
-           — *E. coli* and yeast today, not human; anything unbundled raises before any
+           — all four hosts; anything unbundled raises before any
            work happens, rather than silently producing an empty shortlist).
         3. ``GeneSelector.select`` the shortlist, degrading gracefully on every axis it
            cannot measure — there is no count matrix here (docs/genes.md §3 G-a), so
@@ -859,9 +930,27 @@ def _de_trigger(
     dge = parse_dge_table(raw, path.name)
     transcriptome = load_transcriptome(host)
 
+    resolved_rows = []
+    for row in dge.rows:
+        try:
+            canonical_id = resolve_gene_id(host, row.gene_id)
+        except InputValidationError:
+            canonical_id = row.gene_id  # GeneSelector reports unmatched identifiers.
+        resolved_rows.append(dataclasses.replace(row, gene_id=canonical_id))
+    dge = dataclasses.replace(dge, rows=tuple(resolved_rows))
+
     warnings: list[str] = []
     selector = GeneSelector(constraints, screener)
-    genes = selector.select(dge, sequences=transcriptome, on_warning=warnings.append)
+
+    def selection_progress(index: int, total: int) -> bool:
+        return on_progress is None or on_progress(2 + 5 * index // max(total, 1), "Selecting genes")
+
+    genes = selector.select(
+        dge,
+        sequences=transcriptome,
+        on_warning=warnings.append,
+        on_progress=selection_progress,
+    )
     if not genes:
         return [], [
             *warnings,
@@ -872,7 +961,13 @@ def _de_trigger(
     # and warns about, any gene missing from `sequences` itself) — safe to reuse the
     # same dict rather than building a second, smaller one.
     scorer = TriggerScorer(profiler, screener, folder)
-    scored = list(scorer.score(genes, transcriptome, constraints))
+    scored = []
+    for index, gene in enumerate(genes):
+        if on_progress is not None and not on_progress(
+            7 + 25 * index // len(genes), "Scoring triggers"
+        ):
+            raise JobCancelled("Scoring triggers")
+        scored.extend(scorer.score([gene], transcriptome, constraints))
     # Re-mint through CandidateStore, matching _direct_trigger's own note: trigger_id
     # is "minted by CandidateStore" per domain.py's contract, but TriggerScorer builds
     # its own id string directly.

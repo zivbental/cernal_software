@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 63 |
 | Public classes | 105 |
-| Public callables (excluding `__init__`) | 327 |
-| — `BUILT` | 303 |
+| Public callables (excluding `__init__`) | 331 |
+| — `BUILT` | 307 |
 | — `STUB` | 16 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -108,14 +108,14 @@ layers above it, never the ones below.
 | stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
-| top | `engine.client` |  | 6 | 0 | The Platform-facing engine interface. |
+| top | `engine.client` |  | 7 | 0 | The Platform-facing engine interface. |
 | top | `engine.contract` |  | 4 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``. |
 | top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
 | top | `engine.safety` |  | 12 | 0 | Offline-first, fail-closed release control for output sequences. |
 | top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
-| top | `engine.transcriptome` |  | 2 | 0 | Reference transcript sequences, by organism — Q1's first real answer. |
+| top | `engine.transcriptome` |  | 5 | 0 | Pinned, offline reference sequences and identifier aliases for all four hosts. |
 
 ## Layer 1 · Domain — the vocabulary
 
@@ -219,6 +219,7 @@ iGEM assembly standards, which decide the prohibited restriction sites.
 | --- | --- | --- |
 | `RFC10` |  | `'RFC10'` |
 | `RFC1000` |  | `'RFC1000'` |
+| `NONE` |  | `'none'` |
 
 #### `class DesiredOutcome(StrEnum)`
 
@@ -1901,7 +1902,7 @@ Keep the genes that actually separate the two cell states.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, constraints: Constraints, screener: MotifScreener, atlas: dict[str, float] \| None = None) -> None` |  |
-| `BUILT` | `def select(self, dge: DgeTable, *, counts: CountMatrix \| None = None, sequences: dict[str, str] \| None = None, on_warning: Callable[[str], None] \| None = None) -> list[SelectedGene]` | Filter, score and rank genes; return a shortlist with an up/down call. |
+| `BUILT` | `def select(self, dge: DgeTable, *, counts: CountMatrix \| None = None, sequences: dict[str, str] \| None = None, on_warning: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None) -> list[SelectedGene]` | Filter, score and rank genes; return a shortlist with an up/down call. |
 
 ### `engine.stages.motifs` · S7
 
@@ -1948,9 +1949,9 @@ Stage 5 — plasmid construction.
 
 | Constant | Type | Value |
 | --- | --- | --- |
-| `REGISTRY_PARTS` | `dict[str, str]` | `{'J23119': 'BBa_J23119', 'K124002': 'BBa_K124002', 'B0015': 'BBa_B0015', 'K1486025': 'B…` |
-| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.C_ACNES: ('J23119'…` |
-| `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
+| `REGISTRY_PARTS` | `dict[str, str]` | `{'K404108': 'BBa_K404108', 'I712004': 'BBa_I712004', 'J23119': 'BBa_J23119', 'K124002':…` |
+| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.HUMAN: ('I712004', 'CGATGTACGGGCCAGATATACGCGTTGACATTGATTATTGCCTAGTTATTAATAGTAATCA…` |
+| `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.HUMAN: ('K404108', 'GACGGGTGGCATCCCTGTGACCCCTCCCCAGTGCCTCTCCTGGCCCTGGAAGTTGCCACTC…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |
 | `SBOL_NAMESPACE` |  | `'https://cernal.igem.org/2026'` |
@@ -2025,7 +2026,7 @@ Dispatches trigger sets to the gate families that can realise them.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, families: list, validator: 'SwitchValidator', host: Host) -> None` |  |
-| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
+| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
 | `BUILT` | `def build_trigger_sets(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[TriggerSet]` | Combine individual triggers into the input sets a circuit can use. |
 
 #### `class SwitchValidator`
@@ -2101,6 +2102,7 @@ The Platform-facing engine interface.
 | --- | --- | --- |
 | `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.LocalEngine``. |
 | `BUILT` | `def label_for_custom_scoring(base_name: str, overrides: dict \| None) -> str` | The label the engine will actually score under (docs/public-api.md §9.1) — computable from the request alone, before the engine ever runs, so the Platform can echo it in a submission's ``resolved`` field without building a ``ScoringProfile… |
+| `BUILT` | `def lookup_reference_gene(organism: str, identifier: str) -> dict` | Resolve a public reference gene without exposing engine internals to the API. |
 
 #### `class EngineClient(Protocol)`
 
@@ -2119,7 +2121,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.7.0-direct-and-de-ecoli-yeast'` |
+| `ENGINE_VERSION` |  | `'local-0.9.0-all-hosts-direct-de-gene'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -2139,6 +2141,7 @@ The Platform ⇄ Engine contract.
 | `LOWER_BETTER` |  | `'LOWER_BETTER'` |
 | `INPUT_DE` |  | `'de'` |
 | `INPUT_DIRECT` |  | `'direct'` |
+| `INPUT_GENE` |  | `'gene'` |
 | `SUCCEEDED` |  | `'succeeded'` |
 | `FAILED` |  | `'failed'` |
 | `CANCELLED` |  | `'cancelled'` |
@@ -2344,7 +2347,7 @@ Differential-expression input parsing — the edge where a CSV becomes a ``DgeTa
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def parse_dge_table(raw: bytes, filename: str = 'dge.csv') -> DgeTable` | Parse a differential-expression CSV or TSV into a ``DgeTable``. |
+| `BUILT` | `def parse_dge_table(raw: bytes, filename: str = 'dge.csv') -> DgeTable` | Parse differential-expression CSV, TSV, TXT, or XLSX into a ``DgeTable``. |
 
 ### `engine.pipeline`
 
@@ -2361,7 +2364,7 @@ The real scientific pipeline.
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
-| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`- or `de`-mode job. |
+| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute a direct, differential-expression, or reference-gene job. |
 
 ### `engine.safety`
 
@@ -2586,11 +2589,14 @@ S13 — keep only the non-dominated candidates.
 
 `src/engine/transcriptome.py`
 
-Reference transcript sequences, by organism — Q1's first real answer.
+Pinned, offline reference sequences and identifier aliases for all four hosts.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `@cache def load_transcriptome(host: Host) -> dict[str, str]` | Every bundled transcript for ``host``, as RNA, keyed by gene id. |
+| `BUILT` | `@cache def reference_metadata(host: Host) -> dict` |  |
+| `BUILT` | `def resolve_gene_id(host: Host, identifier: str) -> str` |  |
+| `BUILT` | `def gene_reference(host: Host, identifier: str) -> dict` |  |
 | `BUILT` | `def available_hosts() -> tuple[Host, ...]` | Which hosts have a bundled reference transcriptome today. |
 
 ---

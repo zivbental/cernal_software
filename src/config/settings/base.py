@@ -103,6 +103,11 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
         "LOCATION": "cernal_cache_table",
+    },
+    # Heartbeats must remain writable during a long atomic result import.
+    "worker_status": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": str(VAR_DIR / "worker-status"),
     }
 }
 
@@ -134,6 +139,7 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 Q_CLUSTER = {
     "name": "cernal",
+    "cache": "worker_status",
     "orm": "default",  # ORM broker: the queue is a table, no Redis to run or back up.
     "workers": 1,  # Concurrency of 1 removes a class of SQLite write contention.
     "timeout": 60 * 60,  # An analysis is long-running and rare.

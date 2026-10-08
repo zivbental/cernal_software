@@ -31,11 +31,8 @@ cd ..
 ./do migrate
 ./do superuser`;
 
-const RUN = `# Terminal 1, from the repository root
-./do dev
-
-# Terminal 2, from the repository root
-./do worker`;
+const RUN = `# Web server and supervised worker, from the repository root
+./do dev`;
 
 function GuideSection({
   id,
@@ -140,11 +137,11 @@ export function GuideContent() {
           </p>
           <CodeBlock code={SETUP} label="bash" />
           <p>
-            Run the web process and worker in separate terminals, then open{" "}
+            Run the web process and supervised worker together, then open{" "}
             <HelpLink href="http://localhost:8000">
               http://localhost:8000
             </HelpLink>
-            . Without the worker, submitted runs stay queued.
+            . The worker starts automatically and restarts if it exits.
           </p>
           <CodeBlock code={RUN} label="bash" />
         </GuideSection>
@@ -154,20 +151,21 @@ export function GuideContent() {
             <strong>Differential Expression:</strong> choose a public catalog
             comparison or upload an existing DE result, not raw counts. This
             flow does not run differential-expression analysis. LocalEngine supports
-            this path for E. coli and yeast, not human; gene identifiers must resolve
+            this path for E. coli, yeast, C. acnes, and Human; gene identifiers must resolve
             in the bundled reference.
           </p>
           <p>
             <strong>Direct Trigger mRNA:</strong> paste the known transcript
-            sequence. This bypasses DE discovery; it does not add the missing
-            human promoter, terminator, or complete human pipeline.{" "}
-            <strong>Specific Gene</strong> is informational only: you must still
-            paste its sequence.
+            sequence. This bypasses DE discovery and supports E. coli, yeast,
+            C. acnes, and Human expression constructs. Human uses a CMV promoter
+            and hGH polyadenylation signal; upload a custom mammalian backbone
+            for a complete vector, or choose no backbone for an expression cassette.{" "}
+            <strong>Specific Gene:</strong> resolve a stable gene ID or an unambiguous
+            symbol to its bundled reference transcript, then submit directly.
           </p>
           <Caveat>
             Upload validation accepts <code>.csv</code>, <code>.tsv</code>,{" "}
-            <code>.txt</code>, and <code>.xlsx</code>, but LocalEngine&apos;s
-            real DE parser reads UTF-8 CSV/TSV text only. The default upload
+            <code>.txt</code>, and <code>.xlsx</code>, and all four formats are read by the engine. The default upload
             limit is 100 MB and is configurable with <code>MAX_DATASET_MB</code>
             . A “VALID” upload is shallow file validation.
           </Caveat>
@@ -220,7 +218,7 @@ export function GuideContent() {
           <p>
             Submit with <strong>Compile &amp; Optimize</strong>. The
             configuration is frozen and queued. Keep the run URL and watch its
-            status; queued work needs <code>./do worker</code>. A failed run
+            status; <code>./do dev</code> includes the worker. A failed run
             exposes its safe <code>error_summary</code>.
           </p>
         </GuideSection>

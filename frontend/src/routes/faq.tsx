@@ -45,8 +45,9 @@ const GROUPS: FaqGroup[] = [
         question: "Why is my run still queued?",
         answer: (
           <>
-            A worker must be running. Keep <code>./do dev</code> running and
-            start <code>./do worker</code> in another terminal. See{" "}
+            A worker must be running. <code>./do dev</code> starts and supervises
+            it automatically. If the worker is offline, the run screen says so;
+            your submission stays saved until it reconnects. See{" "}
             <HelpLink href="/guide#local-setup">local setup</HelpLink>.
           </>
         ),
@@ -128,10 +129,10 @@ const GROUPS: FaqGroup[] = [
         question: "Which hosts does LocalEngine support?",
         answer: (
           <>
-            Direct input and the first DE path are supported for E. coli and
-            yeast. Human DE processing and the promoter/terminator needed for a
-            complete human pipeline are not implemented; direct input does not
-            bypass that limitation.
+            Direct, DE, and Specific Gene input are supported for E. coli, yeast,
+            C. acnes, and Human. Human constructs use a CMV promoter and
+            hGH polyadenylation signal with a custom mammalian backbone or no
+            backbone. Human discovery uses mature transcripts from Ensembl release 116.
           </>
         ),
       },

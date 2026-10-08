@@ -28,11 +28,10 @@ guide at `/guide`, and troubleshoot at `/faq`. These authenticated React pages l
 ./do dev          # serve on http://localhost:8000
 ```
 
-In a second terminal:
-
-```bash
-./do worker       # background task worker — without it, runs sit in QUEUED forever
-```
+`./do dev` starts the web server and background worker together, restarts a failed
+worker, and stops both when you exit. Local `manage.py runserver` uses the same
+supervision. `./do worker` remains available for a separately managed worker.
+The run screen reports when the worker is offline.
 
 Run `./do help` for every available command.
 [`docs/development.md`](docs/development.md) covers day-to-day work.
@@ -128,3 +127,11 @@ publish a MockEngine screenshot as a scientific result.
 ## Citing
 
 See [`CITATION.cff`](CITATION.cff).
+
+The local engine supports all four organisms (E. coli, yeast, Human, C. acnes) with
+differential-expression tables, direct RNA/DNA sequences, and named reference genes.
+CSV, TSV, TXT, and XLSX uploads work through the engine. Human gene discovery uses
+pinned Ensembl release 116 mature cDNA/noncoding transcripts; gene symbols and stable
+IDs resolve offline. Human constructs use CMV/hGH parts and an uploaded mammalian
+backbone, or a bare expression cassette. Local development supervises the worker and
+keeps its heartbeat separate from SQLite result imports.

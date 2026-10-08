@@ -218,7 +218,7 @@ export function useMaterializePublicDataset() {
 /* ---------- runs ---------- */
 
 export interface SubmitRunBody {
-  input_mode: "de" | "direct";
+  input_mode: "de" | "direct" | "gene";
   dataset_id?: string | null;
   trigger_sequence?: string;
   organism?: string;

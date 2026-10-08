@@ -60,15 +60,16 @@ function CompilePage() {
   const backbones = useMemo(() => version.data?.available_backbones ?? [], [version.data]);
 
   const blocker = useMemo(() => {
+    if (config.organism === "human" && !["none", "custom"].includes(config.backbone))
+      return "For Human expression, choose no backbone or upload a custom mammalian GenBank backbone.";
     if (config.inputMode === "de") {
       if (!config.datasetId) return "Choose a public dataset, or upload your own, to analyse.";
       const chosen = datasets.data?.find((d) => d.id === config.datasetId);
       if (chosen && chosen.validation_status !== "VALID")
         return "That dataset did not pass validation.";
     } else if (config.inputMode === "gene") {
-      // Informational only — there is no gene->sequence lookup, so this mode never
-      // submits by itself; "Continue" (GenePicker) switches inputMode to "direct".
-      return "Continue to paste the trigger sequence for this gene.";
+      if (!config.targetGene || config.targetGene.organism !== config.organism)
+        return "Resolve a gene ID or symbol to its reference transcript.";
     } else if (config.triggerSequence.length < 20) {
       return "Paste a trigger sequence of at least 20 nucleotides.";
     }
@@ -92,11 +93,7 @@ function CompilePage() {
   async function onSubmit() {
     if (blocker) return;
 
-    // "gene" is a wizard-only, informational mode (docs/public-datasets.md §16) that
-    // the blocker never lets reach here — it always resolves to "direct" or "de"
-    // before submission. Narrowed once so the API's InputMode type stays honest.
-    const submittedInputMode: "de" | "direct" =
-      config.inputMode === "de" ? "de" : "direct";
+    const submittedInputMode = config.inputMode;
 
     const params: RunParams = {
       schema_version: "1",
@@ -139,9 +136,6 @@ function CompilePage() {
       params.backbone = { catalog_key: config.backbone };
     }
 
-    // Informational only (docs/public-datasets.md §16/§19) — rides along on whatever
-    // dataset/sequence actually got submitted, documenting which gene the researcher
-    // had in mind without CERNAL claiming to have resolved it to anything.
     if (config.targetGene) {
       params.target_gene = {
         organism: config.targetGene.organism,

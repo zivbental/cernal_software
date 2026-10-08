@@ -105,6 +105,63 @@ def test_a_known_constraint_field_is_accepted(
     assert response.status_code == 202
 
 
+def test_the_wizards_max_circuit_gates_constraint_is_accepted(
+    auth_client, dataset, django_capture_on_commit_callbacks
+):
+    """The wizard sends ``max_circuit_gates`` and the engine reads it, but this API's
+    allow-list is a hand-kept mirror of ``engine.domain.Constraints`` and had not been
+    told about it, so the UI's own control produced
+    ``Unknown constraint 'max_circuit_gates'`` and a 422 on every submission."""
+    with django_capture_on_commit_callbacks():
+        response = _submit(
+            auth_client, dataset_id=dataset.id, params={"constraints": {"max_circuit_gates": 3}}
+        )
+
+    assert response.status_code == 202, response.json()
+
+
+def test_every_constraint_the_api_rejects_is_an_explicit_decision():
+    """Stops the hand-kept ``CONSTRAINT_KEYS`` mirror drifting from the engine silently.
+
+    ``api/`` may not import ``engine.domain`` (architecture.md section 3), so it keeps its
+    own copy of the field names, and nothing used to compare the two. That is exactly how
+    ``max_circuit_gates`` got added to the engine and the wizard but not to the API.
+
+    A field the engine reads must either be accepted here or be listed in
+    ``NOT_EXPOSED`` below, so adding an engine field forces someone to choose. Tests may
+    import both sides; only ``src/api`` is fenced off from the engine.
+    """
+    import dataclasses
+
+    from api.params import CONSTRAINT_KEYS
+    from engine.domain import Constraints
+
+    #: Engine fields the public API does not currently accept. These are not in the
+    #: documented request schema (frontend/src/routes/api-docs.tsx). Exposing one means
+    #: adding it to CONSTRAINT_KEYS and to that table, then removing it from this set.
+    not_exposed = {
+        "direction_balance",
+        "max_base_expression",
+        "max_genes",
+        "max_separation",
+        "min_base_expression",
+        "trigger_gc_range",
+    }
+    engine_fields = {field.name for field in dataclasses.fields(Constraints)}
+
+    assert CONSTRAINT_KEYS <= engine_fields, (
+        f"API accepts constraint(s) the engine has no field for: "
+        f"{sorted(CONSTRAINT_KEYS - engine_fields)}"
+    )
+    undecided = engine_fields - CONSTRAINT_KEYS - not_exposed
+    assert not undecided, (
+        f"Engine Constraints field(s) {sorted(undecided)} are neither accepted by "
+        "api.params.CONSTRAINT_KEYS nor listed as deliberately not exposed. Add them to "
+        "one or the other (and to frontend/src/routes/api-docs.tsx if exposed)."
+    )
+    assert not (not_exposed & CONSTRAINT_KEYS), "a field is both exposed and not exposed"
+
+
 def test_an_unknown_scoring_metric_name_is_rejected_at_submission(auth_client, dataset):
     response = _submit(
         auth_client,
@@ -221,6 +278,7 @@ def test_the_polling_endpoint_returns_the_documented_shape(auth_client, run):
         "status",
         "stage",
         "progress_pct",
+        "worker_available",
         "error_summary",
         "warnings",
         "submitted_at",

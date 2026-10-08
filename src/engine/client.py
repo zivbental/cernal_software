@@ -113,6 +113,19 @@ def label_for_custom_scoring(base_name: str, overrides: dict | None) -> str:
     return f"custom-{custom_scoring_label(base_name, weights, hard_filters, tie_breakers)}"
 
 
+def lookup_reference_gene(organism: str, identifier: str) -> dict:
+    """Resolve a public reference gene without exposing engine internals to the API."""
+    from engine.domain import Host
+    from engine.errors import EngineError
+    from engine.transcriptome import gene_reference
+
+    try:
+        host = Host(organism)
+        return gene_reference(host, identifier)
+    except (ValueError, EngineError) as exc:
+        raise ValueError(str(exc)) from exc
+
+
 def _installed_capabilities(engine_version: str) -> EngineCapabilities:
     """Read the registries. Engine-internal, so importing them here is fine."""
     from engine.gates.registry import describe_families
@@ -163,22 +176,14 @@ class LocalEngine:
 
     **Partial, honestly.** The ``direct`` input path is real end to end — a pasted
     trigger sequence through toehold design, evaluation and scoring, with real
-    ViennaRNA folding throughout. ``de`` submissions now run too, for *E. coli* and
-    yeast — the two hosts with a bundled reference transcriptome
-    (``engine.transcriptome.available_hosts()``, docs/ROADMAP.md Q1) — and only as
-    single-gene circuits: ``GeneSelector`` real, real transcripts scanned by the same
-    ``TriggerScorer`` the `direct` path uses, plus ``CircuitDesigner`` for circuits
-    that combine up to ``Constraints.max_circuit_gates`` genes — scored on complexity
-    and on their weakest member, not yet on behaviour, because there is no count matrix
-    to measure behaviour against. No off-target scanning, no ``InputQualityCheck`` (there
-    is no count matrix in this product to check), no bundled yeast plasmid backbone
-    (a lab's own upload, or no backbone at all). Human has no bundled transcriptome
-    and no promoter/terminator either. See docs/genes.md and this module's own
-    ``pipeline.py`` docstring for exactly what that does and does not cover.
+    ViennaRNA folding throughout. Direct, differential-expression, and named-gene
+    inputs work for E. coli, yeast, C. acnes, and Human. Human uses pinned mature
+    transcripts, CMV/hGH expression parts, and a custom mammalian backbone or cassette.
+    Computational support does not establish wet-lab performance.
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.7.0-direct-and-de-ecoli-yeast"
+    ENGINE_VERSION = "local-0.9.0-all-hosts-direct-de-gene"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

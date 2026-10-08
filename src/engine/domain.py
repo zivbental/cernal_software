@@ -155,6 +155,7 @@ class AssemblyStandard(StrEnum):
 
     RFC10 = "RFC10"
     RFC1000 = "RFC1000"
+    NONE = "none"  # No restriction-based assembly protocol selected.
 
 
 class DesiredOutcome(StrEnum):

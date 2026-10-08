@@ -6,7 +6,7 @@
  */
 
 export type RunStatus = "DRAFT" | "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-export type InputMode = "de" | "direct";
+export type InputMode = "de" | "direct" | "gene";
 export type ValidationStatus = "PENDING" | "VALID" | "INVALID";
 export type MetricDirection = "HIGHER_BETTER" | "LOWER_BETTER";
 export type DecisionTag = "NONE" | "PINNED" | "SHORTLISTED" | "REJECTED" | "SYNTHESIZE";
@@ -176,6 +176,7 @@ export interface RunStatusResponse {
   status: RunStatus;
   stage: string;
   progress_pct: number;
+  worker_available?: boolean | null;
   error_summary: string | null;
   warnings: string[];
   submitted_at: string | null;

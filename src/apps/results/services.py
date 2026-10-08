@@ -211,7 +211,7 @@ def build_candidates_csv(run) -> str:
         {
             name
             for candidate in candidates
-            for name in candidate.metrics.values_list("name", flat=True)
+            for name in (metric.name for metric in candidate.metrics.all())
         }
     )
 

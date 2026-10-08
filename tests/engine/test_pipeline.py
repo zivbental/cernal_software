@@ -57,8 +57,7 @@ def direct_request(make_request):
 
 def _de_request_factory(make_request, tmp_path, filename: str, content: str, organism: str):
     """Shared by ``de_request`` and ``yeast_de_request``: a real `de` submission
-    against real dataset ``content``, rather than the shared ``dataset`` fixture's
-    symbol-keyed rows that don't join against any bundled transcriptome."""
+    against a small dataset with stable reference identifiers."""
     dataset_path = tmp_path / filename
     dataset_path.write_text(content, encoding="utf-8", newline="")
     checksum = hashlib.sha256(content.encode()).hexdigest()
@@ -136,21 +135,12 @@ def test_a_de_run_against_real_genes_completes_with_real_candidates(de_request, 
     assert any("sodA" in w or "carA" in w for w in result.warnings)
 
 
-def test_a_de_run_is_not_available_for_human(de_request, always_continue):
-    """docs/ROADMAP.md Q1: *E. coli* and yeast both have a bundled reference
-    transcriptome now; human does not (a genomic CDS extraction is the wrong tool for
-    a heavily-spliced genome — ``tools/sync_transcriptome.py``). A human `de`
-    submission fails cleanly rather than silently returning zero candidates or
-    crashing on a missing lookup — today it fails even earlier than ``_de_trigger``'s
-    own transcriptome guard, on Q12's still-open "no human promoter/terminator"
-    limitation (``_resolve_outputs``, ahead of trigger scoring in ``run_pipeline``'s
-    own order) — a real, equally honest reason to stop, and a reminder that
-    ``_de_trigger``'s host guard is defence in depth for the day Q12 is answered for
-    another host, not dead code today."""
+def test_human_de_rejects_ecoli_identifiers(de_request, always_continue):
+    """An E. coli DE table cannot resolve against the Human reference."""
     result = LocalEngine().run(de_request(organism="human"), always_continue)
 
     assert result.status == "failed"
-    assert "human" in result.error.lower()
+    assert "gene" in result.error.lower()
 
 
 def test_a_de_run_against_real_yeast_genes_completes_with_real_candidates(
@@ -443,12 +433,8 @@ def test_providing_both_catalog_key_and_custom_genbank_fails_cleanly(
 
 
 def test_de_mode_fails_cleanly_on_an_identifier_namespace_mismatch(direct_request, always_continue):
-    """`de` mode is real now (see the success path above/below), but the shared
-    ``dataset`` fixture (tests/engine/conftest.py) keys its rows by gene *symbol*
-    (``lacZ``, ``rpoS``, ``katG``), while the bundled reference transcriptome is keyed
-    by NCBI locus tag (``engine.transcriptome`` — docs/genes.md §3 G-d's exact
-    namespace-mismatch scenario). That must fail as data, not crash."""
-    request = direct_request(input_mode=INPUT_DE, trigger_sequence="")
+    """E. coli symbols cannot resolve against the yeast reference."""
+    request = direct_request(input_mode=INPUT_DE, trigger_sequence="", organism="yeast")
     result = LocalEngine().run(request, always_continue)
     assert result.status == "failed"
     assert "identifier namespace" in result.error.lower()
@@ -850,11 +836,11 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
     from engine.errors import InputValidationError
 
     with pytest.raises(InputValidationError):
-        run_pipeline(direct_request(input_mode=INPUT_DE, trigger_sequence=""), always_continue)
+        run_pipeline(direct_request(trigger_sequence="BAD_SEQUENCE"), always_continue)
 
 
-def test_gate_aware_trigger_ranking_bumps_engine_version():
-    assert LocalEngine.ENGINE_VERSION == "local-0.7.0-direct-and-de-ecoli-yeast"
+def test_human_construction_bumps_engine_version():
+    assert LocalEngine.ENGINE_VERSION == "local-0.9.0-all-hosts-direct-de-gene"
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(

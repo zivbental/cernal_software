@@ -86,6 +86,8 @@ from engine.stages.motifs import MotifScreener
 #: mapping, and ``tests/engine/test_registry_parts.py`` fails if a table sequence stops
 #: matching the Registry part it claims to be.
 REGISTRY_PARTS: dict[str, str] = {
+    "K404108": "BBa_K404108",
+    "I712004": "BBa_I712004",
     "J23119": "BBa_J23119",
     "K124002": "BBa_K124002",
     "B0015": "BBa_B0015",
@@ -103,12 +105,24 @@ REGISTRY_PARTS: dict[str, str] = {
     "pSB4C5": "pSB4C5",
 }
 
-#: (part name, DNA sequence) per host. *E. coli* and yeast today — human deliberately
-#: absent (docs/ROADMAP.md Q12): a mammalian expression plasmid is not assembled by
-#: BioBrick-style restriction-site avoidance at all, so there is no "compliant
-#: promoter" to pick without first deciding what compliance even means for that host —
-#: a real architectural question, not a parts lookup.
+#: (part name, DNA sequence) per host. Human uses the Registry's CMV expression
+#: promoter and hGH polyadenylation signal below. Its pipeline defaults to no
+#: restriction-based assembly protocol; a custom mammalian backbone or a bare
+#: expression cassette is supported (docs/plasmids.md).
 PROMOTERS: dict[Host, tuple[str, str]] = {
+    # Registry BBa_I712004 — CMV promoter. Verified from the Registry API.
+    Host.HUMAN: (
+        "I712004",
+        "CGATGTACGGGCCAGATATACGCGTTGACATTGATTATTGCCTAGTTATTAATAGTAATCAATTACGGGGTCATTAGTTC"
+        "ATAGCCCATATATGGAGTTCCGCGTTACATAACTTACGGTAAATGGCCCGCCTGGCTGACCGCCCAACGACCCCCGCCCA"
+        "TTGACGTCAATAATGACGTATGTTCCCATAGTAACGCCAATAGGGACTTTCCATTGACGTCAATGGGTGGAGTATTTACG"
+        "GTAAACTGCCCACTTGGCAGTACATCAAGTGTATCATATGCCAAGTACGCCCCCTATTGACGTCAATGACGGTAAATGGC"
+        "CCGCCTGGCATTATGCCCAGTACATGACCTTATGGGACTTTCCTACTTGGCAGTACATCTACGTATTAGTCATCGCTATT"
+        "ACCATGGTGATGCGGTTTTGGCAGTACATCAATGGGCGTGGATAGCGGTTTGACTCACGGGGATTTCCAAGTCTCCACCC"
+        "CATTGACGTCAATGGGAGTTTGTTTTGGCACCAAAATCAACGGGACTTTCCAAAATGTCGTAACAACTCCGCCCCATTGA"
+        "CGCAAATGGGCGGTAGGCGTGTACGGTGGGAGGTCTATATAAGCAGAGCTCTCTGGCTAACTAGAGAACCCACTGCTTAC"
+        "TGGCTTATCGAAAT",
+    ),
     # BBa_J23119 — Anderson promoter family: the consensus sequence and the strongest
     # constitutive member. https://registry.igem.org/parts/bba-j23119
     Host.ECOLI: ("J23119", "TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC"),
@@ -139,6 +153,17 @@ PROMOTERS: dict[Host, tuple[str, str]] = {
 
 #: (part name, DNA sequence) per host. Same coverage and reasoning as ``PROMOTERS``.
 TERMINATORS: dict[Host, tuple[str, str]] = {
+    # Registry BBa_K404108 — hGH terminator. Verified from the Registry API.
+    Host.HUMAN: (
+        "K404108",
+        "GACGGGTGGCATCCCTGTGACCCCTCCCCAGTGCCTCTCCTGGCCCTGGAAGTTGCCACTCCAGTGCCCACCAGCCTTGT"
+        "CCTAATAAAATTAAGTTGCATCATTTTGTCTGACTAGGTGTCCTTCTATAATATTATGGGGTGGAGGGGGGTGGTATGGA"
+        "GCAAGGGGCAAGTTGGGAAGACAACCTGTAGGGCCTGCGGGGTCTATTGGGAACCAAGCTGGAGTGCAGTGGCACAATCT"
+        "TGGCTCACTGCAATCTCCGCCTCCTGGGTTCAAGCGATTCTCCTGCCTCAGCCTCCCGAGTTGTTGGGATTCCAGGCATG"
+        "CATGACCAGGCTCAGCTAATTTTTGTTTTTTTGGTAGAGACGGGGTTTCACCATATTGGCCAGGCTGGTCTCCAACTCCT"
+        "AATCTCAGGTGATCTACCCACCTTGGCCTCCCAAATTGCTGGGATTACAGGCGTGAACCACTGCTCCCTTCCCTGTCCTT"
+        "T",
+    ),
     # BBa_B0015 — double terminator (B0010 + B0012), the most-used terminator in the
     # registry. https://registry.igem.org/parts/BBa_B0015
     Host.ECOLI: (
@@ -731,7 +756,8 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
         name=design.plasmid_id,
         description=(
             f"CERNAL computationally assembled construct {design.plasmid_id} "
-            f"for circuit {design.circuit_id}, {design.standard.value} compliant. "
+            f"for circuit {design.circuit_id}, assembly setting {design.standard.value}; "
+            f"{len(design.violations)} recorded violation(s). "
             "Computationally assembled, not wet-lab validated (docs/plasmids.md §9)."
         ),
     )
