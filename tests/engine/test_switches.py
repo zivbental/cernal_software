@@ -183,7 +183,7 @@ def test_on_incompatible_receives_the_reason_instead_of_it_being_dropped(toehold
     (docs/triggers.md T3)."""
     designer = SwitchDesigner([toehold_gate], validator, Host.ECOLI)
     first = _trigger(trigger_id="trig-1", gene_id="g1")
-    second = _trigger(trigger_id="trig-2", gene_id="g2")
+    second = _trigger(trigger_id="trig-2", gene_id="g2", log2_fold_change=-2.0)
     reasons: list[str] = []
 
     designs = list(designer.design([first, second], Constraints(), on_incompatible=reasons.append))
@@ -235,6 +235,8 @@ def _design(**overrides) -> GateDesign:
         "architecture": {"aug_index": 0},
     }
     defaults.update(overrides)
+    if "dot_bracket" not in overrides:
+        defaults["dot_bracket"] = "." * len(defaults["sequence"])
     return GateDesign(**defaults)
 
 

@@ -296,7 +296,7 @@ def test_build_accepts_a_valid_custom_payload(builder):
 
     payload = next(s for s in design.plasmid.segments if s.kind is SegmentKind.PAYLOAD)
     assert payload.name == "Custom"
-    assert payload.sequence == "ATGGCTAAGTAA"
+    assert payload.sequence == "GCTAAGTAA"
     assert design.plasmid_id == "plasmid-000001-other"
 
 
@@ -343,7 +343,7 @@ def test_circular_screening_runs_over_the_whole_assembled_plasmid(builder, monke
     monkeypatch.setattr(MotifScreener, "violations", spy)
     builder.build(_circuit(), DesiredOutcome.GFP)
 
-    assert calls == [True]
+    assert calls == [False]
 
 
 def test_an_out_of_frame_switch_payload_join_is_caught(builder):
@@ -378,9 +378,9 @@ def test_genbank_round_trip_preserves_topology_sequence_and_features(builder):
 
     record = SeqIO.read(io.StringIO(gb.decode()), "genbank")
 
-    assert record.annotations.get("topology") == "circular"
+    assert record.annotations.get("topology") == "linear"
     assert str(record.seq).upper() == design.plasmid.sequence
-    assert len(record.features) == len(design.plasmid.segments)
+    assert len(record.features) == len(design.plasmid.segments) + len(design.coding_regions)
 
 
 def test_genbank_uses_standard_feature_types_and_cernal_qualifiers(builder):
@@ -388,12 +388,12 @@ def test_genbank_uses_standard_feature_types_and_cernal_qualifiers(builder):
     record = SeqIO.read(io.StringIO(to_genbank(design).decode()), "genbank")
 
     types = [f.type for f in record.features]
-    assert types == ["promoter", "misc_feature", "CDS", "terminator"]
+    assert types == ["promoter", "misc_feature", "misc_feature", "terminator", "CDS"]
 
     payload_feature = record.features[types.index("CDS")]
-    assert payload_feature.qualifiers["label"] == ["GFP"]
-    assert payload_feature.qualifiers["cernal_role"] == ["payload"]
-    assert payload_feature.qualifiers["cernal_circuit_id"] == ["circ-000001"]
+    assert payload_feature.qualifiers["label"] == ["GFP N-terminal fusion"]
+    assert payload_feature.qualifiers["codon_start"] == ["1"]
+    assert payload_feature.qualifiers["translation"]
 
 
 def test_genbank_feature_coordinates_are_contiguous_and_in_bounds(builder):
@@ -401,7 +401,7 @@ def test_genbank_feature_coordinates_are_contiguous_and_in_bounds(builder):
     record = SeqIO.read(io.StringIO(to_genbank(design).decode()), "genbank")
 
     position = 0
-    for feature in record.features:
+    for feature in record.features[: len(design.plasmid.segments)]:
         assert int(feature.location.start) == position
         position = int(feature.location.end)
     assert position == len(record.seq)
@@ -440,7 +440,17 @@ def test_parse_custom_backbone_round_trips_a_real_genbank_file(builder):
     """Build a real plasmid, export it, and parse the export back — the same
     round-trip discipline docs/plasmids.md §7.5 already applies to to_genbank itself,
     now exercised through the reverse direction too."""
+    import dataclasses
+
+    from engine.domain import Plasmid, Segment
+
     design = builder.build(_circuit(), DesiredOutcome.GFP)
+    design = dataclasses.replace(
+        design,
+        plasmid=Plasmid(
+            (*design.plasmid.segments, Segment(SegmentKind.BACKBONE, "vector", "ACGT" * 10))
+        ),
+    )
     gb_text = to_genbank(design).decode("utf-8")
 
     segment = parse_custom_backbone(gb_text)
@@ -486,7 +496,7 @@ def test_golden_fixture_locks_down_the_clean_construct(builder):
     the checksum, length and feature order are the whole point of pinning it."""
     design = builder.build(_circuit(), DesiredOutcome.GFP)
 
-    assert design.plasmid.length_bp == 930
+    assert design.plasmid.length_bp == 927
     assert [s.kind.value for s in design.plasmid.segments] == [
         "promoter",
         "switch",
@@ -497,7 +507,7 @@ def test_golden_fixture_locks_down_the_clean_construct(builder):
     assert design.is_compliant
 
     gb = to_genbank(design)
-    assert re.match(rb"LOCUS\s+plasmid-000001-gfp\s+930 bp\s+DNA\s+circular", gb)
+    assert re.match(rb"LOCUS\s+plasmid-000001-gfp\s+927 bp\s+DNA\s+linear", gb)
 
 
 # --- Parts table sanity (the tables themselves, not the mechanism) -------------------

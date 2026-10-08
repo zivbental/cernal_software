@@ -146,11 +146,11 @@ def normalize_trigger_sequence(sequence: str) -> str:
     return normalized
 
 
-def inspect_expression_input(path: str) -> dict:
+def inspect_expression_input(path: str, limit: int | None = 100) -> dict:
     """Shared upload and preview interpretation, exposed through the engine boundary."""
     from pathlib import Path
 
-    from engine.inputs import _canonical_columns, parse_dge_table
+    from engine.inputs import parse_dge_table
 
     source = Path(path)
     try:
@@ -165,20 +165,7 @@ def inspect_expression_input(path: str) -> dict:
             "preview": [],
             "selected_sheet": 0 if source.suffix.lower() == ".xlsx" else None,
         }
-    aliases = _canonical_columns(
-        [
-            "gene_id",
-            "gene_symbol",
-            "log2fc",
-            "padj",
-            "pvalue",
-            "base_mean",
-            "base_expression",
-            "target_expression",
-            "lfc_se",
-            "stat",
-        ]
-    )
+
     fields = {
         "gene_symbol": "symbol",
         "log2fc": "log2_fold_change",
@@ -187,12 +174,11 @@ def inspect_expression_input(path: str) -> dict:
         "base_expression": "control_mean",
         "target_expression": "target_mean",
     }
-    columns = [
-        key
-        for key in aliases
-        if key in ("gene_id", "log2fc")
-        or any(getattr(row, fields.get(key, key)) not in (None, "") for row in table.rows)
-    ]
+    columns = (
+        [key for key in table.columns if key in dataclasses.asdict(table.rows[0]) or key in fields]
+        if table.rows
+        else list(table.columns)
+    )
     return {
         "valid": bool(table.rows),
         "errors": [] if table.rows else ["No usable effect-size rows were found."],
@@ -202,7 +188,8 @@ def inspect_expression_input(path: str) -> dict:
         "columns": columns,
         "row_count": table.source_row_count,
         "preview": [
-            {key: getattr(row, fields.get(key, key)) for key in columns} for row in table.rows[:100]
+            {key: getattr(row, fields.get(key, key)) for key in columns}
+            for row in table.rows[:limit]
         ],
         "selected_sheet": 0 if source.suffix.lower() == ".xlsx" else None,
     }
@@ -231,9 +218,51 @@ def validate_job_configuration(
         raise ValueError("params must be an object.")
     if input_mode not in ("direct", "de", "gene"):
         raise ValueError("input_mode must be direct, de, or gene.")
+    for block in ("constraints", "payload", "backbone", "scoring", "statistics", "target_gene"):
+        if block in params and not isinstance(params[block], dict):
+            raise ValueError(f"params.{block} must be an object.")
+    budget = params.get("budget") or {}
+    if not isinstance(budget, dict) or set(budget) - {"max_designs"}:
+        raise ValueError("budget supports only max_designs (integer 1..1000).")
+    max_designs = budget.get("max_designs", 20)
+    if (
+        isinstance(max_designs, bool)
+        or not isinstance(max_designs, int)
+        or not 1 <= max_designs <= 1000
+    ):
+        raise ValueError("budget.max_designs must be an integer between 1 and 1000.")
+    host_values = [v for v in (organism, params.get("host"), params.get("organism")) if v]
+    if len(set(host_values)) > 1:
+        raise ValueError("Conflicting organism/host selections are not allowed.")
+    payload = params.get("payload") or {}
+    if "outputs" in payload and (
+        not isinstance(payload["outputs"], list)
+        or not payload["outputs"]
+        or any(not isinstance(item, str) for item in payload["outputs"])
+        or len(set(payload["outputs"])) != len(payload["outputs"])
+    ):
+        raise ValueError("payload.outputs must be a nonempty list of unique output identifiers.")
+    statistics = params.get("statistics") or {}
+    if "hypothesis_universe_complete" in statistics and not isinstance(
+        statistics["hypothesis_universe_complete"], bool
+    ):
+        raise ValueError("statistics.hypothesis_universe_complete must be a boolean.")
     try:
-        host = Host(organism or params.get("host", "ecoli"))
-        constraints = _build_constraints(params)
+        try:
+            host = Host(next(iter(host_values), "ecoli"))
+        except ValueError as exc:
+            raise ValueError(f"Unknown organism: {next(iter(host_values), 'ecoli')!r}.") from exc
+        effective = params
+        if host is Host.HUMAN and "standard" not in (params.get("constraints") or {}):
+            effective = {
+                **params,
+                "constraints": {**(params.get("constraints") or {}), "standard": "none"},
+            }
+        constraints = _build_constraints(effective)
+        if constraints.max_circuit_gates > 1 or constraints.max_triggers > 1:
+            raise ValueError(
+                "Unsupported physical circuit: production supports one input and one gate."
+            )
         resolve_profile(scoring_profile, params.get("scoring"))
         families = gate_families or ["toehold"]
         for name in families:
@@ -258,7 +287,12 @@ def validate_job_configuration(
                 raise ValueError("Trigger sequence exceeds the 10,000-nucleotide compute limit.")
     except (EngineError, TypeError, KeyError) as exc:
         raise ValueError(str(exc)) from exc
-    return {**params, "host": host.value, "constraints": dataclasses.asdict(constraints)}
+    return {
+        **params,
+        "host": host.value,
+        "constraints": dataclasses.asdict(constraints),
+        "budget": {"max_designs": max_designs},
+    }
 
 
 def _installed_capabilities(engine_version: str) -> EngineCapabilities:
@@ -284,7 +318,14 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
         },
         supported_outputs=["gfp", "other"],
         input_modes=["direct", "de", "gene"],
-        limits={"max_trigger_length": MAX_TRIGGER_LENGTH, "max_de_rows": 200_000},
+        limits={
+            "max_trigger_length": MAX_TRIGGER_LENGTH,
+            "max_de_rows": 200_000,
+            "max_designs_default": 20,
+            "max_designs_limit": 1000,
+            "max_circuit_gates": 1,
+            "max_triggers": 1,
+        },
         constraints=dataclasses.asdict(Constraints()),
         scoring_profiles=available_profiles(),
         # The vocabulary a caller may name in a custom `scoring` block (docs/public-api.md

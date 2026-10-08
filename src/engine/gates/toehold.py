@@ -101,7 +101,7 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.9.0"
+    version = "0.10.0-payload-context"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
@@ -290,6 +290,13 @@ class ToeholdGate(GateFamily):
                 f"This gate takes exactly {self.max_inputs} activating input(s) and no "
                 f"repressors, but got {len(trigger_set.activators)} activator(s) and "
                 f"{len(trigger_set.repressors)} repressor(s)."
+            )
+        if any(
+            t.log2_fold_change is not None and t.log2_fold_change < 0
+            for t in trigger_set.activators
+        ):
+            return Compatibility.no(
+                "Down-regulated inputs require a physical inverter for target-state activation."
             )
         if self.host not in self.supported_hosts:
             return Compatibility.no(f"{self.label} is not offered for {self.host.value}.")
@@ -773,7 +780,7 @@ class ToeholdGate(GateFamily):
         failure CLAUDE.md §2 is about. It stays absent, and its spec carries
         ``missing_behavior=SKIP`` so an inapplicable metric costs a design nothing.
         """
-        switch = design.sequence
+        switch = design.architecture.get("evaluation_sequence", design.sequence)
         trigger = design.trigger_set.activators[0]
         layout = design.architecture.get("kozak_layout", "loop")
 
@@ -819,7 +826,7 @@ class ToeholdGate(GateFamily):
             "predicted_leakage": off_accessibility,
             "dynamic_range": on_accessibility / max(off_accessibility, 1e-3),
             "trigger_accessibility": trigger.accessibility,
-            "gc_content": sq.gc_content(switch),
+            "gc_content": sq.gc_content(design.sequence),
             "predicted_success_rate": weakest_binding_confidence(
                 switch, [t.sequence for t in activators], self.folder
             ),

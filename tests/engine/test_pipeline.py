@@ -48,7 +48,13 @@ def direct_request(make_request):
             "trigger_sequence": CLEAN_TRIGGER,
             "organism": "ecoli",
             "gate_families": ["toehold"],
+            "params": {
+                "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                "budget": {"max_designs": 3},
+            },
         }
+        if "params" in overrides:
+            overrides["params"] = {**defaults["params"], **overrides["params"]}
         defaults.update(overrides)
         return make_request(**defaults)
 
@@ -69,7 +75,13 @@ def _de_request_factory(make_request, tmp_path, filename: str, content: str, org
             "input_checksum": checksum,
             "organism": organism,
             "gate_families": ["toehold"],
+            "params": {
+                "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                "budget": {"max_designs": 3},
+            },
         }
+        if "params" in overrides:
+            overrides["params"] = {**defaults["params"], **overrides["params"]}
         defaults.update(overrides)
         return make_request(**defaults)
 
@@ -161,7 +173,7 @@ def test_a_de_run_against_real_yeast_genes_completes_with_real_candidates(
 
 
 def test_engine_version_names_the_partial_scope():
-    assert "direct" in LocalEngine.ENGINE_VERSION
+    assert "scientific-qa" in LocalEngine.ENGINE_VERSION
 
 
 def test_accepted_candidates_carry_the_real_metric_names(direct_request, always_continue):
@@ -268,7 +280,9 @@ def test_a_direct_run_populates_real_plasmid_segments(direct_request, always_con
     """The default output (GFP) is fully configured (docs/ROADMAP.md Q11/Q12), so a
     plain direct run — no payload requested explicitly — gets a real plasmid, not the
     ``[]`` PlasmidRing.tsx used to be handed while stage 5 was a stub."""
-    result = LocalEngine().run(direct_request(), always_continue)
+    result = LocalEngine().run(
+        direct_request(params={"payload": {"outputs": ["gfp"]}}), always_continue
+    )
 
     assert result.candidates
     for candidate in result.candidates:
@@ -322,15 +336,15 @@ def test_a_custom_payload_builds_through_the_full_pipeline(direct_request, alway
         assert payload["name"] == "Custom"
 
 
-def test_mixed_outputs_use_only_the_buildable_ones_and_warn_about_the_rest(
+def test_mixed_outputs_reject_unsupported_output_without_silent_skipping(
     direct_request, always_continue
 ):
-    request = direct_request(params={"payload": {"outputs": ["gfp", "mcherry"]}, "mock": {}})
-    result = LocalEngine().run(request, always_continue)
-
-    assert result.status == "succeeded"
-    assert any("mcherry" in w for w in result.warnings)
-    assert all(c.design["logic_graph"]["output"] == "GFP" for c in result.candidates)
+    result = LocalEngine().run(
+        direct_request(params={"payload": {"outputs": ["gfp", "mcherry"]}}), always_continue
+    )
+    assert result.status == FAILED
+    assert "mcherry" in result.error
+    assert not result.candidates
 
 
 def test_run_pipeline_asks_for_circular_screening_when_building_a_plasmid(
@@ -355,7 +369,7 @@ def test_run_pipeline_asks_for_circular_screening_when_building_a_plasmid(
     result = LocalEngine().run(direct_request(), always_continue)
 
     assert result.candidates
-    assert True in calls
+    assert calls and not any(calls)
 
 
 # --- Backbone selection (docs/plasmids.md Q13, docs/ROADMAP.md E5b) -----------------
@@ -486,23 +500,17 @@ def test_requesting_only_toehold_and_fails_cleanly_not_a_crash(direct_request, a
     assert "toehold_and" in result.error.lower() or "and" in result.error.lower()
 
 
-def test_a_long_paste_never_reaches_the_broken_and_family_uncaught(direct_request, always_continue):
-    """The actual crash scenario: mixing a working family with the broken AND one,
-    against a paste long enough to scan into multiple, non-overlapping trigger
-    candidates — build_trigger_sets will genuinely pair some of them."""
-    long_trigger = (
-        "AUGGUGAGCAAGGGCGAGGAGGAUAACAUGGCCAUCAUCAAGGAGUUCAUGCGCUUCAAGGUGCAC"
-        "AUGGAGGGCUCCGUGAACGGCCACGAGUUCGAGAUCGAGGGCGAGGGCGAGGGCCGCCCCUACGAG"
-        "GGCACCCAGACC"
-    )
+def test_a_long_paste_with_unsupported_family_is_rejected_before_folding(
+    direct_request, always_continue
+):
     result = LocalEngine().run(
-        direct_request(trigger_sequence=long_trigger, gate_families=["toehold", "toehold_and"]),
+        direct_request(
+            trigger_sequence=CLEAN_TRIGGER * 2, gate_families=["toehold", "toehold_and"]
+        ),
         always_continue,
     )
-    assert result.status == "succeeded"
-    assert result.candidates
-    assert all(c.gate_family == "toehold" for c in result.candidates)
-    assert any("toehold_and" in w for w in result.warnings)
+    assert result.status == FAILED
+    assert "toehold_and" in result.error
 
 
 def test_cancellation_before_the_run_starts(direct_request):
@@ -714,7 +722,7 @@ def test_plasmid_builder_shares_the_same_screener_and_codons_instances(direct_re
 
 def test_a_default_constraints_block_builds_with_no_overrides(direct_request):
     tools = build_tools(direct_request(), Host.ECOLI)
-    assert tools["constraints"].max_triggers == 2
+    assert tools["constraints"].max_triggers == 1
     assert tools["constraints"].standard == AssemblyStandard.RFC10
 
 
@@ -840,7 +848,7 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
 
 def test_human_construction_bumps_engine_version():
-    assert LocalEngine.ENGINE_VERSION == "local-0.9.0-all-hosts-direct-de-gene"
+    assert LocalEngine.ENGINE_VERSION.startswith("local-0.10.0")
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(
@@ -900,18 +908,15 @@ def test_max_circuit_gates_of_one_produces_no_multi_gate_circuits(de_request, al
     assert _multi_gate(result) == []
 
 
-def test_raising_max_circuit_gates_adds_circuits_without_removing_any(de_request, always_continue):
-    """Additive on purpose: raising the cap widens the menu rather than replacing it,
-    so a researcher never loses a candidate by allowing longer circuits."""
-    one = LocalEngine().run(
-        de_request(params={"constraints": {"max_circuit_gates": 1}}), always_continue
-    )
-    two = LocalEngine().run(
+def test_raising_max_circuit_gates_returns_explicit_unsupported_physical_result(
+    de_request, always_continue
+):
+    result = LocalEngine().run(
         de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
     )
-
-    assert len(two.candidates) > len(one.candidates)
-    assert len(_multi_gate(two)) == len(two.candidates) - len(one.candidates)
+    assert result.status == FAILED
+    assert "physical circuit" in result.error
+    assert not result.candidates
 
 
 def test_a_longer_circuit_is_penalised_for_its_length(de_request, always_continue):
@@ -931,36 +936,21 @@ def test_a_longer_circuit_is_penalised_for_its_length(de_request, always_continu
 
 
 def test_a_multi_gate_circuit_lists_every_member_switch(de_request, always_continue):
-    """The plasmid is real: PlasmidBuilder lays out a promoter/switch pair per switch,
-    and the candidate carries every member rather than only the first."""
     result = LocalEngine().run(
         de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
     )
-    circuit = _multi_gate(result)[0]
-
-    components = circuit.design["component_switches"]
-    assert len(components) == 2
-    # switch_sequence stays singular and is the primary member, never a concatenation.
-    assert circuit.design["switch_sequence"] == components[0]["switch_sequence"]
-
-    switches = [s for s in circuit.design["plasmid_segments"] if s["kind"] == "switch"]
-    assert len(switches) == 2
-    assert len(circuit.triggers["features"]) == 2
+    assert result.status == FAILED
+    assert "physical circuit" in result.error
+    assert not result.candidates
 
 
 def test_a_multi_gate_circuit_reports_its_real_logic(de_request, always_continue):
-    """Not the one-gene placeholder graph: the genes, their required states and the
-    operator all come from the expression CircuitDesigner built."""
     result = LocalEngine().run(
         de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
     )
-    circuit = _multi_gate(result)[0]
-
-    graph = circuit.design["logic_graph"]
-    assert len(graph["genes"]) == 2
-    assert graph["mid_gate"] == "AND"
-    assert "AND" in circuit.logic_type
-    assert all(g["state"] in ("ON", "OFF") for g in graph["genes"])
+    assert result.status == FAILED
+    assert "physical circuit" in result.error
+    assert not result.candidates
 
 
 def test_an_unknown_constraint_field_is_still_rejected(de_request, always_continue):

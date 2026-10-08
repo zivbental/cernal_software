@@ -166,3 +166,149 @@ def test_capabilities_advertise_only_runnable_host_family_pairs():
         validate_job_configuration(
             {}, ["prokaryotic_toehold"], "default", "direct", "AUGC", "human"
         )
+
+
+def test_validated_structure_and_physical_construct():
+    from Bio import SeqIO
+
+    from engine.domain import (
+        BooleanExpression,
+        CircuitCandidate,
+        ConfusionMatrix,
+        DesiredOutcome,
+        Host,
+        LogicGraph,
+        LogicOperator,
+        TriggerCandidate,
+        TriggerSet,
+    )
+    from engine.gates.toehold import ToeholdGate
+    from engine.gates.tools.codons import CodonOptimizer
+    from engine.gates.tools.translation import TranslationScorer
+    from engine.stages.plasmids import PlasmidBuilder, to_genbank
+    from engine.stages.switches import SwitchValidator
+
+    host = Host.ECOLI
+    folder = FoldEngine()
+    translation = TranslationScorer(host)
+    codons = CodonOptimizer(host)
+    screener = MotifScreener()
+    family = ToeholdGate(host, folder, translation, codons)
+    trigger = TriggerCandidate(
+        "t1", "g1", "G1", "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA", 0, 0.8, 0.8, -1, 50
+    )
+    design = next(family.generate_designs(TriggerSet((trigger,)), Constraints()))
+    validation = SwitchValidator(folder, screener, translation, Constraints()).validate(design)
+    assert validation.ok
+    assert 0 <= validation.structure_deviation <= 1
+    graph = LogicGraph((), LogicOperator.IDENTITY, LogicOperator.IDENTITY, False, "other", "")
+    circuit = CircuitCandidate(
+        "c1", BooleanExpression.gene("g1"), graph, (design,), ConfusionMatrix(0, 0, 0, 0), "other"
+    )
+    builder = PlasmidBuilder(screener, codons, Constraints().standard)
+    compiled = builder.build(circuit, DesiredOutcome.CUSTOM, custom_payload="ATGGCTGCTTAA")
+    assert compiled.coding_regions
+    record = SeqIO.read(io.StringIO(to_genbank(compiled).decode()), "genbank")
+    assert record.annotations["topology"] == "linear"
+    coding = [f for f in record.features if f.type == "CDS"]
+    assert len(coding) == 1
+    assert (
+        str(coding[0].extract(record.seq).translate()).rstrip("*")
+        == coding[0].qualifiers["translation"][0]
+    )
+    import dataclasses
+
+    for operator in (LogicOperator.AND, LogicOperator.OR, LogicOperator.NOT):
+        expression = BooleanExpression(operator, (BooleanExpression.gene("g1"),))
+        with pytest.raises(InputValidationError, match="Unsupported physical circuit"):
+            builder.build(dataclasses.replace(circuit, expression=expression), DesiredOutcome.GFP)
+    with pytest.raises(InputValidationError, match="does not identify"):
+        builder.build(
+            dataclasses.replace(circuit, expression=BooleanExpression.gene("wrong")),
+            DesiredOutcome.GFP,
+        )
+    for structure in ("bad" * len(design.sequence), "(" + "." * (len(design.sequence) - 1)):
+        result = SwitchValidator(folder, screener, translation, Constraints()).validate(
+            dataclasses.replace(design, dot_bracket=structure)
+        )
+        assert not result.ok
+
+
+def test_exact_structure_comparison_does_not_invent_fold_probability():
+    from engine.gates.tools.folding import structure_match
+
+    assert structure_match("((..))", "((..))").deviation == 0
+    assert structure_match("((..))", ".(..).").deviation == pytest.approx(2 / 6)
+    assert structure_match("((..))", "((..))").p_target_fold is None
+
+
+def test_count_threshold_classifier_has_independent_truth_table():
+    from engine.domain import BooleanExpression, CountMatrix, SampleMetadata
+    from engine.stages.circuits import ConfusionEvaluator
+    from engine.stages.quality import InputQualityCheck
+
+    matrix = CountMatrix(
+        ("g1",),
+        ("c0", "c1", "t0", "t1"),
+        ((0, 2, 2, 0),),
+        SampleMetadata(("c0", "c1"), ("t0", "t1")),
+    )
+    qc = InputQualityCheck().check(matrix, matrix.metadata)
+    assert not qc.ok  # two zero-library samples cannot support expression QC
+    confusion = ConfusionEvaluator().evaluate(BooleanExpression.gene("g1"), matrix, 1)
+    assert (
+        confusion.true_positive,
+        confusion.false_positive,
+        confusion.false_negative,
+        confusion.true_negative,
+    ) == (1, 1, 1, 1)
+    assert confusion.separation_margin == 0
+    with pytest.raises(InputValidationError, match="absent"):
+        ConfusionEvaluator().evaluate(BooleanExpression.gene("absent"), matrix, 1)
+
+
+def test_configured_rank_ties_follow_metric_directions():
+    from engine.scoring.normalize import rank_candidates
+
+    scores = [("a", 0.5), ("b", 0.5)]
+    raw = {
+        "a": {"state_separation": 1, "predicted_leakage": 0.2},
+        "b": {"state_separation": 2, "predicted_leakage": 0.3},
+    }
+    assert rank_candidates(scores, raw_values=raw, profile=DEFAULT_V1) == {"b": 1, "a": 2}
+    raw["a"]["state_separation"] = 2
+    assert rank_candidates(scores, raw_values=raw, profile=DEFAULT_V1) == {"a": 1, "b": 2}
+
+
+def test_snapshots_preserve_zero_and_missing_without_releasing_sequences(tmp_path):
+    from engine.store import CandidateStore
+
+    store = CandidateStore(str(tmp_path), "run")
+    artifact = store.snapshot("input", [{"sequence": "AUGC", "zero": 0, "missing": None}])
+    content = (tmp_path / artifact.path).read_text()
+    assert "AUGC" not in content
+    assert "sequence_sha256" in content
+    rows = store.load_snapshot("input")
+    assert rows[0]["zero"] == "0"
+    assert rows[0]["missing"] == ""
+    with pytest.raises(ValueError):
+        store.load_snapshot("../input")
+
+
+def test_full_preview_preserves_missing_statistic_headers(tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("gene_id,log2fc,padj\ng1,2,NA\ng2,1,NA\n")
+    report = inspect_expression_input(str(path), limit=None)
+    assert report["columns"] == ["gene_id", "log2fc", "padj"]
+    assert len(report["preview"]) == 2
+    assert report["preview"][0]["padj"] is None
+
+
+@pytest.mark.parametrize(
+    "budget", [{"max_seconds": 1}, {"max_designs": True}, {"max_designs": 1001}]
+)
+def test_invalid_compute_budget_is_rejected(budget):
+    with pytest.raises(ValueError, match="budget"):
+        validate_job_configuration(
+            {"budget": budget}, ["toehold"], "default", "direct", "AUGC", "ecoli"
+        )

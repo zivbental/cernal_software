@@ -253,6 +253,7 @@ class DgeTable:
     # inference from high p-value coverage. None is unknown; False is a subset.
     hypothesis_universe_complete: bool | None = None
     source_row_count: int | None = None
+    columns: tuple[str, ...] = ()
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -410,6 +411,10 @@ class TriggerCandidate:
     stop_indexes: tuple[int, ...] = ()
     ribosome_occupancy: float | None = None
     score: float = 0.0
+    transcript_id: str = ""
+    reference_accession: str = ""
+    reference_selection_method: str = ""
+    transcript_sequence_sha256: str = ""
     # Gate-aware RNAplfold evidence. ``gate_toehold_length`` is populated only for
     # exact-footprint scanned candidates; ``None`` preserves legacy/manual direct
     # candidates, for which gate generation may still sweep every fitting variant.
@@ -493,8 +498,8 @@ class Constraints:
             from if stage 1 never kept a repressor candidate.
     """
 
-    max_triggers: int = 2
-    max_circuit_gates: int = 2
+    max_triggers: int = 1
+    max_circuit_gates: int = 1
     min_separation: float = 0.5
     max_p_adj: float = 0.05
     trigger_lengths: tuple[int, ...] = (30, 33, 36)
@@ -837,6 +842,7 @@ class PlasmidDesign:
     plasmid: Plasmid
     standard: AssemblyStandard
     violations: tuple[str, ...] = ()
+    coding_regions: tuple[tuple[int, int, str, str], ...] = ()
 
     @property
     def is_compliant(self) -> bool:
@@ -869,7 +875,7 @@ class StructureMatch:
     """How closely a predicted fold matches the intended one."""
 
     deviation: float
-    p_target_fold: float
+    p_target_fold: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -878,6 +884,7 @@ class ValidationResult:
 
     ok: bool
     violations: tuple[str, ...] = ()
+    structure_deviation: float | None = None
 
     @classmethod
     def passed(cls) -> "ValidationResult":

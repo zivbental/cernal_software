@@ -126,7 +126,7 @@ DEFAULT_V1 = ScoringProfile(
     # computed rather than absent, and state_separation/orthogonality became SKIP
     # instead of TREAT_AS_WORST. Both move every stored score, so the label a run
     # records has to change with them.
-    version="v2",
+    version="v3-computational-proxies",
     metrics=[
         MetricSpec(
             name="state_separation",
@@ -148,7 +148,7 @@ DEFAULT_V1 = ScoringProfile(
             direction=HIGHER_BETTER,
             weight=2.0,
             valid_range=(0.0, 1.0),
-            description="Predicted fraction of the trigger region free of self-structure.",
+            description="Minimum marginal unpaired probability across the selected trigger window.",
             unit="fraction 0-1",
         ),
         MetricSpec(
@@ -164,7 +164,10 @@ DEFAULT_V1 = ScoringProfile(
             direction=LOWER_BETTER,
             weight=2.5,
             valid_range=(0.0, 1.0),
-            description="Proxy for OFF-state activation.",
+            description=(
+                "Mean marginal unpaired probability in the OFF-state "
+                "initiation region (uncalibrated proxy)."
+            ),
             unit="fraction 0-1",
         ),
         MetricSpec(
@@ -188,7 +191,10 @@ DEFAULT_V1 = ScoringProfile(
             direction=HIGHER_BETTER,
             weight=0.5,
             valid_range=(30.0, 70.0),
-            description="Percent GC of the assembled construct. Extremes hurt synthesis.",
+            description=(
+                "Percent GC of the regulatory switch; linear ranking "
+                "rewards GC within the declared range."
+            ),
             unit="percent 0-100",
         ),
         MetricSpec(
@@ -196,15 +202,21 @@ DEFAULT_V1 = ScoringProfile(
             direction=HIGHER_BETTER,
             weight=2.0,
             valid_range=(1.0, 500.0),
-            description="Predicted ON/OFF fold change.",
-            unit="linear fold",
+            description=(
+                "ON/OFF marginal initiation-accessibility ratio; denominator "
+                "floored at 0.001. Not measured expression."
+            ),
+            unit="accessibility ratio",
         ),
         MetricSpec(
             name="predicted_success_rate",
             direction=HIGHER_BETTER,
             weight=1.0,
             valid_range=(0.0, 1.0),
-            description="Model confidence that the construct behaves as designed in vivo.",
+            description=(
+                "Uncalibrated binding-energy sigmoid: midpoint -15 kcal/mol, "
+                "slope 2. Not a success probability."
+            ),
             unit="fraction 0-1",
         ),
         MetricSpec(

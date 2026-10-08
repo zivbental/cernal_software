@@ -10,6 +10,7 @@ import csv
 import io
 import math
 from pathlib import Path
+from xml.etree.ElementTree import ParseError
 from zipfile import BadZipFile
 
 from openpyxl import load_workbook
@@ -115,7 +116,15 @@ def parse_dge_table(
                 dict(zip(headers, (None if v is None else str(v) for v in values), strict=False))
                 for values in sheet_rows
             )
-        except (BadZipFile, InvalidFileException, KeyError, ValueError) as exc:
+        except (
+            BadZipFile,
+            InvalidFileException,
+            KeyError,
+            ValueError,
+            IndexError,
+            TypeError,
+            ParseError,
+        ) as exc:
             if workbook is not None:
                 workbook.close()
             raise InputValidationError(
@@ -208,6 +217,18 @@ def parse_dge_table(
                 if value is not None and value < 0:
                     raise InputValidationError(f"Row {index + 2}: {name} must be nonnegative.")
             rows.append(parsed)
+    except (
+        BadZipFile,
+        InvalidFileException,
+        KeyError,
+        IndexError,
+        TypeError,
+        ParseError,
+        csv.Error,
+    ) as exc:
+        raise InputValidationError(
+            "The table contains malformed spreadsheet or delimited data."
+        ) from exc
     finally:
         if workbook is not None:
             workbook.close()
@@ -218,4 +239,5 @@ def parse_dge_table(
             hypothesis_universe_complete if len(rows) == len(seen_ids) else False
         ),
         source_row_count=len(seen_ids),
+        columns=tuple(canonical.values()),
     )
