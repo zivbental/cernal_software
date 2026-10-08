@@ -65,7 +65,6 @@ WAIT_HARD_CEILING = 300.0
 
 #: ROADMAP.md §3, measured on ViennaRNA 2.7.2, one core: a fold + a cofold + a
 #: partition function per design, ~15ms. Never presented as a guarantee.
-_SECONDS_PER_DESIGN = 0.015
 #: ROADMAP.md §3's own worked example: 1,225 trigger sets (top-50 genes, pairs) -> a
 #: measured ~12,250 designs. Used only to keep dry_run's arithmetic consistent with the
 #: one real data point this repo has.
@@ -126,13 +125,15 @@ def _resolve_scoring(body: DesignIn, capabilities) -> dict:
     return scoring
 
 
-def _estimate(
-    input_mode: str, rows: int | None, constraints: dict, gate_families: list[str]
-) -> dict:
+def _estimate(input_mode: str, rows: int | None, params: dict, gate_families: list[str]) -> dict:
     """Rough, and labelled as such (docs/public-api.md §9.3). ``de`` mode can only be
     bounded from the dataset's row count. The surviving gene count and generated trigger
     windows are unknown before execution."""
+    constraints = params["constraints"]
     n_families = max(1, len(gate_families))
+    max_designs = params["budget"]["max_designs"]
+    outputs = len(params["payload"].get("outputs") or ["gfp"])
+    upper_bound = max_designs * outputs
 
     if input_mode in (InputMode.DIRECT, InputMode.GENE):
         n_lengths = max(1, len(constraints.get("trigger_lengths", (30, 33, 36))))
@@ -146,8 +147,10 @@ def _estimate(
         confidence = "rough"
 
     return {
-        "designs": designs,
-        "seconds": round(designs * _SECONDS_PER_DESIGN, 1),
+        "designs": min(designs, max_designs) * outputs,
+        "seconds": None,
+        "runtime_calibrated": False,
+        "candidate_upper_bound": upper_bound,
         "confidence": confidence,
     }
 
@@ -245,7 +248,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
 
     if dry_run:
         rows = _row_count_for_dry_run(request, body, input_mode)
-        estimate = _estimate(input_mode, rows, params["constraints"], gate_families)
+        estimate = _estimate(input_mode, rows, params, gate_families)
         return Status(
             200,
             {
@@ -320,7 +323,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         # Byte-identical retries reuse the original immutable input record.
         delete_dataset(dataset)
     rows = (dataset.validation_report or {}).get("rows") if dataset else None
-    estimate = _estimate(input_mode, rows, params["constraints"], gate_families)
+    estimate = _estimate(input_mode, rows, params, gate_families)
 
     wait = max(0.0, min(wait, WAIT_HARD_CEILING))
     if wait > 0:
