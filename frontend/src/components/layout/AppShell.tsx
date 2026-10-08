@@ -43,12 +43,13 @@ function Nav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   async function onLogout() {
-    await logout.mutateAsync();
-    navigate({ to: "/login" });
+    try { await logout.mutateAsync();
+    navigate({ to: "/login" }); } catch { /* error is rendered below */ }
   }
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
+      {logout.isError && <p role="alert" className="text-xs text-destructive">Sign out failed. Please retry.</p>}
       <div className="mx-auto flex min-h-16 max-w-[1400px] items-center justify-between gap-3 px-4 py-2 sm:px-8">
         <div className="flex min-w-0 items-center gap-4 lg:gap-8">
           <Link to="/dashboard" className="flex items-center gap-2.5">

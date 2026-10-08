@@ -10,51 +10,53 @@
 
 ---
 
-## 0. Where we are
+## 0. Current status — 8 October 2026
 
-| Step | State | Evidence |
+The default and only production engine is `engine.client.LocalEngine`. It performs
+real folding and candidate search; it is a computational prototype with provisional
+scientific models, not an experimentally validated circuit compiler. The dated
+[software audit](SOFTWARE_STATUS_REVIEW_2026-10-08.md) preserves the before state.
+[Remediation status](REMEDIATION_STATUS.md) records current fixes and remaining work.
+
+| Area | Implemented | Current limits |
 |---|---|---|
-| Step 0 — Scaffold | **Complete** | Boots, migrates, admin reachable |
-| Step 1 — Engine contract + MockEngine | **Complete** | Contract, `MockEngine`, gate/scoring layers, boundary test |
-| Step 2 — Domain model | **Complete** | 7 models, migrations, admin back-office, `seed_demo` |
-| Step 3 — API + orchestration | **Complete** | 35 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
-| Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages. The wizard's `de` mode can also seed itself from a curated, real public-dataset catalog (Phase D, [public-datasets.md](public-datasets.md)), not only an upload |
-| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. A pasted sequence longer than one trigger window is scanned for a usable trigger, not silently truncated (E2b, [triggers.md](triggers.md)) — `TriggerScorer` is real on this path. `PlasmidBuilder.build`/`.payload_segment` are real for the `direct` path (E5a, [plasmids.md](plasmids.md)) — a run produces a real annotated GenBank artifact and populated `plasmid_segments`, GFP payload / *E. coli* only. A run assembles onto a real, selectable plasmid backbone — ten catalog vectors or a researcher's own GenBank upload (E5b, [plasmids.md](plasmids.md)). **`de` mode now runs too, for *E. coli* and yeast** ([genes.md](genes.md), D6): `GeneSelector` real, `parse_dge_table` real, Q1 answered for both hosts by a bundled real NCBI RefSeq transcriptome each (`engine.transcriptome`, `tools/sync_transcriptome.py`), Q12 answered for both by real, iGEM-Registry-verified promoter/terminator parts — verified end to end against real data for both (*E. coli*: a real bundled public dataset, 730 accepted candidates; yeast: real genes from the bundled catalog, 110 accepted candidates). Still single-gene circuits only, no real off-target scanning, no bundled yeast backbone (a lab's own upload, or none), Human direct construction now supported with CMV/hGH parts and no default restriction-based protocol; Human DE and gene lookup now use mature Ensembl release 116 transcripts. `CircuitDesigner`, `ConfusionEvaluator`, `InputQualityCheck`, `CodonOptimizer` and stage 6 (`ReportBuilder`) are still documented stubs raising `NotImplementedError` |
-| **Step 6 — Deployment** | **Not started** | §6 |
+| Inputs and reference resolution | Direct sequence, named gene and DE table input for E. coli, yeast, Human and C. acnes; CSV/TSV/TXT/XLSX DE parser | Reference mapping completeness and intended contrasts need stewardship; counts/metadata inference is not provided |
+| Scientific tools | ViennaRNA folding, RNAplfold profiling, gene/trigger selection, single-input toehold generation, scoring, construct assembly; CircuitDesigner and CodonOptimizer components exist | Component existence does not establish production integration, physical multigate logic, specificity or experimental efficacy |
+| Capabilities | `GET /api/version` identifies production families, their hosts, outputs and constraints | GFP/custom coding sequences are the supported payloads; AND, antisense and CRISPR remain separate integration tasks |
+| Results and release | Computational ranks, stored warnings and frozen configuration; available artifact downloads | Uncalibrated accessibility/binding quantities are proxies. Sequence release is a separate fail-closed policy decision; an unconfigured adapter holds exports |
+| Product and clients | Wizard, progress, paged results/history, notes/review tags, Python/R/MATLAB source clients | Synthesis ordering has no funded/integrated partner. R and MATLAB execution require their runtimes and have not been verified locally |
+| Delivery | Locked Python 3.13 dependencies, frontend build/check and test lanes | Deployment, screening operations, backup recovery, human data governance and supported-runtime verification remain release acceptance work |
 
-`./do test` → **1116 passing** (plus the Python client's own conformance suite,
-`clients/python/tests/`, verified separately — see Phase X), and `.gitlab-ci.yml` runs
-the same checks plus the frontend
-build on every push. `CERNAL_ENGINE` defaults to `engine.client.MockEngine`, so the entire
-product works end to end on deterministic fake science today.
+Q1 is resolved for reference availability in all four hosts. Q1 does not establish
+transcriptome-wide off-target screening, tissue-specific isoform expression or full
+public-dataset mapping. Q2–Q15 scientific decisions remain scoped to their evidence,
+not silently closed by software tests. Historical execution counts below are dated
+observations and must not be treated as current expected candidate counts.
 
-**What "the engine is stubbed" means precisely:** every class, method and signature
-exists with a docstring recording what it owes its caller. Filling one in is a scientific
-problem, not an architectural one. The stubs are in `src/engine/stages/`,
-`src/engine/gates/` (including `gates/tools/`) and `src/engine/pipeline.py`.
+Run the commands in the audit's reproduction section to obtain current test counts.
+The audit baseline passed 1,655 main-suite tests on 8 October; remediation tests are
+reported separately in the living status file. Formatter/client/browser defects found
+by that audit are tracked as GAP-05 and PD-06–09.
 
----
+## 1. Current priorities
 
-## 1. The critical path
+Resolve privacy/input integrity and worker terminal-state defects, make every
+selectable combination match authoritative production capabilities, and retain
+scientific/release warnings at the point of use. Missing mechanisms, payloads,
+functional validation and off-target work are feature/science tasks with explicit
+acceptance criteria, not completed by disabling UI choices.
 
-```
-Q1 (where do trigger sequences come from?)
-      │  blocks
-      ▼
-E1 domain+tools ──▶ E2 stages 1–3 ──▶ E3 pruning ──▶ E4 toehold ──▶ E6 measure
-      │                                                                 │
-      │                                                                 ▼
-      └──▶ E0 dep groups ──▶ C1 container ──▶ C2 equivalence ──▶ C3–C7 cloud
-```
-
-**Three things can start today with no scientific input:** E0 (dependency groups), E1
-(`domain.py`, `sequences.py` and `stages/motifs.py` are already written; nothing left
-in E1's first rungs needs ViennaRNA), and every task in §4.
-
-**One thing blocks everything else: Q1.** The DE table has gene identifiers, not
-sequences. No amount of infrastructure work answers it.
+Use the audit's ENG, PLAT, PD and GAP identifiers in commits and release evidence.
+Only Offer and Ziv merge approved changes into `main`. Deployment, package
+publication and ordering require their own explicit authorization.
 
 ---
+
+> **Historical planning archive (written before the 8 October 2026 audit).**
+> The remaining numbered sections preserve development decisions and earlier plans.
+> Their implementation-status sentences, timings and counts are superseded by the
+> current status above, source code, `/api/version` and the remediation ledger.
+> The removed simulated engine is mentioned only as historical context.
 
 ## 2. Open questions for the scientific team
 

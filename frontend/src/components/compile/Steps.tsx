@@ -14,6 +14,7 @@ import { Panel, SectionHeading, AdvancedOptions } from "@/components/layout/Prim
 import { Check, SliderRow } from "@/components/compile/Bits";
 import { ExpressionPreview } from "@/components/compile/ExpressionPreview";
 import { PublicDatasetPicker } from "@/components/compile/PublicDatasetPicker";
+import { parseSequence } from "@/components/compile/sequence";
 import { GenePicker } from "@/components/compile/GenePicker";
 
 /* ---------- shared config ---------- */
@@ -36,6 +37,7 @@ export interface CompileConfig {
   /** Downstream outputs, all equivalent. Each selected one gets its own plasmids. */
   outputs: string[];
   customPayload: string;
+  optimizePayloadCodons: boolean;
   /**
    * UI-friendly sliders for a per-run override of the scoring profile's hard filters
    * (engine.scoring.profiles X7) — routes/compile.tsx's onSubmit turns these into
@@ -59,6 +61,7 @@ export interface CompileConfig {
   /** Read client-side via FileReader, the same "paste your own" pattern
    * `customPayload` already uses — see routes/compile.tsx's onSubmit. */
   customBackboneGenbank: string;
+  customBackboneInsertion: string;
 }
 
 export const DEFAULT_CONFIG: CompileConfig = {
@@ -74,23 +77,24 @@ export const DEFAULT_CONFIG: CompileConfig = {
   mechanism: "toehold",
   outputs: ["gfp"],
   customPayload: "",
+  optimizePayloadCodons: false,
   maxLeakage: 0.08,
   minGateStability: -32,
-  // 2, matching the engine's own Constraints default: single-gene circuits plus the
-  // pairs, which is "longer than one gate" without the combinatorics of triples.
-  maxCircuitGates: 2,
+  // Physical multi-gate constructs require reviewed integration; production uses one gate.
+  maxCircuitGates: 1,
   // A real backbone by default, not "none" — the whole point of this feature is a
   // researcher who just clicks through getting an orderable plasmid, not a bare
   // four-segment construct (docs/plasmids.md §13 note on this being a deliberate
   // default).
   backbone: "psb1c3",
   customBackboneGenbank: "",
+  customBackboneInsertion: "",
 };
 
 /** engine.scoring.profiles.DEFAULT_V1's own predicted_leakage hard-filter ceiling
  * (CLAUDE.md §2) — the wizard's slider must not be able to submit a run that loosens
- * this documented safety threshold, only tighten it. */
-const MAX_SAFE_LEAKAGE = 0.85;
+ * this scoring threshold, only tighten it. */
+const MAX_PROFILE_LEAKAGE = 0.85;
 
 /** Collaboration credit shown at the point of use, not only on a credits page.
  *
@@ -114,7 +118,7 @@ const COLLABORATOR_CREDIT = {
     // words that need no synthetic-biology background, and what CERNAL does with it.
     headline: "Built with another iGEM team",
     summary:
-      "C. acnes is in CERNAL because of a collaboration. The iGEM AIS-China team built a codon-optimization model for this skin bacterium; we run their code, unmodified, inside our pipeline.",
+      "C. acnes is in CERNAL because of a collaboration. The iGEM AIS-China team built a codon-optimization model for this skin bacterium; we run their tool is available in our scientific toolkit. Automatic codon optimization during construct assembly is not enabled.",
     contributed: [
       "A codon model derived from the genome of C. acnes strain ATCC 6919",
       "Their open-source tool, used exactly as they published it",
@@ -147,7 +151,7 @@ export const ORGANISM_LABELS: Record<Organism, string> = {
   c_acnes: "C. acnes",
 };
 
-const sanitizeRna = (v: string) => v.toUpperCase().replace(/[^ACGUT]/g, "").replace(/T/g, "U");
+
 
 type Patch = (patch: Partial<CompileConfig>) => void;
 
@@ -200,7 +204,7 @@ export function StepInputs({
                 aria-pressed={selected}
                 onClick={() => patch(o.key === "human"
                   ? { organism: o.key, datasetId: null, targetGene: null, backbone: "none", mechanism: "eukaryotic_toehold" }
-                  : { organism: o.key, datasetId: null, targetGene: null, backbone: o.key === "yeast" ? "none" : "psb1c3", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
+                  : { organism: o.key, datasetId: null, targetGene: null, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
                 className={`group relative flex items-center gap-2 rounded-md px-5 py-2.5 text-sm transition ${
                   credit
                     ? selected
@@ -345,7 +349,7 @@ export function StepInputs({
           {config.inputMode === "direct" &&
             "Skip discovery — provide the exact mRNA sequence you want to act as the trigger."}
           {config.inputMode === "gene" &&
-            "Already know which transcript you want the circuit to respond to? Record it here, then paste its sequence."}
+            "Already know which transcript you want the circuit to respond to? Resolve its reference transcript here; its identity and sequence are frozen at submission."}
         </p>
       </div>
 
@@ -520,22 +524,23 @@ export function StepInputs({
                 accepted and converted automatically.
               </p>
               <textarea
+                aria-label="Trigger sequence"
                 value={config.triggerSequence}
-                onChange={(e) => patch({ triggerSequence: sanitizeRna(e.target.value) })}
+                onChange={(e) => patch({ triggerSequence: e.target.value })}
                 placeholder="AUGGCUAGCAAGGGCGAGGAGCUGUUC..."
                 rows={5}
                 className="mt-4 w-full rounded-md border border-border bg-card p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-mint focus:outline-none"
               />
               <div className="mt-2 flex items-center justify-between font-mono text-xs text-muted-foreground">
-                <span>A · C · G · U only · at least 20 nt</span>
+                <span>Plain sequence or one FASTA record · T→U · at least 20 nt</span>
                 <span
                   className={
-                    config.triggerSequence.length > 0 && config.triggerSequence.length < 20
+                    parseSequence(config.triggerSequence).sequence.length > 0 && parseSequence(config.triggerSequence).sequence.length < 20
                       ? "text-destructive"
                       : ""
                   }
                 >
-                  {config.triggerSequence.length} nt
+                  {parseSequence(config.triggerSequence).sequence.length} nt
                 </span>
               </div>
             </div>
@@ -678,7 +683,7 @@ export function StepLogic({
             // The scoring profile's own predicted_leakage ceiling (CLAUDE.md §2) — this
             // control can only tighten it, never submit a run that loosens a documented
             // safety filter.
-            max={MAX_SAFE_LEAKAGE}
+            max={MAX_PROFILE_LEAKAGE}
             step={0.01}
             onChange={(v) => patch({ maxLeakage: v })}
           />
@@ -694,12 +699,9 @@ export function StepLogic({
             label="Max Gates Per Circuit"
             value={config.maxCircuitGates}
             min={1}
-            // 4 rather than the gene count: combinations grow fast, and every extra
-            // gate is another switch to synthesise — circuit_complexity already
-            // penalises length, so this cap is about compute, not about quality.
-            max={4}
+            max={1}
             step={1}
-            onChange={(v) => patch({ maxCircuitGates: v })}
+            // Fixed until a physically specified multi-gate compiler is integrated.
           />
         </div>
       </AdvancedOptions>
@@ -734,15 +736,22 @@ const OUTPUTS = [
   {
     key: "luciferase",
     name: "Luciferase",
-    sub: "Bioluminescent readout",
-    note: "Visual readout",
+    sub: "Firefly luciferase",
+    note: "Requires substrate and cofactors",
     color: "oklch(0.85 0.16 90)",
   },
   {
     key: "ampr",
-    name: "Antibiotic resistance",
-    sub: "AmpR · KanR",
-    note: "Positive selection",
+    name: "AmpR",
+    sub: "Beta-lactamase selectable marker",
+    note: "E. coli; fusion unvalidated",
+    color: "oklch(0.62 0.18 265)",
+  },
+  {
+    key: "kanr",
+    name: "KanR",
+    sub: "Kanamycin resistance marker",
+    note: "E. coli; fusion unvalidated",
     color: "oklch(0.62 0.18 265)",
   },
   {
@@ -761,7 +770,7 @@ const OUTPUTS = [
   },
 ] as const;
 
-export function StepPayload({ config, patch }: { config: CompileConfig; patch: Patch }) {
+export function StepPayload({ config, patch, supportedOutputs }: { config: CompileConfig; patch: Patch; supportedOutputs: string[] }) {
   const toggle = (key: string) =>
     patch({
       outputs: config.outputs.includes(key)
@@ -777,7 +786,7 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
       <SectionHeading
         kicker="Step 03 · Payload"
         title="Choose Downstream Output"
-        desc="What the circuit expresses when it fires. Pick as many as you like — each one is compiled into its own set of plasmid candidates."
+        desc="Each retained gate design is evaluated with every selected output. Each candidate contains one payload; co-expression needs a separate reviewed construct."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -787,6 +796,8 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
             <button
               key={output.key}
               type="button"
+              disabled={!supportedOutputs.includes(output.key)}
+              title={!supportedOutputs.includes(output.key) ? "This payload is not supported for the selected organism" : undefined}
               onClick={() => toggle(output.key)}
               aria-pressed={on}
               className={`group relative overflow-hidden rounded-xl border p-5 text-left transition ${
@@ -810,7 +821,7 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
                 </div>
                 <div className="mt-0.5 text-xs text-muted-foreground">{output.sub}</div>
                 <div className="mt-2 inline-block rounded-md bg-secondary px-2 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground">
-                  {output.note}
+                  {supportedOutputs.includes(output.key) ? output.note : "Unavailable for this organism"}
                 </div>
               </div>
             </button>
@@ -824,10 +835,11 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
             Custom output sequence
           </label>
           <textarea
-            value={config.customPayload}
+            aria-label="Custom payload sequence"
+                value={config.customPayload}
             onChange={(e) =>
               patch({
-                customPayload: e.target.value.toUpperCase().replace(/[^ACGUT]/g, "").replace(/T/g, "U"),
+                customPayload: e.target.value,
               })
             }
             placeholder="Paste the coding sequence to express"
@@ -835,11 +847,17 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
             className="w-full rounded-md border border-border bg-surface p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-mint focus:outline-none"
           />
           <div className="mt-1 text-right font-mono text-[11px] text-muted-foreground">
-            {config.customPayload.length} nt
+            {parseSequence(config.customPayload).sequence.length} nt
           </div>
         </div>
       )}
 
+      <label className="mt-5 flex items-center gap-2 text-sm text-foreground">
+        <input type="checkbox" checked={config.optimizePayloadCodons}
+          onChange={(e) => patch({ optimizePayloadCodons: e.target.checked })} />
+        Optimize payload codons for the selected host (optional)
+      </label>
+      <p className="mt-2 text-xs text-muted-foreground">Off by default to preserve the pinned coding sequence. Optimization preserves the encoded protein and records sequence provenance. Reporter performance with the switch fusion remains experimentally unvalidated.</p>
       <p className="mt-6 rounded-lg border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground">
         {count === 0
           ? "Select at least one output."
@@ -907,7 +925,7 @@ export function StepVector({
     // Read client-side, same "paste your own" pattern customPayload already uses — no
     // upload endpoint, the file's text goes straight into the submitted JSON body.
     reader.onload = () => {
-      patch({ backbone: "custom", customBackboneGenbank: String(reader.result ?? "") });
+      patch({ backbone: "custom", customBackboneGenbank: String(reader.result ?? ""), customBackboneInsertion: "" });
     };
     reader.readAsText(file);
   };
@@ -946,11 +964,12 @@ export function StepVector({
 
       {config.backbone === "custom" && (
         <div className="mt-6">
-          <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          <label htmlFor="custom-backbone-file" className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
             Backbone GenBank file
           </label>
           <input
             ref={fileInput}
+            id="custom-backbone-file"
             type="file"
             accept=".gb,.gbk,.genbank,text/plain"
             className="hidden"
@@ -967,6 +986,11 @@ export function StepVector({
             <FileUp className="h-3.5 w-3.5" />
             {config.customBackboneGenbank ? "Replace file" : "Choose a .gb file"}
           </button>
+          <label htmlFor="backbone-insertion" className="mt-4 block text-sm text-foreground">Insertion boundary (0-based)</label>
+          <input id="backbone-insertion" type="number" min="0" step="1" value={config.customBackboneInsertion}
+            onChange={(e) => patch({ customBackboneInsertion: e.target.value })}
+            className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
+          <p className="mt-2 text-xs text-muted-foreground">Choose the boundary between vector bases where the cassette is inserted: 0 is before the first base. The server checks vector length and protected feature disruption. A cloning protocol is not generated automatically.</p>
           {config.customBackboneGenbank && (
             <div className="mt-2 font-mono text-[11px] text-muted-foreground">
               {config.customBackboneGenbank.length.toLocaleString()} characters loaded — must be

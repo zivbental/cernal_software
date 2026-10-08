@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { BookMarked, Check, Copy, KeyRound, Plus, RotateCw, ShieldAlert, Trash2 } from "lucide-react";
 
-import { ApiError } from "@/api/client";
 import {
   useApiKeys,
   useCreateApiKey,
@@ -84,7 +83,7 @@ function ApiKeysSection() {
 
       {keysQuery.isLoading ? (
         <Loading />
-      ) : keysQuery.data && keysQuery.data.length > 0 ? (
+      ) : keysQuery.isError ? <p role="alert">Could not load API keys. <button onClick={() => keysQuery.refetch()}>Retry</button></p> : keysQuery.data && keysQuery.data.length > 0 ? (
         <div className="overflow-hidden rounded-xl border border-border">
           {keysQuery.data.map((key) => (
             <KeyRow
@@ -125,12 +124,13 @@ function NewKeyForm({
   const [scopes, setScopes] = useState<string>(SCOPE_OPTIONS[1].value);
   const [expiresInDays, setExpiresInDays] = useState("");
 
-  const message = create.error instanceof ApiError ? create.error.message : null;
+  const message = create.error instanceof Error ? create.error.message : null;
 
   return (
     <form
       onSubmit={async (event) => {
         event.preventDefault();
+        try {
         const key = await create.mutateAsync({
           label,
           scopes: scopes.split(","),
@@ -138,6 +138,7 @@ function NewKeyForm({
         });
         onCreated(key);
         setLabel("");
+        } catch { /* error is rendered without discarding form input */ }
       }}
       className="rounded-2xl border border-border bg-card p-6 shadow-clinical"
     >
@@ -296,13 +297,13 @@ function KeyRow({
     ) {
       return;
     }
-    const fresh = await regenerate.mutateAsync(apiKey.id);
-    onRegenerated(fresh);
+    try { const fresh = await regenerate.mutateAsync(apiKey.id);
+    onRegenerated(fresh); } catch { /* error is rendered below */ }
   }
 
   async function onRevoke() {
     if (!window.confirm(`Revoke "${apiKey.label}"? This cannot be undone.`)) return;
-    await revoke.mutateAsync(apiKey.id);
+    try { await revoke.mutateAsync(apiKey.id); } catch { /* error is rendered below */ }
   }
 
   return (
@@ -330,6 +331,7 @@ function KeyRow({
         </div>
       </div>
 
+      {(regenerate.isError || revoke.isError) && <p role="alert" className="text-xs text-destructive">Could not update this key. Please retry.</p>}
       <div className="flex shrink-0 gap-2">
         <button
           onClick={onReset}

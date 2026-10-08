@@ -48,14 +48,12 @@ cernal_design <- function(client, ..., wait = NULL, dry_run = FALSE) {
 #' @return `job`, with results attached.
 #' @export
 cernal_wait <- function(job, timeout = 300, poll = 2, max_poll = 15) {
-  if (!is.null(job$response$candidates)) {
-    return(job)
-  }
   job_id <- job$response$job_id
   if (is.null(job_id)) {
     stop("This job was never submitted (dry_run=TRUE has no id to wait on).", call. = FALSE)
   }
 
+  if (identical(job$response$status, "COMPLETED") && !is.null(job$response$candidates)) return(job)
   deadline <- Sys.time() + timeout
   delay <- poll
   status <- job$response$status
@@ -65,7 +63,10 @@ cernal_wait <- function(job, timeout = 300, poll = 2, max_poll = 15) {
       stop(sprintf("Job %s did not finish within %ds.", job_id, timeout), call. = FALSE)
     }
     Sys.sleep(min(delay, remaining))
-    resp <- .cernal_request(job$client, "GET", paste0("/api/design/", job_id))
+    remaining <- as.numeric(difftime(deadline, Sys.time(), units = "secs"))
+    if (remaining <= 0) stop("Polling deadline elapsed; resume this job without resubmitting.", call. = FALSE)
+    resp <- .cernal_request(job$client, "GET", paste0("/api/design/", job_id),
+                            timeout = min(job$client$timeout, remaining))
     job$response <- httr2::resp_body_json(resp, simplifyVector = FALSE)
     status <- job$response$status
     delay <- min(delay * 1.5, max_poll)

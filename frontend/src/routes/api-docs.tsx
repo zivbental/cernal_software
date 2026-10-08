@@ -37,7 +37,7 @@ const LANGUAGES = [
 from cernal import Client
 
 c = Client(api_key=os.environ["CERNAL_API_KEY"], base_url="https://your-cernal-host")`,
-    quick: `job = c.design(trigger_sequence="AUGGCUAAGCUUAACGGAUCC", organism="ecoli")
+    quick: `job = c.design(trigger_sequence="AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA", organism="ecoli")
 df = job.wait().to_dataframe()
 print(df.head())`,
     full: `job = c.design(
@@ -45,14 +45,14 @@ print(df.head())`,
     organism="ecoli",
     gate_families=["toehold"],
     constraints={
-        "max_triggers": 2, "min_separation": 1.0, "max_p_adj": 0.01,
+        "max_triggers": 1, "min_separation": 1.0, "max_p_adj": 0.01,
         "trigger_lengths": [30, 33, 36], "standard": "RFC10",
     },
     scoring={
         "weights": {"predicted_leakage": 4.0, "gc_content": 0.0},
         "hard_filters": [{"metric": "dynamic_range", "minimum": 10.0}],
     },
-    budget={"max_designs": 50_000, "max_runtime_seconds": 1800},
+    budget={"max_designs": 20},
     seed=42,
     top_n=25,
 )
@@ -60,7 +60,7 @@ print(job.estimate)          # from the 202, before waiting
 best = job.wait().best()     # highest-ranked candidate, as a dict
 job.artifact("fasta").save("best.fa")`,
     polling: `# block up to 60s for the finished result, inline
-job = c.design(trigger_sequence="AUGGCUAAGCUUAACGGAUCC", organism="ecoli", wait=60)
+job = c.design(trigger_sequence="AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA", organism="ecoli", wait=60)
 
 # cost a whole sweep before running any of it — see the Recipes below
 cheap = Client(api_key=os.environ["CERNAL_API_KEY"], base_url="https://your-cernal-host",
@@ -85,7 +85,7 @@ except AuthError as e:
     install: 'remotes::install_github("zivbental/cernal_software", subdir = "clients/r")',
     authenticate: `library(cernal)
 cl <- cernal_client(Sys.getenv("CERNAL_API_KEY"), base_url = "https://your-cernal-host")`,
-    quick: `job <- cernal_design(cl, trigger_sequence = "AUGGCUAAGCUUAACGGAUCC", organism = "ecoli")
+    quick: `job <- cernal_design(cl, trigger_sequence = "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA", organism = "ecoli")
 df  <- cernal_results(cernal_wait(job))
 head(df)`,
     full: `job <- cernal_design(
@@ -93,18 +93,18 @@ head(df)`,
   dge_csv       = readr::read_file("deseq2.csv"),
   organism      = "ecoli",
   gate_families = "toehold",
-  constraints   = list(max_triggers = 2L, min_separation = 1.0, max_p_adj = 0.01,
+  constraints   = list(max_triggers = 1L, min_separation = 1.0, max_p_adj = 0.01,
                        trigger_lengths = c(30L, 33L, 36L), standard = "RFC10"),
   scoring       = list(weights = list(predicted_leakage = 4.0, gc_content = 0.0),
                        hard_filters = list(list(metric = "dynamic_range", minimum = 10.0))),
-  budget        = list(max_designs = 50000L, max_runtime_seconds = 1800L),
+  budget        = list(max_designs = 20L),
   seed = 42L, top_n = 25L
 )
 df   <- cernal_results(cernal_wait(job))
 best <- cernal_best(job)
 cernal_artifact(job, "fasta", "best.fa")`,
     polling: `# block up to 60s for the finished result, inline
-job <- cernal_design(cl, trigger_sequence = "AUGGCUAAGCUUAACGGAUCC",
+job <- cernal_design(cl, trigger_sequence = "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA",
                       organism = "ecoli", wait = 60)
 
 # the flagship demo — see "DESeq2 → plasmid design" in the Recipes below
@@ -124,23 +124,23 @@ job <- cernal_design(cl, dge_csv = readr::format_csv(deseq_table), organism = "e
     install: "addpath('/path/to/cernal_software/clients/matlab');",
     authenticate:
       "c = cernal.Client(getenv('CERNAL_API_KEY'), 'BaseURL', 'https://your-cernal-host');",
-    quick: `job = c.design('trigger_sequence', 'AUGGCUAAGCUUAACGGAUCC', 'organism', 'ecoli');
+    quick: `job = c.design('trigger_sequence', 'AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA', 'organism', 'ecoli');
 T = job.wait().results();
 head(T)`,
     full: `job = c.design('dge_csv', fileread('deseq2.csv'), ...
                'organism', 'ecoli', ...
                'gate_families', {'toehold'}, ...
-               'constraints', struct('max_triggers', 2, 'min_separation', 1.0, ...
+               'constraints', struct('max_triggers', 1, 'min_separation', 1.0, ...
                                       'max_p_adj', 0.01, 'standard', 'RFC10'), ...
                'scoring', struct('weights', struct('predicted_leakage', 4.0, ...
                                                      'gc_content', 0.0)), ...
-               'budget', struct('max_designs', 50000, 'max_runtime_seconds', 1800), ...
+               'budget', struct('max_designs', 20), ...
                'seed', 42, 'top_n', 25);
 T = job.wait().results();
 writetable(T, 'candidates.csv');
 job.artifact('fasta', 'best.fa');`,
     polling: `% block up to 60s for the finished result, inline
-job = c.design('trigger_sequence', 'AUGGCUAAGCUUAACGGAUCC', 'organism', 'ecoli', 'wait', 60);`,
+job = c.design('trigger_sequence', 'AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA', 'organism', 'ecoli', 'wait', 60);`,
     errors: `try
     job = c.design('trigger_sequence', seq, 'organism', 'ecoli').wait();
 catch err
@@ -164,20 +164,20 @@ end`,
 HOST=https://your-cernal-host`,
     quick: `curl -s "$HOST/api/design?wait=60" \\
   -H "X-API-Key: $KEY" -H "Content-Type: application/json" \\
-  -d '{"trigger_sequence": "AUGGCUAAGCUUAACGGAUCC", "organism": "ecoli"}'`,
+  -d '{"trigger_sequence": "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA", "organism": "ecoli"}'`,
     full: `curl -s "$HOST/api/design" -H "X-API-Key: $KEY" -H "Content-Type: application/json" -d '{
   "dataset_id": "…",
   "organism": "ecoli",
   "gate_families": ["toehold"],
-  "constraints": {"max_triggers": 2, "min_separation": 1.0, "max_p_adj": 0.01,
+  "constraints": {"max_triggers": 1, "min_separation": 1.0, "max_p_adj": 0.01,
                    "trigger_lengths": [30, 33, 36], "standard": "RFC10"},
   "scoring": {"weights": {"predicted_leakage": 4.0, "gc_content": 0.0},
               "hard_filters": [{"metric": "dynamic_range", "minimum": 10.0}]},
-  "budget": {"max_designs": 50000, "max_runtime_seconds": 1800},
+  "budget": {"max_designs": 20},
   "seed": 42, "top_n": 25
 }'`,
     polling: `JOB=$(curl -s "$HOST/api/design" -H "X-API-Key: $KEY" -H "Content-Type: application/json" \\
-  -d '{"trigger_sequence": "AUGGCUAAGCUUAACGGAUCC", "organism": "ecoli"}' | jq -r .job_id)
+  -d '{"trigger_sequence": "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA", "organism": "ecoli"}' | jq -r .job_id)
 
 curl -s "$HOST/api/design/$JOB" -H "X-API-Key: $KEY"
 curl -s "$HOST/api/design/$JOB/results?top_n=10" -H "X-API-Key: $KEY" | jq '.candidates[0]'
@@ -192,6 +192,7 @@ curl -s "$HOST/api/design/$JOB/results?format=csv" -H "X-API-Key: $KEY" -o candi
 const PARAMETERS: ParamRow[] = [
   { field: "trigger_sequence", type: "string", default: '""', notes: "Direct mode: the mRNA, pasted. Exactly one of these three input fields." },
   { field: "dataset_id", type: "uuid", default: "null", notes: "DE mode: an existing, VALID dataset you own." },
+  { field: "gene_id", type: "string", default: '""', notes: "Gene mode: resolve a reference gene ID or unambiguous symbol for the selected organism." },
   { field: "dge_csv", type: "string", default: '""', notes: "DE mode: an inline differential-expression table — creates a dataset." },
   { field: "organism", type: "string", default: '""', notes: "e.g. \"E. coli\". Stored on the run." },
   { field: "gate_families", type: "string[] | null", default: "null (all available)", notes: "Which switch chemistries may be used." },
@@ -200,6 +201,7 @@ const PARAMETERS: ParamRow[] = [
   { field: "scoring", type: "object", default: "{}", notes: "Re-weight the nine metrics for this run — every field explained below." },
   { field: "budget", type: "object", default: "{}", notes: "Cost ceiling for this run — every field explained below." },
   { field: "payload", type: "object", default: "{}", notes: "What the circuit expresses — every field explained below." },
+  { field: "backbone", type: "object", default: "{}", notes: "Use catalog_key, or custom_genbank plus insertion_index (a zero-based boundary between vector bases). Omit for a cassette. The engine rejects protected feature disruption; no cloning protocol is inferred." },
   { field: "top_n", type: "integer", default: "25", notes: "How many ranked candidates the results endpoint returns." },
   { field: "include_rejected", type: "boolean", default: "false", notes: "Include candidates a hard filter disqualified, with their reason." },
   { field: "include_metrics", type: "boolean", default: "true", notes: "Embed the full metric decomposition per candidate." },
@@ -211,8 +213,8 @@ const PARAMETERS: ParamRow[] = [
 ];
 
 const CONSTRAINTS_FIELDS: ParamRow[] = [
-  { field: "max_triggers", type: "integer", default: "2", notes: "Circuit arity ceiling — how many triggers a single gate may combine." },
-  { field: "max_circuit_gates", type: "integer", default: "2", notes: "How many gates one circuit may combine. 1 gives one circuit per gene; higher also proposes A AND NOT B style circuits, each priced by circuit_complexity." },
+  { field: "max_triggers", type: "integer", default: "1", notes: "Physical single-input gate only; larger arity is unavailable in this engine." },
+  { field: "max_circuit_gates", type: "integer", default: "1", notes: "Independent single-input constructs only. Requests above 1 require an unavailable reviewed physical compiler and are rejected." },
   { field: "min_separation", type: "float", default: "0.5", notes: "Minimum |log2 fold change| for a gene to be considered usable." },
   { field: "max_p_adj", type: "float", default: "0.05", notes: "Adjusted p-value significance threshold." },
   { field: "trigger_lengths", type: "integer[]", default: "[30, 33, 36]", notes: "Window sizes to scan, in nt." },
@@ -229,19 +231,18 @@ const SCORING_FIELDS: ParamRow[] = [
 ];
 
 const BUDGET_FIELDS: ParamRow[] = [
-  { field: "max_designs", type: "integer", default: "100,000", notes: "Hard ceiling on designs evaluated for this run." },
-  { field: "max_runtime_seconds", type: "integer | null", default: "null", notes: "Hard ceiling on wall-clock runtime for this run." },
-  { field: "on_exceed", type: "string", default: '"return_best"', notes: '"return_best" | "fail" — what happens when a ceiling is hit mid-run.' },
+  { field: "max_designs", type: "integer", default: "20", notes: "Deterministic gate-design evaluation cap (1–1,000). Payload alternatives are evaluated for each retained gate. Truncation is reported in warnings and provenance." },
 ];
 
 const PAYLOAD_FIELDS: ParamRow[] = [
-  { field: "outputs", type: "string[]", default: "[]", notes: 'What the circuit expresses, e.g. ["gfp", "ampr"].' },
+  { field: "optimize_codons", type: "boolean", default: "false", notes: "Optional optimization for the selected host; preserves the encoded protein and records sequence checksums. Pinned reporter CDS is retained by default." },
+  { field: "outputs", type: "string[]", default: "[]", notes: 'What the circuit expresses, e.g. ["gfp", "other"]; named outputs must be advertised by /api/version.' },
   { field: "custom_sequence", type: "string | null", default: "null", notes: "A custom payload sequence, in place of a named output." },
 ];
 
 const QUERY_PARAMS = [
   { field: "?wait=<seconds>", notes: "Block server-side for a finished result (ceiling 300s). Falls back to 202 on timeout." },
-  { field: "?dry_run=true", notes: "Estimate designs and runtime without submitting — makes no database writes at all." },
+  { field: "?dry_run=true", notes: "Validate inputs and return an uncalibrated design estimate with a candidate upper bound; runtime seconds are null. No job is persisted." },
 ];
 
 const SCOPES = [
@@ -275,13 +276,14 @@ const SCORING_RULES = [
 const SWEEP_RECIPE = `import os
 from cernal import Client
 
-# dry_run=True means every call below estimates — nothing is queued, nothing costs compute
+# dry_run=True validates and estimates without queuing a scientific computation
 cheap = Client(api_key=os.environ["CERNAL_API_KEY"],
                base_url="https://your-cernal-host", dry_run=True)
 
-for organism in ("ecoli", "yeast", "bsubtilis"):
+for organism in ("ecoli", "yeast", "human", "c_acnes"):
     estimate = cheap.design(trigger_sequence=seq, organism=organism).estimate
-    print(f"{organism}: {estimate['designs']} designs, ~{estimate['seconds']}s ({estimate['confidence']})")
+    print(f"{organism}: {estimate['designs']} estimated designs; "
+          f"candidate upper bound {estimate['candidate_upper_bound']}; runtime uncalibrated")
 
 # happy with the numbers? the same call against a real client queues it for real
 c = Client(api_key=os.environ["CERNAL_API_KEY"], base_url="https://your-cernal-host")
@@ -317,7 +319,7 @@ job <- cernal_design(
   dge_csv       = readr::format_csv(deseq_table),
   organism      = "ecoli",
   gate_families = "toehold",
-  constraints   = list(max_triggers = 2L, min_separation = 1.0, max_p_adj = 0.01),
+  constraints   = list(max_triggers = 1L, min_separation = 1.0, max_p_adj = 0.01),
   scoring       = list(weights = list(predicted_leakage = 4.0)),
   seed          = 42L
 )
@@ -830,7 +832,7 @@ function ApiDocsPage() {
                 <div className="grid grid-cols-[auto_1fr] gap-4 px-4 py-4">
                   <span className="pt-0.5 font-mono text-[11px] text-mint">In [2]:</span>
                   <CodeBlock
-                    code={`job = c.design(trigger_sequence="AUGGCUAAGCUUAACGGAUCC", organism="ecoli")
+                    code={`job = c.design(trigger_sequence="AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA", organism="ecoli")
 df = job.wait().to_dataframe()
 df.head()`}
                     label="python"

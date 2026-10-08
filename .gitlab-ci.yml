@@ -30,11 +30,13 @@ backend:
     paths: [.uv-cache]
   before_script:
     - pip install --quiet uv
-    - uv sync --extra dev
+    - uv sync --locked --extra dev
   script:
     - uv run ruff check .
     - uv run ruff format --check .
     - uv run python manage.py check
+    - uv run python manage.py makemigrations --check --dry-run
+    - uv run python tools/gen_api_surface.py --check
     - uv run pytest -q
 
 # Python client conformance (docs/public-api.md §11.4): submits
@@ -51,7 +53,7 @@ client-python:
     paths: [.uv-cache]
   before_script:
     - pip install --quiet uv
-    - uv sync --extra dev
+    - uv sync --locked --extra dev
   script:
     - uv run --with requests --with 'cernal @ ./clients/python' pytest clients/python/tests -c clients/python/tests/pytest.ini -q
 
@@ -68,8 +70,25 @@ frontend:
     - cd frontend
     - npm ci
   script:
+    - npm run build:fast
     - npm run check
     - npm run build
+    - npx playwright install --with-deps chromium
+    - npm run test:browser
   artifacts:
     paths: [src/static/app/]
     expire_in: 1 week
+
+browser-queued:
+  stage: check
+  image: node:22-bookworm
+  before_script:
+    - apt-get update && apt-get install -y python3 python3-pip curl
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv sync --locked --extra dev
+    - npm --prefix frontend ci
+    - npm --prefix frontend run build:fast
+    - cd frontend && npx playwright install --with-deps chromium && cd ..
+  script:
+    - node frontend/e2e/queued.mjs

@@ -28,8 +28,8 @@ def test_wait_timeout_and_queued_options():
     )
     assert session.calls[0][2]["timeout"] == 130
     calls = []
-    client.status = lambda _: {"status": "COMPLETED"}
-    client.results = lambda _, **query: calls.append(query) or {"candidates": []}
+    client.status = lambda _, **kwargs: {"status": "COMPLETED"}
+    client.results = lambda _, timeout=None, **query: calls.append(query) or {"candidates": []}
     job.wait(poll=0)
     assert calls == [
         {
@@ -61,12 +61,42 @@ def test_invalid_wait_does_not_submit(wait):
     ],
 )
 def test_best_uses_accepted_rank(candidates, rank):
-    best = Job(None, {"candidates": candidates}).best()
+    best = Job(None, {"job_id": "run", "status": "COMPLETED", "candidates": candidates}).best()
     assert (best["rank"] if best else None) == rank
 
 
 def test_resumed_job_retains_explicit_options():
     calls = []
-    client = SimpleNamespace(results=lambda _, **query: calls.append(query) or {"candidates": []})
+    client = SimpleNamespace(
+        timeout=30,
+        results=lambda _, timeout=None, **query: calls.append(query) or {"candidates": []},
+    )
     Job(client, {"job_id": "run", "status": "COMPLETED"}, result_options={"top_n": 1}).wait()
     assert calls == [{"top_n": 1}]
+
+
+def test_poll_http_timeout_is_remaining_budget(monkeypatch):
+    times = iter([0, 1, 2, 3])
+    monkeypatch.setattr("cernal.job.time.monotonic", lambda: next(times))
+    calls = []
+    client = SimpleNamespace(
+        timeout=30, status=lambda _, **kwargs: calls.append(kwargs) or {"status": "FAILED"}
+    )
+    with pytest.raises(Exception, match="ended FAILED"):
+        Job(client, {"job_id": "run", "status": "QUEUED"}).wait(timeout=5, poll=0)
+    assert calls == [{"timeout": 3}]
+
+
+@pytest.mark.parametrize(
+    "response, message",
+    [
+        ({"job_id": None, "status": "DRAFT", "candidates": []}, "never submitted"),
+        ({"job_id": "run", "status": "FAILED", "candidates": []}, "ended FAILED"),
+        ({"job_id": "run", "status": "CANCELLED", "candidates": []}, "ended CANCELLED"),
+    ],
+)
+def test_candidate_field_is_not_a_completion_signal(response, message):
+    from cernal import RunFailed
+
+    with pytest.raises(RunFailed, match=message):
+        Job(None, response).wait()

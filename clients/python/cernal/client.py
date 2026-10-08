@@ -8,7 +8,7 @@ from typing import Any
 
 import requests
 
-from cernal.errors import AuthError, CernalError, RateLimited, ValidationError
+from cernal.errors import AuthError, CernalError, RateLimited, TransportError, ValidationError
 from cernal.job import Job
 
 
@@ -81,11 +81,11 @@ class Client:
             options["include_artifacts"] = ",".join(options["include_artifacts"])
         return Job(self, body, result_options=options)
 
-    def status(self, job_id: str) -> dict:
-        return self._request("GET", f"/api/design/{job_id}")
+    def status(self, job_id: str, *, timeout: float | None = None) -> dict:
+        return self._request("GET", f"/api/design/{job_id}", timeout=timeout)
 
-    def results(self, job_id: str, **query: Any) -> dict:
-        return self._request("GET", f"/api/design/{job_id}/results", params=query)
+    def results(self, job_id: str, *, timeout: float | None = None, **query: Any) -> dict:
+        return self._request("GET", f"/api/design/{job_id}/results", params=query, timeout=timeout)
 
     def artifact(self, artifact_id: str) -> bytes:
         return self._request("GET", f"/api/artifacts/{artifact_id}/download", raw=True).content
@@ -109,14 +109,19 @@ class Client:
         timeout: float | None = None,
     ):
         headers = {"X-API-Key": self.api_key} if auth else {}
-        response = self._session.request(
-            method,
-            f"{self.base_url}{path}",
-            json=json,
-            params=params,
-            headers=headers,
-            timeout=self.timeout if timeout is None else timeout,
-        )
+        try:
+            response = self._session.request(
+                method,
+                f"{self.base_url}{path}",
+                json=json,
+                params=params,
+                headers=headers,
+                timeout=self.timeout if timeout is None else timeout,
+            )
+        except requests.RequestException as exc:
+            raise TransportError(
+                "Could not complete the HTTP request; resume the existing job after reconnecting."
+            ) from exc
         self._raise_for_status(response)
         return response if raw else response.json()
 

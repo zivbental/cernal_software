@@ -43,6 +43,10 @@ def test_a_direct_run_executes_end_to_end(
             input_mode="direct",
             trigger_sequence=TRIGGER,
             organism="ecoli",
+            params={
+                "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                "budget": {"max_designs": 3},
+            },
         ).json()["id"]
 
     run_analysis(run_id)
@@ -140,7 +144,7 @@ def test_deseq2_column_names_are_recognised(auth_client, media_root):
     detected = body["validation_report"]["detected_columns"]
     assert detected["gene"] == "gene_id"
     assert detected["log2FoldChange"] == "log2fc"
-    assert detected["baseMean"] == "base_expression"
+    assert detected["baseMean"] == "base_mean"
 
 
 def test_gene_id_and_gene_symbol_are_kept_as_separate_columns(auth_client, media_root):

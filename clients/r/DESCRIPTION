@@ -6,7 +6,7 @@ Authors@R: person("iGEM TAU 2026 Team", "Tel Aviv University", role = c("aut", "
 Description: A thin client for the CERNAL API (docs/public-api.md): submit a
     differential-expression table or a trigger mRNA sequence, poll for ranked RNA
     logic circuit designs, and read the results as a tibble. Wraps five HTTP calls,
-    not all 32 endpoints — anyone needing more talks to the documented REST API
+    not the complete API surface — anyone needing more talks to the documented REST API
     directly.
 License: Apache License (>= 2)
 Encoding: UTF-8
@@ -15,5 +15,6 @@ Imports:
     httr2 (>= 1.0.0),
     tibble
 Suggests:
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    jsonlite
 Config/testthat/edition: 3

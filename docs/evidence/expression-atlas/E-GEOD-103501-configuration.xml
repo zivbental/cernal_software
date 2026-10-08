@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration experimentType="rnaseq_mrna_differential" r_data="1">
+    <analytics>
+        <assay_groups>
+            <assay_group id="g1" label="normal; Growth Medium">
+                <assay>SRR6006877</assay>
+                <assay>SRR6006878</assay>
+                <assay>SRR6006876</assay>
+                <assay>SRR6006875</assay>
+            </assay_group>
+            <assay_group id="g2" label="normal; lipopolysaccharide">
+                <assay>SRR6006886</assay>
+                <assay>SRR6006888</assay>
+                <assay>SRR6006885</assay>
+                <assay>SRR6006887</assay>
+            </assay_group>
+            <assay_group id="g3" label="normal; none">
+                <assay>SRR6006896</assay>
+                <assay>SRR6006895</assay>
+                <assay>SRR6006898</assay>
+                <assay>SRR6006897</assay>
+                <assay>SRR6006899</assay>
+            </assay_group>
+            <assay_group id="g4" label="systemic-onset juvenile idiopathic arthritis; Growth Medium">
+                <assay>SRR6006883</assay>
+                <assay>SRR6006880</assay>
+                <assay>SRR6006882</assay>
+                <assay>SRR6006879</assay>
+                <assay>SRR6006884</assay>
+                <assay>SRR6006881</assay>
+            </assay_group>
+            <assay_group id="g5" label="systemic-onset juvenile idiopathic arthritis; lipopolysaccharide">
+                <assay>SRR6006890</assay>
+                <assay>SRR6006891</assay>
+                <assay>SRR6006889</assay>
+                <assay>SRR6006892</assay>
+                <assay>SRR6006894</assay>
+                <assay>SRR6006893</assay>
+            </assay_group>
+            <assay_group id="g6" label="systemic-onset juvenile idiopathic arthritis; none">
+                <assay>SRR6006901</assay>
+                <assay>SRR6006903</assay>
+                <assay>SRR6006906</assay>
+                <assay>SRR6006900</assay>
+                <assay>SRR6006904</assay>
+                <assay>SRR6006905</assay>
+                <assay>SRR6006902</assay>
+            </assay_group>
+        </assay_groups>
+        <contrasts>
+            <contrast id="g3_g1" cttv_primary="0">
+                <name>'Growth Medium' vs 'none' in 'normal'</name>
+                <reference_assay_group>g3</reference_assay_group>
+                <test_assay_group>g1</test_assay_group>
+                <batch_effects>
+                    <batch_effect name="sex">
+                        <batch value="male">
+                            <assay>SRR6006899</assay>
+                            <assay>SRR6006878</assay>
+                            <assay>SRR6006877</assay>
+                            <assay>SRR6006896</assay>
+                        </batch>
+                        <batch value="female">
+                            <assay>SRR6006895</assay>
+                            <assay>SRR6006875</assay>
+                            <assay>SRR6006897</assay>
+                            <assay>SRR6006876</assay>
+                            <assay>SRR6006898</assay>
+                        </batch>
+                    </batch_effect>
+                </batch_effects>
+            </contrast>
+            <contrast id="g1_g4" cttv_primary="1">
+                <name>'systemic-onset juvenile idiopathic arthritis' vs 'normal' in 'Growth Medium'</name>
+                <reference_assay_group>g1</reference_assay_group>
+                <test_assay_group>g4</test_assay_group>
+                <batch_effects>
+                    <batch_effect name="sex">
+                        <batch value="female">
+                            <assay>SRR6006884</assay>
+                            <assay>SRR6006876</assay>
+                            <assay>SRR6006881</assay>
+                            <assay>SRR6006875</assay>
+                            <assay>SRR6006882</assay>
+                        </batch>
+                        <batch value="male">
+                            <assay>SRR6006880</assay>
+                            <assay>SRR6006883</assay>
+                            <assay>SRR6006879</assay>
+                            <assay>SRR6006877</assay>
+                            <assay>SRR6006878</assay>
+                        </batch>
+                    </batch_effect>
+                </batch_effects>
+            </contrast>
+            <contrast id="g3_g2" cttv_primary="0">
+                <name>'lipopolysaccharide' vs 'none' in 'normal'</name>
+                <reference_assay_group>g3</reference_assay_group>
+                <test_assay_group>g2</test_assay_group>
+                <batch_effects>
+                    <batch_effect name="sex">
+                        <batch value="female">
+                            <assay>SRR6006895</assay>
+                            <assay>SRR6006885</assay>
+                            <assay>SRR6006886</assay>
+                            <assay>SRR6006898</assay>
+                            <assay>SRR6006897</assay>
+                        </batch>
+                        <batch value="male">
+                            <assay>SRR6006896</assay>
+                            <assay>SRR6006887</assay>
+                            <assay>SRR6006899</assay>
+                            <assay>SRR6006888</assay>
+                        </batch>
+                    </batch_effect>
+                </batch_effects>
+            </contrast>
+            <contrast id="g2_g5" cttv_primary="0">
+                <name>'systemic-onset juvenile idiopathic arthritis' vs 'normal' in 'lipopolysaccharide'</name>
+                <reference_assay_group>g2</reference_assay_group>
+                <test_assay_group>g5</test_assay_group>
+                <batch_effects>
+                    <batch_effect name="sex">
+                        <batch value="female">
+                            <assay>SRR6006894</assay>
+                            <assay>SRR6006885</assay>
+                            <assay>SRR6006886</assay>
+                            <assay>SRR6006891</assay>
+                            <assay>SRR6006892</assay>
+                        </batch>
+                        <batch value="male">
+                            <assay>SRR6006889</assay>
+                            <assay>SRR6006893</assay>
+                            <assay>SRR6006887</assay>
+                            <assay>SRR6006890</assay>
+                            <assay>SRR6006888</assay>
+                        </batch>
+                    </batch_effect>
+                </batch_effects>
+            </contrast>
+            <contrast id="g3_g6" cttv_primary="1">
+                <name>'systemic-onset juvenile idiopathic arthritis' vs 'normal' in 'none'</name>
+                <reference_assay_group>g3</reference_assay_group>
+                <test_assay_group>g6</test_assay_group>
+                <batch_effects>
+                    <batch_effect name="sex">
+                        <batch value="male">
+                            <assay>SRR6006899</assay>
+                            <assay>SRR6006905</assay>
+                            <assay>SRR6006900</assay>
+                            <assay>SRR6006901</assay>
+                            <assay>SRR6006902</assay>
+                            <assay>SRR6006896</assay>
+                        </batch>
+                        <batch value="female">
+                            <assay>SRR6006897</assay>
+                            <assay>SRR6006898</assay>
+                            <assay>SRR6006906</assay>
+                            <assay>SRR6006904</assay>
+                            <assay>SRR6006895</assay>
+                            <assay>SRR6006903</assay>
+                        </batch>
+                    </batch_effect>
+                </batch_effects>
+            </contrast>
+            <contrast id="g6_g4" cttv_primary="0">
+                <name>'Growth Medium' vs 'none' in 'systemic-onset juvenile idiopathic arthritis'</name>
+                <reference_assay_group>g6</reference_assay_group>
+                <test_assay_group>g4</test_assay_group>
+                <batch_effects>
+                    <batch_effect name="sex">
+                        <batch value="female">
+                            <assay>SRR6006884</assay>
+                            <assay>SRR6006906</assay>
+                            <assay>SRR6006881</assay>
+                            <assay>SRR6006903</assay>
+                            <assay>SRR6006882</assay>
+                            <assay>SRR6006904</assay>
+                        </batch>
+                        <batch value="male">
+                            <assay>SRR6006880</assay>
+                            <assay>SRR6006902</assay>
+                            <assay>SRR6006901</assay>
+                            <assay>SRR6006883</assay>
+                            <assay>SRR6006900</assay>
+                            <assay>SRR6006879</assay>
+                            <assay>SRR6006905</assay>
+                        </batch>
+                    </batch_effect>
+                </batch_effects>
+            </contrast>
+            <contrast id="g6_g5" cttv_primary="0">
+                <name>'lipopolysaccharide' vs 'none' in 'systemic-onset juvenile idiopathic arthritis'</name>
+                <reference_assay_group>g6</reference_assay_group>
+                <test_assay_group>g5</test_assay_group>
+                <batch_effects>
+                    <batch_effect name="sex">
+                        <batch value="female">
+                            <assay>SRR6006894</assay>
+                            <assay>SRR6006906</assay>
+                            <assay>SRR6006904</assay>
+                            <assay>SRR6006903</assay>
+                            <assay>SRR6006892</assay>
+                            <assay>SRR6006891</assay>
+                        </batch>
+                        <batch value="male">
+                            <assay>SRR6006905</assay>
+                            <assay>SRR6006890</assay>
+                            <assay>SRR6006900</assay>
+                            <assay>SRR6006889</assay>
+                            <assay>SRR6006893</assay>
+                            <assay>SRR6006901</assay>
+                            <assay>SRR6006902</assay>
+                        </batch>
+                    </batch_effect>
+                </batch_effects>
+            </contrast>
+        </contrasts>
+    </analytics>
+</configuration>

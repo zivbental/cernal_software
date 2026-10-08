@@ -54,9 +54,9 @@ def import_job_result(
     Either the whole result lands or none of it does — a half-imported run must be
     impossible (docs/architecture.md §6.2).
 
-    Artifact *files* are written outside the database's control, so a rollback can leave
-    orphan bytes under ``var/media/artifacts/``. That is harmless: nothing references
-    them, and the run will not be marked COMPLETED.
+    Saved artifact bytes are removed when an exception rolls this transaction back,
+    including cooperative process termination. Hard process termination or failed
+    storage deletion can leave unreferenced bytes for the orphan cleanup command.
     """
     written = []
     try:
@@ -67,11 +67,11 @@ def import_job_result(
             if finalize is not None:
                 finalize()
             return summary
-    except Exception:
+    except BaseException:
         for storage, name in reversed(written):
             try:
                 storage.delete(name)
-            except Exception:
+            except BaseException:
                 logger.exception("Unable to remove failed-import artifact for run %s", run.id)
         raise
 

@@ -12,6 +12,23 @@
     "url": "https://registry.igem.org/parts/bba-b0015",
     "uuid": "a0ebeeab-3947-440e-9cf1-f0a47bbc4c33"
   },
+  "Firefly_luciferase": {
+    "identity_notes": "Photinus pyralis firefly luciferase from Promega PGL3; no substrate-independent light claim.",
+    "length_bp": 1653,
+    "license_uuid": "d6c69ca7-8be4-4bc0-b4a8-d3ae1d428aa6",
+    "registry_name": "BBa_I712019",
+    "retrieved_at": "2026-10-08",
+    "role_accession": "SO:0000316",
+    "role_label": "CDS",
+    "sequence_sha256": "96f67d08021450f2b425c7da4a5e5487ed489b407444fe6ff5dc17ff8177c9f8",
+    "source_origin": "This firefly luciferase comes from Promega PGL3 vector.",
+    "source_revision": "2021-09-08T20:22:52.000Z",
+    "title": "Firefly luciferase - luciferase from Photinus pyralis",
+    "topology_accession": "SO:0000987",
+    "topology_label": "Linear",
+    "url": "https://registry.igem.org/parts/bba-i712019",
+    "uuid": "de3a209d-3cc2-4c74-b17a-50806747f581"
+  },
   "GFP": {
     "length_bp": 720,
     "license_uuid": "d6c69ca7-8be4-4bc0-b4a8-d3ae1d428aa6",
@@ -89,6 +106,23 @@
     "topology_label": "Linear",
     "url": "https://registry.igem.org/parts/bba-k404108",
     "uuid": "a870e151-a4a3-420e-8759-de0408de3c91"
+  },
+  "mCherry": {
+    "identity_notes": "Registry title says monomeric RFP; explicit source says mCherry from Roger Y. Tsien lab, BioBrick variant. The exact CDS also occurs in named mCherry composite BBa_J06702 at offset 18.",
+    "length_bp": 714,
+    "license_uuid": "d6c69ca7-8be4-4bc0-b4a8-d3ae1d428aa6",
+    "registry_name": "BBa_J06504",
+    "retrieved_at": "2026-10-08",
+    "role_accession": "IGEM:0000005",
+    "role_label": "Reporter",
+    "sequence_sha256": "6bc6a66e042b5d4f248a492db75e3f4a1b06652e3f9abd36952e6e6480789699",
+    "source_origin": "mCherry from Roger Y. Tsien's lab, altered to be BioBrick compatible",
+    "source_revision": "2021-09-08T20:23:04.000Z",
+    "title": "monomeric RFP optimized for bacteria",
+    "topology_accession": "",
+    "topology_label": "",
+    "url": "https://registry.igem.org/parts/bba-j06504",
+    "uuid": "8e7b02df-e041-4cce-90ff-9674b5e03871"
   },
   "pSB1A3": {
     "length_bp": 2155,

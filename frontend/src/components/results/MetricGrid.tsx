@@ -27,7 +27,7 @@ const DISPLAY: Record<string, Display> = {
   trigger_accessibility: {
     label: "Accessibility",
     precision: 2,
-    hint: "Predicted fraction of the trigger region free of self-structure.",
+    hint: "Minimum marginal unpaired probability across the trigger region.",
   },
   gate_folding_energy: {
     label: "MFE",
@@ -41,20 +41,20 @@ const DISPLAY: Record<string, Display> = {
     hint: "Proxy for OFF-state activation. Lower is better.",
   },
   orthogonality: {
-    label: "Off-target",
+    label: "Orthogonality",
     unit: "%",
     scale: 100,
     precision: 0,
-    hint: "Predicted independence from other transcripts.",
+    hint: "Unmeasured: no transcriptome-wide off-target scan is integrated.",
   },
-  gc_content: { label: "GC", unit: "%", precision: 0, hint: "Percent GC of the construct." },
-  dynamic_range: { label: "Dyn. range", unit: "×", precision: 0, hint: "Predicted ON/OFF fold change." },
+  gc_content: { label: "GC", unit: "%", precision: 0, hint: "Percent GC of the switch sequence." },
+  dynamic_range: { label: "Accessibility ratio", unit: "×", precision: 0, hint: "Initiation accessibility ratio (proxy), not measured expression fold change." },
   predicted_success_rate: {
-    label: "Success",
+    label: "Binding heuristic",
     unit: "%",
     scale: 100,
     precision: 0,
-    hint: "Model confidence the construct behaves as designed in vivo.",
+    hint: "Binding energy heuristic (uncalibrated); not an in-vivo success probability.",
   },
   circuit_complexity: {
     label: "Complexity",
@@ -68,7 +68,7 @@ function humanize(name: string) {
 }
 
 export function formatMetric(metric: Metric): string {
-  if (metric.raw_value === null) return "—";
+  if (metric.raw_value === null || !Number.isFinite(metric.raw_value)) return "Unmeasured";
   const display = DISPLAY[metric.name];
   const value = metric.raw_value * (display?.scale ?? 1);
   return `${value.toFixed(display?.precision ?? 2)}${display?.unit ?? ""}`;

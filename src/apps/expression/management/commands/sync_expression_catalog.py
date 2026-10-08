@@ -16,6 +16,7 @@ not present on every bioset).
 """
 
 import csv
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -132,11 +133,8 @@ CURATED_EXPERIMENTS = [
     },
 ]
 
-#: A comparison can hold a whole genome/transcriptome (E. coli: ~4,300 genes; human:
-#: ~58,000 measured transcripts). The API preview endpoint already caps what it renders
-#: at 2,000 rows sorted by |log2FC| — storing more than a little past that cap buys
-#: nothing and works against "keep the catalog intentionally small" (task brief §8).
-MAX_ROWS_PER_COMPARISON = 3000
+# Full analysis rows are retained. Only the API's preview is capped; using a preview
+# size to truncate stored analysis data silently changes the biological search space.
 
 
 class Command(BaseCommand):
@@ -212,6 +210,13 @@ class Command(BaseCommand):
             synced_at=synced_at,
             rows=rows,
             manifest=manifest,
+            extra={
+                "comparison_context": comparison.comparison_context,
+                "test_assay_group": comparison.test_assay_group,
+                "reference_assay_group": comparison.reference_assay_group,
+                "test_assays": list(comparison.test_assays),
+                "reference_assays": list(comparison.reference_assays),
+            },
         )
 
     def _atlas_title(self, accession: str) -> str:
@@ -291,10 +296,7 @@ class Command(BaseCommand):
         manifest,
         extra=None,
     ):
-        # Drop untested genes, then keep the most differentially expressed ones — see
-        # MAX_ROWS_PER_COMPARISON's docstring for why capping storage is deliberate.
-        ranked = sorted(rows, key=lambda r: abs(r.log2_fold_change), reverse=True)
-        kept = ranked[:MAX_ROWS_PER_COMPARISON]
+        kept = sorted(rows, key=lambda row: abs(row.log2_fold_change), reverse=True)
 
         organism_dir = CATALOG_DIR / organism
         organism_dir.mkdir(parents=True, exist_ok=True)
@@ -325,6 +327,16 @@ class Command(BaseCommand):
             "genes_with_p_value": with_pvalue,
             "genes_with_adjusted_p_value": with_padj,
             "csv_path": str(csv_path.relative_to(CATALOG_DIR)),
-            "provider_metadata": extra or {},
+            "provider_metadata": {
+                **(extra or {}),
+                "catalog_schema_version": "2",
+                "normalization_version": "contrast-context-v2",
+                "csv_sha256": hashlib.sha256(csv_path.read_bytes()).hexdigest(),
+                "source_tested_rows": len(rows),
+                "retained_rows": len(kept),
+                "row_selection": "all_provider_tested_rows",
+                "data_completeness": "full_tested_rows",
+                "interpretation_review": "pending_human_review",
+            },
         }
         self.stdout.write(f"  {key}: {len(kept)} genes (of {len(rows)} total)")

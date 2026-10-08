@@ -39,13 +39,35 @@ def api_key(transactional_db, settings, tmp_path):
     )
     _key, secret = issue_api_key(owner=user, label="conformance")
 
+    params = {
+        "constraints": DESIGN_REQUEST.get("constraints", {}),
+        "scoring": DESIGN_REQUEST.get("scoring", {}),
+        "budget": DESIGN_REQUEST.get("budget", {}),
+        "payload": DESIGN_REQUEST.get("payload", {}),
+        "backbone": DESIGN_REQUEST.get("backbone", {}),
+        "top_n": DESIGN_REQUEST.get("top_n", 25),
+        "notes": DESIGN_REQUEST.get("notes", ""),
+    }
+    # The validation helper is additive; old servers still receive the same fields.
+    import engine.client as engine_client
+
+    if hasattr(engine_client, "validate_job_configuration"):
+        params = engine_client.validate_job_configuration(
+            params,
+            DESIGN_REQUEST["gate_families"],
+            "default",
+            INPUT_DIRECT,
+            DESIGN_REQUEST["trigger_sequence"],
+            "ecoli",
+        )
+    params = json.loads(json.dumps(params))
     run = AnalysisRun.objects.create(
         input_mode=InputMode.DIRECT,
         trigger_sequence=DESIGN_REQUEST["trigger_sequence"],
         organism="ecoli",
         created_by=user,
         idempotency_key=DESIGN_REQUEST["idempotency_key"],
-        params_snapshot={},
+        params_snapshot=params,
         gate_families=["toehold"],
         scoring_profile="default",
         seed=DESIGN_REQUEST["seed"],
@@ -63,7 +85,7 @@ def api_key(transactional_db, settings, tmp_path):
             input_path="",
             input_checksum="",
             organism="ecoli",
-            params={},
+            params=params,
             gate_families=["toehold"],
             scoring_profile="default",
             seed=run.seed,
@@ -122,3 +144,28 @@ def test_an_unknown_constraint_raises_validation_error_with_did_you_mean(live_se
             constraints={"max_trigger": 2},
         )
     assert excinfo.value.did_you_mean == "max_triggers"
+
+
+def test_real_engine_empty_result_is_not_productive_fixture(tmp_path):
+    from engine.client import LocalEngine
+    from engine.contract import INPUT_DIRECT, SCHEMA_VERSION, SUCCEEDED, JobRequest
+
+    request = JobRequest(
+        schema_version=SCHEMA_VERSION,
+        run_id="empty-client-case",
+        idempotency_key="empty-client-case",
+        input_mode=INPUT_DIRECT,
+        trigger_sequence="AUG" * 9 + "ACG" * 9,
+        input_path="",
+        input_checksum="",
+        organism="ecoli",
+        params={},
+        gate_families=["toehold"],
+        scoring_profile="default",
+        seed=42,
+        output_dir=str(tmp_path),
+    )
+    result = LocalEngine().run(request, lambda pct, stage: True)
+    assert result.status == SUCCEEDED, result.error
+    assert result.candidates == []
+    assert result.warnings

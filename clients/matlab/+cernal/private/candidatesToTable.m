@@ -38,6 +38,14 @@ function T = candidatesToTable(candidates)
         rows{i} = row;
     end
 
+    fieldLists = cellfun(@fieldnames, rows, 'UniformOutput', false);
+    names = unique(vertcat(fieldLists{:}));
+    for i = 1:numel(rows)
+        for n = 1:numel(names)
+            if ~isfield(rows{i}, names{n}), rows{i}.(names{n}) = NaN; end
+        end
+        rows{i} = orderfields(rows{i}, names);
+    end
     T = struct2table([rows{:}]);
 end
 

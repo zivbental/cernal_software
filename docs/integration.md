@@ -1,5 +1,21 @@
 # Integration plan
 
+## Current status — 8 October 2026
+
+The repository location is determined by the current checkout, not an old Windows
+OneDrive inspection. `LocalEngine` is the production engine; `inputs.py` parses DE
+files and `transcriptome.py` resolves bundled references for all four hosts. Scientific
+tool implementations exist; check source and tests before porting a historical stub.
+Keep imports at the Platform↔Engine boundary and use shared tools described in CLAUDE.md.
+
+See [ROADMAP](ROADMAP.md), [remediation status](REMEDIATION_STATUS.md) and the
+[dated audit](SOFTWARE_STATUS_REVIEW_2026-10-08.md) for present limitations.
+
+> **Historical design/development archive:** the text below predates the audit.
+> Claims about absent modules, unsupported Human input, Q1 blockers, installed
+> repository paths, stub counts and tool status are superseded by the status above.
+
+
 **Audience:** Offer and Ziv — the two people who merge to `main`.
 **Scope:** how seven separately vibe-coded repositories become one engine without silently forking the numbers.
 **Companion documents:** [`docs/onboarding.he.md`](onboarding.he.md) is what the team reads; [`docs/ROADMAP.md`](ROADMAP.md) is what is built and what is not; [`docs/engine.md`](engine.md) is the contract every stub docstring restates.
