@@ -85,7 +85,6 @@ class AnalysisRun(UUIDModel, TimestampedModel):
     # --- Immutable submission snapshot ---
     idempotency_key = models.CharField(
         max_length=64,
-        unique=True,
         help_text="Re-submitting with the same key returns the existing run rather than "
         "launching a second computation.",
     )
@@ -128,6 +127,9 @@ class AnalysisRun(UUIDModel, TimestampedModel):
             models.Index(fields=["status"]),
         ]
         constraints = [
+            models.UniqueConstraint(
+                fields=["created_by", "idempotency_key"], name="run_owner_idempotency_unique"
+            ),
             models.CheckConstraint(
                 condition=models.Q(progress_pct__gte=0) & models.Q(progress_pct__lte=100),
                 name="progress_pct_within_bounds",

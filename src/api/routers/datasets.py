@@ -13,6 +13,8 @@ from ninja.security import django_auth
 from api.auth import get_owned, owned_queryset
 from api.errors import Conflict, ValidationFailed
 from api.schemas import DatasetOut, DatasetPreviewOut, ExampleDatasetOut, UseExampleIn
+from api.security import require_scope
+from apps.accounts.models import ApiKeyScope
 from apps.datasets.models import Dataset
 from apps.datasets.services import (
     EXAMPLES,
@@ -37,6 +39,7 @@ def upload_dataset(
     file: UploadedFile = File(...),
     name: str = Form(default=""),
 ):
+    require_scope(request, ApiKeyScope.DESIGN)
     try:
         dataset = create_dataset(uploaded_file=file, user=request.user, name=name or None)
     except DatasetValidationError as exc:
@@ -57,6 +60,7 @@ def list_examples(request):
 @router.post("/datasets/example", response={201: DatasetOut})
 def use_example_dataset(request, payload: UseExampleIn):
     """Copy a bundled example into a real, validated dataset the user can submit a run against."""
+    require_scope(request, ApiKeyScope.DESIGN)
     try:
         dataset = create_example_dataset(user=request.user, key=payload.key)
     except DatasetValidationError as exc:

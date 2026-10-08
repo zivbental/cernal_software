@@ -12,7 +12,9 @@ import tempfile
 import uuid
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
@@ -31,6 +33,14 @@ class RunError(Exception):
     """A run could not be submitted or acted upon."""
 
 
+class SubmissionConflict(RunError):
+    """An idempotency key was reused with different immutable inputs."""
+
+
+class RunQuotaExceeded(RunError):
+    """The account or credential active-run ceiling has been reached."""
+
+
 class InvalidTransition(RunError):
     """An illegal status change was attempted."""
 
@@ -38,6 +48,7 @@ class InvalidTransition(RunError):
 # --- Submission -------------------------------------------------------------------
 
 
+@transaction.atomic
 def submit_run(
     *,
     user,
@@ -50,6 +61,7 @@ def submit_run(
     scoring_profile: str = "default",
     seed: int | None = None,
     idempotency_key: str | None = None,
+    max_concurrent_runs: int | None = None,
 ) -> tuple[AnalysisRun, bool]:
     """Freeze a submission and queue it.
 
@@ -87,14 +99,57 @@ def submit_run(
         raise RunError(f"Unknown input mode '{input_mode}'.")
 
     key = idempotency_key or uuid.uuid4().hex
-    existing = AnalysisRun.objects.filter(idempotency_key=key).first()
-    if existing is not None:
-        logger.info("Idempotent resubmission of run %s (key %s)", existing.id, key)
-        return existing, False
-
+    if not isinstance(key, str) or not key.strip() or len(key) > 64:
+        raise RunError("idempotency_key must contain 1 to 64 characters.")
     capabilities = load_engine(settings.CERNAL_ENGINE).capabilities()
     families = gate_families or ["toehold"]
     _validate_against_capabilities(families, scoring_profile, capabilities)
+
+    # Serialize submissions for this account on PostgreSQL and acquire SQLite's write
+    # reservation before reading the count. The update intentionally leaves the value intact.
+    users = get_user_model().objects
+    users.filter(pk=user.pk).update(last_login=F("last_login"))
+    users.select_for_update().get(pk=user.pk)
+    existing = AnalysisRun.objects.filter(created_by=user, idempotency_key=key).first()
+    if existing is not None:
+        existing_checksum = existing.dataset.checksum_sha256 if existing.dataset_id else None
+        incoming_checksum = dataset.checksum_sha256 if dataset else None
+        identity = (
+            input_mode,
+            trigger_sequence,
+            organism,
+            dict(params or {}),
+            families,
+            scoring_profile,
+            seed,
+            incoming_checksum,
+        )
+        recorded = (
+            existing.input_mode,
+            existing.trigger_sequence,
+            existing.organism,
+            existing.params_snapshot,
+            existing.gate_families,
+            existing.scoring_profile,
+            existing.seed,
+            existing_checksum,
+        )
+        if identity != recorded:
+            raise SubmissionConflict("This idempotency key was already used with different inputs.")
+        logger.info("Idempotent resubmission of run %s", existing.id)
+        return existing, False
+
+    account_limit = getattr(settings, "MAX_ACTIVE_RUNS_PER_ACCOUNT", 2)
+    effective_limit = (
+        min(account_limit, max_concurrent_runs) if max_concurrent_runs else account_limit
+    )
+    active = AnalysisRun.objects.filter(
+        created_by=user, status__in=[RunStatus.QUEUED, RunStatus.RUNNING]
+    ).count()
+    if active >= effective_limit:
+        raise RunQuotaExceeded(
+            f"{active} run(s) already active; this account allows {effective_limit}."
+        )
 
     run = AnalysisRun.objects.create(
         input_mode=input_mode,

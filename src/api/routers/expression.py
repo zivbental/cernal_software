@@ -15,6 +15,8 @@ from api.schemas import (
     PublicDatasetInfoOut,
     PublicExperimentOut,
 )
+from api.security import require_scope
+from apps.accounts.models import ApiKeyScope
 from apps.datasets.services import DatasetValidationError
 from apps.expression.services import (
     get_comparison_info,
@@ -60,6 +62,7 @@ def materialize(request, payload: MaterializePublicDatasetIn):
     """Copy one curated comparison into a real, owned Dataset — same shape as
     ``POST /api/datasets/example``, generalized from one bundled key to the full
     catalog."""
+    require_scope(request, ApiKeyScope.DESIGN)
     try:
         dataset = materialize_public_dataset(
             user=request.user, comparison_key=payload.comparison_key

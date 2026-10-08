@@ -14,6 +14,7 @@ import secrets
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
@@ -40,6 +41,17 @@ def register_user(*, username: str, email: str, password: str, full_name: str = 
 
     if not username:
         raise RegistrationError("Choose a username.")
+    if username.casefold() == REVIEWER_USERNAME.casefold():
+        raise RegistrationError("That username is reserved for the reviewer account.")
+    if len(username) > 150:
+        raise RegistrationError("Usernames must be at most 150 characters.")
+    if not email:
+        raise RegistrationError("An email address is required, so we know who you are.")
+    try:
+        model._meta.get_field("username").run_validators(username)
+        validate_email(email)
+    except ValidationError as exc:
+        raise RegistrationError(" ".join(exc.messages)) from None
     if len(username) < 3:
         raise RegistrationError("Usernames must be at least 3 characters.")
     if len(password) < 8:
@@ -122,6 +134,14 @@ def get_or_create_reviewer_account():
             "is_superuser": False,
         },
     )
+    if not created and (
+        user.is_staff
+        or user.is_superuser
+        or not user.is_active
+        or user.has_usable_password()
+        or user.email != "reviewer@cernal.local"
+    ):
+        raise RegistrationError("The dedicated reviewer identity is unavailable.")
     if created:
         user.set_unusable_password()
         user.save(update_fields=["password"])
@@ -154,25 +174,43 @@ def issue_api_key(
     Session-authenticated callers only (docs/public-api.md §5): you cannot mint a key
     with a key, which keeps a leaked key from becoming a permanent foothold.
     """
+    if not scopes:
+        raise RegistrationError("Select at least one API-key scope.")
+    for name, value, maximum in (
+        ("expires_in_days", expires_in_days, 3650),
+        ("max_concurrent_runs", max_concurrent_runs, 100),
+        ("rate_per_minute", rate_per_minute, 10000),
+    ):
+        if value is not None and (type(value) is not int or not 1 <= value <= maximum):
+            raise RegistrationError(f"{name} must be an integer between 1 and {maximum}.")
     unknown = set(scopes) - set(ApiKeyScope.values)
     if unknown:
         raise RegistrationError(f"Unknown scope(s): {', '.join(sorted(unknown))}.")
 
-    secret = f"{_KEY_PREFIX}{secrets.token_urlsafe(24)}"
     expires_at = (
-        timezone.now() + timezone.timedelta(days=expires_in_days) if expires_in_days else None
+        timezone.now() + timezone.timedelta(days=expires_in_days)
+        if expires_in_days is not None
+        else None
     )
-
-    key = ApiKey.objects.create(
-        owner=owner,
-        label=label,
-        prefix=secret[:14],
-        key_hash=hashlib.sha256(secret.encode()).hexdigest(),
-        scopes=list(scopes),
-        expires_at=expires_at,
-        max_concurrent_runs=max_concurrent_runs,
-        rate_per_minute=rate_per_minute,
-    )
+    for _attempt in range(10):
+        secret = f"{_KEY_PREFIX}{secrets.token_urlsafe(24)}"
+        try:
+            with transaction.atomic():
+                key = ApiKey.objects.create(
+                    owner=owner,
+                    label=label,
+                    prefix=secret[:14],
+                    key_hash=hashlib.sha256(secret.encode()).hexdigest(),
+                    scopes=list(scopes),
+                    expires_at=expires_at,
+                    max_concurrent_runs=max_concurrent_runs,
+                    rate_per_minute=rate_per_minute,
+                )
+        except IntegrityError:
+            continue
+        break
+    else:
+        raise RegistrationError("A unique API key could not be issued. Please retry.")
     logger.info("API key '%s' issued to %s (%s)", label, owner.username, key.prefix)
     return key, secret
 
@@ -218,10 +256,21 @@ def regenerate_api_key(key: ApiKey) -> tuple[ApiKey, str]:
     lost/leaked this, give me a working one back" action, not a second credential
     alongside the old one).
     """
-    secret = f"{_KEY_PREFIX}{secrets.token_urlsafe(24)}"
-    key.prefix = secret[:14]
-    key.key_hash = hashlib.sha256(secret.encode()).hexdigest()
-    key.revoked_at = None
-    key.save(update_fields=["prefix", "key_hash", "revoked_at", "updated_at"])
+    if key.expires_at is not None and key.expires_at <= timezone.now():
+        raise RegistrationError("This key has expired. Create a new key with a new expiry.")
+    for _attempt in range(10):
+        secret = f"{_KEY_PREFIX}{secrets.token_urlsafe(24)}"
+        key.prefix = secret[:14]
+        key.key_hash = hashlib.sha256(secret.encode()).hexdigest()
+        key.revoked_at = None
+        try:
+            with transaction.atomic():
+                key.save(update_fields=["prefix", "key_hash", "revoked_at", "updated_at"])
+        except IntegrityError:
+            continue
+        break
+    else:
+        key.refresh_from_db()
+        raise RegistrationError("A unique API key could not be issued. Please retry.")
     logger.info("API key '%s' (%s) regenerated for %s", key.label, key.prefix, key.owner.username)
     return key, secret
