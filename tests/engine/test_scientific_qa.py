@@ -312,3 +312,32 @@ def test_invalid_compute_budget_is_rejected(budget):
         validate_job_configuration(
             {"budget": budget}, ["toehold"], "default", "direct", "AUGC", "ecoli"
         )
+
+
+def test_suboptimal_matches_viennarna_energy_window_and_count_limit():
+    import RNA
+
+    folder = FoldEngine()
+    actual = folder.suboptimal("GGGAAACCC", 0.5)
+    model = RNA.md()
+    model.temperature = 37
+    model.uniq_ML = 1
+    expected = RNA.fold_compound("GGGAAACCC", model).subopt(50)
+    assert [(fold.structure, fold.energy) for fold in actual] == sorted(
+        [(fold.structure, fold.energy) for fold in expected], key=lambda fold: (fold[1], fold[0])
+    )
+    with pytest.raises(ValueError, match="count limit"):
+        folder.suboptimal("GGGAAACCC", 0.5, max_structures=1)
+    with pytest.raises(ValueError, match=r"1\.\.150"):
+        folder.suboptimal("A" * 151)
+
+
+def test_suboptimal_timeout_returns_no_partial_ensemble(monkeypatch):
+    import subprocess
+
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+    with pytest.raises(TimeoutError, match="time limit"):
+        FoldEngine().suboptimal("GGGAAACCC")

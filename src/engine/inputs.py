@@ -112,10 +112,16 @@ def parse_dge_table(
             workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
             sheet_rows = workbook.worksheets[0].iter_rows(values_only=True)
             headers = [str(value or "").strip() for value in next(sheet_rows, ())]
-            reader = (
-                dict(zip(headers, (None if v is None else str(v) for v in values), strict=False))
-                for values in sheet_rows
-            )
+
+            def spreadsheet_rows():
+                for values in sheet_rows:
+                    if any(value not in (None, "") for value in values[len(headers) :]):
+                        raise InputValidationError("Spreadsheet row has cells beyond its header.")
+                    yield dict(
+                        zip(headers, (None if v is None else str(v) for v in values), strict=False)
+                    )
+
+            reader = spreadsheet_rows()
         except (
             BadZipFile,
             InvalidFileException,
@@ -165,7 +171,7 @@ def parse_dge_table(
     if "log2fc" not in normalized:
         if workbook is not None:
             workbook.close()
-        raise InputValidationError("A log2 fold change column is required (log2fc).")
+        raise InputValidationError("A log2 fold change column is required (log2fc/log2FoldChange).")
 
     try:
         rows: list[DgeRow] = []
@@ -240,4 +246,5 @@ def parse_dge_table(
         ),
         source_row_count=len(seen_ids),
         columns=tuple(canonical.values()),
+        detected_columns=tuple(canonical.items()),
     )

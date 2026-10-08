@@ -186,6 +186,7 @@ def inspect_expression_input(path: str, limit: int | None = 100) -> dict:
             "Tested hypothesis universe is unspecified; raw p-values do not establish FDR control."
         ],
         "columns": columns,
+        "detected_columns": dict(table.detected_columns),
         "row_count": table.source_row_count,
         "preview": [
             {key: getattr(row, fields.get(key, key)) for key in columns}
@@ -216,6 +217,8 @@ def validate_job_configuration(
 
     if not isinstance(params, dict):
         raise ValueError("params must be an object.")
+    if "scientific_provenance" in params:
+        raise ValueError("scientific_provenance is engine-generated metadata, not a parameter.")
     if input_mode not in ("direct", "de", "gene"):
         raise ValueError("input_mode must be direct, de, or gene.")
     for block in ("constraints", "payload", "backbone", "scoring", "statistics", "target_gene"):
@@ -278,9 +281,20 @@ def validate_job_configuration(
         outputs, warnings = _resolve_outputs(params, host)
         if warnings or not outputs:
             raise ValueError("; ".join(warnings) or "No supported output requested.")
-        _resolve_backbone(params)
+        backbone_segments = _resolve_backbone(params)
+        insertion = (params.get("backbone") or {}).get("insertion_index", 0)
+        if (
+            isinstance(insertion, bool)
+            or not isinstance(insertion, int)
+            or not 0 <= insertion <= sum(segment.length_bp for segment in backbone_segments)
+        ):
+            raise ValueError(
+                "backbone.insertion_index must be a 0-based boundary within the vector."
+            )
         if host is Host.HUMAN and (params.get("backbone") or {}).get("catalog_key"):
-            raise ValueError("Bundled bacterial backbones are incompatible with Human expression.")
+            raise ValueError(
+                "Human expression requires a mammalian vector; bundled backbones are bacterial."
+            )
         if input_mode == "direct":
             normalized = normalize_trigger_sequence(trigger_sequence)
             if len(normalized) > 10_000:
@@ -321,6 +335,7 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
         limits={
             "max_trigger_length": MAX_TRIGGER_LENGTH,
             "max_de_rows": 200_000,
+            "max_payload_length": 2000,
             "max_designs_default": 20,
             "max_designs_limit": 1000,
             "max_circuit_gates": 1,

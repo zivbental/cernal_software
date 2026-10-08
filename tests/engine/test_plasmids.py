@@ -643,3 +643,63 @@ def test_sbol_and_genbank_agree_on_every_feature_coordinate(builder):
     )
 
     assert sbol_spans == sorted(genbank_spans)
+
+
+def test_custom_backbone_features_survive_coordinate_insertion():
+    from Bio.Seq import Seq
+    from Bio.SeqFeature import SeqFeature, SimpleLocation
+    from Bio.SeqRecord import SeqRecord
+
+    record = SeqRecord(Seq("ACGT" * 30), id="annotated-vector", name="annotated_vector")
+    record.annotations.update(molecule_type="DNA", topology="circular")
+    record.features = [
+        SeqFeature(
+            SimpleLocation(40, 60, strand=-1),
+            type="rep_origin",
+            qualifiers={"label": ["ori"], "note": ["source annotation"]},
+        ),
+        SeqFeature(
+            SimpleLocation(80, 100, strand=1),
+            type="CDS",
+            qualifiers={"label": ["marker"], "gene": ["marker_test"]},
+        ),
+    ]
+    segment = parse_custom_backbone(record.format("genbank"))
+    assert len(segment.annotations) == 2
+    builder = PlasmidBuilder(
+        MotifScreener(AssemblyStandard.NONE),
+        CodonOptimizer(Host.ECOLI),
+        AssemblyStandard.NONE,
+        (segment,),
+        insertion_index=20,
+    )
+    design = builder.build(_circuit(), DesiredOutcome.CUSTOM, custom_payload="ATGGCTGCTTAA")
+    inserted = design.plasmid.length_bp - len(record.seq)
+    assert design.plasmid.sequence[:20] == str(record.seq[:20])
+    assert design.plasmid.sequence[-100:] == str(record.seq[20:])
+    output = SeqIO.read(io.StringIO(to_genbank(design).decode()), "genbank")
+    ori = next(f for f in output.features if f.type == "rep_origin")
+    assert (int(ori.location.start), int(ori.location.end), ori.location.strand) == (
+        40 + inserted,
+        60 + inserted,
+        -1,
+    )
+    assert ori.qualifiers["note"] == ["source annotation"]
+    assert str(ori.extract(output.seq)) == str(record.features[0].extract(record.seq))
+    assert design.insertion_index == 20
+    assert design.assembly_method == "sequence_insertion"
+    assert design.assembly_notes
+    unsafe = PlasmidBuilder(
+        MotifScreener(AssemblyStandard.NONE),
+        CodonOptimizer(Host.ECOLI),
+        AssemblyStandard.NONE,
+        (segment,),
+        insertion_index=50,
+    )
+    with pytest.raises(InputValidationError, match="disrupts"):
+        unsafe.build(_circuit(), DesiredOutcome.GFP)
+
+
+def test_payload_compute_limit_precedes_thermodynamic_work():
+    with pytest.raises(InputValidationError, match="compute limit"):
+        validate_payload_cds("enormous", "ATG" + "GCT" * 1000 + "TAA")

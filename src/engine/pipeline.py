@@ -250,7 +250,13 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         # Same screener/codons instances as above — a second PlasmidBuilder-only
         # MotifScreener would mean two independently configured screeners agreeing by
         # coincidence rather than by construction.
-        "plasmid_builder": PlasmidBuilder(screener, codons, constraints.standard, backbone),
+        "plasmid_builder": PlasmidBuilder(
+            screener,
+            codons,
+            constraints.standard,
+            backbone,
+            insertion_index=(request.params.get("backbone") or {}).get("insertion_index", 0),
+        ),
         "constraints": constraints,
     }
 
@@ -1411,8 +1417,8 @@ def _circuit_candidate_result(
         ),
         metrics=metrics,
         warnings=tuple(f"Assembly standard: {v}" for v in plasmid.violations),
-        is_rejected=breach is not None or bool(plasmid.violations),
-        rejection_reason=breach.reason if breach else "; ".join(plasmid.violations),
+        is_rejected=breach is not None or bool(plasmid.eligibility_violations),
+        rejection_reason=breach.reason if breach else "; ".join(plasmid.eligibility_violations),
     )
 
 
@@ -1585,9 +1591,9 @@ def _candidate_result(
         },
         summary=f"{design.trigger_set.logic_type} {family.name} gate on {trigger.symbol}",
         metrics=metrics,
-        warnings=[f"Plasmid: {v}" for v in plasmid.violations],
-        is_rejected=breach is not None or bool(plasmid.violations),
-        rejection_reason=breach.reason if breach else "; ".join(plasmid.violations),
+        warnings=[*[f"Plasmid: {v}" for v in plasmid.violations], *plasmid.assembly_notes],
+        is_rejected=breach is not None or bool(plasmid.eligibility_violations),
+        rejection_reason=breach.reason if breach else "; ".join(plasmid.eligibility_violations),
     )
 
 

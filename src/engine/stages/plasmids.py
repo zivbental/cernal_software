@@ -43,7 +43,7 @@ from pathlib import Path
 import sbol3
 from Bio import SeqIO
 from Bio.Seq import Seq
-from Bio.SeqFeature import SeqFeature, SimpleLocation
+from Bio.SeqFeature import CompoundLocation, ExactPosition, SeqFeature, SimpleLocation
 from Bio.SeqRecord import SeqRecord
 
 from engine import sequences as sq
@@ -320,7 +320,13 @@ def validate_payload_cds(name: str, sequence: str) -> str:
     premature ones — real parts carry them. BBa_E0040 ends ``...UAC AAA UAA UAA``, two
     tandem stops, a common belt-and-braces pattern against ribosomal readthrough.
     """
+    if not isinstance(sequence, str):
+        raise InputValidationError(f"{name}: payload CDS must be a sequence string.")
     rna = sq.to_rna(sequence)
+    if len(rna) > 2000:
+        raise InputValidationError(
+            f"{name}: payload exceeds the 2,000-nt thermodynamic compute limit."
+        )
     if not sq.is_valid_rna(rna):
         raise InputValidationError(f"Payload {name!r} is not a valid RNA or DNA sequence.")
     if rna[:3] != sq.START_CODON:
@@ -379,11 +385,22 @@ class PlasmidBuilder:
         codons: CodonOptimizer,
         standard: AssemblyStandard = AssemblyStandard.RFC10,
         backbone: tuple[Segment, ...] = (),
+        *,
+        insertion_index: int = 0,
     ) -> None:
         self.screener = screener
         self.codons = codons
         self.standard = standard
         self.backbone = backbone
+        if (
+            isinstance(insertion_index, bool)
+            or not isinstance(insertion_index, int)
+            or not 0 <= insertion_index <= sum(s.length_bp for s in backbone)
+        ):
+            raise InputValidationError(
+                "backbone.insertion_index must be a 0-based boundary within the vector."
+            )
+        self.insertion_index = insertion_index
 
     def build(
         self,
@@ -485,18 +502,87 @@ class PlasmidBuilder:
         # Payload, in frame with the last switch's start codon — the join checked below.
         segments.append(payload)
         segments.append(Segment(SegmentKind.TERMINATOR, terminator_name, terminator_seq))
-        segments.extend(self.backbone)
-
+        cassette_length = sum(segment.length_bp for segment in segments)
+        insertion_index = self.insertion_index if self.backbone else 0
+        transformed_annotations = []
+        source_offset = 0
+        for segment in self.backbone:
+            for annotation in segment.annotations:
+                feature = json.loads(annotation)
+                transformed_parts = []
+                for start, end, strand in feature["parts"]:
+                    start, end = start + source_offset, end + source_offset
+                    if start < insertion_index < end and feature["type"] in (
+                        "CDS",
+                        "gene",
+                        "rep_origin",
+                        "promoter",
+                        "regulatory",
+                        "terminator",
+                    ):
+                        raise InputValidationError(
+                            f"Insertion disrupts backbone {feature['type']} at {start}:{end}."
+                        )
+                    if start < insertion_index < end:
+                        transformed_parts.extend(
+                            [
+                                [start, insertion_index, strand],
+                                [insertion_index + cassette_length, end + cassette_length, strand],
+                            ]
+                        )
+                    else:
+                        transformed_parts.append(
+                            [
+                                start + (cassette_length if start >= insertion_index else 0),
+                                end + (cassette_length if start >= insertion_index else 0),
+                                strand,
+                            ]
+                        )
+                feature["parts"] = transformed_parts
+                if len(transformed_parts) > 1 and not feature.get("operator"):
+                    feature["operator"] = "join"
+                transformed_annotations.append(json.dumps(feature, sort_keys=True))
+            source_offset += segment.length_bp
+        if self.backbone:
+            prefix: list[Segment] = []
+            suffix: list[Segment] = []
+            remaining = insertion_index
+            for segment in self.backbone:
+                split = min(remaining, segment.length_bp)
+                if split:
+                    prefix.append(Segment(segment.kind, segment.name, segment.sequence[:split]))
+                if split < segment.length_bp:
+                    suffix.append(Segment(segment.kind, segment.name, segment.sequence[split:]))
+                remaining -= split
+            segments = [*prefix, *segments, *suffix]
         plasmid = Plasmid(tuple(segments))
 
-        violations = [
-            str(v) for v in self.screener.violations(plasmid.sequence, circular=bool(self.backbone))
-        ]
-        violations.extend(_frame_violations(circuit.designs, payload))
+        motif_findings = self.screener.violations(plasmid.sequence, circular=bool(self.backbone))
+        violations = [str(v) for v in motif_findings]
+        frames = _frame_violations(circuit.designs, payload)
+        violations.extend(frames)
+        backbone_ranges = []
+        offset = 0
+        for segment in segments:
+            if segment.kind is SegmentKind.BACKBONE:
+                backbone_ranges.append((offset, offset + segment.length_bp))
+            offset += segment.length_bp
+        eligible = list(frames)
+        for finding in motif_findings:
+            preexisting = any(
+                start <= finding.start and finding.start + len(finding.motif) <= end
+                for start, end in backbone_ranges
+            )
+            if finding.kind == "forbidden motif" or (
+                finding.kind == "restriction site" and not preexisting
+            ):
+                eligible.append(str(finding))
+        # Full-construct homopolymers and pre-existing vector restriction sites remain
+        # visible assembly caveats. They do not establish a nonfunctional ORF.
         coding_regions = ()
         if aug is not None:
-            start = len(promoter_seq) + aug
-            end = len(promoter_seq) + len(design.sequence) + payload.length_bp
+            start = insertion_index + len(promoter_seq) + aug
+            end = insertion_index + len(promoter_seq) + len(design.sequence) + payload.length_bp
             protein = sq.translate(sq.to_rna(plasmid.sequence[start:end]))
             coding_regions = ((start, end, payload.name + " N-terminal fusion", protein),)
 
@@ -507,6 +593,18 @@ class PlasmidBuilder:
             standard=self.standard,
             violations=tuple(violations),
             coding_regions=coding_regions,
+            eligibility_violations=tuple(eligible),
+            backbone_annotations=tuple(transformed_annotations),
+            insertion_index=insertion_index if self.backbone else None,
+            assembly_method="sequence_insertion" if self.backbone else "expression_cassette",
+            assembly_notes=(
+                (
+                    "Sequence insertion defines coordinates only; a validated cloning "
+                    "protocol and overlaps/enzyme cuts are not supplied.",
+                )
+                if self.backbone
+                else ()
+            ),
         )
 
     def payload_segment(self, outcome: DesiredOutcome) -> Segment:
@@ -626,8 +724,35 @@ def parse_custom_backbone(genbank_text: str) -> Segment:
     if not rna or not sq.is_valid_rna(rna):
         raise InputValidationError("The uploaded backbone has no valid DNA/RNA sequence.")
 
+    annotations = []
+    for feature in record.features:
+        if feature.location is None:
+            raise InputValidationError("Backbone annotations require known feature locations.")
+        parts = []
+        for location in feature.location.parts:
+            if (
+                not isinstance(location.start, ExactPosition)
+                or not isinstance(location.end, ExactPosition)
+                or location.ref
+            ):
+                raise InputValidationError("Backbone annotations require exact local coordinates.")
+            start, end = int(location.start), int(location.end)
+            if not 0 <= start < end <= len(rna):
+                raise InputValidationError("Backbone annotation is outside the supplied sequence.")
+            parts.append([start, end, location.strand])
+        annotations.append(
+            json.dumps(
+                {
+                    "type": feature.type,
+                    "parts": parts,
+                    "operator": getattr(feature.location, "operator", None),
+                    "qualifiers": feature.qualifiers,
+                },
+                sort_keys=True,
+            )
+        )
     name = record.name or record.id or "Custom"
-    return Segment(SegmentKind.BACKBONE, name, sq.to_dna(rna))
+    return Segment(SegmentKind.BACKBONE, name, sq.to_dna(rna), annotations=tuple(annotations))
 
 
 #: GenBank feature type per segment kind. Standard keys only (CLAUDE.md §7's own
@@ -702,6 +827,19 @@ def to_genbank(design: PlasmidDesign) -> bytes:
                     "note": ["Switch-initiated N-terminal fusion; computationally assembled."],
                 },
             )
+        )
+    for annotation in design.backbone_annotations:
+        feature = json.loads(annotation)
+        parts = [
+            SimpleLocation(start, end, strand=strand) for start, end, strand in feature["parts"]
+        ]
+        location = (
+            parts[0]
+            if len(parts) == 1
+            else CompoundLocation(parts, operator=feature.get("operator") or "join")
+        )
+        record.features.append(
+            SeqFeature(location, type=feature["type"], qualifiers=feature["qualifiers"])
         )
     return record.format("genbank").encode("utf-8")
 
@@ -867,5 +1005,27 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
             name=name,
         )
         construct.features.append(coding)
+    for annotation in design.backbone_annotations:
+        feature = json.loads(annotation)
+        locations = [
+            sbol3.Range(
+                sequence,
+                start + 1,
+                end,
+                orientation=sbol3.SBOL_REVERSE_COMPLEMENT if strand == -1 else sbol3.SBOL_INLINE,
+            )
+            for start, end, strand in feature["parts"]
+        ]
+        label = (
+            feature["qualifiers"].get("label")
+            or feature["qualifiers"].get("gene")
+            or [feature["type"]]
+        )[0]
+        role = "SO:0000316" if feature["type"] == "CDS" else "SO:0000804"
+        construct.features.append(
+            sbol3.SequenceFeature(
+                locations=locations, roles=[_ONTOLOGY_URI["SO"].format(accession=role)], name=label
+            )
+        )
     document.add(construct)
     return document.write_string(sbol3.SORTED_NTRIPLES).encode("utf-8")
