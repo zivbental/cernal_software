@@ -48,7 +48,6 @@ from engine.stages.motifs import MotifScreener
 #: its own class-constant budget knob.
 
 
-
 @dataclass(slots=True)
 class _Candidate:
     """Stage 1's own scratch record for one gene mid-selection.

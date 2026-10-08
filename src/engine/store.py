@@ -6,10 +6,16 @@ auditable and re-runnable without forcing every stage to serialise
 (docs/ROADMAP.md E10).
 """
 
+import csv
+import io
+import json
+import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
+from pathlib import Path
 from typing import Any
 
+from engine.artifacts import sha256_bytes, write_artifact
 from engine.contract import ArtifactRef
 
 
@@ -79,7 +85,52 @@ class CandidateStore:
             file reads as "this stage did not run"; an empty one reads as "this stage
             produced nothing", and those are very different diagnoses.
         """
-        raise NotImplementedError("Step 5")
+        if not re.fullmatch(r"[a-zA-Z0-9_-]+", stage):
+            raise ValueError("Snapshot stage must be a simple identifier.")
+
+        def audit_values(value):
+            if is_dataclass(value):
+                value = asdict(value)
+            if isinstance(value, dict):
+                return {
+                    (
+                        key + "_sha256"
+                        if "sequence" in key
+                        and not key.endswith("sha256")
+                        and isinstance(item, str)
+                        else key
+                    ): sha256_bytes(item.encode())
+                    if "sequence" in key and not key.endswith("sha256") and isinstance(item, str)
+                    else audit_values(item)
+                    for key, item in value.items()
+                }
+            if isinstance(value, (tuple, list)):
+                return [audit_values(item) for item in value]
+            return value
+
+        stream = io.StringIO(newline="")
+        normalized = [audit_values(record) for record in records]
+        if any(not isinstance(record, dict) for record in normalized):
+            raise ValueError("Snapshots require dataclass or mapping records.")
+        columns = list(dict.fromkeys(key for record in normalized for key in record)) or ["record"]
+        writer = csv.DictWriter(stream, fieldnames=columns)
+        writer.writeheader()
+        for record in normalized:
+            writer.writerow(
+                {
+                    key: json.dumps(value, sort_keys=True, allow_nan=False)
+                    if isinstance(value, (dict, list))
+                    else value
+                    for key, value in record.items()
+                }
+            )
+        return write_artifact(
+            self.output_dir,
+            f"snapshots/{stage}.csv",
+            stream.getvalue(),
+            kind="stage_snapshot",
+            media_type="text/csv",
+        )
 
     def load_snapshot(self, stage: str) -> list[dict]:
         """Read a snapshot back, to re-run one stage without re-running the pipeline.
@@ -101,7 +152,12 @@ class CandidateStore:
             FileNotFoundError: if that stage has no snapshot, which usually means it was
                 never run rather than that it produced nothing.
         """
-        raise NotImplementedError("Step 5")
+        if not re.fullmatch(r"[a-zA-Z0-9_-]+", stage):
+            raise ValueError("Snapshot stage must be a simple identifier.")
+        with (Path(self.output_dir) / "snapshots" / f"{stage}.csv").open(
+            newline="", encoding="utf-8"
+        ) as stream:
+            return list(csv.DictReader(stream))
 
 
 @dataclass(frozen=True, slots=True)

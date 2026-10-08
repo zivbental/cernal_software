@@ -210,6 +210,7 @@ class JobResult:
     error: str | None = None
     input_checksum: str = ""
     params: dict = field(default_factory=dict)
+    scientific_provenance: dict = field(default_factory=dict)
 
     @property
     def accepted(self) -> list[CandidateResult]:

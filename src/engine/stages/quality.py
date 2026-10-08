@@ -9,6 +9,8 @@ This stage never *fixes* anything. It reports, and the run either proceeds or st
 Silently correcting a researcher's data is how a tool loses their trust.
 """
 
+import math
+
 from engine.domain import CountMatrix, QcReport, SampleMetadata
 
 
@@ -61,4 +63,51 @@ class InputQualityCheck:
             Steps 1 to 4 are cheap and should always run. Step 5 needs numpy and costs a
             second or two — still trivial against a ten-minute pipeline, and worth it.
         """
-        raise NotImplementedError("Step 5")
+        errors: list[str] = []
+        warnings: list[str] = []
+        genes, samples = counts.shape
+        stats: dict = {
+            "genes": genes,
+            "samples": samples,
+            "batch_assessment": "unavailable",
+            "clustering": "unmeasured",
+        }
+        if metadata != counts.metadata:
+            errors.append("Supplied metadata differs from the matrix metadata.")
+        if not genes or not samples:
+            errors.append("The count matrix must contain genes and samples.")
+        if len(set(counts.gene_ids)) != genes or len(set(counts.samples)) != samples:
+            errors.append("Gene and sample identifiers must be unique.")
+        named = metadata.control_samples + metadata.condition_samples
+        if len(set(named)) != len(named) or set(named) != set(counts.samples):
+            errors.append("Each matrix sample must belong to exactly one metadata group.")
+        for name, group in (
+            ("control", metadata.control_samples),
+            ("condition", metadata.condition_samples),
+        ):
+            if len(group) < self.min_samples_per_group:
+                errors.append(f"{name} requires at least {self.min_samples_per_group} samples.")
+        if len(counts.counts) != genes or any(len(row) != samples for row in counts.counts):
+            errors.append("Count rows do not match matrix gene/sample dimensions.")
+        elif any(
+            isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0
+            for row in counts.counts
+            for v in row
+        ):
+            errors.append("Counts must be finite nonnegative numbers.")
+        elif genes and samples:
+            libraries = [sum(row[index] for row in counts.counts) for index in range(samples)]
+            zeros = [
+                sum(row[index] == 0 for row in counts.counts) / genes for index in range(samples)
+            ]
+            stats["library_sizes"] = dict(zip(counts.samples, libraries, strict=True))
+            stats["zero_fractions"] = dict(zip(counts.samples, zeros, strict=True))
+            if not any(libraries):
+                errors.append("The count matrix is all zero.")
+            if any(size == 0 for size in libraries):
+                errors.append("One or more samples has a zero library size.")
+            positive = [size for size in libraries if size > 0]
+            if positive and max(positive) / min(positive) >= 10:
+                warnings.append("Library sizes differ by at least an order of magnitude.")
+            warnings.append("Clustering, batch effects and DGE overlap were not assessed.")
+        return QcReport(ok=not errors, warnings=tuple(warnings), errors=tuple(errors), stats=stats)

@@ -10,6 +10,8 @@ common** and lives here, so every chemistry is held to the same standard and a r
 fixed in one place rather than three.
 """
 
+import dataclasses
+import math
 from collections.abc import Callable, Iterable, Iterator
 from itertools import combinations
 from math import comb
@@ -114,7 +116,10 @@ class SwitchDesigner:
         arities = {family.max_inputs for family in self.families if family.supports(self.host)}
         total = sum(comb(len(pool), arity) for arity in arities if arity <= len(pool))
         completed = 0
-        for index, trigger_set in enumerate(self.build_trigger_sets(pool, constraints)):
+        effective = dataclasses.replace(
+            constraints, max_triggers=min(constraints.max_triggers, max(arities, default=1))
+        )
+        for index, trigger_set in enumerate(self.build_trigger_sets(pool, effective)):
             active = trigger_set.arity in arities
             if on_progress is not None and (active or index % 100 == 0):
                 if not on_progress(completed, total):
@@ -134,7 +139,9 @@ class SwitchDesigner:
                 for design in family.generate_designs(trigger_set, constraints):
                     result = self.validator.validate(design)
                     if result.ok:
-                        yield design
+                        yield dataclasses.replace(
+                            design, structure_deviation=result.structure_deviation
+                        )
                     elif on_invalid:
                         for violation in result.violations:
                             on_invalid(violation)
@@ -178,7 +185,12 @@ class SwitchDesigner:
         pool = list(triggers)
 
         for trigger in pool:
-            yield TriggerSet(activators=(trigger,))
+            down = trigger.log2_fold_change is not None and trigger.log2_fold_change < 0
+            yield (
+                TriggerSet(activators=(), repressors=(trigger,))
+                if down
+                else TriggerSet(activators=(trigger,))
+            )
 
         if constraints.max_triggers < 2:
             return
@@ -186,7 +198,15 @@ class SwitchDesigner:
         for first, second in combinations(pool, 2):
             if first.gene_id == second.gene_id and _windows_overlap(first, second):
                 continue
-            yield TriggerSet(activators=(first, second))
+            members = (first, second)
+            yield TriggerSet(
+                activators=tuple(
+                    t for t in members if t.log2_fold_change is None or t.log2_fold_change >= 0
+                ),
+                repressors=tuple(
+                    t for t in members if t.log2_fold_change is not None and t.log2_fold_change < 0
+                ),
+            )
 
 
 def _windows_overlap(a: TriggerCandidate, b: TriggerCandidate) -> bool:
@@ -253,24 +273,9 @@ class SwitchValidator:
               translated itself — its ``architecture`` has no ``aug_index`` key at all),
               and both rules are skipped for it rather than guessed.
 
-        Deliberately not implemented here (docs/smoke-run.md §3, S4):
-            * **"Structure matches intent"** needs ``FoldEngine.ensemble_defect``, which
-              is itself a stub, and the only two modules allowed to fold
-              (``gates/tools/folding.py``, ``stages/folding.py``) both live under
-              ``engine/gates/`` or are this file's sibling — this branch does not touch
-              ``gates/`` at all, so this rule waits for whoever does.
-            * **"RBS in the loop only"** needs the loop's exact offset within
-              ``design.sequence`` — geometry only the generating family knows (toehold's
-              ``architecture`` and antisense's share no keys for this). Hardcoding one
-              family's layout into the shared validator would be exactly the kind of
-              silent, chemistry-specific assumption this stage exists to avoid; it
-              belongs in the family that has the geometry, not here.
-
-        Order the checks cheapest first:
-            Sequence rules are string operations; folding is milliseconds. A design
-            failing on a stop codon should never be folded — moot today since nothing
-            implemented here folds at all, but the ordering stays correct for when the
-            deferred structural rule lands.
+        Target syntax and length are required. Ensemble defect is measured as a
+        length-normalized fraction after cheap sequence checks pass; no biological
+        threshold is asserted because switching efficacy has not been calibrated.
         """
         violations: list[str] = []
 
@@ -279,6 +284,11 @@ class SwitchValidator:
                 f"switch is {len(design.sequence)} nt, over the "
                 f"{self.constraints.max_switch_length} nt limit"
             )
+
+        try:
+            self.folder.validate_target(design.sequence, design.dot_bracket)
+        except ValueError as exc:
+            violations.append(str(exc))
 
         violations.extend(str(site) for site in self.screener.violations(design.sequence))
 
@@ -292,4 +302,13 @@ class SwitchValidator:
             if stops:
                 violations.append(f"in-frame stop codon(s) at {list(stops)}")
 
-        return ValidationResult.failed(*violations) if violations else ValidationResult.passed()
+        if violations:
+            return ValidationResult.failed(*violations)
+        defect = self.folder.ensemble_defect(design.sequence, design.dot_bracket) / len(
+            design.sequence
+        )
+        if not math.isfinite(defect) or not 0 <= defect <= 1:
+            return ValidationResult.failed(
+                "Normalized ensemble defect is nonfinite or outside [0, 1]."
+            )
+        return ValidationResult(ok=True, structure_deviation=defect)

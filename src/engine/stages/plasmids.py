@@ -52,7 +52,9 @@ from engine.domain import (
     CircuitCandidate,
     DesiredOutcome,
     GateDesign,
+    GateKind,
     Host,
+    LogicOperator,
     Plasmid,
     PlasmidDesign,
     Segment,
@@ -420,6 +422,27 @@ class PlasmidBuilder:
                 "A circuit needs at least one switch design to build a plasmid."
             )
 
+        # Only an identity expression with one activating input has a compiled
+        # topology here. Concatenation cannot implement a Boolean operator.
+        if len(circuit.designs) != 1 or circuit.expression.operator is not LogicOperator.IDENTITY:
+            raise InputValidationError(
+                "Unsupported physical circuit: no reviewed Boolean compiler."
+            )
+        physical_design = circuit.designs[0]
+        inputs = physical_design.trigger_set.activators
+        if physical_design.gate_kind is not GateKind.TOEHOLD or len(inputs) != 1:
+            raise InputValidationError(
+                "Unsupported physical gate: no reviewed compiler for this mechanism."
+            )
+        allowed_ids = {inputs[0].gene_id, inputs[0].symbol}
+        if set(circuit.expression.gene_ids()) - allowed_ids:
+            raise InputValidationError(
+                "Logical expression does not identify the physical gate input."
+            )
+        if circuit.designs[0].trigger_set.repressors:
+            raise InputValidationError(
+                "Unsupported physical inversion: this builder compiles activating gates only."
+            )
         host = circuit.designs[0].host
         promoter_name, promoter_seq = _lookup_part(PROMOTERS, host, "promoter")
         terminator_name, terminator_seq = _lookup_part(TERMINATORS, host, "terminator")
@@ -434,6 +457,19 @@ class PlasmidBuilder:
             )
         else:
             payload = self.payload_segment(outcome)
+
+        design = circuit.designs[0]
+        aug = design.architecture.get("aug_index")
+        if aug is not None:
+            # The switch supplies initiation AUG; append the downstream payload CDS
+            # once. If a payload head was already modelled, consume that exact head.
+            head = design.architecture.get("payload_head_length", 0)
+            expected = sq.to_rna(payload.sequence)[3 : 3 + head]
+            if head and not design.sequence.endswith(expected):
+                raise InputValidationError(
+                    "Embedded payload head does not match the requested CDS."
+                )
+            payload = Segment(payload.kind, payload.name, payload.sequence[3 + head :])
 
         segments: list[Segment] = []
         for design in circuit.designs:
@@ -453,8 +489,16 @@ class PlasmidBuilder:
 
         plasmid = Plasmid(tuple(segments))
 
-        violations = [str(v) for v in self.screener.violations(plasmid.sequence, circular=True)]
+        violations = [
+            str(v) for v in self.screener.violations(plasmid.sequence, circular=bool(self.backbone))
+        ]
         violations.extend(_frame_violations(circuit.designs, payload))
+        coding_regions = ()
+        if aug is not None:
+            start = len(promoter_seq) + aug
+            end = len(promoter_seq) + len(design.sequence) + payload.length_bp
+            protein = sq.translate(sq.to_rna(plasmid.sequence[start:end]))
+            coding_regions = ((start, end, payload.name + " N-terminal fusion", protein),)
 
         return PlasmidDesign(
             plasmid_id=f"plasmid-{circuit.circuit_id.rsplit('-', 1)[-1]}-{outcome.value}",
@@ -462,6 +506,7 @@ class PlasmidBuilder:
             plasmid=plasmid,
             standard=self.standard,
             violations=tuple(violations),
+            coding_regions=coding_regions,
         )
 
     def payload_segment(self, outcome: DesiredOutcome) -> Segment:
@@ -614,7 +659,11 @@ def to_genbank(design: PlasmidDesign) -> bytes:
         description=f"CERNAL computationally assembled construct {design.plasmid_id}",
     )
     record.annotations["molecule_type"] = "DNA"
-    record.annotations["topology"] = "circular"
+    record.annotations["topology"] = (
+        "circular"
+        if any(s.kind is SegmentKind.BACKBONE for s in design.plasmid.segments)
+        else "linear"
+    )
 
     position = 0
     for segment in design.plasmid.segments:
@@ -622,7 +671,11 @@ def to_genbank(design: PlasmidDesign) -> bytes:
         record.features.append(
             SeqFeature(
                 SimpleLocation(position, end, strand=1),
-                type=_GENBANK_FEATURE_TYPE.get(segment.kind, "misc_feature"),
+                type=(
+                    "misc_feature"
+                    if segment.kind is SegmentKind.PAYLOAD and design.coding_regions
+                    else _GENBANK_FEATURE_TYPE.get(segment.kind, "misc_feature")
+                ),
                 qualifiers={
                     "label": [segment.name],
                     "cernal_role": [segment.kind.value],
@@ -637,6 +690,19 @@ def to_genbank(design: PlasmidDesign) -> bytes:
         )
         position = end
 
+    for start, end, name, protein in design.coding_regions:
+        record.features.append(
+            SeqFeature(
+                SimpleLocation(start, end, strand=1),
+                type="CDS",
+                qualifiers={
+                    "label": [name],
+                    "translation": [protein.rstrip("*")],
+                    "codon_start": ["1"],
+                    "note": ["Switch-initiated N-terminal fusion; computationally assembled."],
+                },
+            )
+        )
     return record.format("genbank").encode("utf-8")
 
 
@@ -751,7 +817,15 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
     construct = sbol3.Component(
         _safe_id(design.plasmid_id),
         sbol3.SBO_DNA,
-        roles=[_ONTOLOGY_URI["SO"].format(accession="SO:0000755")],
+        roles=[
+            _ONTOLOGY_URI["SO"].format(
+                accession=(
+                    "SO:0000755"
+                    if any(s.kind is SegmentKind.BACKBONE for s in design.plasmid.segments)
+                    else "SO:0000804"
+                )
+            )
+        ],
         sequences=[sequence],
         name=design.plasmid_id,
         description=(
@@ -786,5 +860,12 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
         document.add(part)
         position += segment.length_bp
 
+    for start, end, name, _protein in design.coding_regions:
+        coding = sbol3.SequenceFeature(
+            locations=[sbol3.Range(sequence, start + 1, end)],
+            roles=[_ONTOLOGY_URI["SO"].format(accession="SO:0000316")],
+            name=name,
+        )
+        construct.features.append(coding)
     document.add(construct)
     return document.write_string(sbol3.SORTED_NTRIPLES).encode("utf-8")

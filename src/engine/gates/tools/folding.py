@@ -359,6 +359,21 @@ class FoldEngine:
         ]
         return probabilities, constrained, unconstrained
 
+    @staticmethod
+    def validate_target(sequence: str, target: str) -> None:
+        """Reject malformed single-strand dot-bracket structures before native calls."""
+        if not target or len(target) != len(sequence):
+            raise ValueError("Target structure must be nonempty and match the sequence length.")
+        depth = 0
+        for symbol in target:
+            if symbol not in ".()":
+                raise ValueError("Target structure contains invalid dot-bracket symbols.")
+            depth += (symbol == "(") - (symbol == ")")
+            if depth < 0:
+                raise ValueError("Target structure has unbalanced parentheses.")
+        if depth:
+            raise ValueError("Target structure has unbalanced parentheses.")
+
     def ensemble_defect(self, sequence: str, target: str) -> float:
         """How far the predicted ensemble sits from an intended structure.
 
@@ -392,6 +407,7 @@ class FoldEngine:
                 f"target is {len(target)} long but sequence is {len(sequence)}; "
                 "a length mismatch is always a bug upstream"
             )
+        self.validate_target(sequence, target)
         fold_compound = self._compound(sequence)
         fold_compound.pf()
         # ViennaRNA's ensemble_defect is already divided by length, despite the name;
@@ -664,4 +680,23 @@ def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:
         ValueError: if the two structures are different lengths, which always means a
             bug upstream rather than a bad design.
     """
-    raise NotImplementedError("Step 5")
+    FoldEngine.validate_target("A" * len(dot_bracket), dot_bracket)
+    FoldEngine.validate_target("A" * len(dot_bracket), target_structure)
+
+    def partners(structure: str) -> list[int | None]:
+        result: list[int | None] = [None] * len(structure)
+        stack: list[int] = []
+        for index, symbol in enumerate(structure):
+            if symbol == "(":
+                stack.append(index)
+            elif symbol == ")":
+                other = stack.pop()
+                result[index] = other
+                result[other] = index
+        return result
+
+    predicted, intended = partners(dot_bracket), partners(target_structure)
+    deviation = sum(a != b for a, b in zip(predicted, intended, strict=True)) / len(predicted)
+    # Structures alone carry no molecule or model energy: a Boltzmann probability
+    # cannot be inferred from this signature and remains explicitly unavailable.
+    return StructureMatch(deviation=deviation, p_target_fold=None)

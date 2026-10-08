@@ -303,6 +303,23 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     if request.input_mode not in (INPUT_DIRECT, INPUT_DE, INPUT_GENE):
         raise InputValidationError(f"Unrecognised input mode {request.input_mode!r}.")
 
+    from engine.client import normalize_trigger_sequence, validate_job_configuration
+
+    try:
+        validate_job_configuration(
+            request.params,
+            request.gate_families,
+            request.scoring_profile,
+            request.input_mode,
+            request.trigger_sequence,
+            request.organism,
+        )
+        if request.input_mode == INPUT_DIRECT:
+            request = dataclasses.replace(
+                request, trigger_sequence=normalize_trigger_sequence(request.trigger_sequence)
+            )
+    except ValueError as exc:
+        raise InputValidationError(str(exc)) from exc
     host = _resolve_host(request)
     tools = build_tools(request, host)
     constraints: Constraints = tools["constraints"]
@@ -382,7 +399,13 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         if reference is not None:
             trigger_candidates = [
                 dataclasses.replace(
-                    candidate, gene_id=reference["gene_id"], symbol=reference["gene_symbol"]
+                    candidate,
+                    gene_id=reference["gene_id"],
+                    symbol=reference["gene_symbol"],
+                    transcript_id=reference["transcript_id"],
+                    reference_accession=reference.get("reference_accession", ""),
+                    reference_selection_method=reference["selection_method"],
+                    transcript_sequence_sha256=sha256_bytes(reference["sequence"].encode()),
                 )
                 for candidate in trigger_candidates
             ]
@@ -431,7 +454,6 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     #: Accepted one-gate designs with their raw metrics and score, for stage 4 to
     #: combine. Rejected designs are excluded: a circuit built on a switch that
     #: already breached a hard filter is not a circuit worth proposing.
-    single_gate: list[tuple[GateDesign, dict[str, float | None], float]] = []
     switch_progress = [32]
 
     def report_switch_progress(completed: int, total: int) -> bool:
@@ -445,62 +467,87 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         on_invalid=_on_invalid,
         on_progress=report_switch_progress,
     )
+    max_designs = (request.params.get("budget") or {}).get("max_designs", 20)
+    design_budget_exhausted = False
+    evaluated_gate_designs = 0
     for index, design in enumerate(designs):
+        if index >= max_designs:
+            design_budget_exhausted = True
+            warnings.append(
+                f"Design compute budget reached: {max_designs} validated gate designs "
+                "were retained in deterministic generator order; remaining designs "
+                "were not evaluated. Each retained gate was paired with every requested output."
+            )
+            break
+        evaluated_gate_designs += 1
         if index % 5 == 0 and not on_progress(switch_progress[0], "Designing switches"):
             raise JobCancelled("Designing switches")
 
         family = families_by_kind[design.gate_kind]
-        raw = family.evaluate_design(design)
-        metrics = build_metrics(raw, profile)
-        breach = failed_filter(raw, profile)
-
-        # Round-robin: every requested output
-        # gets a comparable share of the candidate budget rather than one dominating
-        # by chance (both engines must agree on this, or a real run's distribution
-        # looks like a bug next to the mock one it is meant to match).
-        outcome = outcomes[index % len(outcomes)]
-        plasmid = _build_plasmid(plasmid_builder, store, design, outcome, custom_sequence)
-
-        # The specific trigger that produced *this* design — scanning (docs/triggers.md
-        # T2) can feed multiple candidates from different windows into one run, so this
-        # is no longer necessarily the same trigger for every design.
-        trigger = design.trigger_set.activators[0]
-        candidate = _candidate_result(
-            store, design, family, trigger, metrics, breach, plasmid, outcome
-        )
-        plasmids[candidate.ref] = plasmid
-
-        score = None if breach else weighted_score(metrics, profile)
-        scored.append((candidate, score))
-        if not breach:
-            single_gate.append((design, raw, score or 0.0))
+        for outcome in outcomes:
+            if not on_progress(switch_progress[0], "Evaluating payload context"):
+                raise JobCancelled("Evaluating payload context")
+            # Requested outputs are alternatives: every gate is evaluated with every
+            # output CDS, rather than assigned round-robin or silently skipped.
+            plasmid = _build_plasmid(plasmid_builder, store, design, outcome, custom_sequence)
+            transcript = "".join(
+                segment.sequence
+                for segment in plasmid.plasmid.segments
+                if segment.kind in (SegmentKind.SWITCH, SegmentKind.PAYLOAD)
+            )
+            evaluated_design = dataclasses.replace(
+                design,
+                architecture={**design.architecture, "evaluation_sequence": sq.to_rna(transcript)},
+            )
+            raw = family.evaluate_design(evaluated_design)
+            metrics = build_metrics(raw, profile)
+            breach = failed_filter(raw, profile)
+            trigger = design.trigger_set.activators[0]
+            candidate = _candidate_result(
+                store, evaluated_design, family, trigger, metrics, breach, plasmid, outcome
+            )
+            plasmids[candidate.ref] = plasmid
+            score = None if candidate.is_rejected else weighted_score(metrics, profile)
+            scored.append((candidate, score))
 
     if not on_progress(*_pct("Designing circuits")):
         raise JobCancelled("Designing circuits")
 
-    # Stage 4: circuits longer than one gate, when the researcher allows them.
-    for candidate, plasmid, score in _multi_gate_candidates(
-        single_gate,
-        trigger_candidates,
-        constraints,
-        profile,
-        plasmid_builder,
-        store,
-        outcomes,
-        custom_sequence,
-        families_by_kind,
-    ):
-        plasmids[candidate.ref] = plasmid
-        scored.append((candidate, score))
+    if constraints.max_circuit_gates > 1:
+        warnings.append(
+            "Combined Boolean expressions are exploratory logical specifications. No reviewed "
+            "physical compiler exists for multi-gate AND/OR/NOT constructs; this run returns "
+            "independent single-input activation constructs only."
+        )
 
-    ranks = rank_candidates([(c.ref, s) for c, s in scored if not c.is_rejected])
+    ranks = rank_candidates(
+        [(c.ref, score) for c, score in scored if not c.is_rejected],
+        raw_values={
+            c.ref: {metric.name: metric.raw_value for metric in c.metrics} for c, _ in scored
+        },
+        profile=profile,
+    )
     candidates = [
         dataclasses.replace(c, rank=ranks.get(c.ref), overall_score=score) for c, score in scored
     ]
 
     if not on_progress(*_pct("Writing report")):
         raise JobCancelled("Writing report")
-    artifacts = _write_artifacts(request.output_dir, candidates, plasmids)
+    artifacts = [store.snapshot("trigger_selection", trigger_candidates)]
+    artifacts.extend(
+        _write_artifacts(request.output_dir, candidates, plasmids, on_progress=on_progress)
+    )
+    from engine.stages.reporting import ReportBuilder, StructureRenderer
+
+    artifacts.append(
+        ReportBuilder(StructureRenderer()).build_result(
+            candidates,
+            warnings,
+            request.output_dir,
+            engine_version="local-0.10.0-scientific-qa",
+            profile_version=profile.version,
+        )
+    )
 
     if not candidates and trigger_candidates:
         # trigger_candidates was non-empty, so the loop above genuinely tried and
@@ -532,6 +579,22 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         error=None,
         input_checksum=request.input_checksum,
         params=request.params,
+        scientific_provenance={
+            "schema": "cernal-scientific-provenance-v1",
+            "scoring_profile": profile.name,
+            "scoring_profile_version": profile.version,
+            "tool_versions": tools["folder"].versions(),
+            "seed": request.seed,
+            "experimental_validation": "unavailable",
+            "output_semantics": "alternative_single_payload_constructs_cross_product",
+            "off_target_screen": "unmeasured",
+            "design_budget": {
+                "max_designs": max_designs,
+                "evaluated_gate_designs": evaluated_gate_designs,
+                "truncated": design_budget_exhausted,
+                "selection": "deterministic_generator_order",
+            },
+        },
     )
 
 
@@ -841,10 +904,10 @@ def _direct_trigger(
             "The trigger sequence is too short to design a switch against "
             "(at least 20 nucleotides are needed)."
         )
-    if request.input_mode == INPUT_DIRECT and len(sequence) > MAX_TRIGGER_LENGTH:
+    if len(sequence) > MAX_TRIGGER_LENGTH:
         raise InputValidationError(
             f"The trigger sequence is {len(sequence)} nt, over the "
-            f"{MAX_TRIGGER_LENGTH} nt limit for a direct submission."
+            f"{MAX_TRIGGER_LENGTH} nt compute limit for a transcript input."
         )
     if not sq.is_valid_rna(sequence):
         raise InputValidationError(
@@ -991,7 +1054,11 @@ def _de_trigger(
             "The dataset does not match the checksum recorded at submission."
         )
 
-    dge = parse_dge_table(raw, path.name)
+    statistics = request.params.get("statistics") or {}
+    completeness = statistics.get("hypothesis_universe_complete")
+    if completeness is not None and not isinstance(completeness, bool):
+        raise InputValidationError("statistics.hypothesis_universe_complete must be a boolean.")
+    dge = parse_dge_table(raw, path.name, hypothesis_universe_complete=completeness)
     transcriptome = load_transcriptome(host)
 
     resolved_rows = []
@@ -1024,6 +1091,24 @@ def _de_trigger(
     # Every gene GeneSelector kept is guaranteed present in `transcriptome` (it drops,
     # and warns about, any gene missing from `sequences` itself) — safe to reuse the
     # same dict rather than building a second, smaller one.
+    # Activating toeholds cannot invert a DOWN signature. Retain the statistical
+    # shortlist and report the incompatibility before spending time on RNA folding.
+    down_count = sum(g.log2_fold_change is not None and g.log2_fold_change < 0 for g in genes)
+    if down_count:
+        warnings.append(
+            f"{down_count} down-regulated gene(s) require a physical inverter; no production "
+            "NOT compiler exists, so they cannot produce target-state activation constructs."
+        )
+    genes = [g for g in genes if g.log2_fold_change is None or g.log2_fold_change >= 0]
+    over_budget = [g for g in genes if len(transcriptome[g.gene_id]) > MAX_TRIGGER_LENGTH]
+    if over_budget:
+        warnings.append(
+            f"{len(over_budget)} selected transcript(s) exceed the {MAX_TRIGGER_LENGTH}-nt "
+            "transcript compute limit and were not folded."
+        )
+    genes = [g for g in genes if len(transcriptome[g.gene_id]) <= MAX_TRIGGER_LENGTH]
+    if not genes:
+        return [], warnings
     scorer = TriggerScorer(profiler, screener, folder)
     scored = []
     for index, gene in enumerate(genes):
@@ -1035,7 +1120,18 @@ def _de_trigger(
     # Re-mint through CandidateStore, matching _direct_trigger's own note: trigger_id
     # is "minted by CandidateStore" per domain.py's contract, but TriggerScorer builds
     # its own id string directly.
-    candidates = [dataclasses.replace(c, trigger_id=store.mint_id("trig")) for c in scored]
+    references = {gene.gene_id: gene_reference(host, gene.gene_id) for gene in genes}
+    candidates = [
+        dataclasses.replace(
+            c,
+            trigger_id=store.mint_id("trig"),
+            transcript_id=references[c.gene_id]["transcript_id"],
+            reference_accession=references[c.gene_id].get("reference_accession", ""),
+            reference_selection_method=references[c.gene_id]["selection_method"],
+            transcript_sequence_sha256=sha256_bytes(transcriptome[c.gene_id].encode()),
+        )
+        for c in scored
+    ]
 
     if not candidates:
         return [], [
@@ -1315,8 +1411,8 @@ def _circuit_candidate_result(
         ),
         metrics=metrics,
         warnings=tuple(f"Assembly standard: {v}" for v in plasmid.violations),
-        is_rejected=breach is not None,
-        rejection_reason=breach.reason if breach else "",
+        is_rejected=breach is not None or bool(plasmid.violations),
+        rejection_reason=breach.reason if breach else "; ".join(plasmid.violations),
     )
 
 
@@ -1327,7 +1423,15 @@ def _trigger_feature(trigger: TriggerCandidate) -> dict:
     identically — a circuit's features list is this, once per member gene.
     """
     return {
-        "feature_id": trigger.symbol,
+        "feature_id": trigger.gene_id,
+        "gene_id": trigger.gene_id,
+        "gene_symbol": trigger.symbol,
+        "transcript_id": trigger.transcript_id,
+        "reference_accession": trigger.reference_accession,
+        "reference_selection_method": trigger.reference_selection_method,
+        "transcript_sequence_sha256": trigger.transcript_sequence_sha256,
+        "log2_fold_change": trigger.log2_fold_change,
+        "sequence_sha256": sha256_bytes(trigger.sequence.encode()),
         "sequence": trigger.sequence,
         "openness": trigger.openness,
         "accessibility": trigger.accessibility,
@@ -1398,7 +1502,18 @@ def _candidate_result(
     a fact about the construct, not a reason to reject the switch design itself.
     """
     logic_graph = {
-        "genes": [{"name": "A", "role": trigger.symbol, "state": "ON", "direction": "up"}],
+        "genes": [
+            {
+                "name": "A",
+                "role": trigger.symbol or trigger.gene_id,
+                "state": "OFF"
+                if trigger.log2_fold_change is not None and trigger.log2_fold_change < 0
+                else "ON",
+                "direction": "down"
+                if trigger.log2_fold_change is not None and trigger.log2_fold_change < 0
+                else "up",
+            }
+        ],
         "mid_gate": "AND",
         "outer_gate": "AND",
         "invert": False,
@@ -1421,6 +1536,43 @@ def _candidate_result(
             "switch_sequence": design.sequence,
             "structure": design.dot_bracket,
             "toehold_length": design.architecture.get("toehold_length", 0),
+            "architecture": {
+                key: value
+                for key, value in design.architecture.items()
+                if key != "evaluation_sequence"
+            },
+            "evaluation_context": "full_switch_plus_payload_cds_no_promoter_or_terminator",
+            "evaluation_sequence_sha256": sha256_bytes(
+                design.architecture.get("evaluation_sequence", design.sequence).encode()
+            ),
+            "payload_sequence_sha256": sha256_bytes(
+                next(
+                    s.sequence for s in plasmid.plasmid.segments if s.kind is SegmentKind.PAYLOAD
+                ).encode()
+            ),
+            "coding_junction": "switch_initiation_aug_with_payload_start_removed_n_terminal_fusion",
+            "coding_regions": [
+                {
+                    "start": start,
+                    "end": end,
+                    "name": name,
+                    "protein_sha256": sha256_bytes(protein.encode()),
+                }
+                for start, end, name, protein in plasmid.coding_regions
+            ],
+            "family_version": family.version,
+            "host": design.host.value,
+            "structure_kind": "intended_target",
+            "structure_deviation": design.structure_deviation,
+            "structural_rule_version": "syntax-and-ensemble-v1-no-functional-threshold",
+            "maturity": "computational_single_input_compiled_experimental_unvalidated",
+            "orthogonality_status": "unmeasured",
+            "payload_id": outcome.value,
+            "construct_sha256": sha256_bytes(plasmid.plasmid.sequence.encode()),
+            "topology": "circular"
+            if any(s.kind is SegmentKind.BACKBONE for s in plasmid.plasmid.segments)
+            else "linear",
+            "tool_versions": family.folder.versions(),
             # The whole construct, not the switch alone - matches
             # convention (client.py) and Plasmid.length_bp's own definition. The
             # frontend's PlasmidRing draws arcs proportional to this against
@@ -1434,13 +1586,17 @@ def _candidate_result(
         summary=f"{design.trigger_set.logic_type} {family.name} gate on {trigger.symbol}",
         metrics=metrics,
         warnings=[f"Plasmid: {v}" for v in plasmid.violations],
-        is_rejected=breach is not None,
-        rejection_reason=breach.reason if breach else "",
+        is_rejected=breach is not None or bool(plasmid.violations),
+        rejection_reason=breach.reason if breach else "; ".join(plasmid.violations),
     )
 
 
 def _write_artifacts(
-    output_dir: str, candidates: list[CandidateResult], plasmids: dict[str, PlasmidDesign]
+    output_dir: str,
+    candidates: list[CandidateResult],
+    plasmids: dict[str, PlasmidDesign],
+    *,
+    on_progress: ProgressFn | None = None,
 ) -> list[ArtifactRef]:
     """A design table, and — only once the safety gate releases — a FASTA, a GenBank
     and an SBOL document per accepted candidate (docs/plasmids.md, E5a; ADR 0008).
@@ -1482,14 +1638,18 @@ def _write_artifacts(
     ]
 
     for candidate in sorted((c for c in candidates if not c.is_rejected), key=lambda c: c.ref):
+        if on_progress is not None and not on_progress(97, "Writing report"):
+            raise JobCancelled("Writing report")
         plasmid = plasmids[candidate.ref]
         switch_screen = fail_closed_release(
             f"{candidate.ref}:switch",
             candidate.design["switch_sequence"],
-            host_context="unconfigured",
+            host_context=candidate.design.get("host", "unconfigured"),
         )
         plasmid_screen = fail_closed_release(
-            f"{candidate.ref}:plasmid", plasmid.plasmid.sequence, host_context="unconfigured"
+            f"{candidate.ref}:plasmid",
+            plasmid.plasmid.sequence,
+            host_context=candidate.design.get("host", "unconfigured"),
         )
         artifacts.extend(
             [

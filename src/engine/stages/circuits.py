@@ -15,6 +15,7 @@ honest measure than any thermodynamic proxy.
 """
 
 import itertools
+import math
 from collections.abc import Iterable, Iterator
 
 from engine.domain import (
@@ -30,6 +31,7 @@ from engine.domain import (
     Regulation,
     SelectedGene,
 )
+from engine.errors import InputValidationError
 
 
 class CircuitDesigner:
@@ -314,4 +316,54 @@ class ConfusionEvaluator:
             is more defensible and not much more work. **Whatever is chosen, record it**:
             the confusion matrix means nothing without knowing what "present" meant.
         """
-        raise NotImplementedError("Step 5")
+        if (
+            isinstance(threshold, bool)
+            or not isinstance(threshold, (int, float))
+            or not math.isfinite(threshold)
+            or threshold < 0
+        ):
+            raise InputValidationError("Expression threshold must be finite and nonnegative.")
+        genes, samples = counts.shape
+        if (
+            not genes
+            or not samples
+            or len(counts.counts) != genes
+            or any(len(row) != samples for row in counts.counts)
+        ):
+            raise InputValidationError("A nonempty rectangular count matrix is required.")
+        if len(set(counts.gene_ids)) != genes or len(set(counts.samples)) != samples:
+            raise InputValidationError("Count matrix identifiers must be unique.")
+        controls = set(counts.metadata.control_samples)
+        conditions = set(counts.metadata.condition_samples)
+        if (
+            not controls
+            or not conditions
+            or controls & conditions
+            or controls | conditions != set(counts.samples)
+        ):
+            raise InputValidationError("Every sample must belong to exactly one nonempty group.")
+        if set(expression.gene_ids()) - set(counts.gene_ids):
+            raise InputValidationError("Expression references genes absent from the count matrix.")
+        if any(
+            isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0
+            for row in counts.counts
+            for v in row
+        ):
+            raise InputValidationError("Counts must be finite nonnegative values.")
+        tp = fp = fn = tn = 0
+        for index, sample in enumerate(counts.samples):
+            active = frozenset(
+                gene
+                for gene, row in zip(counts.gene_ids, counts.counts, strict=True)
+                if row[index] > threshold
+            )
+            prediction = expression.evaluate(active)
+            if sample in conditions:
+                tp += prediction
+                fn += not prediction
+            else:
+                fp += prediction
+                tn += not prediction
+        # This evaluates a count-threshold logical classifier; it is not a measured
+        # molecular gate assay and production DE mode does not collect these counts.
+        return ConfusionMatrix(tp, fp, fn, tn)

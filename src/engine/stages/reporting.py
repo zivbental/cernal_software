@@ -12,8 +12,12 @@ Everything here reads; nothing computes science. If a figure needs a value that 
 already recorded, the value belongs upstream.
 """
 
-from engine.contract import ArtifactRef
+from html import escape
+
+from engine.artifacts import write_artifact
+from engine.contract import ArtifactRef, CandidateResult
 from engine.domain import CircuitCandidate, GateDesign, PlasmidDesign
+from engine.gates.tools.folding import FoldEngine
 
 
 class StructureRenderer:
@@ -41,7 +45,34 @@ class StructureRenderer:
             — an undifferentiated hairpin tells a reader very little. SVG rather than
             PNG: it scales into the PDF and stays small.
         """
-        raise NotImplementedError("Step 5")
+        FoldEngine.validate_target(design.sequence, design.dot_bracket)
+        width = max(300, 8 * len(design.dot_bracket) + 40)
+        stack = []
+        paths = []
+        for index, symbol in enumerate(design.dot_bracket):
+            if symbol == "(":
+                stack.append(index)
+            elif symbol == ")":
+                start = stack.pop()
+                x1, x2 = 20 + 8 * start, 20 + 8 * index
+                paths.append(
+                    f"<path d='M{x1},160 Q{(x1 + x2) / 2},20 {x2},160' "
+                    "fill='none' stroke='#245c88'/>"
+                )
+        content = (
+            f"<svg xmlns='http://www.w3.org/2000/svg' width='{width}' height='220' "
+            f"viewBox='0 0 {width} 220'><title>Intended target pairing: "
+            f"{escape(design.design_id)}</title><text x='20' y='195'>"
+            "Intended target pairing, not a predicted or experimentally measured fold"
+            "</text>" + "".join(paths) + "</svg>"
+        )
+        return write_artifact(
+            output_dir,
+            f"structures/{design.design_id}.svg",
+            content,
+            kind="structure_plot",
+            media_type="image/svg+xml",
+        )
 
     def render_circuit(self, circuit: CircuitCandidate, output_dir: str) -> ArtifactRef:
         """Draw a circuit's logic diagram.
@@ -59,7 +90,21 @@ class StructureRenderer:
             ``LogicGraph`` so the two agree — a report that disagrees with the screen is
             worse than no report.
         """
-        raise NotImplementedError("Step 5")
+        expression = escape(circuit.expression.render())
+        content = (
+            "<svg xmlns='http://www.w3.org/2000/svg' width='900' height='120'>"
+            "<title>Logical specification</title><text x='20' y='40'>"
+            + expression
+            + "</text><text x='20' y='80'>Logical specification; "
+            "physical compiler and functional evidence required</text></svg>"
+        )
+        return write_artifact(
+            output_dir,
+            f"logic/{circuit.circuit_id}.svg",
+            content,
+            kind="logic_graph",
+            media_type="image/svg+xml",
+        )
 
 
 class ReportBuilder:
@@ -118,4 +163,90 @@ class ReportBuilder:
               well, low-confidence metrics. The temptation is to lead with the best score;
               the useful report leads with what would make you doubt it.
         """
-        raise NotImplementedError("Step 5")
+        rows = []
+        for circuit in circuits:
+            state = "rejected" if circuit.is_rejected else "logical specification"
+            measured = (
+                sum(
+                    (
+                        circuit.confusion.true_positive,
+                        circuit.confusion.false_positive,
+                        circuit.confusion.false_negative,
+                        circuit.confusion.true_negative,
+                    )
+                )
+                > 0
+            )
+            rows.append(
+                f"<li>{escape(circuit.expression.render())}: {state}; "
+                f"sample confusion {'available' if measured else 'unmeasured'}</li>"
+            )
+        content = (
+            "<!doctype html><meta charset='utf-8'><title>CERNAL logical specification</title>"
+            "<h1>Computational logical specification</h1>"
+            "<p>Logical expressions do not establish a physically compiled circuit. "
+            "No experimental validation or sequence-release approval is inferred.</p><ul>"
+            + "".join(rows)
+            + "</ul>"
+        )
+        return [
+            write_artifact(
+                output_dir, "report.html", content, kind="report", media_type="text/html"
+            )
+        ]
+
+    def build_result(
+        self,
+        candidates: list[CandidateResult],
+        warnings: list[str],
+        output_dir: str,
+        *,
+        engine_version: str,
+        profile_version: str,
+    ) -> ArtifactRef:
+        """Write a sequence-free computational report while release remains held."""
+        parts = [
+            "<!doctype html><html lang='en'><meta charset='utf-8'>",
+            "<title>CERNAL computational design report</title>",
+            "<h1>CERNAL computational design report</h1>",
+            f"<p>Engine {escape(engine_version)}; scoring profile {escape(profile_version)}.</p>",
+            "<p>Computation is complete. Experimental efficacy, functional success calibration "
+            "and transcriptome off-target screening are unavailable. Sequence export remains "
+            "held until release policy approval; see safety audit artifacts.</p>",
+            "<p>These are independent single-input constructs. Scores are computational proxies: "
+            "dynamic range is an initiation-accessibility ratio with denominator floored at 0.001; "
+            "predicted success rate is an uncalibrated binding-energy sigmoid, not a probability "
+            "of cellular success. Ensemble defect is normalized once and has no calibrated "
+            "functional acceptance threshold. PDF and structure figures are not produced.</p>",
+            "<h2>Run caveats</h2><ul>",
+            *(f"<li>{escape(warning)}</li>" for warning in warnings),
+            "</ul><h2>Candidates</h2>",
+        ]
+        for candidate in candidates:
+            parts.append(f"<h3>{escape(candidate.ref)}: {escape(candidate.summary)}</h3>")
+            status = (
+                "Rejected"
+                if candidate.is_rejected
+                else "Computationally eligible, experimentally unvalidated"
+            )
+            rank = candidate.rank if candidate.rank is not None else "unranked"
+            parts.append(f"<p>{status}; rank {rank}.</p>")
+            if candidate.rejection_reason:
+                parts.append(f"<p>{escape(candidate.rejection_reason)}</p>")
+            parts.append("<table><tr><th>Metric</th><th>Raw</th><th>Normalized</th></tr>")
+            for metric in candidate.metrics:
+                raw = "unmeasured" if metric.raw_value is None else str(metric.raw_value)
+                normalized = (
+                    "unmeasured"
+                    if metric.normalized_value is None
+                    else str(metric.normalized_value)
+                )
+                parts.append(
+                    f"<tr><td>{escape(metric.name)}</td><td>{escape(raw)}</td>"
+                    f"<td>{escape(normalized)}</td></tr>"
+                )
+            parts.append("</table>")
+        parts.append("</html>")
+        return write_artifact(
+            output_dir, "report.html", "\n".join(parts), kind="report", media_type="text/html"
+        )
