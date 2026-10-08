@@ -2,7 +2,8 @@
 
 Updated 8 October 2026. The [dated audit](SOFTWARE_STATUS_REVIEW_2026-10-08.md)
 remains the immutable before-state evidence. This ledger records product/client changes;
-integrated engine/platform/runtime acceptance is recorded in the main QA ledger.
+integrated engine/platform/runtime acceptance is recorded in the
+[main QA ledger](QA_REMEDIATION_2026-10-08.md).
 
 | Audit IDs | Software changes | Verification and remaining acceptance |
 |---|---|---|
@@ -26,7 +27,7 @@ capability rejection, offline submission retry, catalog empty state, warnings/pr
 candidate 201/7907, global output filtering, custom-vector boundary validation,
 four-host/three-mode readiness, HTTP failure matrix, review save/delete, empty
 completion and history failures.
-Python client suite passed 16 tests through a real localhost API (real LocalEngine
+Python client suite passed 19 tests through a real localhost API (real LocalEngine
 precompleted fixture; this is not a worker-queue test). R runtime conformance subsequently passed in [hosted Ubuntu CI](https://github.com/zivbental/cernal_software/actions/runs/37802426550/job/113397823314).
 MATLAB runtime remains unavailable. Engine test totals and main-suite claims are recorded
 only from commands actually run after integration.

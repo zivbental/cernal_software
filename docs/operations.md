@@ -159,5 +159,6 @@ Local tests cover readiness responses, worker death/reconciliation, retained-imp
 recovery, backup round trips and archive corruption/path rejection. Unit templates
 receive syntax checking. A real VM reboot, public TLS renewal, disk-full behavior,
 external alerts, scheduled protected backups, a full production-size restore, and a
-human-owned incident drill remain deployment acceptance work. Native Windows receives
-portable supervisor code and a manual CI lane, but is not certified by Linux mocks.
+human-owned incident drill remain deployment acceptance work. The native Windows
+Server 2025 CI lane passed 48 supervision/lifecycle/recovery tests; launch/shutdown
+adapters in that suite use mocks. Actual process-tree crash/restart drills remain open.
