@@ -23,6 +23,7 @@ let failSubmit=true, submitStatus=null, empty=false, historyError=false;
 let notes=[];
 const dataset={id:"mock-data",name:"Wizard fixture",validation_status:"VALID",size_bytes:1000,validation_report:{rows:2,columns:[],errors:[],warnings:[]}};
 const queries=[];
+const submissions=[];
 const families=['toehold','prokaryotic_toehold','eukaryotic_toehold','toehold_and','crispr'];
 const version={app_version:'test', engine:'LocalEngine', engine_version:'test', reviewer_login_enabled:false,
  gate_families:families.map(name=>({name,label:name,description:name,available:!['toehold_and','crispr'].includes(name)})),
@@ -40,6 +41,7 @@ await page.route('**/api/**', async route=>{
  else if(path.endsWith('/preview')) body={rows:[],total_rows:0,truncated:false};
  else if(path==='/api/reference-genes/resolve') body={gene_id:'TEST_GENE',gene_symbol:'TestGene',sequence:'AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA',transcript_id:'TEST_TRANSCRIPT',selection_method:'fixture'};
  else if(path==='/api/runs' && route.request().method()==='POST') {
+   submissions.push(route.request().postDataJSON());
    if(submitStatus) return route.fulfill({status:submitStatus,json:{error:{message:`Injected submission ${submitStatus}`}}});
    if(failSubmit) return route.abort('failed');
    body={...run,status:'QUEUED'};
@@ -85,6 +87,20 @@ try {
  await sequence.fill('>one\nACGU\n>two\nACGU');
  await page.getByText('Paste one FASTA record at a time.',{exact:true}).waitFor();
  await sequence.fill('AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA');
+ await page.getByRole('button',{name:'Custom Upload your own GenBank file'}).click();
+ await page.getByLabel('Backbone GenBank file').setInputFiles({name:'fixture.gb',mimeType:'text/plain',buffer:Buffer.from('LOCUS fixture circular\nORIGIN\n 1 acgtacgtacgt\n//')});
+ const insertion=page.getByLabel('Insertion boundary (0-based)');
+ assert(await page.getByRole('button',{name:'Compile & Optimize'}).isDisabled());
+ for(const value of ['-1','1.5']) {
+   await insertion.fill(value);
+   assert(await page.getByRole('button',{name:'Compile & Optimize'}).isDisabled());
+ }
+ await insertion.fill('0');
+ assert(!(await page.getByRole('button',{name:'Compile & Optimize'}).isDisabled()));
+ await page.getByRole('button',{name:'Compile & Optimize'}).click();
+ await page.getByRole('alert').filter({hasText:'Failed to fetch'}).waitFor();
+ assert.equal(submissions.at(-1).params.backbone.insertion_index,0);
+ await page.getByRole('button',{name:'None Switch, promoter, terminator and payload only — no origin or marker.'}).click();
  for(const name of ['E. coli','Yeast','Human','C. acnes']) {
    await page.getByRole('button',{name,exact:name!=='C. acnes'}).first().click();
    await page.getByRole('button',{name:'Direct Trigger mRNA'}).click();
@@ -134,5 +150,5 @@ try {
  await page.goto(origin+'/dashboard');
  await page.getByRole('alert').filter({hasText:'Could not load run history'}).waitFor();
  assert.deepEqual(errors,[]);
- console.log('Browser contracts passed: paste integrity, capability rejection, offline retry, four-host/three-mode wizard readiness, HTTP401/403/404/422/429/500, catalog empty, review save/delete, warning/proxy labels, candidate 201/7907, global output filter, empty completion and history error.');
+ console.log('Browser contracts passed: paste integrity, capability rejection, offline retry, four-host/three-mode wizard readiness, HTTP401/403/404/422/429/500, catalog empty, custom vector insertion boundary, review save/delete, warning/proxy labels, candidate 201/7907, global output filter, empty completion and history error.');
 } finally { await browser.close(); await new Promise(done=>server.close(done)); }

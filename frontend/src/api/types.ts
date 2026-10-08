@@ -377,7 +377,7 @@ export interface RunParams {
    * one of the two fields, or neither (today's bare four-segment construct, unchanged) —
    * the API rejects both being set at once.
    */
-  backbone?: { catalog_key?: string; custom_genbank?: string };
+  backbone?: { catalog_key?: string; custom_genbank?: string; insertion_index?: number };
   /**
    * Reference identity resolved server-side and frozen with the selected transcript.
    */

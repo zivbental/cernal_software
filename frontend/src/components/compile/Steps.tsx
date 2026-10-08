@@ -60,6 +60,7 @@ export interface CompileConfig {
   /** Read client-side via FileReader, the same "paste your own" pattern
    * `customPayload` already uses — see routes/compile.tsx's onSubmit. */
   customBackboneGenbank: string;
+  customBackboneInsertion: string;
 }
 
 export const DEFAULT_CONFIG: CompileConfig = {
@@ -85,6 +86,7 @@ export const DEFAULT_CONFIG: CompileConfig = {
   // default).
   backbone: "psb1c3",
   customBackboneGenbank: "",
+  customBackboneInsertion: "",
 };
 
 /** engine.scoring.profiles.DEFAULT_V1's own predicted_leakage hard-filter ceiling
@@ -908,7 +910,7 @@ export function StepVector({
     // Read client-side, same "paste your own" pattern customPayload already uses — no
     // upload endpoint, the file's text goes straight into the submitted JSON body.
     reader.onload = () => {
-      patch({ backbone: "custom", customBackboneGenbank: String(reader.result ?? "") });
+      patch({ backbone: "custom", customBackboneGenbank: String(reader.result ?? ""), customBackboneInsertion: "" });
     };
     reader.readAsText(file);
   };
@@ -947,11 +949,12 @@ export function StepVector({
 
       {config.backbone === "custom" && (
         <div className="mt-6">
-          <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          <label htmlFor="custom-backbone-file" className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
             Backbone GenBank file
           </label>
           <input
             ref={fileInput}
+            id="custom-backbone-file"
             type="file"
             accept=".gb,.gbk,.genbank,text/plain"
             className="hidden"
@@ -968,6 +971,11 @@ export function StepVector({
             <FileUp className="h-3.5 w-3.5" />
             {config.customBackboneGenbank ? "Replace file" : "Choose a .gb file"}
           </button>
+          <label htmlFor="backbone-insertion" className="mt-4 block text-sm text-foreground">Insertion boundary (0-based)</label>
+          <input id="backbone-insertion" type="number" min="0" step="1" value={config.customBackboneInsertion}
+            onChange={(e) => patch({ customBackboneInsertion: e.target.value })}
+            className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
+          <p className="mt-2 text-xs text-muted-foreground">Choose the boundary between vector bases where the cassette is inserted: 0 is before the first base. The server checks vector length and protected feature disruption. A cloning protocol is not generated automatically.</p>
           {config.customBackboneGenbank && (
             <div className="mt-2 font-mono text-[11px] text-muted-foreground">
               {config.customBackboneGenbank.length.toLocaleString()} characters loaded — must be

@@ -92,6 +92,8 @@ function CompilePage() {
       return "Paste a sequence for your custom output, or deselect it.";
     if (config.backbone === "custom" && config.customBackboneGenbank.length < 10)
       return "Upload a GenBank file for your custom backbone, or choose a catalog vector.";
+    if (config.backbone === "custom" && (config.customBackboneInsertion.trim() === "" || !Number.isSafeInteger(Number(config.customBackboneInsertion)) || Number(config.customBackboneInsertion) < 0))
+      return "Choose a nonnegative integer insertion boundary for your custom vector.";
     return null;
   }, [config, datasets.data, families, version.data]);
 
@@ -144,7 +146,7 @@ function CompilePage() {
     };
 
     if (config.backbone === "custom") {
-      params.backbone = { custom_genbank: config.customBackboneGenbank };
+      params.backbone = { custom_genbank: config.customBackboneGenbank, insertion_index: Number(config.customBackboneInsertion) };
     } else if (config.backbone !== "none") {
       params.backbone = { catalog_key: config.backbone };
     }
