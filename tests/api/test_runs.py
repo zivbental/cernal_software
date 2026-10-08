@@ -28,12 +28,12 @@ def test_the_configuration_snapshot_is_frozen_at_submission(
 ):
     """Rule 7: a submitted run's configuration never changes after the fact."""
     with django_capture_on_commit_callbacks():
-        run_id = _submit(auth_client, dataset_id=dataset.id, params={"max_triggers": 3}).json()[
-            "id"
-        ]
+        run_id = _submit(
+            auth_client, dataset_id=dataset.id, params={"constraints": {"min_separation": 3}}
+        ).json()["id"]
 
     run = AnalysisRun.objects.get(pk=run_id)
-    assert run.params_snapshot["max_triggers"] == 3
+    assert run.params_snapshot["constraints"]["min_separation"] == 3
     assert run.params_snapshot["host"] == "ecoli"
     assert run.params_snapshot["constraints"]["trigger_lengths"]
 
@@ -307,7 +307,7 @@ def test_polling_another_users_run_is_404(other_client, run):
 def test_run_detail_exposes_the_immutable_snapshot(auth_client, run):
     body = auth_client.get(f"/api/runs/{run.id}/detail").json()
 
-    assert body["params_snapshot"] == {"max_triggers": 2}
+    assert body["params_snapshot"] == run.params_snapshot
     assert body["gate_families"] == ["toehold"]
 
 

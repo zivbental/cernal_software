@@ -26,10 +26,11 @@ SUPPORTED_SUFFIXES = (".csv", ".tsv", ".txt", ".xlsx")
 EXAMPLES: dict[str, dict[str, str]] = {
     "ecoli-oxidative-stress": {
         "filename": "ecoli_oxidative_stress.csv",
-        "label": "E. coli — lactose metabolism to oxidative stress",
+        "label": "Illustrative E. coli — lactose metabolism to oxidative stress",
         "description": (
-            "50 genes from a differential-expression analysis comparing standard growth "
-            "with oxidative stress. Twenty stress-response genes are up-regulated, "
+            "Synthetic illustrative values for 50 genes, not experimental observations. "
+            "The example models standard growth with oxidative stress. "
+            "Twenty stress-response genes are up-regulated, "
             "fifteen metabolic and motility genes down, and fifteen housekeeping genes "
             "are unchanged."
         ),

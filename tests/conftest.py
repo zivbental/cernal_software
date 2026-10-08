@@ -117,7 +117,10 @@ def run(dataset, user):
         organism="ecoli",
         created_by=user,
         idempotency_key="test-key-001",
-        params_snapshot={"max_triggers": 2},
+        params_snapshot={
+            "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+            "budget": {"max_designs": 3},
+        },
         gate_families=["toehold"],
         scoring_profile="default",
         seed=42,

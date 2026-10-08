@@ -114,3 +114,35 @@ def test_restore_requires_pending_result_destination(backup_archive, tmp_path):
     with pytest.raises(BackupError, match="pending results"):
         restore_backup(backup_archive, tmp_path / "db", tmp_path / "restore-media")
     assert not (tmp_path / "db").exists()
+
+
+@pytest.mark.parametrize("case", ["same", "nested", "database_in_media"])
+def test_restore_refuses_overlapping_targets_before_writes(backup_archive, tmp_path, case):
+    root = tmp_path / "restore"
+    database, media, staging = root / "database.sqlite3", root / "media", root / "staging"
+    if case == "same":
+        staging = media
+    elif case == "nested":
+        staging = media / "staging"
+    else:
+        database = media / "database.sqlite3"
+    with pytest.raises(BackupError, match="overlap"):
+        restore_backup(backup_archive, database, media, staging_target=staging)
+    assert not root.exists()
+
+
+@pytest.mark.parametrize("case", ["dangling_target", "ancestor"])
+def test_restore_refuses_symlink_targets_and_ancestors(backup_archive, tmp_path, case):
+    root = tmp_path / "restore"
+    root.mkdir()
+    database, media, staging = root / "database.sqlite3", root / "media", root / "staging"
+    if case == "dangling_target":
+        media.symlink_to(tmp_path / "absent", target_is_directory=True)
+    else:
+        linked = root / "linked"
+        linked.symlink_to(tmp_path, target_is_directory=True)
+        media = linked / "new-media"
+    with pytest.raises(BackupError, match="symlink"):
+        restore_backup(backup_archive, database, media, staging_target=staging)
+    assert not database.exists()
+    assert not staging.exists()

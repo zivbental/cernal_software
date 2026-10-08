@@ -119,10 +119,22 @@ def create_backup(connection, media_root, output, *, staging_root=None):
     return manifest
 
 
+def _restore_targets(database, media, staging):
+    targets = [Path(path).absolute() for path in (database, media, staging) if path is not None]
+    for target in targets:
+        if any(part.is_symlink() for part in (target, *target.parents)):
+            raise BackupError("Restore targets and their parents must not be symlinks.")
+    for index, target in enumerate(targets):
+        for other in targets[index + 1 :]:
+            if target == other or target.is_relative_to(other) or other.is_relative_to(target):
+                raise BackupError("Database, media and staging restore targets must not overlap.")
+
+
 def restore_backup(archive_path, database_target, media_target, *, staging_target=None):
     """Verify all archive bytes before populating new, empty target paths."""
     database_target, media_target = Path(database_target), Path(media_target)
     staging_target = Path(staging_target) if staging_target is not None else None
+    _restore_targets(database_target, media_target, staging_target)
     if database_target.exists() or database_target.is_symlink():
         raise BackupError("The database restore target must not exist.")
     for target in (media_target, staging_target):
