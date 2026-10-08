@@ -14,7 +14,7 @@ orders from the synthesis company. A reviewer cannot see them; a test can.
 **Why AST and not grep.** Almost every rule here is written *about* in a docstring
 somewhere in ``src/engine/`` — ``gates/tools/folding.py`` warns you not to touch
 ``RNA.cvar.temperature``, ``pipeline.py`` sketches ``FoldEngine()`` in a code block,
-``gates/crispr.py`` discusses ``OffTargetScanner``. A text search flags all of those and
+``gates/crispr.py`` discusses genomic off-target search. A text search flags those and
 teaches the team to ignore this file. An AST scan sees only real code, so a failure here
 is always a real failure. It also catches what a runtime check would miss: imports inside
 functions, inside ``if TYPE_CHECKING``, and inside branches that never execute.
@@ -83,7 +83,6 @@ CODON_ADAPTERS = ("engine/gates/tools/codons.py",)
 SHARED_TOOLS = (
     "FoldEngine",
     "FoldProfiler",
-    "OffTargetScanner",
     "MotifScreener",
     "CodonOptimizer",
     "TranslationScorer",
@@ -131,7 +130,7 @@ NOTEBOOK_WORKBENCH = "engine/gates/notebooks/"
 
 #: Stage-2 tools. A gate family that touches one of these is re-measuring something the
 #: pipeline already measured and stored on the record it was handed.
-STAGE_ONLY_TOOLS = ("FoldProfiler", "OffTargetScanner")
+STAGE_ONLY_TOOLS = ("FoldProfiler",)
 
 #: Layer ranks. Longest prefix first — ``gates/tools/`` must match before ``gates/``.
 #: An import may point at its own rank or below it, never above.
@@ -144,13 +143,12 @@ LAYER_RANKS: tuple[tuple[str, int], ...] = (
     ("engine/pipeline.py", 5),
 )
 
-#: The documented sideways exception. These three are *tools that happen to live beside
+#: The documented sideways exception. These two are *tools that happen to live beside
 #: the stages* because no gate family uses them (see engine/gates/tools/__init__.py).
 #: Every other stage-imports-a-stage is a stage doing another stage's job.
 STAGE_TOOL_MODULES = frozenset(
     {
         "engine.stages.folding",  # S1 · FoldProfiler
-        "engine.stages.off_target",  # S5 · OffTargetScanner
         "engine.stages.motifs",  # S7 · MotifScreener
     }
 )
@@ -539,14 +537,14 @@ def test_shared_tools_are_constructed_only_in_the_pipeline(path: Path):
     """Only ``pipeline.build_tools()`` may construct a shared tool (docs/engine.md §2.4).
 
     Each of these tools carries the configuration that decides what its numbers *mean*:
-    ``FoldEngine`` its folding temperature and cache, ``OffTargetScanner`` its
-    transcriptome build and mismatch tolerance, ``CodonOptimizer`` its codon table.
+    ``FoldEngine`` its folding temperature and cache, ``MotifScreener`` its assembly
+    standard and forbidden-motif set, ``CodonOptimizer`` its codon table.
 
     A second instance produces a second set of numbers under a second configuration, and
-    they land in the same ranking as if they were the same measurement. An off-target
-    penalty computed against a different transcriptome build looks exactly like one
-    computed against the right build — plausible, precise, and meaningless. The cold cache
-    is the least of it.
+    they land in the same ranking as if they were the same measurement. A folding energy
+    computed at a different temperature looks exactly like one computed at the right
+    temperature — plausible, precise, and meaningless. The cold cache is the least of
+    it.
 
     Tools are built once in ``build_tools()`` and passed down. If a class needs one, it
     takes it as a constructor argument.
@@ -605,13 +603,13 @@ def test_gate_families_never_import_scoring(path: Path):
 
 @pytest.mark.parametrize("path", _python_files(ENGINE / "gates"), ids=_id)
 def test_gate_families_do_not_use_stage_tools(path: Path):
-    """``FoldProfiler`` and ``OffTargetScanner`` must not be *used* under ``gates/``.
+    """``FoldProfiler`` must not be *used* under ``gates/``.
 
-    Both belong to stage 2. By the time a gate family sees a ``TriggerCandidate``, its
-    accessibility, openness and off-target penalty have already been measured and stored
-    on the record. Re-measuring them inside the family produces a second number for the
-    same physical quantity, computed with whatever window or mismatch settings the family
-    chose — and only one of the two reaches the report, with nothing indicating which.
+    It belongs to stage 2. By the time a gate family sees a ``TriggerCandidate``, its
+    accessibility and openness have already been measured and stored on the record.
+    Re-measuring them inside the family produces a second number for the same physical
+    quantity, computed with whatever window settings the family chose — and only one of
+    the two reaches the report, with nothing indicating which.
 
     ``TriggerCandidate.accessibility`` is a value to read, not a value to recompute.
 

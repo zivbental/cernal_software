@@ -10,6 +10,9 @@ every gate family reports the same quantity on the same scale. Two families comp
 normalise onto one axis as though they were comparable.
 """
 
+import math
+from collections.abc import Sequence
+
 from engine.gates.tools.folding import FoldEngine
 
 #: Every pairing the design may rely on. **G:U wobbles count** — a duplex scored on
@@ -156,3 +159,75 @@ def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float
     g_switch = folder.mfe(switch).energy
     g_trigger = folder.mfe(trigger).energy
     return g_complex - (g_switch + g_trigger)
+
+
+#: Reference point for ``binding_energy_factor``: the ΔG_bind at which a design is
+#: judged an even bet. Literature-reasonable for an RNA-RNA duplex of the lengths these
+#: chemistries build, and fixed rather than calibrated against the run's own candidate
+#: pool on purpose — a pool-relative reference makes a design's score depend on which
+#: other designs happened to be in its batch (CLAUDE.md §3).
+DG_REFERENCE_KCAL = -15.0
+
+#: How sharply confidence changes around ``DG_REFERENCE_KCAL``, in kcal/mol. Larger is
+#: a gentler slope.
+DG_STEEPNESS = 2.0
+
+
+def binding_energy_factor(
+    binding_dg: float,
+    *,
+    reference_kcal: float = DG_REFERENCE_KCAL,
+    steepness: float = DG_STEEPNESS,
+) -> float:
+    """Map ΔG_bind (kcal/mol, more negative is stronger) onto a 0-1 confidence.
+
+    This is ``predicted_success_rate``'s model: a logistic curve through
+    ``reference_kcal``, where a duplex exactly that stable scores 0.5, a much stronger
+    one approaches 1.0 and a much weaker one approaches 0.0.
+
+    It lives here rather than on one family because every chemistry that reports
+    ``predicted_success_rate`` must report it on the *same* scale. Two families each
+    with their own sigmoid produce numbers ``engine.scoring`` normalises onto one axis
+    as though they were comparable — the same failure this module's own docstring
+    describes for binding energy itself.
+
+    Args:
+        binding_dg: From ``hybridization_energy``. kcal/mol, negative for a duplex that
+            forms.
+        reference_kcal: The 0.5 point. A family with a well-founded reason to sit
+            elsewhere passes its own, and says why.
+        steepness: kcal/mol per unit of logit.
+
+    Returns:
+        A confidence on 0-1, higher better — the direction ``predicted_success_rate``
+        declares in ``engine.scoring.profiles``.
+    """
+    x = (binding_dg - reference_kcal) / steepness
+    x = max(-50.0, min(50.0, x))  # clamp: math.exp overflows well before this
+    return 1.0 / (1.0 + math.exp(x))
+
+
+def weakest_binding_confidence(
+    switch: str, triggers: Sequence[str], folder: FoldEngine
+) -> float | None:
+    """``predicted_success_rate`` over every input a design needs.
+
+    Runs ``hybridization_energy`` for each trigger against the switch and returns the
+    *lowest* confidence ``binding_energy_factor`` gives any of them. The weakest input
+    governs: an AND gate whose second trigger barely binds does not work because the
+    first one binds beautifully.
+
+    Args:
+        switch: The full switch sequence, RNA, uppercase.
+        triggers: Each trigger sequence the design is designed against. A single-input
+            family passes one.
+        folder: The run's shared ``FoldEngine`` — one instance, so every energy here is
+            computed at one temperature and served from one cache.
+
+    Returns:
+        A confidence on 0-1, or ``None`` when there are no triggers to bind, which is
+        not a design scoring zero but a design there is nothing to say about.
+    """
+    if not triggers:
+        return None
+    return min(binding_energy_factor(hybridization_energy(switch, t, folder)) for t in triggers)

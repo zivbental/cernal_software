@@ -27,6 +27,10 @@ carry no effect size at all — there is nothing to rank a gene on without a fol
 import csv
 import io
 from pathlib import Path
+from zipfile import BadZipFile
+
+from openpyxl import load_workbook
+from openpyxl.utils.exceptions import InvalidFileException
 
 from engine.domain import DgeRow, DgeTable
 from engine.errors import InputValidationError
@@ -98,7 +102,7 @@ def _as_float(value: str | None) -> float | None:
 
 
 def parse_dge_table(raw: bytes, filename: str = "dge.csv") -> DgeTable:
-    """Parse a differential-expression CSV or TSV into a ``DgeTable``.
+    """Parse differential-expression CSV, TSV, TXT, or XLSX into a ``DgeTable``.
 
     Args:
         raw: The file's raw bytes, exactly as uploaded or fetched — decoding and
@@ -122,17 +126,39 @@ def parse_dge_table(raw: bytes, filename: str = "dge.csv") -> DgeTable:
             has no recognisable gene-identifier column at all — in every case there is
             nothing downstream could possibly filter or rank.
     """
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError as exc:
-        raise InputValidationError(
-            "The differential-expression file is not valid UTF-8 text."
-        ) from exc
-
     suffix = Path(filename).suffix.lower()
-    delimiter = "\t" if suffix in (".tsv", ".txt") else ","
-    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
-    headers = [name.strip() for name in (reader.fieldnames or [])]
+    workbook = None
+    if suffix == ".xlsx":
+        try:
+            workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+            sheet_rows = workbook.active.iter_rows(values_only=True)
+            headers = [str(value or "").strip() for value in next(sheet_rows, ())]
+            reader = (
+                dict(zip(headers, (None if v is None else str(v) for v in values), strict=False))
+                for values in sheet_rows
+            )
+        except (BadZipFile, InvalidFileException, KeyError, ValueError) as exc:
+            if workbook is not None:
+                workbook.close()
+            raise InputValidationError(
+                "The spreadsheet could not be read as an XLSX workbook."
+            ) from exc
+    else:
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise InputValidationError(
+                "The differential-expression file is not valid UTF-8 text."
+            ) from exc
+        delimiter = "\t" if suffix in (".tsv", ".txt") else ","
+        try:
+            delimiter = csv.Sniffer().sniff(text[:8192], delimiters=",\t;").delimiter
+        except csv.Error:
+            pass
+        csv_reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+        headers = list(csv_reader.fieldnames or [])
+        reader = csv_reader
+
     if not headers:
         raise InputValidationError("The differential-expression file has no header row.")
 
@@ -143,32 +169,38 @@ def parse_dge_table(raw: bytes, filename: str = "dge.csv") -> DgeTable:
             "ensembl_id, locus_tag."
         )
 
-    rows: list[DgeRow] = []
-    for index, raw_row in enumerate(reader):
-        if index >= MAX_ROWS:
-            break
-        row = {canonical.get(key, key): value for key, value in raw_row.items() if key is not None}
+    try:
+        rows: list[DgeRow] = []
+        for index, raw_row in enumerate(reader):
+            if index >= MAX_ROWS:
+                break
+            row = {
+                canonical.get(key, key): value for key, value in raw_row.items() if key is not None
+            }
 
-        gene_id = (row.get("gene_id") or "").strip()
-        log2fc = _as_float(row.get("log2fc"))
-        if not gene_id or log2fc is None:
-            # Not "not tested" — this row cannot be identified or has no effect size to
-            # rank on at all, so there is nothing a downstream stage could do with it.
-            continue
+            gene_id = (row.get("gene_id") or "").strip()
+            log2fc = _as_float(row.get("log2fc"))
+            if not gene_id or log2fc is None:
+                # Not "not tested" — this row cannot be identified or has no effect size to
+                # rank on at all, so there is nothing a downstream stage could do with it.
+                continue
 
-        rows.append(
-            DgeRow(
-                gene_id=gene_id,
-                log2_fold_change=log2fc,
-                symbol=(row.get("gene_symbol") or "").strip(),
-                p_adj=_as_float(row.get("padj")),
-                p_value=_as_float(row.get("pvalue")),
-                base_mean=_as_float(row.get("base_mean")),
-                control_mean=_as_float(row.get("base_expression")),
-                target_mean=_as_float(row.get("target_expression")),
-                lfc_se=_as_float(row.get("lfc_se")),
-                stat=_as_float(row.get("stat")),
+            rows.append(
+                DgeRow(
+                    gene_id=gene_id,
+                    log2_fold_change=log2fc,
+                    symbol=(row.get("gene_symbol") or "").strip(),
+                    p_adj=_as_float(row.get("padj")),
+                    p_value=_as_float(row.get("pvalue")),
+                    base_mean=_as_float(row.get("base_mean")),
+                    control_mean=_as_float(row.get("base_expression")),
+                    target_mean=_as_float(row.get("target_expression")),
+                    lfc_se=_as_float(row.get("lfc_se")),
+                    stat=_as_float(row.get("stat")),
+                )
             )
-        )
+    finally:
+        if workbook is not None:
+            workbook.close()
 
     return DgeTable(rows=tuple(rows))

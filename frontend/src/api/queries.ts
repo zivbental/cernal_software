@@ -79,6 +79,18 @@ export function useLogin() {
   });
 }
 
+/** Instant sign-in as the shared reviewer account — only offered when
+ * `Version.reviewer_login_enabled` is true. */
+export function useReviewerLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<User>("/auth/reviewer-login"),
+    onSuccess: (user) => {
+      queryClient.setQueryData(keys.me, user);
+    },
+  });
+}
+
 export function useRegister() {
   return useMutation({
     mutationFn: (body: {
@@ -206,7 +218,7 @@ export function useMaterializePublicDataset() {
 /* ---------- runs ---------- */
 
 export interface SubmitRunBody {
-  input_mode: "de" | "direct";
+  input_mode: "de" | "direct" | "gene";
   dataset_id?: string | null;
   trigger_sequence?: string;
   organism?: string;

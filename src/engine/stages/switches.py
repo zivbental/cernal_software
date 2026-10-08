@@ -12,6 +12,7 @@ fixed in one place rather than three.
 
 from collections.abc import Callable, Iterable, Iterator
 from itertools import combinations
+from math import comb
 
 from engine import sequences as sq
 from engine.domain import (
@@ -22,10 +23,10 @@ from engine.domain import (
     TriggerSet,
     ValidationResult,
 )
+from engine.errors import JobCancelled
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.stages.motifs import MotifScreener
-from engine.stages.off_target import OffTargetScanner
 
 
 class SwitchDesigner:
@@ -54,6 +55,7 @@ class SwitchDesigner:
         *,
         on_incompatible: Callable[[str], None] | None = None,
         on_invalid: Callable[[str], None] | None = None,
+        on_progress: Callable[[int, int], bool] | None = None,
     ) -> Iterator[GateDesign]:
         """Yield validated switch designs.
 
@@ -106,9 +108,19 @@ class SwitchDesigner:
             scoring would be pure waste with no compensating benefit. The caller —
             ``run_pipeline`` today, ``CircuitDesigner`` once stage 4 exists — calls
             ``evaluate_design`` exactly once per surviving design, the same pattern
-            ``engine.client.MockEngine._build_candidates`` already uses.
+            the scoring layer already uses.
         """
-        for trigger_set in self.build_trigger_sets(triggers, constraints):
+        pool = list(triggers)
+        arities = {family.max_inputs for family in self.families if family.supports(self.host)}
+        total = sum(comb(len(pool), arity) for arity in arities if arity <= len(pool))
+        completed = 0
+        for index, trigger_set in enumerate(self.build_trigger_sets(pool, constraints)):
+            active = trigger_set.arity in arities
+            if on_progress is not None and (active or index % 100 == 0):
+                if not on_progress(completed, total):
+                    raise JobCancelled("Designing switches")
+            if active:
+                completed += 1
             for family in self.families:
                 if not family.supports(self.host):
                     continue
@@ -198,7 +210,6 @@ class SwitchValidator:
 
     Args:
         folder: Shared ``FoldEngine``, for structural checks.
-        off_target: Shared ``OffTargetScanner``, for direction (a) on the binding site.
         screener: Shared ``MotifScreener``, for assembly-standard compliance.
         translation: Shared ``TranslationScorer``, for the initiation checks.
         constraints: The run's limits. ``max_switch_length`` comes from here, never a
@@ -210,13 +221,11 @@ class SwitchValidator:
     def __init__(
         self,
         folder: FoldEngine,
-        off_target: OffTargetScanner,
         screener: MotifScreener,
         translation: TranslationScorer,
         constraints: Constraints,
     ) -> None:
         self.folder = folder
-        self.off_target = off_target
         self.screener = screener
         self.translation = translation
         self.constraints = constraints

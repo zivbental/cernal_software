@@ -23,8 +23,17 @@ from apps.expression.services import (
     list_organisms,
     materialize_public_dataset,
 )
+from engine.client import lookup_reference_gene
 
 router = Router()
+
+
+@router.get("/reference-genes/resolve", response=dict)
+def resolve_reference_gene(request, organism: str, gene: str):
+    try:
+        return lookup_reference_gene(organism, gene)
+    except ValueError as exc:
+        raise ValidationFailed(str(exc)) from exc
 
 
 @router.get("/public-datasets/organisms", response=list[OrganismOut], auth=None)

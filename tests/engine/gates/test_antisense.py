@@ -50,9 +50,10 @@ def make_trigger(**overrides) -> TriggerCandidate:
         "openness": 0.70,
         "accessibility": 0.65,
         "mfe": -4.0,
-        "off_target_penalty": 0.0,
-        "segment_specificity": 0.9,
         "gc_content": sq.gc_content(sequence),
+        # The gene's effect size, carried down by stage 2 — what `state_separation`
+        # reads. A repressor, so it moved down: the metric takes the magnitude.
+        "log2_fold_change": -2.4,
         "score": 0.8,
     }
     defaults.update(overrides)
@@ -249,6 +250,8 @@ def test_evaluate_design_returns_the_declared_metric_names(gate, repressor_set, 
         "trigger_accessibility",
         "predicted_success_rate",
         "gc_content",
+        "state_separation",
+        "circuit_complexity",
         "initiation_open_run_nt",
     }
     assert all(isinstance(v, float) for v in metrics.values())
@@ -314,6 +317,8 @@ def test_golden_first_design_for_the_mcherry_trigger(gate, repressor_set, constr
             "trigger_accessibility": 0.65,
             "predicted_success_rate": 0.05215354657818643,
             "gc_content": 60.37735849056604,
+            "state_separation": 2.4,
+            "circuit_complexity": 1.0,
             "initiation_open_run_nt": 4.0,
         }
     )

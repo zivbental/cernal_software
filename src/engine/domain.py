@@ -155,6 +155,7 @@ class AssemblyStandard(StrEnum):
 
     RFC10 = "RFC10"
     RFC1000 = "RFC1000"
+    NONE = "none"  # No restriction-based assembly protocol selected.
 
 
 class DesiredOutcome(StrEnum):
@@ -329,7 +330,7 @@ class SelectedGene:
     gene_id: str
     symbol: str
     regulation: Regulation
-    log2_fold_change: float
+    log2_fold_change: float | None
     score: float
     p_adj: float | None = None
     control_percentile: float | None = None
@@ -375,10 +376,12 @@ class TriggerCandidate:
             and paired in the middle does not score as well as one open throughout.
         mfe: The window's own folding energy, kcal/mol. A trigger that folds tightly on
             itself competes with binding the switch.
-        off_target_penalty: From ``OffTargetScanner.scan_trigger`` — direction (b),
-            sponging by other transcripts. 0 is clean.
-        segment_specificity: How well this window distinguishes its gene from its
-            paralogues.
+        log2_fold_change: The *gene's* effect size, carried down from
+            ``SelectedGene`` — not a property of this window. It is here because
+            everything below stage 1 (``is_compatible``'s ``min_separation`` check,
+            ``state_separation``) needs it and a ``TriggerCandidate`` is the only
+            record those layers receive. ``None`` for a `direct` submission, which
+            made no differential-expression comparison at all.
         gc_content: Percent G+C. Extremes hurt synthesis and duplex behaviour alike.
         aug_indexes: Start codons inside the window. Recorded because a trigger carrying
             one can interfere once incorporated into a switch's stem.
@@ -397,9 +400,8 @@ class TriggerCandidate:
     openness: float
     accessibility: float
     mfe: float
-    off_target_penalty: float
-    segment_specificity: float
     gc_content: float
+    log2_fold_change: float | None = None
     aug_indexes: tuple[int, ...] = ()
     stop_indexes: tuple[int, ...] = ()
     ribosome_occupancy: float | None = None
@@ -437,6 +439,14 @@ class Constraints:
     so what a run was asked to do is recoverable from its snapshot.
 
     Attributes:
+        max_circuit_gates: How many gates one circuit may combine — the length of the
+            logic, not the arity of a single gate. 1 means every selected gene becomes
+            its own one-gene circuit, which is all this engine built before stage 4
+            existed. Raising it lets ``CircuitDesigner`` combine genes into
+            ``A AND NOT B``-style circuits; each extra gate is another switch to
+            synthesise, so ``circuit_complexity`` (weight 1.0, lower better) prices it
+            in rather than the cap alone deciding. Distinct from ``max_triggers``,
+            which is how many *inputs one gate* takes.
         max_triggers: Circuit arity ceiling. 2 is the practical limit — pairs grow as the
             square of the trigger count, and triples make the search space intractable
             without a cluster (docs/ROADMAP.md §3).
@@ -480,6 +490,7 @@ class Constraints:
     """
 
     max_triggers: int = 2
+    max_circuit_gates: int = 2
     min_separation: float = 0.5
     max_p_adj: float = 0.05
     trigger_lengths: tuple[int, ...] = (30, 33, 36)
@@ -565,8 +576,6 @@ class GateDesign:
         mfe_trigger: The trigger's own folding energy, needed to compute binding.
         binding_site_accessibility: How reachable the toehold is in the OFF state. A
             switch whose toehold is itself buried can never be opened.
-        binding_site_off_target: From ``scan_switch`` — direction (a), cross-activation
-            by non-cognate RNA. Feeds the leakage estimate.
         translation_score: Codon adaptation of the fused payload, from ``CodonOptimizer``.
         architecture: Family-specific parameters — stem and loop lengths, toehold length.
             A dict because it is opaque to everything outside the family that produced it,
@@ -585,7 +594,6 @@ class GateDesign:
     mfe_off: float = 0.0
     mfe_trigger: float = 0.0
     binding_site_accessibility: float = 0.0
-    binding_site_off_target: float = 0.0
     translation_score: float = 0.0
     architecture: dict = field(default_factory=dict)
     score: float = 0.0
@@ -842,29 +850,6 @@ class ToolRequirement:
     name: str
     version: str
     optional: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class Hit:
-    """One near-match found in the transcriptome."""
-
-    gene_id: str
-    start: int
-    mismatches: int
-    identity: float
-
-
-@dataclass(frozen=True, slots=True)
-class OffTargetReport:
-    """What an off-target scan found, and what it costs the candidate."""
-
-    hits: tuple[Hit, ...]
-    penalty: float
-
-    @property
-    def worst_identity(self) -> float:
-        """Closest off-target match found. 1.0 means an exact duplicate exists."""
-        return max((hit.identity for hit in self.hits), default=0.0)
 
 
 @dataclass(frozen=True, slots=True)

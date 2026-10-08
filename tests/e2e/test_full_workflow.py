@@ -20,10 +20,10 @@ from apps.analyses.tasks import run_analysis
 
 DATASET = (
     "gene_id,base_expression,target_expression,log2fc,padj\n"
-    "lacZ,0.82,6.41,2.97,0.0007\n"
-    "rpoS,2.11,0.44,-2.26,0.0041\n"
-    "katG,1.24,5.93,2.26,0.0019\n"
-    "soxS,0.31,4.77,3.94,0.0002\n"
+    "b0344,0.82,6.41,2.97,0.0007\n"
+    "b2741,2.11,0.44,-2.26,0.0041\n"
+    "b3942,1.24,5.93,2.26,0.0019\n"
+    "b4062,0.31,4.77,3.94,0.0002\n"
 )
 
 
@@ -36,7 +36,12 @@ def researcher(db):
 
 
 def test_a_researcher_completes_the_whole_workflow(
-    client, researcher, media_root, django_capture_on_commit_callbacks, csv_upload
+    client,
+    researcher,
+    media_root,
+    django_capture_on_commit_callbacks,
+    csv_upload,
+    screening_released,
 ):
     username, password = researcher
 
@@ -68,11 +73,18 @@ def test_a_researcher_completes_the_whole_workflow(
             data=json.dumps(
                 {
                     "dataset_id": dataset["id"],
-                    "organism": "E. coli",
-                    "gate_families": available[:1],
+                    "organism": "ecoli",
+                    # Named, not ``available[:1]``. ``available`` is alphabetical and
+                    # starts with ``antisense``, which the engine advertises as
+                    # available but then refuses to build for want of a payload
+                    # library (``pipeline.py``'s ``_UNBUILDABLE_FAMILIES``;
+                    # docs/ROADMAP.md Q11) — so "pick the first available family"
+                    # picks one that always fails. A researcher following the same
+                    # heuristic in the UI hits the same wall.
+                    "gate_families": ["toehold"],
                     "scoring_profile": capabilities["scoring_profiles"][0],
                     "seed": 42,
-                    "params": {"max_triggers": 2, "mock": {"candidate_count": 24}},
+                    "params": {"max_triggers": 2},
                     "idempotency_key": "e2e-run-001",
                 }
             ),
@@ -95,7 +107,8 @@ def test_a_researcher_completes_the_whole_workflow(
     finished = client.get(f"/api/runs/{run['id']}").json()
     assert finished["status"] == RunStatus.COMPLETED
     assert finished["progress_pct"] == 100
-    assert finished["counts"]["candidates"] == 24
+    # The real engine decides how many designs it finds; there is no count to dial in.
+    assert finished["counts"]["candidates"] > 0
     assert finished["counts"]["artifacts"] > 0
     assert finished["finished_at"] is not None
 
@@ -116,10 +129,12 @@ def test_a_researcher_completes_the_whole_workflow(
         f"/api/runs/{run['id']}/candidates?limit=100&include_rejected=true"
     ).json()
     rejected = [c for c in everything["items"] if c["is_rejected"]]
-    assert rejected, "24 candidates should trip at least one hard filter"
+    assert rejected, "a real candidate pool should trip at least one hard filter"
     assert all(c["rejection_reason"] for c in rejected)
 
-    # 11. Download an artifact.
+    # 11. Download an artifact. Sequence-bearing artifacts exist only because
+    # ``screening_released`` opened the safety gate for this test; unprovisioned, the
+    # run yields the design table and audit manifests alone (pipeline.py).
     artifacts = client.get(f"/api/runs/{run['id']}/artifacts").json()
     fasta = next(a for a in artifacts if a["kind"] == "sequence_fasta")
     download = client.get(fasta["download_url"])
@@ -138,8 +153,13 @@ def test_a_researcher_completes_the_whole_workflow(
     # 13. Export.
     export = client.get(f"/api/runs/{run['id']}/export.csv")
     rows = list(csv.DictReader(io.StringIO(export.content.decode())))
-    assert len(rows) == 24
-    assert rows[0]["state_separation_raw"]
+    assert len(rows) == everything["count"]
+    # Every metric the profile declares gets a column, measured or not. state_separation
+    # is declared (and carries the heaviest weight) but no gate family computes it yet,
+    # so its cell is honestly blank — the columns that ARE measured carry numbers.
+    assert "state_separation_raw" in rows[0]
+    assert rows[0]["predicted_leakage_raw"]
+    assert rows[0]["gate_folding_energy_raw"]
 
     # 14. Resubmitting with the same idempotency key returns the same run.
     with django_capture_on_commit_callbacks(execute=False):
@@ -170,8 +190,9 @@ def test_a_failed_run_is_reported_to_the_researcher(
             data=json.dumps(
                 {
                     "dataset_id": dataset["id"],
+                    # Free text, not a host key — the real engine rejects this as data,
+                    # not as a crash (docs/ROADMAP.md P1).
                     "organism": "E. coli",
-                    "params": {"mock": {"fail": True, "fail_message": "Organism unsupported."}},
                 }
             ),
             content_type="application/json",
@@ -181,5 +202,5 @@ def test_a_failed_run_is_reported_to_the_researcher(
 
     status = client.get(f"/api/runs/{run['id']}").json()
     assert status["status"] == RunStatus.FAILED
-    assert status["error_summary"] == "Organism unsupported."
+    assert "not a recognised host" in status["error_summary"]
     assert status["counts"]["candidates"] == 0

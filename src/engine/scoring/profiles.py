@@ -122,7 +122,11 @@ class ScoringProfile:
 
 DEFAULT_V1 = ScoringProfile(
     name="default",
-    version="v1",
+    # v2: state_separation, predicted_success_rate and circuit_complexity are now
+    # computed rather than absent, and state_separation/orthogonality became SKIP
+    # instead of TREAT_AS_WORST. Both move every stored score, so the label a run
+    # records has to change with them.
+    version="v2",
     metrics=[
         MetricSpec(
             name="state_separation",
@@ -131,6 +135,13 @@ DEFAULT_V1 = ScoringProfile(
             valid_range=(0.0, 10.0),
             description="Differential expression between base and target state (log2 fold).",
             unit="log2 fold",
+            # A property of the gene, from the DGE table. A `direct` submission pasted a
+            # transcript and made no differential-expression comparison at all, so this
+            # does not exist for one — SKIP rather than TREAT_AS_WORST, because scoring a
+            # design 0.0 on the heaviest axis in the profile would penalise the *input
+            # mode* rather than the design. The hard filter below is unaffected:
+            # failed_filter already passes over a metric that was not reported.
+            missing_behavior=SKIP,
         ),
         MetricSpec(
             name="trigger_accessibility",
@@ -163,6 +174,14 @@ DEFAULT_V1 = ScoringProfile(
             valid_range=(0.0, 1.0),
             description="Predicted independence from other gates in the same circuit.",
             unit="fraction 0-1",
+            # "In the same circuit" is the operative phrase, and no family computes this
+            # because every circuit this build produces holds exactly one gate: there is
+            # no other gate to be independent of, so the quantity does not exist yet
+            # rather than being unmeasured. SKIP keeps an inapplicable metric out of both
+            # halves of the weighted mean. When a real CircuitDesigner lands and circuits
+            # hold several gates, this becomes measurable and the behaviour should go
+            # back to TREAT_AS_WORST so a cross-reacting pair is actually punished.
+            missing_behavior=SKIP,
         ),
         MetricSpec(
             name="gc_content",
@@ -331,7 +350,7 @@ def derive_profile(
 
 
 def resolve_profile(base_name: str, overrides: dict | None = None) -> ScoringProfile:
-    """What ``MockEngine``/the real pipeline actually calls: ``base_name`` is
+    """What the real pipeline actually calls: ``base_name`` is
     ``AnalysisRun.scoring_profile`` (always a known name — kept that way so
     ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is
     ``JobRequest.params.get("scoring")``. No overrides, or an empty ``weights`` /

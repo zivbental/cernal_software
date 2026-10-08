@@ -35,7 +35,7 @@ from statistics import StatisticsError, correlation, mean
 
 from engine import sequences as sq
 from engine.domain import Constraints, CountMatrix, DgeRow, DgeTable, Regulation, SelectedGene
-from engine.errors import InputValidationError
+from engine.errors import InputValidationError, JobCancelled
 from engine.stages.motifs import MotifScreener
 
 #: Fraction of rows needing a raw p-value before a Benjamini-Hochberg correction is
@@ -341,6 +341,7 @@ class GeneSelector:
         counts: CountMatrix | None = None,
         sequences: dict[str, str] | None = None,
         on_warning: Callable[[str], None] | None = None,
+        on_progress: Callable[[int, int], bool] | None = None,
     ) -> list[SelectedGene]:
         """Filter, score and rank genes; return a shortlist with an up/down call.
 
@@ -401,7 +402,9 @@ class GeneSelector:
         missing_sequence = 0
         considered_for_sequence = 0
 
-        for row in rows:
+        for index, row in enumerate(rows):
+            if on_progress is not None and not on_progress(index, len(rows)):
+                raise JobCancelled("Selecting genes")
             effect = abs(row.log2_fold_change)
             if effect < self.constraints.min_separation:
                 dropped_effect += 1

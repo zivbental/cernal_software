@@ -3,7 +3,7 @@ import { BookOpen } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CodeBlock } from "@/components/docs/CodeBlock";
-import { Caveat, HelpLink, HelpNav } from "@/components/docs/HelpNav";
+import { Caveat, HelpLink } from "@/components/docs/HelpNav";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
 import { Panel } from "@/components/layout/Primitives";
@@ -31,11 +31,8 @@ cd ..
 ./do migrate
 ./do superuser`;
 
-const RUN = `# Terminal 1, from the repository root
-./do dev
-
-# Terminal 2, from the repository root
-./do worker`;
+const RUN = `# Web server and supervised worker, from the repository root
+./do dev`;
 
 function GuideSection({
   id,
@@ -72,7 +69,6 @@ export function GuideContent() {
         title="How to compile a circuit"
         description="A task-first path from a supported input to an inspectable run."
       />
-      <HelpNav current="/guide" />
       <nav
         aria-label="On this page"
         className="mb-6 rounded-xl border border-border bg-surface p-4"
@@ -113,11 +109,14 @@ export function GuideContent() {
             in.
           </p>
           <Caveat>
-            The default is <strong>MockEngine</strong>, whose results are
-            simulated. Check the real{" "}
-            <HelpLink href="/api/version">/api/version</HelpLink> response:{" "}
-            <code>engine</code> identifies MockEngine or LocalEngine, while
-            capability listings show availability—not scientific completeness.
+            The only engine is <strong>LocalEngine</strong>, which reports real
+            measurements from an incomplete pipeline — never simulated numbers.
+            Check{" "}
+            <HelpLink href="/api/version">/api/version</HelpLink>:{" "}
+            <code>engine_version</code> identifies the build, while capability
+            listings show availability—not scientific completeness. A family can
+            be listed as available and still refuse to build for want of a
+            payload library.
           </Caveat>
           <p>
             See the repository&apos;s{" "}
@@ -138,11 +137,11 @@ export function GuideContent() {
           </p>
           <CodeBlock code={SETUP} label="bash" />
           <p>
-            Run the web process and worker in separate terminals, then open{" "}
+            Run the web process and supervised worker together, then open{" "}
             <HelpLink href="http://localhost:8000">
               http://localhost:8000
             </HelpLink>
-            . Without the worker, submitted runs stay queued.
+            . The worker starts automatically and restarts if it exits.
           </p>
           <CodeBlock code={RUN} label="bash" />
         </GuideSection>
@@ -152,20 +151,21 @@ export function GuideContent() {
             <strong>Differential Expression:</strong> choose a public catalog
             comparison or upload an existing DE result, not raw counts. This
             flow does not run differential-expression analysis. LocalEngine supports
-            this path for E. coli and yeast, not human; gene identifiers must resolve
+            this path for E. coli, yeast, C. acnes, and Human; gene identifiers must resolve
             in the bundled reference.
           </p>
           <p>
             <strong>Direct Trigger mRNA:</strong> paste the known transcript
-            sequence. This bypasses DE discovery; it does not add the missing
-            human promoter, terminator, or complete human pipeline.{" "}
-            <strong>Specific Gene</strong> is informational only: you must still
-            paste its sequence.
+            sequence. This bypasses DE discovery and supports E. coli, yeast,
+            C. acnes, and Human expression constructs. Human uses a CMV promoter
+            and hGH polyadenylation signal; upload a custom mammalian backbone
+            for a complete vector, or choose no backbone for an expression cassette.{" "}
+            <strong>Specific Gene:</strong> resolve a stable gene ID or an unambiguous
+            symbol to its bundled reference transcript, then submit directly.
           </p>
           <Caveat>
             Upload validation accepts <code>.csv</code>, <code>.tsv</code>,{" "}
-            <code>.txt</code>, and <code>.xlsx</code>, but LocalEngine&apos;s
-            real DE parser reads UTF-8 CSV/TSV text only. The default upload
+            <code>.txt</code>, and <code>.xlsx</code>, and all four formats are read by the engine. The default upload
             limit is 100 MB and is configurable with <code>MAX_DATASET_MB</code>
             . A “VALID” upload is shallow file validation.
           </Caveat>
@@ -218,7 +218,7 @@ export function GuideContent() {
           <p>
             Submit with <strong>Compile &amp; Optimize</strong>. The
             configuration is frozen and queued. Keep the run URL and watch its
-            status; queued work needs <code>./do worker</code>. A failed run
+            status; <code>./do dev</code> includes the worker. A failed run
             exposes its safe <code>error_summary</code>.
           </p>
         </GuideSection>
@@ -243,9 +243,12 @@ export function GuideContent() {
             Every successfully imported run gets the platform&apos;s per-run
             candidate table <code>summary.csv</code> and{" "}
             <code>manifest.json</code>. LocalEngine additionally emits the per-run{" "}
-            <code>candidates.csv</code> and FASTA/GenBank files for accepted switch
-            candidates. MockEngine emits simulated candidate tables and FASTA, not
-            GenBank. ZIP downloads package the existing artifacts. The current
+            <code>candidates.csv</code>, plus FASTA, GenBank and SBOL files for
+            accepted switch candidates. Those sequence files appear only once the
+            safety screen releases a sequence; with no screening adapter
+            provisioned the gate holds every one, leaving the candidate table and
+            per-candidate safety audits. ZIP downloads package the existing
+            artifacts. The current
             LocalEngine does not generate PDF, structure-figure, or circuit-diagram
             artifacts; the in-app schematic views are separate. Partner ordering
             is disabled.
@@ -263,7 +266,7 @@ export function GuideContent() {
             Preserve the original DE file, dataset and artifact checksums,
             idempotency key, Git commit, and dependency environment separately.
             Reusing an idempotency key returns the existing run rather than
-            recomputing it. MockEngine uses both the key and seed, so a new key can
+            recomputing it. The engine is seeded from the run's seed, so a new seed can
             change simulated output even with the same seed. Different engines,
             versions, profiles, or environments need not produce byte-identical
             output. Continue with the{" "}

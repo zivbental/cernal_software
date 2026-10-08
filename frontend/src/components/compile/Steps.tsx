@@ -5,13 +5,13 @@
  * These are controlled components over the shared `CompileConfig`.
  */
 
-import { Activity, Dna, FileUp, Loader2, Sparkles, UploadCloud } from "lucide-react";
+import { Activity, Dna, FileUp, Handshake, Loader2, Sparkles, UploadCloud } from "lucide-react";
 import { useRef } from "react";
 
 import type { Backbone, Dataset, ExampleDataset, GateFamily } from "@/api/types";
 import { BacteriaIcon, HumanIcon, YeastIcon } from "@/components/icons/BioIcons";
 import { Panel, SectionHeading, AdvancedOptions } from "@/components/layout/Primitives";
-import { Check, SliderRow, Token } from "@/components/compile/Bits";
+import { Check, SliderRow } from "@/components/compile/Bits";
 import { ExpressionPreview } from "@/components/compile/ExpressionPreview";
 import { PublicDatasetPicker } from "@/components/compile/PublicDatasetPicker";
 import { GenePicker } from "@/components/compile/GenePicker";
@@ -19,9 +19,6 @@ import { GenePicker } from "@/components/compile/GenePicker";
 /* ---------- shared config ---------- */
 
 export type Organism = "ecoli" | "yeast" | "human" | "c_acnes";
-/** "gene" is informational only — it never submits by itself. Picking a gene stashes
- * `targetGene` and hands the researcher to "direct" to paste its sequence, since no
- * gene->sequence lookup exists yet (docs/public-datasets.md's deliberate scope cut). */
 export type InputModeValue = "de" | "direct" | "gene";
 
 export interface CompileConfig {
@@ -33,12 +30,8 @@ export interface CompileConfig {
   deSource: "public" | "upload";
   datasetId: string | null;
   triggerSequence: string;
-  /** Set by the "Specific Gene" route; carried into the submission's params.target_gene
-   * regardless of which mode ultimately supplies the dataset/sequence. Informational —
-   * see InputModeValue's docstring. */
+  /** The resolved reference gene, frozen with its sequence by the submission API. */
   targetGene: { organism: Organism; geneId: string; geneSymbol: string } | null;
-  setA: string;
-  setB: string;
   mechanism: string;
   /** Downstream outputs, all equivalent. Each selected one gets its own plasmids. */
   outputs: string[];
@@ -51,6 +44,12 @@ export interface CompileConfig {
    */
   maxLeakage: number;
   minGateStability: number;
+  /**
+   * `engine.domain.Constraints.max_circuit_gates` — how many gates one circuit may
+   * combine. The one search constraint the wizard exposes, because it is the one that
+   * changes what the researcher gets back rather than only how it is filtered.
+   */
+  maxCircuitGates: number;
   /**
    * The plasmid vector to assemble onto (docs/plasmids.md Q13) — a catalog key from
    * `useVersion().available_backbones`, `"none"` for the bare construct (today's
@@ -72,13 +71,14 @@ export const DEFAULT_CONFIG: CompileConfig = {
   datasetId: null,
   triggerSequence: "",
   targetGene: null,
-  setA: "",
-  setB: "",
   mechanism: "toehold",
   outputs: ["gfp"],
   customPayload: "",
   maxLeakage: 0.08,
   minGateStability: -32,
+  // 2, matching the engine's own Constraints default: single-gene circuits plus the
+  // pairs, which is "longer than one gate" without the combinatorics of triples.
+  maxCircuitGates: 2,
   // A real backbone by default, not "none" — the whole point of this feature is a
   // researcher who just clicks through getting an orderable plasmid, not a bare
   // four-segment construct (docs/plasmids.md §13 note on this being a deliberate
@@ -107,9 +107,20 @@ const MAX_SAFE_LEAKAGE = 0.85;
 const COLLABORATOR_CREDIT = {
   aisChina: {
     team: "iGEM AIS-China 2026",
+    short: "AIS-China",
     logo: "/assets/collaborators/ais-china.svg",
     href: "/about#collaboration-ais-china",
-    why: "Cutibacterium acnes is a skin commensal and a tractable live-biotherapeutic chassis. Its codon model here is the iGEM AIS-China team's, derived from strain ATCC 6919's own genome and integrated unmodified into this pipeline.",
+    // Written for someone seeing this for the first time: what the other team did, in
+    // words that need no synthetic-biology background, and what CERNAL does with it.
+    headline: "Built with another iGEM team",
+    summary:
+      "C. acnes is in CERNAL because of a collaboration. The iGEM AIS-China team built a codon-optimization model for this skin bacterium; we run their code, unmodified, inside our pipeline.",
+    contributed: [
+      "A codon model derived from the genome of C. acnes strain ATCC 6919",
+      "Their open-source tool, used exactly as they published it",
+      "2,312 reference genes that make this organism selectable here",
+    ],
+    why: "C. acnes is the dominant bacterium of human skin and a tractable chassis for live biotherapeutics, so a circuit that senses a signature and acts on skin has a natural home here.",
   },
 } as const;
 
@@ -178,60 +189,110 @@ export function StepInputs({
         <label className="mb-2 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
           Organism System
         </label>
-        <div className="inline-flex rounded-lg border border-border bg-surface p-1">
-          {ORGANISMS.map((o) => (
-            <button
-              key={o.key}
-              type="button"
-              onClick={() => patch({ organism: o.key })}
-              className={`group flex items-center gap-2 rounded-md px-5 py-2.5 text-sm transition ${
-                config.organism === o.key
-                  ? "bg-card font-medium text-foreground shadow-clinical"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <o.Icon className={`h-4 w-4 ${o.anim}`} />
-              <span>{o.label}</span>
-              {"credit" in o && (
-                <span
-                  title={`Codon model contributed by ${o.credit.team}`}
-                  className="ml-1 inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground"
-                >
-                  {/* The logo asset is intentionally absent until logo permission is in
-                      writing (Apache-2.0 §6 covers code, not trademarks). onError hides the
-                      broken image and the team name carries the credit on its own. */}
-                  <img
-                    src={o.credit.logo}
-                    alt=""
-                    aria-hidden
-                    className="h-3 w-3"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
-                  collab
-                </span>
-              )}
-            </button>
-          ))}
+        <div className="inline-flex flex-wrap items-stretch gap-1 rounded-lg border border-border bg-surface p-1">
+          {ORGANISMS.map((o) => {
+            const selected = config.organism === o.key;
+            const credit = "credit" in o ? o.credit : null;
+            return (
+              <button
+                key={o.key}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => patch(o.key === "human"
+                  ? { organism: o.key, datasetId: null, targetGene: null, backbone: "none", mechanism: "eukaryotic_toehold" }
+                  : { organism: o.key, datasetId: null, targetGene: null, backbone: o.key === "yeast" ? "none" : "psb1c3", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
+                className={`group relative flex items-center gap-2 rounded-md px-5 py-2.5 text-sm transition ${
+                  credit
+                    ? selected
+                      ? "bg-card font-medium text-foreground shadow-clinical ring-2 ring-mint"
+                      : "border border-mint/50 bg-mint/5 text-foreground hover:bg-mint/10"
+                    : selected
+                      ? "bg-card font-medium text-foreground shadow-clinical"
+                      : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <o.Icon className={`h-4 w-4 ${o.anim}`} />
+                {credit ? (
+                  // Two lines, and the second is always visible: the collaboration is part
+                  // of what this tile IS, so it is not hidden behind selection or a hover.
+                  <span className="flex flex-col items-start leading-tight">
+                    <span>{o.label}</span>
+                    <span className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-mint">
+                      <Handshake className="h-3 w-3" aria-hidden />
+                      Collaboration · {credit.short}
+                    </span>
+                  </span>
+                ) : (
+                  <span>{o.label}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {ORGANISMS.map((o) =>
           "credit" in o && config.organism === o.key ? (
-            <p
+            <section
               key={o.key}
-              className="mt-3 max-w-prose text-xs leading-relaxed text-muted-foreground"
+              aria-label={`Collaboration: ${o.credit.team}`}
+              className="mt-4 overflow-hidden rounded-lg border border-mint/40 bg-mint/5"
             >
-              <span className="font-medium text-foreground">Why this organism? </span>
-              {o.credit.why}{" "}
-              <a
-                href={o.credit.href}
-                className="text-mint underline decoration-dotted underline-offset-2 hover:text-foreground"
-              >
-                Read about our collaboration with {o.credit.team}
-              </a>
-              .
-            </p>
+              <div className="flex items-center gap-3 border-b border-mint/30 bg-mint/10 px-4 py-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-mint text-mint-foreground">
+                  <Handshake className="h-5 w-5" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-mint">
+                    Collaboration
+                  </div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {o.credit.headline}: {o.credit.team}
+                  </div>
+                </div>
+                {/* Their logo, if and only if it has been supplied. Apache-2.0 §6 covers the
+                    code, not their trademark, so the asset is not committed until logo use
+                    is granted in writing; onError hides the broken image and the team name
+                    above carries the credit on its own. */}
+                <img
+                  src={o.credit.logo}
+                  alt={`${o.credit.team} logo`}
+                  className="h-9 w-auto shrink-0"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              </div>
+
+              <div className="space-y-3 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+                <p className="text-sm text-foreground">{o.credit.summary}</p>
+
+                <div>
+                  <div className="mb-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-foreground">
+                    What they contributed
+                  </div>
+                  <ul className="space-y-1">
+                    {o.credit.contributed.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-mint" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div>
+                  <span className="font-semibold text-foreground">Why this organism? </span>
+                  {o.credit.why}
+                </div>
+
+                <a
+                  href={o.credit.href}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-mint px-3 py-1.5 text-xs font-medium text-mint-foreground transition hover:opacity-90"
+                >
+                  How we collaborated with {o.credit.short} →
+                </a>
+              </div>
+            </section>
           ) : null,
         )}
       </div>
@@ -484,10 +545,11 @@ export function StepInputs({
 
       {config.inputMode === "gene" && (
         <GenePicker
+          key={config.organism}
           organism={config.organism}
           targetGene={config.targetGene}
           onSetGene={(targetGene) => patch({ targetGene })}
-          onContinue={() => patch({ inputMode: "direct" })}
+          onContinue={(triggerSequence) => patch({ triggerSequence })}
         />
       )}
     </Panel>
@@ -562,50 +624,8 @@ export function StepLogic({
       <SectionHeading
         kicker="Step 02 · Logic"
         title="Intracellular Logic Gate Assembly"
-        desc="Configure the Boolean expression that gates payload expression. CERNAL compiles your logic into a thermodynamically stable switch mechanism."
+        desc="Choose the switch mechanism CERNAL compiles your trigger into."
       />
-
-      <div className="rounded-xl border border-border bg-surface-2 p-5">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          Boolean Expression
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-sm">
-          <span className="text-muted-foreground">IF</span>
-          <Token>Set A Transcripts</Token>
-          <span className="rounded-md bg-mint/20 px-2 py-1 text-mint">AND</span>
-          <span className="rounded-md bg-primary/10 px-2 py-1 text-primary">NOT</span>
-          <Token>Set B Transcripts</Token>
-        </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-              Set A · must be present
-            </span>
-            <input
-              value={config.setA}
-              onChange={(e) => patch({ setA: e.target.value })}
-              placeholder="IL6, TNF, HIF1A"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-foreground focus:border-mint focus:outline-none"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-              Set B · must be absent
-            </span>
-            <input
-              value={config.setB}
-              onChange={(e) => patch({ setB: e.target.value })}
-              placeholder="FOXP3"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-foreground focus:border-mint focus:outline-none"
-            />
-          </label>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Comma-separated gene identifiers. Leave blank to let the engine choose triggers
-          from your data.
-        </p>
-      </div>
 
       <div className="mt-6">
         <div className="mb-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -669,6 +689,17 @@ export function StepLogic({
             max={0}
             unit=" kcal/mol"
             onChange={(v) => patch({ minGateStability: v })}
+          />
+          <SliderRow
+            label="Max Gates Per Circuit"
+            value={config.maxCircuitGates}
+            min={1}
+            // 4 rather than the gene count: combinations grow fast, and every extra
+            // gate is another switch to synthesise — circuit_complexity already
+            // penalises length, so this cap is about compute, not about quality.
+            max={4}
+            step={1}
+            onChange={(v) => patch({ maxCircuitGates: v })}
           />
         </div>
       </AdvancedOptions>

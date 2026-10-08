@@ -21,6 +21,7 @@ LOWER_BETTER = "LOWER_BETTER"
 #: How the researcher supplied the trigger.
 INPUT_DE = "de"  # differential-expression table
 INPUT_DIRECT = "direct"  # an mRNA sequence pasted straight in
+INPUT_GENE = "gene"  # resolve a named gene from the bundled reference
 
 #: Terminal job outcomes.
 SUCCEEDED = "succeeded"
@@ -54,12 +55,7 @@ class JobRequest:
     @property
     def is_direct_trigger(self) -> bool:
         """True when the researcher pasted a sequence instead of uploading a table."""
-        return self.input_mode == INPUT_DIRECT
-
-    def mock_options(self) -> dict:
-        """Options consumed by MockEngine. Ignored by every real implementation."""
-        options = self.params.get("mock", {})
-        return options if isinstance(options, dict) else {}
+        return self.input_mode in (INPUT_DIRECT, INPUT_GENE)
 
 
 @dataclass(frozen=True, slots=True)

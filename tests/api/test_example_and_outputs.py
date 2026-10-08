@@ -52,7 +52,7 @@ def test_an_example_run_completes_like_any_other(
                 {
                     "input_mode": "de",
                     "dataset_id": dataset["id"],
-                    "params": {"mock": {"candidate_count": 6}},
+                    "organism": "ecoli",
                 }
             ),
             content_type="application/json",
@@ -76,7 +76,7 @@ def test_an_unknown_example_key_names_the_available_ones(auth_client):
 # --- Outputs ----------------------------------------------------------------------
 
 
-def _run_with_outputs(client, dataset, outputs, count=12):
+def _run_with_outputs(client, dataset, outputs):
     from apps.analyses.tasks import run_analysis
 
     run = client.post(
@@ -85,9 +85,9 @@ def _run_with_outputs(client, dataset, outputs, count=12):
             {
                 "input_mode": "de",
                 "dataset_id": str(dataset.id),
+                "organism": "ecoli",
                 "params": {
                     "payload": {"outputs": outputs, "custom_sequence": None},
-                    "mock": {"candidate_count": count},
                 },
             }
         ),
@@ -108,15 +108,23 @@ def test_the_candidate_list_says_what_each_one_expresses(
     assert all(c["output"] == "GFP" for c in items)
 
 
-def test_selecting_several_outputs_produces_plasmids_for_each(
+def test_an_output_with_no_payload_sequence_is_skipped_out_loud(
     auth_client, dataset, media_root, django_capture_on_commit_callbacks
 ):
-    """They are equivalent choices, so none of them is a sub-case of another."""
+    """Outputs are equivalent choices, but only GFP has a real coding sequence today
+    (``stages/plasmids.py``'s ``PAYLOADS``; docs/ROADMAP.md Q11 is only partly
+    answered). A researcher who selects one of the others must be told it was skipped
+    and why — not silently handed GFP-only results as though they had asked for them.
+    """
     with django_capture_on_commit_callbacks():
-        run_id = _run_with_outputs(auth_client, dataset, ["gfp", "ampr", "apoptosis"], count=12)
+        run_id = _run_with_outputs(auth_client, dataset, ["gfp", "ampr", "apoptosis"])
 
+    run = auth_client.get(f"/api/runs/{run_id}").json()
     items = auth_client.get(
         f"/api/runs/{run_id}/candidates?limit=100&include_rejected=true"
     ).json()["items"]
 
-    assert {c["output"] for c in items} == {"GFP", "AmpR", "Apoptosis inducer"}
+    assert {c["output"] for c in items} == {"GFP"}
+    warnings = " ".join(run["warnings"])
+    assert "ampr" in warnings and "apoptosis" in warnings
+    assert "Q11" in warnings

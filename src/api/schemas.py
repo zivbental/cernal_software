@@ -229,11 +229,17 @@ class MaterializePublicDatasetIn(Schema):
 
 class RunIn(Schema):
     input_mode: str = Field(
-        default="de", description="de = upload a table · direct = paste a trigger mRNA"
+        default="de",
+        description="de = expression table · direct = trigger mRNA · gene = reference gene",
     )
     dataset_id: UUID | None = Field(default=None, description="Required when input_mode is de.")
     trigger_sequence: str = Field(default="", description="Required when input_mode is direct.")
-    organism: str = Field(default="", max_length=100, description="e.g. E. coli")
+    gene_id: str = Field(default="", description="Reference gene ID or symbol for gene input.")
+    organism: str = Field(
+        default="ecoli",
+        max_length=100,
+        description="Host key: ecoli, yeast, human or c_acnes. Display names are rejected.",
+    )
     params: dict = Field(default_factory=dict)
     gate_families: list[str] = Field(default_factory=lambda: ["toehold"])
     scoring_profile: str = "default"
@@ -257,6 +263,7 @@ class RunStatusOut(Schema):
     status: str
     stage: str
     progress_pct: int
+    worker_available: bool | None = None
     error_summary: str | None
     warnings: list[str]
     submitted_at: datetime | None
@@ -418,9 +425,13 @@ class DesignIn(Schema):
     trigger_sequence: str = ""
     dataset_id: UUID | None = None
     dge_csv: str = ""
+    gene_id: str = ""
 
     # --- biology ---
-    organism: str = Field(default="", description="e.g. E. coli")
+    organism: str = Field(
+        default="ecoli",
+        description="Host key: ecoli, yeast, human or c_acnes. Display names are rejected.",
+    )
     payload: dict = Field(
         default_factory=dict, description='{"outputs": [...], "custom_sequence": ...}'
     )
@@ -558,3 +569,4 @@ class VersionOut(Schema):
     metrics: list[MetricInfoOut] = Field(default_factory=list)
     hard_filters: list[HardFilterOut] = Field(default_factory=list)
     available_backbones: list[BackboneInfoOut] = Field(default_factory=list)
+    reviewer_login_enabled: bool = False

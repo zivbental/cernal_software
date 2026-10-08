@@ -1,16 +1,17 @@
 """Populate the database with a browsable demo run.
 
-Drives ``MockEngine`` through the real import path, so what lands in the database is
-exactly what Step 3's run lifecycle will produce — not hand-written fixtures that drift
-away from reality.
+Drives the configured engine through the real import path, so what lands in the
+database is exactly what the run lifecycle produces — not hand-written fixtures that
+drift away from reality.
 
     ./do manage seed_demo
-    ./do manage seed_demo --reset --candidates 30
+    ./do manage seed_demo --reset
 """
 
 import tempfile
 import uuid
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
@@ -29,14 +30,14 @@ DEMO_USERNAME = "demo"
 DEMO_PASSWORD = "demo-password-123"
 
 DATASET_CSV = """gene_id,base_expression,target_expression,log2fc,padj
-lacZ,0.82,6.41,2.97,0.0007
-rpoS,2.11,0.44,-2.26,0.0041
-katG,1.24,5.93,2.26,0.0019
-soxS,0.31,4.77,3.94,0.0002
-gadA,3.02,7.85,1.38,0.0113
-fliC,5.60,1.02,-2.46,0.0033
-ompF,1.95,4.10,1.07,0.0208
-zwf,0.74,3.88,2.39,0.0016
+b0344,0.82,6.41,2.97,0.0007
+b2741,2.11,0.44,-2.26,0.0041
+b3942,1.24,5.93,2.26,0.0019
+b4062,0.31,4.77,3.94,0.0002
+b3517,3.02,7.85,1.38,0.0113
+b1923,5.60,1.02,-2.46,0.0033
+b0929,1.95,4.10,1.07,0.0208
+b1852,0.74,3.88,2.39,0.0016
 """
 
 
@@ -49,12 +50,6 @@ class Command(BaseCommand):
             action="store_true",
             help="Delete existing demo data before seeding.",
         )
-        parser.add_argument(
-            "--candidates",
-            type=int,
-            default=18,
-            help="How many candidates the mock engine should generate (default 18).",
-        )
 
     @transaction.atomic
     def handle(self, *args, **options) -> None:
@@ -64,7 +59,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Removed {self._reset(user)} existing demo objects.")
 
         dataset = self._dataset(user)
-        run = self._run(dataset, user, options["candidates"])
+        run = self._run(dataset, user)
 
         self.stdout.write(self.style.SUCCESS("\nDemo data created.\n"))
         self.stdout.write(f"  User      {DEMO_USERNAME} / {DEMO_PASSWORD}")
@@ -126,14 +121,14 @@ class Command(BaseCommand):
         dataset.save()
         return dataset
 
-    def _run(self, dataset, user, candidate_count: int) -> AnalysisRun:
+    def _run(self, dataset, user) -> AnalysisRun:
         now = timezone.now()
         run = AnalysisRun.objects.create(
             dataset=dataset,
-            organism="E. coli",
+            organism="ecoli",
             created_by=user,
             idempotency_key=f"seed-demo-{uuid.uuid4().hex}",
-            params_snapshot={"max_triggers": 2, "mock": {"candidate_count": candidate_count}},
+            params_snapshot={"max_triggers": 2},
             gate_families=["toehold"],
             scoring_profile="default",
             seed=42,
@@ -162,7 +157,7 @@ class Command(BaseCommand):
                 seed=run.seed,
                 output_dir=output_dir,
             )
-            engine = load_engine("engine.client.MockEngine")
+            engine = load_engine(settings.CERNAL_ENGINE)
             result = engine.run(request, lambda pct, stage: True)
             import_job_result(run, result, output_dir)
 

@@ -9,7 +9,7 @@ why one is inheritance and the other composition.
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import ClassVar
 
 from engine.contract import ArtifactRef
@@ -20,6 +20,7 @@ from engine.domain import (
     GateKind,
     Host,
     ToolRequirement,
+    TriggerCandidate,
     TriggerSet,
 )
 
@@ -57,6 +58,47 @@ class GateFamily(ABC):
         (CRISPR in E. coli), or right for the host but not yet implemented.
         """
         return self.available and host in self.supported_hosts
+
+    # --- Shared metric derivations ---------------------------------------------------
+    #
+    # These live here, concrete on the ABC, because every family must report them on the
+    # *same* scale or ``engine.scoring`` normalises incomparable numbers onto one axis
+    # (CLAUDE.md §1, §3). A family with a well-founded reason to differ overrides and
+    # says why in its docstring.
+
+    @staticmethod
+    def state_separation(triggers: Sequence[TriggerCandidate]) -> float | None:
+        """``state_separation`` — the weakest input's absolute log2 fold change.
+
+        A property of the *gene*, carried onto each ``TriggerCandidate`` by stage 2 and
+        read here rather than recomputed. The weakest input governs: a two-input gate
+        whose second trigger barely moves between conditions cannot separate the states
+        however well the first one does.
+
+        Returns ``None`` when any input has no effect size — a `direct` submission made
+        no differential-expression comparison, so the quantity does not exist rather
+        than being zero. ``None`` is what the scoring layer is built to handle; a 0.0
+        here would breach this metric's own hard filter on a run that never claimed to
+        measure it.
+        """
+        if not triggers:
+            return None
+        effects = [t.log2_fold_change for t in triggers]
+        if any(effect is None for effect in effects):
+            return None
+        return min(abs(effect) for effect in effects)
+
+    @staticmethod
+    def component_count(arity: int) -> float:
+        """``circuit_complexity`` — component count, on ``BooleanExpression``'s scale.
+
+        Matched to ``BooleanExpression.complexity()`` so a one-gene circuit scores the
+        same whether the number came from here or from a real ``CircuitDesigner`` later:
+        an ``IDENTITY`` over one gene is 1, and an n-input operator is ``1 + n``. Lower
+        is better — every additional component is another thing to synthesise and
+        another way for the circuit to misbehave.
+        """
+        return 1.0 if arity <= 1 else float(1 + arity)
 
     @abstractmethod
     def required_tools(self) -> list[ToolRequirement]:

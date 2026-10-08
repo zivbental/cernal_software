@@ -15,7 +15,7 @@ import { useState } from "react";
  */
 export const steps = [
   { n: 1, label: "Inputs", sub: "Transcriptomic data" },
-  { n: 2, label: "Logic", sub: "Boolean expression" },
+  { n: 2, label: "Logic", sub: "Switch mechanism" },
   { n: 3, label: "Payload", sub: "Genetic output" },
   { n: 4, label: "Vector", sub: "Plasmid backbone" },
   { n: 5, label: "Compile", sub: "Submit & optimize" },

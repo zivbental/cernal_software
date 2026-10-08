@@ -199,7 +199,7 @@ shape either way, one optional field telling them apart.
 
 `compile.tsx`'s Input Mode has three top-level routes — **Differential Expression**
 (unchanged, now with a **Public Dataset** / **Upload Your Own** sub-choice),
-**Direct Trigger mRNA** (unchanged), and **Specific Gene** (new, informational).
+**Direct Trigger mRNA** (unchanged), and **Specific Gene** (reference transcript lookup).
 
 The public-dataset picker is scoped to the wizard's own top-level organism selector —
 there is no second organism dropdown inside it, so a human public dataset can never sit
@@ -215,32 +215,27 @@ searchable, sortable, direction-filterable table.
 
 ---
 
-## 6. Specific Gene — deliberately informational
+## 6. Specific Gene
 
-Selecting a gene records `{organism, geneId, geneSymbol}` and hands the researcher to
-Direct Trigger mRNA to paste the actual sequence, with a pinned banner showing which
-gene the pasted sequence is for. **No gene→sequence lookup exists.** This was a
-deliberate scope decision, not an oversight — see ROADMAP.md's Phase D, task D6, for
-why: even with a resolved sequence, only *E. coli* has real promoters, terminators,
-payloads and a backbone catalog today (Q11–Q13 are still open for human and yeast), so
-a resolved human or yeast gene would still dead-end at plasmid construction. Revisit
-alongside those questions, not in isolation.
+Resolve a stable gene ID or an unambiguous gene symbol for the selected organism.
+`GET /api/reference-genes/resolve?organism=human&gene=SELE` returns the reference
+transcript and its provenance. Submit with `input_mode: "gene"` and `gene_id`, or
+`params.target_gene.gene_id`. The API freezes the sequence and reference metadata.
+Changing the identifier clears the previous resolution in the wizard.
 
----
+All four organisms support direct, DE, and gene input. DE uploads accept CSV, TSV,
+TXT, and XLSX through both platform validation and the engine parser. Public catalog
+comparisons use exactly the same DE path as uploaded datasets. Catalog availability
+still depends on curated real experiments; there are no C. acnes comparisons bundled.
 
-## 7. What this does *not* change
+## 7. References
 
-**Q1 is still open.** [`ROADMAP.md`](ROADMAP.md)'s Q1 asks where *trigger sequences*
-come from — a reference transcriptome, an accession lookup, user-supplied FASTA. This
-phase answers a different, upstream question: where a **differential-expression
-table** comes from. A public dataset materializes into the exact same `Dataset` row an
-upload produces, which still hits `engine/pipeline.py`'s unconditional
-`InputValidationError` for anything but `input_mode == "direct"` — confirmed by reading
-that check before writing anything here. Submitting a `de`-mode run against a public
-dataset behaves under `LocalEngine` exactly as it does today against an uploaded one:
-it fails cleanly, for the same documented reason. Under `MockEngine` (the default
-everywhere in dev, test and CI), both run to completion identically, since `MockEngine`
-never reads `input_mode` at all.
+E. coli, yeast, and C. acnes use reference CDSs. Human uses pinned Ensembl release 116
+mature cDNA and noncoding transcripts, choosing MANE Select, then Ensembl canonical,
+then the longest transcript per gene. Source URLs, checksums, selected transcript IDs,
+and the selection policy are recorded in `engine/data/transcriptomes/human.json`.
+Unmatched identifiers are reported; ambiguity requires a stable ID. A usable input
+can still produce no accepted constructs when its candidates fail scientific filters.
 
 ---
 

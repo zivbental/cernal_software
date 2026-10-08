@@ -19,10 +19,8 @@ def test_ecoli_and_yeast_are_available():
     assert Host.YEAST in available_hosts()
 
 
-def test_human_is_not_available():
-    """Deliberate, not an oversight — a genomic CDS extraction is the wrong tool for a
-    heavily-spliced genome (``tools/sync_transcriptome.py``'s own docstring)."""
-    assert Host.HUMAN not in available_hosts()
+def test_all_organisms_have_a_reference():
+    assert set(available_hosts()) == set(Host)
 
 
 @pytest.mark.parametrize(("host", "min_genes"), [(Host.ECOLI, 4000), (Host.YEAST, 5000)])
@@ -55,9 +53,14 @@ def test_repeated_calls_return_the_same_cached_object(host):
     assert first is second
 
 
-def test_an_unbundled_host_raises_naming_the_limitation():
-    with pytest.raises(InputValidationError, match="No reference transcriptome"):
-        load_transcriptome(Host.HUMAN)
+def test_missing_reference_file_has_a_useful_error(monkeypatch, tmp_path):
+    import engine.transcriptome as module
+
+    module.load_transcriptome.cache_clear()
+    monkeypatch.setattr(module, "_DATA_DIR", tmp_path)
+    with pytest.raises(InputValidationError, match=r"not available|No reference|could not|missing"):
+        module.load_transcriptome(Host.HUMAN)
+    module.load_transcriptome.cache_clear()
 
 
 # ---------------------------------------------------------------------------

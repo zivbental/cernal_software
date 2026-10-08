@@ -97,6 +97,37 @@ def pending_users():
     return get_user_model().objects.filter(is_active=False).order_by("date_joined")
 
 
+#: The one account the login page's reviewer button ever signs in as (settings
+#: REVIEWER_LOGIN_ENABLED). Fixed, not minted per click, so repeated clicks are
+#: idempotent and reviewers all land on the same browsable history.
+REVIEWER_USERNAME = "reviewer"
+
+
+def get_or_create_reviewer_account():
+    """The shared, pre-approved, passwordless account behind the reviewer button.
+
+    No usable password: `set_unusable_password` means this account can never be
+    reached through the normal username/password form, only by `django_login` from the
+    dedicated reviewer-login endpoint. Deliberately not staff and not superuser — a
+    button anyone can click must never grant admin access.
+    """
+    model = get_user_model()
+    user, created = model.objects.get_or_create(
+        username=REVIEWER_USERNAME,
+        defaults={
+            "email": "reviewer@cernal.local",
+            "first_name": "Reviewer",
+            "is_active": True,
+            "is_staff": False,
+            "is_superuser": False,
+        },
+    )
+    if created:
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+    return user
+
+
 # --- API keys (ADR 0006) -----------------------------------------------------------
 
 #: A fixed, greppable prefix — matched by GitHub secret scanning, GitGuardian and

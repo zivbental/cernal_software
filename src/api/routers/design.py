@@ -39,6 +39,7 @@ from api.security import enforce_concurrency_ceiling, require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
 from apps.analyses.services import RunError, submit_run
+from apps.analyses.worker import worker_available
 from apps.datasets.models import Dataset
 from apps.datasets.services import DatasetValidationError, create_dataset, validate_expression_file
 from apps.results.models import Artifact, Candidate
@@ -66,14 +67,17 @@ def _input_mode(body: DesignIn) -> str:
             ("trigger_sequence", body.trigger_sequence),
             ("dataset_id", body.dataset_id),
             ("dge_csv", body.dge_csv),
+            ("gene_id", body.gene_id),
         )
         if value
     ]
     if len(provided) != 1:
         raise ValidationFailed(
-            "Provide exactly one of trigger_sequence, dataset_id or dge_csv.",
+            "Provide exactly one of trigger_sequence, dataset_id, dge_csv or gene_id.",
             detail={"provided": provided},
         )
+    if provided[0] == "gene_id":
+        return InputMode.GENE
     return InputMode.DIRECT if provided[0] == "trigger_sequence" else InputMode.DE
 
 
@@ -111,7 +115,7 @@ def _estimate(
     so how many genes actually survive filtering is unknown until it does."""
     n_families = max(1, len(gate_families))
 
-    if input_mode == InputMode.DIRECT:
+    if input_mode in (InputMode.DIRECT, InputMode.GENE):
         n_lengths = max(1, len(constraints.get("trigger_lengths", (30, 33, 36))))
         designs = n_lengths * n_families
         confidence = "very rough"
@@ -145,7 +149,7 @@ def _resolved(run: AnalysisRun) -> dict:
 
 def _row_count_for_dry_run(request, body: DesignIn, input_mode: str) -> int | None:
     """Never persists — a dry run creates nothing (§9.3)."""
-    if input_mode == InputMode.DIRECT:
+    if input_mode in (InputMode.DIRECT, InputMode.GENE):
         return None
     if body.dataset_id:
         dataset = get_owned(Dataset, body.dataset_id, request.user)
@@ -222,6 +226,8 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         "top_n": body.top_n,
         "notes": body.notes,
     }
+    if input_mode == InputMode.GENE:
+        params["target_gene"] = {"gene_id": body.gene_id}
 
     try:
         run, _created = submit_run(
@@ -287,6 +293,7 @@ def get_design_status(request, run_id: UUID):
         status=run.status,
         stage=run.stage,
         progress_pct=run.progress_pct,
+        worker_available=worker_available() if run.status == RunStatus.QUEUED else None,
         error_summary=run.error_summary or None,
         warnings=run.warnings or [],
         submitted_at=run.submitted_at,

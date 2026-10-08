@@ -211,7 +211,8 @@ const PARAMETERS: ParamRow[] = [
 ];
 
 const CONSTRAINTS_FIELDS: ParamRow[] = [
-  { field: "max_triggers", type: "integer", default: "2", notes: "Circuit arity ceiling — how many triggers a circuit may combine." },
+  { field: "max_triggers", type: "integer", default: "2", notes: "Circuit arity ceiling — how many triggers a single gate may combine." },
+  { field: "max_circuit_gates", type: "integer", default: "2", notes: "How many gates one circuit may combine. 1 gives one circuit per gene; higher also proposes A AND NOT B style circuits, each priced by circuit_complexity." },
   { field: "min_separation", type: "float", default: "0.5", notes: "Minimum |log2 fold change| for a gene to be considered usable." },
   { field: "max_p_adj", type: "float", default: "0.05", notes: "Adjusted p-value significance threshold." },
   { field: "trigger_lengths", type: "integer[]", default: "[30, 33, 36]", notes: "Window sizes to scan, in nt." },

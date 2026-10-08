@@ -6,7 +6,7 @@
  */
 
 export type RunStatus = "DRAFT" | "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-export type InputMode = "de" | "direct";
+export type InputMode = "de" | "direct" | "gene";
 export type ValidationStatus = "PENDING" | "VALID" | "INVALID";
 export type MetricDirection = "HIGHER_BETTER" | "LOWER_BETTER";
 export type DecisionTag = "NONE" | "PINNED" | "SHORTLISTED" | "REJECTED" | "SYNTHESIZE";
@@ -53,6 +53,7 @@ export interface Version {
   gate_families: GateFamily[];
   scoring_profiles: string[];
   available_backbones: Backbone[];
+  reviewer_login_enabled: boolean;
 }
 
 export interface ExampleDataset {
@@ -175,6 +176,7 @@ export interface RunStatusResponse {
   status: RunStatus;
   stage: string;
   progress_pct: number;
+  worker_available?: boolean | null;
   error_summary: string | null;
   warnings: string[];
   submitted_at: string | null;
@@ -349,6 +351,19 @@ export interface RunParams {
     hard_filters?: { metric: string; minimum?: number; maximum?: number; reason: string }[];
   };
   /**
+   * Search constraints — `engine.domain.Constraints`, field for field. Unknown field
+   * names are rejected at submission rather than silently ignored.
+   */
+  constraints?: {
+    /**
+     * How many gates one circuit may combine (not how many inputs one gate takes —
+     * that is `max_triggers`). 1 gives one circuit per gene; higher lets the engine
+     * also propose `A AND NOT B` style circuits, each priced by `circuit_complexity`.
+     */
+    max_circuit_gates?: number;
+    [key: string]: unknown;
+  };
+  /**
    * The plasmid vector the circuit gets assembled onto (docs/plasmids.md Q13). Exactly
    * one of the two fields, or neither (today's bare four-segment construct, unchanged) —
    * the API rejects both being set at once.
@@ -361,6 +376,5 @@ export interface RunParams {
    * params key; the engine does not read it today.
    */
   target_gene?: { organism: string; gene_id: string; gene_symbol: string | null };
-  mock?: { candidate_count?: number; step_delay?: number; fail?: boolean };
   [key: string]: unknown;
 }

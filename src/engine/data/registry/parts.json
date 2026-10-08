@@ -25,6 +25,19 @@
     "url": "https://registry.igem.org/parts/bba-e0040",
     "uuid": "839dbacc-1089-4119-be94-b6d3767dc373"
   },
+  "I712004": {
+    "length_bp": 654,
+    "license_uuid": "d6c69ca7-8be4-4bc0-b4a8-d3ae1d428aa6",
+    "registry_name": "BBa_I712004",
+    "role_accession": "IGEM:0000006",
+    "role_label": "Regulatory",
+    "sequence_sha256": "18bbc32dfa5abd3f6c226ce9a35cba27523b8ad5597d87a48f6cf00541b89a2d",
+    "title": "CMV promoter",
+    "topology_accession": "",
+    "topology_label": "",
+    "url": "https://registry.igem.org/parts/bba-i712004",
+    "uuid": "65e40bbb-65ae-4d6e-b755-060aed97e62f"
+  },
   "J23119": {
     "length_bp": 35,
     "license_uuid": "d6c69ca7-8be4-4bc0-b4a8-d3ae1d428aa6",
@@ -63,6 +76,19 @@
     "topology_label": "Linear",
     "url": "https://registry.igem.org/parts/bba-k1486025",
     "uuid": "77a309f9-270d-4953-9c7a-953501281d10"
+  },
+  "K404108": {
+    "length_bp": 481,
+    "license_uuid": "d6c69ca7-8be4-4bc0-b4a8-d3ae1d428aa6",
+    "registry_name": "BBa_K404108",
+    "role_accession": "SO:0000141",
+    "role_label": "Terminator",
+    "sequence_sha256": "c192c3b3ec0e6cf99be111609a276974459cd9a72620035fa8662695a45b0455",
+    "title": "hGH terminator",
+    "topology_accession": "SO:0000987",
+    "topology_label": "Linear",
+    "url": "https://registry.igem.org/parts/bba-k404108",
+    "uuid": "a870e151-a4a3-420e-8759-de0408de3c91"
   },
   "pSB1A3": {
     "length_bp": 2155,

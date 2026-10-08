@@ -1,13 +1,52 @@
 """Shared pytest fixtures."""
 
+import dataclasses
+
 import pytest
 from django.core.files.base import ContentFile
 
+
+@pytest.fixture
+def screening_released(monkeypatch):
+    """Provision screening for the duration of one test, so the release gate opens.
+
+    Production is fail-closed and stays that way: no local screening adapter is
+    provisioned, so ``fail_closed_release`` returns ``HOLD_SYSTEM`` and the pipeline
+    writes the design table and audit manifests but no sequence-bearing artifact
+    (``pipeline.py``'s release check). That is correct, and it is also why nothing
+    downstream of the gate — FASTA, GenBank, SBOL, and the Platform's import and
+    download path for them — would otherwise be exercised by any test.
+
+    This flips only ``release_allowed`` on the result the real gate produced, leaving
+    the audit manifest and its recomputed digest exactly as screening wrote them, so a
+    test still sees genuine evidence rather than a fabricated clean screen. It is the
+    same seam ``tests/engine/test_pipeline.py`` uses for the SBOL export.
+    """
+    import engine.pipeline as pipeline_module
+
+    real = pipeline_module.fail_closed_release
+
+    def allow(reference, sequence, *, host_context):
+        return dataclasses.replace(
+            real(reference, sequence, host_context=host_context), release_allowed=True
+        )
+
+    monkeypatch.setattr(pipeline_module, "fail_closed_release", allow)
+
+
+# Real MG1655 locus tags, because LocalEngine joins a DE table against the bundled
+# reference transcriptome by locus tag (docs/genes.md) — gene symbols raise an
+# identifier-namespace failure. Deliberately three of the *shortest* real CDSs
+# (297 + 276 + 324 nt): every test reaching this fixture runs a real compile, and
+# trigger scanning cost scales with transcript length, so picking lacZ-sized genes
+# here multiplied the Platform suite's runtime several-fold for no extra coverage —
+# these tests assert that candidates and artifacts exist, never which gene produced
+# them.
 DATASET_CSV = (
     "gene_id,base_expression,target_expression,log2fc,padj\n"
-    "lacZ,0.82,6.41,2.97,0.0007\n"
-    "katG,1.24,5.93,2.26,0.0019\n"
-    "soxS,0.31,4.77,3.94,0.0002\n"
+    "b0005,0.82,6.41,2.97,0.0007\n"
+    "b0022,1.24,5.93,2.26,0.0019\n"
+    "b4062,0.31,4.77,3.94,0.0002\n"
 )
 
 
@@ -75,7 +114,7 @@ def run(dataset, user):
 
     return AnalysisRun.objects.create(
         dataset=dataset,
-        organism="E. coli",
+        organism="ecoli",
         created_by=user,
         idempotency_key="test-key-001",
         params_snapshot={"max_triggers": 2},
@@ -87,9 +126,15 @@ def run(dataset, user):
 
 
 @pytest.fixture
-def job_result(run, dataset, tmp_path):
-    """A real MockEngine result plus the directory its artifacts were written to."""
-    from engine.client import MockEngine
+def job_result(run, dataset, tmp_path, screening_released):
+    """A real engine result plus the directory its artifacts were written to.
+
+    Depends on ``screening_released`` so the run produces its sequence-bearing
+    artifacts too — the Platform's artifact import, listing and download paths are
+    what most consumers of this fixture are testing, and with the gate closed there
+    would be nothing but a design table and audit manifests to import.
+    """
+    from engine.client import LocalEngine
     from engine.contract import INPUT_DE, SCHEMA_VERSION, JobRequest
 
     output_dir = tmp_path / "engine-out"
@@ -101,14 +146,14 @@ def job_result(run, dataset, tmp_path):
         trigger_sequence="",
         input_path=dataset.file.path,
         input_checksum=dataset.checksum_sha256,
-        organism="E. coli",
-        params={"mock": {"candidate_count": 20}},
+        organism="ecoli",
+        params={},
         gate_families=["toehold"],
         scoring_profile="default",
         seed=42,
         output_dir=str(output_dir),
     )
-    return MockEngine().run(request, lambda pct, stage: True), output_dir
+    return LocalEngine().run(request, lambda pct, stage: True), output_dir
 
 
 @pytest.fixture

@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
 from apps.results.services import ResultImportError, import_job_result
-from engine.client import load_engine
+from engine.client import load_engine, lookup_reference_gene
 from engine.contract import CANCELLED, SCHEMA_VERSION, SUCCEEDED, JobRequest
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,23 @@ def submit_run(
             raise RunError("This dataset did not pass validation and cannot be analysed.")
     elif input_mode == InputMode.DIRECT:
         dataset = None
+    elif input_mode == InputMode.GENE:
+        dataset = None
+        target = (params or {}).get("target_gene") or {}
+        if not isinstance(target, dict):
+            raise RunError("target_gene must contain a reference gene ID or symbol.")
+        identifier = target.get("gene_id", "")
+        if not isinstance(identifier, str) or not identifier.strip():
+            raise RunError("Choose a reference gene ID or symbol for a gene-input run.")
+        try:
+            reference = lookup_reference_gene((params or {}).get("organism", organism), identifier)
+        except ValueError as exc:
+            raise RunError(str(exc)) from exc
+        trigger_sequence = reference["sequence"]
+        params = {
+            **(params or {}),
+            "gene_reference": {key: value for key, value in reference.items() if key != "sequence"},
+        }
     else:
         raise RunError(f"Unknown input mode '{input_mode}'.")
 

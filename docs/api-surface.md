@@ -37,14 +37,14 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 64 |
-| Public classes | 109 |
-| Public callables (excluding `__init__`) | 332 |
-| — `BUILT` | 301 |
-| — `STUB` | 23 |
+| Modules | 63 |
+| Public classes | 105 |
+| Public callables (excluding `__init__`) | 331 |
+| — `BUILT` | 307 |
+| — `STUB` | 16 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
-| `__init__` constructors | 22 |
+| `__init__` constructors | 20 |
 
 ## Index
 
@@ -53,20 +53,20 @@ layers above it, never the ones below.
 
 | Layer | Module | S | Not `STUB` | `STUB` | Purpose |
 | --- | --- | --- | ---: | ---: | --- |
-| domain | `engine.domain` |  | 31 | 0 | The engine's scientific vocabulary. |
+| domain | `engine.domain` |  | 30 | 0 | The engine's scientific vocabulary. |
 | sequences | `engine.sequences` | S6 | 12 | 0 | S6 — sequence facts. Pure functions, no state, no dependencies. |
 | scoring | `engine.scoring` |  | 0 | 0 |  |
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
 | scoring | `engine.scoring.profiles` |  | 8 | 0 | Versioned scoring profiles. |
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
 | gate_tools | `engine.gates.tools.ais_china` |  | 5 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
-| gate_tools | `engine.gates.tools.binding` | S3 | 5 | 0 | S3 — trigger/switch hybridisation energy. |
+| gate_tools | `engine.gates.tools.binding` | S3 | 7 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
 | gate_tools | `engine.gates.tools.folding` | S2, S4 | 13 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
-| gates | `engine.gates.base` |  | 8 | 0 | The GateFamily interface. |
+| gates | `engine.gates.base` |  | 10 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
 | gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
@@ -97,11 +97,10 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold_and.trigger_accessibility` |  | 8 | 0 | Stage 1b — accessibility scores for every trigger pair, in Green's and VISTA's terms. |
 | gates | `engine.gates.notebooks.toehold_and.window_probabilities` |  | 4 | 0 | The ribosome window as probabilities, base by base, in all four tubes. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
-| stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
+| stages | `engine.stages.circuits` |  | 2 | 1 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
 | stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
-| stages | `engine.stages.off_target` | S5 | 0 | 4 | S5 — off-target scanning, in both directions. |
 | stages | `engine.stages.plasmids` |  | 7 | 0 | Stage 5 — plasmid construction. |
 | stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
@@ -109,14 +108,14 @@ layers above it, never the ones below.
 | stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
-| top | `engine.client` |  | 8 | 0 | The Platform-facing engine interface. |
-| top | `engine.contract` |  | 5 | 0 | The Platform ⇄ Engine contract. |
+| top | `engine.client` |  | 7 | 0 | The Platform-facing engine interface. |
+| top | `engine.contract` |  | 4 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``. |
 | top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
 | top | `engine.safety` |  | 12 | 0 | Offline-first, fail-closed release control for output sequences. |
 | top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
-| top | `engine.transcriptome` |  | 2 | 0 | Reference transcript sequences, by organism — Q1's first real answer. |
+| top | `engine.transcriptome` |  | 5 | 0 | Pinned, offline reference sequences and identifier aliases for all four hosts. |
 
 ## Layer 1 · Domain — the vocabulary
 
@@ -220,6 +219,7 @@ iGEM assembly standards, which decide the prohibited restriction sites.
 | --- | --- | --- |
 | `RFC10` |  | `'RFC10'` |
 | `RFC1000` |  | `'RFC1000'` |
+| `NONE` |  | `'none'` |
 
 #### `class DesiredOutcome(StrEnum)`
 
@@ -314,7 +314,7 @@ Stage 1 output — a gene that separates the two cell states.
 | `gene_id` | `str` |  |
 | `symbol` | `str` |  |
 | `regulation` | `Regulation` |  |
-| `log2_fold_change` | `float` |  |
+| `log2_fold_change` | `float \| None` |  |
 | `score` | `float` |  |
 | `p_adj` | `float \| None` | `None` |
 | `control_percentile` | `float \| None` | `None` |
@@ -353,9 +353,8 @@ Stage 2 output — a sub-segment of a transcript, ranked as a possible input.
 | `openness` | `float` |  |
 | `accessibility` | `float` |  |
 | `mfe` | `float` |  |
-| `off_target_penalty` | `float` |  |
-| `segment_specificity` | `float` |  |
 | `gc_content` | `float` |  |
+| `log2_fold_change` | `float \| None` | `None` |
 | `aug_indexes` | `tuple[int, ...]` | `()` |
 | `stop_indexes` | `tuple[int, ...]` | `()` |
 | `ribosome_occupancy` | `float \| None` | `None` |
@@ -389,6 +388,7 @@ The researcher's limits, carried into every stage that has to respect them.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `max_triggers` | `int` | `2` |
+| `max_circuit_gates` | `int` | `2` |
 | `min_separation` | `float` | `0.5` |
 | `max_p_adj` | `float` | `0.05` |
 | `trigger_lengths` | `tuple[int, ...]` | `(30, 33, 36)` |
@@ -454,7 +454,6 @@ Stage 3 output — one concrete switch built for one trigger set.
 | `mfe_off` | `float` | `0.0` |
 | `mfe_trigger` | `float` | `0.0` |
 | `binding_site_accessibility` | `float` | `0.0` |
-| `binding_site_off_target` | `float` | `0.0` |
 | `translation_score` | `float` | `0.0` |
 | `architecture` | `dict` | `field(default_factory=dict)` |
 | `score` | `float` | `0.0` |
@@ -624,34 +623,6 @@ An external tool a gate family needs, and the version it was validated against.
 | `version` | `str` |  |
 | `optional` | `bool` | `False` |
 
-#### `class Hit`
-
-`@dataclass(frozen=True, slots=True)`
-
-One near-match found in the transcriptome.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `gene_id` | `str` |  |
-| `start` | `int` |  |
-| `mismatches` | `int` |  |
-| `identity` | `float` |  |
-
-#### `class OffTargetReport`
-
-`@dataclass(frozen=True, slots=True)`
-
-What an off-target scan found, and what it costs the candidate.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `hits` | `tuple[Hit, ...]` |  |
-| `penalty` | `float` |  |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `@property def worst_identity(self) -> float` | Closest off-target match found. 1.0 means an exact duplicate exists. |
-
 #### `class FoldResult`
 
 `@dataclass(frozen=True, slots=True)`
@@ -770,7 +741,7 @@ Versioned scoring profiles.
 | --- | --- | --- |
 | `TREAT_AS_WORST` |  | `'worst'` |
 | `SKIP` |  | `'skip'` |
-| `DEFAULT_V1` |  | `ScoringProfile(name='default', version='v1', metrics=[MetricSpec(name='state_separation…` |
+| `DEFAULT_V1` |  | `ScoringProfile(name='default', version='v2', metrics=[MetricSpec(name='state_separation…` |
 | `PROFILES` | `dict[str, ScoringProfile]` | `{DEFAULT_V1.name: DEFAULT_V1}` |
 
 | Status | Function | Purpose |
@@ -779,7 +750,7 @@ Versioned scoring profiles.
 | `BUILT` | `def available_profiles() -> list[str]` | Profile names a submission may request. Surfaced at ``GET /api/version``. |
 | `BUILT` | `def custom_scoring_label(base_name: str, weights: dict[str, float], hard_filters: list[dict], tie_breakers: list[str] \| None) -> str` | ``<hash8>`` — a pure function of the overrides, so two runs with identical weights get the same label and stay comparable (design map 12). |
 | `BUILT` | `def derive_profile(base: ScoringProfile, *, weights: dict[str, float] \| None = None, hard_filters: list[dict] \| None = None, tie_breakers: list[str] \| None = None) -> ScoringProfile` | A per-request variant of ``base``. Only ``weight`` on each metric may change — ``direction`` and ``valid_range`` are physics and units, not preference, so a caller who could widen ``valid_range`` could make their own numbers look better an… |
-| `BUILT` | `def resolve_profile(base_name: str, overrides: dict \| None = None) -> ScoringProfile` | What ``MockEngine``/the real pipeline actually calls: ``base_name`` is ``AnalysisRun.scoring_profile`` (always a known name — kept that way so ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is ``JobRequest.params.get("scoring")``. |
+| `BUILT` | `def resolve_profile(base_name: str, overrides: dict \| None = None) -> ScoringProfile` | What the real pipeline actually calls: ``base_name`` is ``AnalysisRun.scoring_profile`` (always a known name — kept that way so ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is ``JobRequest.params.get("scoring")``. |
 
 #### `class MetricSpec`
 
@@ -981,6 +952,11 @@ The outcome of one :meth:`AisChinaCodons.optimize` call.
 
 S3 — trigger/switch hybridisation energy.
 
+| Constant | Type | Value |
+| --- | --- | --- |
+| `DG_REFERENCE_KCAL` |  | `-15.0` |
+| `DG_STEEPNESS` |  | `2.0` |
+
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def can_pair(first: str, second: str) -> bool` | Whether two bases can hydrogen-bond, **G:U wobbles included**. |
@@ -988,6 +964,8 @@ S3 — trigger/switch hybridisation energy.
 | `BUILT` | `def longest_complementary_run(first: str, second: str) -> int` | Longest unbroken stretch the two strands can pair over, in this alignment. |
 | `BUILT` | `def fixed_alignment_energy(first: str, second: str, folder: FoldEngine) -> float \| None` | Free energy of two strands held in the alignment the **design** imposes. |
 | `BUILT` | `def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float` | Free energy released when a trigger binds its switch. |
+| `BUILT` | `def binding_energy_factor(binding_dg: float, *, reference_kcal: float = DG_REFERENCE_KCAL, steepness: float = DG_STEEPNESS) -> float` | Map ΔG_bind (kcal/mol, more negative is stronger) onto a 0-1 confidence. |
+| `BUILT` | `def weakest_binding_confidence(switch: str, triggers: Sequence[str], folder: FoldEngine) -> float \| None` | ``predicted_success_rate`` over every input a design needs. |
 
 ### `engine.gates.tools.codons` · S8
 
@@ -1103,7 +1081,7 @@ Post-transcriptional silencing. The pipeline's inverting element.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'antisense'` |
-| `version` |  | `'0.1.0'` |
+| `version` |  | `'0.2.0'` |
 | `kind` |  | `GateKind.ANTISENSE_NOT` |
 | `label` |  | `'Antisense Repression'` |
 | `description` |  | `'Post-transcriptional silencing'` |
@@ -1151,6 +1129,8 @@ Base class for every switch chemistry.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def supports(self, host: Host) -> bool` | Whether this family can be used for this organism. |
+| `BUILT` | `@staticmethod def state_separation(triggers: Sequence[TriggerCandidate]) -> float \| None` | ``state_separation`` — the weakest input's absolute log2 fold change. |
+| `BUILT` | `@staticmethod def component_count(arity: int) -> float` | ``circuit_complexity`` — component count, on ``BooleanExpression``'s scale. |
 | `ABSTRACT` | `def required_tools(self) -> list[ToolRequirement]` | External tools this family needs. Checked before a run starts. |
 | `ABSTRACT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | Can this family realise this trigger set? Cheap checks only — expensive evaluation happens later, and only for designs that survive this. |
 | `ABSTRACT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Produce candidate realisations. **Yields**, because a family exploring a length window across thousands of trigger sets produces far too many designs to hold in a list. |
@@ -1216,7 +1196,7 @@ Single-input toehold switch.
 | --- | --- | --- |
 | `name` |  | `'toehold'` |
 | `design_prefix` |  | `'toehold'` |
-| `version` |  | `'0.8.1'` |
+| `version` |  | `'0.9.0'` |
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
 | `description` |  | `'Translational control · pre-mRNA'` |
@@ -1864,8 +1844,8 @@ Turn an up/down gene pattern into ranked, buildable circuits.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, evaluator: 'ConfusionEvaluator', max_terms: int = 4) -> None` |  |
-| `STUB` | `def design(self, genes: list[SelectedGene], designs: Iterable[GateDesign], counts: CountMatrix) -> Iterator[CircuitCandidate]` | Yield scored circuits, buildable from the switches that exist. |
-| `STUB` | `def enumerate_expressions(self, genes: list[SelectedGene]) -> Iterator[BooleanExpression]` | Generate Boolean expressions reproducing the genes' up/down pattern. |
+| `BUILT` | `def design(self, genes: list[SelectedGene], designs: Iterable[GateDesign], counts: CountMatrix) -> Iterator[CircuitCandidate]` | Yield scored circuits, buildable from the switches that exist. |
+| `BUILT` | `def enumerate_expressions(self, genes: list[SelectedGene]) -> Iterator[BooleanExpression]` | Generate Boolean expressions reproducing the genes' up/down pattern. |
 
 #### `class ConfusionEvaluator`
 
@@ -1873,9 +1853,7 @@ Scores a circuit by how it behaves on the actual samples.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, off_target: OffTargetScanner) -> None` |  |
 | `STUB` | `def evaluate(self, expression: BooleanExpression, counts: CountMatrix, threshold: float) -> ConfusionMatrix` | Run an expression over every sample and tally the four outcomes. |
-| `STUB` | `def cross_talk_penalty(self, designs: list[GateDesign]) -> float` | Interference between a circuit's own switches. |
 
 ### `engine.stages.folding` · S1
 
@@ -1924,7 +1902,7 @@ Keep the genes that actually separate the two cell states.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, constraints: Constraints, screener: MotifScreener, atlas: dict[str, float] \| None = None) -> None` |  |
-| `BUILT` | `def select(self, dge: DgeTable, *, counts: CountMatrix \| None = None, sequences: dict[str, str] \| None = None, on_warning: Callable[[str], None] \| None = None) -> list[SelectedGene]` | Filter, score and rank genes; return a shortlist with an up/down call. |
+| `BUILT` | `def select(self, dge: DgeTable, *, counts: CountMatrix \| None = None, sequences: dict[str, str] \| None = None, on_warning: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None) -> list[SelectedGene]` | Filter, score and rank genes; return a shortlist with an up/down call. |
 
 ### `engine.stages.motifs` · S7
 
@@ -1963,24 +1941,6 @@ Rejects or penalises sequences carrying prohibited motifs.
 | `BUILT` | `def violations(self, sequence: str, *, circular: bool = False) -> tuple[Violation, ...]` | Every prohibited motif in this sequence. Empty means compliant. |
 | `BUILT` | `def is_compliant(self, sequence: str) -> bool` | True when nothing prohibited is present. A yes/no wrapper over ``violations``. |
 
-### `engine.stages.off_target` · S5
-
-`src/engine/stages/off_target.py`
-
-S5 — off-target scanning, in both directions.
-
-#### `class OffTargetScanner`
-
-Finds near-matches of a sequence in the host transcriptome.
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def __init__(self, transcriptome: dict[str, str], max_mismatch: int = 2) -> None` |  |
-| `STUB` | `def build_index(self) -> None` | Prepare the search structure. Call once, before any scanning. |
-| `STUB` | `def find_similar(self, sequence: str) -> tuple[Hit, ...]` | The primitive. Every method below is interpretation of these hits. |
-| `STUB` | `def scan_trigger(self, trigger: str) -> OffTargetReport` | Direction (b) — is this trigger sponged by other transcripts? |
-| `STUB` | `def scan_switch(self, binding_site: str) -> OffTargetReport` | Direction (a) — can non-cognate RNA cross-activate this switch? |
-
 ### `engine.stages.plasmids`
 
 `src/engine/stages/plasmids.py`
@@ -1989,9 +1949,9 @@ Stage 5 — plasmid construction.
 
 | Constant | Type | Value |
 | --- | --- | --- |
-| `REGISTRY_PARTS` | `dict[str, str]` | `{'J23119': 'BBa_J23119', 'K124002': 'BBa_K124002', 'B0015': 'BBa_B0015', 'K1486025': 'B…` |
-| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.C_ACNES: ('J23119'…` |
-| `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
+| `REGISTRY_PARTS` | `dict[str, str]` | `{'K404108': 'BBa_K404108', 'I712004': 'BBa_I712004', 'J23119': 'BBa_J23119', 'K124002':…` |
+| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.HUMAN: ('I712004', 'CGATGTACGGGCCAGATATACGCGTTGACATTGATTATTGCCTAGTTATTAATAGTAATCA…` |
+| `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.HUMAN: ('K404108', 'GACGGGTGGCATCCCTGTGACCCCTCCCCAGTGCCTCTCCTGGCCCTGGAAGTTGCCACTC…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |
 | `SBOL_NAMESPACE` |  | `'https://cernal.igem.org/2026'` |
@@ -2066,7 +2026,7 @@ Dispatches trigger sets to the gate families that can realise them.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, families: list, validator: 'SwitchValidator', host: Host) -> None` |  |
-| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
+| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
 | `BUILT` | `def build_trigger_sets(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[TriggerSet]` | Combine individual triggers into the input sets a circuit can use. |
 
 #### `class SwitchValidator`
@@ -2075,7 +2035,7 @@ The hard rules a switch must obey, whichever family produced it.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, folder: FoldEngine, off_target: OffTargetScanner, screener: MotifScreener, translation: TranslationScorer, constraints: Constraints) -> None` |  |
+| `BUILT` | `def __init__(self, folder: FoldEngine, screener: MotifScreener, translation: TranslationScorer, constraints: Constraints) -> None` |  |
 | `BUILT` | `def validate(self, design: GateDesign) -> ValidationResult` | Check one design against every hard rule this stage can currently apply. |
 
 ### `engine.stages.triggers`
@@ -2103,7 +2063,7 @@ Scan transcripts and deterministically shortlist candidates per gate footprint.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, profiler: FoldProfiler, off_target: OffTargetScanner, screener: MotifScreener, folder: FoldEngine) -> None` |  |
+| `BUILT` | `def __init__(self, profiler: FoldProfiler, screener: MotifScreener, folder: FoldEngine) -> None` |  |
 | `BUILT` | `def score(self, genes: list[SelectedGene], sequences: dict[str, str], constraints: Constraints) -> Iterator[TriggerCandidate]` | Yield a stable per-gene shortlist across all configured footprint buckets. |
 
 ## Layer 7 · Top level — contract, errors, composition
@@ -2140,8 +2100,9 @@ The Platform-facing engine interface.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.MockEngine``. |
+| `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.LocalEngine``. |
 | `BUILT` | `def label_for_custom_scoring(base_name: str, overrides: dict \| None) -> str` | The label the engine will actually score under (docs/public-api.md §9.1) — computable from the request alone, before the engine ever runs, so the Platform can echo it in a submission's ``resolved`` field without building a ``ScoringProfile… |
+| `BUILT` | `def lookup_reference_gene(organism: str, identifier: str) -> dict` | Resolve a public reference gene without exposing engine internals to the API. |
 
 #### `class EngineClient(Protocol)`
 
@@ -2160,25 +2121,12 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.5.0-direct-and-de-ecoli-yeast'` |
+| `ENGINE_VERSION` |  | `'local-0.9.0-all-hosts-direct-de-gene'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult` | Delegate to the real pipeline. |
 | `BUILT` | `def capabilities(self) -> EngineCapabilities` | The families and profiles actually installed in this build. |
-
-#### `class MockEngine`
-
-Deterministic fake science.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `ENGINE_VERSION` |  | `'mock-1.0.0'` |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def capabilities(self) -> EngineCapabilities` | The same registries the real engine reports, so a mock run configures identically to a real one. |
-| `BUILT` | `def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult` | Run a fake job, deterministically. |
 
 ### `engine.contract`
 
@@ -2193,6 +2141,7 @@ The Platform ⇄ Engine contract.
 | `LOWER_BETTER` |  | `'LOWER_BETTER'` |
 | `INPUT_DE` |  | `'de'` |
 | `INPUT_DIRECT` |  | `'direct'` |
+| `INPUT_GENE` |  | `'gene'` |
 | `SUCCEEDED` |  | `'succeeded'` |
 | `FAILED` |  | `'failed'` |
 | `CANCELLED` |  | `'cancelled'` |
@@ -2222,7 +2171,6 @@ An immutable request for one scientific computation.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `@property def is_direct_trigger(self) -> bool` | True when the researcher pasted a sequence instead of uploading a table. |
-| `BUILT` | `def mock_options(self) -> dict` | Options consumed by MockEngine. Ignored by every real implementation. |
 
 #### `class GateFamilyInfo`
 
@@ -2399,7 +2347,7 @@ Differential-expression input parsing — the edge where a CSV becomes a ``DgeTa
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def parse_dge_table(raw: bytes, filename: str = 'dge.csv') -> DgeTable` | Parse a differential-expression CSV or TSV into a ``DgeTable``. |
+| `BUILT` | `def parse_dge_table(raw: bytes, filename: str = 'dge.csv') -> DgeTable` | Parse differential-expression CSV, TSV, TXT, or XLSX into a ``DgeTable``. |
 
 ### `engine.pipeline`
 
@@ -2416,7 +2364,7 @@ The real scientific pipeline.
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
-| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`- or `de`-mode job. |
+| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute a direct, differential-expression, or reference-gene job. |
 
 ### `engine.safety`
 
@@ -2641,11 +2589,14 @@ S13 — keep only the non-dominated candidates.
 
 `src/engine/transcriptome.py`
 
-Reference transcript sequences, by organism — Q1's first real answer.
+Pinned, offline reference sequences and identifier aliases for all four hosts.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `@cache def load_transcriptome(host: Host) -> dict[str, str]` | Every bundled transcript for ``host``, as RNA, keyed by gene id. |
+| `BUILT` | `@cache def reference_metadata(host: Host) -> dict` |  |
+| `BUILT` | `def resolve_gene_id(host: Host, identifier: str) -> str` |  |
+| `BUILT` | `def gene_reference(host: Host, identifier: str) -> dict` |  |
 | `BUILT` | `def available_hosts() -> tuple[Host, ...]` | Which hosts have a bundled reference transcriptome today. |
 
 ---

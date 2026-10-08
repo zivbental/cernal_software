@@ -103,6 +103,11 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
         "LOCATION": "cernal_cache_table",
+    },
+    # Heartbeats must remain writable during a long atomic result import.
+    "worker_status": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": str(VAR_DIR / "worker-status"),
     }
 }
 
@@ -134,6 +139,7 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 Q_CLUSTER = {
     "name": "cernal",
+    "cache": "worker_status",
     "orm": "default",  # ORM broker: the queue is a table, no Redis to run or back up.
     "workers": 1,  # Concurrency of 1 removes a class of SQLite write contention.
     "timeout": 60 * 60,  # An analysis is long-running and rare.
@@ -146,7 +152,17 @@ Q_CLUSTER = {
 # --- Engine (docs/architecture.md §3, §10) ------------------------------------
 
 # Dotted path to an engine.client.EngineClient implementation.
-CERNAL_ENGINE = env.str("CERNAL_ENGINE", default="engine.client.MockEngine")
+CERNAL_ENGINE = env.str("CERNAL_ENGINE", default="engine.client.LocalEngine")
+
+# --- Reviewer instant login ------------------------------------------------------
+
+# Off unless explicitly turned on. When set, the login page offers a button that signs
+# in as a shared, unprivileged, passwordless account — for iGEM judges trying the
+# product without registering and waiting for approval. Never turn this on against a
+# deployment holding real user data: it is an intentional, unauthenticated way to get
+# a session. dev.py defaults it to on for local convenience; prod.py takes whatever
+# the operator sets, off by default.
+REVIEWER_LOGIN_ENABLED = env.bool("REVIEWER_LOGIN_ENABLED", default=False)
 
 # --- Logging --------------------------------------------------------------------
 

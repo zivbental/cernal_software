@@ -70,8 +70,6 @@ def _trigger() -> TriggerCandidate:
         openness=0.6,
         accessibility=0.5,
         mfe=-4.2,
-        off_target_penalty=0.0,
-        segment_specificity=1.0,
         gc_content=44.4,
     )
 
@@ -271,11 +269,13 @@ def test_build_refuses_a_circuit_with_no_designs(builder):
         builder.build(empty, DesiredOutcome.GFP)
 
 
-def test_build_refuses_an_unconfigured_host(builder):
-    """*E. coli* and yeast both have a real promoter/terminator configured now
-    (docs/ROADMAP.md Q12) — human is the one still genuinely unconfigured."""
-    with pytest.raises(InputValidationError, match="human"):
-        builder.build(_circuit(host=Host.HUMAN), DesiredOutcome.GFP)
+def test_build_uses_mammalian_parts_for_human(builder):
+    result = builder.build(_circuit(host=Host.HUMAN), DesiredOutcome.GFP)
+    segments = result.plasmid.segments
+    assert segments[0].name == "I712004"
+    assert segments[-1].name == "K404108"
+    assert segments[0].sequence == PROMOTERS[Host.HUMAN][1]
+    assert segments[-1].sequence == TERMINATORS[Host.HUMAN][1]
 
 
 def test_build_refuses_an_unconfigured_outcome(builder):

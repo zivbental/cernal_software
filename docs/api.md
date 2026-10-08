@@ -1,6 +1,6 @@
 # HTTP API reference
 
-The only HTTP surface in the system — **35 endpoints**. Built with
+The only HTTP surface in the system — **43 endpoints**. Built with
 [django-ninja](https://django-ninja.dev) (ADR 0004); the machine-readable schema is
 generated at **`/api/openapi.json`** and the interactive docs at **`/api/docs`**.
 
@@ -23,7 +23,7 @@ fields.** A breaking change means a new `api_schema_version` and a `/api/v2/` mo
 
 **Two credentials, one API (ADR 0006).** The SPA authenticates with a session cookie,
 same as always; everything else — a script, `curl`, Snakemake, Nextflow — authenticates
-with an `X-API-Key` header. Both reach the same 35 endpoints with the same ownership
+with an `X-API-Key` header. Both reach the same 43 endpoints with the same ownership
 rules; there is no separate "public API" surface and no second data model. `auth=` tries
 the header first (cheaper, no CSRF path), then the session cookie.
 
@@ -288,6 +288,11 @@ joins across candidates.
 `status` is `DRAFT` · `QUEUED` · `RUNNING` · `COMPLETED` · `FAILED` · `CANCELLED`. The
 last three are terminal — stop polling. `stage` is human-readable and meant to be shown
 directly. On `FAILED`, `error_summary` is safe to display verbatim.
+
+`worker_available` is a boolean for queued runs and `null` otherwise. It comes from
+the queue cluster's recent heartbeat. `false` means no worker is currently available;
+the submission stays queued and the UI explains the interruption. Both polling
+endpoints (`/api/runs/{id}` and `/api/design/{id}`) expose the field.
 
 ### Cancelling
 
@@ -584,3 +589,14 @@ is no package manager worth targeting here.
 > engine's actual, tested responses, and both ship a conformance test against
 > `clients/fixtures/`, but treat them as a first draft until someone with the runtime
 > confirms they pass. The Python client has been; its conformance suite is in CI.
+
+## Reference gene input
+
+`GET /api/reference-genes/resolve?organism=human&gene=SELE` resolves a stable ID or
+unambiguous symbol and returns its RNA sequence, canonical gene ID, transcript ID,
+reference release, and selection policy. Authentication is required.
+
+`POST /api/runs` accepts `input_mode: "gene"`, `organism`, and `gene_id` (or
+`params.target_gene.gene_id`). `POST /api/design` accepts `gene_id` as its exclusive
+input source. Sequences and provenance are frozen when the run is submitted. All four
+organisms support DE, direct, and gene input; DE accepts CSV, TSV, TXT, and XLSX.

@@ -1,5 +1,5 @@
 """Bootstraps the main Django project so this client's tests can run a real
-MockEngine server (docs/public-api.md §11.4) without a separate install.
+LocalEngine server (docs/public-api.md §11.4) without a separate install.
 
 Not shipped — dev-only. The published ``cernal`` package has no Django dependency.
 """

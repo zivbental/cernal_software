@@ -24,7 +24,7 @@ def test_executing_a_queued_run_completes_it(run, media_root):
     assert run.stage == "Completed"
     assert run.started_at is not None
     assert run.finished_at is not None
-    assert run.engine_version.startswith("mock")
+    assert run.engine_version.startswith("local-")
 
 
 def test_a_completed_run_has_its_results_imported(run, media_root):
@@ -77,20 +77,21 @@ def test_the_task_is_a_thin_shell_over_the_service(run, media_root):
 
 
 def test_an_engine_failure_lands_in_failed_with_a_readable_reason(run, media_root):
-    run.params_snapshot = {"mock": {"fail": True, "fail_message": "Unsupported organism."}}
+    # A real, documented scientific failure: free-text organism (docs/ROADMAP.md P1).
+    run.organism = "E. coli"
     run.save()
 
     execute_run(str(run.id))
     run.refresh_from_db()
 
     assert run.status == RunStatus.FAILED
-    assert run.error_summary == "Unsupported organism."
+    assert "not a recognised host" in run.error_summary
     assert run.finished_at is not None
     assert not run.candidates.exists()
 
 
 def test_a_failure_message_never_leaks_internals(run, media_root, settings):
-    run.params_snapshot = {"mock": {"fail": True}}
+    run.organism = "E. coli"
     run.save()
 
     execute_run(str(run.id))

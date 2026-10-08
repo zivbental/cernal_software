@@ -110,8 +110,8 @@ class ReportBuilder:
             * Legal and safety notes.
 
         What the report must say plainly:
-            * **Which engine produced this.** If ``MockEngine``, say so loudly — simulated
-              results must never be mistaken for predictions.
+            * **Which engine and version produced this.** From ``JobResult.engine_version``,
+              so a stored result can always be traced back to the build that made it.
             * **Tool versions and parameters.** From ``FoldEngine.versions()``. Without
               them the result is not reproducible.
             * **The caveats.** Small sample counts, circuits that fit the data suspiciously

@@ -1,4 +1,4 @@
-"""Submits the shared fixture (clients/fixtures/) against a real, running MockEngine
+"""Submits the shared fixture (clients/fixtures/) against a real, running LocalEngine
 server and checks the exact candidate column set — the mechanism that is meant to keep
 three language clients honest (docs/public-api.md §11.4).
 
@@ -31,7 +31,7 @@ def api_key(transactional_db, settings, tmp_path):
     from apps.accounts.services import issue_api_key
     from apps.analyses.models import AnalysisRun, InputMode, RunStatus
     from apps.results.services import import_job_result
-    from engine.client import MockEngine
+    from engine.client import LocalEngine
     from engine.contract import INPUT_DIRECT, SCHEMA_VERSION, JobRequest
 
     user = get_user_model().objects.create_user(
@@ -69,7 +69,7 @@ def api_key(transactional_db, settings, tmp_path):
             seed=run.seed,
             output_dir=output_dir,
         )
-        result = MockEngine().run(request, lambda pct, stage: True)
+        result = LocalEngine().run(request, lambda pct, stage: True)
         import_job_result(run, result, output_dir)
 
     run.status = RunStatus.COMPLETED

@@ -56,15 +56,20 @@ plain shell script avoids adding a dependency to run the project at all.
 
 ## Running the full stack
 
-Analysis runs execute in the worker, not the web process. Two terminals:
+Analysis runs execute in a background worker. Start the full local stack with:
 
 ```bash
-./do dev        # terminal 1
-./do worker     # terminal 2
+./do dev
 ```
 
-Without the worker, submitted runs sit in `QUEUED` forever. Queued and failed tasks are
-visible in Django admin under **Django Q**.
+The development supervisor starts the worker automatically, reuses an existing live
+worker, and restarts it after exit or heartbeat loss. Exiting the supervisor stops the
+web process and any worker it started. Local `manage.py runserver` uses the same
+supervisor. Only one supervisor runs against the local database at a time.
+`./do worker` is still available for a separately managed worker. Production uses its
+own process manager; the development supervisor is disabled with production settings.
+The polling API reports worker availability and the run screen explains an offline
+worker while retaining queued submissions. Django Q admin lists queued and failed tasks.
 
 ## Frontend
 
@@ -77,7 +82,7 @@ serves same-origin (ADR 0003, ADR 0005).
 ./do frontend            # Vite dev server on :5173 with hot reload
 ```
 
-For day-to-day frontend work run three terminals: `./do dev`, `./do worker`, and
+For day-to-day frontend work run two terminals: `./do dev` and
 `./do frontend`, then use **http://localhost:5173**. Vite proxies `/api`, `/media` and
 `/admin` to Django, so the browser still sees one origin and session cookies behave
 exactly as they will in production.
@@ -156,7 +161,8 @@ Full list at [architecture.md §14](architecture.md). The ones that come up most
 timeout are configured (`apps/common/db.py`); if this recurs under normal use it is the
 signal to move to Postgres (ADR 0002).
 
-**Submitted runs never leave `QUEUED`** — the worker is not running. `./do worker`.
+**Submitted runs never leave `QUEUED`** — check the worker status on the run screen.
+`./do dev` supervises the local worker; production needs its configured worker service.
 
 **`403` on every API write** — the request is missing the `X-CSRFToken` header. Call
 `GET /api/auth/csrf` first, then send the `csrftoken` cookie's value in that header. See
@@ -164,3 +170,8 @@ signal to move to Postgres (ADR 0002).
 
 **Migrations conflict after a rebase** — never edit an applied migration. Roll back,
 delete the conflicting file, regenerate.
+
+Worker heartbeats use the `worker_status` file cache under `var/worker-status`,
+independent of SQLite result transactions. The shared database cache still handles
+authentication and API rate limits. The supervisor retries temporary status-store
+errors without stopping the web server or treating them as proof of worker failure.
