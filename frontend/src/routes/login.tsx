@@ -38,13 +38,13 @@ function LoginPage() {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    await login.mutateAsync({ username, password });
-    navigate({ to: redirect ?? "/dashboard" });
+    try { await login.mutateAsync({ username, password });
+    navigate({ to: redirect ?? "/dashboard" }); } catch { /* error is visible */ }
   }
 
   async function onReviewerLogin() {
-    await reviewerLogin.mutateAsync();
-    navigate({ to: redirect ?? "/dashboard" });
+    try { await reviewerLogin.mutateAsync();
+    navigate({ to: redirect ?? "/dashboard" }); } catch { /* error is visible */ }
   }
 
   return (
@@ -107,6 +107,7 @@ function LoginPage() {
             </div>
           )}
 
+          {reviewerLogin.isError && <p role="alert">Reviewer login failed. Please retry.</p>}
           {message && (
             <p
               role="alert"

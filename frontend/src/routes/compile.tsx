@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { CircuitBoard, LayoutDashboard, Loader2 } from "lucide-react";
 
 import { ApiError } from "@/api/client";
+import { parseSequence } from "@/components/compile/sequence";
 import {
   useDatasets,
   useExampleDatasets,
@@ -60,6 +61,12 @@ function CompilePage() {
   const backbones = useMemo(() => version.data?.available_backbones ?? [], [version.data]);
 
   const blocker = useMemo(() => {
+    if (!version.data?.family_hosts || !version.data?.supported_outputs)
+      return "Capability information is unavailable. Reload before submitting.";
+    if (!(version.data.family_hosts[config.mechanism] ?? []).includes(config.organism))
+      return "This mechanism is unavailable for the selected organism in the production pipeline.";
+    if (config.outputs.some((output) => !version.data!.supported_outputs.includes(output)))
+      return "One or more selected outputs have no supported payload. Choose GFP or a valid custom coding sequence.";
     if (config.organism === "human" && !["none", "custom"].includes(config.backbone))
       return "For Human expression, choose no backbone or upload a custom mammalian GenBank backbone.";
     if (config.inputMode === "de") {
@@ -70,25 +77,30 @@ function CompilePage() {
     } else if (config.inputMode === "gene") {
       if (!config.targetGene || config.targetGene.organism !== config.organism)
         return "Resolve a gene ID or symbol to its reference transcript.";
-    } else if (config.triggerSequence.length < 20) {
+    } else if (parseSequence(config.triggerSequence).error) {
+      return parseSequence(config.triggerSequence).error;
+    } else if (parseSequence(config.triggerSequence).sequence.length < 20) {
       return "Paste a trigger sequence of at least 20 nucleotides.";
     }
     if (!families.some((f) => f.name === config.mechanism && f.available))
       return "Choose an available switch mechanism.";
     if (config.outputs.length === 0) return "Choose at least one downstream output.";
-    if (config.outputs.includes("other") && config.customPayload.length < 3)
+    if (config.outputs.includes("other") && parseSequence(config.customPayload).error)
+      return parseSequence(config.customPayload).error;
+    if (config.outputs.includes("other") && parseSequence(config.customPayload).sequence.length < 3)
       return "Paste a sequence for your custom output, or deselect it.";
     if (config.backbone === "custom" && config.customBackboneGenbank.length < 10)
       return "Upload a GenBank file for your custom backbone, or choose a catalog vector.";
     return null;
-  }, [config, datasets.data, families]);
+  }, [config, datasets.data, families, version.data]);
 
   const failed = upload.error ?? useExample.error;
   const uploadError =
     failed instanceof ApiError ? failed.message : failed ? "Could not load that dataset." : null;
-  const submitError = submit.error instanceof ApiError ? submit.error.message : null;
+  const submitError = submit.error instanceof Error ? submit.error.message : submit.error ? "Submission failed. Please retry." : null;
 
   if (version.isLoading) return <Loading />;
+  if (version.isError) return <p role="alert">Could not load capabilities. <button onClick={() => version.refetch()}>Retry</button></p>;
 
   async function onSubmit() {
     if (blocker) return;
@@ -102,7 +114,7 @@ function CompilePage() {
       mechanism: config.mechanism,
       payload: {
         outputs: config.outputs,
-        custom_sequence: config.customPayload || null,
+        custom_sequence: parseSequence(config.customPayload).sequence || null,
       },
       // A per-run override of the scoring profile's hard filters (engine.scoring
       // X7), not engine.domain.Constraints — see CompileConfig's own docstring.
@@ -144,10 +156,11 @@ function CompilePage() {
       };
     }
 
+    try {
     const run = await submit.mutateAsync({
       input_mode: submittedInputMode,
       dataset_id: submittedInputMode === "de" ? config.datasetId : null,
-      trigger_sequence: submittedInputMode === "direct" ? config.triggerSequence : "",
+      trigger_sequence: submittedInputMode === "direct" ? parseSequence(config.triggerSequence).sequence : "",
       organism: ORGANISM_LABELS[config.organism],
       gate_families: [config.mechanism],
       scoring_profile: version.data?.scoring_profiles[0] ?? "default",
@@ -156,6 +169,7 @@ function CompilePage() {
     });
 
     navigate({ to: "/runs/$runId", params: { runId: run.id } });
+    } catch { /* Mutation error remains visible; retry retains configuration and key. */ }
   }
 
   return (
@@ -167,7 +181,7 @@ function CompilePage() {
           </>
         }
         title="Biological Compiler"
-        description="Translate transcriptomic signals into manufacturable genetic circuits. Inputs → Logic → Payload → Compile."
+        description="Translate transcriptomic signals into computational genetic circuit designs. Inputs → Logic → Payload → Compile."
       />
 
       <div className="mb-8">
@@ -186,20 +200,20 @@ function CompilePage() {
           uploading={upload.isPending}
           uploadError={uploadError}
           onUpload={async (file) => {
-            const dataset = await upload.mutateAsync(file);
-            patch({ datasetId: dataset.validation_status === "VALID" ? dataset.id : null });
+            try { const dataset = await upload.mutateAsync(file);
+            patch({ datasetId: dataset.validation_status === "VALID" ? dataset.id : null }); } catch { /* shown by uploadError */ }
           }}
           examples={examples.data ?? []}
           loadingExample={useExample.isPending}
           onUseExample={async (key) => {
-            const dataset = await useExample.mutateAsync(key);
-            patch({ datasetId: dataset.id });
+            try { const dataset = await useExample.mutateAsync(key);
+            patch({ datasetId: dataset.id }); } catch { /* shown by uploadError */ }
           }}
         />
 
-        <StepLogic config={config} patch={patch} families={families} />
+        <StepLogic config={config} patch={patch} families={families.map((family) => ({ ...family, available: family.available && (version.data?.family_hosts[family.name] ?? []).includes(config.organism) }))} />
 
-        <StepPayload config={config} patch={patch} />
+        <StepPayload config={config} patch={patch} supportedOutputs={version.data?.supported_outputs ?? []} />
 
         <StepVector config={config} patch={patch} backbones={backbones} />
 

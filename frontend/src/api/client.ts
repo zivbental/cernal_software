@@ -52,7 +52,8 @@ let csrfPrimed = false;
  */
 export async function primeCsrf(): Promise<void> {
   if (csrfPrimed && readCookie("csrftoken")) return;
-  await fetch(`${BASE}/auth/csrf`, { credentials: "same-origin" });
+  const response = await fetch(`${BASE}/auth/csrf`, { credentials: "same-origin" });
+  if (!response.ok) throw new ApiError(response.status, "csrf_error", "Could not initialize a secure session. Please retry.", {});
   csrfPrimed = true;
 }
 

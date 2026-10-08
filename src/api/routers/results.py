@@ -6,7 +6,7 @@ from tempfile import SpooledTemporaryFile
 from uuid import UUID
 
 from django.db.models import F
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from ninja import Query, Router, Status
 from ninja.pagination import LimitOffsetPagination, paginate
 
@@ -57,6 +57,8 @@ def list_candidates(
     sort: str = Query(default="rank"),
     gate_family: str | None = Query(default=None),
     include_rejected: bool = Query(default=False),
+    output: str | None = Query(default=None),
+    min_score: float | None = Query(default=None, ge=0, le=1),
 ):
     get_owned(AnalysisRun, run_id, request.user)
 
@@ -69,6 +71,10 @@ def list_candidates(
         queryset = queryset.filter(is_rejected=False)
     if gate_family:
         queryset = queryset.filter(gate_family=gate_family)
+    if output:
+        queryset = queryset.filter(design__logic_graph__output__iexact=output)
+    if min_score is not None:
+        queryset = queryset.filter(overall_score__gte=min_score)
 
     return queryset.order_by(_nulls_last(field, descending=sort.startswith("-")), "engine_ref")
 
@@ -238,3 +244,27 @@ def delete_annotation(request, annotation_id: UUID):
     annotation = get_owned(Annotation, annotation_id, request.user)
     annotation.delete()
     return Status(204, None)
+
+
+@router.get("/runs/{run_id}/review.json", url_name="review_export")
+def export_review(request, run_id: UUID):
+    """Owned, attributed research decisions; exporting is not synthesis approval."""
+    get_owned(AnalysisRun, run_id, request.user)
+    notes = Annotation.objects.filter(candidate__run_id=run_id).select_related(
+        "candidate", "author"
+    )
+    body = [
+        {
+            "id": str(note.id),
+            "candidate_id": str(note.candidate_id),
+            "engine_ref": note.candidate.engine_ref,
+            "author": note.author.username,
+            "text": note.text,
+            "decision_tag": note.decision_tag,
+            "created_at": note.created_at.isoformat(),
+        }
+        for note in notes.order_by("created_at", "id")
+    ]
+    response = JsonResponse({"run_id": str(run_id), "annotations": body})
+    response["Content-Disposition"] = f'attachment; filename="run-{str(run_id)[:8]}-review.json"'
+    return response

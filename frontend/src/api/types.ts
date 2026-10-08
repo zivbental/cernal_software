@@ -54,6 +54,12 @@ export interface Version {
   scoring_profiles: string[];
   available_backbones: Backbone[];
   reviewer_login_enabled: boolean;
+  supported_hosts: string[];
+  family_hosts: Record<string, string[]>;
+  supported_outputs: string[];
+  input_modes: string[];
+  limits: Record<string, number>;
+  constraints: Record<string, unknown>;
 }
 
 export interface ExampleDataset {
@@ -245,6 +251,7 @@ export interface CandidateDesign {
   sequence_length_bp: number;
   plasmid_segments: PlasmidSegment[];
   logic_graph: LogicGraph;
+  [key: string]: unknown;
 }
 
 export interface Candidate {
@@ -370,10 +377,7 @@ export interface RunParams {
    */
   backbone?: { catalog_key?: string; custom_genbank?: string };
   /**
-   * Informational only (compile/Steps.tsx's "Specific Gene" route) — recorded on the
-   * submission so the run documents which gene the researcher had in mind, but not
-   * resolved to a sequence or wired into the pipeline. Rides through as a free-form
-   * params key; the engine does not read it today.
+   * Reference identity resolved server-side and frozen with the selected transcript.
    */
   target_gene?: { organism: string; gene_id: string; gene_symbol: string | null };
   [key: string]: unknown;

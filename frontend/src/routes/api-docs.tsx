@@ -192,6 +192,7 @@ curl -s "$HOST/api/design/$JOB/results?format=csv" -H "X-API-Key: $KEY" -o candi
 const PARAMETERS: ParamRow[] = [
   { field: "trigger_sequence", type: "string", default: '""', notes: "Direct mode: the mRNA, pasted. Exactly one of these three input fields." },
   { field: "dataset_id", type: "uuid", default: "null", notes: "DE mode: an existing, VALID dataset you own." },
+  { field: "gene_id", type: "string", default: '""', notes: "Gene mode: resolve a reference gene ID or unambiguous symbol for the selected organism." },
   { field: "dge_csv", type: "string", default: '""', notes: "DE mode: an inline differential-expression table — creates a dataset." },
   { field: "organism", type: "string", default: '""', notes: "e.g. \"E. coli\". Stored on the run." },
   { field: "gate_families", type: "string[] | null", default: "null (all available)", notes: "Which switch chemistries may be used." },

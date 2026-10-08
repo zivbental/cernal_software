@@ -34,10 +34,11 @@ router = Router()
 
 
 @router.get("/runs", response=list[RunOut])
-def list_all_runs(request, limit: int = 20):
+def list_all_runs(request, limit: int = 20, offset: int = 0):
     """Recent runs — what "My Circuits" shows first. Each run stands on its own."""
-    return owned_queryset(AnalysisRun, request.user).order_by("-created_at")[
-        : max(1, min(limit, 100))
+    offset = max(0, offset)
+    return owned_queryset(AnalysisRun, request.user).order_by("-created_at", "-id")[
+        offset : offset + max(1, min(limit, 100))
     ]
 
 

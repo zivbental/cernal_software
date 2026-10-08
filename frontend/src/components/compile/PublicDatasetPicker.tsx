@@ -134,6 +134,8 @@ export function PublicDatasetPicker({
             </p>
           )}
 
+          {!experiments.isLoading && !experiments.isError && experiments.data?.length === 0 && <p role="status" className="mt-3 text-sm">No curated public datasets are available for this organism. Upload expression data or use direct trigger or gene lookup.</p>}
+          {(comparisons.isError || info.isError) && <p role="alert">Could not load the comparison. <button onClick={() => { comparisons.refetch(); info.refetch(); }}>Retry</button></p>}
           {info.data && (
             <div className="mt-5 rounded-lg border border-border bg-card p-4">
               <div className="text-sm font-semibold text-foreground">

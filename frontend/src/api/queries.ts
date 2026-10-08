@@ -12,7 +12,7 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 
-import { api } from "./client";
+import { ApiError, api } from "./client";
 import {
   isTerminal,
   type Annotation,
@@ -61,7 +61,10 @@ export const keys = {
 export function useMe(options?: Partial<UseQueryOptions<User | null>>) {
   return useQuery({
     queryKey: keys.me,
-    queryFn: () => api.get<User>("/auth/me").catch(() => null),
+    queryFn: () => api.get<User>("/auth/me").catch((error) => {
+      if (error instanceof ApiError && error.status === 401) return null;
+      throw error;
+    }),
     staleTime: 5 * 60_000,
     retry: false,
     ...options,
@@ -239,10 +242,10 @@ export function useSubmitRun() {
   });
 }
 
-export function useRecentRuns(limit = 20) {
+export function useRecentRuns(limit = 20, offset = 0) {
   return useQuery({
-    queryKey: keys.recentRuns,
-    queryFn: () => api.get<Run[]>(`/runs?limit=${limit}`),
+    queryKey: [...keys.recentRuns, limit, offset],
+    queryFn: () => api.get<Run[]>(`/runs?limit=${limit}&offset=${offset}`),
   });
 }
 
@@ -286,6 +289,8 @@ export function useCancelRun(id: string) {
 export interface CandidateFilters {
   sort?: string;
   gateFamily?: string;
+  output?: string;
+  minScore?: number;
   includeRejected?: boolean;
   limit?: number;
   offset?: number;
@@ -296,6 +301,8 @@ export function useCandidates(runId: string, filters: CandidateFilters = {}, ena
   search.set("limit", String(filters.limit ?? 200));
   if (filters.offset) search.set("offset", String(filters.offset));
   if (filters.sort) search.set("sort", filters.sort);
+  if (filters.output) search.set("output", filters.output);
+  if (filters.minScore) search.set("min_score", String(filters.minScore));
   if (filters.gateFamily) search.set("gate_family", filters.gateFamily);
   if (filters.includeRejected) search.set("include_rejected", "true");
   const query = search.toString();

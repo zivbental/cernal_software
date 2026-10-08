@@ -14,6 +14,7 @@ import { Panel, SectionHeading, AdvancedOptions } from "@/components/layout/Prim
 import { Check, SliderRow } from "@/components/compile/Bits";
 import { ExpressionPreview } from "@/components/compile/ExpressionPreview";
 import { PublicDatasetPicker } from "@/components/compile/PublicDatasetPicker";
+import { parseSequence } from "@/components/compile/sequence";
 import { GenePicker } from "@/components/compile/GenePicker";
 
 /* ---------- shared config ---------- */
@@ -114,7 +115,7 @@ const COLLABORATOR_CREDIT = {
     // words that need no synthetic-biology background, and what CERNAL does with it.
     headline: "Built with another iGEM team",
     summary:
-      "C. acnes is in CERNAL because of a collaboration. The iGEM AIS-China team built a codon-optimization model for this skin bacterium; we run their code, unmodified, inside our pipeline.",
+      "C. acnes is in CERNAL because of a collaboration. The iGEM AIS-China team built a codon-optimization model for this skin bacterium; we run their tool is available in our scientific toolkit. Automatic codon optimization during construct assembly is not enabled.",
     contributed: [
       "A codon model derived from the genome of C. acnes strain ATCC 6919",
       "Their open-source tool, used exactly as they published it",
@@ -147,7 +148,7 @@ export const ORGANISM_LABELS: Record<Organism, string> = {
   c_acnes: "C. acnes",
 };
 
-const sanitizeRna = (v: string) => v.toUpperCase().replace(/[^ACGUT]/g, "").replace(/T/g, "U");
+
 
 type Patch = (patch: Partial<CompileConfig>) => void;
 
@@ -345,7 +346,7 @@ export function StepInputs({
           {config.inputMode === "direct" &&
             "Skip discovery — provide the exact mRNA sequence you want to act as the trigger."}
           {config.inputMode === "gene" &&
-            "Already know which transcript you want the circuit to respond to? Record it here, then paste its sequence."}
+            "Already know which transcript you want the circuit to respond to? Resolve its reference transcript here; its identity and sequence are frozen at submission."}
         </p>
       </div>
 
@@ -520,22 +521,23 @@ export function StepInputs({
                 accepted and converted automatically.
               </p>
               <textarea
+                aria-label="Trigger sequence"
                 value={config.triggerSequence}
-                onChange={(e) => patch({ triggerSequence: sanitizeRna(e.target.value) })}
+                onChange={(e) => patch({ triggerSequence: e.target.value })}
                 placeholder="AUGGCUAGCAAGGGCGAGGAGCUGUUC..."
                 rows={5}
                 className="mt-4 w-full rounded-md border border-border bg-card p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-mint focus:outline-none"
               />
               <div className="mt-2 flex items-center justify-between font-mono text-xs text-muted-foreground">
-                <span>A · C · G · U only · at least 20 nt</span>
+                <span>Plain sequence or one FASTA record · T→U · at least 20 nt</span>
                 <span
                   className={
-                    config.triggerSequence.length > 0 && config.triggerSequence.length < 20
+                    parseSequence(config.triggerSequence).sequence.length > 0 && parseSequence(config.triggerSequence).sequence.length < 20
                       ? "text-destructive"
                       : ""
                   }
                 >
-                  {config.triggerSequence.length} nt
+                  {parseSequence(config.triggerSequence).sequence.length} nt
                 </span>
               </div>
             </div>
@@ -741,7 +743,7 @@ const OUTPUTS = [
   {
     key: "ampr",
     name: "Antibiotic resistance",
-    sub: "AmpR · KanR",
+    sub: "AmpR (KanR is a separate payload)",
     note: "Positive selection",
     color: "oklch(0.62 0.18 265)",
   },
@@ -761,7 +763,7 @@ const OUTPUTS = [
   },
 ] as const;
 
-export function StepPayload({ config, patch }: { config: CompileConfig; patch: Patch }) {
+export function StepPayload({ config, patch, supportedOutputs }: { config: CompileConfig; patch: Patch; supportedOutputs: string[] }) {
   const toggle = (key: string) =>
     patch({
       outputs: config.outputs.includes(key)
@@ -777,7 +779,7 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
       <SectionHeading
         kicker="Step 03 · Payload"
         title="Choose Downstream Output"
-        desc="What the circuit expresses when it fires. Pick as many as you like — each one is compiled into its own set of plasmid candidates."
+        desc="Choose a supported coding output. Multiple outputs are alternatives assigned across candidates, not simultaneous co-expression or exhaustive combinations."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -787,6 +789,8 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
             <button
               key={output.key}
               type="button"
+              disabled={!supportedOutputs.includes(output.key)}
+              title={!supportedOutputs.includes(output.key) ? "Payload unavailable in the production library" : undefined}
               onClick={() => toggle(output.key)}
               aria-pressed={on}
               className={`group relative overflow-hidden rounded-xl border p-5 text-left transition ${
@@ -810,7 +814,7 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
                 </div>
                 <div className="mt-0.5 text-xs text-muted-foreground">{output.sub}</div>
                 <div className="mt-2 inline-block rounded-md bg-secondary px-2 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground">
-                  {output.note}
+                  {supportedOutputs.includes(output.key) ? output.note : "Unavailable: payload not implemented"}
                 </div>
               </div>
             </button>
@@ -824,10 +828,11 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
             Custom output sequence
           </label>
           <textarea
-            value={config.customPayload}
+            aria-label="Custom payload sequence"
+                value={config.customPayload}
             onChange={(e) =>
               patch({
-                customPayload: e.target.value.toUpperCase().replace(/[^ACGUT]/g, "").replace(/T/g, "U"),
+                customPayload: e.target.value,
               })
             }
             placeholder="Paste the coding sequence to express"
@@ -835,7 +840,7 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
             className="w-full rounded-md border border-border bg-surface p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-mint focus:outline-none"
           />
           <div className="mt-1 text-right font-mono text-[11px] text-muted-foreground">
-            {config.customPayload.length} nt
+            {parseSequence(config.customPayload).sequence.length} nt
           </div>
         </div>
       )}
