@@ -19,7 +19,7 @@ from django.db.models import F
 from ninja import Router, Status
 
 from api.auth import get_owned
-from api.errors import ValidationFailed
+from api.errors import Conflict, ValidationFailed
 from api.params import (
     BUDGET_KEYS,
     CONSTRAINT_KEYS,
@@ -35,10 +35,10 @@ from api.schemas import (
     RunCounts,
     RunStatusOut,
 )
-from api.security import enforce_concurrency_ceiling, require_scope
+from api.security import TooManyActiveRuns, require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
-from apps.analyses.services import RunError, submit_run
+from apps.analyses.services import RunError, RunQuotaExceeded, SubmissionConflict, submit_run
 from apps.analyses.worker import worker_available
 from apps.datasets.models import Dataset
 from apps.datasets.services import DatasetValidationError, create_dataset, validate_expression_file
@@ -201,8 +201,6 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
             },
         )
 
-    enforce_concurrency_ceiling(request)
-
     dataset = None
     if body.dataset_id:
         dataset = get_owned(Dataset, body.dataset_id, request.user)
@@ -240,8 +238,15 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
             gate_families=gate_families,
             scoring_profile=scoring.get("base", "default"),
             seed=body.seed,
+            max_concurrent_runs=getattr(
+                getattr(request, "api_key", None), "max_concurrent_runs", None
+            ),
             idempotency_key=body.idempotency_key,
         )
+    except SubmissionConflict as exc:
+        raise Conflict(str(exc)) from None
+    except RunQuotaExceeded as exc:
+        raise TooManyActiveRuns(str(exc), headers={"Retry-After": "60"}) from None
     except RunError as exc:
         raise ValidationFailed(str(exc)) from None
 

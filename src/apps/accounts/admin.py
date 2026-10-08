@@ -1,5 +1,6 @@
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.utils import timezone
 from django.utils.html import format_html
 
 from apps.accounts.models import ApiKey, User
@@ -91,7 +92,7 @@ class ApiKeyAdmin(admin.ModelAdmin):
     def status(self, obj: ApiKey) -> str:
         if obj.revoked_at:
             return format_html('<span style="color:#b91c1c">revoked</span>')
-        if obj.expires_at and obj.expires_at < obj.created_at:  # pragma: no cover — defensive
+        if obj.expires_at and obj.expires_at <= timezone.now():
             return "expired"
         return format_html('<span style="color:#15803d">active</span>')
 

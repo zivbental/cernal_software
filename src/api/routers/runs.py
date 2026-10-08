@@ -6,7 +6,7 @@ from django.conf import settings
 from ninja import Router, Status
 
 from api.auth import get_owned, owned_queryset
-from api.errors import ValidationFailed
+from api.errors import Conflict, ValidationFailed
 from api.params import (
     BACKBONE_KEYS,
     CONSTRAINT_KEYS,
@@ -16,10 +16,16 @@ from api.params import (
     check_scoring_block,
 )
 from api.schemas import CancelOut, RunCounts, RunIn, RunOut, RunStatusOut
-from api.security import enforce_concurrency_ceiling, require_scope
+from api.security import TooManyActiveRuns, require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
-from apps.analyses.services import RunError, cancel_run, submit_run
+from apps.analyses.services import (
+    RunError,
+    RunQuotaExceeded,
+    SubmissionConflict,
+    cancel_run,
+    submit_run,
+)
 from apps.analyses.worker import worker_available
 from apps.datasets.models import Dataset
 from engine.client import load_engine
@@ -56,7 +62,6 @@ def create_run(request, payload: RunIn):
     engine rejects it in the worker (CLAUDE.md §2).
     """
     require_scope(request, ApiKeyScope.DESIGN)
-    enforce_concurrency_ceiling(request)
 
     dataset = None
     if payload.input_mode == InputMode.DE:
@@ -88,8 +93,15 @@ def create_run(request, payload: RunIn):
             gate_families=payload.gate_families,
             scoring_profile=payload.scoring_profile,
             seed=payload.seed,
+            max_concurrent_runs=getattr(
+                getattr(request, "api_key", None), "max_concurrent_runs", None
+            ),
             idempotency_key=payload.idempotency_key,
         )
+    except SubmissionConflict as exc:
+        raise Conflict(str(exc)) from None
+    except RunQuotaExceeded as exc:
+        raise TooManyActiveRuns(str(exc), headers={"Retry-After": "60"}) from None
     except RunError as exc:
         raise ValidationFailed(str(exc)) from None
 

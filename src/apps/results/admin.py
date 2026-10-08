@@ -68,6 +68,9 @@ class CandidateAdmin(admin.ModelAdmin):
         "rejection_reason",
     )
 
+    def has_delete_permission(self, request, obj=None) -> bool:
+        return False
+
     def has_add_permission(self, request) -> bool:
         return False
 
@@ -96,7 +99,13 @@ class ArtifactAdmin(admin.ModelAdmin):
     list_filter = ("kind", "media_type", "created_at")
     search_fields = ("run__id", "checksum_sha256")
     list_select_related = ("run", "candidate")
-    readonly_fields = ("id", "checksum_sha256", "size_bytes", "created_at")
+    readonly_fields = tuple(field.name for field in Artifact._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     @admin.display(description="Run", ordering="run")
     def run_link(self, obj) -> str:
@@ -118,3 +127,11 @@ class CandidateMetricAdmin(admin.ModelAdmin):
     list_filter = ("name", "direction")
     search_fields = ("name", "candidate__engine_ref")
     list_select_related = ("candidate",)
+
+    readonly_fields = tuple(field.name for field in CandidateMetric._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
