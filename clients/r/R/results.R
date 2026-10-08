@@ -26,20 +26,25 @@ cernal_results <- function(job) {
     )
     c(
       list(
-        id = candidate$id,
-        engine_ref = candidate$engine_ref,
+        id = candidate$id %||% NA_character_,
+        engine_ref = candidate$engine_ref %||% NA_character_,
         rank = candidate$rank %||% NA_integer_,
         overall_score = candidate$overall_score %||% NA_real_,
-        gate_family = candidate$gate_family,
-        logic_type = candidate$logic_type,
+        gate_family = candidate$gate_family %||% NA_character_,
+        logic_type = candidate$logic_type %||% NA_character_,
         is_rejected = candidate$is_rejected,
-        rejection_reason = candidate$rejection_reason,
+        rejection_reason = candidate$rejection_reason %||% "",
         output = candidate$output %||% NA_character_
       ),
       metric_cols
     )
   })
 
+  columns <- unique(unlist(lapply(rows, names)))
+  rows <- lapply(rows, function(row) {
+    for (name in setdiff(columns, names(row))) row[[name]] <- NA_real_
+    row[columns]
+  })
   tibble::as_tibble(do.call(
     rbind.data.frame,
     lapply(rows, as.data.frame, stringsAsFactors = FALSE)

@@ -3,5 +3,8 @@
   "organism": "ecoli",
   "seed": 42,
   "idempotency_key": "clients-conformance-fixture-v2",
-  "top_n": 5
+  "top_n": 5,
+  "gate_families": [
+    "toehold"
+  ]
 }

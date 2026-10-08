@@ -5,7 +5,7 @@ generated mirror of all 32 endpoints. Anyone needing more talks to the documente
 self-describing REST API directly (`/api/docs`, `/api/openapi.json`).
 
 ```bash
-pip install cernal            # or: cernal[pandas]
+uv pip install ./clients/python            # or: cernal[pandas]
 ```
 
 ```python
@@ -66,4 +66,23 @@ for organism in ("ecoli", "yeast"):
   terminal FAILED/CANCELLED run, carries `.error_summary`).
 
 `requests` only. **pandas is optional** — `.to_dataframe()` raises a message telling you
-to `pip install cernal[pandas]`; `.to_dicts()` always works.
+to `uv pip install ./clients/python[pandas]`; `.to_dicts()` always works.
+
+## Verification and result contracts (8 October 2026)
+
+No package publication is claimed. Install from this repository's source; public
+registry releases require separate maintainer authorization. Python HTTP conformance
+and transport/ranking regressions execute against a local API. R and MATLAB source
+clients are experimental until their runtime suites pass; local source review does
+not constitute language-runtime verification.
+
+Submission result options (`top_n`, `include_rejected`, `include_metrics`,
+`include_artifacts`) remain on the job handle across queued completion. Persist them
+when reconstructing a resumed handle; explicit results calls can override them.
+Server-side `wait` is bounded to 0–300 seconds and submission transport timeout is
+at least `wait + 10` seconds. Best-candidate helpers choose the lowest accepted rank
+and return no result when all candidates are rejected or unranked.
+
+Raw candidate JSON retains nested design, triggers, warnings and metrics. Flattened
+tables are a separate convenience contract and are not compared to raw JSON column
+sets. R exposes `cernal_candidates(job)` and MATLAB `job.rawCandidates()`.

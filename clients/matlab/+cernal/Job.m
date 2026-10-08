@@ -53,7 +53,11 @@ classdef Job
                         'Job %s did not finish within %g s.', obj.Response.job_id, p.Results.Timeout);
                 end
                 pause(min(delay, remaining));
-                obj.Response = obj.Client.status(obj.Response.job_id);
+                remaining = seconds(deadline - datetime('now'));
+                if remaining <= 0
+                    error('cernal:Job:wait:timeout', 'Polling deadline elapsed; resume without resubmitting.');
+                end
+                obj.Response = obj.Client.status(obj.Response.job_id, min(obj.Client.Timeout, remaining));
                 state = obj.Response.status;
                 delay = min(delay * 1.5, p.Results.MaxPoll);
             end

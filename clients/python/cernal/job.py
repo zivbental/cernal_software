@@ -3,6 +3,7 @@ from (docs/public-api.md §8)."""
 
 from __future__ import annotations
 
+import math
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -49,6 +50,14 @@ class Job:
         and :class:`TimeoutError` if ``timeout`` elapses first — poll again by calling
         :meth:`wait` a second time; it will not resubmit.
         """
+        if (
+            not all(math.isfinite(value) and value > 0 for value in (timeout, max_poll))
+            or not math.isfinite(poll)
+            or poll < 0
+        ):
+            raise ValueError(
+                "timeout/max_poll must be positive and finite; poll must be nonnegative."
+            )
         if self._results is not None:
             return self
 
@@ -63,7 +72,12 @@ class Job:
             if remaining <= 0:
                 raise TimeoutError(f"Job {self.job_id} did not finish within {timeout}s.")
             time.sleep(min(delay, remaining))
-            self._response = self._client.status(self.job_id)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(f"Job {self.job_id} did not finish within {timeout}s.")
+            self._response = self._client.status(
+                self.job_id, timeout=min(self._client.timeout, remaining)
+            )
             status = self._response["status"]
             delay = min(delay * 1.5, max_poll)
 
@@ -74,7 +88,12 @@ class Job:
                 error_summary=self._response.get("error_summary", ""),
             )
 
-        self._results = self._client.results(self.job_id, **self.result_options)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(f"Job {self.job_id} results exceeded the {timeout}s wait budget.")
+        self._results = self._client.results(
+            self.job_id, timeout=min(self._client.timeout, remaining), **self.result_options
+        )
         return self
 
     # --- results -----------------------------------------------------------------

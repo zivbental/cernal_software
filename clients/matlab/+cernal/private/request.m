@@ -1,4 +1,4 @@
-function result = request(client, method, path, body, query, needsAuth, raw)
+function result = request(client, method, path, body, query, needsAuth, raw, timeout)
 %REQUEST One HTTP call to the CERNAL API (docs/public-api.md §11.3).
 %   webwrite/webread/weboptions only — built into base MATLAB, no toolbox required.
 %   That constraint is the point: a client needing the Bioinformatics Toolbox is a
@@ -29,7 +29,8 @@ function result = request(client, method, path, body, query, needsAuth, raw)
         headerFields = [headerFields; {'X-API-Key', client.ApiKey}];
     end
 
-    transportTimeout = client.Timeout;
+    if nargin < 8, timeout = client.Timeout; end
+    transportTimeout = timeout;
     if isfield(query, 'wait')
         validateattributes(query.wait, {'numeric'}, {'scalar', 'finite', '>=', 0, '<=', 300});
         transportTimeout = max(transportTimeout, query.wait + 10);

@@ -39,3 +39,22 @@ responses, but neither was available to run it. Per docs/public-api.md §11.4: *
 licence in CI is not worth it for an iGEM team — say so plainly rather than pretending"*
 — this client needs a manual run against a real deployment before a release, by
 someone with MATLAB.
+
+## Verification and result contracts (8 October 2026)
+
+No package publication is claimed. Install from this repository's source; public
+registry releases require separate maintainer authorization. Python HTTP conformance
+and transport/ranking regressions execute against a local API. R and MATLAB source
+clients are experimental until their runtime suites pass; local source review does
+not constitute language-runtime verification.
+
+Submission result options (`top_n`, `include_rejected`, `include_metrics`,
+`include_artifacts`) remain on the job handle across queued completion. Persist them
+when reconstructing a resumed handle; explicit results calls can override them.
+Server-side `wait` is bounded to 0–300 seconds and submission transport timeout is
+at least `wait + 10` seconds. Best-candidate helpers choose the lowest accepted rank
+and return no result when all candidates are rejected or unranked.
+
+Raw candidate JSON retains nested design, triggers, warnings and metrics. Flattened
+tables are a separate convenience contract and are not compared to raw JSON column
+sets. R exposes `cernal_candidates(job)` and MATLAB `job.rawCandidates()`.
