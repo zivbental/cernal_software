@@ -797,7 +797,7 @@ export function StepPayload({ config, patch, supportedOutputs }: { config: Compi
               key={output.key}
               type="button"
               disabled={!supportedOutputs.includes(output.key)}
-              title={!supportedOutputs.includes(output.key) ? "Payload unavailable in the production library" : undefined}
+              title={!supportedOutputs.includes(output.key) ? "This payload is not supported for the selected organism" : undefined}
               onClick={() => toggle(output.key)}
               aria-pressed={on}
               className={`group relative overflow-hidden rounded-xl border p-5 text-left transition ${
@@ -821,7 +821,7 @@ export function StepPayload({ config, patch, supportedOutputs }: { config: Compi
                 </div>
                 <div className="mt-0.5 text-xs text-muted-foreground">{output.sub}</div>
                 <div className="mt-2 inline-block rounded-md bg-secondary px-2 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground">
-                  {supportedOutputs.includes(output.key) ? output.note : "Unavailable: payload not implemented"}
+                  {supportedOutputs.includes(output.key) ? output.note : "Unavailable for this organism"}
                 </div>
               </div>
             </button>
