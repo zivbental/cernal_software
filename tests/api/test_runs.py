@@ -33,7 +33,9 @@ def test_the_configuration_snapshot_is_frozen_at_submission(
         ]
 
     run = AnalysisRun.objects.get(pk=run_id)
-    assert run.params_snapshot == {"max_triggers": 3}
+    assert run.params_snapshot["max_triggers"] == 3
+    assert run.params_snapshot["host"] == "ecoli"
+    assert run.params_snapshot["constraints"]["trigger_lengths"]
 
 
 def test_repeating_an_idempotency_key_returns_the_same_run(

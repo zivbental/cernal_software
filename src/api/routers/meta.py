@@ -59,4 +59,10 @@ def version(request):
             BackboneInfoOut(**asdict(b)) for b in capabilities.available_backbones
         ],
         reviewer_login_enabled=settings.REVIEWER_LOGIN_ENABLED,
+        supported_hosts=capabilities.supported_hosts,
+        family_hosts=capabilities.family_hosts,
+        supported_outputs=capabilities.supported_outputs,
+        input_modes=capabilities.input_modes,
+        limits=capabilities.limits,
+        constraints=capabilities.constraints,
     )

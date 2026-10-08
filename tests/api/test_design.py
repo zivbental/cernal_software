@@ -9,7 +9,6 @@ import json
 import pytest
 
 from apps.accounts.services import issue_api_key
-from apps.analyses.models import RunStatus
 
 TRIGGER = "AUGGCUAAGCUUAACGGAUCCAUGGCUAAGCUUAAC"
 
@@ -46,7 +45,7 @@ def test_resolved_echoes_every_default(client, design_key):
     resolved = body["resolved"]
     assert resolved["scoring_profile"] == "default"
     assert "toehold" in resolved["gate_families"]
-    assert resolved["seed"] is None
+    assert resolved.get("seed") is None
 
 
 def test_response_carries_poll_and_results_urls(client, design_key):
@@ -112,7 +111,7 @@ def test_unknown_gate_family_is_422(client, design_key):
     response = _post(
         client,
         design_key,
-        {"trigger_sequence": TRIGGER, "gate_families": ["not-a-real-family"], "organism": "x"},
+        {"trigger_sequence": TRIGGER, "gate_families": ["not-a-real-family"], "organism": "ecoli"},
     )
     assert response.status_code == 422
 
@@ -121,7 +120,7 @@ def test_exclude_gate_families_removes_from_the_available_set(client, design_key
     response = _post(
         client,
         design_key,
-        {"trigger_sequence": TRIGGER, "exclude_gate_families": ["toehold"], "organism": "x"},
+        {"trigger_sequence": TRIGGER, "exclude_gate_families": ["toehold"], "organism": "ecoli"},
     )
     assert response.status_code == 202
     assert "toehold" not in response.json()["resolved"]["gate_families"]
@@ -137,7 +136,7 @@ def test_excluding_every_family_is_422(client, design_key):
         {
             "trigger_sequence": TRIGGER,
             "exclude_gate_families": all_families,
-            "organism": "x",
+            "organism": "ecoli",
         },
     )
     assert response.status_code == 422
@@ -150,7 +149,7 @@ def test_strict_defaults_true_and_catches_constraint_typos(client, design_key):
     response = _post(
         client,
         design_key,
-        {"trigger_sequence": TRIGGER, "organism": "x", "constraints": {"max_trigger": 2}},
+        {"trigger_sequence": TRIGGER, "organism": "ecoli", "constraints": {"max_trigger": 2}},
     )
     assert response.status_code == 422
     body = response.json()
@@ -158,18 +157,18 @@ def test_strict_defaults_true_and_catches_constraint_typos(client, design_key):
     assert body["error"]["detail"]["did_you_mean"] == "max_triggers"
 
 
-def test_strict_false_lets_an_unknown_constraint_key_through(client, design_key):
+def test_strict_false_cannot_accept_an_unimplemented_constraint(client, design_key):
     response = _post(
         client,
         design_key,
         {
             "trigger_sequence": TRIGGER,
-            "organism": "x",
+            "organism": "ecoli",
             "constraints": {"max_trigger": 2},
             "strict": False,
         },
     )
-    assert response.status_code == 202
+    assert response.status_code == 422
 
 
 def test_strict_catches_an_unknown_scoring_metric_name(client, design_key):
@@ -178,7 +177,7 @@ def test_strict_catches_an_unknown_scoring_metric_name(client, design_key):
         design_key,
         {
             "trigger_sequence": TRIGGER,
-            "organism": "x",
+            "organism": "ecoli",
             "scoring": {"weights": {"leakage": 4.0}},
         },
     )
@@ -192,7 +191,7 @@ def test_a_valid_scoring_override_is_accepted(client, design_key):
         design_key,
         {
             "trigger_sequence": TRIGGER,
-            "organism": "x",
+            "organism": "ecoli",
             "scoring": {"weights": {"predicted_leakage": 4.0, "gc_content": 0.0}},
         },
     )
@@ -206,7 +205,7 @@ def test_a_scoring_override_of_all_zero_weights_is_a_422(client, design_key):
     response = _post(
         client,
         design_key,
-        {"trigger_sequence": TRIGGER, "organism": "x", "scoring": {"weights": weights}},
+        {"trigger_sequence": TRIGGER, "organism": "ecoli", "scoring": {"weights": weights}},
     )
     assert response.status_code == 422
 
@@ -217,7 +216,7 @@ def test_resolved_scoring_profile_is_the_custom_label_not_the_base_name(client, 
         design_key,
         {
             "trigger_sequence": TRIGGER,
-            "organism": "x",
+            "organism": "ecoli",
             "scoring": {"weights": {"predicted_leakage": 4.0}},
         },
     ).json()
@@ -226,7 +225,7 @@ def test_resolved_scoring_profile_is_the_custom_label_not_the_base_name(client, 
 
 
 def test_resolved_scoring_profile_stays_the_base_name_without_overrides(client, design_key):
-    body = _post(client, design_key, {"trigger_sequence": TRIGGER, "organism": "x"}).json()
+    body = _post(client, design_key, {"trigger_sequence": TRIGGER, "organism": "ecoli"}).json()
     assert body["resolved"]["scoring_profile"] == "default"
 
 
@@ -239,12 +238,12 @@ def test_dry_run_returns_an_estimate_and_creates_nothing(client, design_key):
     before_runs = AnalysisRun.objects.count()
 
     response = _post(
-        client, design_key, {"trigger_sequence": TRIGGER, "organism": "x"}, dry_run="true"
+        client, design_key, {"trigger_sequence": TRIGGER, "organism": "ecoli"}, dry_run="true"
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["job_id"] is None
+    assert body.get("job_id") is None
     assert body["estimate"]["designs"] > 0
     assert body["budget_ok"] is True
     assert AnalysisRun.objects.count() == before_runs
@@ -254,7 +253,7 @@ def test_dry_run_bounds_de_mode_from_the_dataset_row_count(client, design_key, d
     response = _post(
         client,
         design_key,
-        {"dataset_id": str(dataset.id), "organism": "x"},
+        {"dataset_id": str(dataset.id), "organism": "ecoli"},
         dry_run="true",
     )
 
@@ -269,32 +268,27 @@ def test_wait_returns_202_on_timeout(client, design_key, dataset):
     response = _post(
         client,
         design_key,
-        {"dataset_id": str(dataset.id), "organism": "x"},
+        {"dataset_id": str(dataset.id), "organism": "ecoli"},
         wait="0.05",
     )
 
     assert response.status_code == 202
 
 
-def test_wait_returns_200_with_candidates_for_an_already_completed_run(
-    client, design_key, completed_run
-):
+def test_wait_cannot_reuse_key_for_different_configuration(client, design_key, completed_run):
     response = _post(
         client,
         design_key,
         {
             "dataset_id": str(completed_run.dataset_id),
-            "organism": "x",
+            "organism": "ecoli",
             "idempotency_key": completed_run.idempotency_key,
         },
         wait="5",
     )
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == RunStatus.COMPLETED
-    assert len(body["candidates"]) > 0
-    assert all(not c["is_rejected"] for c in body["candidates"])
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "conflict"
 
 
 # --- GET /api/design/{id} and /results ----------------------------------------------

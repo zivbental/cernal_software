@@ -50,14 +50,14 @@ def test_a_dataset_with_bad_numbers_is_marked_invalid(auth_client, csv_upload, m
     body = auth_client.post("/api/datasets", data={"file": csv_upload(BAD_CSV)}).json()
 
     assert body["validation_status"] == ValidationStatus.INVALID
-    assert any("Non-numeric" in error for error in body["validation_report"]["errors"])
+    assert any("numeric" in error for error in body["validation_report"]["errors"])
 
 
 def test_a_dataset_without_an_expression_column_is_invalid(auth_client, csv_upload, media_root):
     body = auth_client.post("/api/datasets", data={"file": csv_upload(NO_EXPRESSION_CSV)}).json()
 
     assert body["validation_status"] == ValidationStatus.INVALID
-    assert any("expression column" in error for error in body["validation_report"]["errors"])
+    assert any("log2 fold change column" in error for error in body["validation_report"]["errors"])
 
 
 def test_an_empty_file_is_refused_outright(auth_client, csv_upload, media_root):

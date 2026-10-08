@@ -26,7 +26,12 @@ from django.utils import timezone
 
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
 from apps.results.services import ResultImportError, import_job_result
-from engine.client import load_engine, lookup_reference_gene
+from engine.client import (
+    load_engine,
+    lookup_reference_gene,
+    normalize_trigger_sequence,
+    validate_job_configuration,
+)
 from engine.contract import (
     CANCELLED,
     SCHEMA_VERSION,
@@ -114,6 +119,26 @@ def submit_run(
     else:
         raise RunError(f"Unknown input mode '{input_mode}'.")
 
+    configured_host = (params or {}).get("host") or (params or {}).get("organism")
+    if configured_host and organism and configured_host != organism:
+        raise RunError("The organism and params host/organism must agree.")
+    try:
+        params = validate_job_configuration(
+            params or {},
+            gate_families or ["toehold"],
+            scoring_profile,
+            input_mode,
+            trigger_sequence,
+            organism,
+        )
+    except ValueError as exc:
+        raise RunError(str(exc)) from exc
+
+    try:
+        params = json.loads(json.dumps(params, allow_nan=False))
+    except (TypeError, ValueError) as exc:
+        raise RunError("Configuration must contain finite JSON values.") from exc
+
     key = idempotency_key or uuid.uuid4().hex
     if not isinstance(key, str) or not key.strip() or len(key) > 64:
         raise RunError("idempotency_key must contain 1 to 64 characters.")
@@ -199,11 +224,12 @@ MIN_TRIGGER_NT = 20
 
 def _clean_trigger(sequence: str) -> str:
     """Normalize a pasted mRNA. Rejects anything that is not plainly a sequence."""
-    cleaned = "".join(sequence.split()).upper().replace("T", "U")
-    if not cleaned:
+    if not sequence.strip():
         raise RunError("Paste the trigger mRNA sequence, or switch to dataset upload.")
-    if set(cleaned) - set("ACGU"):
-        raise RunError("The trigger sequence may contain only A, C, G, U (or T).")
+    try:
+        cleaned = normalize_trigger_sequence(sequence)
+    except ValueError as exc:
+        raise RunError(str(exc)) from exc
     if len(cleaned) < MIN_TRIGGER_NT:
         raise RunError(
             f"The trigger sequence is too short — at least {MIN_TRIGGER_NT} nucleotides."

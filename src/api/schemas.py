@@ -241,7 +241,7 @@ class RunIn(Schema):
         description="Host key: ecoli, yeast, human or c_acnes. Display names are rejected.",
     )
     params: dict = Field(default_factory=dict)
-    gate_families: list[str] = Field(default_factory=lambda: ["toehold"])
+    gate_families: list[str] = Field(default_factory=lambda: ["toehold"], min_length=1)
     scoring_profile: str = "default"
     seed: int | None = None
     idempotency_key: str | None = Field(
@@ -353,10 +353,12 @@ class CandidateOut(ModelSchema):
 class CandidateDetailOut(CandidateOut):
     triggers: dict
     design: dict
-    metrics: list[MetricOut]
+    metrics: list[MetricOut] | None = None
 
     @staticmethod
     def resolve_metrics(obj) -> list:
+        if not getattr(obj, "_include_metrics", True):
+            return None
         return list(obj.metrics.all())
 
 
@@ -436,6 +438,8 @@ class DesignIn(Schema):
         default_factory=dict, description='{"outputs": [...], "custom_sequence": ...}'
     )
 
+    backbone: dict = Field(default_factory=dict)
+
     # --- which chemistries may be used ---
     gate_families: list[str] | None = None
     exclude_gate_families: list[str] = Field(default_factory=list)
@@ -450,7 +454,7 @@ class DesignIn(Schema):
     budget: dict = Field(default_factory=dict)
 
     # --- output shaping ---
-    top_n: int = 25
+    top_n: int = Field(default=25, ge=1, le=1000)
     include_rejected: bool = False
     include_metrics: bool = True
     include_artifacts: list[str] = Field(default_factory=list)
@@ -469,17 +473,17 @@ class DesignEstimateOut(Schema):
 
 
 class DesignResolvedOut(Schema):
-    """Every default the server chose, echoed back — so a run is reproducible from its
-    response alone (docs/public-api.md §8). ``constraints`` here is exactly what the
-    caller supplied, not padded with engine-side defaults: computing those would mean
-    duplicating engine.domain.Constraints' defaults in api/, which the boundary rule
-    (architecture.md §3) forbids importing and CLAUDE.md §3 forbids re-deriving."""
+    """The effective configuration after shared engine validation and default resolution."""
 
     input_mode: str
     gate_families: list[str]
     scoring_profile: str
     seed: int | None
     constraints: dict
+    organism: str = "ecoli"
+    budget: dict = Field(default_factory=dict)
+    payload: dict = Field(default_factory=dict)
+    backbone: dict = Field(default_factory=dict)
 
 
 class DesignAcceptedOut(Schema):
@@ -570,3 +574,9 @@ class VersionOut(Schema):
     hard_filters: list[HardFilterOut] = Field(default_factory=list)
     available_backbones: list[BackboneInfoOut] = Field(default_factory=list)
     reviewer_login_enabled: bool = False
+    supported_hosts: list[str] = Field(default_factory=list)
+    family_hosts: dict[str, list[str]] = Field(default_factory=dict)
+    supported_outputs: list[str] = Field(default_factory=list)
+    input_modes: list[str] = Field(default_factory=list)
+    limits: dict = Field(default_factory=dict)
+    constraints: dict = Field(default_factory=dict)
