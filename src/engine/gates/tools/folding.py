@@ -30,7 +30,7 @@ Bodies land in Step 5 (docs/ROADMAP.md E1).
 """
 
 import math
-from functools import cache
+from functools import lru_cache
 from itertools import permutations
 
 import RNA
@@ -75,9 +75,18 @@ class FoldEngine:
         ('(((...)))', -1.2)
     """
 
-    def __init__(self, temperature: float = 37.0, cache_size: int = 100_000) -> None:
+    def __init__(self, temperature: float = 37.0, cache_size: int = 1_024) -> None:
         self.temperature = temperature
+        if isinstance(cache_size, bool) or not isinstance(cache_size, int) or cache_size < 0:
+            raise ValueError("cache_size must be a nonnegative integer")
         self._cache_size = cache_size
+        # Instance-owned wrappers retain no tools through a class-level cache. Cycles
+        # between an instance and its bound wrappers are reclaimed by Python's GC.
+        for name in ("mfe", "structure_energy", "partition", "_partition_with_unpaired"):
+            setattr(self, name, lru_cache(maxsize=cache_size)(getattr(self, name)))
+        self._base_pair_probabilities_cached = lru_cache(maxsize=min(cache_size, 2))(
+            self._base_pair_probabilities_cached
+        )
 
     def _compound(self, strands: str) -> RNA.fold_compound:
         """Build a ``fold_compound`` at this engine's temperature.
@@ -103,7 +112,6 @@ class FoldEngine:
         model.temperature = self.temperature
         return RNA.fold_compound(strands, model)
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
     def mfe(self, strands: str) -> FoldResult:
         """Fold a sequence — or a multi-strand complex — and return its most stable
         predicted structure.
@@ -138,7 +146,6 @@ class FoldEngine:
         structure, energy = fc.mfe()
         return FoldResult(structure=structure, energy=energy)
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
     def structure_energy(self, strands: str, structure: str) -> float | None:
         """Energy of one **given** structure, rather than the best one.
 
@@ -171,7 +178,6 @@ class FoldEngine:
         energy = float(self._compound(strands).eval_structure(structure))
         return energy if abs(energy) < 1e4 else None
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
     def partition(self, sequence: str) -> float:
         """Ensemble free energy over all structures, not just the most stable one.
 
@@ -219,7 +225,6 @@ class FoldEngine:
         head, *rest = strands.split("&")
         return ["&".join((head, *tail)) for tail in permutations(rest)]
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
     def _partition_with_unpaired(self, strands: str, unpaired: tuple[int, ...]) -> float:
         """Ensemble free energy with every 1-based position in ``unpaired`` forced open."""
         fold_compound = self._compound(strands)
@@ -502,7 +507,6 @@ class FoldEngine:
                 raise ValueError(f"{strand!r} is not an unused strand of the original")
         return mapping
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
     def _base_pair_probabilities_cached(self, sequence: str) -> tuple[tuple[float, ...], ...]:
         fold_compound = self._compound(sequence)
         fold_compound.pf()

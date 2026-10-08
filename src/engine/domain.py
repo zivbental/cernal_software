@@ -249,6 +249,10 @@ class DgeTable:
     """The parsed differential-expression input."""
 
     rows: tuple[DgeRow, ...]
+    # True is a caller declaration that all tested hypotheses are retained, not an
+    # inference from high p-value coverage. None is unknown; False is a subset.
+    hypothesis_universe_complete: bool | None = None
+    source_row_count: int | None = None
 
     def __len__(self) -> int:
         return len(self.rows)

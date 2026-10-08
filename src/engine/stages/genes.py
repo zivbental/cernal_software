@@ -46,7 +46,7 @@ from engine.stages.motifs import MotifScreener
 #: A data-quality gate on *which computation path runs* — not an undeclared scientific
 #: filter on results, the same distinction ``TriggerScorer.TOP_K_PER_GENE`` draws for
 #: its own class-constant budget knob.
-_BH_COVERAGE_THRESHOLD = 0.95
+
 
 
 @dataclass(slots=True)
@@ -391,7 +391,9 @@ class GeneSelector:
                 "occurrence of each was kept."
             )
 
-        significance = self._significance_plan(rows, warn)
+        significance = self._significance_plan(
+            rows, warn, complete=dge.hypothesis_universe_complete is True and not duplicates
+        )
         counts_context = _CountsContext(counts) if counts is not None else None
 
         candidates: list[_Candidate] = []
@@ -558,7 +560,9 @@ class GeneSelector:
             kept.append(row)
         return kept, duplicates
 
-    def _significance_plan(self, rows: list[DgeRow], warn: Callable[[str], None]) -> _Significance:
+    def _significance_plan(
+        self, rows: list[DgeRow], warn: Callable[[str], None], *, complete: bool = False
+    ) -> _Significance:
         """Choose one of the four tiers in ``_Significance``'s docstring, once for the
         whole table."""
         if any(row.p_adj is not None for row in rows):
@@ -574,7 +578,7 @@ class GeneSelector:
             return _Significance("none", self.constraints.max_p_adj)
 
         coverage = len(with_pvalue) / len(rows)
-        if coverage >= _BH_COVERAGE_THRESHOLD:
+        if complete and coverage == 1.0:
             warn(
                 "The input table has no adjusted p-value column; a Benjamini-Hochberg "
                 f"FDR was computed by CERNAL from raw p-values at alpha="
@@ -583,8 +587,8 @@ class GeneSelector:
             return _Significance("bh", self.constraints.max_p_adj, _benjamini_hochberg(with_pvalue))
 
         warn(
-            f"The input table has raw p-values for only {coverage:.0%} of rows — too "
-            "incomplete to compute a valid FDR (docs/genes.md §4.1). Filtering on the "
+            f"Raw p-value coverage is {coverage:.0%}; completeness of the tested hypothesis "
+            "universe is unverified or incomplete. Filtering on the "
             f"raw, uncorrected p-value at {self.constraints.max_p_adj} instead; this is "
             "not an FDR-controlled selection."
         )
@@ -670,6 +674,10 @@ class GeneSelector:
             candidates, key=lambda c: (-c.base_score, -abs(c.log2_fold_change), c.gene_id)
         )
         ordered: list[_Candidate] = []
+        if not has_counts:
+            for candidate in remaining:
+                candidate.final_score = candidate.base_score
+            return remaining
 
         while remaining:
             best_index = 0

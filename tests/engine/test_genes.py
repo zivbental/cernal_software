@@ -163,7 +163,7 @@ def test_high_pvalue_coverage_computes_bh_and_records_it_as_padj():
         make_row(gene_id=f"g{i}", log2_fold_change=2.0, p_adj=None, p_value=0.001 if i < 5 else 0.9)
         for i in range(20)
     ]
-    table = DgeTable(rows=tuple(rows))
+    table = DgeTable(rows=tuple(rows), hypothesis_universe_complete=True)
     warnings, on_warning = collect_warnings()
     selected = make_selector().select(table, on_warning=on_warning)
 
@@ -186,7 +186,7 @@ def test_low_pvalue_coverage_falls_back_to_raw_uncorrected():
     warnings, on_warning = collect_warnings()
     selected = make_selector().select(table, on_warning=on_warning)
 
-    assert any("too incomplete to compute a valid FDR" in message for message in warnings)
+    assert any("completeness of the tested hypothesis" in message for message in warnings)
     assert [gene.gene_id for gene in selected] == ["g1"]
     assert selected[0].p_adj is None  # raw p is never stored as an adjusted value
 

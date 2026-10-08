@@ -51,6 +51,7 @@ editing something under ``gates/``.
 
 import dataclasses
 import json
+import math
 import re
 from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
@@ -218,7 +219,12 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
             "constraints": {**(request.params.get("constraints") or {}), "standard": "none"},
         }
     constraints = _build_constraints(constraint_params)
-    screener = MotifScreener(constraints.standard)
+    screener = MotifScreener(
+        constraints.standard,
+        extra_motifs={
+            f"user-{index + 1}": motif for index, motif in enumerate(constraints.forbidden_motifs)
+        },
+    )
     # The run's seed, so ESO's stochastic repair is reproducible; folder, so a structural
     # objective folds through the one shared FoldEngine and not a second library.
     # Only for C. acnes: their reference package is ~12 MB of tables, and loading it for
@@ -586,7 +592,42 @@ def _build_constraints(params: dict) -> Constraints:
     """``Constraints(**params.get("constraints", {}))``, per this module's own sketch —
     with the type coercion a JSON-sourced dict needs and a stub construction never did:
     tuple fields arrive as lists, and ``standard`` arrives as a plain string."""
-    raw = dict(params.get("constraints") or {})
+    supplied = params.get("constraints", {})
+    if supplied is None:
+        supplied = {}
+    if not isinstance(supplied, dict):
+        raise InputValidationError("constraints must be an object.")
+    raw = dict(supplied)
+    defaults = Constraints()
+    for name in ("max_triggers", "max_circuit_gates", "max_switch_length", "max_genes"):
+        value = raw.get(name, getattr(defaults, name))
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise InputValidationError(f"{name} must be a positive integer.")
+    for name in (
+        "min_separation",
+        "max_p_adj",
+        "max_separation",
+        "min_base_expression",
+        "max_base_expression",
+    ):
+        value = raw.get(name, getattr(defaults, name))
+        if value is None and name not in ("min_separation", "max_p_adj"):
+            continue
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value < 0
+        ):
+            raise InputValidationError(f"{name} must be a finite nonnegative number.")
+    if raw.get("max_p_adj", defaults.max_p_adj) > 1:
+        raise InputValidationError("max_p_adj must be between 0 and 1.")
+    if "direction_balance" in raw and not isinstance(raw["direction_balance"], bool):
+        raise InputValidationError("direction_balance must be a boolean.")
+    if raw.get("max_separation") is not None and raw["max_separation"] < raw.get(
+        "min_separation", defaults.min_separation
+    ):
+        raise InputValidationError("max_separation must be at least min_separation.")
 
     known = {field.name for field in dataclasses.fields(Constraints)}
     unknown = set(raw) - known
@@ -612,9 +653,32 @@ def _build_constraints(params: dict) -> Constraints:
             raise InputValidationError("trigger_lengths values must be unique.")
         raw["trigger_lengths"] = trigger_lengths
     if "forbidden_motifs" in raw:
-        raw["forbidden_motifs"] = tuple(raw["forbidden_motifs"])
+        motifs = raw["forbidden_motifs"]
+        if not isinstance(motifs, (list, tuple)):
+            raise InputValidationError(
+                "forbidden_motifs must be a list of nonempty DNA/RNA sequences."
+            )
+        normalized = []
+        for motif in motifs:
+            if not isinstance(motif, str) or not motif or not sq.is_valid_rna(sq.to_rna(motif)):
+                raise InputValidationError("Every forbidden motif must contain only A/C/G/T/U.")
+            normalized.append(sq.to_dna(sq.to_rna(motif)))
+        raw["forbidden_motifs"] = tuple(dict.fromkeys(normalized))
     if "trigger_gc_range" in raw:
-        raw["trigger_gc_range"] = tuple(raw["trigger_gc_range"])
+        band = raw["trigger_gc_range"]
+        if (
+            not isinstance(band, (list, tuple))
+            or len(band) != 2
+            or any(
+                isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
+                for v in band
+            )
+            or not 0 <= band[0] < band[1] <= 100
+        ):
+            raise InputValidationError(
+                "trigger_gc_range must be [low, high] within 0-100 with low < high."
+            )
+        raw["trigger_gc_range"] = tuple(band)
     if "standard" in raw:
         try:
             raw["standard"] = AssemblyStandard(raw["standard"])

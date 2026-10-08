@@ -8,6 +8,8 @@ Normalization here is min-max within a metric's declared ``valid_range``, invert
 LOWER_BETTER metrics, so that **1.0 is always better** regardless of direction.
 """
 
+import math
+
 from engine.contract import LOWER_BETTER, MetricValue
 from engine.scoring.profiles import SKIP, TREAT_AS_WORST, HardFilter, MetricSpec, ScoringProfile
 
@@ -21,6 +23,8 @@ def normalize_value(raw: float | None, spec: MetricSpec) -> float | None:
     """
     if raw is None:
         return None
+    if not math.isfinite(raw):
+        raise ValueError("Scientific metrics must be finite or explicitly missing (None).")
 
     low, high = spec.valid_range
     clamped = min(max(raw, low), high)
@@ -87,6 +91,8 @@ def failed_filter(
         raw = raw_values.get(hard_filter.metric)
         if raw is None:
             continue
+        if not math.isfinite(raw):
+            return hard_filter
         if hard_filter.minimum is not None and raw < hard_filter.minimum:
             return hard_filter
         if hard_filter.maximum is not None and raw > hard_filter.maximum:
@@ -97,7 +103,7 @@ def failed_filter(
 def rank_candidates(scored: list[tuple[str, float | None]]) -> dict[str, int]:
     """Assign contiguous 1-based ranks, best first. Unscored candidates are not ranked."""
     ordered = sorted(
-        (item for item in scored if item[1] is not None),
+        (item for item in scored if item[1] is not None and math.isfinite(item[1])),
         key=lambda item: (-item[1], item[0]),
     )
     return {ref: position for position, (ref, _score) in enumerate(ordered, start=1)}

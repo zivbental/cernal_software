@@ -131,6 +131,13 @@ class EngineCapabilities:
     #: convention as ``metrics`` — existing callers and stored results are unaffected.
     available_backbones: list[BackboneInfo] = field(default_factory=list)
 
+    supported_hosts: list[str] = field(default_factory=list)
+    family_hosts: dict[str, list[str]] = field(default_factory=dict)
+    supported_outputs: list[str] = field(default_factory=list)
+    input_modes: list[str] = field(default_factory=list)
+    limits: dict = field(default_factory=dict)
+    constraints: dict = field(default_factory=dict)
+
     @property
     def available_families(self) -> list[str]:
         """Names the Platform will accept on a submission."""
