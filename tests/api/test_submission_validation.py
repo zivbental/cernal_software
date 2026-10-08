@@ -212,3 +212,38 @@ def test_inline_invalid_real_submission_never_stores_input(auth_client, media_ro
     assert rejected.status_code == 422
     assert not Dataset.objects.exists()
     assert not AnalysisRun.objects.exists()
+
+
+@pytest.mark.parametrize("endpoint", ["design", "runs"])
+@pytest.mark.parametrize("insertion", [True, "1", -1, 10**9])
+def test_backbone_insertion_coordinate_is_validated_before_storage(
+    auth_client, endpoint, insertion
+):
+    backbone = {"catalog_key": "psb1a3", "insertion_index": insertion}
+    body = {"trigger_sequence": SEQUENCE, "organism": "ecoli"}
+    if endpoint == "design":
+        body["backbone"] = backbone
+    else:
+        body.update(input_mode="direct", params={"backbone": backbone})
+    response = auth_client.post(f"/api/{endpoint}", data=body, content_type="application/json")
+    assert response.status_code == 422, response.content
+    assert "insertion_index" in response.json()["error"]["message"]
+    assert not AnalysisRun.objects.exists()
+    assert not Dataset.objects.exists()
+
+
+@pytest.mark.parametrize("endpoint", ["design?dry_run=true", "design", "runs"])
+def test_explicit_backbone_insertion_coordinate_is_preserved(auth_client, endpoint):
+    backbone = {"catalog_key": "psb1a3", "insertion_index": 1}
+    body = {"trigger_sequence": SEQUENCE, "organism": "ecoli"}
+    if endpoint == "runs":
+        body.update(input_mode="direct", params={"backbone": backbone})
+    else:
+        body["backbone"] = backbone
+    response = auth_client.post(f"/api/{endpoint}", data=body, content_type="application/json")
+    assert response.status_code in (200, 202), response.content
+    if endpoint.endswith("true"):
+        assert response.json()["resolved"]["backbone"] == backbone
+        assert not AnalysisRun.objects.exists()
+    else:
+        assert AnalysisRun.objects.get().params_snapshot["backbone"] == backbone

@@ -155,7 +155,7 @@ def validate_expression_file(uploaded_file) -> dict:
     return {
         "rows": report["row_count"],
         "columns": report["columns"],
-        "detected_columns": {name: name for name in report["columns"]},
+        "detected_columns": report.get("detected_columns", {}),
         "errors": report["errors"],
         "warnings": report["warnings"],
         "format": suffix.lstrip("."),
