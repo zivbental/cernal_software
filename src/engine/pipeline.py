@@ -49,6 +49,7 @@ deferred in ``stages/switches.py`` for the same reason: implementing either mean
 editing something under ``gates/``.
 """
 
+import copy
 import dataclasses
 import json
 import math
@@ -943,6 +944,12 @@ def _direct_trigger(
 
     max_window = max(constraints.trigger_lengths)
     if len(sequence) <= max_window:
+        violations = screener.violations(sequence)
+        if violations:
+            return [], [
+                "Exact trigger excluded by configured motif screen: "
+                + "; ".join(map(str, violations))
+            ]
         # Preserve today's selection behaviour: the whole paste is the one
         # trigger. openness/accessibility follow TriggerScorer.score's already-decided
         # convention (mean, then minimum, of the same profile slice) rather than
@@ -1601,8 +1608,11 @@ def _candidate_result(
             "insertion_index": plasmid.insertion_index,
             "assembly_notes": list(plasmid.assembly_notes),
             "payload_id": outcome.value,
-            "payload_source": load_part_catalog().get(
-                next(s.name for s in plasmid.plasmid.segments if s.kind is SegmentKind.PAYLOAD), {}
+            "payload_source": copy.deepcopy(
+                load_part_catalog().get(
+                    next(s.name for s in plasmid.plasmid.segments if s.kind is SegmentKind.PAYLOAD),
+                    {},
+                )
             ),
             "construct_sha256": sha256_bytes(plasmid.plasmid.sequence.encode()),
             "topology": "circular"
