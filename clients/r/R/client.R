@@ -25,10 +25,10 @@ cernal_client <- function(api_key = Sys.getenv("CERNAL_API_KEY"), base_url, time
 }
 
 #' @keywords internal
-.cernal_request <- function(client, method, path, body = NULL, query = list(), auth = TRUE) {
+.cernal_request <- function(client, method, path, body = NULL, query = list(), auth = TRUE, timeout = client$timeout) {
   req <- httr2::request(paste0(client$base_url, path))
   req <- httr2::req_method(req, method)
-  req <- httr2::req_timeout(req, client$timeout)
+  req <- httr2::req_timeout(req, timeout)
   if (auth) {
     req <- httr2::req_headers(req, `X-API-Key` = client$api_key)
   }

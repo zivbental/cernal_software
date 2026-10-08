@@ -9,10 +9,13 @@ classdef Job
     properties (SetAccess = private)
         Client
         Response
+        ResultOptions
     end
 
     methods
-        function obj = Job(client, response)
+        function obj = Job(client, response, resultOptions)
+            if nargin < 3, resultOptions = struct(); end
+            obj.ResultOptions = resultOptions;
             obj.Client = client;
             obj.Response = response;
         end
@@ -64,7 +67,12 @@ classdef Job
                     obj.Response.job_id, state, summary);
             end
 
-            obj.Response = obj.Client.results(obj.Response.job_id);
+            names = fieldnames(obj.ResultOptions);
+            args = cell(1, 2 * numel(names));
+            for i = 1:numel(names)
+                args{2*i-1} = names{i}; args{2*i} = obj.ResultOptions.(names{i});
+            end
+            obj.Response = obj.Client.results(obj.Response.job_id, args{:});
         end
 
         function T = results(obj)
@@ -75,13 +83,23 @@ classdef Job
             T = candidatesToTable(obj.Response.candidates);
         end
 
+        function candidates = rawCandidates(obj)
+            if ~isfield(obj.Response, 'candidates')
+                error('cernal:Job:results:notReady', 'Call wait() before results().');
+            end
+            candidates = obj.Response.candidates;
+        end
+
         function row = best(obj)
             %BEST The highest-ranked candidate, as a one-row table.
             T = obj.results();
             if height(T) == 0
                 row = table();
             else
-                row = T(1, :);
+                T = T(~T.is_rejected & ~isnan(T.rank), :);
+                if height(T) == 0, row = table(); return; end
+                [~, idx] = min(T.rank);
+                row = T(idx, :);
             end
         end
 

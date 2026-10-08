@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from typing import Any
 
@@ -67,8 +68,18 @@ class Client:
         if wait is not None:
             query["wait"] = wait
 
-        body = self._request("POST", "/api/design", json=fields, params=query)
-        return Job(self, body)
+        if wait is not None and (
+            isinstance(wait, bool) or not math.isfinite(wait) or not 0 <= wait <= 300
+        ):
+            raise ValueError("wait must be finite and between 0 and 300 seconds.")
+        request_timeout = max(self.timeout, wait + 10) if wait is not None else self.timeout
+        body = self._request(
+            "POST", "/api/design", json=fields, params=query, timeout=request_timeout
+        )
+        options = {key: fields[key] for key in Job.RESULT_OPTIONS if key in fields}
+        if isinstance(options.get("include_artifacts"), list):
+            options["include_artifacts"] = ",".join(options["include_artifacts"])
+        return Job(self, body, result_options=options)
 
     def status(self, job_id: str) -> dict:
         return self._request("GET", f"/api/design/{job_id}")
@@ -95,6 +106,7 @@ class Client:
         params: dict | None = None,
         auth: bool = True,
         raw: bool = False,
+        timeout: float | None = None,
     ):
         headers = {"X-API-Key": self.api_key} if auth else {}
         response = self._session.request(
@@ -103,7 +115,7 @@ class Client:
             json=json,
             params=params,
             headers=headers,
-            timeout=self.timeout,
+            timeout=self.timeout if timeout is None else timeout,
         )
         self._raise_for_status(response)
         return response if raw else response.json()

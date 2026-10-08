@@ -68,7 +68,14 @@ classdef Client
             end
 
             response = request(obj, 'POST', '/api/design', body, query, true);
-            job = cernal.Job(obj, response);
+            options = struct();
+            for name = {'top_n', 'include_rejected', 'include_metrics', 'include_artifacts'}
+                if isfield(body, name{1}), options.(name{1}) = body.(name{1}); end
+            end
+            if isfield(options, 'include_artifacts')
+                options.include_artifacts = char(strjoin(string(options.include_artifacts), ','));
+            end
+            job = cernal.Job(obj, response, options);
         end
 
         function s = status(obj, jobId)

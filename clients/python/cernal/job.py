@@ -22,8 +22,13 @@ class Job:
     case :meth:`wait` is a no-op.
     """
 
-    def __init__(self, client: Client, response: dict) -> None:
+    RESULT_OPTIONS = ("top_n", "include_rejected", "include_metrics", "include_artifacts")
+
+    def __init__(
+        self, client: Client, response: dict, *, result_options: dict | None = None
+    ) -> None:
         self._client = client
+        self.result_options = dict(result_options or {})
         self._response = response
         self.job_id: str | None = response.get("job_id")
         self.estimate: dict = response.get("estimate") or {}
@@ -69,7 +74,7 @@ class Job:
                 error_summary=self._response.get("error_summary", ""),
             )
 
-        self._results = self._client.results(self.job_id)
+        self._results = self._client.results(self.job_id, **self.result_options)
         return self
 
     # --- results -----------------------------------------------------------------
@@ -82,7 +87,10 @@ class Job:
     def best(self) -> dict | None:
         """The highest-ranked candidate, or ``None`` if every candidate was rejected."""
         candidates = self.candidates()
-        return candidates[0] if candidates else None
+        ranked = [
+            c for c in candidates if not c.get("is_rejected", False) and c.get("rank") is not None
+        ]
+        return min(ranked, key=lambda c: c["rank"]) if ranked else None
 
     def to_dicts(self) -> list[dict]:
         return self.candidates()

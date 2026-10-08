@@ -8,3 +8,5 @@ export(cernal_design)
 export(cernal_results)
 export(cernal_status)
 export(cernal_wait)
+
+export(cernal_candidates)
