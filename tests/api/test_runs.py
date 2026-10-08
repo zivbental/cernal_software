@@ -101,7 +101,7 @@ def test_a_known_constraint_field_is_accepted(
 ):
     with django_capture_on_commit_callbacks():
         response = _submit(
-            auth_client, dataset_id=dataset.id, params={"constraints": {"max_triggers": 3}}
+            auth_client, dataset_id=dataset.id, params={"constraints": {"max_triggers": 1}}
         )
 
     assert response.status_code == 202
@@ -116,7 +116,7 @@ def test_the_wizards_max_circuit_gates_constraint_is_accepted(
     ``Unknown constraint 'max_circuit_gates'`` and a 422 on every submission."""
     with django_capture_on_commit_callbacks():
         response = _submit(
-            auth_client, dataset_id=dataset.id, params={"constraints": {"max_circuit_gates": 3}}
+            auth_client, dataset_id=dataset.id, params={"constraints": {"max_circuit_gates": 1}}
         )
 
     assert response.status_code == 202, response.json()
