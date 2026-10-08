@@ -281,8 +281,8 @@ def test_build_uses_mammalian_parts_for_human(builder):
 
 
 def test_build_refuses_an_unconfigured_outcome(builder):
-    with pytest.raises(InputValidationError, match="ampr"):
-        builder.build(_circuit(), DesiredOutcome.ANTIBIOTIC)
+    with pytest.raises(InputValidationError, match="apoptosis"):
+        builder.build(_circuit(), DesiredOutcome.APOPTOSIS)
 
 
 # --- build: DesiredOutcome.CUSTOM ---------------------------------------------------

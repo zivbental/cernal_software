@@ -341,3 +341,30 @@ def test_suboptimal_timeout_returns_no_partial_ensemble(monkeypatch):
     monkeypatch.setattr(subprocess, "run", timeout)
     with pytest.raises(TimeoutError, match="time limit"):
         FoldEngine().suboptimal("GGGAAACCC")
+
+
+@pytest.mark.parametrize("host", ["yeast", "human", "c_acnes"])
+@pytest.mark.parametrize("output", ["ampr", "kanr"])
+def test_marker_host_scope_rejects_before_queue(host, output):
+    with pytest.raises(ValueError, match=r"E\. coli"):
+        validate_job_configuration(
+            {"payload": {"outputs": [output]}},
+            ["toehold"],
+            "default",
+            "direct",
+            "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA",
+            host,
+        )
+
+
+@pytest.mark.parametrize("host", ["yeast", "human", "c_acnes"])
+def test_catalog_vector_host_scope_rejects_before_queue(host):
+    with pytest.raises(ValueError, match=r"E\. coli host scope"):
+        validate_job_configuration(
+            {"backbone": {"catalog_key": "psb1a3"}},
+            ["toehold"],
+            "default",
+            "direct",
+            "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA",
+            host,
+        )

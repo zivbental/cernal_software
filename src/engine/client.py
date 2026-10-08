@@ -295,9 +295,10 @@ def validate_job_configuration(
                 "backbone.insertion_index must be a 0-based boundary within the vector."
             )
         validate_backbone_insertion(backbone_segments, insertion)
-        if host is Host.HUMAN and (params.get("backbone") or {}).get("catalog_key"):
+        if host is not Host.ECOLI and (params.get("backbone") or {}).get("catalog_key"):
             raise ValueError(
-                "Human expression requires a mammalian vector; bundled backbones are bacterial."
+                "Bundled catalog backbones have E. coli host scope; a "
+                "mammalian/yeast/C. acnes vector must be supplied and its host function verified."
             )
         if input_mode == "direct":
             normalized = normalize_trigger_sequence(trigger_sequence)
@@ -308,7 +309,16 @@ def validate_job_configuration(
     return {
         **params,
         "host": host.value,
-        "payload": {**payload, "outputs": [outcome.value for outcome in outputs]},
+        "payload": {
+            **payload,
+            "outputs": [outcome.value for outcome in outputs],
+            "optimize_codons": payload.get("optimize_codons", False),
+        },
+        **(
+            {"backbone": {**params["backbone"], "insertion_index": insertion}}
+            if backbone_segments
+            else {}
+        ),
         "constraints": dataclasses.asdict(constraints),
         "budget": {"max_designs": max_designs},
     }
@@ -320,7 +330,7 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
     from engine.gates.registry import describe_families, get_family
     from engine.pipeline import _UNBUILDABLE_FAMILIES, MAX_TRIGGER_LENGTH
     from engine.scoring.profiles import DEFAULT_V1, available_profiles
-    from engine.stages.plasmids import BACKBONES
+    from engine.stages.plasmids import BACKBONES, PAYLOAD_HOSTS
 
     return EngineCapabilities(
         engine_version=engine_version,
@@ -335,7 +345,12 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
             for f in describe_families()
             if f.available and f.name not in _UNBUILDABLE_FAMILIES
         },
-        supported_outputs=["gfp", "mcherry", "luciferase", "other"],
+        supported_outputs=[outcome.value for outcome in PAYLOAD_HOSTS],
+        output_hosts={
+            outcome.value: [host.value for host in hosts]
+            for outcome, hosts in PAYLOAD_HOSTS.items()
+        },
+        backbone_hosts={key: ["ecoli"] for key in BACKBONES},
         input_modes=["direct", "de", "gene"],
         limits={
             "max_trigger_length": MAX_TRIGGER_LENGTH,

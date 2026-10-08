@@ -1008,7 +1008,7 @@ def test_c_acnes_is_prokaryotic_and_gets_the_collaborators_codon_table(direct_re
     assert build_tools(direct_request(), Host.ECOLI)["aisc"] is None
 
 
-@pytest.mark.parametrize("output", ["mcherry", "luciferase"])
+@pytest.mark.parametrize("output", ["mcherry", "luciferase", "ampr", "kanr"])
 def test_pinned_reporter_runs_actual_full_payload_context(direct_request, always_continue, output):
     request = direct_request(
         params={
