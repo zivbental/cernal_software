@@ -1,0 +1,419 @@
+{
+  "catalog_manifest_sha256": "8b8871cf2a719f798c44c2478a6ae1a39ec9838072cf7e4c63548966b89f683b",
+  "comparisons": [
+    {
+      "accepted": 1,
+      "artifact_count": 5,
+      "candidates": 1,
+      "catalog_key": "ecoli__105638__44541816",
+      "checksum_matches_catalog": true,
+      "comparison_label": "Continuous culture no oxygen / 15 min exposure to oxygen",
+      "elapsed_seconds": 150.671,
+      "error": null,
+      "organism": "ecoli",
+      "outcome": "productive",
+      "provider_metadata": {
+        "bioset_id": "44541816",
+        "catalog_schema_version": "2",
+        "csv_sha256": "b1ce3d84d956dcd5907138389d1c3076b70c6845f3669bd0f42790e98cc22da0",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "rejected": 0,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 0,
+        "selected_genes": [
+          {
+            "gene_id": "b2094",
+            "log2_fold_change": -5.514,
+            "regulation": "down",
+            "symbol": "gatA"
+          },
+          {
+            "gene_id": "b1541",
+            "log2_fold_change": -1.848,
+            "regulation": "down",
+            "symbol": "ydfZ"
+          },
+          {
+            "gene_id": "b3917",
+            "log2_fold_change": 3.028,
+            "regulation": "up",
+            "symbol": "sbp"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+          "16 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "b2092",
+          "b4205",
+          "b0499",
+          "b3135",
+          "b1470",
+          "b4286",
+          "b1152",
+          "b0230",
+          "b4308",
+          "b0236"
+        ],
+        "unmapped_rows": 31
+      },
+      "source_checksum": "b1ce3d84d956dcd5907138389d1c3076b70c6845f3669bd0f42790e98cc22da0",
+      "source_url": "https://www.bv-brc.org/view/Bioset/44541816",
+      "terminal_status": "succeeded",
+      "warnings": [
+        "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+        "16 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "2 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 1 gene(s) from the differential-expression table (best: sbp, log2FC=3.03); scanned their real transcripts and kept 50 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 1,
+      "artifact_count": 5,
+      "candidates": 1,
+      "catalog_key": "ecoli__138294__67644164",
+      "checksum_matches_catalog": true,
+      "comparison_label": "Heat-Shocked 15 min / Recombinant T0",
+      "elapsed_seconds": 195.097,
+      "error": null,
+      "organism": "ecoli",
+      "outcome": "productive",
+      "provider_metadata": {
+        "bioset_id": "67644164",
+        "catalog_schema_version": "2",
+        "csv_sha256": "452d25b413d6c3f3a6eec321da41adfe166578c95fc17492c2bc1fe5012f1cf0",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "rejected": 0,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 0,
+        "selected_genes": [
+          {
+            "gene_id": "b1060",
+            "log2_fold_change": 6.302,
+            "regulation": "up",
+            "symbol": "bssS"
+          },
+          {
+            "gene_id": "b3687",
+            "log2_fold_change": 5.708,
+            "regulation": "up",
+            "symbol": "ibpA"
+          },
+          {
+            "gene_id": "b1685",
+            "log2_fold_change": -2.921,
+            "regulation": "down",
+            "symbol": "ydiH"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+          "26 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "b3595",
+          "b0691",
+          "b0705",
+          "b2083",
+          "b0218",
+          "b2648",
+          "b4308",
+          "b2238",
+          "b1579",
+          "b0703"
+        ],
+        "unmapped_rows": 33
+      },
+      "source_checksum": "452d25b413d6c3f3a6eec321da41adfe166578c95fc17492c2bc1fe5012f1cf0",
+      "source_url": "https://www.bv-brc.org/view/Bioset/67644164",
+      "terminal_status": "succeeded",
+      "warnings": [
+        "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+        "26 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: bssS, log2FC=6.30); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 1,
+      "artifact_count": 5,
+      "candidates": 1,
+      "catalog_key": "ecoli__85809__68952326",
+      "checksum_matches_catalog": true,
+      "comparison_label": "thymineless - 90 / control - 0",
+      "elapsed_seconds": 40.556,
+      "error": null,
+      "organism": "ecoli",
+      "outcome": "productive",
+      "provider_metadata": {
+        "bioset_id": "68952326",
+        "catalog_schema_version": "2",
+        "csv_sha256": "e42c2b50e009a4e78f79d99579cf90f5bb1fe713d9e860013302dfa8ce1db360",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "rejected": 0,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 0,
+        "selected_genes": [
+          {
+            "gene_id": "b4243",
+            "log2_fold_change": -2.977,
+            "regulation": "down",
+            "symbol": "yjgF"
+          },
+          {
+            "gene_id": "b2497",
+            "log2_fold_change": -3.239,
+            "regulation": "down",
+            "symbol": "uraA"
+          },
+          {
+            "gene_id": "b1973",
+            "log2_fold_change": 4.577,
+            "regulation": "up",
+            "symbol": "yodA"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+          "2 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "b2092",
+          "b0705",
+          "b3268",
+          "b1152",
+          "b0691",
+          "b0539",
+          "b4286",
+          "b2648",
+          "b1362",
+          "b2238"
+        ],
+        "unmapped_rows": 30
+      },
+      "source_checksum": "e42c2b50e009a4e78f79d99579cf90f5bb1fe713d9e860013302dfa8ce1db360",
+      "source_url": "https://www.bv-brc.org/view/Bioset/68952326",
+      "terminal_status": "succeeded",
+      "warnings": [
+        "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+        "2 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "2 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 1 gene(s) from the differential-expression table (best: yodA, log2FC=4.58); scanned their real transcripts and kept 50 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 1,
+      "artifact_count": 5,
+      "candidates": 1,
+      "catalog_key": "ecoli__88048__42635036",
+      "checksum_matches_catalog": true,
+      "comparison_label": "0 min after Ampicillin (100 ug/ml) / 0 min before treatment",
+      "elapsed_seconds": 79.763,
+      "error": null,
+      "organism": "ecoli",
+      "outcome": "productive",
+      "provider_metadata": {
+        "bioset_id": "42635036",
+        "catalog_schema_version": "2",
+        "csv_sha256": "65db01d06301430c7dfcff9b494da5df39b8cab9f171c765bdd8fd10aabaf59c",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "rejected": 0,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 0,
+        "selected_genes": [
+          {
+            "gene_id": "b1264",
+            "log2_fold_change": -3.518,
+            "regulation": "down",
+            "symbol": "trpE"
+          },
+          {
+            "gene_id": "b4243",
+            "log2_fold_change": 1.523,
+            "regulation": "up",
+            "symbol": "yjgF"
+          },
+          {
+            "gene_id": "b4202",
+            "log2_fold_change": 0.955,
+            "regulation": "up",
+            "symbol": "rpsR"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+          "5 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "b1456",
+          "b1470",
+          "b2092",
+          "b3135",
+          "b4339",
+          "b1579",
+          "b4308",
+          "b2681",
+          "b1152",
+          "b4271"
+        ],
+        "unmapped_rows": 34
+      },
+      "source_checksum": "65db01d06301430c7dfcff9b494da5df39b8cab9f171c765bdd8fd10aabaf59c",
+      "source_url": "https://www.bv-brc.org/view/Bioset/42635036",
+      "terminal_status": "succeeded",
+      "warnings": [
+        "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+        "5 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: yjgF, log2FC=1.52); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    }
+  ],
+  "complete": false,
+  "engine_commit": "db333b0e0f14d2498c1b506c975aba12f4c91ce2",
+  "engine_version": "local-0.10.0-scientific-qa",
+  "expected_comparisons": 15,
+  "interpretation": "Bounded local DE source-path smoke; selected_genes is the pre-inversion stage-1 shortlist. Down signatures cannot activate a production toehold without an unimplemented physical inverter. Unknown source hypothesis-universe completeness is declared false. Zero candidates on succeeded computations is a valid empty outcome. Neither candidate counts nor study titles establish disease selectivity or wet-lab efficacy. No C. acnes public comparison is bundled.",
+  "params": {
+    "backbone": {},
+    "budget": {
+      "max_designs": 1
+    },
+    "constraints": {
+      "max_genes": 3
+    },
+    "payload": {
+      "custom_sequence": "ATGGCTGCTGCTGCTGCTTAA",
+      "outputs": [
+        "other"
+      ]
+    },
+    "statistics": {
+      "hypothesis_universe_complete": false
+    }
+  },
+  "recorded_at": "2026-10-08T15:29:31.169135+00:00",
+  "schema": "cernal-catalog-smoke-v1",
+  "seed": 42
+}
