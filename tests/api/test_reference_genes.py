@@ -28,7 +28,11 @@ def test_lookup_and_submit_gene(client, user, host, symbol, gene):
             "input_mode": "gene",
             "gene_id": symbol,
             "organism": host,
-            "params": {"organism": host},
+            "params": {
+                "organism": host,
+                "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                "budget": {"max_designs": 3},
+            },
         },
         content_type="application/json",
     )
@@ -120,7 +124,11 @@ def test_uploaded_formats_run_end_to_end(auth_client, media_root, host, gene, fo
             "input_mode": "de",
             "dataset_id": data["id"],
             "organism": host,
-            "params": {"organism": host},
+            "params": {
+                "organism": host,
+                "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                "budget": {"max_designs": 3},
+            },
         },
         content_type="application/json",
     )

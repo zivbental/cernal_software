@@ -138,6 +138,17 @@ def validate_expression_file(uploaded_file) -> dict:
             with source.open("wb") as handle:
                 for chunk in uploaded_file.chunks():
                     handle.write(chunk)
+            with source.open("rb") as handle:
+                is_workbook = handle.read(2) == b"PK"
+            if is_workbook and suffix != ".xlsx":
+                return {
+                    "rows": 0,
+                    "columns": [],
+                    "warnings": [],
+                    "errors": [
+                        "This looks like an Excel workbook. Rename it to .xlsx or export as CSV."
+                    ],
+                }
             report = inspect_expression_input(str(source), limit=0)
     finally:
         uploaded_file.seek(0)
