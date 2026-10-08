@@ -101,7 +101,7 @@ def test_a_known_constraint_field_is_accepted(
 ):
     with django_capture_on_commit_callbacks():
         response = _submit(
-            auth_client, dataset_id=dataset.id, params={"constraints": {"max_triggers": 3}}
+            auth_client, dataset_id=dataset.id, params={"constraints": {"max_triggers": 1}}
         )
 
     assert response.status_code == 202
@@ -116,7 +116,7 @@ def test_the_wizards_max_circuit_gates_constraint_is_accepted(
     ``Unknown constraint 'max_circuit_gates'`` and a 422 on every submission."""
     with django_capture_on_commit_callbacks():
         response = _submit(
-            auth_client, dataset_id=dataset.id, params={"constraints": {"max_circuit_gates": 3}}
+            auth_client, dataset_id=dataset.id, params={"constraints": {"max_circuit_gates": 1}}
         )
 
     assert response.status_code == 202, response.json()
@@ -261,7 +261,7 @@ def test_a_valid_backbone_catalog_key_is_accepted_and_stored(
 
     assert response.status_code == 202
     run = AnalysisRun.objects.get(pk=response.json()["id"])
-    assert run.params_snapshot["backbone"] == {"catalog_key": "psb1c3"}
+    assert run.params_snapshot["backbone"] == {"catalog_key": "psb1c3", "insertion_index": 0}
 
 
 def test_cannot_submit_using_another_users_dataset(other_client, dataset):

@@ -21,12 +21,15 @@ SEQUENCE = "ACGU" * 12
         {"budget": {"max_designs": 0}},
         {"budget": {"max_runtime_seconds": 0}},
         {"constraints": {"max_triggers": 0}},
+        {"constraints": {"max_triggers": 2}},
+        {"constraints": {"max_circuit_gates": 2}},
         {"constraints": {"max_p_adj": 2}},
         {"scoring": {"weights": {"predicted_leakage": "bad"}}},
         {"scoring": {"weights": []}},
         {"scoring": {"hard_filters": ["bad"]}},
         {"gate_families": []},
         {"payload": {"outputs": ["apoptosis"]}},
+        {"payload": {"optimize_codons": "yes"}},
     ],
 )
 def test_design_invalid_requests_fail_before_queue_or_dry_estimate(auth_client, dry_run, overrides):
@@ -50,10 +53,13 @@ def test_design_invalid_requests_fail_before_queue_or_dry_estimate(auth_client, 
         {"scoring": {"weights": {"gc_content": "not numeric"}}},
         {"constraints": {"trigger_lengths": "30"}},
         {"constraints": {"max_p_adj": 2}},
+        {"constraints": {"max_triggers": 2}},
+        {"constraints": {"max_circuit_gates": 2}},
         {"budget": {"max_designs": 0}},
         {"host": "human"},
         {"organism": "human"},
         {"payload": {"outputs": ["apoptosis"]}},
+        {"payload": {"optimize_codons": "yes"}},
     ],
 )
 def test_runs_invalid_nested_configuration_is_422(auth_client, params):
@@ -140,7 +146,192 @@ def test_version_exposes_authoritative_host_family_output_limits(client):
     assert response.status_code == 200
     document = response.json()
     assert document["supported_hosts"] == ["ecoli", "yeast", "human", "c_acnes"]
-    assert set(document["supported_outputs"]) == {"gfp", "other"}
+    assert {"gfp", "other", "mcherry", "luciferase", "ampr", "kanr"} <= set(
+        document["supported_outputs"]
+    )
     assert "ecoli" in document["family_hosts"]["toehold"]
     assert document["limits"]["max_de_rows"] == 200000
     assert document["constraints"]["trigger_lengths"]
+    # Host matrices are passed through from the selected engine, including custom
+    # engine implementations that predate these additive fields.
+    from django.conf import settings
+
+    from engine.client import load_engine
+
+    capabilities = load_engine(settings.CERNAL_ENGINE).capabilities()
+    assert document["output_hosts"] == getattr(capabilities, "output_hosts", {})
+    assert document["backbone_hosts"] == getattr(capabilities, "backbone_hosts", {})
+    assert document["output_hosts"]["ampr"] == ["ecoli"]
+    assert document["output_hosts"]["kanr"] == ["ecoli"]
+    assert document["backbone_hosts"]["psb1a3"] == ["ecoli"]
+
+
+def test_canonical_wizard_organism_is_accepted_and_real_conflict_rejected(auth_client):
+    body = {
+        "input_mode": "direct",
+        "trigger_sequence": SEQUENCE,
+        "organism": "ecoli",
+        "params": {"organism": "ecoli", "constraints": {"max_circuit_gates": 1}},
+    }
+    response = auth_client.post("/api/runs", data=body, content_type="application/json")
+    assert response.status_code == 202, response.content
+    body["params"]["organism"] = "human"
+    response = auth_client.post("/api/runs", data=body, content_type="application/json")
+    assert response.status_code == 422
+    assert "agree" in response.json()["error"]["message"]
+
+
+def test_inline_retry_reuses_run_without_leaving_an_extra_dataset(auth_client, media_root):
+    body = {"dge_csv": "gene_id,log2fc,padj\nb0005,2,0.01\n", "idempotency_key": "inline-retry"}
+    first = auth_client.post("/api/design", data=body, content_type="application/json")
+    second = auth_client.post("/api/design", data=body, content_type="application/json")
+    assert first.status_code == second.status_code == 202
+    assert first.json()["job_id"] == second.json()["job_id"]
+    assert Dataset.objects.count() == AnalysisRun.objects.count() == 1
+    assert AnalysisRun.objects.get().dataset.file.storage.exists(
+        AnalysisRun.objects.get().dataset.file.name
+    )
+
+
+def test_inline_conflict_removes_unreferenced_new_input(auth_client, media_root):
+    body = {"dge_csv": "gene_id,log2fc,padj\nb0005,2,0.01\n", "idempotency_key": "inline-conflict"}
+    first = auth_client.post("/api/design", data=body, content_type="application/json")
+    assert first.status_code == 202
+    body["dge_csv"] = "gene_id,log2fc,padj\nb0005,3,0.01\n"
+    rejected = auth_client.post("/api/design", data=body, content_type="application/json")
+    assert rejected.status_code == 409
+    assert Dataset.objects.count() == AnalysisRun.objects.count() == 1
+
+
+def test_inline_quota_rejection_removes_unreferenced_input(auth_client, media_root, settings):
+    settings.MAX_ACTIVE_RUNS_PER_ACCOUNT = 1
+    first = auth_client.post(
+        "/api/design", data={"trigger_sequence": SEQUENCE}, content_type="application/json"
+    )
+    assert first.status_code == 202
+    rejected = auth_client.post(
+        "/api/design",
+        data={"dge_csv": "gene_id,log2fc\nb0005,2\n"},
+        content_type="application/json",
+    )
+    assert rejected.status_code == 429
+    assert not Dataset.objects.exists()
+    assert AnalysisRun.objects.count() == 1
+
+
+def test_inline_invalid_real_submission_never_stores_input(auth_client, media_root):
+    rejected = auth_client.post(
+        "/api/design",
+        data={"dge_csv": "gene_id,log2fc\nb0005,invalid\n"},
+        content_type="application/json",
+    )
+    assert rejected.status_code == 422
+    assert not Dataset.objects.exists()
+    assert not AnalysisRun.objects.exists()
+
+
+@pytest.mark.parametrize("endpoint", ["design", "runs"])
+@pytest.mark.parametrize("insertion", [True, "1", -1, 10**9])
+def test_backbone_insertion_coordinate_is_validated_before_storage(
+    auth_client, endpoint, insertion
+):
+    backbone = {"catalog_key": "psb1a3", "insertion_index": insertion}
+    body = {"trigger_sequence": SEQUENCE, "organism": "ecoli"}
+    if endpoint == "design":
+        body["backbone"] = backbone
+    else:
+        body.update(input_mode="direct", params={"backbone": backbone})
+    response = auth_client.post(f"/api/{endpoint}", data=body, content_type="application/json")
+    assert response.status_code == 422, response.content
+    assert "insertion_index" in response.json()["error"]["message"]
+    assert not AnalysisRun.objects.exists()
+    assert not Dataset.objects.exists()
+
+
+@pytest.mark.parametrize("endpoint", ["design?dry_run=true", "design", "runs"])
+def test_explicit_backbone_insertion_coordinate_is_preserved(auth_client, endpoint):
+    backbone = {"catalog_key": "psb1a3", "insertion_index": 1}
+    body = {"trigger_sequence": SEQUENCE, "organism": "ecoli"}
+    if endpoint == "runs":
+        body.update(input_mode="direct", params={"backbone": backbone})
+    else:
+        body["backbone"] = backbone
+    response = auth_client.post(f"/api/{endpoint}", data=body, content_type="application/json")
+    assert response.status_code in (200, 202), response.content
+    if endpoint.endswith("true"):
+        assert response.json()["resolved"]["backbone"] == backbone
+        assert not AnalysisRun.objects.exists()
+    else:
+        assert AnalysisRun.objects.get().params_snapshot["backbone"] == backbone
+
+
+@pytest.mark.parametrize("endpoint", ["design?dry_run=true", "design", "runs"])
+@pytest.mark.parametrize("insertion", [0, 1, 15])
+def test_custom_backbone_functional_feature_is_protected_before_queue(
+    auth_client, endpoint, insertion
+):
+    import io
+
+    from Bio import SeqIO
+    from Bio.Seq import Seq
+    from Bio.SeqFeature import SeqFeature, SimpleLocation
+    from Bio.SeqRecord import SeqRecord
+
+    record = SeqRecord(Seq("ATGGCTGCTGCTTAA"), id="vector", name="vector")
+    record.annotations = {"molecule_type": "DNA", "topology": "circular"}
+    record.features = [SeqFeature(SimpleLocation(0, 15), type="CDS")]
+    stream = io.StringIO()
+    SeqIO.write(record, stream, "genbank")
+    backbone = {"custom_genbank": stream.getvalue(), "insertion_index": insertion}
+    body = {"trigger_sequence": SEQUENCE, "organism": "ecoli"}
+    if endpoint == "runs":
+        body.update(input_mode="direct", params={"backbone": backbone})
+    else:
+        body["backbone"] = backbone
+    response = auth_client.post(f"/api/{endpoint}", data=body, content_type="application/json")
+    if insertion == 1:
+        assert response.status_code == 422, response.content
+        assert "disrupts backbone CDS" in response.json()["error"]["message"]
+        assert not AnalysisRun.objects.exists()
+    else:
+        assert response.status_code in (200, 202), response.content
+        if endpoint.endswith("true"):
+            assert response.json()["resolved"]["backbone"] == backbone
+            assert not AnalysisRun.objects.exists()
+        else:
+            assert AnalysisRun.objects.get().params_snapshot["backbone"] == backbone
+    assert not Dataset.objects.exists()
+
+
+@pytest.mark.parametrize("endpoint", ["design?dry_run=true", "design", "runs"])
+@pytest.mark.parametrize("organism", ["ecoli", "yeast", "human", "c_acnes"])
+@pytest.mark.parametrize("configuration", ["ampr", "kanr", "psb1a3"])
+def test_ecoli_marker_and_vector_scope_matches_public_capabilities(
+    auth_client, endpoint, organism, configuration
+):
+    block = (
+        {"backbone": {"catalog_key": configuration}}
+        if configuration == "psb1a3"
+        else {"payload": {"outputs": [configuration]}}
+    )
+    body = {"trigger_sequence": SEQUENCE, "organism": organism, "gate_families": ["toehold"]}
+    if endpoint == "runs":
+        body.update(input_mode="direct", params=block)
+    else:
+        body.update(block)
+    response = auth_client.post(f"/api/{endpoint}", data=body, content_type="application/json")
+    if organism == "ecoli":
+        assert response.status_code in (200, 202), response.content
+        if endpoint.endswith("true"):
+            assert not AnalysisRun.objects.exists()
+        else:
+            stored = AnalysisRun.objects.get().params_snapshot
+            if configuration == "psb1a3":
+                assert stored["backbone"] == {"catalog_key": configuration, "insertion_index": 0}
+            else:
+                assert stored["payload"]["outputs"] == [configuration]
+    else:
+        assert response.status_code == 422, response.content
+        assert "E. coli" in response.json()["error"]["message"]
+        assert not AnalysisRun.objects.exists()
+    assert not Dataset.objects.exists()

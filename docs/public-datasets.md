@@ -1,5 +1,20 @@
 # Public transcriptomics dataset selection
 
+## Current catalog interpretation — 8 October 2026
+
+See [catalog governance](catalog-governance.md) for checksums, statistic completeness,
+source/context review and the verified selected E-GEOD-103501 contrast. The original
+15 bundled CSVs remain historical subsets capped at up to 3,000 rows with unknown
+original source totals. Future syncs retain full provider-tested tables; API previews
+still cap display. The chosen arthritis-study comparison is healthy/normal monocyte
+culture medium versus ex vivo/none, not disease versus healthy or LPS stimulation.
+The UI shows the exact selected contrast and sample context separately from the title.
+
+> The development narrative below records earlier provider investigations. Its old
+> justification for truncating analysis tables is superseded by full-row retention
+> and explicit historical subset metadata.
+
+
 **Status:** Built (Phase D, [ROADMAP.md §11](ROADMAP.md)). Every endpoint and file path
 below was fetched and verified live against the real provider during development —
 nothing here is assumed from documentation alone.

@@ -5,6 +5,24 @@ import io
 import json
 import zipfile
 
+import pytest
+
+from apps.results.models import Candidate
+
+
+@pytest.fixture
+def completed_run_with_rejection(completed_run):
+    """Stored rejection for API behavior independent of scientific pool composition."""
+    Candidate.objects.create(
+        run=completed_run,
+        engine_ref="api-rejection-fixture",
+        gate_family="toehold",
+        logic_type="YES",
+        is_rejected=True,
+        rejection_reason="Explicit API fixture: folding energy outside the allowed range.",
+    )
+    return completed_run
+
 
 def test_candidates_are_ranked_best_first(auth_client, completed_run):
     body = auth_client.get(f"/api/runs/{completed_run.id}/candidates?limit=100").json()
@@ -14,7 +32,10 @@ def test_candidates_are_ranked_best_first(auth_client, completed_run):
     assert ranks[0] == 1
 
 
-def test_rejected_candidates_are_hidden_by_default_but_available(auth_client, completed_run):
+def test_rejected_candidates_are_hidden_by_default_but_available(
+    auth_client, completed_run_with_rejection
+):
+    completed_run = completed_run_with_rejection
     """Rule 8: they are kept, not deleted — the researcher chooses whether to look."""
     default = auth_client.get(f"/api/runs/{completed_run.id}/candidates?limit=100").json()
     with_rejected = auth_client.get(
@@ -207,7 +228,10 @@ def test_csv_export_is_a_flat_candidate_by_metric_table(auth_client, completed_r
     assert len(rows) - 1 == completed_run.candidates.count()
 
 
-def test_csv_export_includes_rejected_candidates_and_reasons(auth_client, completed_run):
+def test_csv_export_includes_rejected_candidates_and_reasons(
+    auth_client, completed_run_with_rejection
+):
+    completed_run = completed_run_with_rejection
     response = auth_client.get(f"/api/runs/{completed_run.id}/export.csv")
     reader = csv.DictReader(io.StringIO(response.content.decode()))
     rejected = [row for row in reader if row["rejected"] == "yes"]

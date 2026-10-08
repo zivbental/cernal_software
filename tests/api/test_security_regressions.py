@@ -229,3 +229,19 @@ def test_changed_input_cannot_reuse_idempotency_key(auth_client):
     second = auth_client.post("/api/runs", data=body, content_type="application/json")
     assert second.status_code == 409
     assert AnalysisRun.objects.count() == 1
+
+
+def test_auth_limit_uses_atomic_admission_slots(client, user, settings):
+    cache.clear()
+    settings.AUTH_ATTEMPTS_PER_MINUTE = 2
+    with patch.object(cache, "incr", side_effect=AssertionError("non-atomic counter is forbidden")):
+        statuses = [
+            client.post(
+                "/api/auth/login",
+                data={"username": "unknown", "password": "wrong"},
+                content_type="application/json",
+            ).status_code
+            for _ in range(3)
+        ]
+    assert statuses == [401, 401, 429]
+    cache.clear()

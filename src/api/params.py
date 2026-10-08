@@ -31,7 +31,7 @@ CONSTRAINT_KEYS = {
 SCORING_KEYS = {"base", "weights", "hard_filters", "tie_breakers"}
 BUDGET_KEYS = {"max_designs", "max_runtime_seconds", "on_exceed"}
 PAYLOAD_KEYS = {"outputs", "custom_sequence"}
-BACKBONE_KEYS = {"catalog_key", "custom_genbank"}
+BACKBONE_KEYS = {"catalog_key", "custom_genbank", "insertion_index"}
 
 
 class UnknownParameter(ApiError):
@@ -138,6 +138,10 @@ def check_backbone_block(backbone: dict, capabilities) -> None:
     (:func:`engine.stages.plasmids.parse_custom_backbone`) that stays engine-side, the
     same boundary ``_resolve_scoring`` already draws for ``ScoringProfile`` construction.
     """
+    if "insertion_index" in backbone:
+        insertion = backbone["insertion_index"]
+        if type(insertion) is not int or insertion < 0:
+            raise ValidationFailed("backbone.insertion_index must be a nonnegative integer.")
     catalog_key = backbone.get("catalog_key")
     custom_genbank = backbone.get("custom_genbank")
     if catalog_key and custom_genbank:

@@ -53,13 +53,19 @@ def test_an_example_run_completes_like_any_other(
                     "input_mode": "de",
                     "dataset_id": dataset["id"],
                     "organism": "ecoli",
+                    "params": {
+                        "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                        "budget": {"max_designs": 3},
+                    },
                 }
             ),
             content_type="application/json",
         ).json()
 
     run_analysis(run["id"])
-    assert auth_client.get(f"/api/runs/{run['id']}").json()["status"] == "COMPLETED"
+    status = auth_client.get(f"/api/runs/{run['id']}").json()
+    assert status["status"] == "COMPLETED"
+    assert status["counts"]["candidates"] > 0
 
 
 def test_an_unknown_example_key_names_the_available_ones(auth_client):
@@ -88,6 +94,7 @@ def _run_with_outputs(client, dataset, outputs):
                 "organism": "ecoli",
                 "params": {
                     "payload": {"outputs": outputs, "custom_sequence": None},
+                    "budget": {"max_designs": 1},
                 },
             }
         ),
@@ -108,23 +115,20 @@ def test_the_candidate_list_says_what_each_one_expresses(
     assert all(c["output"] == "GFP" for c in items)
 
 
-def test_an_output_with_no_payload_sequence_is_skipped_out_loud(
-    auth_client, dataset, media_root, django_capture_on_commit_callbacks
-):
-    """Outputs are equivalent choices, but only GFP has a real coding sequence today
-    (``stages/plasmids.py``'s ``PAYLOADS``; docs/ROADMAP.md Q11 is only partly
-    answered). A researcher who selects one of the others must be told it was skipped
-    and why — not silently handed GFP-only results as though they had asked for them.
-    """
-    with django_capture_on_commit_callbacks():
-        run_id = _run_with_outputs(auth_client, dataset, ["gfp", "ampr", "apoptosis"])
+def test_an_output_with_no_payload_sequence_is_rejected_before_queueing(auth_client, dataset):
+    """Every requested outcome must have an implemented payload; partial success is misleading."""
+    from apps.analyses.models import AnalysisRun
 
-    run = auth_client.get(f"/api/runs/{run_id}").json()
-    items = auth_client.get(
-        f"/api/runs/{run_id}/candidates?limit=100&include_rejected=true"
-    ).json()["items"]
-
-    assert {c["output"] for c in items} == {"GFP"}
-    warnings = " ".join(run["warnings"])
-    assert "ampr" in warnings and "apoptosis" in warnings
-    assert "Q11" in warnings
+    response = auth_client.post(
+        "/api/runs",
+        data={
+            "input_mode": "de",
+            "dataset_id": str(dataset.id),
+            "organism": "ecoli",
+            "params": {"payload": {"outputs": ["gfp", "ampr", "apoptosis"]}},
+        },
+        content_type="application/json",
+    )
+    assert response.status_code == 422
+    assert not AnalysisRun.objects.exists()
+    assert "apoptosis" in response.json()["error"]["message"]

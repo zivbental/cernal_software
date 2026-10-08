@@ -53,7 +53,7 @@ function RunPage() {
             <span className="font-mono normal-case tracking-normal">{runId.slice(0, 8)}</span>
           </>
         }
-        title={done ? "Computational Design Results" : "Compiling your circuit"}
+        title={done ? "Computational Design Results" : status.data.status === "FAILED" ? "Run failed" : status.data.status === "CANCELLED" ? "Run cancelled" : "Compiling your circuit"}
         description={
           done
             ? "Candidates ranked using provisional folding and accessibility models. Off-target specificity is unmeasured; computation completion does not authorize sequence release."
@@ -107,7 +107,7 @@ function RunProgress({ runId, status }: { runId: string; status: RunStatusRespon
           <div>
             <h2 className="text-base font-semibold text-foreground">Run cancelled</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              The engine stopped at the next safe point. Nothing was saved.
+              The engine stopped at a safe point. Your submitted configuration and logs remain available; partial results depend on where cancellation occurred.
             </p>
           </div>
         </div>

@@ -61,7 +61,7 @@ def test_invalid_wait_does_not_submit(wait):
     ],
 )
 def test_best_uses_accepted_rank(candidates, rank):
-    best = Job(None, {"candidates": candidates}).best()
+    best = Job(None, {"job_id": "run", "status": "COMPLETED", "candidates": candidates}).best()
     assert (best["rank"] if best else None) == rank
 
 
@@ -85,3 +85,18 @@ def test_poll_http_timeout_is_remaining_budget(monkeypatch):
     with pytest.raises(Exception, match="ended FAILED"):
         Job(client, {"job_id": "run", "status": "QUEUED"}).wait(timeout=5, poll=0)
     assert calls == [{"timeout": 3}]
+
+
+@pytest.mark.parametrize(
+    "response, message",
+    [
+        ({"job_id": None, "status": "DRAFT", "candidates": []}, "never submitted"),
+        ({"job_id": "run", "status": "FAILED", "candidates": []}, "ended FAILED"),
+        ({"job_id": "run", "status": "CANCELLED", "candidates": []}, "ended CANCELLED"),
+    ],
+)
+def test_candidate_field_is_not_a_completion_signal(response, message):
+    from cernal import RunFailed
+
+    with pytest.raises(RunFailed, match=message):
+        Job(None, response).wait()

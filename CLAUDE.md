@@ -2,8 +2,10 @@
 
 CERNAL compiles a transcriptomic signature into an RNA logic circuit on a plasmid. The
 Python engine lives under `src/engine/`; a Django platform wraps it and never touches its
-internals. The engine is **stub-first**: every class, method and docstring already exists,
-and 48 public callables still `raise NotImplementedError("Step 5 — …")`.
+internals. The default engine is `engine.client.LocalEngine`, with real folding and implemented
+input/gene/trigger/switch/circuit/assembly paths. Some components remain incomplete;
+inspect source before assuming any callable is a stub. Current limits and dated
+verification are in `docs/ROADMAP.md` and `docs/REMEDIATION_STATUS.md`.
 
 > **The one-line rule: your job is almost always to FILL A STUB, not to create a file.**
 > If you are about to write `class X:` or create a new module, stop and find the stub that
@@ -54,8 +56,8 @@ Copied verbatim from [`src/engine/scoring/profiles.py`](src/engine/scoring/profi
 | `predicted_leakage` | **lower** better | 2.5 | 0.0 – 1.0 | proxy for OFF-state activation |
 | `orthogonality` | higher better | 1.5 | 0.0 – 1.0 | independence from other gates |
 | `gc_content` | higher better | 0.5 | 30.0 – 70.0 | **percent, 0–100** |
-| `dynamic_range` | higher better | 2.0 | 1.0 – 500.0 | **linear ON/OFF fold change** |
-| `predicted_success_rate` | higher better | 1.0 | 0.0 – 1.0 | model confidence |
+| `dynamic_range` | higher better | 2.0 | 1.0 – 500.0 | **linear initiation-accessibility ratio (proxy)** |
+| `predicted_success_rate` | higher better | 1.0 | 0.0 – 1.0 | uncalibrated binding-energy heuristic |
 | `circuit_complexity` | **lower** better | 1.0 | 1.0 – 10.0 | component count penalty |
 
 Hard filters: `predicted_leakage` max 0.85; `state_separation` min 0.5. Tie-breakers, in
@@ -207,11 +209,10 @@ repo's naming — a pipeline step, not the person who ports it, identifies the r
 | Antisense / CRISPR gates (unassigned) | `src/engine/gates/antisense.py`, `crispr.py` | `AntisenseNotGate`, `CrisprGate` | both `available = False` today; flipping it is a deliberate declaration |
 | Folding tool (S2, S4 — shared) | `src/engine/gates/tools/folding.py` | `FoldEngine` | `partition`, `ensemble_defect`, `base_pair_probabilities`, `suboptimal`, `versions`; `structure_match()`. **Highest fan-in in the repo — build first** |
 
-Two things have **no home yet** and need a decision before code lands: the CSV →
-`CountMatrix`/`DgeTable` parser (nothing in `src/engine/` parses `JobRequest.input_path`),
-and the supporting-database module (codon tables, transcript sequences, cell atlas,
-backbone). Ask rather than inventing a path — and never let pandas DataFrames travel
-between stages; convert at the edge.
+DE parsing already lives in `src/engine/inputs.py`; reference resolution lives in
+`src/engine/transcriptome.py`. Use those implementations. Raw count/metadata input,
+cell-atlas context and calibrated discrimination require an agreed input specification.
+Never let pandas DataFrames travel between stages; convert at the edge.
 
 Every method annotated `-> Iterator[...]` must actually `yield`; `return list(...)` is the
 violation. Expensive stages call `on_progress(pct, stage)` between batches, not only
@@ -232,8 +233,9 @@ Install once: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`.
 | Lint | `uv run ruff check .` and `uv run ruff format --check .` |
 | Django sanity check | `uv run python manage.py check` |
 
-`tests/engine` is 119 tests in **under half a second** and needs no Django settings — run
-it after every edit; there is no excuse not to. The full suite is ~90 s. Ruff config:
+`tests/engine` needs no Django settings. Run focused tests after edits, then the relevant
+engine/integration suite. Real folding/reference tests can take minutes; use current
+command output for timing and counts rather than historical scaffold estimates. Ruff config:
 line-length 100, target py313, rules `E,F,I,UP,B,C4,DJ,RUF`.
 
 `./do` is a bash wrapper over exactly these commands. It needs Git Bash **and** `uv` on

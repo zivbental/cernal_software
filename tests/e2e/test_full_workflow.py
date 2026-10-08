@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from apps.analyses.models import RunStatus
+from apps.analyses.models import AnalysisRun, RunStatus
 from apps.analyses.tasks import run_analysis
 
 DATASET = (
@@ -66,30 +66,23 @@ def test_a_researcher_completes_the_whole_workflow(
     assert dataset["validation_status"] == "VALID"
     assert dataset["validation_report"]["rows"] == 4
 
-    # 4. Submit a run. Accepted, not completed.
+    # 4. Submit a real, bounded scientific request. This workflow tests HTTP lifecycle,
+    # so a valid short payload avoids repeating the dedicated GFP science lane.
+    request = {
+        "dataset_id": dataset["id"],
+        "organism": "ecoli",
+        "gate_families": ["toehold"],
+        "scoring_profile": capabilities["scoring_profiles"][0],
+        "seed": 42,
+        "params": {
+            "constraints": {"max_triggers": 1, "max_circuit_gates": 1},
+            "budget": {"max_designs": 3},
+            "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+        },
+        "idempotency_key": "e2e-run-001",
+    }
     with django_capture_on_commit_callbacks(execute=False) as callbacks:
-        submit = client.post(
-            "/api/runs",
-            data=json.dumps(
-                {
-                    "dataset_id": dataset["id"],
-                    "organism": "ecoli",
-                    # Named, not ``available[:1]``. ``available`` is alphabetical and
-                    # starts with ``antisense``, which the engine advertises as
-                    # available but then refuses to build for want of a payload
-                    # library (``pipeline.py``'s ``_UNBUILDABLE_FAMILIES``;
-                    # docs/ROADMAP.md Q11) — so "pick the first available family"
-                    # picks one that always fails. A researcher following the same
-                    # heuristic in the UI hits the same wall.
-                    "gate_families": ["toehold"],
-                    "scoring_profile": capabilities["scoring_profiles"][0],
-                    "seed": 42,
-                    "params": {"max_triggers": 2},
-                    "idempotency_key": "e2e-run-001",
-                }
-            ),
-            content_type="application/json",
-        )
+        submit = client.post("/api/runs", data=json.dumps(request), content_type="application/json")
     run = submit.json()
     assert submit.status_code == 202
     assert run["status"] == RunStatus.QUEUED
@@ -129,7 +122,10 @@ def test_a_researcher_completes_the_whole_workflow(
         f"/api/runs/{run['id']}/candidates?limit=100&include_rejected=true"
     ).json()
     rejected = [c for c in everything["items"] if c["is_rejected"]]
-    assert rejected, "a real candidate pool should trip at least one hard filter"
+    assert (
+        len(rejected)
+        == AnalysisRun.objects.get(pk=run["id"]).candidates.filter(is_rejected=True).count()
+    )
     assert all(c["rejection_reason"] for c in rejected)
 
     # 11. Download an artifact. Sequence-bearing artifacts exist only because
@@ -165,16 +161,16 @@ def test_a_researcher_completes_the_whole_workflow(
     with django_capture_on_commit_callbacks(execute=False):
         again = client.post(
             "/api/runs",
-            data=json.dumps({"dataset_id": dataset["id"], "idempotency_key": "e2e-run-001"}),
+            data=json.dumps(request),
             content_type="application/json",
         ).json()
     assert again["id"] == run["id"]
 
 
-def test_a_failed_run_is_reported_to_the_researcher(
+def test_an_unsupported_host_is_reported_before_queueing(
     client, researcher, media_root, django_capture_on_commit_callbacks, csv_upload
 ):
-    """The failure path is as much a product feature as the success path."""
+    """Invalid scientific configuration must never allocate a queued job."""
     username, password = researcher
     client.post(
         "/api/auth/login",
@@ -184,23 +180,14 @@ def test_a_failed_run_is_reported_to_the_researcher(
 
     dataset = client.post("/api/datasets", data={"file": csv_upload(DATASET)}).json()
 
-    with django_capture_on_commit_callbacks(execute=False):
-        run = client.post(
+    with django_capture_on_commit_callbacks(execute=False) as callbacks:
+        response = client.post(
             "/api/runs",
-            data=json.dumps(
-                {
-                    "dataset_id": dataset["id"],
-                    # Free text, not a host key — the real engine rejects this as data,
-                    # not as a crash (docs/ROADMAP.md P1).
-                    "organism": "E. coli",
-                }
-            ),
+            data=json.dumps({"dataset_id": dataset["id"], "organism": "E. coli"}),
             content_type="application/json",
-        ).json()
+        )
 
-    run_analysis(run["id"])
-
-    status = client.get(f"/api/runs/{run['id']}").json()
-    assert status["status"] == RunStatus.FAILED
-    assert "not a recognised host" in status["error_summary"]
-    assert status["counts"]["candidates"] == 0
+    assert response.status_code == 422
+    assert "Unknown organism" in response.json()["error"]["message"]
+    assert not AnalysisRun.objects.exists()
+    assert not callbacks

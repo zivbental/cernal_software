@@ -16,13 +16,20 @@ construct digest and linear/circular topology are recorded. Full switch plus att
 payload RNA, excluding promoter and terminator, is thermodynamically evaluated separately
 for each requested output. Multiple outputs mean independent alternatives, with the
 cross-product of retained gate designs and requested payloads. They do not mean
-co-expression. Codon optimization is not silently inferred from tool construction.
+co-expression. Codon optimization is opt-in through `params.payload.optimize_codons` (boolean,
+default false), selects one clean synonymous variant with the shared host optimizer,
+and records original/optimized digests, changed codon count, seed and unresolved
+constraints. Protein sequence preservation is independently checked by the optimizer;
+it does not establish expression efficacy. The same exact optimized CDS is folded
+and assembled. Incompatible embedded payload heads fail explicitly.
 
 The default budget is 20 validated gate designs, selectable by
 `params.budget.max_designs` (integer 1..1000). It caps gates before the payload
 cross-product, in deterministic generator order. Truncation and evaluated counts are
 recorded. The engine calls progress before each full payload evaluation; native folding
-calls are bounded by sequence sizes but cannot be cancelled mid-call. A real GFP fixture
+calls are bounded by sequence sizes but cannot be cancelled mid-call. Payload CDSs
+are limited to 2,000 nt before folding; trigger/reference transcripts to 10,000 nt.
+These input ceilings are computational limits and give no universal runtime guarantee. A real GFP fixture
 with three designs took 9.21 seconds in the targeted QA lane; this is not a universal
 maximum runtime or a calibrated performance guarantee.
 
@@ -35,7 +42,10 @@ completeness declaration. Public catalog subsets cannot establish complete hypot
 Dot-bracket syntax, length and balance are enforced. The normalized ensemble defect is
 measured once and persisted; there is no calibrated functional defect threshold.
 `structure_match` compares pairing partners and reports unavailable Boltzmann probability
-because two structures alone provide neither a molecule nor model energy.
+because two structures alone provide neither a molecule nor model energy. Exact
+suboptimal enumeration is available for one RNA strand up to 150 nt, a 0..5 kcal/mol
+window, at most 10,000 structures and a native-process timeout of at most 30 seconds.
+Exceeding count/time limits raises an error without returning an incomplete ensemble.
 
 Metric API names remain compatible, with profile `v3-computational-proxies`:
 `predicted_success_rate` is an uncalibrated binding-energy sigmoid; `dynamic_range` is
@@ -43,6 +53,13 @@ an initiation-accessibility ratio with a 0.001 denominator floor. Neither is a m
 cellular response or success probability. The report and capability descriptions state
 these limitations. GC refers to the switch, and trigger accessibility to the minimum
 marginal unpaired probability. Orthogonality is unmeasured.
+
+Custom backbone annotations survive GenBank/SBOL export. Frame violations and user
+forbidden motifs are hard failures. Assembly-standard sites in newly generated parts
+are hard failures; sites already wholly inside a vector remain visible caveats.
+Homopolymers in promoter/terminator/vector sources are warnings rather than an
+unvalidated blanket veto; the generated switch retains its explicit validation rules.
+This separation is disclosed, rather than claiming every source part is standard-clean.
 
 Snapshots are diagnostic CSVs with sequence fields replaced by SHA-256 digests. They
 preserve zero versus missing, and are never an inter-stage execution bus. Reproduction
@@ -64,11 +81,18 @@ sequence-release certification; its disclosure scope still needs the release own
 - ENG-06/07 and GAP-03: geometry/defect and binding/accessibility calculations require
   independent held-out functional assays to justify biological thresholds/calibration.
   Trailing-Kozak accessibility interpretation specifically needs scientific review.
-- ENG-08: codon optimization and mutation provenance remain explicit optional stages to
-  integrate. Payload fusion is the defined computational product; preservation of native
+- ENG-08: opt-in codon optimization and exact mutation provenance are integrated.
+  Payload fusion is the defined computational product; preservation of native
   protein function despite the fusion is experimentally unvalidated.
-- ENG-10: custom backbone feature retention and an explicit insertion/assembly plan
-  still need implementation; opaque origin concatenation is not orderability evidence.
+- ENG-10: custom GenBank annotations, strands/compound locations and qualifiers are
+  retained and shifted around a caller-supplied 0-based insertion boundary (default
+  file origin). Insertions disrupting known functional features are rejected. Exact
+  sequence/frame compilation is implemented; enzyme-cut/overlap selection and a
+  reviewed cloning protocol remain unspecified. Catalog vectors are scoped to E. coli;
+  other hosts require a supplied custom vector or an expression cassette. Uploaded
+  vector replication/selection and host function remain explicitly unverified. Catalog
+  vectors without annotated
+  features cannot establish disruption-free insertion or orderability evidence.
 - ENG-12: selected candidate architecture, stable/transcript identifiers, model versions,
   digests and trigger snapshots are retained. Full discarded-stage provenance and
   reference catalog refresh governance remain incomplete.
@@ -78,9 +102,19 @@ sequence-release certification; its disclosure scope still needs the release own
 - ENG-14: HTML computational report and standalone intended-structure/logical SVGs are
   implemented. PDF generation and a deployment-owned operational release adapter remain
   unavailable. SVGs are not exported by the production report path.
-- GAP-01: GFP/custom alternatives are implemented. Approved molecule/version/host scope
-  and provenance are still required for mCherry, luciferase, specific resistance markers
-  and context-specific apoptosis. No arbitrary apoptosis sequence is substituted.
+- GAP-01: GFP/custom, pinned mCherry BioBrick variant BBa_J06504 and firefly
+  luciferase BBa_I712019 alternatives are implemented. Source revisions, identity
+  caveats and digests are retained. Host-specific sequence/frame compilation is tested;
+  one-design native mCherry/firefly cases took 6.90/56.51 seconds respectively.
+  Luciferase requires substrate/cofactors and neither reporter's activity is calibrated
+  in this N-terminal fusion. Distinct E. coli-only AmpR beta-lactamase (GenBank
+  J01749.1/AAB59737.1, reverse CDS 3292:4153, 861 nt) and KanR neomycin
+  phosphotransferase (V00618.1/CAA23892.1, forward CDS 150:945, 795 nt) are pinned
+  from primary annotated records. Source-protein translation and digests are checked.
+  Native one-design tests took 7.95/9.50 seconds respectively. Fusion resistance,
+  including AmpR secretion, remains unvalidated. `output_hosts`/`backbone_hosts`
+  explicitly scope selections. Context-specific apoptosis remains unspecified; no
+  arbitrary apoptosis sequence is substituted.
 - GAP-02: no transcriptome specificity/orthogonality subsystem or independent benchmark
   exists yet. Required specification: intended interactions, background RNA universe,
   versions/isoforms, negative/positive controls, timeouts and host scope. An empty

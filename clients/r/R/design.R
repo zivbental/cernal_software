@@ -48,14 +48,12 @@ cernal_design <- function(client, ..., wait = NULL, dry_run = FALSE) {
 #' @return `job`, with results attached.
 #' @export
 cernal_wait <- function(job, timeout = 300, poll = 2, max_poll = 15) {
-  if (!is.null(job$response$candidates)) {
-    return(job)
-  }
   job_id <- job$response$job_id
   if (is.null(job_id)) {
     stop("This job was never submitted (dry_run=TRUE has no id to wait on).", call. = FALSE)
   }
 
+  if (identical(job$response$status, "COMPLETED") && !is.null(job$response$candidates)) return(job)
   deadline <- Sys.time() + timeout
   delay <- poll
   status <- job$response$status

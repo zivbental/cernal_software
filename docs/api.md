@@ -1,6 +1,6 @@
 # HTTP API reference
 
-The only HTTP surface in the system — **43 endpoints**. Built with
+The only HTTP surface in the system — see the generated [API surface](api-surface.md) and `/api/openapi.json` for the current inventory. Built with
 [django-ninja](https://django-ninja.dev) (ADR 0004); the machine-readable schema is
 generated at **`/api/openapi.json`** and the interactive docs at **`/api/docs`**.
 

@@ -143,15 +143,24 @@ export function PublicDatasetPicker({
               </div>
               <dl className="mt-3 grid gap-x-4 gap-y-1.5 text-xs sm:grid-cols-2">
                 <InfoRow label="Data source" value={PROVIDER_LABELS[info.data.provider] ?? info.data.provider} />
+                <InfoRow label="Contrast" value={`${info.data.comparison_id}: ${info.data.comparison_label}`} />
+                {typeof info.data.provider_metadata?.comparison_context === "string" && info.data.provider_metadata.comparison_context && <InfoRow label="Shared sample context" value={info.data.provider_metadata.comparison_context} />}
                 <InfoRow label="Accession" value={info.data.experiment_accession} mono />
                 <InfoRow label="Experimental condition" value={info.data.experimental_condition} />
                 <InfoRow label="Reference condition" value={info.data.reference_condition} />
-                <InfoRow label="Genes" value={info.data.gene_count.toLocaleString()} />
+                <InfoRow label="Retained rows" value={info.data.gene_count.toLocaleString()} />
+                <InfoRow label="Raw p-values" value={`${info.data.genes_with_p_value} / ${info.data.gene_count}`} />
+                <InfoRow label="Adjusted p-values (FDR)" value={`${info.data.genes_with_adjusted_p_value} / ${info.data.gene_count}`} />
+                <InfoRow label="Retrieved" value={info.data.retrieved_at} />
                 {info.data.analysis_method && (
                   <InfoRow label="Analysis method" value={info.data.analysis_method} />
                 )}
               </dl>
 
+              {typeof info.data.provider_metadata?.interpretation_note === "string" && <p role="status" className="mt-3 rounded-md border border-amber-500/40 p-2 text-xs">{info.data.provider_metadata.interpretation_note}</p>}
+              <p className="mt-3 text-xs text-muted-foreground">The selected contrast determines the biological meaning; the study title alone does not imply a disease-versus-control classifier. {info.data.genes_with_adjusted_p_value === 0 && "No adjusted p-values are available; raw p-values are not FDR-corrected."}</p>
+              {info.data.provider_metadata?.data_completeness === "historical_subset_source_total_unknown" && <p role="status" className="mt-2 text-xs">This bundled catalog contains a historical subset of tested rows. The original source total was not retained; upload a complete provider table for full analysis.</p>}
+              {typeof info.data.provider_metadata?.csv_sha256 === "string" && <details className="mt-2 text-xs"><summary>Catalog integrity and interpretation status</summary><p className="break-all">CSV SHA-256: {info.data.provider_metadata.csv_sha256}</p><p>Biological interpretation review: {String(info.data.provider_metadata.interpretation_review ?? "pending")}</p></details>}
               {/* §2/§27: the direction of log2FC is the single easiest mistake to make
                   reading differential expression — spell it out explicitly. */}
               <div className="mt-3 rounded-md bg-mint/5 px-3 py-2 font-mono text-[11px] text-muted-foreground">

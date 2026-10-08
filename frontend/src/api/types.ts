@@ -57,6 +57,8 @@ export interface Version {
   supported_hosts: string[];
   family_hosts: Record<string, string[]>;
   supported_outputs: string[];
+  output_hosts?: Record<string, string[]>;
+  backbone_hosts?: Record<string, string[]>;
   input_modes: string[];
   limits: Record<string, number>;
   constraints: Record<string, unknown>;
@@ -115,6 +117,7 @@ export interface PublicDatasetInfo {
   genes_with_adjusted_p_value: number;
   analysis_method: string;
   publication_doi: string;
+  provider_metadata?: Record<string, unknown>;
 }
 
 export interface DatasetProvenance {
@@ -130,6 +133,7 @@ export interface DatasetProvenance {
   retrieved_at: string;
   analysis_method: string;
   publication_doi: string;
+  provider_metadata?: Record<string, unknown>;
 }
 
 export interface DatasetPreviewRow {
@@ -345,7 +349,7 @@ export interface RunParams {
   logic?: { set_a: string[]; set_b: string[]; expression: string };
   mechanism?: string;
   /** All outputs are equivalent; each selected one gets its own plasmid candidates. */
-  payload?: { outputs: string[]; custom_sequence: string | null };
+  payload?: { outputs: string[]; custom_sequence: string | null; optimize_codons?: boolean };
   /**
    * A per-run override of the scoring profile's hard filters (engine.scoring.profiles
    * X7) — the same shape POST /api/design validates. Metric names must be ones the
@@ -375,7 +379,7 @@ export interface RunParams {
    * one of the two fields, or neither (today's bare four-segment construct, unchanged) —
    * the API rejects both being set at once.
    */
-  backbone?: { catalog_key?: string; custom_genbank?: string };
+  backbone?: { catalog_key?: string; custom_genbank?: string; insertion_index?: number };
   /**
    * Reference identity resolved server-side and frozen with the selected transcript.
    */

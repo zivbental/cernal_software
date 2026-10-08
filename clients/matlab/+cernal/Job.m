@@ -33,14 +33,14 @@ classdef Job
             addParameter(p, 'MaxPoll', 15);
             parse(p, varargin{:});
 
-            if isfield(obj.Response, 'candidates')
-                return
-            end
             if ~isfield(obj.Response, 'job_id') || isempty(obj.Response.job_id)
                 error('cernal:Job:wait:noJobId', ...
                     'This job was never submitted (dry_run has no id to wait on).');
             end
 
+            if strcmp(obj.Response.status, 'COMPLETED') && isfield(obj.Response, 'candidates')
+                return
+            end
             terminal = {'COMPLETED', 'FAILED', 'CANCELLED'};
             deadline = datetime('now') + seconds(p.Results.Timeout);
             delay = p.Results.Poll;
@@ -81,14 +81,14 @@ classdef Job
 
         function T = results(obj)
             %RESULTS Ranked candidates as a MATLAB table.
-            if ~isfield(obj.Response, 'candidates')
+            if ~isfield(obj.Response, 'job_id') || isempty(obj.Response.job_id) || ~strcmp(obj.Response.status, 'COMPLETED') || ~isfield(obj.Response, 'candidates')
                 error('cernal:Job:results:notReady', 'Call wait() before results().');
             end
             T = candidatesToTable(obj.Response.candidates);
         end
 
         function candidates = rawCandidates(obj)
-            if ~isfield(obj.Response, 'candidates')
+            if ~isfield(obj.Response, 'job_id') || isempty(obj.Response.job_id) || ~strcmp(obj.Response.status, 'COMPLETED') || ~isfield(obj.Response, 'candidates')
                 error('cernal:Job:results:notReady', 'Call wait() before results().');
             end
             candidates = obj.Response.candidates;

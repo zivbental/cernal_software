@@ -77,7 +77,7 @@ def test_the_task_is_a_thin_shell_over_the_service(run, media_root):
 
 
 def test_an_engine_failure_lands_in_failed_with_a_readable_reason(run, media_root):
-    # A real, documented scientific failure: free-text organism (docs/ROADMAP.md P1).
+    # A malformed persisted request can still reach a worker after legacy imports.
     run.organism = "E. coli"
     run.save()
 
@@ -85,7 +85,7 @@ def test_an_engine_failure_lands_in_failed_with_a_readable_reason(run, media_roo
     run.refresh_from_db()
 
     assert run.status == RunStatus.FAILED
-    assert "not a recognised host" in run.error_summary
+    assert "Unknown organism" in run.error_summary
     assert run.finished_at is not None
     assert not run.candidates.exists()
 

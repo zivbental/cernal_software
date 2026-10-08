@@ -29,6 +29,10 @@ def test_seed_demo_creates_a_browsable_run(seeded):
     assert run.progress_pct == 100
     assert run.finished_at is not None
     assert run.engine_version.startswith("local-")
+    assert run.params_snapshot["budget"] == {"max_designs": 3}
+    assert run.params_snapshot["constraints"]["max_triggers"] == 1
+    assert run.params_snapshot["constraints"]["max_circuit_gates"] == 1
+    assert run.params_snapshot["payload"]["outputs"] == ["gfp"]
 
 
 def test_seed_demo_creates_the_whole_object_graph(seeded):

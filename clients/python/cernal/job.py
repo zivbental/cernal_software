@@ -34,7 +34,11 @@ class Job:
         self.job_id: str | None = response.get("job_id")
         self.estimate: dict = response.get("estimate") or {}
         self.resolved: dict = response.get("resolved") or {}
-        self._results: dict | None = response if "candidates" in response else None
+        self._results: dict | None = (
+            response
+            if self.job_id and response.get("status") == "COMPLETED" and "candidates" in response
+            else None
+        )
 
     def __repr__(self) -> str:
         return f"Job(job_id={self.job_id!r}, status={self.status!r})"

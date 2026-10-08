@@ -169,6 +169,7 @@ class DesiredOutcome(StrEnum):
     MCHERRY = "mcherry"
     LUCIFERASE = "luciferase"
     ANTIBIOTIC = "ampr"
+    KANAMYCIN = "kanr"
     APOPTOSIS = "apoptosis"
     CUSTOM = "other"
 
@@ -181,6 +182,7 @@ class DesiredOutcome(StrEnum):
             DesiredOutcome.MCHERRY: "mCherry",
             DesiredOutcome.LUCIFERASE: "Luciferase",
             DesiredOutcome.ANTIBIOTIC: "AmpR",
+            DesiredOutcome.KANAMYCIN: "KanR",
             DesiredOutcome.APOPTOSIS: "Apoptosis inducer",
             DesiredOutcome.CUSTOM: "Custom",
         }[self]
@@ -254,6 +256,7 @@ class DgeTable:
     hypothesis_universe_complete: bool | None = None
     source_row_count: int | None = None
     columns: tuple[str, ...] = ()
+    detected_columns: tuple[tuple[str, str], ...] = ()
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -729,6 +732,8 @@ class Segment:
     kind: SegmentKind
     name: str
     sequence: str
+    # Immutable JSON records of original exact GenBank feature locations/qualifiers.
+    annotations: tuple[str, ...] = ()
 
     @property
     def length_bp(self) -> int:
@@ -843,6 +848,12 @@ class PlasmidDesign:
     standard: AssemblyStandard
     violations: tuple[str, ...] = ()
     coding_regions: tuple[tuple[int, int, str, str], ...] = ()
+    backbone_annotations: tuple[str, ...] = ()
+    insertion_index: int | None = None
+    assembly_method: str = "expression_cassette"
+    assembly_notes: tuple[str, ...] = ()
+    payload_optimization: str = ""
+    eligibility_violations: tuple[str, ...] = ()
 
     @property
     def is_compliant(self) -> bool:
