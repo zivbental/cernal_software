@@ -18,7 +18,6 @@ import { RequireAuth } from "@/components/layout/RequireAuth";
 import { StepRail } from "@/components/layout/Primitives";
 import {
   DEFAULT_CONFIG,
-  ORGANISM_LABELS,
   StepInputs,
   StepLogic,
   StepPayload,
@@ -163,7 +162,7 @@ function CompilePage() {
       input_mode: submittedInputMode,
       dataset_id: submittedInputMode === "de" ? config.datasetId : null,
       trigger_sequence: submittedInputMode === "direct" ? parseSequence(config.triggerSequence).sequence : "",
-      organism: ORGANISM_LABELS[config.organism],
+      organism: config.organism,
       gate_families: [config.mechanism],
       scoring_profile: version.data?.scoring_profiles[0] ?? "default",
       params,
