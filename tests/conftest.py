@@ -147,13 +147,16 @@ def job_result(run, dataset, tmp_path, screening_released):
         input_path=dataset.file.path,
         input_checksum=dataset.checksum_sha256,
         organism="ecoli",
-        params={},
-        gate_families=["toehold"],
+        params=run.params_snapshot,
+        gate_families=run.gate_families,
         scoring_profile="default",
         seed=42,
         output_dir=str(output_dir),
     )
-    return LocalEngine().run(request, lambda pct, stage: True), output_dir
+    result = LocalEngine().run(request, lambda pct, stage: True)
+    assert result.status == "succeeded", result.error
+    assert result.accepted, "The shared completed-run fixture must produce a real candidate."
+    return result, output_dir
 
 
 @pytest.fixture
