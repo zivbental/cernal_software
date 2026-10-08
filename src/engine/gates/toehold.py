@@ -1548,6 +1548,19 @@ class ToeholdAndGate(ToeholdGate):
         ("A_M_10", "<", 0.2),  # τ4a — nor the main one. The dangerous leak.
         ("A_M_01", "<", 0.2),  # τ4b — and neither may trigger B, which is the harder test
         ("A_S_01", ">", 0.5),  # τ5  — but trigger B must open the inhibitory hairpin
+        # τ6 IS WRONG AS WRITTEN, and the partner-aware terms show it. On a real design
+        # (ggt x fadB, len_x 13, open_3x3): A_S_11 = 0.003 so this gate REJECTS it, while
+        # xstar_engA_11 = 0.997 -- x* is 99.7% bound to trigger A, which is exactly what the
+        # design is for. "x* paired" and "x* paired to A" are indistinguishable to a mean-unpaired
+        # measure, so the correct outcome registers as the failure mode.
+        #
+        # τ3 is blind in the dangerous direction for the same reason: on that design A_S_10 = 0.008
+        # passes it easily while xstar_engA_10 = 0.392, so trigger A alone is already taking 39% of
+        # the site. A leak this gate exists to catch, and cannot see.
+        #
+        # The replacement is `xstar_engA_11 > ...` and `xstar_engA_10 < ...`, which is a SCORING
+        # change: it needs thresholds set from a measured distribution and a version bump, so it is
+        # recorded here rather than made silently. The observables now exist either way.
         ("A_S_11", ">", 0.5),  # τ6  — and keep it open with both present
         ("A_M_11", ">", 0.5),  # τ7  — trigger A opens the main hairpin, but only with B
         ("A_r2_star_00", ">", 0.5),  # τ8  — the toehold is available to begin with
@@ -1735,6 +1748,13 @@ class ToeholdAndGate(ToeholdGate):
             "A_M": (switch.domains["main_z"][0], switch.domains["main_pre"][1]),
             "A_S_full": (switch.domains["secondary_z"][0], switch.domains["sw_xs"][1]),
         }
+        # Trigger A's own positions in the concatenation, for the partner-aware terms below.
+        # Tubes are built `switch&A&B` and `pooled_pair_probabilities` maps every ordering
+        # back onto these positions, so the index does not depend on which one dominates.
+        a_block = (len(switch.sequence), len(switch.sequence) + len(trigger_a))
+        xstar = switch.domains["sw_xs"]
+        own_arm = switch.domains["sw_x"]
+        aug_span = switch.domains["aug"]
         for state, strands in tubes.items():
             # Pooled, not the bare matrix: state 11 has three strands and therefore two
             # orderings, and in "switch&B&A" trigger A's arcs cross trigger B's, so
@@ -1745,6 +1765,18 @@ class ToeholdAndGate(ToeholdGate):
             matrix = self.folder.pooled_pair_probabilities(strands)
             for name, (start, end) in spans.items():
                 observables[f"{name}_{state}"] = _mean_unpaired(matrix, start, end)
+            # Partner-aware, because "x* is open" does not say what it is open FOR.
+            # `A_S_{state}` above answers whether; these answer to whom, and this
+            # architecture's mechanism is a sequence of answers to the second question:
+            # locked with no trigger, still locked with A alone, freed by B, taken by A.
+            observables[f"xstar_locked_{state}"] = _mean_paired_to(matrix, xstar, own_arm)
+            observables[f"xstar_engA_{state}"] = (
+                0.0 if trigger_a not in strands else _mean_paired_to(matrix, xstar, a_block)
+            )
+            # The AUG's own openness: the base the ribosome has to reach. Not a restatement
+            # of `A_M`, which spans main_z through aug to main_pre and averages the bulge in
+            # with the arms, so a design with a paired AUG and open arms looks fine there.
+            observables[f"aug_{state}"] = _mean_unpaired(matrix, *aug_span)
             if state == "00":
                 toehold = switch.domains["r2_star"]
                 observables["A_r2_star_00"] = _mean_unpaired(matrix, *toehold)
@@ -3240,6 +3272,29 @@ def _filler(length: int) -> str:
     if length <= 0:
         return ""
     return (_FILLER_UNIT * (length // len(_FILLER_UNIT) + 1))[:length]
+
+
+def _mean_paired_to(
+    matrix: list[list[float]], span: tuple[int, int], partner: tuple[int, int]
+) -> float:
+    """Mean probability that each base of ``span`` is paired to **something in** ``partner``.
+
+    The partner-aware sibling of ``_mean_unpaired``, and the distinction is the point: "x* is
+    open" and "x* is bound to trigger A" are different facts, and a design can satisfy the first
+    while failing the second by refolding onto a third thing. One term per pair, because the
+    matrix is symmetric and summing both triangles would push a probability above 1.
+
+    Returns 0.0 for an empty span rather than raising: that is a caller error which should surface
+    as a visibly impossible measurement, not as an exception inside a tube loop.
+    """
+    lo, hi = span
+    if hi <= lo:
+        return 0.0
+    total = 0.0
+    for i in range(lo, hi):
+        for j in range(*partner):
+            total += matrix[i][j] if i < j else matrix[j][i]
+    return total / (hi - lo)
 
 
 def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float | None:
