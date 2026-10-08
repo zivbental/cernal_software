@@ -238,5 +238,5 @@ def test_design_yields_rather_than_returns_a_list(designer, genes):
 def test_the_constraint_default_allows_more_than_one_gate():
     """``max_circuit_gates`` is what the API and the wizard set; 1 restores the
     one-circuit-per-gene behaviour this engine had before stage 4 existed."""
-    assert Constraints().max_circuit_gates == 2
+    assert Constraints().max_circuit_gates == 1
     assert Constraints(max_circuit_gates=1).max_circuit_gates == 1

@@ -19,6 +19,13 @@ The web process handles authentication and downloads. Do not add a Caddy `/media
 file-server rule: that bypasses owner and API-scope checks. Static files are served by
 WhiteNoise after the frontend build and `collectstatic`.
 
+The supplied Caddy configuration overwrites `X-Cernal-Client-IP`. Authentication
+rate limits use it only when the immediate peer is in `AUTH_TRUSTED_PROXY_ADDRESSES`
+(loopback in the supplied environment template). Without that explicit configuration,
+the app uses the peer address; behind a proxy that would share one quota across all
+users. Never trust this header from a directly exposed listener or a proxy that simply
+passes through caller-supplied headers. Ordinary `X-Forwarded-For` is not trusted here.
+
 ## First installation
 
 1. Create the unprivileged `cernal` account, install a reviewed source revision at
@@ -76,7 +83,11 @@ run terminal; it does **not** silently repeat the scientific computation. A stal
 worker's later progress/result cannot overwrite the new terminal state.
 
 Defaults: heartbeat every 10 seconds, expiry at 120 seconds, execution deadline 3630
-seconds, queue republish after 3660 seconds. django-q2 has a 3600-second task timeout
+seconds, queue republish after 3660 seconds, and queue wait deadline 7200 seconds from
+submission (`RUN_QUEUE_TIMEOUT`). A run never claimed by any worker becomes FAILED
+with an explicit queue-wait error at reconciliation; broker retries do not reset this
+deadline. Late delivery cannot restart it. Adjust this limit deliberately for expected
+queue capacity: an overlong legitimate queue also expires. django-q2 has a 3600-second task timeout
 and 3660-second delivery retry. Keep heartbeat expiry comfortably above scheduling
 delays. Changing the timeout settings independently of Q_CLUSTER requires review.
 Reconciliation fences a stale worker; it is not itself a process killer. The queue
@@ -148,5 +159,6 @@ Local tests cover readiness responses, worker death/reconciliation, retained-imp
 recovery, backup round trips and archive corruption/path rejection. Unit templates
 receive syntax checking. A real VM reboot, public TLS renewal, disk-full behavior,
 external alerts, scheduled protected backups, a full production-size restore, and a
-human-owned incident drill remain deployment acceptance work. Native Windows receives
-portable supervisor code and a manual CI lane, but is not certified by Linux mocks.
+human-owned incident drill remain deployment acceptance work. The native Windows
+Server 2025 CI lane passed 48 supervision/lifecycle/recovery tests; launch/shutdown
+adapters in that suite use mocks. Actual process-tree crash/restart drills remain open.

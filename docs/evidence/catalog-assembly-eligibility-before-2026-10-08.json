@@ -1,0 +1,225 @@
+{
+  "catalog_manifest_sha256": "8b8871cf2a719f798c44c2478a6ae1a39ec9838072cf7e4c63548966b89f683b",
+  "comparisons": [
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidate_details": [
+        {
+          "construct_sha256": "27d533a1e204912106697560e93536560c32a9c4c669e3ad0801324d978a0b10",
+          "is_rejected": true,
+          "metrics": {
+            "circuit_complexity": 1.0,
+            "dynamic_range": 0.9697564359846577,
+            "gate_folding_energy": -44.900001525878906,
+            "gc_content": 54.54545454545455,
+            "orthogonality": null,
+            "predicted_leakage": 0.678611208635432,
+            "predicted_success_rate": 0.99999249548731,
+            "state_separation": 5.5,
+            "trigger_accessibility": 0.0010559609696253604
+          },
+          "ref": "cand-000001",
+          "rejection_reason": "homopolymer 'Gx6' (GGGGGG) at position 905; homopolymer 'Tx7' (TTTTTTT) at position 1105",
+          "warnings": [
+            "Plasmid: homopolymer 'Gx6' (GGGGGG) at position 905",
+            "Plasmid: homopolymer 'Tx7' (TTTTTTT) at position 1105"
+          ]
+        }
+      ],
+      "candidates": 1,
+      "catalog_key": "human__E-CURD-149__g3_g1",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'bacterial disease' vs 'normal'",
+      "effective_params": {
+        "backbone": {},
+        "budget": {
+          "max_designs": 1
+        },
+        "constraints": {
+          "direction_balance": true,
+          "forbidden_motifs": [],
+          "max_base_expression": null,
+          "max_circuit_gates": 1,
+          "max_genes": 3,
+          "max_p_adj": 0.05,
+          "max_separation": null,
+          "max_switch_length": 200,
+          "max_triggers": 1,
+          "min_base_expression": null,
+          "min_separation": 0.5,
+          "standard": "none",
+          "trigger_gc_range": [
+            30.0,
+            70.0
+          ],
+          "trigger_lengths": [
+            30,
+            33,
+            36
+          ]
+        },
+        "host": "human",
+        "payload": {
+          "custom_sequence": "ATGGCTGCTGCTGCTGCTTAA",
+          "outputs": [
+            "other"
+          ]
+        },
+        "statistics": {
+          "hypothesis_universe_complete": false
+        }
+      },
+      "elapsed_seconds": 38.033,
+      "error": null,
+      "organism": "human",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "55d87df07f0dec0059609d5d6f6634cac4559ae2e0a881bcdac3b9764122fc84",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 1030,
+        "selected_genes": [
+          {
+            "gene_id": "ENSG00000263503",
+            "log2_fold_change": -23.1,
+            "regulation": "down",
+            "symbol": "MAPK8IP1P2"
+          },
+          {
+            "gene_id": "ENSG00000222335",
+            "log2_fold_change": 5.5,
+            "regulation": "up",
+            "symbol": "Y_RNA"
+          },
+          {
+            "gene_id": "ENSG00000118113",
+            "log2_fold_change": 10.0,
+            "regulation": "up",
+            "symbol": "MMP8"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "Raw p-value coverage is 34%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+          "ENSG00000200648 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "17 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "ENSG00000253931",
+          "ENSG00000288266",
+          "ENSG00000227920",
+          "ENSG00000279764",
+          "ENSG00000280276",
+          "ENSG00000289830",
+          "ENSG00000232692",
+          "ENSG00000234998",
+          "ENSG00000280360",
+          "ENSG00000278266"
+        ],
+        "unmapped_rows": 134
+      },
+      "selection_elapsed_seconds": 16.732,
+      "source_checksum": "55d87df07f0dec0059609d5d6f6634cac4559ae2e0a881bcdac3b9764122fc84",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-CURD-149/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 16.732,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 16.733,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 33.841,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 37.97,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 37.975,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 38.022,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 38.022,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "Human expression constructs use a CMV promoter and hGH polyadenylation signal. Mammalian expression and switch activity are computational predictions, not wet-lab validated. The GFP payload is not human-codon-optimized.",
+        "No restriction-based assembly standard is selected for this Human construct; cloning overlaps and a wet-lab assembly protocol have not been designed.",
+        "No backbone supplied: this is a Human expression cassette. Supply a custom mammalian GenBank backbone to assemble a complete vector.",
+        "Raw p-value coverage is 34%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "ENSG00000200648 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "17 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: Y_RNA, log2FC=5.50); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    }
+  ],
+  "complete": true,
+  "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+  "engine_version": "local-0.10.0-scientific-qa",
+  "expected_comparisons": 1,
+  "interpretation": "Bounded local DE source-path smoke; selected_genes is the pre-inversion stage-1 shortlist. Down signatures cannot activate a production toehold without an unimplemented physical inverter. Unknown source hypothesis-universe completeness is declared false. Zero candidates on succeeded computations is a valid empty outcome. Neither candidate counts nor study titles establish disease selectivity or wet-lab efficacy. No C. acnes public comparison is bundled.",
+  "params": {
+    "backbone": {},
+    "budget": {
+      "max_designs": 1
+    },
+    "constraints": {
+      "max_genes": 3
+    },
+    "payload": {
+      "custom_sequence": "ATGGCTGCTGCTGCTGCTTAA",
+      "outputs": [
+        "other"
+      ]
+    },
+    "statistics": {
+      "hypothesis_universe_complete": false
+    }
+  },
+  "recorded_at": "2026-10-08T16:03:57.169202+00:00",
+  "schema": "cernal-catalog-smoke-v1",
+  "seed": 42
+}

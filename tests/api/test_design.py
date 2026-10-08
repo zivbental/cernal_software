@@ -46,6 +46,7 @@ def test_resolved_echoes_every_default(client, design_key):
     assert resolved["scoring_profile"] == "default"
     assert "toehold" in resolved["gate_families"]
     assert resolved.get("seed") is None
+    assert resolved["payload"] == {"outputs": ["gfp"], "optimize_codons": False}
 
 
 def test_response_carries_poll_and_results_urls(client, design_key):
@@ -61,6 +62,9 @@ def test_estimate_is_present_and_rough(client, design_key):
 
     assert body["estimate"]["designs"] > 0
     assert body["estimate"]["confidence"] in ("rough", "very rough")
+    assert body["estimate"].get("seconds") is None
+    assert body["estimate"]["runtime_calibrated"] is False
+    assert body["estimate"]["designs"] <= body["estimate"]["candidate_upper_bound"]
 
 
 # --- Input resolution --------------------------------------------------------------
@@ -355,3 +359,23 @@ def test_get_design_results_carries_metrics(client, design_key, completed_run):
     ).json()
 
     assert body["candidates"][0]["metrics"], "decomposition should be embedded"
+
+
+@pytest.mark.parametrize("dry_run", ["true", "false"])
+def test_estimate_respects_design_budget_and_output_cross_product(client, design_key, dry_run):
+    response = _post(
+        client,
+        design_key,
+        {
+            "trigger_sequence": TRIGGER,
+            "organism": "ecoli",
+            "budget": {"max_designs": 1},
+            "payload": {"outputs": ["gfp", "other"], "custom_sequence": "ATGGCTGCTTAA"},
+        },
+        dry_run=dry_run,
+    )
+    assert response.status_code in (200, 202), response.content
+    estimate = response.json()["estimate"]
+    assert estimate["designs"] == estimate["candidate_upper_bound"] == 2
+    assert estimate.get("seconds") is None
+    assert estimate["runtime_calibrated"] is False

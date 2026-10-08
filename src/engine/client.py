@@ -11,6 +11,7 @@ An expected scientific failure is **data**: the engine returns a ``JobResult`` w
 Cancellation returns ``status="cancelled"``.
 """
 
+import copy
 import dataclasses
 import importlib
 from collections.abc import Callable
@@ -186,6 +187,7 @@ def inspect_expression_input(path: str, limit: int | None = 100) -> dict:
             "Tested hypothesis universe is unspecified; raw p-values do not establish FDR control."
         ],
         "columns": columns,
+        "detected_columns": dict(table.detected_columns),
         "row_count": table.source_row_count,
         "preview": [
             {key: getattr(row, fields.get(key, key)) for key in columns}
@@ -213,15 +215,18 @@ def validate_job_configuration(
         _resolve_outputs,
     )
     from engine.scoring.profiles import resolve_profile
+    from engine.stages.plasmids import validate_backbone_insertion
 
     if not isinstance(params, dict):
         raise ValueError("params must be an object.")
+    if "scientific_provenance" in params:
+        raise ValueError("scientific_provenance is engine-generated metadata, not a parameter.")
     if input_mode not in ("direct", "de", "gene"):
         raise ValueError("input_mode must be direct, de, or gene.")
     for block in ("constraints", "payload", "backbone", "scoring", "statistics", "target_gene"):
         if block in params and not isinstance(params[block], dict):
             raise ValueError(f"params.{block} must be an object.")
-    budget = params.get("budget") or {}
+    budget = params.get("budget", {})
     if not isinstance(budget, dict) or set(budget) - {"max_designs"}:
         raise ValueError("budget supports only max_designs (integer 1..1000).")
     max_designs = budget.get("max_designs", 20)
@@ -231,7 +236,14 @@ def validate_job_configuration(
         or not 1 <= max_designs <= 1000
     ):
         raise ValueError("budget.max_designs must be an integer between 1 and 1000.")
-    host_values = [v for v in (organism, params.get("host"), params.get("organism")) if v]
+    selections = [organism, *(params[key] for key in ("host", "organism") if key in params)]
+    if any(not isinstance(value, str) for value in selections):
+        raise ValueError("organism/host selections must be strings.")
+    if not isinstance(gate_families, list) or any(
+        not isinstance(name, str) for name in gate_families
+    ):
+        raise ValueError("gate_families must be a list of family names.")
+    host_values = [value for value in selections if value]
     if len(set(host_values)) > 1:
         raise ValueError("Conflicting organism/host selections are not allowed.")
     payload = params.get("payload") or {}
@@ -242,6 +254,8 @@ def validate_job_configuration(
         or len(set(payload["outputs"])) != len(payload["outputs"])
     ):
         raise ValueError("payload.outputs must be a nonempty list of unique output identifiers.")
+    if "optimize_codons" in payload and not isinstance(payload["optimize_codons"], bool):
+        raise ValueError("payload.optimize_codons must be a boolean.")
     statistics = params.get("statistics") or {}
     if "hypothesis_universe_complete" in statistics and not isinstance(
         statistics["hypothesis_universe_complete"], bool
@@ -278,21 +292,45 @@ def validate_job_configuration(
         outputs, warnings = _resolve_outputs(params, host)
         if warnings or not outputs:
             raise ValueError("; ".join(warnings) or "No supported output requested.")
-        _resolve_backbone(params)
-        if host is Host.HUMAN and (params.get("backbone") or {}).get("catalog_key"):
-            raise ValueError("Bundled bacterial backbones are incompatible with Human expression.")
+        backbone_segments = _resolve_backbone(params)
+        insertion = (params.get("backbone") or {}).get("insertion_index", 0)
+        if (
+            isinstance(insertion, bool)
+            or not isinstance(insertion, int)
+            or not 0 <= insertion <= sum(segment.length_bp for segment in backbone_segments)
+        ):
+            raise ValueError(
+                "backbone.insertion_index must be a 0-based boundary within the vector."
+            )
+        validate_backbone_insertion(backbone_segments, insertion)
+        if host is not Host.ECOLI and (params.get("backbone") or {}).get("catalog_key"):
+            raise ValueError(
+                "Catalog vectors are currently supported only for E. coli; provide an explicit "
+                "custom vector/cassette for mammalian, yeast or C. acnes context."
+            )
         if input_mode == "direct":
             normalized = normalize_trigger_sequence(trigger_sequence)
             if len(normalized) > 10_000:
                 raise ValueError("Trigger sequence exceeds the 10,000-nucleotide compute limit.")
     except (EngineError, TypeError, KeyError) as exc:
         raise ValueError(str(exc)) from exc
-    return {
+    normalized = {
         **params,
         "host": host.value,
+        "payload": {
+            **payload,
+            "outputs": [outcome.value for outcome in outputs],
+            "optimize_codons": payload.get("optimize_codons", False),
+        },
+        **(
+            {"backbone": {**params["backbone"], "insertion_index": insertion}}
+            if backbone_segments
+            else {}
+        ),
         "constraints": dataclasses.asdict(constraints),
         "budget": {"max_designs": max_designs},
     }
+    return copy.deepcopy(normalized)
 
 
 def _installed_capabilities(engine_version: str) -> EngineCapabilities:
@@ -301,7 +339,7 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
     from engine.gates.registry import describe_families, get_family
     from engine.pipeline import _UNBUILDABLE_FAMILIES, MAX_TRIGGER_LENGTH
     from engine.scoring.profiles import DEFAULT_V1, available_profiles
-    from engine.stages.plasmids import BACKBONES
+    from engine.stages.plasmids import BACKBONES, PAYLOAD_HOSTS
 
     return EngineCapabilities(
         engine_version=engine_version,
@@ -316,11 +354,17 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
             for f in describe_families()
             if f.available and f.name not in _UNBUILDABLE_FAMILIES
         },
-        supported_outputs=["gfp", "other"],
+        supported_outputs=[outcome.value for outcome in PAYLOAD_HOSTS],
+        output_hosts={
+            outcome.value: [host.value for host in hosts]
+            for outcome, hosts in PAYLOAD_HOSTS.items()
+        },
+        backbone_hosts={key: ["ecoli"] for key in BACKBONES},
         input_modes=["direct", "de", "gene"],
         limits={
             "max_trigger_length": MAX_TRIGGER_LENGTH,
             "max_de_rows": 200_000,
+            "max_payload_length": 2000,
             "max_designs_default": 20,
             "max_designs_limit": 1000,
             "max_circuit_gates": 1,
@@ -374,7 +418,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.10.0-scientific-qa"
+    ENGINE_VERSION = "local-0.11.0-scientific-qa"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

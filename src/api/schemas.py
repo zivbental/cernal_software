@@ -470,7 +470,9 @@ class DesignIn(Schema):
 
 class DesignEstimateOut(Schema):
     designs: int
-    seconds: float
+    seconds: float | None = Field(default=None, description="Unknown until runtime calibration.")
+    runtime_calibrated: bool = False
+    candidate_upper_bound: int
     confidence: str = Field(description='"rough" or "very rough" — never a guarantee.')
 
 
@@ -579,6 +581,8 @@ class VersionOut(Schema):
     supported_hosts: list[str] = Field(default_factory=list)
     family_hosts: dict[str, list[str]] = Field(default_factory=dict)
     supported_outputs: list[str] = Field(default_factory=list)
+    output_hosts: dict[str, list[str]] = Field(default_factory=dict)
+    backbone_hosts: dict[str, list[str]] = Field(default_factory=dict)
     input_modes: list[str] = Field(default_factory=list)
     limits: dict = Field(default_factory=dict)
     constraints: dict = Field(default_factory=dict)

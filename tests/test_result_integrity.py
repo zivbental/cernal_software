@@ -155,7 +155,8 @@ def test_zip_streams_complete_archive_from_spooled_storage(auth_client, run, tmp
         assert archive.testzip() is None
 
 
-def test_failed_finalization_rolls_back_rows_and_artifact_bytes(run, tmp_path, media_root):
+@pytest.mark.parametrize("failure", [RuntimeError, SystemExit, KeyboardInterrupt])
+def test_failed_finalization_rolls_back_rows_and_artifact_bytes(run, tmp_path, media_root, failure):
     callbacks = []
 
     def prepare():
@@ -165,9 +166,9 @@ def test_failed_finalization_rolls_back_rows_and_artifact_bytes(run, tmp_path, m
     def finalize():
         callbacks.append("finalize")
         assert run.artifacts.count() == 2
-        raise RuntimeError("injected terminal transition failure")
+        raise failure("injected terminal transition failure")
 
-    with pytest.raises(RuntimeError, match="terminal transition"):
+    with pytest.raises(failure, match="terminal transition"):
         import_job_result(run, empty_result(run), tmp_path, prepare=prepare, finalize=finalize)
     assert callbacks == ["prepare", "finalize"]
     assert not run.artifacts.exists()

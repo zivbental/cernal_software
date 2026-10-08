@@ -45,12 +45,17 @@ def make_request(tmp_path, dataset):
             "input_path": str(dataset),
             "input_checksum": hashlib.sha256(DATASET_CONTENT.encode()).hexdigest(),
             "organism": "E. coli",
-            "params": {},
+            "params": {
+                "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                "budget": {"max_designs": 3},
+            },
             "gate_families": ["toehold"],
             "scoring_profile": "default",
             "seed": 7,
             "output_dir": output_dir,
         }
+        if isinstance(overrides.get("params"), dict):
+            overrides["params"] = {**defaults["params"], **overrides["params"]}
         defaults.update(overrides)
         return JobRequest(**defaults)
 

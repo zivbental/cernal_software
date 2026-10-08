@@ -142,9 +142,9 @@ def test_deseq2_column_names_are_recognised(auth_client, media_root):
 
     assert body["validation_status"] == "VALID"
     detected = body["validation_report"]["detected_columns"]
-    assert detected["gene_id"] == "gene_id"
-    assert detected["log2fc"] == "log2fc"
-    assert detected["base_mean"] == "base_mean"
+    assert detected["gene"] == "gene_id"
+    assert detected["log2FoldChange"] == "log2fc"
+    assert detected["baseMean"] == "base_mean"
 
 
 def test_gene_id_and_gene_symbol_are_kept_as_separate_columns(auth_client, media_root):
@@ -165,7 +165,7 @@ def test_a_bare_symbol_column_is_recognised_as_gene_symbol_not_gene_id(auth_clie
     body = _upload(auth_client, csv_text, "public2.csv").json()
 
     detected = body["validation_report"]["detected_columns"]
-    assert detected["gene_symbol"] == "gene_symbol"
+    assert detected["symbol"] == "gene_symbol"
 
 
 def test_an_xlsx_upload_is_parsed(auth_client, media_root):
@@ -202,7 +202,7 @@ def test_an_unrecognised_expression_column_names_what_is_accepted(auth_client, m
     body = _upload(auth_client, "gene_id,notes\nlacZ,hello\n", "de.csv").json()
 
     assert body["validation_status"] == "INVALID"
-    assert any("log2fc" in e for e in body["validation_report"]["errors"])
+    assert any("log2FoldChange" in e for e in body["validation_report"]["errors"])
 
 
 # --- Run listing --------------------------------------------------------------------

@@ -53,23 +53,35 @@ function CompilePage() {
 
   const [config, setConfig] = useState<CompileConfig>(DEFAULT_CONFIG);
   const [idempotencyKey] = useState(newIdempotencyKey);
-  const patch = (p: Partial<CompileConfig>) => setConfig((c) => ({ ...c, ...p }));
+  const patch = (p: Partial<CompileConfig>) => setConfig((c) => {
+    const next = { ...c, ...p };
+    if (p.organism && version.data) {
+      const allowed = version.data.supported_outputs.filter((output) =>
+        (version.data!.output_hosts?.[output] ?? version.data!.supported_hosts).includes(p.organism!));
+      next.outputs = next.outputs.filter((output) => allowed.includes(output));
+      if (next.outputs.length === 0 && allowed.includes("gfp")) next.outputs = ["gfp"];
+    }
+    return next;
+  });
 
   // Memoized so the blocker useMemo below is not invalidated on every render.
   const families = useMemo(() => version.data?.gate_families ?? [], [version.data]);
-  const backbones = useMemo(() => version.data?.available_backbones ?? [], [version.data]);
+  const backbones = useMemo(() => (version.data?.available_backbones ?? []).filter((backbone) =>
+    (version.data?.backbone_hosts?.[backbone.key] ?? ["ecoli"]).includes(config.organism)), [version.data, config.organism]);
+  const supportedOutputs = useMemo(() => (version.data?.supported_outputs ?? []).filter((output) =>
+    (version.data?.output_hosts?.[output] ?? version.data?.supported_hosts ?? []).includes(config.organism)), [version.data, config.organism]);
 
   const blocker = useMemo(() => {
     if (!version.data?.family_hosts || !version.data?.supported_outputs)
       return "Capability information is unavailable. Reload before submitting.";
     if (!(version.data.family_hosts[config.mechanism] ?? []).includes(config.organism))
       return "This mechanism is unavailable for the selected organism in the production pipeline.";
-    if (config.outputs.some((output) => !version.data!.supported_outputs.includes(output)))
-      return "One or more selected outputs have no supported payload. Choose GFP or a valid custom coding sequence.";
+    if (config.outputs.some((output) => !supportedOutputs.includes(output)))
+      return "One or more selected outputs have no supported payload. Choose an output supported for the selected organism.";
     if (config.maxCircuitGates > (version.data.limits?.max_circuit_gates ?? 1))
       return "Physical multi-gate compilation is unavailable. Choose one gate per circuit.";
-    if (config.organism === "human" && !["none", "custom"].includes(config.backbone))
-      return "For Human expression, choose no backbone or upload a custom mammalian GenBank backbone.";
+    if (!["none", "custom"].includes(config.backbone) && !backbones.some((backbone) => backbone.key === config.backbone))
+      return "Choose a backbone supported for this organism, a custom GenBank vector, or a cassette without a backbone.";
     if (config.inputMode === "de") {
       if (!config.datasetId) return "Choose a public dataset, or upload your own, to analyse.";
       const chosen = datasets.data?.find((d) => d.id === config.datasetId);
@@ -92,8 +104,10 @@ function CompilePage() {
       return "Paste a sequence for your custom output, or deselect it.";
     if (config.backbone === "custom" && config.customBackboneGenbank.length < 10)
       return "Upload a GenBank file for your custom backbone, or choose a catalog vector.";
+    if (config.backbone === "custom" && (config.customBackboneInsertion.trim() === "" || !Number.isSafeInteger(Number(config.customBackboneInsertion)) || Number(config.customBackboneInsertion) < 0))
+      return "Choose a nonnegative integer insertion boundary for your custom vector.";
     return null;
-  }, [config, datasets.data, families, version.data]);
+  }, [config, datasets.data, families, version.data, backbones, supportedOutputs]);
 
   const failed = upload.error ?? useExample.error;
   const uploadError =
@@ -116,6 +130,7 @@ function CompilePage() {
       payload: {
         outputs: config.outputs,
         custom_sequence: parseSequence(config.customPayload).sequence || null,
+        optimize_codons: config.optimizePayloadCodons,
       },
       // A per-run override of the scoring profile's hard filters (engine.scoring
       // X7), not engine.domain.Constraints — see CompileConfig's own docstring.
@@ -144,7 +159,7 @@ function CompilePage() {
     };
 
     if (config.backbone === "custom") {
-      params.backbone = { custom_genbank: config.customBackboneGenbank };
+      params.backbone = { custom_genbank: config.customBackboneGenbank, insertion_index: Number(config.customBackboneInsertion) };
     } else if (config.backbone !== "none") {
       params.backbone = { catalog_key: config.backbone };
     }
@@ -214,7 +229,7 @@ function CompilePage() {
 
         <StepLogic config={config} patch={patch} families={families.map((family) => ({ ...family, available: family.available && (version.data?.family_hosts[family.name] ?? []).includes(config.organism) }))} />
 
-        <StepPayload config={config} patch={patch} supportedOutputs={version.data?.supported_outputs ?? []} />
+        <StepPayload config={config} patch={patch} supportedOutputs={supportedOutputs} />
 
         <StepVector config={config} patch={patch} backbones={backbones} />
 
