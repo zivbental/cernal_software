@@ -307,13 +307,13 @@ def test_unprovisioned_screening_writes_audits_and_withholds_sequence_exports(
 
 
 def test_an_unconfigured_output_fails_the_whole_run_cleanly(direct_request, always_continue):
-    """mCherry has no catalog entry yet (docs/ROADMAP.md Q11) — the same "none of the
+    """Apoptosis has no approved catalog entry yet (docs/ROADMAP.md Q11) — the same "none of the
     requested X could be built" pattern already used for gate families."""
-    request = direct_request(params={"payload": {"outputs": ["mcherry"]}})
+    request = direct_request(params={"payload": {"outputs": ["apoptosis"]}})
     result = LocalEngine().run(request, always_continue)
 
     assert result.status == "failed"
-    assert "mcherry" in result.error.lower() or "Q11" in result.error
+    assert "apoptosis" in result.error.lower() or "Q11" in result.error
 
 
 def test_an_unknown_output_string_is_a_clean_failure(direct_request, always_continue):
@@ -340,10 +340,10 @@ def test_mixed_outputs_reject_unsupported_output_without_silent_skipping(
     direct_request, always_continue
 ):
     result = LocalEngine().run(
-        direct_request(params={"payload": {"outputs": ["gfp", "mcherry"]}}), always_continue
+        direct_request(params={"payload": {"outputs": ["gfp", "apoptosis"]}}), always_continue
     )
     assert result.status == FAILED
-    assert "mcherry" in result.error
+    assert "apoptosis" in result.error
     assert not result.candidates
 
 
@@ -848,7 +848,7 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
 
 def test_human_construction_bumps_engine_version():
-    assert LocalEngine.ENGINE_VERSION.startswith("local-0.10.0")
+    assert LocalEngine.ENGINE_VERSION.startswith("local-0.11.0")
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(
@@ -1006,3 +1006,27 @@ def test_c_acnes_is_prokaryotic_and_gets_the_collaborators_codon_table(direct_re
     assert versions["codon_table"].startswith("ais-china/atcc6919_GCF_008728435.1@"), versions
     # And the other three hosts must not pay for it.
     assert build_tools(direct_request(), Host.ECOLI)["aisc"] is None
+
+
+@pytest.mark.parametrize("output", ["mcherry", "luciferase"])
+def test_pinned_reporter_runs_actual_full_payload_context(direct_request, always_continue, output):
+    request = direct_request(
+        params={
+            "payload": {"outputs": [output]},
+            "budget": {"max_designs": 1},
+            "constraints": {"standard": "none"},
+        }
+    )
+    result = LocalEngine().run(request, always_continue)
+    assert result.status == "succeeded", result.error
+    assert result.candidates
+    for candidate in result.candidates:
+        assert candidate.design["payload_id"] == output
+        assert candidate.design["payload_source"]["source_revision"]
+        assert candidate.design["payload_source"]["sequence_sha256"]
+        assert candidate.design["evaluation_context"].startswith("full_switch_plus_payload")
+        assert (
+            next(m.raw_value for m in candidate.metrics if m.name == "predicted_success_rate")
+            is not None
+        )
+        assert candidate.design["payload_optimization"] == {"status": "not_requested"}

@@ -13,12 +13,14 @@ ones (every other host/outcome), since both are load-bearing behaviour.
 """
 
 import io
+import json
 import re
 
 import pytest
 import sbol3
 from Bio import SeqIO
 
+from engine import sequences as sq
 from engine.domain import (
     AssemblyStandard,
     BooleanExpression,
@@ -174,13 +176,13 @@ def test_payload_segment_looks_up_the_configured_gfp(builder):
 
 
 def test_payload_segment_refuses_an_unconfigured_outcome(builder):
-    with pytest.raises(InputValidationError, match="mcherry"):
-        builder.payload_segment(DesiredOutcome.MCHERRY)
+    with pytest.raises(InputValidationError, match="apoptosis"):
+        builder.payload_segment(DesiredOutcome.APOPTOSIS)
 
 
 def test_payload_segment_names_what_is_configured_in_the_error(builder):
     with pytest.raises(InputValidationError, match="gfp"):
-        builder.payload_segment(DesiredOutcome.LUCIFERASE)
+        builder.payload_segment(DesiredOutcome.APOPTOSIS)
 
 
 def test_payload_segment_refuses_custom_directly(builder):
@@ -689,17 +691,56 @@ def test_custom_backbone_features_survive_coordinate_insertion():
     assert design.insertion_index == 20
     assert design.assembly_method == "sequence_insertion"
     assert design.assembly_notes
-    unsafe = PlasmidBuilder(
-        MotifScreener(AssemblyStandard.NONE),
-        CodonOptimizer(Host.ECOLI),
-        AssemblyStandard.NONE,
-        (segment,),
-        insertion_index=50,
-    )
     with pytest.raises(InputValidationError, match="disrupts"):
-        unsafe.build(_circuit(), DesiredOutcome.GFP)
+        PlasmidBuilder(
+            MotifScreener(AssemblyStandard.NONE),
+            CodonOptimizer(Host.ECOLI),
+            AssemblyStandard.NONE,
+            (segment,),
+            insertion_index=50,
+        )
 
 
 def test_payload_compute_limit_precedes_thermodynamic_work():
     with pytest.raises(InputValidationError, match="compute limit"):
         validate_payload_cds("enormous", "ATG" + "GCT" * 1000 + "TAA")
+
+
+@pytest.mark.parametrize("host", list(Host))
+@pytest.mark.parametrize("outcome", [DesiredOutcome.MCHERRY, DesiredOutcome.LUCIFERASE])
+def test_pinned_reporters_compile_for_each_computational_host(make_request, host, outcome):
+    from engine.pipeline import build_tools
+
+    tools = build_tools(make_request(organism=host.value), host)
+    assembled = tools["plasmid_builder"].build(_circuit(host=host), outcome)
+    _, original = PAYLOADS[outcome]
+    combined = assembled.coding_regions[0][3]
+    assert combined.endswith(sq.translate(sq.to_rna(original[3:]), stop_at_stop=True))
+    assert not assembled.eligibility_violations
+
+
+@pytest.mark.parametrize("host", list(Host))
+def test_opt_in_codon_rewrite_preserves_protein_and_records_exact_mutations(make_request, host):
+    from engine.pipeline import build_tools
+
+    builder = build_tools(
+        make_request(
+            organism=host.value,
+            params={"payload": {"optimize_codons": True}, "constraints": {"standard": "RFC10"}},
+        ),
+        host,
+    )["plasmid_builder"]
+    original = "ATGGAATTCTAA"
+    compiled = builder.build(_circuit(host=host), DesiredOutcome.CUSTOM, custom_payload=original)
+    provenance = json.loads(compiled.payload_optimization)
+    assert provenance["status"] == "synonymous_variant_selected"
+    assert provenance["protein_preserved"]
+    assert provenance["codons_changed"] >= 1
+    assert provenance["original_sha256"] != provenance["optimized_sha256"]
+    payload = next(s for s in compiled.plasmid.segments if s.kind is SegmentKind.PAYLOAD)
+    assert sq.translate("AUG" + sq.to_rna(payload.sequence), stop_at_stop=False) == sq.translate(
+        sq.to_rna(original), stop_at_stop=False
+    )
+    assert builder.screener.is_compliant(payload.sequence)
+    again = builder.build(_circuit(host=host), DesiredOutcome.CUSTOM, custom_payload=original)
+    assert again.payload_optimization == compiled.payload_optimization

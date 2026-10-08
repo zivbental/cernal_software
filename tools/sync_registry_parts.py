@@ -151,6 +151,8 @@ def main() -> int:
             "uuid": part["uuid"],
             "url": PART_URL.format(slug=part.get("slug", "")),
             "title": part.get("title") or "",
+            "source_revision": (part.get("audit") or {}).get("updated") or "",
+            "source_origin": part.get("source") or "",
             "role_accession": role.get("accession") or "",
             "role_label": role.get("label") or "",
             "topology_accession": topology.get("accession") or "",

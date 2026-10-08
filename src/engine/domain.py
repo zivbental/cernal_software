@@ -850,6 +850,7 @@ class PlasmidDesign:
     insertion_index: int | None = None
     assembly_method: str = "expression_cassette"
     assembly_notes: tuple[str, ...] = ()
+    payload_optimization: str = ""
     eligibility_violations: tuple[str, ...] = ()
 
     @property

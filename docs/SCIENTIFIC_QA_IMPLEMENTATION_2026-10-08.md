@@ -16,7 +16,12 @@ construct digest and linear/circular topology are recorded. Full switch plus att
 payload RNA, excluding promoter and terminator, is thermodynamically evaluated separately
 for each requested output. Multiple outputs mean independent alternatives, with the
 cross-product of retained gate designs and requested payloads. They do not mean
-co-expression. Codon optimization is not silently inferred from tool construction.
+co-expression. Codon optimization is opt-in through `params.payload.optimize_codons` (boolean,
+default false), selects one clean synonymous variant with the shared host optimizer,
+and records original/optimized digests, changed codon count, seed and unresolved
+constraints. Protein sequence preservation is independently checked by the optimizer;
+it does not establish expression efficacy. The same exact optimized CDS is folded
+and assembled. Incompatible embedded payload heads fail explicitly.
 
 The default budget is 20 validated gate designs, selectable by
 `params.budget.max_designs` (integer 1..1000). It caps gates before the payload
@@ -76,8 +81,8 @@ sequence-release certification; its disclosure scope still needs the release own
 - ENG-06/07 and GAP-03: geometry/defect and binding/accessibility calculations require
   independent held-out functional assays to justify biological thresholds/calibration.
   Trailing-Kozak accessibility interpretation specifically needs scientific review.
-- ENG-08: codon optimization and mutation provenance remain explicit optional stages to
-  integrate. Payload fusion is the defined computational product; preservation of native
+- ENG-08: opt-in codon optimization and exact mutation provenance are integrated.
+  Payload fusion is the defined computational product; preservation of native
   protein function despite the fusion is experimentally unvalidated.
 - ENG-10: custom GenBank annotations, strands/compound locations and qualifiers are
   retained and shifted around a caller-supplied 0-based insertion boundary (default
@@ -94,9 +99,13 @@ sequence-release certification; its disclosure scope still needs the release own
 - ENG-14: HTML computational report and standalone intended-structure/logical SVGs are
   implemented. PDF generation and a deployment-owned operational release adapter remain
   unavailable. SVGs are not exported by the production report path.
-- GAP-01: GFP/custom alternatives are implemented. Approved molecule/version/host scope
-  and provenance are still required for mCherry, luciferase, specific resistance markers
-  and context-specific apoptosis. No arbitrary apoptosis sequence is substituted.
+- GAP-01: GFP/custom, pinned mCherry BioBrick variant BBa_J06504 and firefly
+  luciferase BBa_I712019 alternatives are implemented. Source revisions, identity
+  caveats and digests are retained. Host-specific sequence/frame compilation is tested;
+  one-design native mCherry/firefly cases took 6.90/56.51 seconds respectively.
+  Luciferase requires substrate/cofactors and neither reporter's activity is calibrated
+  in this N-terminal fusion. Specific resistance CDSs and context-specific apoptosis
+  remain pending source/specification work. No arbitrary apoptosis sequence is substituted.
 - GAP-02: no transcriptome specificity/orthogonality subsystem or independent benchmark
   exists yet. Required specification: intended interactions, background RNA universe,
   versions/isoforms, negative/positive controls, timeouts and host scope. An empty

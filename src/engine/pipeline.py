@@ -113,6 +113,7 @@ from engine.stages.plasmids import (
     PROMOTERS,
     TERMINATORS,
     PlasmidBuilder,
+    load_registry_catalog,
     parse_custom_backbone,
     to_genbank,
     to_sbol3,
@@ -256,6 +257,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
             constraints.standard,
             backbone,
             insertion_index=(request.params.get("backbone") or {}).get("insertion_index", 0),
+            optimize_codons=(request.params.get("payload") or {}).get("optimize_codons", False),
         ),
         "constraints": constraints,
     }
@@ -550,7 +552,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             candidates,
             warnings,
             request.output_dir,
-            engine_version="local-0.10.0-scientific-qa",
+            engine_version="local-0.11.0-scientific-qa",
             profile_version=profile.version,
         )
     )
@@ -1573,7 +1575,16 @@ def _candidate_result(
             "structural_rule_version": "syntax-and-ensemble-v1-no-functional-threshold",
             "maturity": "computational_single_input_compiled_experimental_unvalidated",
             "orthogonality_status": "unmeasured",
+            "payload_optimization": json.loads(plasmid.payload_optimization)
+            if plasmid.payload_optimization
+            else {"status": "not_requested"},
+            "assembly_method": plasmid.assembly_method,
+            "insertion_index": plasmid.insertion_index,
+            "assembly_notes": list(plasmid.assembly_notes),
             "payload_id": outcome.value,
+            "payload_source": load_registry_catalog().get(
+                next(s.name for s in plasmid.plasmid.segments if s.kind is SegmentKind.PAYLOAD), {}
+            ),
             "construct_sha256": sha256_bytes(plasmid.plasmid.sequence.encode()),
             "topology": "circular"
             if any(s.kind is SegmentKind.BACKBONE for s in plasmid.plasmid.segments)

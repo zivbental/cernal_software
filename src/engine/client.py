@@ -214,6 +214,7 @@ def validate_job_configuration(
         _resolve_outputs,
     )
     from engine.scoring.profiles import resolve_profile
+    from engine.stages.plasmids import validate_backbone_insertion
 
     if not isinstance(params, dict):
         raise ValueError("params must be an object.")
@@ -245,6 +246,8 @@ def validate_job_configuration(
         or len(set(payload["outputs"])) != len(payload["outputs"])
     ):
         raise ValueError("payload.outputs must be a nonempty list of unique output identifiers.")
+    if "optimize_codons" in payload and not isinstance(payload["optimize_codons"], bool):
+        raise ValueError("payload.optimize_codons must be a boolean.")
     statistics = params.get("statistics") or {}
     if "hypothesis_universe_complete" in statistics and not isinstance(
         statistics["hypothesis_universe_complete"], bool
@@ -291,6 +294,7 @@ def validate_job_configuration(
             raise ValueError(
                 "backbone.insertion_index must be a 0-based boundary within the vector."
             )
+        validate_backbone_insertion(backbone_segments, insertion)
         if host is Host.HUMAN and (params.get("backbone") or {}).get("catalog_key"):
             raise ValueError(
                 "Human expression requires a mammalian vector; bundled backbones are bacterial."
@@ -304,6 +308,7 @@ def validate_job_configuration(
     return {
         **params,
         "host": host.value,
+        "payload": {**payload, "outputs": [outcome.value for outcome in outputs]},
         "constraints": dataclasses.asdict(constraints),
         "budget": {"max_designs": max_designs},
     }
@@ -330,7 +335,7 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
             for f in describe_families()
             if f.available and f.name not in _UNBUILDABLE_FAMILIES
         },
-        supported_outputs=["gfp", "other"],
+        supported_outputs=["gfp", "mcherry", "luciferase", "other"],
         input_modes=["direct", "de", "gene"],
         limits={
             "max_trigger_length": MAX_TRIGGER_LENGTH,
@@ -389,7 +394,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.10.0-scientific-qa"
+    ENGINE_VERSION = "local-0.11.0-scientific-qa"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.
