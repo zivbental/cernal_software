@@ -22,7 +22,6 @@ from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.stages.motifs import MotifScreener
-from engine.stages.off_target import OffTargetScanner
 from engine.stages.switches import SwitchDesigner, SwitchValidator, _windows_overlap
 
 # A sequence whose reverse-complement-built switch does not echo extra AUGs —
@@ -41,8 +40,6 @@ def _trigger(**overrides) -> TriggerCandidate:
         "openness": 0.6,
         "accessibility": 0.5,
         "mfe": -5.0,
-        "off_target_penalty": 0.0,
-        "segment_specificity": 1.0,
         "gc_content": 45.0,
     }
     defaults.update(overrides)
@@ -62,9 +59,7 @@ def toehold_gate(folder):
 
 @pytest.fixture
 def validator(folder):
-    return SwitchValidator(
-        folder, OffTargetScanner({}), MotifScreener(), TranslationScorer(Host.ECOLI), Constraints()
-    )
+    return SwitchValidator(folder, MotifScreener(), TranslationScorer(Host.ECOLI), Constraints())
 
 
 # --- SwitchDesigner.build_trigger_sets ----------------------------------------------
@@ -188,7 +183,7 @@ def test_on_incompatible_receives_the_reason_instead_of_it_being_dropped(toehold
     (docs/triggers.md T3)."""
     designer = SwitchDesigner([toehold_gate], validator, Host.ECOLI)
     first = _trigger(trigger_id="trig-1", gene_id="g1")
-    second = _trigger(trigger_id="trig-2", gene_id="g2")
+    second = _trigger(trigger_id="trig-2", gene_id="g2", log2_fold_change=-2.0)
     reasons: list[str] = []
 
     designs = list(designer.design([first, second], Constraints(), on_incompatible=reasons.append))
@@ -240,6 +235,8 @@ def _design(**overrides) -> GateDesign:
         "architecture": {"aug_index": 0},
     }
     defaults.update(overrides)
+    if "dot_bracket" not in overrides:
+        defaults["dot_bracket"] = "." * len(defaults["sequence"])
     return GateDesign(**defaults)
 
 
@@ -253,7 +250,6 @@ def test_a_clean_design_passes(validator):
 def test_length_over_the_constraint_is_rejected(folder):
     validator = SwitchValidator(
         folder,
-        OffTargetScanner({}),
         MotifScreener(),
         TranslationScorer(Host.ECOLI),
         Constraints(max_switch_length=10),
@@ -325,7 +321,6 @@ def test_every_violation_is_collected_not_just_the_first(folder):
     at once (the class's own docstring)."""
     validator = SwitchValidator(
         folder,
-        OffTargetScanner({}),
         MotifScreener(),
         TranslationScorer(Host.ECOLI),
         Constraints(max_switch_length=5),

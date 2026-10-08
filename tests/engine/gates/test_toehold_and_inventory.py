@@ -140,8 +140,6 @@ def _candidate(name: str, sequence: str, start: int) -> TriggerCandidate:
         openness=0.5,
         accessibility=0.5,
         mfe=-10.0,
-        off_target_penalty=0.0,
-        segment_specificity=1.0,
         gc_content=50.0,
     )
 

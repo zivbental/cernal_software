@@ -8,9 +8,12 @@ family and scoring profile choices — the in-process form of design map 08's
 from dataclasses import asdict
 
 from django.conf import settings
+from django.db import DatabaseError, connection
+from django.http import JsonResponse
 from ninja import Router
 
 from api.schemas import BackboneInfoOut, GateFamilyOut, HardFilterOut, MetricInfoOut, VersionOut
+from apps.analyses.worker import worker_available
 from engine.client import load_engine
 
 router = Router()
@@ -22,6 +25,21 @@ API_SCHEMA_VERSION = "1"
 @router.get("/health", auth=None, url_name="health")
 def health(request):
     return {"status": "ok"}
+
+
+@router.get("/ready", auth=None, url_name="ready")
+def ready(request):
+    """Operational readiness for alerts; the web liveness probe remains separate."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        available = worker_available()
+    except (DatabaseError, OSError):
+        available = False
+    return JsonResponse(
+        {"status": "ready" if available else "unavailable"},
+        status=200 if available else 503,
+    )
 
 
 @router.get("/version", response=VersionOut, auth=None)
@@ -40,4 +58,13 @@ def version(request):
         available_backbones=[
             BackboneInfoOut(**asdict(b)) for b in capabilities.available_backbones
         ],
+        reviewer_login_enabled=settings.REVIEWER_LOGIN_ENABLED,
+        supported_hosts=capabilities.supported_hosts,
+        family_hosts=capabilities.family_hosts,
+        supported_outputs=capabilities.supported_outputs,
+        output_hosts=getattr(capabilities, "output_hosts", {}),
+        backbone_hosts=getattr(capabilities, "backbone_hosts", {}),
+        input_modes=capabilities.input_modes,
+        limits=capabilities.limits,
+        constraints=capabilities.constraints,
     )

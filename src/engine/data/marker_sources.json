@@ -1,0 +1,52 @@
+{
+  "AmpR": {
+    "accession": "J01749.1",
+    "coordinates": {
+      "coordinate_system": "zero_based_half_open",
+      "end": 4153,
+      "start": 3292,
+      "strand": -1
+    },
+    "functional_validation": "source protein identity only; switch fusion resistance and secretion unvalidated",
+    "length_bp": 861,
+    "protein_id": "AAB59737.1",
+    "protein_sha256": "c9c4ef97b0e66cb20b51ba90e5889a0467f8155ef356c7a5a74914f06b91d468",
+    "provider": "NCBI GenBank",
+    "retrieved_at": "2026-10-08",
+    "role_accession": "SO:0000316",
+    "sequence_sha256": "4110e9a760fe769492f2de1dde6e9488ccdbe2582ec55c5b0981ea6b3cfdfa46",
+    "source_record_sha256": "7660b0fe95a91d492b102192dc72924508a69fda762988aa0923b3d5cc2073f6",
+    "source_revision": "30-SEP-2008",
+    "supported_hosts": [
+      "ecoli"
+    ],
+    "title": "beta-lactamase",
+    "translation_table": 11,
+    "url": "https://www.ncbi.nlm.nih.gov/nuccore/J01749.1"
+  },
+  "KanR": {
+    "accession": "V00618.1",
+    "coordinates": {
+      "coordinate_system": "zero_based_half_open",
+      "end": 945,
+      "start": 150,
+      "strand": 1
+    },
+    "functional_validation": "source protein identity only; switch fusion resistance and secretion unvalidated",
+    "length_bp": 795,
+    "protein_id": "CAA23892.1",
+    "protein_sha256": "acbf1fe51a97a2e90c2bcd13adabec985a63c501fae0f2a2cfcb46258abda56e",
+    "provider": "NCBI GenBank",
+    "retrieved_at": "2026-10-08",
+    "role_accession": "SO:0000316",
+    "sequence_sha256": "a42fd60bc3bcff92d9d04581e91fe7f8536da9b87da71d5f591cd408c6fe8978",
+    "source_record_sha256": "326569fd1dc030eddeaa9d111d7436edca6e022cdf249912efe2c138cb6d9e2a",
+    "source_revision": "26-JUL-2016",
+    "supported_hosts": [
+      "ecoli"
+    ],
+    "title": "neomycin phosphotransferase",
+    "translation_table": 11,
+    "url": "https://www.ncbi.nlm.nih.gov/nuccore/V00618.1"
+  }
+}

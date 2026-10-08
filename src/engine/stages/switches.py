@@ -10,8 +10,11 @@ common** and lives here, so every chemistry is held to the same standard and a r
 fixed in one place rather than three.
 """
 
+import dataclasses
+import math
 from collections.abc import Callable, Iterable, Iterator
 from itertools import combinations
+from math import comb
 
 from engine import sequences as sq
 from engine.domain import (
@@ -22,10 +25,10 @@ from engine.domain import (
     TriggerSet,
     ValidationResult,
 )
+from engine.errors import JobCancelled
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.stages.motifs import MotifScreener
-from engine.stages.off_target import OffTargetScanner
 
 
 class SwitchDesigner:
@@ -54,6 +57,7 @@ class SwitchDesigner:
         *,
         on_incompatible: Callable[[str], None] | None = None,
         on_invalid: Callable[[str], None] | None = None,
+        on_progress: Callable[[int, int], bool] | None = None,
     ) -> Iterator[GateDesign]:
         """Yield validated switch designs.
 
@@ -106,9 +110,22 @@ class SwitchDesigner:
             scoring would be pure waste with no compensating benefit. The caller —
             ``run_pipeline`` today, ``CircuitDesigner`` once stage 4 exists — calls
             ``evaluate_design`` exactly once per surviving design, the same pattern
-            ``engine.client.MockEngine._build_candidates`` already uses.
+            the scoring layer already uses.
         """
-        for trigger_set in self.build_trigger_sets(triggers, constraints):
+        pool = list(triggers)
+        arities = {family.max_inputs for family in self.families if family.supports(self.host)}
+        total = sum(comb(len(pool), arity) for arity in arities if arity <= len(pool))
+        completed = 0
+        effective = dataclasses.replace(
+            constraints, max_triggers=min(constraints.max_triggers, max(arities, default=1))
+        )
+        for index, trigger_set in enumerate(self.build_trigger_sets(pool, effective)):
+            active = trigger_set.arity in arities
+            if on_progress is not None and (active or index % 100 == 0):
+                if not on_progress(completed, total):
+                    raise JobCancelled("Designing switches")
+            if active:
+                completed += 1
             for family in self.families:
                 if not family.supports(self.host):
                     continue
@@ -122,7 +139,9 @@ class SwitchDesigner:
                 for design in family.generate_designs(trigger_set, constraints):
                     result = self.validator.validate(design)
                     if result.ok:
-                        yield design
+                        yield dataclasses.replace(
+                            design, structure_deviation=result.structure_deviation
+                        )
                     elif on_invalid:
                         for violation in result.violations:
                             on_invalid(violation)
@@ -166,7 +185,12 @@ class SwitchDesigner:
         pool = list(triggers)
 
         for trigger in pool:
-            yield TriggerSet(activators=(trigger,))
+            down = trigger.log2_fold_change is not None and trigger.log2_fold_change < 0
+            yield (
+                TriggerSet(activators=(), repressors=(trigger,))
+                if down
+                else TriggerSet(activators=(trigger,))
+            )
 
         if constraints.max_triggers < 2:
             return
@@ -174,7 +198,15 @@ class SwitchDesigner:
         for first, second in combinations(pool, 2):
             if first.gene_id == second.gene_id and _windows_overlap(first, second):
                 continue
-            yield TriggerSet(activators=(first, second))
+            members = (first, second)
+            yield TriggerSet(
+                activators=tuple(
+                    t for t in members if t.log2_fold_change is None or t.log2_fold_change >= 0
+                ),
+                repressors=tuple(
+                    t for t in members if t.log2_fold_change is not None and t.log2_fold_change < 0
+                ),
+            )
 
 
 def _windows_overlap(a: TriggerCandidate, b: TriggerCandidate) -> bool:
@@ -198,7 +230,6 @@ class SwitchValidator:
 
     Args:
         folder: Shared ``FoldEngine``, for structural checks.
-        off_target: Shared ``OffTargetScanner``, for direction (a) on the binding site.
         screener: Shared ``MotifScreener``, for assembly-standard compliance.
         translation: Shared ``TranslationScorer``, for the initiation checks.
         constraints: The run's limits. ``max_switch_length`` comes from here, never a
@@ -210,13 +241,11 @@ class SwitchValidator:
     def __init__(
         self,
         folder: FoldEngine,
-        off_target: OffTargetScanner,
         screener: MotifScreener,
         translation: TranslationScorer,
         constraints: Constraints,
     ) -> None:
         self.folder = folder
-        self.off_target = off_target
         self.screener = screener
         self.translation = translation
         self.constraints = constraints
@@ -267,24 +296,9 @@ class SwitchValidator:
               validator must not learn: the offsets and the motif belong to the family,
               the rules belong here.
 
-        Deliberately not implemented here (docs/smoke-run.md §3, S4):
-            * **"Structure matches intent"** needs ``FoldEngine.ensemble_defect``, which
-              is itself a stub, and the only two modules allowed to fold
-              (``gates/tools/folding.py``, ``stages/folding.py``) both live under
-              ``engine/gates/`` or are this file's sibling — this branch does not touch
-              ``gates/`` at all, so this rule waits for whoever does.
-            * **"RBS in the loop only"** needs the loop's exact offset within
-              ``design.sequence`` — geometry only the generating family knows (toehold's
-              ``architecture`` and antisense's share no keys for this). Hardcoding one
-              family's layout into the shared validator would be exactly the kind of
-              silent, chemistry-specific assumption this stage exists to avoid; it
-              belongs in the family that has the geometry, not here.
-
-        Order the checks cheapest first:
-            Sequence rules are string operations; folding is milliseconds. A design
-            failing on a stop codon should never be folded — moot today since nothing
-            implemented here folds at all, but the ordering stays correct for when the
-            deferred structural rule lands.
+        Target syntax and length are required. Ensemble defect is measured as a
+        length-normalized fraction after cheap sequence checks pass; no biological
+        threshold is asserted because switching efficacy has not been calibrated.
         """
         violations: list[str] = []
 
@@ -293,6 +307,11 @@ class SwitchValidator:
                 f"switch is {len(design.sequence)} nt, over the "
                 f"{self.constraints.max_switch_length} nt limit"
             )
+
+        try:
+            self.folder.validate_target(design.sequence, design.dot_bracket)
+        except ValueError as exc:
+            violations.append(str(exc))
 
         violations.extend(str(site) for site in self.screener.violations(design.sequence))
 
@@ -367,4 +386,15 @@ class SwitchValidator:
                     f"[{low}, {high}) at {stray}"
                 )
 
-        return ValidationResult.failed(*violations) if violations else ValidationResult.passed()
+        # The defect is computed only once no violation remains: a fold spent on a design that
+        # has already failed is an answer nobody reads.
+        if violations:
+            return ValidationResult.failed(*violations)
+        defect = self.folder.ensemble_defect(design.sequence, design.dot_bracket) / len(
+            design.sequence
+        )
+        if not math.isfinite(defect) or not 0 <= defect <= 1:
+            return ValidationResult.failed(
+                "Normalized ensemble defect is nonfinite or outside [0, 1]."
+            )
+        return ValidationResult(ok=True, structure_deviation=defect)

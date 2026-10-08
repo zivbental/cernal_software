@@ -125,6 +125,7 @@ class DatasetProvenanceOut(Schema):
     retrieved_at: datetime
     analysis_method: str
     publication_doi: str
+    provider_metadata: dict = Field(default_factory=dict)
 
 
 class DatasetOut(ModelSchema):
@@ -218,6 +219,7 @@ class PublicDatasetInfoOut(Schema):
     genes_with_adjusted_p_value: int
     analysis_method: str = ""
     publication_doi: str = ""
+    provider_metadata: dict = Field(default_factory=dict)
 
 
 class MaterializePublicDatasetIn(Schema):
@@ -229,13 +231,19 @@ class MaterializePublicDatasetIn(Schema):
 
 class RunIn(Schema):
     input_mode: str = Field(
-        default="de", description="de = upload a table · direct = paste a trigger mRNA"
+        default="de",
+        description="de = expression table · direct = trigger mRNA · gene = reference gene",
     )
     dataset_id: UUID | None = Field(default=None, description="Required when input_mode is de.")
     trigger_sequence: str = Field(default="", description="Required when input_mode is direct.")
-    organism: str = Field(default="", max_length=100, description="e.g. E. coli")
+    gene_id: str = Field(default="", description="Reference gene ID or symbol for gene input.")
+    organism: str = Field(
+        default="ecoli",
+        max_length=100,
+        description="Host key: ecoli, yeast, human or c_acnes. Display names are rejected.",
+    )
     params: dict = Field(default_factory=dict)
-    gate_families: list[str] = Field(default_factory=lambda: ["toehold"])
+    gate_families: list[str] = Field(default_factory=lambda: ["toehold"], min_length=1)
     scoring_profile: str = "default"
     seed: int | None = None
     idempotency_key: str | None = Field(
@@ -257,6 +265,7 @@ class RunStatusOut(Schema):
     status: str
     stage: str
     progress_pct: int
+    worker_available: bool | None = None
     error_summary: str | None
     warnings: list[str]
     submitted_at: datetime | None
@@ -346,10 +355,12 @@ class CandidateOut(ModelSchema):
 class CandidateDetailOut(CandidateOut):
     triggers: dict
     design: dict
-    metrics: list[MetricOut]
+    metrics: list[MetricOut] | None = None
 
     @staticmethod
     def resolve_metrics(obj) -> list:
+        if not getattr(obj, "_include_metrics", True):
+            return None
         return list(obj.metrics.all())
 
 
@@ -418,12 +429,18 @@ class DesignIn(Schema):
     trigger_sequence: str = ""
     dataset_id: UUID | None = None
     dge_csv: str = ""
+    gene_id: str = ""
 
     # --- biology ---
-    organism: str = Field(default="", description="e.g. E. coli")
+    organism: str = Field(
+        default="ecoli",
+        description="Host key: ecoli, yeast, human or c_acnes. Display names are rejected.",
+    )
     payload: dict = Field(
         default_factory=dict, description='{"outputs": [...], "custom_sequence": ...}'
     )
+
+    backbone: dict = Field(default_factory=dict)
 
     # --- which chemistries may be used ---
     gate_families: list[str] | None = None
@@ -439,7 +456,7 @@ class DesignIn(Schema):
     budget: dict = Field(default_factory=dict)
 
     # --- output shaping ---
-    top_n: int = 25
+    top_n: int = Field(default=25, ge=1, le=1000)
     include_rejected: bool = False
     include_metrics: bool = True
     include_artifacts: list[str] = Field(default_factory=list)
@@ -453,22 +470,24 @@ class DesignIn(Schema):
 
 class DesignEstimateOut(Schema):
     designs: int
-    seconds: float
+    seconds: float | None = Field(default=None, description="Unknown until runtime calibration.")
+    runtime_calibrated: bool = False
+    candidate_upper_bound: int
     confidence: str = Field(description='"rough" or "very rough" — never a guarantee.')
 
 
 class DesignResolvedOut(Schema):
-    """Every default the server chose, echoed back — so a run is reproducible from its
-    response alone (docs/public-api.md §8). ``constraints`` here is exactly what the
-    caller supplied, not padded with engine-side defaults: computing those would mean
-    duplicating engine.domain.Constraints' defaults in api/, which the boundary rule
-    (architecture.md §3) forbids importing and CLAUDE.md §3 forbids re-deriving."""
+    """The effective configuration after shared engine validation and default resolution."""
 
     input_mode: str
     gate_families: list[str]
     scoring_profile: str
     seed: int | None
     constraints: dict
+    organism: str = "ecoli"
+    budget: dict = Field(default_factory=dict)
+    payload: dict = Field(default_factory=dict)
+    backbone: dict = Field(default_factory=dict)
 
 
 class DesignAcceptedOut(Schema):
@@ -558,3 +577,12 @@ class VersionOut(Schema):
     metrics: list[MetricInfoOut] = Field(default_factory=list)
     hard_filters: list[HardFilterOut] = Field(default_factory=list)
     available_backbones: list[BackboneInfoOut] = Field(default_factory=list)
+    reviewer_login_enabled: bool = False
+    supported_hosts: list[str] = Field(default_factory=list)
+    family_hosts: dict[str, list[str]] = Field(default_factory=dict)
+    supported_outputs: list[str] = Field(default_factory=list)
+    output_hosts: dict[str, list[str]] = Field(default_factory=dict)
+    backbone_hosts: dict[str, list[str]] = Field(default_factory=dict)
+    input_modes: list[str] = Field(default_factory=list)
+    limits: dict = Field(default_factory=dict)
+    constraints: dict = Field(default_factory=dict)

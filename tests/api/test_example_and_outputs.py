@@ -52,14 +52,20 @@ def test_an_example_run_completes_like_any_other(
                 {
                     "input_mode": "de",
                     "dataset_id": dataset["id"],
-                    "params": {"mock": {"candidate_count": 6}},
+                    "organism": "ecoli",
+                    "params": {
+                        "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                        "budget": {"max_designs": 3},
+                    },
                 }
             ),
             content_type="application/json",
         ).json()
 
     run_analysis(run["id"])
-    assert auth_client.get(f"/api/runs/{run['id']}").json()["status"] == "COMPLETED"
+    status = auth_client.get(f"/api/runs/{run['id']}").json()
+    assert status["status"] == "COMPLETED"
+    assert status["counts"]["candidates"] > 0
 
 
 def test_an_unknown_example_key_names_the_available_ones(auth_client):
@@ -76,7 +82,7 @@ def test_an_unknown_example_key_names_the_available_ones(auth_client):
 # --- Outputs ----------------------------------------------------------------------
 
 
-def _run_with_outputs(client, dataset, outputs, count=12):
+def _run_with_outputs(client, dataset, outputs):
     from apps.analyses.tasks import run_analysis
 
     run = client.post(
@@ -85,9 +91,10 @@ def _run_with_outputs(client, dataset, outputs, count=12):
             {
                 "input_mode": "de",
                 "dataset_id": str(dataset.id),
+                "organism": "ecoli",
                 "params": {
                     "payload": {"outputs": outputs, "custom_sequence": None},
-                    "mock": {"candidate_count": count},
+                    "budget": {"max_designs": 1},
                 },
             }
         ),
@@ -108,15 +115,20 @@ def test_the_candidate_list_says_what_each_one_expresses(
     assert all(c["output"] == "GFP" for c in items)
 
 
-def test_selecting_several_outputs_produces_plasmids_for_each(
-    auth_client, dataset, media_root, django_capture_on_commit_callbacks
-):
-    """They are equivalent choices, so none of them is a sub-case of another."""
-    with django_capture_on_commit_callbacks():
-        run_id = _run_with_outputs(auth_client, dataset, ["gfp", "ampr", "apoptosis"], count=12)
+def test_an_output_with_no_payload_sequence_is_rejected_before_queueing(auth_client, dataset):
+    """Every requested outcome must have an implemented payload; partial success is misleading."""
+    from apps.analyses.models import AnalysisRun
 
-    items = auth_client.get(
-        f"/api/runs/{run_id}/candidates?limit=100&include_rejected=true"
-    ).json()["items"]
-
-    assert {c["output"] for c in items} == {"GFP", "AmpR", "Apoptosis inducer"}
+    response = auth_client.post(
+        "/api/runs",
+        data={
+            "input_mode": "de",
+            "dataset_id": str(dataset.id),
+            "organism": "ecoli",
+            "params": {"payload": {"outputs": ["gfp", "ampr", "apoptosis"]}},
+        },
+        content_type="application/json",
+    )
+    assert response.status_code == 422
+    assert not AnalysisRun.objects.exists()
+    assert "apoptosis" in response.json()["error"]["message"]

@@ -1,0 +1,127 @@
+{
+  "schema_version": "1.0",
+  "reference_version": "2026-09-06.v1",
+  "host_id": "atcc6919_GCF_008728435.1",
+  "display_name": "Cutibacterium acnes ATCC 6919",
+  "assembly": "GCF_008728435.1",
+  "accession": "NZ_CP044255.1",
+  "v1_count_column": "ATCC6919_count",
+  "motif_policy": "user_selectable",
+  "sources": {
+    "archive_path": "data/raw/GCF_008728435.1.zip",
+    "archive_sha256": "92e7b8f85382215ea4ddc1d56cc4496e8b0eb30e5ba4e59671acac014e820b2d",
+    "archive_matches_v1": true,
+    "genbank_member": "ncbi_dataset/data/GCF_008728435.1/genomic.gbff",
+    "genbank_external_path": null,
+    "genbank_sha256": "b44551d2988fe589e0bd1e1eca45769833da75c981bfd3618327dcce974d0c3f",
+    "genome_member": "ncbi_dataset/data/GCF_008728435.1/GCF_008728435.1_ASM872843v1_genomic.fna",
+    "genome_member_sha256": "c7e77a7f3ca0cfe622416b495b41db6f819aa00eec4798405ad6ee004ab1b83a",
+    "sequence_sha256": "11a8fa906e60489d63c39576eae29ea59640824f61124cc0a06b3e21c99fce62",
+    "annotation_date": "26-MAR-2026",
+    "genome_length_nt": 2494216,
+    "source_url": "https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_008728435.1/"
+  },
+  "built_utc": "2026-09-06T07:24:57.779440+00:00",
+  "software": {
+    "biopython": "1.88",
+    "numpy": "2.5.2"
+  },
+  "translation_table": 11,
+  "qc_policy": "complete;nonpseudo;no_translation_exceptions;start_table11;terminal_stop;protein_matches_annotation",
+  "counts": {
+    "annotated_cds": 2384,
+    "qc_passing_cds": 2312,
+    "excluded_cds": 72,
+    "ribosomal_reference_genes": 61,
+    "ribosomal_reference_codons_excluding_start_stop": 8029,
+    "trna_genes": 45,
+    "trna_anticodon_amino_acid_groups": 44,
+    "v1_vs_v2_codon_count_differences": 0
+  },
+  "scoring_policies": {
+    "cai": "ribosomal_CDS;exclude_reference_start_stop;zero_count_0.5;exclude_target_start_stop_Met_Trp",
+    "host_sampling": "V1_frozen_counts;normalized_within_synonymous_family",
+    "tai": "bacterial_classic_role_filtered;exclude_start_stop;include_internal_Met_Trp",
+    "dcbs": "observed_positionwise_arithmetic;no_pseudocount;exclude_start_stop",
+    "codon_pairs": "descriptive_counts_only;exclude_start_stop;no_pair_optimization_claim"
+  },
+  "checks": {
+    "archive_matches_v1": true,
+    "independent_trna_snapshot_matches": true,
+    "all_61_tai_weights_positive": true
+  },
+  "annotation_comparison": {
+    "v1_annotation_info": {
+      "name": "GCF_008728435.1-RS_2026_03_22",
+      "provider": "NCBI RefSeq",
+      "releaseDate": "2026-03-22",
+      "stats": {
+        "geneCounts": {
+          "total": 2442,
+          "proteinCoding": 2312,
+          "nonCoding": 58,
+          "pseudogene": 72
+        }
+      },
+      "method": "Best-placed reference protein set; GeneMarkS-2+",
+      "pipeline": "NCBI Prokaryotic Genome Annotation Pipeline (PGAP)",
+      "softwareVersion": "6.10"
+    },
+    "v1_qc_passing_cds": 2312,
+    "v2_qc_passing_cds": 2312,
+    "changed_locus_rows": 0,
+    "newly_included": 0,
+    "no_longer_included": 0,
+    "changed_sequence_among_shared_included": 0
+  },
+  "additional_models": {
+    "stai": "computed_exploratory;see_stai_fit_diagnostics.json",
+    "rna": "CDS-only_background;see_rna_background_distribution.json"
+  },
+  "source_files": {
+    "data/raw/download_manifest.json": "953b75905b5feb6ef7b50b81ab8c552abaf374c7dae9e1ab91d5928a1adccaa7",
+    "data/raw/GCF_000008345.1.zip": "c0460b7d1c7210a193fd6d4113b876167fbfd873185c4b1d5aa9a45053af286c",
+    "data/raw/GCF_008728435.1.zip": "92e7b8f85382215ea4ddc1d56cc4496e8b0eb30e5ba4e59671acac014e820b2d",
+    "data/raw/kpa_codonstatsdb_ribosomal_2021.tsv": "35934e8e869299078c6b3de0ee045c538e65485d6403bcc13c6fb4fccb0b042a",
+    "data/raw/NC_006085.1.gbff": "d5fd3dccd2b314f0dda710416a19edc1469608cbf652d058d70b43f41b0975a5",
+    "data/raw/trna_annotation_snapshot_20260906.json": "802fe23676c87e177ff8d7a2a4affe917faac05e64410eba4d1f874644895095"
+  },
+  "builder_code_sha256": {
+    "build_references.py": "1a177df27f08747fb9c7bc35733dfd2785907c6debcbcfbde55a61651e97396d",
+    "build_rna_reference.py": "4fea7998e57c1275a0239b291db1afa3702e6d3a286294122e759d8890bbe233",
+    "fetch_public_references.py": "b16714fb47abbf7a0e65e3c3a36f85f22e3c2197722441cb34970d7d41c81344",
+    "finalize_parameters.py": "d6b083584270f872f5cef08155f6a67805ea7c54a63d4b77f7a98a76d8af140c",
+    "fit_stai.py": "2332556d00ee4cc58fa9ca679d71de5f8300252572f8b9e871e50cb6fab1904a",
+    "parameter_math.py": "a877f64a5c04edcad43433a152bfdda3fdaeb24c47e4533ba505b1320d5a64b9",
+    "run_all.py": "34c34c72758467e6c5e7bee186db55ea7ce497595b41b90650e9f49fb2c08bc3"
+  },
+  "output_sha256": {
+    "annotation_changes_vs_v1.csv": "0e531d0b11fc28e5249144f24bbee2c27fd6156a1e5f1ecfcd132cabf08b78c5",
+    "annotation_comparison.json": "646d21e9cb60ee40b63bbaf81c64c2fcb9fb52270781f3fac81a268ff10da66b",
+    "cai_reference_cds.fasta": "1a2aa5fe58b7b4a5d281ece1706f9658104f336e7aa4debb53063c199749fa1b",
+    "cai_reference_genes.csv": "839c6a940e55e26e851fe3b8c2b9037dbf4e4bd16cc24538ffaff6e0a4b0e5a0",
+    "cai_reference_selection.csv": "a8d66f6ae41f09c275b8943ee5456680fd1af9106a2d0efb65fafb0a08bb42c1",
+    "cai_weights.csv": "b8e0eea7b84b521a38e903165c417ec7823f3402b4e82148e797041a63f94bc4",
+    "cds_qc.csv": "3218a2d6d28aa9cdf3fa7e585182d22d1437413c8a07dd1944a9509fbfa93f93",
+    "coding_gc_distribution.json": "27d4776b1b4c7f45ac64a78419019bd400b8de15c77fbb1490ef958969dbcd6a",
+    "codon_pair_counts.csv": "58b64ea3f8d7b0d5f3fbcd4a9a1a7d5408c4106d15703f03d961d91bd60d4423",
+    "codon_parameters.csv": "de06adc09ab96817eb9fa723bf7d01e67b25c622c0294b4d599ee7cc923ef7bd",
+    "host_codon_counts.csv": "1ba196fcc6cefe74c444b64b2852fe33a1d66ad71749d24e6068c8e3dc23d1cd",
+    "local_gc_60nt_histogram.csv": "213f57e500904f956042cfba984c0dbb37ea2712c819c6812162dc58a6a99889",
+    "local_gc_short_windows.csv": "f08adaed0278e1be498ef817d86cf4793ba74e5217327689a247f1fdefc6252d",
+    "native_gene_metrics.csv": "b9c032f4d1efeba6559acf9a7153b5aa9ad532a81c8ec9769aa78e3f7eb4d119",
+    "native_rna_cds_only_background.csv": "73a17d0624ce78582416403e81a89be68fa816e98924d5ace406c8300a9ebf2c",
+    "reference_cds.fasta": "558b9df9f91b60abc96fea43d891b18dafb669d950f60e5e1e054058e28e15b3",
+    "reference_proteins.fasta": "12c0431f83b1f739636a908f8db4327368e88da42f590f88c923814971707e53",
+    "rna_background_distribution.json": "5f30bbedd4b95d631f0bbc96984b3dffca02c1ac48ff307ae24730ab05466301",
+    "stai_fit_diagnostics.json": "a883f8f1f37bb11f2205e823932eecfd95545922c09341fb1ade9adbcbf1a4ef",
+    "stai_fit_multistart.csv": "582f5d319fd98b4f90dacab235b42c22cf8fdcad4e7f51cf3e36b8663d6f55e8",
+    "stai_s_values.csv": "1ed4f7b3e054d21a510802bb87e317701a03b4155799ca7cdcbd66a8737f1abf",
+    "stai_weights.csv": "ab007e8c923f9fec90d5e1c3f580d4d93cc1048f5d7cb6db28bb3d64a64bf3f5",
+    "tai_classic_weights.csv": "47b7dafb63a845985c4aa561f2fdf3722af3995dcf40267d18f39b4709839b0e",
+    "tai_decoding_edges.csv": "2d0c5ea74f8e67f285a7839ffb3b41f122045690dbc0f9fbc09e8d373c39cb87",
+    "tai_model.json": "4549b8e8bb841f9369b14570d612557abb2930f771148a63785cbd5067c9387c",
+    "trna_copy_counts.csv": "21d2ccc924a1b2a7794111cca775b3416d7856e04ee1fdc647dba9c30b77ecc4",
+    "trna_genes.csv": "9b007cb938840818f5578241912eeb6264424a60c67479606337f863b81fb36e"
+  }
+}

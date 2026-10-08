@@ -12,6 +12,10 @@ class CernalError(Exception):
     """Base for every error this client raises."""
 
 
+class TransportError(CernalError):
+    """The HTTP transport failed; existing jobs may be resumed without resubmitting."""
+
+
 class AuthError(CernalError):
     """401 ``invalid_api_key`` — missing, malformed, unknown, revoked or expired."""
 

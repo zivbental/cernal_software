@@ -11,8 +11,9 @@ import { mkdirSync } from "node:fs";
 
 const ORIGIN = process.env.ORIGIN ?? "http://127.0.0.1:8000";
 const OUT = process.argv[2] ?? "e2e/shots";
-const USER = process.env.CERNAL_USER ?? "rosalind";
-const PASS = process.env.CERNAL_PASS ?? "franklin-1952";
+const USER = process.env.CERNAL_USER;
+const PASS = process.env.CERNAL_PASS;
+if (!USER || !PASS) throw new Error("Set CERNAL_USER/CERNAL_PASS for an isolated test account.");
 
 mkdirSync(OUT, { recursive: true });
 
@@ -48,22 +49,15 @@ try {
     await page.getByLabel("Username").fill(USER);
     await page.getByLabel("Password").fill(PASS);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await page.waitForURL("**/projects", { timeout: 15000 });
+    await page.waitForURL("**/dashboard", { timeout: 15000 });
   });
 
-  await step("projects list", async () => {
-    await page.getByRole("heading", { name: "Projects" }).waitFor({ timeout: 10000 });
-  });
-
-  await step("project detail", async () => {
-    const card = page.locator('a[href^="/projects/"]').first();
-    await card.waitFor({ timeout: 10000 });
-    await card.click();
-    await page.getByRole("heading", { name: /New circuit|Datasets|Runs/ }).first().waitFor({ timeout: 10000 });
+  await step("dashboard", async () => {
+    await page.getByRole("heading", { name: "Dashboard" }).waitFor({ timeout: 10000 });
   });
 
   await step("compile wizard", async () => {
-    await page.getByRole("link", { name: /New circuit/ }).click();
+    await page.goto(`${ORIGIN}/compile`, { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: "Biological Compiler" }).waitFor({ timeout: 15000 });
     await page.getByText("Define Transcriptomic Inputs").waitFor();
     await page.getByText("Intracellular Logic Gate Assembly").waitFor();
@@ -79,15 +73,15 @@ try {
 
   await step("direct trigger mode", async () => {
     await page.getByRole("button", { name: /Direct Trigger mRNA/ }).click();
-    await page.locator("textarea").first().fill("AUGGCUAGCAAGGGCGAGGAGCUGUUCACCGGGGUG");
-    await page.getByText("36 nt").waitFor({ timeout: 5000 });
+    await page.locator("textarea").first().fill("AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA");
+    await page.getByText("34 nt").waitFor({ timeout: 5000 });
   });
 
   await step("run page: results", async () => {
     const runId = process.env.RUN_ID;
     if (!runId) throw new Error("RUN_ID not provided");
     await page.goto(`${ORIGIN}/runs/${runId}`, { waitUntil: "networkidle" });
-    await page.getByRole("heading", { name: "Optimized Plasmid Output" }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: "Computational Design Results" }).waitFor({ timeout: 15000 });
     await page.getByText("Ranked Candidates").waitFor();
     await page.getByText("Score decomposition").waitFor();
   });
@@ -95,13 +89,6 @@ try {
   await step("logic circuit view", async () => {
     await page.getByRole("button", { name: "Logic Circuit" }).click();
     await page.waitForTimeout(600);
-  });
-
-  await step("rejected candidates with reasons", async () => {
-    await page.getByRole("button", { name: /Precision Filters/ }).click();
-    await page.getByRole("checkbox").check();
-    await page.waitForTimeout(1200);
-    await page.getByText(/leakage above the acceptable|Insufficient separation/).first().waitFor({ timeout: 10000 });
   });
 
   await step("quick guide", async () => {

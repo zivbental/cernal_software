@@ -276,8 +276,6 @@ def main() -> int:
             openness=0.4,
             accessibility=0.4,
             mfe=0.0,
-            off_target_penalty=0.0,
-            segment_specificity=0.0,
             gc_content=sq.gc_content(seq),
         )
 

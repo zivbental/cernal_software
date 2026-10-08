@@ -1,0 +1,84 @@
+{
+  "model_id": "stai_dcbs_hillclimb_v1",
+  "status": "computed_exploratory",
+  "method_source": "https://doi.org/10.1093/dnares/dsu017",
+  "seed": 20260906,
+  "rng": "numpy.default_rng_PCG64",
+  "parameter_order": [
+    "WC",
+    "G_U",
+    "I_C",
+    "I_A",
+    "U_G",
+    "L_A"
+  ],
+  "s_values": {
+    "WC": 0.0,
+    "G_U": 0.008186834909645613,
+    "I_C": 0.0,
+    "I_A": 0.2500156977436888,
+    "U_G": 1.0,
+    "L_A": 0.9932415983375188
+  },
+  "wc_fixed_at_zero": true,
+  "objective": "Spearman(tAI, DCBS);no_expression_labels",
+  "rank_tie_policy": "log_tAI_rounded_to_12_decimal_places_to_stabilize_floating_point_ties",
+  "dcbs_definition": "arithmetic mean max(observed/positionwise_expected, inverse);no_pseudocount",
+  "sequence_mask": "exclude_start_and_terminal_stop;include_internal_Met_Trp",
+  "minimum_elongation_codons": 100,
+  "holdout_rule": "int(protein_sha256[:8],16)%5==0",
+  "optimization": {
+    "initial_step": 0.3,
+    "step_divisor": 1.35,
+    "minimum_step": 0.001,
+    "stratified_starts": 32,
+    "other_starts": "classic,all_zero,all_0.9999",
+    "max_evaluations": 40000,
+    "unique_evaluations": 8070,
+    "starts_completed": 35,
+    "planned_starts": 35,
+    "elapsed_seconds": 1.4423537000548095,
+    "best_training_spearman": 0.24519674127796676,
+    "budget_exhausted": false
+  },
+  "correlations": {
+    "training_classic": {
+      "n": 1639,
+      "rho": 0.2049506262649692,
+      "nominal_pvalue": 5.2875802624142436e-17
+    },
+    "training_fitted": {
+      "n": 1639,
+      "rho": 0.2451967412779667,
+      "nominal_pvalue": 7.252828481156146e-24
+    },
+    "heldout_diagnostic_classic": {
+      "n": 381,
+      "rho": 0.17783537253489498,
+      "nominal_pvalue": 0.0004873006611228649
+    },
+    "heldout_diagnostic_fitted": {
+      "n": 381,
+      "rho": 0.14990779383855543,
+      "nominal_pvalue": 0.003356389978174469
+    },
+    "all_eligible_classic": {
+      "n": 2020,
+      "rho": 0.1998430550248858,
+      "nominal_pvalue": 1.2134760632816378e-19
+    },
+    "all_eligible_fitted": {
+      "n": 2020,
+      "rho": 0.22647334299030747,
+      "nominal_pvalue": 6.578360290715285e-25
+    }
+  },
+  "limitations": [
+    "Own bounded coordinate-search implementation;not a bit-for-bit stAIcalc reproduction",
+    "Met roles and tRNA modifications retain the assumptions of tai_model.json",
+    "DCBS correlation is a model diagnostic, not biological validation",
+    "Exact protein duplicates are grouped;near-homologous genes may remain across the split",
+    "A fitted parameter vector is not necessarily identifiable or unique",
+    "Use the classic and fitted models as separately named alternatives"
+  ]
+}

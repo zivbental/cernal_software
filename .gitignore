@@ -89,3 +89,6 @@ src/engine/gates/notebooks/toehold_and/results/axes_*.csv
 
 # The analysis output: regenerated from the run by tools/analyse_axes.py, and rows.csv is large.
 docs/assets/axes_*/rows.csv
+
+# Local agent checkouts are not project submodules.
+.claude/worktrees/

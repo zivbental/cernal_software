@@ -117,9 +117,8 @@ class CrisprGate(GateFamily):
               A design that switches beautifully and misfolds the scaffold does nothing.
             * Off-target here has a second meaning the other families do not have: the
               spacer can guide Cas to unintended **genomic** sites. That is a search
-              against the genome, not the transcriptome, and ``OffTargetScanner`` as
-              specified does not do it. It needs its own treatment before this family
-              ships.
+              against the genome, and this engine performs no off-target search of any
+              kind. It needs its own treatment before this family ships.
         """
         raise NotImplementedError("Step 5")
 

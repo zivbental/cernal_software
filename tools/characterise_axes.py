@@ -172,8 +172,6 @@ def as_candidate(
         openness=openness,
         accessibility=openness,
         mfe=0.0,
-        off_target_penalty=0.0,
-        segment_specificity=0.0,
         gc_content=sq.gc_content(sequence),
     )
 

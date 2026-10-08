@@ -1,10 +1,4 @@
-/**
- * Client-side refinement of an already-fetched candidate list.
- *
- * Deliberately not a server round-trip: a run returns a few hundred candidates, so
- * filtering in memory is instant and keeps scores comparable across runs
- * (docs/architecture.md §8).
- */
+/** Filters are applied server-side across every candidate before pagination. */
 
 import { ChevronDown, Sparkles } from "lucide-react";
 import { useState } from "react";

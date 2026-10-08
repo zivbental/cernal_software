@@ -1,0 +1,24 @@
+[Unit]
+Description=CERNAL scientific queue worker
+After=network.target
+
+[Service]
+Type=simple
+User=cernal
+Group=cernal
+WorkingDirectory=/opt/cernal
+EnvironmentFile=/etc/cernal/cernal.env
+ExecStart=/opt/cernal/.venv/bin/python /opt/cernal/manage.py qcluster
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=130
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/cernal/var
+
+[Install]
+WantedBy=multi-user.target

@@ -122,7 +122,11 @@ class ScoringProfile:
 
 DEFAULT_V1 = ScoringProfile(
     name="default",
-    version="v1",
+    # v2: state_separation, predicted_success_rate and circuit_complexity are now
+    # computed rather than absent, and state_separation/orthogonality became SKIP
+    # instead of TREAT_AS_WORST. Both move every stored score, so the label a run
+    # records has to change with them.
+    version="v3-computational-proxies",
     metrics=[
         MetricSpec(
             name="state_separation",
@@ -131,13 +135,20 @@ DEFAULT_V1 = ScoringProfile(
             valid_range=(0.0, 10.0),
             description="Differential expression between base and target state (log2 fold).",
             unit="log2 fold",
+            # A property of the gene, from the DGE table. A `direct` submission pasted a
+            # transcript and made no differential-expression comparison at all, so this
+            # does not exist for one — SKIP rather than TREAT_AS_WORST, because scoring a
+            # design 0.0 on the heaviest axis in the profile would penalise the *input
+            # mode* rather than the design. The hard filter below is unaffected:
+            # failed_filter already passes over a metric that was not reported.
+            missing_behavior=SKIP,
         ),
         MetricSpec(
             name="trigger_accessibility",
             direction=HIGHER_BETTER,
             weight=2.0,
             valid_range=(0.0, 1.0),
-            description="Predicted fraction of the trigger region free of self-structure.",
+            description="Minimum marginal unpaired probability across the selected trigger window.",
             unit="fraction 0-1",
         ),
         MetricSpec(
@@ -153,7 +164,10 @@ DEFAULT_V1 = ScoringProfile(
             direction=LOWER_BETTER,
             weight=2.5,
             valid_range=(0.0, 1.0),
-            description="Proxy for OFF-state activation.",
+            description=(
+                "Mean marginal unpaired probability in the OFF-state "
+                "initiation region (uncalibrated proxy)."
+            ),
             unit="fraction 0-1",
         ),
         MetricSpec(
@@ -163,13 +177,24 @@ DEFAULT_V1 = ScoringProfile(
             valid_range=(0.0, 1.0),
             description="Predicted independence from other gates in the same circuit.",
             unit="fraction 0-1",
+            # "In the same circuit" is the operative phrase, and no family computes this
+            # because every circuit this build produces holds exactly one gate: there is
+            # no other gate to be independent of, so the quantity does not exist yet
+            # rather than being unmeasured. SKIP keeps an inapplicable metric out of both
+            # halves of the weighted mean. When a real CircuitDesigner lands and circuits
+            # hold several gates, this becomes measurable and the behaviour should go
+            # back to TREAT_AS_WORST so a cross-reacting pair is actually punished.
+            missing_behavior=SKIP,
         ),
         MetricSpec(
             name="gc_content",
             direction=HIGHER_BETTER,
             weight=0.5,
             valid_range=(30.0, 70.0),
-            description="Percent GC of the assembled construct. Extremes hurt synthesis.",
+            description=(
+                "Percent GC of the regulatory switch; linear ranking "
+                "rewards GC within the declared range."
+            ),
             unit="percent 0-100",
         ),
         MetricSpec(
@@ -177,15 +202,21 @@ DEFAULT_V1 = ScoringProfile(
             direction=HIGHER_BETTER,
             weight=2.0,
             valid_range=(1.0, 500.0),
-            description="Predicted ON/OFF fold change.",
-            unit="linear fold",
+            description=(
+                "ON/OFF marginal initiation-accessibility ratio; denominator "
+                "floored at 0.001. Not measured expression."
+            ),
+            unit="accessibility ratio",
         ),
         MetricSpec(
             name="predicted_success_rate",
             direction=HIGHER_BETTER,
             weight=1.0,
             valid_range=(0.0, 1.0),
-            description="Model confidence that the construct behaves as designed in vivo.",
+            description=(
+                "Uncalibrated binding-energy sigmoid: midpoint -15 kcal/mol, "
+                "slope 2. Not a success probability."
+            ),
             unit="fraction 0-1",
         ),
         MetricSpec(
@@ -331,7 +362,7 @@ def derive_profile(
 
 
 def resolve_profile(base_name: str, overrides: dict | None = None) -> ScoringProfile:
-    """What ``MockEngine``/the real pipeline actually calls: ``base_name`` is
+    """What the real pipeline actually calls: ``base_name`` is
     ``AnalysisRun.scoring_profile`` (always a known name — kept that way so
     ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is
     ``JobRequest.params.get("scoring")``. No overrides, or an empty ``weights`` /

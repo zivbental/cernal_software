@@ -9,23 +9,12 @@ here imports anything else from the engine: `domain` is the bottom of the import
 graph (docs/engine.md §4).
 """
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
+from types import MappingProxyType
 
 # --- Vocabularies -----------------------------------------------------------------
-
-
-class Host(StrEnum):
-    """The organism a circuit is designed for."""
-
-    ECOLI = "ecoli"
-    YEAST = "yeast"
-    HUMAN = "human"
-
-    @property
-    def track(self) -> "Track":
-        """Design rules follow the track, not the individual organism."""
-        return Track.PROKARYOTIC if self is Host.ECOLI else Track.EUKARYOTIC
 
 
 class Track(StrEnum):
@@ -35,12 +24,79 @@ class Track(StrEnum):
     EUKARYOTIC = "eukaryotic"
 
 
+class Host(StrEnum):
+    """The organism a circuit is designed for."""
+
+    ECOLI = "ecoli"
+    YEAST = "yeast"
+    HUMAN = "human"
+    #: *Cutibacterium acnes* ATCC 6919, the strain the iGEM AIS-China 2026 team built a
+    #: genome-derived codon model for (docs/collaborations.md). Gram-positive, anaerobic,
+    #: ~60% GC — and prokaryotic, which is the whole reason ``HOST_TRACKS`` below is
+    #: explicit rather than defaulting to EUKARYOTIC.
+    C_ACNES = "c_acnes"
+
+    @property
+    def track(self) -> Track:
+        """Design rules follow the track, not the individual organism.
+
+        Looked up in ``HOST_TRACKS``, where every member must name its track
+        explicitly. This used to be ``PROKARYOTIC if self is ECOLI else EUKARYOTIC``,
+        which made EUKARYOTIC the silent default: a bacterium added as a new ``Host``
+        would have been given a Kozak context and the eukaryotic ``TranslationScorer``
+        branch instead of a Shine-Dalgarno RBS, and nothing would have raised. There is
+        deliberately no default here. A member without an entry fails at import time
+        (see ``require_track_for_every_host``), never at design time.
+        """
+        return HOST_TRACKS[self]
+
+
+#: The translation track of every ``Host``. The single place a host declares it. Adding a
+#: ``Host`` member without an entry here raises when this module is imported.
+HOST_TRACKS: Mapping[Host, Track] = MappingProxyType(
+    {
+        Host.ECOLI: Track.PROKARYOTIC,
+        Host.YEAST: Track.EUKARYOTIC,
+        Host.HUMAN: Track.EUKARYOTIC,
+        # A Shine-Dalgarno RBS in the toehold loop, not a Kozak context. Getting this
+        # wrong for an actinobacterium is the exact failure the explicit mapping exists
+        # to prevent, and it would not have raised.
+        Host.C_ACNES: Track.PROKARYOTIC,
+    }
+)
+
+
+def require_track_for_every_host(hosts: Iterable[Host], tracks: Mapping[Host, Track]) -> None:
+    """Raise unless ``tracks`` names a ``Track`` for every one of ``hosts``, and nothing else.
+
+    Explicit ``raise``, not ``assert``: an assert disappears under ``python -O``, and this is
+    the guard against a silently wrong translation track.
+    """
+    hosts = tuple(hosts)
+    missing = [host.name for host in hosts if host not in tracks]
+    if missing:
+        raise TypeError(
+            f"Host member(s) {missing} have no entry in HOST_TRACKS. Declare PROKARYOTIC or "
+            "EUKARYOTIC explicitly; there is deliberately no default track."
+        )
+    unknown = [str(host) for host in tracks if host not in hosts]
+    if unknown:
+        raise TypeError(f"HOST_TRACKS names {unknown}, which are not Host members.")
+    bad = [host.name for host in hosts if not isinstance(tracks[host], Track)]
+    if bad:
+        raise TypeError(f"HOST_TRACKS entries for {bad} are not Track members.")
+
+
+require_track_for_every_host(Host, HOST_TRACKS)
+
+
 class GateKind(StrEnum):
     """The switch chemistries. One value per registered ``GateFamily``."""
 
     TOEHOLD = "toehold"
     TOEHOLD_AND = "toehold_and"
     ANTISENSE_NOT = "antisense_not"
+    EUK_ANTISENSE_NOT = "euk_antisense_not"
     CRISPR = "crispr"
 
 
@@ -100,6 +156,7 @@ class AssemblyStandard(StrEnum):
 
     RFC10 = "RFC10"
     RFC1000 = "RFC1000"
+    NONE = "none"  # No restriction-based assembly protocol selected.
 
 
 class DesiredOutcome(StrEnum):
@@ -113,6 +170,7 @@ class DesiredOutcome(StrEnum):
     MCHERRY = "mcherry"
     LUCIFERASE = "luciferase"
     ANTIBIOTIC = "ampr"
+    KANAMYCIN = "kanr"
     APOPTOSIS = "apoptosis"
     CUSTOM = "other"
 
@@ -125,6 +183,7 @@ class DesiredOutcome(StrEnum):
             DesiredOutcome.MCHERRY: "mCherry",
             DesiredOutcome.LUCIFERASE: "Luciferase",
             DesiredOutcome.ANTIBIOTIC: "AmpR",
+            DesiredOutcome.KANAMYCIN: "KanR",
             DesiredOutcome.APOPTOSIS: "Apoptosis inducer",
             DesiredOutcome.CUSTOM: "Custom",
         }[self]
@@ -193,6 +252,12 @@ class DgeTable:
     """The parsed differential-expression input."""
 
     rows: tuple[DgeRow, ...]
+    # True is a caller declaration that all tested hypotheses are retained, not an
+    # inference from high p-value coverage. None is unknown; False is a subset.
+    hypothesis_universe_complete: bool | None = None
+    source_row_count: int | None = None
+    columns: tuple[str, ...] = ()
+    detected_columns: tuple[tuple[str, str], ...] = ()
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -274,7 +339,7 @@ class SelectedGene:
     gene_id: str
     symbol: str
     regulation: Regulation
-    log2_fold_change: float
+    log2_fold_change: float | None
     score: float
     p_adj: float | None = None
     control_percentile: float | None = None
@@ -320,10 +385,12 @@ class TriggerCandidate:
             and paired in the middle does not score as well as one open throughout.
         mfe: The window's own folding energy, kcal/mol. A trigger that folds tightly on
             itself competes with binding the switch.
-        off_target_penalty: From ``OffTargetScanner.scan_trigger`` — direction (b),
-            sponging by other transcripts. 0 is clean.
-        segment_specificity: How well this window distinguishes its gene from its
-            paralogues.
+        log2_fold_change: The *gene's* effect size, carried down from
+            ``SelectedGene`` — not a property of this window. It is here because
+            everything below stage 1 (``is_compatible``'s ``min_separation`` check,
+            ``state_separation``) needs it and a ``TriggerCandidate`` is the only
+            record those layers receive. ``None`` for a `direct` submission, which
+            made no differential-expression comparison at all.
         gc_content: Percent G+C. Extremes hurt synthesis and duplex behaviour alike.
         aug_indexes: Start codons inside the window. Recorded because a trigger carrying
             one can interfere once incorporated into a switch's stem.
@@ -342,13 +409,16 @@ class TriggerCandidate:
     openness: float
     accessibility: float
     mfe: float
-    off_target_penalty: float
-    segment_specificity: float
     gc_content: float
+    log2_fold_change: float | None = None
     aug_indexes: tuple[int, ...] = ()
     stop_indexes: tuple[int, ...] = ()
     ribosome_occupancy: float | None = None
     score: float = 0.0
+    transcript_id: str = ""
+    reference_accession: str = ""
+    reference_selection_method: str = ""
+    transcript_sequence_sha256: str = ""
     # Gate-aware RNAplfold evidence. ``gate_toehold_length`` is populated only for
     # exact-footprint scanned candidates; ``None`` preserves legacy/manual direct
     # candidates, for which gate generation may still sweep every fitting variant.
@@ -382,6 +452,14 @@ class Constraints:
     so what a run was asked to do is recoverable from its snapshot.
 
     Attributes:
+        max_circuit_gates: How many gates one circuit may combine — the length of the
+            logic, not the arity of a single gate. 1 means every selected gene becomes
+            its own one-gene circuit, which is all this engine built before stage 4
+            existed. Raising it lets ``CircuitDesigner`` combine genes into
+            ``A AND NOT B``-style circuits; each extra gate is another switch to
+            synthesise, so ``circuit_complexity`` (weight 1.0, lower better) prices it
+            in rather than the cap alone deciding. Distinct from ``max_triggers``,
+            which is how many *inputs one gate* takes.
         max_triggers: Circuit arity ceiling. 2 is the practical limit — pairs grow as the
             square of the trigger count, and triples make the search space intractable
             without a cluster (docs/ROADMAP.md §3).
@@ -462,7 +540,8 @@ class Constraints:
             from if stage 1 never kept a repressor candidate.
     """
 
-    max_triggers: int = 2
+    max_triggers: int = 1
+    max_circuit_gates: int = 1
     min_separation: float = 0.5
     max_p_adj: float = 0.05
     trigger_lengths: tuple[int, ...] = (30, 33, 36)
@@ -552,8 +631,6 @@ class GateDesign:
         mfe_trigger: The trigger's own folding energy, needed to compute binding.
         binding_site_accessibility: How reachable the toehold is in the OFF state. A
             switch whose toehold is itself buried can never be opened.
-        binding_site_off_target: From ``scan_switch`` — direction (a), cross-activation
-            by non-cognate RNA. Feeds the leakage estimate.
         translation_score: Codon adaptation of the fused payload, from ``CodonOptimizer``.
         architecture: Family-specific parameters — stem and loop lengths, toehold length.
             A dict because it is opaque to everything outside the family that produced it,
@@ -572,7 +649,6 @@ class GateDesign:
     mfe_off: float = 0.0
     mfe_trigger: float = 0.0
     binding_site_accessibility: float = 0.0
-    binding_site_off_target: float = 0.0
     translation_score: float = 0.0
     architecture: dict = field(default_factory=dict)
     score: float = 0.0
@@ -699,6 +775,8 @@ class Segment:
     kind: SegmentKind
     name: str
     sequence: str
+    # Immutable JSON records of original exact GenBank feature locations/qualifiers.
+    annotations: tuple[str, ...] = ()
 
     @property
     def length_bp(self) -> int:
@@ -812,6 +890,13 @@ class PlasmidDesign:
     plasmid: Plasmid
     standard: AssemblyStandard
     violations: tuple[str, ...] = ()
+    coding_regions: tuple[tuple[int, int, str, str], ...] = ()
+    backbone_annotations: tuple[str, ...] = ()
+    insertion_index: int | None = None
+    assembly_method: str = "expression_cassette"
+    assembly_notes: tuple[str, ...] = ()
+    payload_optimization: str = ""
+    eligibility_violations: tuple[str, ...] = ()
 
     @property
     def is_compliant(self) -> bool:
@@ -832,29 +917,6 @@ class ToolRequirement:
 
 
 @dataclass(frozen=True, slots=True)
-class Hit:
-    """One near-match found in the transcriptome."""
-
-    gene_id: str
-    start: int
-    mismatches: int
-    identity: float
-
-
-@dataclass(frozen=True, slots=True)
-class OffTargetReport:
-    """What an off-target scan found, and what it costs the candidate."""
-
-    hits: tuple[Hit, ...]
-    penalty: float
-
-    @property
-    def worst_identity(self) -> float:
-        """Closest off-target match found. 1.0 means an exact duplicate exists."""
-        return max((hit.identity for hit in self.hits), default=0.0)
-
-
-@dataclass(frozen=True, slots=True)
 class FoldResult:
     """Structure and free energy from one fold. Cached by the tool that produced it."""
 
@@ -867,7 +929,7 @@ class StructureMatch:
     """How closely a predicted fold matches the intended one."""
 
     deviation: float
-    p_target_fold: float
+    p_target_fold: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -876,6 +938,7 @@ class ValidationResult:
 
     ok: bool
     violations: tuple[str, ...] = ()
+    structure_deviation: float | None = None
 
     @classmethod
     def passed(cls) -> "ValidationResult":

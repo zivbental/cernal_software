@@ -103,7 +103,12 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
         "LOCATION": "cernal_cache_table",
-    }
+    },
+    # Heartbeats must remain writable during a long atomic result import.
+    "worker_status": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": str(VAR_DIR / "worker-status"),
+    },
 }
 
 # --- Internationalization -------------------------------------------------------
@@ -130,10 +135,15 @@ MAX_DATASET_MB = env.int("MAX_DATASET_MB", default=100)
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_DATASET_MB * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
+# Empty outside a deliberately configured proxy deployment. Trusted proxies must
+# overwrite X-Cernal-Client-IP, not forward a user-supplied value.
+AUTH_TRUSTED_PROXY_ADDRESSES = env.list("AUTH_TRUSTED_PROXY_ADDRESSES", default=[])
+
 # --- Background work (docs/architecture.md §9) --------------------------------
 
 Q_CLUSTER = {
     "name": "cernal",
+    "cache": "worker_status",
     "orm": "default",  # ORM broker: the queue is a table, no Redis to run or back up.
     "workers": 1,  # Concurrency of 1 removes a class of SQLite write contention.
     "timeout": 60 * 60,  # An analysis is long-running and rare.
@@ -146,7 +156,25 @@ Q_CLUSTER = {
 # --- Engine (docs/architecture.md §3, §10) ------------------------------------
 
 # Dotted path to an engine.client.EngineClient implementation.
-CERNAL_ENGINE = env.str("CERNAL_ENGINE", default="engine.client.MockEngine")
+CERNAL_ENGINE = env.str("CERNAL_ENGINE", default="engine.client.LocalEngine")
+
+# A separate heartbeat outlives long SQLite imports; reconciliation fences dead jobs.
+RUN_HEARTBEAT_SECONDS = env.int("RUN_HEARTBEAT_SECONDS", default=10)
+RUN_HEARTBEAT_TIMEOUT = env.int("RUN_HEARTBEAT_TIMEOUT", default=120)
+RUN_EXECUTION_TIMEOUT = env.int("RUN_EXECUTION_TIMEOUT", default=Q_CLUSTER["timeout"] + 30)
+RUN_QUEUE_REPUBLISH_SECONDS = env.int("RUN_QUEUE_REPUBLISH_SECONDS", default=Q_CLUSTER["retry"])
+RUN_QUEUE_TIMEOUT = env.int("RUN_QUEUE_TIMEOUT", default=7200)
+RUN_STAGING_ROOT = VAR_DIR / "result-staging"
+
+# --- Reviewer instant login ------------------------------------------------------
+
+# Off unless explicitly turned on. When set, the login page offers a button that signs
+# in as a shared, unprivileged, passwordless account — for iGEM judges trying the
+# product without registering and waiting for approval. Never turn this on against a
+# deployment holding real user data: it is an intentional, unauthenticated way to get
+# a session. dev.py defaults it to on for local convenience; prod.py takes whatever
+# the operator sets, off by default.
+REVIEWER_LOGIN_ENABLED = env.bool("REVIEWER_LOGIN_ENABLED", default=False)
 
 # --- Logging --------------------------------------------------------------------
 

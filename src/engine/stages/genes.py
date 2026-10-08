@@ -28,6 +28,7 @@ questions 2 through 5, and says so through ``on_warning`` rather than pretending
 otherwise.
 """
 
+import re
 from bisect import bisect_right
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -35,7 +36,7 @@ from statistics import StatisticsError, correlation, mean
 
 from engine import sequences as sq
 from engine.domain import Constraints, CountMatrix, DgeRow, DgeTable, Regulation, SelectedGene
-from engine.errors import InputValidationError
+from engine.errors import InputValidationError, JobCancelled
 from engine.stages.motifs import MotifScreener
 
 #: Fraction of rows needing a raw p-value before a Benjamini-Hochberg correction is
@@ -46,7 +47,6 @@ from engine.stages.motifs import MotifScreener
 #: A data-quality gate on *which computation path runs* — not an undeclared scientific
 #: filter on results, the same distinction ``TriggerScorer.TOP_K_PER_GENE`` draws for
 #: its own class-constant budget knob.
-_BH_COVERAGE_THRESHOLD = 0.95
 
 
 @dataclass(slots=True)
@@ -341,6 +341,7 @@ class GeneSelector:
         counts: CountMatrix | None = None,
         sequences: dict[str, str] | None = None,
         on_warning: Callable[[str], None] | None = None,
+        on_progress: Callable[[int, int], bool] | None = None,
     ) -> list[SelectedGene]:
         """Filter, score and rank genes; return a shortlist with an up/down call.
 
@@ -390,7 +391,9 @@ class GeneSelector:
                 "occurrence of each was kept."
             )
 
-        significance = self._significance_plan(rows, warn)
+        significance = self._significance_plan(
+            rows, warn, complete=dge.hypothesis_universe_complete is True and not duplicates
+        )
         counts_context = _CountsContext(counts) if counts is not None else None
 
         candidates: list[_Candidate] = []
@@ -401,7 +404,9 @@ class GeneSelector:
         missing_sequence = 0
         considered_for_sequence = 0
 
-        for row in rows:
+        for index, row in enumerate(rows):
+            if on_progress is not None and not on_progress(index, len(rows)):
+                raise JobCancelled("Selecting genes")
             effect = abs(row.log2_fold_change)
             if effect < self.constraints.min_separation:
                 dropped_effect += 1
@@ -555,7 +560,9 @@ class GeneSelector:
             kept.append(row)
         return kept, duplicates
 
-    def _significance_plan(self, rows: list[DgeRow], warn: Callable[[str], None]) -> _Significance:
+    def _significance_plan(
+        self, rows: list[DgeRow], warn: Callable[[str], None], *, complete: bool = False
+    ) -> _Significance:
         """Choose one of the four tiers in ``_Significance``'s docstring, once for the
         whole table."""
         if any(row.p_adj is not None for row in rows):
@@ -571,7 +578,7 @@ class GeneSelector:
             return _Significance("none", self.constraints.max_p_adj)
 
         coverage = len(with_pvalue) / len(rows)
-        if coverage >= _BH_COVERAGE_THRESHOLD:
+        if complete and coverage == 1.0:
             warn(
                 "The input table has no adjusted p-value column; a Benjamini-Hochberg "
                 f"FDR was computed by CERNAL from raw p-values at alpha="
@@ -580,8 +587,8 @@ class GeneSelector:
             return _Significance("bh", self.constraints.max_p_adj, _benjamini_hochberg(with_pvalue))
 
         warn(
-            f"The input table has raw p-values for only {coverage:.0%} of rows — too "
-            "incomplete to compute a valid FDR (docs/genes.md §4.1). Filtering on the "
+            f"Raw p-value coverage is {coverage:.0%}; completeness of the tested hypothesis "
+            "universe is unverified or incomplete. Filtering on the "
             f"raw, uncorrected p-value at {self.constraints.max_p_adj} instead; this is "
             "not an FDR-controlled selection."
         )
@@ -595,6 +602,61 @@ class GeneSelector:
         if not self.constraints.trigger_lengths:
             return None, None
 
+        if type(self.screener) is not MotifScreener:
+            # A custom screener may implement additional window-specific rules.
+            return self._trigger_yield_windows(transcript)
+
+        size = len(transcript)
+        lengths = [length for length in self.constraints.trigger_lengths if 0 < length <= size]
+        if not lengths:
+            return None, None
+
+        # The screen is identical to the per-window rule. A motif at [start, end)
+        # invalidates only windows containing it completely, including overlapping
+        # occurrences. A long homopolymer contains many prohibited minimum-length
+        # runs; represent their union rather than requiring the whole run to fit.
+        intervals = []
+        for violation in self.screener.violations(transcript):
+            width = len(violation.motif)
+            minimum = (
+                self.screener.max_homopolymer + 1 if violation.kind == "homopolymer" else width
+            )
+            intervals.append((violation.start, violation.start + width, minimum))
+        intervals.extend(
+            (match.start(), match.start() + 3, 3)
+            for match in re.finditer("(?=AUG|CAU)", sq.to_rna(transcript))
+        )
+
+        gc_prefix = [0]
+        for base in transcript.upper():
+            gc_prefix.append(gc_prefix[-1] + (base in "GC"))
+
+        low, high = self.constraints.trigger_gc_range
+        scanned = surviving = 0
+        for length in lengths:
+            windows = size - length + 1
+            blocked = [0] * (windows + 1)
+            for start, end, minimum in intervals:
+                if minimum > length:
+                    continue
+                first = max(0, start + minimum - length)
+                last = min(windows - 1, end - minimum)
+                if first <= last:
+                    blocked[first] += 1
+                    blocked[last + 1] -= 1
+            active = 0
+            for start in range(windows):
+                active += blocked[start]
+                if active:
+                    continue
+                gc = 100.0 * (gc_prefix[start + length] - gc_prefix[start]) / length
+                if low <= gc <= high:
+                    surviving += 1
+            scanned += windows
+        return surviving / scanned, surviving
+
+    def _trigger_yield_windows(self, transcript: str) -> tuple[float | None, int | None]:
+        """Compatibility path for screeners with custom per-window behavior."""
         low, high = self.constraints.trigger_gc_range
         scanned = 0
         surviving = 0
@@ -667,6 +729,10 @@ class GeneSelector:
             candidates, key=lambda c: (-c.base_score, -abs(c.log2_fold_change), c.gene_id)
         )
         ordered: list[_Candidate] = []
+        if not has_counts:
+            for candidate in remaining:
+                candidate.final_score = candidate.base_score
+            return remaining
 
         while remaining:
             best_index = 0

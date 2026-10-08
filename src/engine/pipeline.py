@@ -18,14 +18,14 @@ modes and both hosts.
 **What the `de` path still does not do, deliberately.** No ``InputQualityCheck`` — there
 is no count matrix to check; the product only ever collects a differential-expression
 table (docs/genes.md §3 G-a), so the stage that validates one has nothing to run on
-yet. No real off-target scanning — ``OffTargetScanner``'s matching (``find_similar``) is
-still a stub, so its transcriptome is kept empty even here (an empty transcriptome has a
-defined, honest "not measured" answer — docs/triggers.md T1 — where a populated one
-would raise). No ``CircuitDesigner`` — every selected gene becomes its own one-gene
-circuit, the same trivial construction the `direct` path already uses (see the next
-paragraph), never a multi-gene Boolean expression. No human — no bundled reference
-transcriptome (a genomic CDS extraction is the wrong tool for a heavily-spliced genome,
-``tools/sync_transcriptome.py``), and no promoter/terminator either (Q12). No bundled
+yet. No off-target scanning at all — the scanner and the two trigger fields it fed
+were removed rather than left as placeholders that read as measurements. No
+real confusion matrix — ``CircuitDesigner`` now builds circuits that combine up to
+``Constraints.max_circuit_gates`` genes (``A AND NOT B``), but with no per-sample count
+matrix there is nothing to evaluate their *behaviour* against, so a circuit is scored on
+complexity and on its weakest member rather than on a measured separation. Human direct
+constructs use CMV/hGH parts, but Human DE still has no bundled reference transcriptome
+(a genomic CDS extraction is the wrong tool for a heavily-spliced genome). No bundled
 yeast plasmid backbone either, deliberately — yeast's real BioBrick-family assembly
 grammar (the "Lim standard") could not be fully verified from public sources in the
 time this took, so a yeast run relies on ``params["backbone"]["custom_genbank"]``
@@ -49,18 +49,22 @@ deferred in ``stages/switches.py`` for the same reason: implementing either mean
 editing something under ``gates/``.
 """
 
+import copy
 import dataclasses
 import json
+import math
 import re
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 from engine import sequences as sq
 from engine.artifacts import sha256_bytes, write_artifact
 from engine.contract import (
+    HIGHER_BETTER,
     INPUT_DE,
     INPUT_DIRECT,
+    INPUT_GENE,
     SCHEMA_VERSION,
     SUCCEEDED,
     ArtifactRef,
@@ -75,6 +79,7 @@ from engine.domain import (
     CircuitCandidate,
     ConfusionMatrix,
     Constraints,
+    CountMatrix,
     DesiredOutcome,
     GateDesign,
     Host,
@@ -82,6 +87,7 @@ from engine.domain import (
     LogicOperator,
     PlasmidDesign,
     Regulation,
+    SampleMetadata,
     Segment,
     SegmentKind,
     SelectedGene,
@@ -90,23 +96,26 @@ from engine.domain import (
 from engine.errors import ChecksumMismatchError, InputValidationError, JobCancelled
 from engine.gates.base import GateFamily
 from engine.gates.registry import get_family
+from engine.gates.tools.ais_china import AisChinaCodons
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.inputs import parse_dge_table
 from engine.safety import fail_closed_release
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
-from engine.scoring.profiles import HardFilter, resolve_profile
+from engine.scoring.profiles import HardFilter, ScoringProfile, resolve_profile
+from engine.stages.circuits import CircuitDesigner, ConfusionEvaluator
 from engine.stages.folding import FoldProfiler
 from engine.stages.genes import GeneSelector
 from engine.stages.motifs import MotifScreener
-from engine.stages.off_target import OffTargetScanner
 from engine.stages.plasmids import (
     BACKBONES,
+    PAYLOAD_HOSTS,
     PAYLOADS,
     PROMOTERS,
     TERMINATORS,
     PlasmidBuilder,
+    load_part_catalog,
     parse_custom_backbone,
     to_genbank,
     to_sbol3,
@@ -115,7 +124,12 @@ from engine.stages.plasmids import (
 from engine.stages.switches import SwitchDesigner, SwitchValidator
 from engine.stages.triggers import TriggerScorer
 from engine.store import CandidateStore
-from engine.transcriptome import available_hosts, load_transcriptome
+from engine.transcriptome import (
+    available_hosts,
+    gene_reference,
+    load_transcriptome,
+    resolve_gene_id,
+)
 
 ProgressFn = Callable[[int, str], bool]
 
@@ -159,6 +173,15 @@ _UNBUILDABLE_FAMILIES: dict[str, str] = {
         "AntisenseNotGate cannot be constructed without one. Request a toehold "
         "family instead."
     ),
+    "euk_antisense": (
+        "no payload sequence library exists yet (docs/ROADMAP.md Q11) — "
+        "EukaryoticAntisenseNotGate cannot be constructed without one. Request a "
+        "toehold family instead."
+    ),
+    # `toehold_and` and `prokaryotic_toehold_and` are NOT listed, and main's copies of them were
+    # dropped in the merge. Main blocks them because `generate_designs` raises there; on this
+    # branch it has a body, so re-adding them would make the family unreachable. The eukaryotic
+    # track stays blocked, with the measured reason above rather than main's stale wording.
 }
 
 
@@ -187,7 +210,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         one place, which is what makes it recordable.
 
     Note:
-        The transcriptome that ``OffTargetScanner`` indexes **must be the same build**
+        The transcriptome **must be the same build**
         the trigger sequences came from. This build never has one — the `direct` path
         has no transcriptome at all — so it is constructed empty
         (docs/triggers.md T1: an empty transcriptome gives a defined, honest
@@ -196,34 +219,63 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         the warning below says so, so a 0.0 penalty is never mistaken for a clean scan.
     """
     folder = FoldEngine()
-    constraints = _build_constraints(request.params)
-    screener = MotifScreener(constraints.standard)
-    codons = CodonOptimizer(host)
+    if host is Host.HUMAN and (request.params.get("backbone") or {}).get("catalog_key"):
+        raise InputValidationError(
+            "The bundled backbones are bacterial BioBrick vectors. For Human expression, "
+            "supply backbone.custom_genbank with a mammalian vector or omit the backbone "
+            "to build an expression cassette."
+        )
+    constraint_params = request.params
+    if host is Host.HUMAN and "standard" not in (request.params.get("constraints") or {}):
+        constraint_params = {
+            **request.params,
+            "constraints": {**(request.params.get("constraints") or {}), "standard": "none"},
+        }
+    constraints = _build_constraints(constraint_params)
+    screener = MotifScreener(
+        constraints.standard,
+        extra_motifs={
+            f"user-{index + 1}": motif for index, motif in enumerate(constraints.forbidden_motifs)
+        },
+    )
+    # The run's seed, so ESO's stochastic repair is reproducible; folder, so a structural
+    # objective folds through the one shared FoldEngine and not a second library.
+    # Only for C. acnes: their reference package is ~12 MB of tables, and loading it for
+    # an E. coli run would be pure waste. None for every other host -- and CodonOptimizer
+    # raises rather than silently falling back to another organism's numbers if it is
+    # missing for the one host that needs it.
+    aisc = AisChinaCodons() if host is Host.C_ACNES else None
+    codons = CodonOptimizer(
+        host,
+        folder=folder,
+        seed=request.seed if request.seed is not None else 0,
+        aisc=aisc,
+    )
     backbone = _resolve_backbone(request.params)
 
     tools: dict[str, object] = {
         "folder": folder,
         "profiler": FoldProfiler(),
-        "off_target": OffTargetScanner({}),
         "screener": screener,
         "codons": codons,
+        "aisc": aisc,
         "translation": TranslationScorer(host),
         # Same screener/codons instances as above — a second PlasmidBuilder-only
         # MotifScreener would mean two independently configured screeners agreeing by
         # coincidence rather than by construction.
-        "plasmid_builder": PlasmidBuilder(screener, codons, constraints.standard, backbone),
+        "plasmid_builder": PlasmidBuilder(
+            screener,
+            codons,
+            constraints.standard,
+            backbone,
+            insertion_index=(request.params.get("backbone") or {}).get("insertion_index", 0),
+            optimize_codons=(request.params.get("payload") or {}).get("optimize_codons", False),
+        ),
         "constraints": constraints,
     }
 
     families: list = []
     warnings: list[str] = []
-    if not tools["off_target"].transcriptome:
-        warnings.append(
-            "Off-target specificity was not measured (OffTargetScanner's matching is "
-            "not yet implemented, so it is deliberately given an empty transcriptome "
-            "rather than one it would crash on) — off_target_penalty and "
-            "segment_specificity are placeholders, not measurements."
-        )
 
     for name in request.gate_families or ["toehold"]:
         reason = _UNBUILDABLE_FAMILIES.get(name)
@@ -282,7 +334,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
 
 
 def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
-    """Execute the pipeline for one `direct`- or `de`-mode job.
+    """Execute a direct, differential-expression, or reference-gene job.
 
     Args:
         request: The immutable submission.
@@ -291,9 +343,9 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
 
     Raises:
         InputValidationError: An unrecognised ``input_mode``, a ``de`` submission for a
-            host with no bundled reference transcriptome (*E. coli* and yeast today,
-            not human — ``engine.transcriptome.available_hosts()``, docs/ROADMAP.md
-            Q1), an organism this engine does not recognise, an unusable dataset or
+            host with no bundled reference transcriptome (all four hosts have one
+            today — ``engine.transcriptome.available_hosts()``), an unrecognised organism,
+            an unusable dataset or
             trigger sequence, or constraints that do not parse. All are
             ``EngineError`` — **data**, per ``EngineClient``'s contract — and
             ``LocalEngine.run`` converts them into a terminal ``JobResult`` rather than
@@ -306,15 +358,54 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     if not on_progress(*_pct("Validating inputs")):
         raise JobCancelled("Validating inputs")
 
-    if request.input_mode not in (INPUT_DIRECT, INPUT_DE):
+    if request.input_mode not in (INPUT_DIRECT, INPUT_DE, INPUT_GENE):
         raise InputValidationError(f"Unrecognised input mode {request.input_mode!r}.")
 
+    from engine.client import normalize_trigger_sequence, validate_job_configuration
+
+    try:
+        validate_job_configuration(
+            request.params,
+            request.gate_families,
+            request.scoring_profile,
+            request.input_mode,
+            request.trigger_sequence,
+            request.organism,
+        )
+        if request.input_mode == INPUT_DIRECT:
+            request = dataclasses.replace(
+                request, trigger_sequence=normalize_trigger_sequence(request.trigger_sequence)
+            )
+    except ValueError as exc:
+        raise InputValidationError(str(exc)) from exc
     host = _resolve_host(request)
     tools = build_tools(request, host)
     constraints: Constraints = tools["constraints"]
     families: list = tools["families"]
     warnings: list[str] = list(tools["warnings"])
+    if host is Host.HUMAN:
+        warnings.append(
+            "Human expression constructs use a CMV promoter and hGH polyadenylation signal. "
+            "Mammalian expression and switch activity are computational predictions, not "
+            "wet-lab validated. Payload activity and codon adaptation require "
+            "experimental validation."
+        )
+        if constraints.standard is AssemblyStandard.NONE:
+            warnings.append(
+                "No restriction-based assembly standard is selected for this Human construct; "
+                "cloning overlaps and a wet-lab assembly protocol have not been designed."
+            )
+        if not request.params.get("backbone"):
+            warnings.append(
+                "No backbone supplied: this is a Human expression cassette. Supply a custom "
+                "mammalian GenBank backbone to assemble a complete vector."
+            )
 
+    if (request.params.get("backbone") or {}).get("custom_genbank"):
+        warnings.append(
+            "Custom vector coordinates are compiled; replication, selection and "
+            "host compatibility remain user-supplied and unverified."
+        )
     if not families:
         raise InputValidationError(
             "None of the requested gate families could be built for this host: "
@@ -329,41 +420,74 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             + ("; ".join(outcome_warnings) if outcome_warnings else "no output was requested.")
         )
 
+    if any(
+        outcome in (DesiredOutcome.ANTIBIOTIC, DesiredOutcome.KANAMYCIN) for outcome in outcomes
+    ):
+        warnings.append(
+            "Resistance payload identity is verified, but switch N-terminal fusion "
+            "resistance is unvalidated; AmpR secretion may be affected."
+        )
     profile = resolve_profile(request.scoring_profile, request.params.get("scoring"))
     store = CandidateStore(request.output_dir, request.run_id)
 
     if request.input_mode == INPUT_DE:
         if not on_progress(*_pct("Selecting genes")):
             raise JobCancelled("Selecting genes")
-        if not on_progress(*_pct("Scoring triggers")):
-            raise JobCancelled("Scoring triggers")
         trigger_candidates, trigger_warnings = _de_trigger(
             request,
             store,
             tools["profiler"],
             tools["folder"],
-            tools["off_target"],
             tools["screener"],
             constraints,
             host,
+            on_progress,
         )
     else:
         if not on_progress(*_pct("Scoring triggers")):
             raise JobCancelled("Scoring triggers")
+        direct_request = request
+        reference = None
+        if request.input_mode == INPUT_GENE:
+            target = request.params.get("target_gene") or {}
+            if not isinstance(target, dict):
+                raise InputValidationError("target_gene must contain a reference gene ID.")
+            reference = gene_reference(host, target.get("gene_id", ""))
+            sequence = request.trigger_sequence or reference["sequence"]
+            if sq.to_rna(sequence) != reference["sequence"]:
+                raise InputValidationError(
+                    "The frozen gene sequence no longer matches its reference."
+                )
+            direct_request = dataclasses.replace(request, trigger_sequence=sequence)
         trigger_candidates, trigger_warnings = _direct_trigger(
-            request,
+            direct_request,
             store,
             tools["profiler"],
             tools["folder"],
-            tools["off_target"],
             tools["screener"],
             constraints,
         )
+        if reference is not None:
+            trigger_candidates = [
+                dataclasses.replace(
+                    candidate,
+                    gene_id=reference["gene_id"],
+                    symbol=reference["gene_symbol"],
+                    transcript_id=reference["transcript_id"],
+                    reference_accession=reference.get("reference_accession", ""),
+                    reference_selection_method=reference["selection_method"],
+                    transcript_sequence_sha256=sha256_bytes(reference["sequence"].encode()),
+                )
+                for candidate in trigger_candidates
+            ]
+            trigger_warnings.append(
+                f"Resolved {reference['gene_id']} to {reference['transcript_id']} "
+                f"using {reference['selection_method']}."
+            )
     warnings.extend(trigger_warnings)
 
     validator = SwitchValidator(
         tools["folder"],
-        tools["off_target"],
         tools["screener"],
         tools["translation"],
         constraints,
@@ -398,44 +522,103 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
 
     scored: list[tuple[CandidateResult, float | None]] = []
     plasmids: dict[str, PlasmidDesign] = {}
+    #: Accepted one-gate designs with their raw metrics and score, for stage 4 to
+    #: combine. Rejected designs are excluded: a circuit built on a switch that
+    #: already breached a hard filter is not a circuit worth proposing.
+    switch_progress = [32]
+
+    def report_switch_progress(completed: int, total: int) -> bool:
+        switch_progress[0] = 32 + 44 * completed // max(total, 1)
+        return on_progress(switch_progress[0], "Designing switches")
+
     designs = designer.design(
-        trigger_candidates, constraints, on_incompatible=_on_incompatible, on_invalid=_on_invalid
+        trigger_candidates,
+        constraints,
+        on_incompatible=_on_incompatible,
+        on_invalid=_on_invalid,
+        on_progress=report_switch_progress,
     )
+    max_designs = (request.params.get("budget") or {}).get("max_designs", 20)
+    design_budget_exhausted = False
+    evaluated_gate_designs = 0
     for index, design in enumerate(designs):
-        if index % 5 == 0 and not on_progress(*_pct("Designing switches")):
+        if index >= max_designs:
+            design_budget_exhausted = True
+            warnings.append(
+                f"Design compute budget reached: {max_designs} validated gate designs "
+                "were retained in deterministic generator order; remaining designs "
+                "were not evaluated. Each retained gate was paired with every requested output."
+            )
+            break
+        evaluated_gate_designs += 1
+        if index % 5 == 0 and not on_progress(switch_progress[0], "Designing switches"):
             raise JobCancelled("Designing switches")
 
         family = families_by_kind[design.gate_kind]
-        raw = family.evaluate_design(design)
-        metrics = build_metrics(raw, profile)
-        breach = failed_filter(raw, profile)
+        for outcome in outcomes:
+            if not on_progress(switch_progress[0], "Evaluating payload context"):
+                raise JobCancelled("Evaluating payload context")
+            # Requested outputs are alternatives: every gate is evaluated with every
+            # output CDS, rather than assigned round-robin or silently skipped.
+            plasmid = _build_plasmid(plasmid_builder, store, design, outcome, custom_sequence)
+            transcript = "".join(
+                segment.sequence
+                for segment in plasmid.plasmid.segments
+                if segment.kind in (SegmentKind.SWITCH, SegmentKind.PAYLOAD)
+            )
+            evaluated_design = dataclasses.replace(
+                design,
+                architecture={**design.architecture, "evaluation_sequence": sq.to_rna(transcript)},
+            )
+            raw = family.evaluate_design(evaluated_design)
+            metrics = build_metrics(raw, profile)
+            breach = failed_filter(raw, profile)
+            trigger = design.trigger_set.activators[0]
+            candidate = _candidate_result(
+                store, evaluated_design, family, trigger, metrics, breach, plasmid, outcome
+            )
+            plasmids[candidate.ref] = plasmid
+            score = None if candidate.is_rejected else weighted_score(metrics, profile)
+            scored.append((candidate, score))
 
-        # Round-robin, matching MockEngine._build_candidates: every requested output
-        # gets a comparable share of the candidate budget rather than one dominating
-        # by chance (both engines must agree on this, or a real run's distribution
-        # looks like a bug next to the mock one it is meant to match).
-        outcome = outcomes[index % len(outcomes)]
-        plasmid = _build_plasmid(plasmid_builder, store, design, outcome, custom_sequence)
+    if not on_progress(*_pct("Designing circuits")):
+        raise JobCancelled("Designing circuits")
 
-        # The specific trigger that produced *this* design — scanning (docs/triggers.md
-        # T2) can feed multiple candidates from different windows into one run, so this
-        # is no longer necessarily the same trigger for every design.
-        trigger = design.trigger_set.activators[0]
-        candidate = _candidate_result(
-            store, design, family, trigger, metrics, breach, plasmid, outcome
+    if constraints.max_circuit_gates > 1:
+        warnings.append(
+            "Combined Boolean expressions are exploratory logical specifications. No reviewed "
+            "physical compiler exists for multi-gate AND/OR/NOT constructs; this run returns "
+            "independent single-input activation constructs only."
         )
-        plasmids[candidate.ref] = plasmid
 
-        scored.append((candidate, None if breach else weighted_score(metrics, profile)))
-
-    ranks = rank_candidates([(c.ref, s) for c, s in scored if not c.is_rejected])
+    ranks = rank_candidates(
+        [(c.ref, score) for c, score in scored if not c.is_rejected],
+        raw_values={
+            c.ref: {metric.name: metric.raw_value for metric in c.metrics} for c, _ in scored
+        },
+        profile=profile,
+    )
     candidates = [
         dataclasses.replace(c, rank=ranks.get(c.ref), overall_score=score) for c, score in scored
     ]
 
     if not on_progress(*_pct("Writing report")):
         raise JobCancelled("Writing report")
-    artifacts = _write_artifacts(request.output_dir, candidates, plasmids)
+    artifacts = [store.snapshot("trigger_selection", trigger_candidates)]
+    artifacts.extend(
+        _write_artifacts(request.output_dir, candidates, plasmids, on_progress=on_progress)
+    )
+    from engine.stages.reporting import ReportBuilder, StructureRenderer
+
+    artifacts.append(
+        ReportBuilder(StructureRenderer()).build_result(
+            candidates,
+            warnings,
+            request.output_dir,
+            engine_version="local-0.11.0-scientific-qa",
+            profile_version=profile.version,
+        )
+    )
 
     if trigger_candidates:
         # trigger_candidates was non-empty, so the loop above genuinely tried. When it is
@@ -488,6 +671,22 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         error=None,
         input_checksum=request.input_checksum,
         params=request.params,
+        scientific_provenance={
+            "schema": "cernal-scientific-provenance-v1",
+            "scoring_profile": profile.name,
+            "scoring_profile_version": profile.version,
+            "tool_versions": tools["folder"].versions(),
+            "seed": request.seed,
+            "experimental_validation": "unavailable",
+            "output_semantics": "alternative_single_payload_constructs_cross_product",
+            "off_target_screen": "unmeasured",
+            "design_budget": {
+                "max_designs": max_designs,
+                "evaluated_gate_designs": evaluated_gate_designs,
+                "truncated": design_budget_exhausted,
+                "selection": "deterministic_generator_order",
+            },
+        },
     )
 
 
@@ -548,7 +747,42 @@ def _build_constraints(params: dict) -> Constraints:
     """``Constraints(**params.get("constraints", {}))``, per this module's own sketch —
     with the type coercion a JSON-sourced dict needs and a stub construction never did:
     tuple fields arrive as lists, and ``standard`` arrives as a plain string."""
-    raw = dict(params.get("constraints") or {})
+    supplied = params.get("constraints", {})
+    if supplied is None:
+        supplied = {}
+    if not isinstance(supplied, dict):
+        raise InputValidationError("constraints must be an object.")
+    raw = dict(supplied)
+    defaults = Constraints()
+    for name in ("max_triggers", "max_circuit_gates", "max_switch_length", "max_genes"):
+        value = raw.get(name, getattr(defaults, name))
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise InputValidationError(f"{name} must be a positive integer.")
+    for name in (
+        "min_separation",
+        "max_p_adj",
+        "max_separation",
+        "min_base_expression",
+        "max_base_expression",
+    ):
+        value = raw.get(name, getattr(defaults, name))
+        if value is None and name not in ("min_separation", "max_p_adj"):
+            continue
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value < 0
+        ):
+            raise InputValidationError(f"{name} must be a finite nonnegative number.")
+    if raw.get("max_p_adj", defaults.max_p_adj) > 1:
+        raise InputValidationError("max_p_adj must be between 0 and 1.")
+    if "direction_balance" in raw and not isinstance(raw["direction_balance"], bool):
+        raise InputValidationError("direction_balance must be a boolean.")
+    if raw.get("max_separation") is not None and raw["max_separation"] < raw.get(
+        "min_separation", defaults.min_separation
+    ):
+        raise InputValidationError("max_separation must be at least min_separation.")
 
     known = {field.name for field in dataclasses.fields(Constraints)}
     unknown = set(raw) - known
@@ -574,9 +808,32 @@ def _build_constraints(params: dict) -> Constraints:
             raise InputValidationError("trigger_lengths values must be unique.")
         raw["trigger_lengths"] = trigger_lengths
     if "forbidden_motifs" in raw:
-        raw["forbidden_motifs"] = tuple(raw["forbidden_motifs"])
+        motifs = raw["forbidden_motifs"]
+        if not isinstance(motifs, (list, tuple)):
+            raise InputValidationError(
+                "forbidden_motifs must be a list of nonempty DNA/RNA sequences."
+            )
+        normalized = []
+        for motif in motifs:
+            if not isinstance(motif, str) or not motif or not sq.is_valid_rna(sq.to_rna(motif)):
+                raise InputValidationError("Every forbidden motif must contain only A/C/G/T/U.")
+            normalized.append(sq.to_dna(sq.to_rna(motif)))
+        raw["forbidden_motifs"] = tuple(dict.fromkeys(normalized))
     if "trigger_gc_range" in raw:
-        raw["trigger_gc_range"] = tuple(raw["trigger_gc_range"])
+        band = raw["trigger_gc_range"]
+        if (
+            not isinstance(band, (list, tuple))
+            or len(band) != 2
+            or any(
+                isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
+                for v in band
+            )
+            or not 0 <= band[0] < band[1] <= 100
+        ):
+            raise InputValidationError(
+                "trigger_gc_range must be [low, high] within 0-100 with low < high."
+            )
+        raw["trigger_gc_range"] = tuple(band)
     if "standard" in raw:
         try:
             raw["standard"] = AssemblyStandard(raw["standard"])
@@ -632,7 +889,12 @@ def _resolve_outputs(params: dict, host: Host) -> tuple[list[DesiredOutcome], li
                 else:
                     buildable.append(outcome)
         elif outcome in PAYLOADS:
-            buildable.append(outcome)
+            if host not in PAYLOAD_HOSTS[outcome]:
+                warnings.append(
+                    f"Payload {outcome.value!r} is supported computationally only for E. coli."
+                )
+            else:
+                buildable.append(outcome)
         else:
             warnings.append(
                 f"Skipped output {outcome.value!r}: no payload sequence is configured "
@@ -700,7 +962,6 @@ def _direct_trigger(
     store: CandidateStore,
     profiler: FoldProfiler,
     folder: FoldEngine,
-    off_target: OffTargetScanner,
     screener: MotifScreener,
     constraints: Constraints,
 ) -> tuple[list[TriggerCandidate], list[str]]:
@@ -726,7 +987,7 @@ def _direct_trigger(
     lengths ever do.
 
     Re-validates length and alphabet defensively, mirroring
-    ``MockEngine._verify_input`` — the Platform already checked this
+    the Platform already checked this
     (``apps/analyses/services.py::_clean_trigger``), but the engine must not trust a
     caller that skipped the Platform (``LocalEngine`` used directly, as this module's
     own tests do).
@@ -747,7 +1008,7 @@ def _direct_trigger(
     if len(sequence) > MAX_TRIGGER_LENGTH:
         raise InputValidationError(
             f"The trigger sequence is {len(sequence)} nt, over the "
-            f"{MAX_TRIGGER_LENGTH} nt limit for a direct submission."
+            f"{MAX_TRIGGER_LENGTH} nt compute limit for a transcript input."
         )
     if not sq.is_valid_rna(sequence):
         raise InputValidationError(
@@ -756,6 +1017,12 @@ def _direct_trigger(
 
     max_window = max(constraints.trigger_lengths)
     if len(sequence) <= max_window:
+        violations = screener.violations(sequence)
+        if violations:
+            return [], [
+                "Exact trigger excluded by configured motif screen: "
+                + "; ".join(map(str, violations))
+            ]
         # Preserve today's selection behaviour: the whole paste is the one
         # trigger. openness/accessibility follow TriggerScorer.score's already-decided
         # convention (mean, then minimum, of the same profile slice) rather than
@@ -772,10 +1039,6 @@ def _direct_trigger(
             openness=openness,
             accessibility=min(window),
             mfe=folder.mfe(sequence).energy,
-            # No transcriptome exists for a direct submission (off-target is reported
-            # as unmeasured in run_pipeline's warnings, not silently clean).
-            off_target_penalty=0.0,
-            segment_specificity=1.0,
             gc_content=sq.gc_content(sequence),
             aug_indexes=sq.find_augs(sequence),
             stop_indexes=sq.find_stops(sequence),
@@ -792,14 +1055,15 @@ def _direct_trigger(
         symbol="direct-trigger",
         regulation=Regulation.UP,
         # This describes a differential-expression comparison this submission never
-        # made. TriggerScorer.score reads none of these fields — log2_fold_change and
-        # score are required by the record and stay 0.0 as inert placeholders; every
-        # optional field is None rather than a fabricated measurement (domain.py's own
-        # "None means not measured" rule, docs/genes.md §3 G1), since none of them were.
-        log2_fold_change=0.0,
+        # made, so every field below is None or inert rather than a fabricated
+        # measurement (domain.py's "None means not measured" rule, docs/genes.md §3 G1).
+        # log2_fold_change is None specifically: it now travels onto every
+        # TriggerCandidate and is read as `state_separation`, and a 0.0 there would
+        # breach that metric's own hard filter on a quantity this mode cannot have.
+        log2_fold_change=None,
         score=0.0,
     )
-    scorer = TriggerScorer(profiler, off_target, screener, folder)
+    scorer = TriggerScorer(profiler, screener, folder)
     scored = list(scorer.score([gene], {"direct": sequence}, constraints))
     # Re-mint through CandidateStore: TriggerCandidate.trigger_id's own contract
     # (domain.py) says "minted by CandidateStore", but TriggerScorer builds its own
@@ -838,10 +1102,10 @@ def _de_trigger(
     store: CandidateStore,
     profiler: FoldProfiler,
     folder: FoldEngine,
-    off_target: OffTargetScanner,
     screener: MotifScreener,
     constraints: Constraints,
     host: Host,
+    on_progress: ProgressFn | None = None,
 ) -> tuple[list[TriggerCandidate], list[str]]:
     """Resolve trigger candidates for a `de` submission (docs/genes.md, docs/ROADMAP.md
     Q1's first answer) — a scoped first cut, not the full `de` pipeline docs/ROADMAP.md
@@ -855,7 +1119,7 @@ def _de_trigger(
            — the engine trusts nothing the Platform already checked, the same discipline
            ``_direct_trigger`` applies to a pasted sequence.
         2. Load the bundled reference transcriptome for ``host`` (``engine.transcriptome``
-           — *E. coli* and yeast today, not human; anything unbundled raises before any
+           — all four hosts; anything unbundled raises before any
            work happens, rather than silently producing an empty shortlist).
         3. ``GeneSelector.select`` the shortlist, degrading gracefully on every axis it
            cannot measure — there is no count matrix here (docs/genes.md §3 G-a), so
@@ -867,12 +1131,6 @@ def _de_trigger(
            still becomes its own one-gene circuit downstream (this module's own
            docstring) — selecting several genes here is not a multi-gene Boolean
            circuit, just several independent single-input switches to choose from.
-
-    Off-target scanning is **not** performed here even though a real, non-empty
-    transcriptome now exists: ``OffTargetScanner``'s own matching (``find_similar``) is
-    still a Step-5 stub, and it raises rather than degrades once its transcriptome is
-    non-empty (``off_target.transcriptome`` stays ``{}``, exactly as ``build_tools``
-    already constructs it for `direct` mode — see this module's own docstring).
 
     Returns:
         The candidate trigger(s), ranked best first, and warnings describing how they
@@ -905,12 +1163,34 @@ def _de_trigger(
             "The dataset does not match the checksum recorded at submission."
         )
 
-    dge = parse_dge_table(raw, path.name)
+    statistics = request.params.get("statistics") or {}
+    completeness = statistics.get("hypothesis_universe_complete")
+    if completeness is not None and not isinstance(completeness, bool):
+        raise InputValidationError("statistics.hypothesis_universe_complete must be a boolean.")
+    dge = parse_dge_table(raw, path.name, hypothesis_universe_complete=completeness)
     transcriptome = load_transcriptome(host)
+
+    resolved_rows = []
+    for row in dge.rows:
+        try:
+            canonical_id = resolve_gene_id(host, row.gene_id)
+        except InputValidationError:
+            canonical_id = row.gene_id  # GeneSelector reports unmatched identifiers.
+        resolved_rows.append(dataclasses.replace(row, gene_id=canonical_id))
+    dge = dataclasses.replace(dge, rows=tuple(resolved_rows))
 
     warnings: list[str] = []
     selector = GeneSelector(constraints, screener)
-    genes = selector.select(dge, sequences=transcriptome, on_warning=warnings.append)
+
+    def selection_progress(index: int, total: int) -> bool:
+        return on_progress is None or on_progress(2 + 5 * index // max(total, 1), "Selecting genes")
+
+    genes = selector.select(
+        dge,
+        sequences=transcriptome,
+        on_warning=warnings.append,
+        on_progress=selection_progress,
+    )
     if not genes:
         return [], [
             *warnings,
@@ -920,12 +1200,47 @@ def _de_trigger(
     # Every gene GeneSelector kept is guaranteed present in `transcriptome` (it drops,
     # and warns about, any gene missing from `sequences` itself) — safe to reuse the
     # same dict rather than building a second, smaller one.
-    scorer = TriggerScorer(profiler, off_target, screener, folder)
-    scored = list(scorer.score(genes, transcriptome, constraints))
+    # Activating toeholds cannot invert a DOWN signature. Retain the statistical
+    # shortlist and report the incompatibility before spending time on RNA folding.
+    down_count = sum(g.log2_fold_change is not None and g.log2_fold_change < 0 for g in genes)
+    if down_count:
+        warnings.append(
+            f"{down_count} down-regulated gene(s) require a physical inverter; no production "
+            "NOT compiler exists, so they cannot produce target-state activation constructs."
+        )
+    genes = [g for g in genes if g.log2_fold_change is None or g.log2_fold_change >= 0]
+    over_budget = [g for g in genes if len(transcriptome[g.gene_id]) > MAX_TRIGGER_LENGTH]
+    if over_budget:
+        warnings.append(
+            f"{len(over_budget)} selected transcript(s) exceed the {MAX_TRIGGER_LENGTH}-nt "
+            "transcript compute limit and were not folded."
+        )
+    genes = [g for g in genes if len(transcriptome[g.gene_id]) <= MAX_TRIGGER_LENGTH]
+    if not genes:
+        return [], warnings
+    scorer = TriggerScorer(profiler, screener, folder)
+    scored = []
+    for index, gene in enumerate(genes):
+        if on_progress is not None and not on_progress(
+            7 + 25 * index // len(genes), "Scoring triggers"
+        ):
+            raise JobCancelled("Scoring triggers")
+        scored.extend(scorer.score([gene], transcriptome, constraints))
     # Re-mint through CandidateStore, matching _direct_trigger's own note: trigger_id
     # is "minted by CandidateStore" per domain.py's contract, but TriggerScorer builds
     # its own id string directly.
-    candidates = [dataclasses.replace(c, trigger_id=store.mint_id("trig")) for c in scored]
+    references = {gene.gene_id: gene_reference(host, gene.gene_id) for gene in genes}
+    candidates = [
+        dataclasses.replace(
+            c,
+            trigger_id=store.mint_id("trig"),
+            transcript_id=references[c.gene_id]["transcript_id"],
+            reference_accession=references[c.gene_id].get("reference_accession", ""),
+            reference_selection_method=references[c.gene_id]["selection_method"],
+            transcript_sequence_sha256=sha256_bytes(transcriptome[c.gene_id].encode()),
+        )
+        for c in scored
+    ]
 
     if not candidates:
         return [], [
@@ -936,10 +1251,13 @@ def _de_trigger(
         ]
 
     best = genes[0]
+    # Always present on this path — GeneSelector reads it off the DGE table and filters
+    # on it — but the field is Optional for `direct`'s sake, so this does not assume.
+    best_effect = "n/a" if best.log2_fold_change is None else f"{best.log2_fold_change:.2f}"
     return candidates, [
         *warnings,
         f"Selected {len(genes)} gene(s) from the differential-expression table (best: "
-        f"{best.symbol or best.gene_id}, log2FC={best.log2_fold_change:.2f}); scanned "
+        f"{best.symbol or best.gene_id}, log2FC={best_effect}); scanned "
         f"their real transcripts and kept {len(candidates)} candidate trigger "
         "window(s) after screening. Exact footprints were ranked within footprint "
         "buckets by selected joint P8, terminal-20 opening energy and mean marginal "
@@ -987,6 +1305,291 @@ def _build_plasmid(
     return builder.build(circuit, outcome)
 
 
+def _multi_gate_candidates(
+    single_gate: list[tuple[GateDesign, dict[str, float | None], float]],
+    trigger_candidates: list[TriggerCandidate],
+    constraints: Constraints,
+    profile: ScoringProfile,
+    plasmid_builder: PlasmidBuilder,
+    store: CandidateStore,
+    outcomes: list[DesiredOutcome],
+    custom_sequence: str | None,
+    families_by_kind: dict,
+) -> Iterator[tuple[CandidateResult, PlasmidDesign, float | None]]:
+    """Stage 4 — circuits that combine more than one gene, and their plasmids.
+
+    Additive on purpose. Every one-gene candidate the loop above produced is still
+    yielded unchanged; this adds the longer circuits alongside them, so raising
+    ``max_circuit_gates`` widens the menu rather than replacing it. A researcher who
+    sets it to 1 gets exactly what this engine produced before stage 4 existed.
+
+    Why a circuit's metrics are its *worst* member's:
+        A circuit is only as good as the weakest switch in it. Taking each metric's
+        worst value across the member designs — worst by that metric's own declared
+        direction, not by magnitude — means a two-gate circuit can never score better
+        than either gate alone on any axis, which is the honest answer: adding a
+        component cannot improve the thermodynamics of the one already there.
+
+        ``circuit_complexity`` is the exception, and the one that makes a longer circuit
+        actually cost something: it comes from the circuit's own
+        ``BooleanExpression.complexity()`` rather than from any member, so it rises with
+        every gate and every ``NOT``.
+    """
+    if constraints.max_circuit_gates <= 1 or len(single_gate) < 2:
+        return
+
+    genes = _genes_for_circuits(trigger_candidates)
+    if len(genes) < 2:
+        return
+
+    designer = CircuitDesigner(ConfusionEvaluator(), max_terms=constraints.max_circuit_gates)
+    # Best-first, so CircuitDesigner.design's "first design per gene" rule picks each
+    # gene's strongest switch (its own docstring explains why the choice is the
+    # caller's to make through ordering).
+    ordered = [design for design, _raw, _score in sorted(single_gate, key=_by_score_desc)]
+    raw_by_design = {design.design_id: raw for design, raw, _score in single_gate}
+
+    # No per-sample counts exist in this product (docs/genes.md §3 G-a), so the
+    # confusion matrix stays unmeasured — CircuitDesigner.design's own docstring says
+    # what that means and what fills it once a count matrix does exist.
+    empty_counts = CountMatrix(
+        gene_ids=(),
+        samples=(),
+        counts=(),
+        metadata=SampleMetadata(control_samples=(), condition_samples=()),
+    )
+    for index, circuit in enumerate(designer.design(genes, ordered, empty_counts)):
+        if len(circuit.expression.gene_ids()) < 2:
+            # The one-gene forms were already produced, and scored, above.
+            continue
+
+        outcome = outcomes[index % len(outcomes)]
+        raws = [raw_by_design[design.design_id] for design in circuit.designs]
+        raw = _worst_metrics(raws, profile)
+        raw["circuit_complexity"] = float(circuit.complexity)
+
+        metrics = build_metrics(raw, profile)
+        breach = failed_filter(raw, profile)
+
+        built = dataclasses.replace(circuit, circuit_id=store.mint_id("circ"), output=outcome.value)
+        plasmid = (
+            plasmid_builder.build(built, outcome, custom_payload=custom_sequence)
+            if outcome is DesiredOutcome.CUSTOM
+            else plasmid_builder.build(built, outcome)
+        )
+        family = families_by_kind[circuit.designs[0].gate_kind]
+        candidate = _circuit_candidate_result(
+            store, built, family, metrics, breach, plasmid, outcome
+        )
+        yield candidate, plasmid, None if breach else weighted_score(metrics, profile)
+
+
+def _by_score_desc(entry: tuple[GateDesign, dict[str, float | None], float]):
+    """Highest score first, ties broken by design id so the order is total."""
+    design, _raw, score = entry
+    return (-score, design.design_id)
+
+
+def _genes_for_circuits(trigger_candidates: list[TriggerCandidate]) -> list[SelectedGene]:
+    """The genes behind these triggers, as stage 4 needs them.
+
+    Rebuilt from the trigger candidates rather than threaded down from stage 1, because
+    a ``TriggerCandidate`` already carries everything a circuit needs to know about its
+    gene — the id, the symbol and the effect size — and the direction follows from the
+    sign of that effect size (``DgeRow.regulation`` derives it the same way).
+
+    One entry per gene, not per trigger: scanning can yield many windows from one
+    transcript, and they are all the same circuit input.
+    """
+    genes: dict[str, SelectedGene] = {}
+    for trigger in trigger_candidates:
+        if trigger.gene_id in genes or trigger.log2_fold_change is None:
+            # No effect size means no direction, and a `direct` submission has none —
+            # there is nothing to orient a NOT gate by, so it cannot join a circuit.
+            continue
+        genes[trigger.gene_id] = SelectedGene(
+            gene_id=trigger.gene_id,
+            symbol=trigger.symbol,
+            regulation=(Regulation.UP if trigger.log2_fold_change >= 0 else Regulation.DOWN),
+            log2_fold_change=trigger.log2_fold_change,
+            score=trigger.score,
+        )
+    return list(genes.values())
+
+
+def _worst_metrics(
+    raws: list[dict[str, float | None]], profile: ScoringProfile
+) -> dict[str, float | None]:
+    """Each metric's worst value across a circuit's member designs.
+
+    "Worst" is by the metric's own declared direction: the lowest value for a
+    higher-is-better metric, the highest for a lower-is-better one. A metric any member
+    could not measure stays ``None`` for the circuit too — one unmeasured switch makes
+    the circuit's figure unmeasured, not the best of what is left.
+    """
+    worst: dict[str, float | None] = {}
+    for name in {key for raw in raws for key in raw}:
+        values = [raw.get(name) for raw in raws]
+        if any(value is None for value in values):
+            worst[name] = None
+            continue
+        spec = profile.spec(name)
+        if spec is None:
+            # Stored, not scored (CLAUDE.md §2) — no direction to pick a worst by, so
+            # report the first member's rather than inventing an ordering.
+            worst[name] = values[0]
+            continue
+        worst[name] = min(values) if spec.direction == HIGHER_BETTER else max(values)
+    return worst
+
+
+def _circuit_candidate_result(
+    store: CandidateStore,
+    circuit: CircuitCandidate,
+    family: GateFamily,
+    metrics: list[MetricValue],
+    breach: HardFilter | None,
+    plasmid: PlasmidDesign,
+    outcome: DesiredOutcome,
+) -> CandidateResult:
+    """A multi-gene circuit shaped as a ``CandidateResult`` the Platform can import.
+
+    The same record a one-gene candidate uses, with the parts that are genuinely plural
+    carrying every member rather than only the first:
+
+    * ``triggers["features"]`` — one entry per member gene. The field was always a list;
+      a one-gene circuit simply only ever put one thing in it.
+    * ``plasmid_segments`` — the real construct, which ``PlasmidBuilder`` already lays
+      out as a promoter/switch pair per switch plus one shared payload and terminator.
+    * ``logic_graph`` — the real Boolean structure from ``CircuitDesigner``, not the
+      one-gene placeholder.
+
+    ``design["switch_sequence"]`` stays the *primary* switch, because the field is
+    singular in the contract and a concatenation of several switches would read as one
+    molecule that nobody is building. ``component_switches`` carries all of them, so a
+    consumer that wants every sequence has it without the singular field lying.
+    """
+    logic_graph = {
+        "genes": [
+            {
+                "name": gene.name,
+                "role": gene.role,
+                "state": gene.state.value,
+                "direction": gene.direction.value,
+            }
+            for gene in circuit.logic_graph.genes
+        ],
+        "mid_gate": circuit.logic_graph.mid_gate.value,
+        "outer_gate": circuit.logic_graph.outer_gate.value,
+        "invert": circuit.logic_graph.invert,
+        "output": outcome.display_name,
+        "caption": f"{circuit.logic_graph.caption} -> {outcome.display_name}",
+    }
+    triggers = [
+        trigger
+        for design in circuit.designs
+        for trigger in (design.trigger_set.activators + design.trigger_set.repressors)
+    ]
+    primary = circuit.designs[0]
+    return CandidateResult(
+        ref=store.mint_id("cand"),
+        rank=None,
+        overall_score=None,
+        gate_family=family.name,
+        logic_type=circuit.expression.render(),
+        triggers={"features": [_trigger_feature(trigger) for trigger in triggers]},
+        design={
+            "switch_sequence": primary.sequence,
+            "structure": primary.dot_bracket,
+            "toehold_length": primary.architecture.get("toehold_length", 0),
+            "sequence_length_bp": plasmid.plasmid.length_bp,
+            "plasmid_segments": [
+                {"kind": segment.kind.value, "name": segment.name, "length_bp": segment.length_bp}
+                for segment in plasmid.plasmid.segments
+            ],
+            "logic_graph": logic_graph,
+            "trigger_start_index": triggers[0].start_index if triggers else 0,
+            "component_switches": [
+                {"design_id": design.design_id, "switch_sequence": design.sequence}
+                for design in circuit.designs
+            ],
+        },
+        summary=(
+            f"{len(circuit.designs)}-gate circuit: {circuit.expression.render()} "
+            f"-> {outcome.display_name}"
+        ),
+        metrics=metrics,
+        warnings=tuple(f"Assembly standard: {v}" for v in plasmid.violations),
+        is_rejected=breach is not None or bool(plasmid.eligibility_violations),
+        rejection_reason=breach.reason if breach else "; ".join(plasmid.eligibility_violations),
+    )
+
+
+def _trigger_feature(trigger: TriggerCandidate) -> dict:
+    """One trigger as the Platform's ``triggers["features"]`` entry.
+
+    Extracted so the single-gene and multi-gene circuit paths describe a trigger
+    identically — a circuit's features list is this, once per member gene.
+    """
+    return {
+        "feature_id": trigger.gene_id,
+        "gene_id": trigger.gene_id,
+        "gene_symbol": trigger.symbol,
+        "transcript_id": trigger.transcript_id,
+        "reference_accession": trigger.reference_accession,
+        "reference_selection_method": trigger.reference_selection_method,
+        "transcript_sequence_sha256": trigger.transcript_sequence_sha256,
+        "log2_fold_change": trigger.log2_fold_change,
+        "sequence_sha256": sha256_bytes(trigger.sequence.encode()),
+        "sequence": trigger.sequence,
+        "openness": trigger.openness,
+        "accessibility": trigger.accessibility,
+        "selection_method": (
+            TriggerScorer.SELECTION_METHOD
+            if trigger.gate_toehold_length is not None
+            else TriggerScorer.LEGACY_SELECTION_METHOD
+        ),
+        "selection_metric": (
+            "selected_joint_p8"
+            if trigger.gate_toehold_length is not None
+            else "mean_base_unpaired_probability"
+        ),
+        "selection_score": trigger.score,
+        "orientation": "transcript_forward",
+        "gate_toehold_length": trigger.gate_toehold_length,
+        "hypothesis_start": trigger.hypothesis_start,
+        "hypothesis_end": trigger.hypothesis_end,
+        "joint_open_probability_20": trigger.joint_open_probability_20,
+        "mean_marginal_openness_20": trigger.mean_marginal_openness_20,
+        "delta_g_open_kcal_per_mol_per_nt": (trigger.delta_g_open_kcal_per_mol_per_nt),
+        "selected_seed_start": trigger.selected_seed_start,
+        "selected_seed_end": trigger.selected_seed_end,
+        "selected_seed_probability": trigger.selected_seed_probability,
+        "seed_trials": [
+            {
+                "start": trial.start,
+                "end": trial.end,
+                "relative_start": trial.relative_start,
+                "sequence": trial.sequence,
+                "joint_probability": trial.probability,
+            }
+            for trial in trigger.seed_trials
+        ],
+        "rnaplfold": {
+            "viennarna_version": trigger.rnaplfold_version,
+            "window": trigger.rnaplfold_window,
+            "max_span": trigger.rnaplfold_max_span,
+            "unpaired": trigger.rnaplfold_unpaired,
+            "temperature_celsius": trigger.rnaplfold_temperature_celsius,
+        },
+        # Which window this candidate came from (docs/triggers.md T2) —
+        # 0 for the single-trigger fast path, a real scanned offset
+        # otherwise. Makes a chosen window inspectable rather than a
+        # black box when more than one was considered.
+        "start_index": trigger.start_index,
+    }
+
+
 def _candidate_result(
     store: CandidateStore,
     design: GateDesign,
@@ -1008,7 +1611,18 @@ def _candidate_result(
     a fact about the construct, not a reason to reject the switch design itself.
     """
     logic_graph = {
-        "genes": [{"name": "A", "role": trigger.symbol, "state": "ON", "direction": "up"}],
+        "genes": [
+            {
+                "name": "A",
+                "role": trigger.symbol or trigger.gene_id,
+                "state": "OFF"
+                if trigger.log2_fold_change is not None and trigger.log2_fold_change < 0
+                else "ON",
+                "direction": "down"
+                if trigger.log2_fold_change is not None and trigger.log2_fold_change < 0
+                else "up",
+            }
+        ],
         "mid_gate": "AND",
         "outer_gate": "AND",
         "invert": False,
@@ -1026,64 +1640,61 @@ def _candidate_result(
         overall_score=None,
         gate_family=family.name,
         logic_type=design.trigger_set.logic_type,
-        triggers={
-            "features": [
-                {
-                    "feature_id": trigger.symbol,
-                    "sequence": trigger.sequence,
-                    "openness": trigger.openness,
-                    "accessibility": trigger.accessibility,
-                    "selection_method": (
-                        TriggerScorer.SELECTION_METHOD
-                        if trigger.gate_toehold_length is not None
-                        else TriggerScorer.LEGACY_SELECTION_METHOD
-                    ),
-                    "selection_metric": (
-                        "selected_joint_p8"
-                        if trigger.gate_toehold_length is not None
-                        else "mean_base_unpaired_probability"
-                    ),
-                    "selection_score": trigger.score,
-                    "orientation": "transcript_forward",
-                    "gate_toehold_length": trigger.gate_toehold_length,
-                    "hypothesis_start": trigger.hypothesis_start,
-                    "hypothesis_end": trigger.hypothesis_end,
-                    "joint_open_probability_20": trigger.joint_open_probability_20,
-                    "mean_marginal_openness_20": trigger.mean_marginal_openness_20,
-                    "delta_g_open_kcal_per_mol_per_nt": (trigger.delta_g_open_kcal_per_mol_per_nt),
-                    "selected_seed_start": trigger.selected_seed_start,
-                    "selected_seed_end": trigger.selected_seed_end,
-                    "selected_seed_probability": trigger.selected_seed_probability,
-                    "seed_trials": [
-                        {
-                            "start": trial.start,
-                            "end": trial.end,
-                            "relative_start": trial.relative_start,
-                            "sequence": trial.sequence,
-                            "joint_probability": trial.probability,
-                        }
-                        for trial in trigger.seed_trials
-                    ],
-                    "rnaplfold": {
-                        "viennarna_version": trigger.rnaplfold_version,
-                        "window": trigger.rnaplfold_window,
-                        "max_span": trigger.rnaplfold_max_span,
-                        "unpaired": trigger.rnaplfold_unpaired,
-                        "temperature_celsius": trigger.rnaplfold_temperature_celsius,
-                    },
-                    # Which window this candidate came from (docs/triggers.md T2) —
-                    # 0 for the single-trigger fast path, a real scanned offset
-                    # otherwise. Makes a chosen window inspectable rather than a
-                    # black box when more than one was considered.
-                    "start_index": trigger.start_index,
-                }
-            ]
-        },
+        triggers={"features": [_trigger_feature(trigger)]},
         design={
             "switch_sequence": design.sequence,
             "structure": design.dot_bracket,
             "toehold_length": design.architecture.get("toehold_length", 0),
-            # The whole construct, not the switch alone - matches MockEngine's
+            "architecture": {
+                key: value
+                for key, value in design.architecture.items()
+                if key != "evaluation_sequence"
+            },
+            "evaluation_context": "full_switch_plus_payload_cds_no_promoter_or_terminator",
+            "evaluation_sequence_sha256": sha256_bytes(
+                design.architecture.get("evaluation_sequence", design.sequence).encode()
+            ),
+            "payload_sequence_sha256": sha256_bytes(
+                next(
+                    s.sequence for s in plasmid.plasmid.segments if s.kind is SegmentKind.PAYLOAD
+                ).encode()
+            ),
+            "coding_junction": "switch_initiation_aug_with_payload_start_removed_n_terminal_fusion",
+            "coding_regions": [
+                {
+                    "start": start,
+                    "end": end,
+                    "name": name,
+                    "protein_sha256": sha256_bytes(protein.encode()),
+                }
+                for start, end, name, protein in plasmid.coding_regions
+            ],
+            "family_version": family.version,
+            "host": design.host.value,
+            "structure_kind": "intended_target",
+            "structure_deviation": design.structure_deviation,
+            "structural_rule_version": "syntax-and-ensemble-v1-no-functional-threshold",
+            "maturity": "computational_single_input_compiled_experimental_unvalidated",
+            "orthogonality_status": "unmeasured",
+            "payload_optimization": json.loads(plasmid.payload_optimization)
+            if plasmid.payload_optimization
+            else {"status": "not_requested"},
+            "assembly_method": plasmid.assembly_method,
+            "insertion_index": plasmid.insertion_index,
+            "assembly_notes": list(plasmid.assembly_notes),
+            "payload_id": outcome.value,
+            "payload_source": copy.deepcopy(
+                load_part_catalog().get(
+                    next(s.name for s in plasmid.plasmid.segments if s.kind is SegmentKind.PAYLOAD),
+                    {},
+                )
+            ),
+            "construct_sha256": sha256_bytes(plasmid.plasmid.sequence.encode()),
+            "topology": "circular"
+            if any(s.kind is SegmentKind.BACKBONE for s in plasmid.plasmid.segments)
+            else "linear",
+            "tool_versions": family.folder.versions(),
+            # The whole construct, not the switch alone - matches
             # convention (client.py) and Plasmid.length_bp's own definition. The
             # frontend's PlasmidRing draws arcs proportional to this against
             # plasmid_segments, so a switch-only value here makes every arc but the
@@ -1095,20 +1706,25 @@ def _candidate_result(
         },
         summary=f"{design.trigger_set.logic_type} {family.name} gate on {trigger.symbol}",
         metrics=metrics,
-        warnings=[f"Plasmid: {v}" for v in plasmid.violations],
-        is_rejected=breach is not None,
-        rejection_reason=breach.reason if breach else "",
+        warnings=[*[f"Plasmid: {v}" for v in plasmid.violations], *plasmid.assembly_notes],
+        is_rejected=breach is not None or bool(plasmid.eligibility_violations),
+        rejection_reason=breach.reason if breach else "; ".join(plasmid.eligibility_violations),
     )
 
 
 def _write_artifacts(
-    output_dir: str, candidates: list[CandidateResult], plasmids: dict[str, PlasmidDesign]
+    output_dir: str,
+    candidates: list[CandidateResult],
+    plasmids: dict[str, PlasmidDesign],
+    *,
+    on_progress: ProgressFn | None = None,
 ) -> list[ArtifactRef]:
-    """A design table, a FASTA and a GenBank per accepted candidate — the FASTA and
-    table match the shape ``MockEngine._write_artifacts`` produces, so the Platform's
-    artifact import and download path is exercised identically regardless of which
-    engine ran; the GenBank is new (docs/plasmids.md, E5a) and has no mock equivalent
-    yet.
+    """A design table, and — only once the safety gate releases — a FASTA, a GenBank
+    and an SBOL document per accepted candidate (docs/plasmids.md, E5a; ADR 0008).
+
+    The sequence-bearing exports sit below the release check deliberately: with no
+    local screening adapter provisioned, ``fail_closed_release`` holds every sequence
+    and this writes the design table and the audit manifests alone.
 
     ``plasmids`` is keyed by candidate ref, from the same run that produced
     ``candidates`` — every accepted candidate has an entry (``_build_plasmid`` never
@@ -1143,14 +1759,18 @@ def _write_artifacts(
     ]
 
     for candidate in sorted((c for c in candidates if not c.is_rejected), key=lambda c: c.ref):
+        if on_progress is not None and not on_progress(97, "Writing report"):
+            raise JobCancelled("Writing report")
         plasmid = plasmids[candidate.ref]
         switch_screen = fail_closed_release(
             f"{candidate.ref}:switch",
             candidate.design["switch_sequence"],
-            host_context="unconfigured",
+            host_context=candidate.design.get("host", "unconfigured"),
         )
         plasmid_screen = fail_closed_release(
-            f"{candidate.ref}:plasmid", plasmid.plasmid.sequence, host_context="unconfigured"
+            f"{candidate.ref}:plasmid",
+            plasmid.plasmid.sequence,
+            host_context=candidate.design.get("host", "unconfigured"),
         )
         artifacts.extend(
             [

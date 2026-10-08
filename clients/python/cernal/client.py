@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import math
 import os
 from typing import Any
 
 import requests
 
-from cernal.errors import AuthError, CernalError, RateLimited, ValidationError
+from cernal.errors import AuthError, CernalError, RateLimited, TransportError, ValidationError
 from cernal.job import Job
 
 
@@ -49,7 +50,7 @@ class Client:
         """Submit a design request.
 
         Every keyword is a docs/public-api.md §9 field: ``trigger_sequence`` /
-        ``dataset_id`` / ``dge_csv`` (exactly one), ``organism``,
+        ``dataset_id`` / ``dge_csv`` / ``gene_id`` (exactly one), ``organism``,
         ``gate_families``, ``exclude_gate_families``, ``constraints``, ``scoring``,
         ``budget``, ``payload``, ``seed``, ``top_n``, ``include_rejected``,
         ``include_metrics``, ``include_artifacts``, ``idempotency_key``, ``strict``,
@@ -67,14 +68,24 @@ class Client:
         if wait is not None:
             query["wait"] = wait
 
-        body = self._request("POST", "/api/design", json=fields, params=query)
-        return Job(self, body)
+        if wait is not None and (
+            isinstance(wait, bool) or not math.isfinite(wait) or not 0 <= wait <= 300
+        ):
+            raise ValueError("wait must be finite and between 0 and 300 seconds.")
+        request_timeout = max(self.timeout, wait + 10) if wait is not None else self.timeout
+        body = self._request(
+            "POST", "/api/design", json=fields, params=query, timeout=request_timeout
+        )
+        options = {key: fields[key] for key in Job.RESULT_OPTIONS if key in fields}
+        if isinstance(options.get("include_artifacts"), list):
+            options["include_artifacts"] = ",".join(options["include_artifacts"])
+        return Job(self, body, result_options=options)
 
-    def status(self, job_id: str) -> dict:
-        return self._request("GET", f"/api/design/{job_id}")
+    def status(self, job_id: str, *, timeout: float | None = None) -> dict:
+        return self._request("GET", f"/api/design/{job_id}", timeout=timeout)
 
-    def results(self, job_id: str, **query: Any) -> dict:
-        return self._request("GET", f"/api/design/{job_id}/results", params=query)
+    def results(self, job_id: str, *, timeout: float | None = None, **query: Any) -> dict:
+        return self._request("GET", f"/api/design/{job_id}/results", params=query, timeout=timeout)
 
     def artifact(self, artifact_id: str) -> bytes:
         return self._request("GET", f"/api/artifacts/{artifact_id}/download", raw=True).content
@@ -95,16 +106,22 @@ class Client:
         params: dict | None = None,
         auth: bool = True,
         raw: bool = False,
+        timeout: float | None = None,
     ):
         headers = {"X-API-Key": self.api_key} if auth else {}
-        response = self._session.request(
-            method,
-            f"{self.base_url}{path}",
-            json=json,
-            params=params,
-            headers=headers,
-            timeout=self.timeout,
-        )
+        try:
+            response = self._session.request(
+                method,
+                f"{self.base_url}{path}",
+                json=json,
+                params=params,
+                headers=headers,
+                timeout=self.timeout if timeout is None else timeout,
+            )
+        except requests.RequestException as exc:
+            raise TransportError(
+                "Could not complete the HTTP request; resume the existing job after reconnecting."
+            ) from exc
         self._raise_for_status(response)
         return response if raw else response.json()
 

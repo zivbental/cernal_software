@@ -42,14 +42,19 @@ def test_a_direct_run_executes_end_to_end(
             auth_client,
             input_mode="direct",
             trigger_sequence=TRIGGER,
-            params={"mock": {"candidate_count": 6}},
+            organism="ecoli",
+            params={
+                "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                "budget": {"max_designs": 3},
+            },
         ).json()["id"]
 
     run_analysis(run_id)
 
     status = auth_client.get(f"/api/runs/{run_id}").json()
     assert status["status"] == RunStatus.COMPLETED
-    assert status["counts"]["candidates"] == 6
+    # How many designs the real engine finds is a property of the science, not a knob.
+    assert status["counts"]["candidates"] > 0
 
 
 def test_dna_is_accepted_and_normalized_to_rna(auth_client, django_capture_on_commit_callbacks):
@@ -84,7 +89,7 @@ def test_whitespace_in_a_pasted_sequence_is_ignored(
     [
         ("", "Paste the trigger"),
         ("ACGU", "too short"),
-        ("AUGGCUAGCAAGGGCGAGGAGCUGXXZZ", "only A, C, G, U"),
+        ("AUGGCUAGCAAGGGCGAGGAGCUGXXZZ", "only A/C/G/T/U"),
     ],
 )
 def test_a_bad_trigger_sequence_is_refused(auth_client, sequence, expected):
@@ -139,7 +144,7 @@ def test_deseq2_column_names_are_recognised(auth_client, media_root):
     detected = body["validation_report"]["detected_columns"]
     assert detected["gene"] == "gene_id"
     assert detected["log2FoldChange"] == "log2fc"
-    assert detected["baseMean"] == "base_expression"
+    assert detected["baseMean"] == "base_mean"
 
 
 def test_gene_id_and_gene_symbol_are_kept_as_separate_columns(auth_client, media_root):

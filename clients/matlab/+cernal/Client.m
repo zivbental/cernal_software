@@ -67,13 +67,26 @@ classdef Client
                 end
             end
 
+            for name = {'gate_families', 'exclude_gate_families', 'include_artifacts'}
+                if isfield(body, name{1}) && (ischar(body.(name{1})) || isstring(body.(name{1})))
+                    body.(name{1}) = cellstr(body.(name{1}));
+                end
+            end
             response = request(obj, 'POST', '/api/design', body, query, true);
-            job = cernal.Job(obj, response);
+            options = struct();
+            for name = {'top_n', 'include_rejected', 'include_metrics', 'include_artifacts'}
+                if isfield(body, name{1}), options.(name{1}) = body.(name{1}); end
+            end
+            if isfield(options, 'include_artifacts')
+                options.include_artifacts = char(strjoin(string(options.include_artifacts), ','));
+            end
+            job = cernal.Job(obj, response, options);
         end
 
-        function s = status(obj, jobId)
+        function s = status(obj, jobId, timeout)
             %STATUS The status of a job, without waiting.
-            s = request(obj, 'GET', ['/api/design/' jobId], struct(), struct(), true);
+            if nargin < 3, timeout = obj.Timeout; end
+            s = request(obj, 'GET', ['/api/design/' jobId], struct(), struct(), true, false, timeout);
         end
 
         function s = results(obj, jobId, varargin)

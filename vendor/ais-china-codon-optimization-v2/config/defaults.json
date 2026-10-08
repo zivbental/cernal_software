@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "reference_version": "2026-09-06.v1",
+  "translation_table": 11,
+  "codon_sampling_source": "V1_frozen_within_family_frequency",
+  "cai_reference": "own_strain_structural_ribosomal_CDS;start_and_stop_excluded",
+  "default_tai_model": "bacterial_classic_role_filtered_v1",
+  "exploratory_tai_model": "stai_dcbs_hillclimb_v1",
+  "tai_default_reason": "Keep a fixed literature-coefficient baseline;DCBS fitting is exploratory and does not establish better expression prediction",
+  "rna_model_file": "config/rna_model.json",
+  "rna_universal_expression_threshold": null,
+  "motif_automaton_file": "config/motif_AGCAGY_automaton.json",
+  "repeat_mode": "warn",
+  "repeat_thresholds": {
+    "homopolymer_min_nt": 8,
+    "tandem_unit_min_nt": 2,
+    "tandem_unit_max_nt": 6,
+    "tandem_min_copies": 3,
+    "tandem_min_total_nt": 12,
+    "direct_repeat_min_nt": 20
+  },
+  "local_gc": {
+    "window_nt": 60,
+    "step_nt": 3,
+    "mode": "report"
+  },
+  "threshold_interpretation": "engineering_defaults;not_host_experimentally_validated_optima",
+  "hosts": {
+    "atcc6919_GCF_008728435.1": {
+      "reference_directory": "data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1",
+      "motif_policy": "user_selectable",
+      "coding_gc_fraction_bounds": [
+        0.544885452462772,
+        0.649867149758454
+      ],
+      "coding_gc_bounds_source": "V2_QC_per_gene_p05_p95_type7"
+    },
+    "kpa171202_GCF_000008345.1": {
+      "reference_directory": "data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1",
+      "motif_policy": "AGCAGY_mandatory",
+      "coding_gc_fraction_bounds": [
+        0.5469147582697201,
+        0.64985925489507
+      ],
+      "coding_gc_bounds_source": "V2_QC_per_gene_p05_p95_type7"
+    }
+  }
+}

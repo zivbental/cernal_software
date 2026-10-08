@@ -37,11 +37,11 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 102 |
-| Public classes | 104 |
-| Public callables (excluding `__init__`) | 522 |
-| — `BUILT` | 490 |
-| — `STUB` | 24 |
+| Modules | 106 |
+| Public classes | 109 |
+| Public callables (excluding `__init__`) | 547 |
+| — `BUILT` | 533 |
+| — `STUB` | 6 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
 | `__init__` constructors | 22 |
@@ -59,14 +59,16 @@ layers above it, never the ones below.
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
 | scoring | `engine.scoring.profiles` |  | 8 | 0 | Versioned scoring profiles. |
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
-| gate_tools | `engine.gates.tools.binding` | S3 | 5 | 0 | S3 — trigger/switch hybridisation energy. |
-| gate_tools | `engine.gates.tools.codons` | S8 | 0 | 2 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 18 | 2 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.ais_china` |  | 5 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
+| gate_tools | `engine.gates.tools.binding` | S3 | 7 | 0 | S3 — trigger/switch hybridisation energy. |
+| gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 21 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
-| gates | `engine.gates.base` |  | 8 | 0 | The GateFamily interface. |
+| gates | `engine.gates.base` |  | 10 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
+| gates | `engine.gates.euk_antisense` |  | 5 | 0 | Eukaryotic antisense NOT gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
 | gates | `engine.gates.toehold` |  | 30 | 0 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
@@ -103,7 +105,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold_and.narrate` |  | 5 | 0 | Progress bars, running commentary and closing findings for the long-running drivers. |
 | gates | `engine.gates.notebooks.toehold_and.nucleation_state` |  | 4 | 0 | Who is holding trigger A's nucleation site: the switch, trigger A, or nobody? |
 | gates | `engine.gates.notebooks.toehold_and.objective_energy` |  | 12 | 0 | The energy-sum objective function for the A0 two-input toehold AND gate. |
-| gates | `engine.gates.notebooks.toehold_and.objective_panel` |  | 30 | 0 | Pick an orderable panel: four objective functions, two geometries, one trigger pair each. |
+| gates | `engine.gates.notebooks.toehold_and.objective_panel` |  | 33 | 0 | Pick an orderable panel: four objective functions, two geometries, one trigger pair each. |
 | gates | `engine.gates.notebooks.toehold_and.objective_vs_green` |  | 10 | 0 | Rank the five objective functions against every measured toehold library we have. |
 | gates | `engine.gates.notebooks.toehold_and.off_target_scan` |  | 2 | 0 | Can the rest of the transcript fire the gate, or block it? |
 | gates | `engine.gates.notebooks.toehold_and.order_check` |  | 5 | 0 | Everything that must be true before a sequence is ordered, asserted rather than assumed. |
@@ -134,27 +136,29 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold_and.report.check_order_sheet` |  | 7 | 0 | Evaluate the ordering sheet's sanity checks in Python, on the data the sheet is built from. |
 | gates | `engine.gates.notebooks.toehold_and.report.panel_data` |  | 12 | 0 | Build the report JSON for the panel, from ``results/panel_three.csv``. |
 | gates | `engine.gates.notebooks.toehold_and.report.panel_page` |  | 1 | 0 | Assemble the panel report page from ``head.html``, ``script.html`` and ``panel_data.json``. |
+| gates | `engine.gates.notebooks.toehold_and.review.axis_effects_on_objectives` |  | 1 | 0 | Which DESIGN DECISIONS move the objectives, measured on the sweep we already have. |
+| gates | `engine.gates.notebooks.toehold_and.review.one_cell_worked_example` |  | 1 | 0 | One CELL printed in full, so the axis-effect method can be checked rather than taken on trust. |
+| gates | `engine.gates.notebooks.toehold_and.review.step2_switch_construction` |  | 1 | 0 | Step 2, walked on one real PFAS trigger pair: what the switch is made of, base by base. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
-| stages | `engine.stages.circuits` |  | 0 | 4 | Stage 4 — circuit design and scoring. |
+| stages | `engine.stages.circuits` |  | 3 | 0 | Stage 4 — circuit design and scoring. |
 | stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
 | stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
-| stages | `engine.stages.off_target` | S5 | 0 | 4 | S5 — off-target scanning, in both directions. |
-| stages | `engine.stages.plasmids` |  | 7 | 0 | Stage 5 — plasmid construction. |
-| stages | `engine.stages.quality` | S15 | 0 | 1 | S15 — input quality control. |
-| stages | `engine.stages.reporting` |  | 0 | 3 | Stage 6 — the compiler's output. |
+| stages | `engine.stages.plasmids` |  | 9 | 0 | Stage 5 — plasmid construction. |
+| stages | `engine.stages.quality` | S15 | 1 | 0 | S15 — input quality control. |
+| stages | `engine.stages.reporting` |  | 4 | 0 | Stage 6 — the compiler's output. |
 | stages | `engine.stages.switches` |  | 3 | 0 | Stage 3 — switch design and validation. |
 | stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
-| top | `engine.client` |  | 8 | 0 | The Platform-facing engine interface. |
-| top | `engine.contract` |  | 5 | 0 | The Platform ⇄ Engine contract. |
+| top | `engine.client` |  | 10 | 0 | The Platform-facing engine interface. |
+| top | `engine.contract` |  | 4 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
-| top | `engine.inputs` |  | 1 | 0 | Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``. |
+| top | `engine.inputs` |  | 1 | 0 | Shared differential-expression parsing for upload, preview and engine execution. |
 | top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
 | top | `engine.safety` |  | 12 | 0 | Offline-first, fail-closed release control for output sequences. |
-| top | `engine.store` | S11, S13 | 3 | 2 | S11, S13 — provenance and pruning. |
-| top | `engine.transcriptome` |  | 2 | 0 | Reference transcript sequences, by organism — Q1's first real answer. |
+| top | `engine.store` | S11, S13 | 5 | 0 | S11, S13 — provenance and pruning. |
+| top | `engine.transcriptome` |  | 5 | 0 | Pinned, offline reference sequences and identifier aliases for all four hosts. |
 
 ## Layer 1 · Domain — the vocabulary
 
@@ -166,19 +170,13 @@ Data and arithmetic only, no science. Every value that crosses a module boundary
 
 The engine's scientific vocabulary.
 
-#### `class Host(StrEnum)`
-
-The organism a circuit is designed for.
-
-| Attribute | Type | Default |
+| Constant | Type | Value |
 | --- | --- | --- |
-| `ECOLI` |  | `'ecoli'` |
-| `YEAST` |  | `'yeast'` |
-| `HUMAN` |  | `'human'` |
+| `HOST_TRACKS` | `Mapping[Host, Track]` | `MappingProxyType({Host.ECOLI: Track.PROKARYOTIC, Host.YEAST: Track.EUKARYOTIC, Host.HUM…` |
 
-| Status | Method | Purpose |
+| Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `@property def track(self) -> 'Track'` | Design rules follow the track, not the individual organism. |
+| `BUILT` | `def require_track_for_every_host(hosts: Iterable[Host], tracks: Mapping[Host, Track]) -> None` | Raise unless ``tracks`` names a ``Track`` for every one of ``hosts``, and nothing else. |
 
 #### `class Track(StrEnum)`
 
@@ -189,6 +187,21 @@ Translation machinery. Decides RBS-in-loop versus Kozak, among other rules.
 | `PROKARYOTIC` |  | `'prokaryotic'` |
 | `EUKARYOTIC` |  | `'eukaryotic'` |
 
+#### `class Host(StrEnum)`
+
+The organism a circuit is designed for.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `ECOLI` |  | `'ecoli'` |
+| `YEAST` |  | `'yeast'` |
+| `HUMAN` |  | `'human'` |
+| `C_ACNES` |  | `'c_acnes'` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def track(self) -> Track` | Design rules follow the track, not the individual organism. |
+
 #### `class GateKind(StrEnum)`
 
 The switch chemistries. One value per registered ``GateFamily``.
@@ -198,6 +211,7 @@ The switch chemistries. One value per registered ``GateFamily``.
 | `TOEHOLD` |  | `'toehold'` |
 | `TOEHOLD_AND` |  | `'toehold_and'` |
 | `ANTISENSE_NOT` |  | `'antisense_not'` |
+| `EUK_ANTISENSE_NOT` |  | `'euk_antisense_not'` |
 | `CRISPR` |  | `'crispr'` |
 
 #### `class Regulation(StrEnum)`
@@ -249,6 +263,7 @@ iGEM assembly standards, which decide the prohibited restriction sites.
 | --- | --- | --- |
 | `RFC10` |  | `'RFC10'` |
 | `RFC1000` |  | `'RFC1000'` |
+| `NONE` |  | `'none'` |
 
 #### `class DesiredOutcome(StrEnum)`
 
@@ -260,6 +275,7 @@ What a circuit expresses when it fires.
 | `MCHERRY` |  | `'mcherry'` |
 | `LUCIFERASE` |  | `'luciferase'` |
 | `ANTIBIOTIC` |  | `'ampr'` |
+| `KANAMYCIN` |  | `'kanr'` |
 | `APOPTOSIS` |  | `'apoptosis'` |
 | `CUSTOM` |  | `'other'` |
 
@@ -310,6 +326,10 @@ The parsed differential-expression input.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `rows` | `tuple[DgeRow, ...]` |  |
+| `hypothesis_universe_complete` | `bool \| None` | `None` |
+| `source_row_count` | `int \| None` | `None` |
+| `columns` | `tuple[str, ...]` | `()` |
+| `detected_columns` | `tuple[tuple[str, str], ...]` | `()` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -343,7 +363,7 @@ Stage 1 output — a gene that separates the two cell states.
 | `gene_id` | `str` |  |
 | `symbol` | `str` |  |
 | `regulation` | `Regulation` |  |
-| `log2_fold_change` | `float` |  |
+| `log2_fold_change` | `float \| None` |  |
 | `score` | `float` |  |
 | `p_adj` | `float \| None` | `None` |
 | `control_percentile` | `float \| None` | `None` |
@@ -382,13 +402,16 @@ Stage 2 output — a sub-segment of a transcript, ranked as a possible input.
 | `openness` | `float` |  |
 | `accessibility` | `float` |  |
 | `mfe` | `float` |  |
-| `off_target_penalty` | `float` |  |
-| `segment_specificity` | `float` |  |
 | `gc_content` | `float` |  |
+| `log2_fold_change` | `float \| None` | `None` |
 | `aug_indexes` | `tuple[int, ...]` | `()` |
 | `stop_indexes` | `tuple[int, ...]` | `()` |
 | `ribosome_occupancy` | `float \| None` | `None` |
 | `score` | `float` | `0.0` |
+| `transcript_id` | `str` | `''` |
+| `reference_accession` | `str` | `''` |
+| `reference_selection_method` | `str` | `''` |
+| `transcript_sequence_sha256` | `str` | `''` |
 | `gate_toehold_length` | `int \| None` | `None` |
 | `hypothesis_start` | `int \| None` | `None` |
 | `hypothesis_end` | `int \| None` | `None` |
@@ -417,7 +440,8 @@ The researcher's limits, carried into every stage that has to respect them.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `max_triggers` | `int` | `2` |
+| `max_triggers` | `int` | `1` |
+| `max_circuit_gates` | `int` | `1` |
 | `min_separation` | `float` | `0.5` |
 | `max_p_adj` | `float` | `0.05` |
 | `trigger_lengths` | `tuple[int, ...]` | `(30, 33, 36)` |
@@ -430,6 +454,7 @@ The researcher's limits, carried into every stage that has to respect them.
 | `max_base_expression` | `float \| None` | `None` |
 | `trigger_gc_range` | `tuple[float, float]` | `(30.0, 70.0)` |
 | `stems_per_pair` | `int` | `2` |
+| `stem_order` | `str` | `'lock'` |
 | `min_window_gap` | `int` | `50` |
 | `overlap_range` | `tuple[int, int]` | `(4, 18)` |
 | `direction_balance` | `bool` | `True` |
@@ -486,7 +511,6 @@ Stage 3 output — one concrete switch built for one trigger set.
 | `mfe_off` | `float` | `0.0` |
 | `mfe_trigger` | `float` | `0.0` |
 | `binding_site_accessibility` | `float` | `0.0` |
-| `binding_site_off_target` | `float` | `0.0` |
 | `translation_score` | `float` | `0.0` |
 | `architecture` | `dict` | `field(default_factory=dict)` |
 | `score` | `float` | `0.0` |
@@ -564,6 +588,7 @@ One stretch of the assembled construct.
 | `kind` | `SegmentKind` |  |
 | `name` | `str` |  |
 | `sequence` | `str` |  |
+| `annotations` | `tuple[str, ...]` | `()` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -639,6 +664,13 @@ Stage 5 output — an orderable construct.
 | `plasmid` | `Plasmid` |  |
 | `standard` | `AssemblyStandard` |  |
 | `violations` | `tuple[str, ...]` | `()` |
+| `coding_regions` | `tuple[tuple[int, int, str, str], ...]` | `()` |
+| `backbone_annotations` | `tuple[str, ...]` | `()` |
+| `insertion_index` | `int \| None` | `None` |
+| `assembly_method` | `str` | `'expression_cassette'` |
+| `assembly_notes` | `tuple[str, ...]` | `()` |
+| `payload_optimization` | `str` | `''` |
+| `eligibility_violations` | `tuple[str, ...]` | `()` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -655,34 +687,6 @@ An external tool a gate family needs, and the version it was validated against.
 | `name` | `str` |  |
 | `version` | `str` |  |
 | `optional` | `bool` | `False` |
-
-#### `class Hit`
-
-`@dataclass(frozen=True, slots=True)`
-
-One near-match found in the transcriptome.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `gene_id` | `str` |  |
-| `start` | `int` |  |
-| `mismatches` | `int` |  |
-| `identity` | `float` |  |
-
-#### `class OffTargetReport`
-
-`@dataclass(frozen=True, slots=True)`
-
-What an off-target scan found, and what it costs the candidate.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `hits` | `tuple[Hit, ...]` |  |
-| `penalty` | `float` |  |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `@property def worst_identity(self) -> float` | Closest off-target match found. 1.0 means an exact duplicate exists. |
 
 #### `class FoldResult`
 
@@ -704,7 +708,7 @@ How closely a predicted fold matches the intended one.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `deviation` | `float` |  |
-| `p_target_fold` | `float` |  |
+| `p_target_fold` | `float \| None` |  |
 
 #### `class ValidationResult`
 
@@ -716,6 +720,7 @@ Whether a design passes the hard rules, and every reason it does not.
 | --- | --- | --- |
 | `ok` | `bool` |  |
 | `violations` | `tuple[str, ...]` | `()` |
+| `structure_deviation` | `float \| None` | `None` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -790,7 +795,7 @@ Turning heterogeneous raw metrics into comparable normalized values.
 | `BUILT` | `def build_metrics(raw_values: dict[str, float \| None], profile: ScoringProfile) -> list[MetricValue]` | Build the full metric list for one candidate, in profile order. |
 | `BUILT` | `def weighted_score(metrics: list[MetricValue], profile: ScoringProfile) -> float \| None` | Weighted mean of normalized values, on 0-1. |
 | `BUILT` | `def failed_filter(raw_values: dict[str, float \| None], profile: ScoringProfile) -> HardFilter \| None` | Return the first hard filter this candidate fails, or ``None`` if it passes all. |
-| `BUILT` | `def rank_candidates(scored: list[tuple[str, float \| None]]) -> dict[str, int]` | Assign contiguous 1-based ranks, best first. Unscored candidates are not ranked. |
+| `BUILT` | `def rank_candidates(scored: list[tuple[str, float \| None]], *, raw_values: dict[str, dict[str, float \| None]] \| None = None, profile: ScoringProfile \| None = None) -> dict[str, int]` | Rank by score, configured metric directions, then stable candidate identifier. |
 
 ### `engine.scoring.profiles`
 
@@ -802,7 +807,7 @@ Versioned scoring profiles.
 | --- | --- | --- |
 | `TREAT_AS_WORST` |  | `'worst'` |
 | `SKIP` |  | `'skip'` |
-| `DEFAULT_V1` |  | `ScoringProfile(name='default', version='v1', metrics=[MetricSpec(name='state_separation…` |
+| `DEFAULT_V1` |  | `ScoringProfile(name='default', version='v3-computational-proxies', metrics=[MetricSpec(…` |
 | `PROFILES` | `dict[str, ScoringProfile]` | `{DEFAULT_V1.name: DEFAULT_V1}` |
 
 | Status | Function | Purpose |
@@ -811,7 +816,7 @@ Versioned scoring profiles.
 | `BUILT` | `def available_profiles() -> list[str]` | Profile names a submission may request. Surfaced at ``GET /api/version``. |
 | `BUILT` | `def custom_scoring_label(base_name: str, weights: dict[str, float], hard_filters: list[dict], tie_breakers: list[str] \| None) -> str` | ``<hash8>`` — a pure function of the overrides, so two runs with identical weights get the same label and stay comparable (design map 12). |
 | `BUILT` | `def derive_profile(base: ScoringProfile, *, weights: dict[str, float] \| None = None, hard_filters: list[dict] \| None = None, tie_breakers: list[str] \| None = None) -> ScoringProfile` | A per-request variant of ``base``. Only ``weight`` on each metric may change — ``direction`` and ``valid_range`` are physics and units, not preference, so a caller who could widen ``valid_range`` could make their own numbers look better an… |
-| `BUILT` | `def resolve_profile(base_name: str, overrides: dict \| None = None) -> ScoringProfile` | What ``MockEngine``/the real pipeline actually calls: ``base_name`` is ``AnalysisRun.scoring_profile`` (always a known name — kept that way so ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is ``JobRequest.params.get("scoring")``. |
+| `BUILT` | `def resolve_profile(base_name: str, overrides: dict \| None = None) -> ScoringProfile` | What the real pipeline actually calls: ``base_name`` is ``AnalysisRun.scoring_profile`` (always a known name — kept that way so ``_validate_against_capabilities`` keeps working unmodified), ``overrides`` is ``JobRequest.params.get("scoring")``. |
 
 #### `class MetricSpec`
 
@@ -874,11 +879,149 @@ Scientific primitives shared across the gate families.
 
 *No public symbols — the docstring is the whole file.*
 
+### `engine.gates.tools.ais_china`
+
+`src/engine/gates/tools/ais_china.py`
+
+Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `PINNED_COMMIT` |  | `'e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9'` |
+| `VENDORED_TREE_SHA256` |  | `'fa75b595515c943bb855de1574cf8a66589205f66421c3e57eaf5a58224239c2'` |
+| `HOST_ID` |  | `'atcc6919_GCF_008728435.1'` |
+| `REFERENCE_VERSION` |  | `'2026-09-06.v1'` |
+| `STRATEGY_IDS` | `tuple[str, ...]` | `('rna_start', 'host_sampling', 'cai_max', 'tai_max', 'harmonize')` |
+| `DEFAULT_ROOT` |  | `Path(__file__).resolve().parents[4] / 'vendor' / 'ais-china-codon-optimization-v2'` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def vendored_tree_sha256(root: Path \| str \| None = None) -> str` | Recompute the recursive content hash of the vendored tree. |
+
+#### `class CodonEdit`
+
+`@dataclass(frozen=True, slots=True)`
+
+One synonymous codon substitution, in CERNAL coordinates.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `codon_index` | `int` |  |
+| `start` | `int` |  |
+| `end` | `int` |  |
+| `before` | `str` |  |
+| `after` | `str` |  |
+| `amino_acid` | `str` |  |
+
+#### `class AisChinaMetric`
+
+`@dataclass(frozen=True, slots=True)`
+
+One of their per-candidate measurements, in their vocabulary.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` | `str` |  |
+| `value` | `float \| None` |  |
+| `unit` | `str \| None` |  |
+| `status` | `str` |  |
+| `reason` | `str \| None` |  |
+
+#### `class AisChinaCandidate`
+
+`@dataclass(frozen=True, slots=True)`
+
+A synonymous variant of the input CDS, RNA alphabet, with the edits that made it.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `candidate_id` | `str` |  |
+| `sequence` | `str` |  |
+| `sequence_sha256` | `str` |  |
+| `protein` | `str` |  |
+| `metrics` | `tuple[AisChinaMetric, ...]` |  |
+| `constraints_passed` | `bool` |  |
+| `violations` | `tuple[str, ...]` |  |
+| `edits` | `tuple[CodonEdit, ...]` |  |
+| `strategies` | `tuple[str, ...]` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def metric(self, name: str) -> AisChinaMetric` | The named metric, or ``KeyError``. Never a default value. |
+
+#### `class StrategyOutcome`
+
+`@dataclass(frozen=True, slots=True)`
+
+What one strategy did — including that it found nothing, or could not run.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `strategy_id` | `str` |  |
+| `status` | `str` |  |
+| `reason` | `str \| None` |  |
+| `solver` | `str \| None` |  |
+| `seed` | `int \| None` |  |
+| `returned_count` | `int` |  |
+| `termination_reason` | `str \| None` |  |
+
+#### `class AisChinaProvenance`
+
+`@dataclass(frozen=True, slots=True)`
+
+What produced the numbers: enough to say which reference and which code.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `host_id` | `str` |  |
+| `display_name` | `str` |  |
+| `assembly` | `str` |  |
+| `accession` | `str` |  |
+| `reference_version` | `str` |  |
+| `code_version` | `str` |  |
+| `pinned_commit` | `str` |  |
+| `implementation_sha256` | `tuple[tuple[str, str], ...]` |  |
+| `consumed_file_sha256` | `tuple[tuple[str, str], ...]` |  |
+| `coding_gc_bounds` | `tuple[float, float]` |  |
+
+#### `class AisChinaRun`
+
+`@dataclass(frozen=True, slots=True)`
+
+The outcome of one :meth:`AisChinaCodons.optimize` call.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `status` | `str` |  |
+| `input_sequence` | `str` |  |
+| `protein` | `str` |  |
+| `original` | `AisChinaCandidate` |  |
+| `candidates` | `tuple[AisChinaCandidate, ...]` |  |
+| `strategies` | `tuple[StrategyOutcome, ...]` |  |
+| `warnings` | `tuple[str, ...]` |  |
+| `provenance` | `AisChinaProvenance` |  |
+
+#### `class AisChinaCodons`
+
+*C. acnes* ATCC 6919 codon optimization through the AIS-China library, unmodified.
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def __init__(self, root: Path \| str \| None = None) -> None` |  |
+| `BUILT` | `def usage_frequencies(self) -> dict[str, float]` | Codon -> **relative frequency** within its synonymous family, RNA keys. |
+| `BUILT` | `def cai_relative_adaptiveness(self) -> dict[str, float]` | Codon -> CAI weight ``w`` (**relative adaptiveness**), RNA keys. |
+| `BUILT` | `def optimize(self, cds: str, *, seed: int, strategies: Sequence[str] \| None = None, upstream: str = '', locked_codons: Sequence[int] = (), source_codon_counts: Mapping[str, float] \| None = None, source_name: str = 'source') -> AisChinaRun` | Run their pipeline on one CDS and return it in CERNAL's conventions. |
+
 ### `engine.gates.tools.binding` · S3
 
 `src/engine/gates/tools/binding.py`
 
 S3 — trigger/switch hybridisation energy.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `DG_REFERENCE_KCAL` |  | `-15.0` |
+| `DG_STEEPNESS` |  | `2.0` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
@@ -887,6 +1030,8 @@ S3 — trigger/switch hybridisation energy.
 | `BUILT` | `def longest_complementary_run(first: str, second: str) -> int` | Longest unbroken stretch the two strands can pair over, in this alignment. |
 | `BUILT` | `def fixed_alignment_energy(first: str, second: str, folder: FoldEngine) -> float \| None` | Free energy of two strands held in the alignment the **design** imposes. |
 | `BUILT` | `def hybridization_energy(switch: str, trigger: str, folder: FoldEngine) -> float` | Free energy released when a trigger binds its switch. |
+| `BUILT` | `def binding_energy_factor(binding_dg: float, *, reference_kcal: float = DG_REFERENCE_KCAL, steepness: float = DG_STEEPNESS) -> float` | Map ΔG_bind (kcal/mol, more negative is stronger) onto a 0-1 confidence. |
+| `BUILT` | `def weakest_binding_confidence(switch: str, triggers: Sequence[str], folder: FoldEngine) -> float \| None` | ``predicted_success_rate`` over every input a design needs. |
 
 ### `engine.gates.tools.codons` · S8
 
@@ -894,15 +1039,40 @@ S3 — trigger/switch hybridisation energy.
 
 S8 — codon usage and synonymous rewriting.
 
+| Constant | Type | Value |
+| --- | --- | --- |
+| `RECOMBINATION_MODE` |  | `'thorough'` |
+| `SLIPPAGE_MODE` |  | `'default'` |
+
+#### `class CodonVariant`
+
+`@dataclass(frozen=True, slots=True)`
+
+One synonymous rewrite of a coding sequence, with what is known to be wrong with it.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `sequence` | `str` |  |
+| `translation_score` | `float \| None` |  |
+| `structure_deviation` | `float \| None` |  |
+| `codons_changed` | `int` |  |
+| `unresolved` | `tuple[str, ...]` |  |
+| `seed` | `int \| None` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def clean(self) -> bool` | True when nothing is recorded as unresolved. |
+
 #### `class CodonOptimizer`
 
 Synonymous-codon search and translation scoring for one host.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, usage_table: dict[str, float] \| None = None) -> None` |  |
-| `STUB` | `def variants(self, cds: str, target_pairing: str \| None = None) -> list[str]` | Synonymous rewrites of a coding sequence: same protein, different bases. |
-| `STUB` | `def translation_score(self, cds: str) -> float` | How well a sequence's codons suit the host. |
+| `BUILT` | `def __init__(self, host: Host, usage_table: dict[str, float] \| None = None, *, folder: FoldEngine \| None = None, seed: int = 0, aisc: AisChinaCodons \| None = None) -> None` |  |
+| `BUILT` | `def versions(self) -> dict[str, str]` | What this tool's numbers depend on — written into the run's provenance. |
+| `BUILT` | `def variants(self, cds: str, target_pairing: str \| None = None, *, count: int = 4, avoid_enzymes: Sequence[str] = (), acceptable: Callable[[str], bool] \| None = None, on_rejected: Callable[[str, tuple[str, ...]], None] \| None = None, gc_range: tuple[float, float] = (30.0, 70.0), gc_window: int = 50) -> list[CodonVariant]` | Synonymous rewrites of a coding sequence: same protein, different bases. |
+| `BUILT` | `def translation_score(self, cds: str) -> float \| None` | How well a sequence's codons suit the host: its Codon Adaptation Index. |
 
 ### `engine.gates.tools.folding` · S2, S4
 
@@ -912,7 +1082,7 @@ S2, S4 — RNA secondary structure prediction for gate designs.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `STUB` | `def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch` | **S4** · S4 — compare a predicted structure against the one a generator intended. |
+| `BUILT` | `def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch` | **S4** · S4 — compare a predicted structure against the one a generator intended. |
 
 #### `class FoldEngine` · S2
 
@@ -931,11 +1101,12 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 | `BUILT` | `def p_open_by_order(self, strands: str, window: tuple[int, int]) -> tuple[list[float], list[float], list[float]] \| None` | ``p_open`` resolved per strand ordering, for auditing the spread above. |
 | `BUILT` | `def open_penalty(self, strands: str, spans: tuple[tuple[int, int], ...]) -> float \| None` | Free energy cost of forcing every base in ``spans`` unpaired, in kcal/mol. |
 | `BUILT` | `def saddle(self, sequence: str, start: str, end: str, *, max_energy: float = 200.0) -> float \| None` | Activation barrier between two structures, in kcal/mol above ``start``. |
+| `BUILT` | `@staticmethod def validate_target(sequence: str, target: str) -> None` | Reject malformed single-strand dot-bracket structures before native calls. |
 | `BUILT` | `def ensemble_defect(self, sequence: str, target: str) -> float` | How far the predicted ensemble sits from an intended structure. |
 | `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` | Probability that each pair of positions is bonded, over the whole ensemble. |
 | `BUILT` | `def pooled_pair_probabilities(self, strands: str) -> list[list[float]]` | ``base_pair_probabilities`` Boltzmann-averaged over all strand orderings. |
 | `BUILT` | `def pooled_partition(self, strands: str) -> float` | ``partition`` Boltzmann-summed over all strand orderings. |
-| `STUB` | `def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]` | Every structure within an energy window of the MFE. |
+| `BUILT` | `def suboptimal(self, sequence: str, delta: float = 2.0, *, max_structures: int = 1000, timeout_seconds: float = 2.0) -> list[FoldResult]` | Enumerate exact structures within ``delta`` kcal/mol of MFE. |
 | `BUILT` | `def mfe_with_window_open(self, strands: str, window: tuple[int, int]) -> tuple[str, float]` | The most stable structure that leaves ``window`` single-stranded. |
 | `BUILT` | `def refolding_saddle(self, strands: str, start: str, target: str, *, width: int = 20) -> float \| None` | Highest energy on a direct refolding path from ``start`` to ``target``. |
 | `BUILT` | `def layout_coordinates(self, structure: str) -> list[tuple[float, float]]` | Where each nucleotide sits when a structure is drawn, one point per base. |
@@ -982,11 +1153,11 @@ Post-transcriptional silencing. The pipeline's inverting element.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'antisense'` |
-| `version` |  | `'0.1.0'` |
+| `version` |  | `'0.2.0'` |
 | `kind` |  | `GateKind.ANTISENSE_NOT` |
 | `label` |  | `'Antisense Repression'` |
 | `description` |  | `'Post-transcriptional silencing'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN, Host.C_ACNES})` |
 | `max_inputs` |  | `1` |
 | `available` |  | `True` |
 | `UTR_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(8, 10, 12, 14)` |
@@ -1030,6 +1201,8 @@ Base class for every switch chemistry.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def supports(self, host: Host) -> bool` | Whether this family can be used for this organism. |
+| `BUILT` | `@staticmethod def state_separation(triggers: Sequence[TriggerCandidate]) -> float \| None` | ``state_separation`` — the weakest input's absolute log2 fold change. |
+| `BUILT` | `@staticmethod def component_count(arity: int) -> float` | ``circuit_complexity`` — component count, on ``BooleanExpression``'s scale. |
 | `ABSTRACT` | `def required_tools(self) -> list[ToolRequirement]` | External tools this family needs. Checked before a run starts. |
 | `ABSTRACT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | Can this family realise this trigger set? Cheap checks only — expensive evaluation happens later, and only for designs that survive this. |
 | `ABSTRACT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Produce candidate realisations. **Yields**, because a family exploring a length window across thousands of trigger sets produces far too many designs to hold in a list. |
@@ -1068,6 +1241,46 @@ Transcriptional control via a trigger-gated guide RNA.
 | `STUB` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Measure a guide design, on the same metric names as every other family. |
 | `BUILT` | `def emit_sequence(self, design: GateDesign) -> str` | The synthesis-ready sequence. |
 
+### `engine.gates.euk_antisense`
+
+`src/engine/gates/euk_antisense.py`
+
+Eukaryotic antisense NOT gate.
+
+#### `class EukaryoticAntisenseNotGate(GateFamily)`
+
+Translational NOT gate for a scanning ribosome.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` |  | `'euk_antisense'` |
+| `version` |  | `'0.1.0'` |
+| `kind` |  | `GateKind.EUK_ANTISENSE_NOT` |
+| `label` |  | `'Eukaryotic Antisense Repression'` |
+| `description` |  | `"Kozak NOT gate: trigger binds the 5' UTR and a short in-frame linker"` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.YEAST, Host.HUMAN})` |
+| `max_inputs` |  | `1` |
+| `available` |  | `True` |
+| `WINDOW_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(30, 40, 50, 70)` |
+| `WINDOW_STEP` | `ClassVar[int]` | `AntisenseNotGate.WINDOW_STEP` |
+| `KOZAK` | `ClassVar[str]` | `AntisenseNotGate.KOZAK_EUKARYOTIC` |
+| `CDS_FOLD_NT` | `ClassVar[int]` | `60` |
+| `MIN_UTR_NT` | `ClassVar[int]` | `15` |
+| `MIN_LINKER_NT` | `ClassVar[int]` | `6` |
+| `MAX_LINKER_NT` | `ClassVar[int]` | `24` |
+| `LINKER_STEP` | `ClassVar[int]` | `3` |
+| `MAX_HOMOPOLYMER_A` | `ClassVar[int]` | `5` |
+| `MIN_TRIGGER_ACCESSIBILITY` | `ClassVar[float]` | `AntisenseNotGate.MIN_TRIGGER_ACCESSIBILITY` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, codons: CodonOptimizer, payload: str) -> None` |  |
+| `BUILT` | `def required_tools(self) -> list[ToolRequirement]` |  |
+| `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | One repressor, long enough for the shortest window, on a eukaryotic host. |
+| `BUILT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Yield one design per window and in-frame linker length. |
+| `BUILT` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Score Kozak openness and trigger binding with the shared ``FoldEngine``. |
+| `BUILT` | `def emit_sequence(self, design: GateDesign) -> str` |  |
+
 ### `engine.gates.registry`
 
 `src/engine/gates/registry.py`
@@ -1095,11 +1308,11 @@ Single-input toehold switch.
 | --- | --- | --- |
 | `name` |  | `'toehold'` |
 | `design_prefix` |  | `'toehold'` |
-| `version` |  | `'0.8.1'` |
+| `version` |  | `'0.10.0-payload-context'` |
 | `kind` |  | `GateKind.TOEHOLD` |
 | `label` |  | `'Toehold Riboswitch'` |
 | `description` |  | `'Translational control · pre-mRNA'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN, Host.C_ACNES})` |
 | `max_inputs` |  | `1` |
 | `available` |  | `True` |
 | `toehold_lengths` | `ClassVar[tuple[int, ...]]` | `(12, 15, 18)` |
@@ -1201,7 +1414,7 @@ Single-input toehold family for prokaryotic translation.
 | `design_prefix` |  | `'prokaryotic_toehold'` |
 | `label` |  | `'Prokaryotic Toehold'` |
 | `description` |  | `'Prokaryotic single-input translational control'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.C_ACNES})` |
 
 #### `class ProkaryoticToeholdAndGate(ToeholdAndGate)`
 
@@ -1213,7 +1426,7 @@ Two-input AND toehold family for prokaryotic translation.
 | `design_prefix` |  | `'prokaryotic_toehold_and'` |
 | `label` |  | `'Prokaryotic AND Toehold'` |
 | `description` |  | `'Prokaryotic two-input translational AND'` |
-| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI})` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.ECOLI, Host.C_ACNES})` |
 
 #### `class EukaryoticToeholdGate(ToeholdGate)`
 
@@ -1950,6 +2163,7 @@ Pick an orderable panel: four objective functions, two geometries, one trigger p
 | `L_GREEN_FLOOR` |  | `0.483` |
 | `L_FULL_W25_FLOOR` |  | `0.3482` |
 | `L_LOCAL_FLOOR` |  | `0.3369` |
+| `L_LOCAL_FLOOR_DEFAULT` |  | `L_LOCAL_FLOOR` |
 | `LOCK01_FLOOR` |  | `0.2` |
 | `GATING` |  | `-2.0` |
 | `VARIANT_GATING` | `float \| None` | `None` |
@@ -1959,6 +2173,7 @@ Pick an orderable panel: four objective functions, two geometries, one trigger p
 | `ACCESS_COLUMNS` |  | `('l_green', 'l_full_w0', 'l_full_w10', 'l_full_w25', 'l_full_w50', 'l_local')` |
 | `GRIP_BREAK_MAX` |  | `1` |
 | `LOWER3_KEEP` | `frozenset[str]` | `frozenset()` |
+| `CLOSURE_DROP` | `frozenset[str]` | `frozenset()` |
 | `DRIFTED_POSITIONS` |  | `frozenset({62, 356, 434, 482, 578, 590})` |
 | `COMBINED_WEIGHT` |  | `0.6` |
 | `EPSILON` |  | `0.8` |
@@ -1974,6 +2189,14 @@ Pick an orderable panel: four objective functions, two geometries, one trigger p
 | `ARM_TIE` |  | `0.02` |
 | `MIN_NT_APART` |  | `3` |
 | `ANY_GEOMETRY` |  | `False` |
+| `SPAN_GEOMETRY` |  | `False` |
+| `ARM_BACKOFF` |  | `False` |
+| `GEOMETRY_ARM` |  | `''` |
+| `GEOMETRY_PAIR` |  | `''` |
+| `BACKOFF_COST` | `dict[str, dict[str, dict]]` | `{}` |
+| `LIST_PAIRS` |  | `False` |
+| `PAIR_SCORE` | `str` | `'worst'` |
+| `ON_CEILING` | `float` | `_ON_CEILING_DEFAULT` |
 | `ARM_COLUMNS` |  | `{'IED gain': 'ied_gain', 'opening SEP': 'f1', 'IED gain (worst OFF)': 'ied_gain_worst',…` |
 | `REQUIRE_BOTH_GEOMETRIES` |  | `False` |
 | `RECODE_FLOOR` |  | `0.5` |
@@ -1998,9 +2221,12 @@ Pick an orderable panel: four objective functions, two geometries, one trigger p
 | `BUILT` | `def add_variant_leak(rows: list[dict], results: Path) -> int` | Join ``andness_variant`` and the three leaks from ``variant_leak.csv``. |
 | `BUILT` | `def add_stem_mfe(rows: list[dict], results: Path) -> int` | Join ``engages_stem_mfe`` from ``stem_opens_mfe.csv``, keyed on the switch sequence. |
 | `BUILT` | `def population(results: Path, *, quiet: bool = True) -> list[dict]` | Load, join every side table, filter to feasible and add percentiles. The one definition. |
+| `BUILT` | `def enriched(results: Path, *, quiet: bool = True) -> list[dict]` | Every scored row with every join applied, and **`feasible` NOT applied**. |
 | `BUILT` | `def add_percentiles(rows: list[dict]) -> None` | Percentile of each term inside this feasible set, 100 = best; f4 and f5 are their means. |
 | `BUILT` | `def epsilon_combined(cell: list[dict]) -> object` | ``combined``: lowest barrier among designs holding EPSILON of the cell's best A_M ratio. |
+| `BUILT` | `def merge_test(cell: list[dict], arms)` | Return the predicate "these two rows are ONE measurement in this cell". |
 | `BUILT` | `def real_measurements(cell: list[dict], arm_rows: dict[str, dict]) -> int` | How many of the arm rows are measurements the others do not already carry. |
+| `BUILT` | `def pick_arms(cell: list[dict], arms, pair: str = '') -> tuple[dict[str, dict], dict[str, dict]]` | One design per arm, and what each arm gave up to avoid a design already taken. |
 | `BUILT` | `def controlled_pairs(rows: list[dict], per_cell: int) -> list[str]` | Pairs carrying at least ``per_cell`` feasible designs in BOTH geometries, best first. |
 | `BUILT` | `def gating(rows: list[dict]) -> list[dict]` | The floor f1 is kept for: a design has to separate the ON tube from the best OFF tube. |
 | `BUILT` | `def cell_picks(cell: list[dict], arms: dict \| None = None) -> dict[str, list[str]]` | switch -> the objectives that chose it, for one (pair, geometry) cell. |
@@ -2613,6 +2839,86 @@ Assemble the panel report page from ``head.html``, ``script.html`` and ``panel_d
 | --- | --- | --- |
 | `BUILT` | `def swap(text, old, new, label)` |  |
 
+### `engine.gates.notebooks.toehold_and.review.axis_effects_on_objectives`
+
+`src/engine/gates/notebooks/toehold_and/review/axis_effects_on_objectives.py`
+
+Which DESIGN DECISIONS move the objectives, measured on the sweep we already have.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `ROOT` |  | `Path('C:\\Users\\Dell\\source\\repos\\cernal_software')` |
+| `NB` |  | `ROOT / 'src/engine/gates/notebooks/toehold_and'` |
+| `ARMS` |  | `{'IED gain': 'ied_gain', 'A_M ratio': 'f2', 'opening SEP': 'f1'}` |
+| `AXES` |  | `('closure', 'upper3', 'lower3', 'scheme', 'geom')` |
+| `rows` |  | `op.population(NB / 'results')` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def cells_for(axis: str) -> dict` |  |
+
+### `engine.gates.notebooks.toehold_and.review.one_cell_worked_example`
+
+`src/engine/gates/notebooks/toehold_and/review/one_cell_worked_example.py`
+
+One CELL printed in full, so the axis-effect method can be checked rather than taken on trust.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `ROOT` |  | `Path('C:\\Users\\Dell\\source\\repos\\cernal_software')` |
+| `NB` |  | `ROOT / 'src/engine/gates/notebooks/toehold_and'` |
+| `ARMS` |  | `{'IED gain': 'ied_gain', 'A_M ratio': 'f2', 'opening SEP': 'f1'}` |
+| `rows` |  | `op.population(NB / 'results')` |
+| `cells` | `dict` | `{}` |
+| `key` |  | `max(cells, key=lambda k: (spread(cells[k]), len(cells[k])))` |
+| `cell` |  | `sorted(cells[key], key=lambda r: (str(r['closure']), str(r['upper3']), str(r['lower3'])…` |
+| `best` |  | `{arm: min(cell, key=lambda r: r[col])[col] for arm, col in ARMS.items() if any((r.get(c…` |
+| `col` |  | `ARMS['opening SEP']` |
+| `by_closure` | `dict[str, float]` | `{}` |
+| `floor` |  | `min(by_closure.values())` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def spread(group)` |  |
+
+### `engine.gates.notebooks.toehold_and.review.step2_switch_construction`
+
+`src/engine/gates/notebooks/toehold_and/review/step2_switch_construction.py`
+
+Step 2, walked on one real PFAS trigger pair: what the switch is made of, base by base.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `ROOT` |  | `Path('C:\\Users\\Dell\\source\\repos\\cernal_software')` |
+| `GENES` |  | `{'ggt': 'b3447', 'fadB': 'b3846', 'astC': 'b1748', 'aldA': 'b1415'}` |
+| `book` |  | `load_transcriptome(Host.ECOLI)` |
+| `gate` |  | `ProkaryoticToeholdAndGate(host=Host.ECOLI, folder=FoldEngine(), translation=Translation…` |
+| `pairs` |  | `list(gate.find_cross_gene_pairs(a_sym, ta, b_sym, tb))` |
+| `counts` | `dict[int, int]` | `{}` |
+| `pair` |  | `sorted(pairs, key=lambda p: (-p.len_x, p.x_start, p.xstar_start))[0]` |
+| `book_rna` |  | `{a_sym: ta, b_sym: tb}` |
+| `x` |  | `src_a[pair.x_start:pair.x_start + pair.len_x]` |
+| `xs` |  | `src_b[pair.xstar_start:pair.xstar_start + pair.len_x]` |
+| `stems` |  | `gate.secondary_stems(window_a, window_b, pair.len_x)` |
+| `usable` |  | `[s for s in stems if (s.lock_energy or 0.0) <= 0.0]` |
+| `stem` |  | `min(usable, key=lambda s: s.lock_energy)` |
+| `built` |  | `gate.assemble(window_a, window_b, pair.len_x, stem)` |
+| `CONSTANTS` |  | `{'cap': 'LEADER_SEQUENCE', 'secondary_loop': 'SECONDARY_LOOP', 'rbs_loop': 'RBS_FLANK +…` |
+| `total` |  | `0` |
+| `rebuilt` |  | `''.join((built.sequence[s:e] for s, e in built.domains.values()))` |
+| `main_pre` |  | `built.sequence[slice(*built.domains['main_pre'])]` |
+| `codons` |  | `[main_pre[i:i + 3] for i in (0, 3, 6)]` |
+| `screened` |  | `gate.screen_trigger_pair(window_a, window_b, main_pre)` |
+| `n` |  | `priced + free` |
+| `grid` |  | `len(gate.CLOSURES) * len(gate.UPPER3) * len(gate.LOWER3)` |
+| `limits` |  | `Constraints()` |
+| `per_pair` |  | `grid * limits.stems_per_pair` |
+| `total_designs` |  | `per_pair * len(pairs)` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def origin(name: str, bases: str) -> str` | Where these bases come from -- the distinction that decides what can be edited. |
+
 ## Layer 6 · Stages — the six steps of a run
 
 Stages hold configuration, never accumulated state. Each takes its tools by constructor injection and calls them; a stage that folds, scans or screens by itself has re-forked a rule that exists to be shared.
@@ -2638,8 +2944,8 @@ Turn an up/down gene pattern into ranked, buildable circuits.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, evaluator: 'ConfusionEvaluator', max_terms: int = 4) -> None` |  |
-| `STUB` | `def design(self, genes: list[SelectedGene], designs: Iterable[GateDesign], counts: CountMatrix) -> Iterator[CircuitCandidate]` | Yield scored circuits, buildable from the switches that exist. |
-| `STUB` | `def enumerate_expressions(self, genes: list[SelectedGene]) -> Iterator[BooleanExpression]` | Generate Boolean expressions reproducing the genes' up/down pattern. |
+| `BUILT` | `def design(self, genes: list[SelectedGene], designs: Iterable[GateDesign], counts: CountMatrix) -> Iterator[CircuitCandidate]` | Yield scored circuits, buildable from the switches that exist. |
+| `BUILT` | `def enumerate_expressions(self, genes: list[SelectedGene]) -> Iterator[BooleanExpression]` | Generate Boolean expressions reproducing the genes' up/down pattern. |
 
 #### `class ConfusionEvaluator`
 
@@ -2647,9 +2953,7 @@ Scores a circuit by how it behaves on the actual samples.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, off_target: OffTargetScanner) -> None` |  |
-| `STUB` | `def evaluate(self, expression: BooleanExpression, counts: CountMatrix, threshold: float) -> ConfusionMatrix` | Run an expression over every sample and tally the four outcomes. |
-| `STUB` | `def cross_talk_penalty(self, designs: list[GateDesign]) -> float` | Interference between a circuit's own switches. |
+| `BUILT` | `def evaluate(self, expression: BooleanExpression, counts: CountMatrix, threshold: float) -> ConfusionMatrix` | Run an expression over every sample and tally the four outcomes. |
 
 ### `engine.stages.folding` · S1
 
@@ -2698,7 +3002,7 @@ Keep the genes that actually separate the two cell states.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, constraints: Constraints, screener: MotifScreener, atlas: dict[str, float] \| None = None) -> None` |  |
-| `BUILT` | `def select(self, dge: DgeTable, *, counts: CountMatrix \| None = None, sequences: dict[str, str] \| None = None, on_warning: Callable[[str], None] \| None = None) -> list[SelectedGene]` | Filter, score and rank genes; return a shortlist with an up/down call. |
+| `BUILT` | `def select(self, dge: DgeTable, *, counts: CountMatrix \| None = None, sequences: dict[str, str] \| None = None, on_warning: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None) -> list[SelectedGene]` | Filter, score and rank genes; return a shortlist with an up/down call. |
 
 ### `engine.stages.motifs` · S7
 
@@ -2740,24 +3044,6 @@ Rejects or penalises sequences carrying prohibited motifs.
 | `BUILT` | `def violations(self, sequence: str, *, circular: bool = False, reading_frame: int \| None = None) -> tuple[Violation, ...]` | Every prohibited motif in this sequence. Empty means compliant. |
 | `BUILT` | `def is_compliant(self, sequence: str) -> bool` | True when nothing prohibited is present. A yes/no wrapper over ``violations``. |
 
-### `engine.stages.off_target` · S5
-
-`src/engine/stages/off_target.py`
-
-S5 — off-target scanning, in both directions.
-
-#### `class OffTargetScanner`
-
-Finds near-matches of a sequence in the host transcriptome.
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def __init__(self, transcriptome: dict[str, str], max_mismatch: int = 2) -> None` |  |
-| `STUB` | `def build_index(self) -> None` | Prepare the search structure. Call once, before any scanning. |
-| `STUB` | `def find_similar(self, sequence: str) -> tuple[Hit, ...]` | The primitive. Every method below is interpretation of these hits. |
-| `STUB` | `def scan_trigger(self, trigger: str) -> OffTargetReport` | Direction (b) — is this trigger sponged by other transcripts? |
-| `STUB` | `def scan_switch(self, binding_site: str) -> OffTargetReport` | Direction (a) — can non-cognate RNA cross-activate this switch? |
-
 ### `engine.stages.plasmids`
 
 `src/engine/stages/plasmids.py`
@@ -2766,19 +3052,23 @@ Stage 5 — plasmid construction.
 
 | Constant | Type | Value |
 | --- | --- | --- |
-| `REGISTRY_PARTS` | `dict[str, str]` | `{'J23119': 'BBa_J23119', 'K124002': 'BBa_K124002', 'B0015': 'BBa_B0015', 'K1486025': 'B…` |
-| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('J23119', 'TTGACAGCTAGCTCAGTCCTAGGTATAATGCTAGC'), Host.YEAST: ('K124002',…` |
-| `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.ECOLI: ('B0015', 'CCAGGCATCAAATAAAACGAAAGGCTCAGTCGAAAGACTGGGCCTTTCGTTTTATCTGTTGTT…` |
+| `REGISTRY_PARTS` | `dict[str, str]` | `{'K404108': 'BBa_K404108', 'I712004': 'BBa_I712004', 'J23119': 'BBa_J23119', 'K124002':…` |
+| `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.HUMAN: ('I712004', 'CGATGTACGGGCCAGATATACGCGTTGACATTGATTATTGCCTAGTTATTAATAGTAATCA…` |
+| `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.HUMAN: ('K404108', 'GACGGGTGGCATCCCTGTGACCCCTCCCCAGTGCCTCTCCTGGCCCTGGAAGTTGCCACTC…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
+| `EXTERNAL_PARTS` |  | `{'AmpR': 'J01749.1', 'KanR': 'V00618.1'}` |
+| `PAYLOAD_HOSTS` |  | `{outcome: (Host.ECOLI,) if outcome in (DesiredOutcome.ANTIBIOTIC, DesiredOutcome.KANAMY…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |
 | `SBOL_NAMESPACE` |  | `'https://cernal.igem.org/2026'` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def validate_payload_cds(name: str, sequence: str) -> str` | Validate a payload coding sequence and return it as uppercase DNA. |
+| `BUILT` | `def validate_backbone_insertion(backbone: tuple[Segment, ...], insertion: int) -> None` | Reject insertion through known local functional feature intervals. |
 | `BUILT` | `def parse_custom_backbone(genbank_text: str) -> Segment` | Parse a researcher-supplied backbone from raw GenBank text (docs/plasmids.md Q13, docs/ROADMAP.md E5b) — the second and last function in this module that touches Biopython (ADR 0007), confined here for the same reason ``to_genbank`` is: a… |
 | `BUILT` | `def to_genbank(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an annotated circular GenBank file. |
 | `BUILT` | `@cache def load_registry_catalog() -> dict[str, dict]` | The bundled Registry metadata, keyed by local part name. Empty if never synced. |
+| `BUILT` | `@cache def load_part_catalog() -> dict[str, dict]` | Registry plus separately pinned primary GenBank CDS metadata. |
 | `BUILT` | `def to_sbol3(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an SBOL 3 document (sorted N-Triples). |
 
 #### `class PlasmidBuilder`
@@ -2787,7 +3077,7 @@ Assembles a circuit onto a backbone and checks it can be built.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, screener: MotifScreener, codons: CodonOptimizer, standard: AssemblyStandard = AssemblyStandard.RFC10, backbone: tuple[Segment, ...] = ()) -> None` |  |
+| `BUILT` | `def __init__(self, screener: MotifScreener, codons: CodonOptimizer, standard: AssemblyStandard = AssemblyStandard.RFC10, backbone: tuple[Segment, ...] = (), *, insertion_index: int = 0, optimize_codons: bool = False) -> None` |  |
 | `BUILT` | `def build(self, circuit: CircuitCandidate, outcome: DesiredOutcome, *, custom_payload: str \| None = None) -> PlasmidDesign` | Lay out one circuit as an orderable construct. |
 | `BUILT` | `def payload_segment(self, outcome: DesiredOutcome) -> Segment` | The coding sequence for the chosen output. |
 
@@ -2804,7 +3094,7 @@ Validates the uploaded count matrix before the pipeline starts.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, min_samples_per_group: int = 2) -> None` |  |
-| `STUB` | `def check(self, counts: CountMatrix, metadata: SampleMetadata) -> QcReport` | Inspect the matrix and report what is wrong with it. |
+| `BUILT` | `def check(self, counts: CountMatrix, metadata: SampleMetadata) -> QcReport` | Inspect the matrix and report what is wrong with it. |
 
 ### `engine.stages.reporting`
 
@@ -2818,8 +3108,8 @@ Figures for structures and circuits.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `STUB` | `def render_structure(self, design: GateDesign, output_dir: str) -> ArtifactRef` | Draw a switch's predicted secondary structure. |
-| `STUB` | `def render_circuit(self, circuit: CircuitCandidate, output_dir: str) -> ArtifactRef` | Draw a circuit's logic diagram. |
+| `BUILT` | `def render_structure(self, design: GateDesign, output_dir: str) -> ArtifactRef` | Draw a switch's predicted secondary structure. |
+| `BUILT` | `def render_circuit(self, circuit: CircuitCandidate, output_dir: str) -> ArtifactRef` | Draw a circuit's logic diagram. |
 
 #### `class ReportBuilder`
 
@@ -2828,7 +3118,8 @@ Assembles every artefact a run produces, including the PDF.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, renderer: StructureRenderer) -> None` |  |
-| `STUB` | `def build(self, circuits: list[CircuitCandidate], plasmids: list[PlasmidDesign], output_dir: str) -> list[ArtifactRef]` | Write every artefact and return references to them. |
+| `BUILT` | `def build(self, circuits: list[CircuitCandidate], plasmids: list[PlasmidDesign], output_dir: str) -> list[ArtifactRef]` | Write every artefact and return references to them. |
+| `BUILT` | `def build_result(self, candidates: list[CandidateResult], warnings: list[str], output_dir: str, *, engine_version: str, profile_version: str) -> ArtifactRef` | Write a sequence-free computational report while release remains held. |
 
 ### `engine.stages.switches`
 
@@ -2843,7 +3134,7 @@ Dispatches trigger sets to the gate families that can realise them.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, families: list, validator: 'SwitchValidator', host: Host) -> None` |  |
-| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
+| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
 | `BUILT` | `def build_trigger_sets(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[TriggerSet]` | Combine individual triggers into the input sets a circuit can use. |
 
 #### `class SwitchValidator`
@@ -2852,7 +3143,7 @@ The hard rules a switch must obey, whichever family produced it.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, folder: FoldEngine, off_target: OffTargetScanner, screener: MotifScreener, translation: TranslationScorer, constraints: Constraints) -> None` |  |
+| `BUILT` | `def __init__(self, folder: FoldEngine, screener: MotifScreener, translation: TranslationScorer, constraints: Constraints) -> None` |  |
 | `BUILT` | `def validate(self, design: GateDesign) -> ValidationResult` | Check one design against every hard rule this stage can currently apply. |
 
 ### `engine.stages.triggers`
@@ -2880,7 +3171,7 @@ Scan transcripts and deterministically shortlist candidates per gate footprint.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, profiler: FoldProfiler, off_target: OffTargetScanner, screener: MotifScreener, folder: FoldEngine) -> None` |  |
+| `BUILT` | `def __init__(self, profiler: FoldProfiler, screener: MotifScreener, folder: FoldEngine) -> None` |  |
 | `BUILT` | `def score(self, genes: list[SelectedGene], sequences: dict[str, str], constraints: Constraints) -> Iterator[TriggerCandidate]` | Yield a stable per-gene shortlist across all configured footprint buckets. |
 
 ## Layer 7 · Top level — contract, errors, composition
@@ -2917,8 +3208,12 @@ The Platform-facing engine interface.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.MockEngine``. |
+| `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.LocalEngine``. |
 | `BUILT` | `def label_for_custom_scoring(base_name: str, overrides: dict \| None) -> str` | The label the engine will actually score under (docs/public-api.md §9.1) — computable from the request alone, before the engine ever runs, so the Platform can echo it in a submission's ``resolved`` field without building a ``ScoringProfile… |
+| `BUILT` | `def lookup_reference_gene(organism: str, identifier: str) -> dict` | Resolve a public reference gene without exposing engine internals to the API. |
+| `BUILT` | `def normalize_trigger_sequence(sequence: str) -> str` | Normalize one RNA/DNA sequence or one FASTA record without changing symbols. |
+| `BUILT` | `def inspect_expression_input(path: str, limit: int \| None = 100) -> dict` | Shared upload and preview interpretation, exposed through the engine boundary. |
+| `BUILT` | `def validate_job_configuration(params: dict, gate_families: list[str], scoring_profile: str, input_mode: str, trigger_sequence: str = '', organism: str = '') -> dict` | Validate a runnable configuration before queueing; return normalized parameters. |
 
 #### `class EngineClient(Protocol)`
 
@@ -2937,25 +3232,12 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.5.0-direct-and-de-ecoli-yeast'` |
+| `ENGINE_VERSION` |  | `'local-0.11.0-scientific-qa'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult` | Delegate to the real pipeline. |
 | `BUILT` | `def capabilities(self) -> EngineCapabilities` | The families and profiles actually installed in this build. |
-
-#### `class MockEngine`
-
-Deterministic fake science.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `ENGINE_VERSION` |  | `'mock-1.0.0'` |
-
-| Status | Method | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def capabilities(self) -> EngineCapabilities` | The same registries the real engine reports, so a mock run configures identically to a real one. |
-| `BUILT` | `def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult` | Run a fake job, deterministically. |
 
 ### `engine.contract`
 
@@ -2970,6 +3252,7 @@ The Platform ⇄ Engine contract.
 | `LOWER_BETTER` |  | `'LOWER_BETTER'` |
 | `INPUT_DE` |  | `'de'` |
 | `INPUT_DIRECT` |  | `'direct'` |
+| `INPUT_GENE` |  | `'gene'` |
 | `SUCCEEDED` |  | `'succeeded'` |
 | `FAILED` |  | `'failed'` |
 | `CANCELLED` |  | `'cancelled'` |
@@ -2999,7 +3282,6 @@ An immutable request for one scientific computation.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `@property def is_direct_trigger(self) -> bool` | True when the researcher pasted a sequence instead of uploading a table. |
-| `BUILT` | `def mock_options(self) -> dict` | Options consumed by MockEngine. Ignored by every real implementation. |
 
 #### `class GateFamilyInfo`
 
@@ -3056,6 +3338,14 @@ What this engine build can do.
 | `metrics` | `list[MetricInfo]` | `field(default_factory=list)` |
 | `hard_filters` | `list[dict]` | `field(default_factory=list)` |
 | `available_backbones` | `list[BackboneInfo]` | `field(default_factory=list)` |
+| `supported_hosts` | `list[str]` | `field(default_factory=list)` |
+| `family_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
+| `supported_outputs` | `list[str]` | `field(default_factory=list)` |
+| `output_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
+| `backbone_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
+| `input_modes` | `list[str]` | `field(default_factory=list)` |
+| `limits` | `dict` | `field(default_factory=dict)` |
+| `constraints` | `dict` | `field(default_factory=dict)` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -3127,6 +3417,7 @@ The versioned result manifest.
 | `error` | `str \| None` | `None` |
 | `input_checksum` | `str` | `''` |
 | `params` | `dict` | `field(default_factory=dict)` |
+| `scientific_provenance` | `dict` | `field(default_factory=dict)` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -3167,7 +3458,7 @@ Raised internally when a progress callback reports that the run should stop.
 
 `src/engine/inputs.py`
 
-Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``.
+Shared differential-expression parsing for upload, preview and engine execution.
 
 | Constant | Type | Value |
 | --- | --- | --- |
@@ -3176,7 +3467,7 @@ Differential-expression input parsing — the edge where a CSV becomes a ``DgeTa
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def parse_dge_table(raw: bytes, filename: str = 'dge.csv') -> DgeTable` | Parse a differential-expression CSV or TSV into a ``DgeTable``. |
+| `BUILT` | `def parse_dge_table(raw: bytes, filename: str = 'dge.csv', *, hypothesis_universe_complete: bool \| None = None) -> DgeTable` | Parse differential-expression CSV, TSV, TXT, or XLSX into a ``DgeTable``. |
 
 ### `engine.pipeline`
 
@@ -3193,7 +3484,7 @@ The real scientific pipeline.
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
-| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute the pipeline for one `direct`- or `de`-mode job. |
+| `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute a direct, differential-expression, or reference-gene job. |
 
 ### `engine.safety`
 
@@ -3390,8 +3681,8 @@ Stable IDs, provenance, and a CSV snapshot per stage.
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, output_dir: str, run_id: str) -> None` |  |
 | `BUILT` | `def mint_id(self, kind: str) -> str` | Allocate a stable, readable identifier. |
-| `STUB` | `def snapshot(self, stage: str, records: Sequence[Any]) -> ArtifactRef` | Write what a stage produced, as an inspectable CSV. |
-| `STUB` | `def load_snapshot(self, stage: str) -> list[dict]` | Read a snapshot back, to re-run one stage without re-running the pipeline. |
+| `BUILT` | `def snapshot(self, stage: str, records: Sequence[Any]) -> ArtifactRef` | Write what a stage produced, as an inspectable CSV. |
+| `BUILT` | `def load_snapshot(self, stage: str) -> list[dict]` | Read a snapshot back, to re-run one stage without re-running the pipeline. |
 
 #### `class Objective`
 
@@ -3418,11 +3709,14 @@ S13 — keep only the non-dominated candidates.
 
 `src/engine/transcriptome.py`
 
-Reference transcript sequences, by organism — Q1's first real answer.
+Pinned, offline reference sequences and identifier aliases for all four hosts.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `@cache def load_transcriptome(host: Host) -> dict[str, str]` | Every bundled transcript for ``host``, as RNA, keyed by gene id. |
+| `BUILT` | `@cache def reference_metadata(host: Host) -> dict` |  |
+| `BUILT` | `def resolve_gene_id(host: Host, identifier: str) -> str` |  |
+| `BUILT` | `def gene_reference(host: Host, identifier: str) -> dict` |  |
 | `BUILT` | `def available_hosts() -> tuple[Host, ...]` | Which hosts have a bundled reference transcriptome today. |
 
 ---

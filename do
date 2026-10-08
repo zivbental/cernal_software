@@ -40,7 +40,7 @@ case "${1:-help}" in
       echo "Frontend not built yet — building it once..."
       (cd frontend && npm run build:fast)
     }
-    uv run python manage.py runserver "${2:-8000}"
+    uv run python manage.py devserver "${2:-8000}"
     ;;
 
   build-frontend) # Build the React app into src/static/app/

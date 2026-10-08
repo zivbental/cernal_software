@@ -75,11 +75,9 @@ def test_tsv_extension_is_tab_delimited():
     assert row.log2_fold_change == pytest.approx(2.0)
 
 
-def test_a_row_with_no_gene_id_is_dropped_not_kept_with_a_blank_id():
-    raw = b"gene_id,log2fc\n,3.0\nb0002,2.0\n"
-    table = parse_dge_table(raw)
-    assert len(table) == 1
-    assert table.rows[0].gene_id == "b0002"
+def test_a_row_with_no_gene_id_is_rejected():
+    with pytest.raises(InputValidationError, match="gene identifier is required"):
+        parse_dge_table(b"gene_id,log2fc\n,3.0\nb0002,2.0\n")
 
 
 def test_a_row_with_no_effect_size_is_dropped():
@@ -88,10 +86,9 @@ def test_a_row_with_no_effect_size_is_dropped():
     assert [row.gene_id for row in table.rows] == ["b0002"]
 
 
-def test_an_unparseable_number_becomes_none_not_zero():
-    raw = b"gene_id,log2fc,padj\nb0002,2.0,not-a-number\n"
-    row = parse_dge_table(raw).rows[0]
-    assert row.p_adj is None
+def test_an_unparseable_number_is_rejected():
+    with pytest.raises(InputValidationError, match="Invalid numeric"):
+        parse_dge_table(b"gene_id,log2fc,padj\nb0002,2.0,not-a-number\n")
 
 
 @pytest.mark.parametrize("blank", ["NA", "NaN", "null", "None", ""])
@@ -116,12 +113,9 @@ def test_not_utf8_raises():
         parse_dge_table(b"gene_id,log2fc\n\xff\xfe,2.0\n")
 
 
-def test_duplicate_gene_ids_are_both_kept_by_the_parser():
-    """De-duplication is a scientific choice (which row to trust) that belongs to
-    ``GeneSelector``, not this parser (docs/genes.md, the module's own docstring)."""
-    raw = b"gene_id,log2fc\nb0002,2.0\nb0002,3.0\n"
-    table = parse_dge_table(raw)
-    assert len(table) == 2
+def test_duplicate_gene_ids_are_rejected():
+    with pytest.raises(InputValidationError, match="duplicate gene identifier"):
+        parse_dge_table(b"gene_id,log2fc\nb0002,2.0\nb0002,3.0\n")
 
 
 def test_returns_a_real_dge_row_type():

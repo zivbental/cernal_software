@@ -1,0 +1,64 @@
+﻿locus_tag,protein_id,gene,product,location,strand,length_nt,included,reason,selected_for_cai,selection_reason
+F6X01_RS01760,WP_002550589.1,,30S ribosomal protein bS22,[367025:367127](+),1,102,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS02925,WP_002516656.1,,50S ribosomal protein L25/general stress protein Ctc,[580070:580688](+),1,618,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS04260,WP_002516168.1,rpsA,30S ribosomal protein S1,[844338:845835](+),1,1497,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS04495,WP_002515641.1,rplU,50S ribosomal protein L21,[899509:899818](+),1,309,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS04500,WP_002513859.1,rpmA,50S ribosomal protein L27,[899829:900099](+),1,270,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS04830,WP_002515457.1,rpsT,30S ribosomal protein S20,[953685:953952](-),-1,267,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS05400,WP_002519012.1,rimO,30S ribosomal protein S12 methylthiotransferase RimO,[1065917:1067342](+),1,1425,True,included,False,excluded_nonstructural_enzyme
+F6X01_RS06695,WP_002513455.1,rpmE,50S ribosomal protein L31,[1332744:1332954](-),-1,210,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS13615,WP_369797015.1,,50S ribosomal protein bL37,[1348446:1348521](+),1,75,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS07625,WP_002518468.1,rplT,50S ribosomal protein L20,[1510483:1510855](-),-1,372,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS07630,WP_002514222.1,rpmI,50S ribosomal protein L35,[1510959:1511166](-),-1,207,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS07750,WP_002514242.1,rplS,50S ribosomal protein L19,[1528894:1529248](-),-1,354,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS07790,WP_002516115.1,rpsP,30S ribosomal protein S16,[1534806:1535250](-),-1,444,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS07860,WP_002514262.1,rpmF,50S ribosomal protein L32,[1544519:1544711](-),-1,192,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS07970,WP_002514277.1,rpmB,50S ribosomal protein L28,[1567772:1567958](-),-1,186,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS08005,WP_002514283.1,rpsO,30S ribosomal protein S15,[1576337:1576601](-),-1,264,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS08255,WP_002516927.1,rpsB,30S ribosomal protein S2,[1627165:1628017](-),-1,852,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09525,WP_002519623.1,rimI,ribosomal protein S18-alanine N-acetyltransferase,[1899350:1899818](-),-1,468,True,included,False,excluded_nonstructural_enzyme
+F6X01_RS09620,WP_002516077.1,rpsI,30S ribosomal protein S9,[1919231:1919753](-),-1,522,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09625,WP_002516042.1,rplM,50S ribosomal protein L13,[1919775:1920219](-),-1,444,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09730,WP_002516013.1,rplQ,50S ribosomal protein L17,[1941590:1942154](-),-1,564,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09740,WP_002514832.1,rpsD,30S ribosomal protein S4,[1943717:1944323](-),-1,606,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09745,WP_002514833.1,rpsK,30S ribosomal protein S11,[1944353:1944761](-),-1,408,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09750,WP_002514834.1,rpsM,30S ribosomal protein S13,[1944832:1945204](-),-1,372,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09755,WP_002514836.1,rpmJ,50S ribosomal protein L36,[1945582:1945696](-),-1,114,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09810,WP_002516008.1,rplO,50S ribosomal protein L15,[1954700:1955141](-),-1,441,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09815,WP_002514851.1,rpmD,50S ribosomal protein L30,[1955142:1955325](-),-1,183,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09820,WP_002516004.1,rpsE,30S ribosomal protein S5,[1955324:1955972](-),-1,648,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09825,WP_002514853.1,rplR,50S ribosomal protein L18,[1955996:1956380](-),-1,384,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09830,WP_002516006.1,rplF,50S ribosomal protein L6,[1956381:1956924](-),-1,543,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09835,WP_002514855.1,rpsH,30S ribosomal protein S8,[1956952:1957360](-),-1,408,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09840,WP_002515981.1,,type Z 30S ribosomal protein S14,[1957519:1957705](-),-1,186,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09845,WP_002517568.1,rplE,50S ribosomal protein L5,[1957712:1958345](-),-1,633,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09850,WP_002516087.1,rplX,50S ribosomal protein L24,[1958341:1958710](-),-1,369,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09855,WP_002514859.1,rplN,50S ribosomal protein L14,[1958710:1959079](-),-1,369,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09860,WP_002516022.1,rpsQ,30S ribosomal protein S17,[1959675:1959948](-),-1,273,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09865,WP_002514861.1,rpmC,50S ribosomal protein L29,[1959950:1960184](-),-1,234,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09870,WP_002516060.1,rplP,50S ribosomal protein L16,[1960183:1960603](-),-1,420,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09875,WP_002515984.1,rpsC,30S ribosomal protein S3,[1960604:1961414](-),-1,810,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09880,WP_002515971.1,rplV,50S ribosomal protein L22,[1961415:1961877](-),-1,462,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09885,WP_002516048.1,rpsS,30S ribosomal protein S19,[1961894:1962176](-),-1,282,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09890,WP_002514866.1,rplB,50S ribosomal protein L2,[1962191:1963028](-),-1,837,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09895,WP_002514867.1,rplW,50S ribosomal protein L23,[1963054:1963363](-),-1,309,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09900,WP_002516089.1,rplD,"50S ribosomal protein L4, sunset domain variant",[1963359:1964265](-),-1,906,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09905,WP_002516019.1,rplC,50S ribosomal protein L3,[1964261:1964933](-),-1,672,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09910,WP_002514870.1,rpsJ,30S ribosomal protein S10,[1964944:1965256](-),-1,312,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09975,WP_002514883.1,rpsG,30S ribosomal protein S7,[1983857:1984328](-),-1,471,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS09980,WP_002514884.1,rpsL,30S ribosomal protein S12,[1984331:1984703](-),-1,372,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS10010,WP_002514890.1,rplL,50S ribosomal protein L7/L12,[1996489:1996882](-),-1,393,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS10015,WP_002516081.1,rplJ,50S ribosomal protein L10,[1996895:1997510](-),-1,615,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS10020,WP_002515965.1,rplA,50S ribosomal protein L1,[1997943:1998642](-),-1,699,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS10025,WP_002516066.1,rplK,50S ribosomal protein L11,[1998731:1999163](-),-1,432,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS10065,WP_002514900.1,rpmG,50S ribosomal protein L33,[2004809:2004980](-),-1,171,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS11265,WP_002516195.1,ykgO,type B 50S ribosomal protein L36,[2234900:2235023](-),-1,123,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS11440,WP_002516274.1,,type B 50S ribosomal protein L31,[2275825:2276071](-),-1,246,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS11445,WP_002516344.1,rpmB,50S ribosomal protein L28,[2276167:2276404](+),1,237,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS11450,WP_002516218.1,rpmG,50S ribosomal protein L33,[2276403:2276574](+),1,171,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS11455,WP_002516294.1,rpsN,30S ribosomal protein S14,[2276573:2276879](+),1,306,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS11460,WP_002514596.1,rpmF,50S ribosomal protein L32,[2276883:2277054](+),1,171,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS11850,WP_002514172.1,rplI,50S ribosomal protein L9,[2345854:2346304](-),-1,450,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS11855,WP_002514173.1,rpsR,30S ribosomal protein S18,[2346317:2346557](-),-1,240,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS11865,WP_002514175.1,rpsF,30S ribosomal protein S6,[2347365:2347656](-),-1,291,True,included,True,structural_ribosomal_complete_cds
+F6X01_RS12560,WP_002512704.1,rpmH,50S ribosomal protein L34,[2493722:2493857](-),-1,135,True,included,True,structural_ribosomal_complete_cds

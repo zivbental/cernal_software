@@ -5,23 +5,21 @@
  * These are controlled components over the shared `CompileConfig`.
  */
 
-import { Activity, Dna, FileUp, Loader2, Sparkles, UploadCloud } from "lucide-react";
+import { Activity, Dna, FileUp, Handshake, Loader2, Sparkles, UploadCloud } from "lucide-react";
 import { useRef } from "react";
 
 import type { Backbone, Dataset, ExampleDataset, GateFamily } from "@/api/types";
 import { BacteriaIcon, HumanIcon, YeastIcon } from "@/components/icons/BioIcons";
 import { Panel, SectionHeading, AdvancedOptions } from "@/components/layout/Primitives";
-import { Check, SliderRow, Token } from "@/components/compile/Bits";
+import { Check, SliderRow } from "@/components/compile/Bits";
 import { ExpressionPreview } from "@/components/compile/ExpressionPreview";
 import { PublicDatasetPicker } from "@/components/compile/PublicDatasetPicker";
+import { parseSequence } from "@/components/compile/sequence";
 import { GenePicker } from "@/components/compile/GenePicker";
 
 /* ---------- shared config ---------- */
 
-export type Organism = "ecoli" | "yeast" | "human";
-/** "gene" is informational only — it never submits by itself. Picking a gene stashes
- * `targetGene` and hands the researcher to "direct" to paste its sequence, since no
- * gene->sequence lookup exists yet (docs/public-datasets.md's deliberate scope cut). */
+export type Organism = "ecoli" | "yeast" | "human" | "c_acnes";
 export type InputModeValue = "de" | "direct" | "gene";
 
 export interface CompileConfig {
@@ -33,16 +31,13 @@ export interface CompileConfig {
   deSource: "public" | "upload";
   datasetId: string | null;
   triggerSequence: string;
-  /** Set by the "Specific Gene" route; carried into the submission's params.target_gene
-   * regardless of which mode ultimately supplies the dataset/sequence. Informational —
-   * see InputModeValue's docstring. */
+  /** The resolved reference gene, frozen with its sequence by the submission API. */
   targetGene: { organism: Organism; geneId: string; geneSymbol: string } | null;
-  setA: string;
-  setB: string;
   mechanism: string;
   /** Downstream outputs, all equivalent. Each selected one gets its own plasmids. */
   outputs: string[];
   customPayload: string;
+  optimizePayloadCodons: boolean;
   /**
    * UI-friendly sliders for a per-run override of the scoring profile's hard filters
    * (engine.scoring.profiles X7) — routes/compile.tsx's onSubmit turns these into
@@ -52,6 +47,12 @@ export interface CompileConfig {
   maxLeakage: number;
   minGateStability: number;
   /**
+   * `engine.domain.Constraints.max_circuit_gates` — how many gates one circuit may
+   * combine. The one search constraint the wizard exposes, because it is the one that
+   * changes what the researcher gets back rather than only how it is filtered.
+   */
+  maxCircuitGates: number;
+  /**
    * The plasmid vector to assemble onto (docs/plasmids.md Q13) — a catalog key from
    * `useVersion().available_backbones`, `"none"` for the bare construct (today's
    * behaviour, unchanged), or `"custom"` to use `customBackboneGenbank` instead.
@@ -60,6 +61,7 @@ export interface CompileConfig {
   /** Read client-side via FileReader, the same "paste your own" pattern
    * `customPayload` already uses — see routes/compile.tsx's onSubmit. */
   customBackboneGenbank: string;
+  customBackboneInsertion: string;
 }
 
 export const DEFAULT_CONFIG: CompileConfig = {
@@ -72,30 +74,73 @@ export const DEFAULT_CONFIG: CompileConfig = {
   datasetId: null,
   triggerSequence: "",
   targetGene: null,
-  setA: "",
-  setB: "",
   mechanism: "toehold",
   outputs: ["gfp"],
   customPayload: "",
+  optimizePayloadCodons: false,
   maxLeakage: 0.08,
   minGateStability: -32,
+  // Physical multi-gate constructs require reviewed integration; production uses one gate.
+  maxCircuitGates: 1,
   // A real backbone by default, not "none" — the whole point of this feature is a
   // researcher who just clicks through getting an orderable plasmid, not a bare
   // four-segment construct (docs/plasmids.md §13 note on this being a deliberate
   // default).
   backbone: "psb1c3",
   customBackboneGenbank: "",
+  customBackboneInsertion: "",
 };
 
 /** engine.scoring.profiles.DEFAULT_V1's own predicted_leakage hard-filter ceiling
  * (CLAUDE.md §2) — the wizard's slider must not be able to submit a run that loosens
- * this documented safety threshold, only tighten it. */
-const MAX_SAFE_LEAKAGE = 0.85;
+ * this scoring threshold, only tighten it. */
+const MAX_PROFILE_LEAKAGE = 0.85;
+
+/** Collaboration credit shown at the point of use, not only on a credits page.
+ *
+ * `logo` is deliberately a path to an asset that is NOT committed yet. Apache-2.0 §6 is
+ * explicit that the licence "does not grant permission to use the trade names, trademarks,
+ * service marks, or product names of the Licensor" — the AIS-China team's approval covered
+ * their *code*, and their team logo is a separate ask. Drop the file in once that approval
+ * is in writing; until then the badge falls back to the team name as text, which needs no
+ * permission at all.
+ *
+ * TODO(ziv): replace `href` with the real Human Practices anchor once the wiki section is
+ * published, and add `public/assets/collaborators/ais-china.svg` once logo use is granted.
+ */
+const COLLABORATOR_CREDIT = {
+  aisChina: {
+    team: "iGEM AIS-China 2026",
+    short: "AIS-China",
+    logo: "/assets/collaborators/ais-china.svg",
+    href: "/about#collaboration-ais-china",
+    // Written for someone seeing this for the first time: what the other team did, in
+    // words that need no synthetic-biology background, and what CERNAL does with it.
+    headline: "Built with another iGEM team",
+    summary:
+      "C. acnes is in CERNAL because of a collaboration. The iGEM AIS-China team built a codon-optimization model for this skin bacterium; we run their tool is available in our scientific toolkit. Automatic codon optimization during construct assembly is not enabled.",
+    contributed: [
+      "A codon model derived from the genome of C. acnes strain ATCC 6919",
+      "Their open-source tool, used exactly as they published it",
+      "2,312 reference genes that make this organism selectable here",
+    ],
+    why: "C. acnes is the dominant bacterium of human skin and a tractable chassis for live biotherapeutics, so a circuit that senses a signature and acts on skin has a natural home here.",
+  },
+} as const;
 
 const ORGANISMS = [
   { key: "ecoli", label: "E. coli", Icon: BacteriaIcon, anim: "animate-bacteria" },
   { key: "yeast", label: "Yeast", Icon: YeastIcon, anim: "animate-yeast" },
   { key: "human", label: "Human", Icon: HumanIcon, anim: "animate-human" },
+  // Reuses BacteriaIcon rather than inventing a new glyph: C. acnes is a bacterium and the
+  // credit badge below is what distinguishes the tile, not a bespoke icon.
+  {
+    key: "c_acnes",
+    label: "C. acnes",
+    Icon: BacteriaIcon,
+    anim: "animate-bacteria",
+    credit: COLLABORATOR_CREDIT.aisChina,
+  },
 ] as const;
 
 /** The organism key submitted with a run needs a readable label, not the enum value. */
@@ -103,9 +148,10 @@ export const ORGANISM_LABELS: Record<Organism, string> = {
   ecoli: "E. coli",
   yeast: "Yeast",
   human: "Human",
+  c_acnes: "C. acnes",
 };
 
-const sanitizeRna = (v: string) => v.toUpperCase().replace(/[^ACGUT]/g, "").replace(/T/g, "U");
+
 
 type Patch = (patch: Partial<CompileConfig>) => void;
 
@@ -147,23 +193,112 @@ export function StepInputs({
         <label className="mb-2 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
           Organism System
         </label>
-        <div className="inline-flex rounded-lg border border-border bg-surface p-1">
-          {ORGANISMS.map((o) => (
-            <button
-              key={o.key}
-              type="button"
-              onClick={() => patch({ organism: o.key })}
-              className={`group flex items-center gap-2 rounded-md px-5 py-2.5 text-sm transition ${
-                config.organism === o.key
-                  ? "bg-card font-medium text-foreground shadow-clinical"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <o.Icon className={`h-4 w-4 ${o.anim}`} />
-              <span>{o.label}</span>
-            </button>
-          ))}
+        <div className="inline-flex flex-wrap items-stretch gap-1 rounded-lg border border-border bg-surface p-1">
+          {ORGANISMS.map((o) => {
+            const selected = config.organism === o.key;
+            const credit = "credit" in o ? o.credit : null;
+            return (
+              <button
+                key={o.key}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => patch(o.key === "human"
+                  ? { organism: o.key, datasetId: null, targetGene: null, backbone: "none", mechanism: "eukaryotic_toehold" }
+                  : { organism: o.key, datasetId: null, targetGene: null, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
+                className={`group relative flex items-center gap-2 rounded-md px-5 py-2.5 text-sm transition ${
+                  credit
+                    ? selected
+                      ? "bg-card font-medium text-foreground shadow-clinical ring-2 ring-mint"
+                      : "border border-mint/50 bg-mint/5 text-foreground hover:bg-mint/10"
+                    : selected
+                      ? "bg-card font-medium text-foreground shadow-clinical"
+                      : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <o.Icon className={`h-4 w-4 ${o.anim}`} />
+                {credit ? (
+                  // Two lines, and the second is always visible: the collaboration is part
+                  // of what this tile IS, so it is not hidden behind selection or a hover.
+                  <span className="flex flex-col items-start leading-tight">
+                    <span>{o.label}</span>
+                    <span className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-mint">
+                      <Handshake className="h-3 w-3" aria-hidden />
+                      Collaboration · {credit.short}
+                    </span>
+                  </span>
+                ) : (
+                  <span>{o.label}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
+
+        {ORGANISMS.map((o) =>
+          "credit" in o && config.organism === o.key ? (
+            <section
+              key={o.key}
+              aria-label={`Collaboration: ${o.credit.team}`}
+              className="mt-4 overflow-hidden rounded-lg border border-mint/40 bg-mint/5"
+            >
+              <div className="flex items-center gap-3 border-b border-mint/30 bg-mint/10 px-4 py-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-mint text-mint-foreground">
+                  <Handshake className="h-5 w-5" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-mint">
+                    Collaboration
+                  </div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {o.credit.headline}: {o.credit.team}
+                  </div>
+                </div>
+                {/* Their logo, if and only if it has been supplied. Apache-2.0 §6 covers the
+                    code, not their trademark, so the asset is not committed until logo use
+                    is granted in writing; onError hides the broken image and the team name
+                    above carries the credit on its own. */}
+                <img
+                  src={o.credit.logo}
+                  alt={`${o.credit.team} logo`}
+                  className="h-9 w-auto shrink-0"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              </div>
+
+              <div className="space-y-3 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+                <p className="text-sm text-foreground">{o.credit.summary}</p>
+
+                <div>
+                  <div className="mb-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-foreground">
+                    What they contributed
+                  </div>
+                  <ul className="space-y-1">
+                    {o.credit.contributed.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-mint" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div>
+                  <span className="font-semibold text-foreground">Why this organism? </span>
+                  {o.credit.why}
+                </div>
+
+                <a
+                  href={o.credit.href}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-mint px-3 py-1.5 text-xs font-medium text-mint-foreground transition hover:opacity-90"
+                >
+                  How we collaborated with {o.credit.short} →
+                </a>
+              </div>
+            </section>
+          ) : null,
+        )}
       </div>
 
       <div className="mb-6">
@@ -214,7 +349,7 @@ export function StepInputs({
           {config.inputMode === "direct" &&
             "Skip discovery — provide the exact mRNA sequence you want to act as the trigger."}
           {config.inputMode === "gene" &&
-            "Already know which transcript you want the circuit to respond to? Record it here, then paste its sequence."}
+            "Already know which transcript you want the circuit to respond to? Resolve its reference transcript here; its identity and sequence are frozen at submission."}
         </p>
       </div>
 
@@ -389,22 +524,23 @@ export function StepInputs({
                 accepted and converted automatically.
               </p>
               <textarea
+                aria-label="Trigger sequence"
                 value={config.triggerSequence}
-                onChange={(e) => patch({ triggerSequence: sanitizeRna(e.target.value) })}
+                onChange={(e) => patch({ triggerSequence: e.target.value })}
                 placeholder="AUGGCUAGCAAGGGCGAGGAGCUGUUC..."
                 rows={5}
                 className="mt-4 w-full rounded-md border border-border bg-card p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-mint focus:outline-none"
               />
               <div className="mt-2 flex items-center justify-between font-mono text-xs text-muted-foreground">
-                <span>A · C · G · U only · at least 20 nt</span>
+                <span>Plain sequence or one FASTA record · T→U · at least 20 nt</span>
                 <span
                   className={
-                    config.triggerSequence.length > 0 && config.triggerSequence.length < 20
+                    parseSequence(config.triggerSequence).sequence.length > 0 && parseSequence(config.triggerSequence).sequence.length < 20
                       ? "text-destructive"
                       : ""
                   }
                 >
-                  {config.triggerSequence.length} nt
+                  {parseSequence(config.triggerSequence).sequence.length} nt
                 </span>
               </div>
             </div>
@@ -414,10 +550,11 @@ export function StepInputs({
 
       {config.inputMode === "gene" && (
         <GenePicker
+          key={config.organism}
           organism={config.organism}
           targetGene={config.targetGene}
           onSetGene={(targetGene) => patch({ targetGene })}
-          onContinue={() => patch({ inputMode: "direct" })}
+          onContinue={(triggerSequence) => patch({ triggerSequence })}
         />
       )}
     </Panel>
@@ -492,50 +629,8 @@ export function StepLogic({
       <SectionHeading
         kicker="Step 02 · Logic"
         title="Intracellular Logic Gate Assembly"
-        desc="Configure the Boolean expression that gates payload expression. CERNAL compiles your logic into a thermodynamically stable switch mechanism."
+        desc="Choose the switch mechanism CERNAL compiles your trigger into."
       />
-
-      <div className="rounded-xl border border-border bg-surface-2 p-5">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          Boolean Expression
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-sm">
-          <span className="text-muted-foreground">IF</span>
-          <Token>Set A Transcripts</Token>
-          <span className="rounded-md bg-mint/20 px-2 py-1 text-mint">AND</span>
-          <span className="rounded-md bg-primary/10 px-2 py-1 text-primary">NOT</span>
-          <Token>Set B Transcripts</Token>
-        </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-              Set A · must be present
-            </span>
-            <input
-              value={config.setA}
-              onChange={(e) => patch({ setA: e.target.value })}
-              placeholder="IL6, TNF, HIF1A"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-foreground focus:border-mint focus:outline-none"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-              Set B · must be absent
-            </span>
-            <input
-              value={config.setB}
-              onChange={(e) => patch({ setB: e.target.value })}
-              placeholder="FOXP3"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-foreground focus:border-mint focus:outline-none"
-            />
-          </label>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Comma-separated gene identifiers. Leave blank to let the engine choose triggers
-          from your data.
-        </p>
-      </div>
 
       <div className="mt-6">
         <div className="mb-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -588,7 +683,7 @@ export function StepLogic({
             // The scoring profile's own predicted_leakage ceiling (CLAUDE.md §2) — this
             // control can only tighten it, never submit a run that loosens a documented
             // safety filter.
-            max={MAX_SAFE_LEAKAGE}
+            max={MAX_PROFILE_LEAKAGE}
             step={0.01}
             onChange={(v) => patch({ maxLeakage: v })}
           />
@@ -599,6 +694,14 @@ export function StepLogic({
             max={0}
             unit=" kcal/mol"
             onChange={(v) => patch({ minGateStability: v })}
+          />
+          <SliderRow
+            label="Max Gates Per Circuit"
+            value={config.maxCircuitGates}
+            min={1}
+            max={1}
+            step={1}
+            // Fixed until a physically specified multi-gate compiler is integrated.
           />
         </div>
       </AdvancedOptions>
@@ -633,15 +736,22 @@ const OUTPUTS = [
   {
     key: "luciferase",
     name: "Luciferase",
-    sub: "Bioluminescent readout",
-    note: "Visual readout",
+    sub: "Firefly luciferase",
+    note: "Requires substrate and cofactors",
     color: "oklch(0.85 0.16 90)",
   },
   {
     key: "ampr",
-    name: "Antibiotic resistance",
-    sub: "AmpR · KanR",
-    note: "Positive selection",
+    name: "AmpR",
+    sub: "Beta-lactamase selectable marker",
+    note: "E. coli; fusion unvalidated",
+    color: "oklch(0.62 0.18 265)",
+  },
+  {
+    key: "kanr",
+    name: "KanR",
+    sub: "Kanamycin resistance marker",
+    note: "E. coli; fusion unvalidated",
     color: "oklch(0.62 0.18 265)",
   },
   {
@@ -660,7 +770,7 @@ const OUTPUTS = [
   },
 ] as const;
 
-export function StepPayload({ config, patch }: { config: CompileConfig; patch: Patch }) {
+export function StepPayload({ config, patch, supportedOutputs }: { config: CompileConfig; patch: Patch; supportedOutputs: string[] }) {
   const toggle = (key: string) =>
     patch({
       outputs: config.outputs.includes(key)
@@ -676,7 +786,7 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
       <SectionHeading
         kicker="Step 03 · Payload"
         title="Choose Downstream Output"
-        desc="What the circuit expresses when it fires. Pick as many as you like — each one is compiled into its own set of plasmid candidates."
+        desc="Each retained gate design is evaluated with every selected output. Each candidate contains one payload; co-expression needs a separate reviewed construct."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -686,6 +796,8 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
             <button
               key={output.key}
               type="button"
+              disabled={!supportedOutputs.includes(output.key)}
+              title={!supportedOutputs.includes(output.key) ? "This payload is not supported for the selected organism" : undefined}
               onClick={() => toggle(output.key)}
               aria-pressed={on}
               className={`group relative overflow-hidden rounded-xl border p-5 text-left transition ${
@@ -709,7 +821,7 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
                 </div>
                 <div className="mt-0.5 text-xs text-muted-foreground">{output.sub}</div>
                 <div className="mt-2 inline-block rounded-md bg-secondary px-2 py-0.5 font-mono text-[10px] tracking-wider text-muted-foreground">
-                  {output.note}
+                  {supportedOutputs.includes(output.key) ? output.note : "Unavailable for this organism"}
                 </div>
               </div>
             </button>
@@ -723,10 +835,11 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
             Custom output sequence
           </label>
           <textarea
-            value={config.customPayload}
+            aria-label="Custom payload sequence"
+                value={config.customPayload}
             onChange={(e) =>
               patch({
-                customPayload: e.target.value.toUpperCase().replace(/[^ACGUT]/g, "").replace(/T/g, "U"),
+                customPayload: e.target.value,
               })
             }
             placeholder="Paste the coding sequence to express"
@@ -734,11 +847,17 @@ export function StepPayload({ config, patch }: { config: CompileConfig; patch: P
             className="w-full rounded-md border border-border bg-surface p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-mint focus:outline-none"
           />
           <div className="mt-1 text-right font-mono text-[11px] text-muted-foreground">
-            {config.customPayload.length} nt
+            {parseSequence(config.customPayload).sequence.length} nt
           </div>
         </div>
       )}
 
+      <label className="mt-5 flex items-center gap-2 text-sm text-foreground">
+        <input type="checkbox" checked={config.optimizePayloadCodons}
+          onChange={(e) => patch({ optimizePayloadCodons: e.target.checked })} />
+        Optimize payload codons for the selected host (optional)
+      </label>
+      <p className="mt-2 text-xs text-muted-foreground">Off by default to preserve the pinned coding sequence. Optimization preserves the encoded protein and records sequence provenance. Reporter performance with the switch fusion remains experimentally unvalidated.</p>
       <p className="mt-6 rounded-lg border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground">
         {count === 0
           ? "Select at least one output."
@@ -806,7 +925,7 @@ export function StepVector({
     // Read client-side, same "paste your own" pattern customPayload already uses — no
     // upload endpoint, the file's text goes straight into the submitted JSON body.
     reader.onload = () => {
-      patch({ backbone: "custom", customBackboneGenbank: String(reader.result ?? "") });
+      patch({ backbone: "custom", customBackboneGenbank: String(reader.result ?? ""), customBackboneInsertion: "" });
     };
     reader.readAsText(file);
   };
@@ -845,11 +964,12 @@ export function StepVector({
 
       {config.backbone === "custom" && (
         <div className="mt-6">
-          <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          <label htmlFor="custom-backbone-file" className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
             Backbone GenBank file
           </label>
           <input
             ref={fileInput}
+            id="custom-backbone-file"
             type="file"
             accept=".gb,.gbk,.genbank,text/plain"
             className="hidden"
@@ -866,6 +986,11 @@ export function StepVector({
             <FileUp className="h-3.5 w-3.5" />
             {config.customBackboneGenbank ? "Replace file" : "Choose a .gb file"}
           </button>
+          <label htmlFor="backbone-insertion" className="mt-4 block text-sm text-foreground">Insertion boundary (0-based)</label>
+          <input id="backbone-insertion" type="number" min="0" step="1" value={config.customBackboneInsertion}
+            onChange={(e) => patch({ customBackboneInsertion: e.target.value })}
+            className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
+          <p className="mt-2 text-xs text-muted-foreground">Choose the boundary between vector bases where the cassette is inserted: 0 is before the first base. The server checks vector length and protected feature disruption. A cloning protocol is not generated automatically.</p>
           {config.customBackboneGenbank && (
             <div className="mt-2 font-mono text-[11px] text-muted-foreground">
               {config.customBackboneGenbank.length.toLocaleString()} characters loaded — must be

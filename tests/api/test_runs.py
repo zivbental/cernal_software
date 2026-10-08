@@ -28,12 +28,14 @@ def test_the_configuration_snapshot_is_frozen_at_submission(
 ):
     """Rule 7: a submitted run's configuration never changes after the fact."""
     with django_capture_on_commit_callbacks():
-        run_id = _submit(auth_client, dataset_id=dataset.id, params={"max_triggers": 3}).json()[
-            "id"
-        ]
+        run_id = _submit(
+            auth_client, dataset_id=dataset.id, params={"constraints": {"min_separation": 3}}
+        ).json()["id"]
 
     run = AnalysisRun.objects.get(pk=run_id)
-    assert run.params_snapshot == {"max_triggers": 3}
+    assert run.params_snapshot["constraints"]["min_separation"] == 3
+    assert run.params_snapshot["host"] == "ecoli"
+    assert run.params_snapshot["constraints"]["trigger_lengths"]
 
 
 def test_repeating_an_idempotency_key_returns_the_same_run(
@@ -99,10 +101,79 @@ def test_a_known_constraint_field_is_accepted(
 ):
     with django_capture_on_commit_callbacks():
         response = _submit(
-            auth_client, dataset_id=dataset.id, params={"constraints": {"max_triggers": 3}}
+            auth_client, dataset_id=dataset.id, params={"constraints": {"max_triggers": 1}}
         )
 
     assert response.status_code == 202
+
+
+def test_the_wizards_max_circuit_gates_constraint_is_accepted(
+    auth_client, dataset, django_capture_on_commit_callbacks
+):
+    """The wizard sends ``max_circuit_gates`` and the engine reads it, but this API's
+    allow-list is a hand-kept mirror of ``engine.domain.Constraints`` and had not been
+    told about it, so the UI's own control produced
+    ``Unknown constraint 'max_circuit_gates'`` and a 422 on every submission."""
+    with django_capture_on_commit_callbacks():
+        response = _submit(
+            auth_client, dataset_id=dataset.id, params={"constraints": {"max_circuit_gates": 1}}
+        )
+
+    assert response.status_code == 202, response.json()
+
+
+def test_every_constraint_the_api_rejects_is_an_explicit_decision():
+    """Stops the hand-kept ``CONSTRAINT_KEYS`` mirror drifting from the engine silently.
+
+    ``api/`` may not import ``engine.domain`` (architecture.md section 3), so it keeps its
+    own copy of the field names, and nothing used to compare the two. That is exactly how
+    ``max_circuit_gates`` got added to the engine and the wizard but not to the API.
+
+    A field the engine reads must either be accepted here or be listed in
+    ``NOT_EXPOSED`` below, so adding an engine field forces someone to choose. Tests may
+    import both sides; only ``src/api`` is fenced off from the engine.
+    """
+    import dataclasses
+
+    from api.params import CONSTRAINT_KEYS
+    from engine.domain import Constraints
+
+    #: Engine fields the public API does not currently accept. These are not in the
+    #: documented request schema (frontend/src/routes/api-docs.tsx). Exposing one means
+    #: adding it to CONSTRAINT_KEYS and to that table, then removing it from this set.
+    not_exposed = {
+        "direction_balance",
+        # The four below are the two-input AND family's design-space budget. Each changes
+        # WHICH designs get built rather than which pass: `stems_per_pair` and `stem_order`
+        # pick how many points of the secondary-stem Pareto front are sampled and from
+        # where, `overlap_range` sets the len_x floor and ceiling, `min_window_gap` the
+        # distance two trigger windows must keep. A request that set one would produce a
+        # candidate pool that is not comparable with any other run's, and the result records
+        # the scoring profile but not these -- so they stay out until the distributions that
+        # would justify a default are measured.
+        "min_window_gap",
+        "overlap_range",
+        "stem_order",
+        "stems_per_pair",
+        "max_base_expression",
+        "max_genes",
+        "max_separation",
+        "min_base_expression",
+        "trigger_gc_range",
+    }
+    engine_fields = {field.name for field in dataclasses.fields(Constraints)}
+
+    assert CONSTRAINT_KEYS <= engine_fields, (
+        f"API accepts constraint(s) the engine has no field for: "
+        f"{sorted(CONSTRAINT_KEYS - engine_fields)}"
+    )
+    undecided = engine_fields - CONSTRAINT_KEYS - not_exposed
+    assert not undecided, (
+        f"Engine Constraints field(s) {sorted(undecided)} are neither accepted by "
+        "api.params.CONSTRAINT_KEYS nor listed as deliberately not exposed. Add them to "
+        "one or the other (and to frontend/src/routes/api-docs.tsx if exposed)."
+    )
+    assert not (not_exposed & CONSTRAINT_KEYS), "a field is both exposed and not exposed"
 
 
 def test_an_unknown_scoring_metric_name_is_rejected_at_submission(auth_client, dataset):
@@ -202,7 +273,7 @@ def test_a_valid_backbone_catalog_key_is_accepted_and_stored(
 
     assert response.status_code == 202
     run = AnalysisRun.objects.get(pk=response.json()["id"])
-    assert run.params_snapshot["backbone"] == {"catalog_key": "psb1c3"}
+    assert run.params_snapshot["backbone"] == {"catalog_key": "psb1c3", "insertion_index": 0}
 
 
 def test_cannot_submit_using_another_users_dataset(other_client, dataset):
@@ -221,6 +292,7 @@ def test_the_polling_endpoint_returns_the_documented_shape(auth_client, run):
         "status",
         "stage",
         "progress_pct",
+        "worker_available",
         "error_summary",
         "warnings",
         "submitted_at",
@@ -247,7 +319,7 @@ def test_polling_another_users_run_is_404(other_client, run):
 def test_run_detail_exposes_the_immutable_snapshot(auth_client, run):
     body = auth_client.get(f"/api/runs/{run.id}/detail").json()
 
-    assert body["params_snapshot"] == {"max_triggers": 2}
+    assert body["params_snapshot"] == run.params_snapshot
     assert body["gate_families"] == ["toehold"]
 
 

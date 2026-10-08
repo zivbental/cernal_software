@@ -1,4 +1,4 @@
-# Submits the shared fixture (clients/fixtures/) against a live MockEngine server and
+# Submits the shared fixture (clients/fixtures/) against a live LocalEngine server and
 # checks the exact candidate column set — the mechanism meant to keep three language
 # clients honest (docs/public-api.md §11.4).
 #
@@ -27,7 +27,7 @@ test_that("the fixture request returns the expected candidate columns", {
   results <- cernal_results(job)
   expect_gt(nrow(results), 0)
   expect_lte(nrow(results), request$top_n)
-  expect_setequal(names(results), expected$candidate_columns)
+  for (candidate in cernal_candidates(job)) expect_setequal(names(candidate), expected$candidate_columns)
 })
 
 test_that("capabilities needs no key", {

@@ -1,0 +1,133 @@
+"""Read-only final-source smoke; fresh native engine, real payloads, default release hold."""
+from __future__ import annotations
+import concurrent.futures
+import dataclasses
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+import traceback
+
+BASE = Path('/tmp/cernal-qa-20261008/payload-matrix')
+SOURCE = Path('/tmp/cernal-qa-20261008/publish')
+DEADLINE_SECONDS = 600
+GENES = {'ecoli':'b3908', 'yeast':'YDR281C', 'human':'ENSG00000201966', 'c_acnes':'F6X01_RS12590'}
+TRIGGER = 'AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA'
+CUSTOM = 'ATGGCTGCTGCTGCTGCTTAA'
+
+
+def worker(host, mode):
+    from engine.client import LocalEngine, validate_job_configuration
+    from engine.contract import JobRequest, SCHEMA_VERSION
+    from engine.domain import Host
+    from engine.transcriptome import gene_reference
+    engine = LocalEngine()
+    caps = engine.capabilities()
+    outputs = [name for name in caps.supported_outputs if host in caps.output_hosts[name]]
+    directory = BASE / (host + '-' + mode)
+    directory.mkdir(parents=True, exist_ok=True)
+    table = 'gene_id,log2fc,padj\n' + GENES[host] + ',3.2,0.001\n'
+    input_file = directory / 'input.csv'
+    input_file.write_text(table)
+    raw_params = {
+        'payload': {'outputs': outputs, 'custom_sequence': CUSTOM},
+        'budget': {'max_designs':1},
+        'constraints': {'max_genes':1,'max_circuit_gates':1,'max_triggers':1,'standard':'none'},
+        'target_gene': {'gene_id':GENES[host]},
+        'statistics': {'hypothesis_universe_complete':False},
+    }
+    params = validate_job_configuration(raw_params, ['toehold'], 'default', mode,
+                                       TRIGGER if mode == 'direct' else '', host)
+    request = JobRequest(
+        schema_version=SCHEMA_VERSION, run_id=host+'-'+mode, idempotency_key=host+'-'+mode,
+        input_mode=mode, trigger_sequence=TRIGGER if mode == 'direct' else '',
+        input_path=str(input_file) if mode=='de' else '',
+        input_checksum=hashlib.sha256(table.encode()).hexdigest() if mode=='de' else '',
+        organism=host, params=params, gate_families=['toehold'], scoring_profile='default',
+        seed=42, output_dir=str(directory/'artifacts'),
+    )
+    start = time.monotonic()
+    progress = []
+    def report(percent, stage):
+        progress.append({'percent':percent,'stage':stage,'elapsed_seconds':round(time.monotonic()-start,3)})
+        (directory/'progress.json').write_text(json.dumps(progress))
+        return True
+    reference = gene_reference(Host(host), GENES[host]) if mode!='direct' else None
+    try:
+        result = engine.run(request, report)
+        payloads = []
+        for output in outputs:
+            members = [c for c in result.candidates if c.design.get('payload_id')==output]
+            payloads.append({'output':output,'candidates':len(members),
+                            'accepted':sum(not c.is_rejected for c in members),
+                            'rejected':sum(c.is_rejected for c in members),
+                            'details':[{
+                                'ref':c.ref,'rejection_reason':c.rejection_reason,'warnings':c.warnings,
+                                'metrics':{m.name:m.raw_value for m in c.metrics},
+                                'payload_source':c.design.get('payload_source'),
+                                'payload_sequence_sha256':c.design.get('payload_sequence_sha256'),
+                                'evaluation_sequence_sha256':c.design.get('evaluation_sequence_sha256'),
+                                'construct_sha256':c.design.get('construct_sha256'),
+                                'host':c.design.get('host'), 'family_version':c.design.get('family_version'),
+                            } for c in members]})
+        entry = {'host':host,'mode':mode,'status':result.status,'error':result.error,
+                 'candidate_count':len(result.candidates),'accepted_count':len(result.accepted),
+                 'outcome':'productive' if result.accepted else ('failed' if result.status!='succeeded' else 'empty'),
+                 'payloads':payloads, 'warnings':result.warnings,
+                 'params':params,'scientific_provenance':result.scientific_provenance,
+                 'engine_version':result.engine_version,'schema_version':result.schema_version,
+                 'artifacts':[dataclasses.asdict(a) for a in result.artifacts],
+                 'input_checksum':request.input_checksum,
+                 'reference':{k:v for k,v in reference.items() if k!='sequence'} if reference else None,
+                 'reference_sequence_sha256':hashlib.sha256(reference['sequence'].encode()).hexdigest() if reference else None,
+                 'input_semantics':'synthetic DE contrast with pinned reference' if mode=='de' else ('pinned reference gene' if mode=='gene' else 'known productive direct fixture'),
+                 'progress':progress}
+    except Exception as error:
+        entry = {'host':host,'mode':mode,'status':'exception','error':repr(error),
+                 'traceback':traceback.format_exc(),'params':params,'progress':progress}
+    entry['elapsed_seconds'] = round(time.monotonic()-start,3)
+    (directory/'result.json').write_text(json.dumps(entry,indent=2,sort_keys=True,allow_nan=False))
+    print(json.dumps({'host':host,'mode':mode,'status':entry['status'],
+                      'accepted':entry.get('accepted_count'),'elapsed':entry['elapsed_seconds']}),flush=True)
+
+
+def orchestrate():
+    BASE.mkdir(parents=True,exist_ok=True)
+    started = time.monotonic()
+    cases = [(host,mode) for mode in ('direct','de','gene') for host in GENES]
+    def launch(case):
+        host,mode=case
+        remaining = DEADLINE_SECONDS - (time.monotonic()-started)
+        if remaining <= 0:
+            return {'host':host,'mode':mode,'status':'not_started_deadline'}
+        command=[sys.executable,__file__,'--worker',host,mode]
+        try:
+            run=subprocess.run(command,cwd=SOURCE,capture_output=True,text=True,timeout=remaining)
+            print(run.stdout.strip(),flush=True)
+            target=BASE/(host+'-'+mode)/'result.json'
+            if run.returncode==0 and target.exists(): return json.loads(target.read_text())
+            return {'host':host,'mode':mode,'status':'worker_error','returncode':run.returncode,
+                    'stderr':run.stderr[-3000:]}
+        except subprocess.TimeoutExpired:
+            return {'host':host,'mode':mode,'status':'overall_deadline_timeout'}
+    entries=[]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        futures=[executor.submit(launch,case) for case in cases]
+        for future in concurrent.futures.as_completed(futures):
+            entries.append(future.result())
+            document={'schema':'cernal-final-payload-matrix-v1','source_commit':'24280ec0aab6e89372048658f07cf72f8e1f9a6d',
+                      'maximum_concurrency':2,'overall_limit_seconds':DEADLINE_SECONDS,
+                      'elapsed_seconds':round(time.monotonic()-started,3),
+                      'scope':'12 supported single-input toehold jobs; all host-applicable payload alternatives; no unsupported mechanism claim',
+                      'restrictions':'no backbone; assembly standard none; default hard scoring filters; budget1; no codon optimization; default fail-closed export adapter',
+                      'cases':sorted(entries,key=lambda x:(x['mode'],x['host']))}
+            (BASE/'evidence.json').write_text(json.dumps(document,indent=2,sort_keys=True,allow_nan=False))
+    print('completed '+str(len(entries))+' cases in '+str(round(time.monotonic()-started,2))+' seconds',flush=True)
+
+
+if __name__=='__main__':
+    if len(sys.argv)>1: worker(sys.argv[2],sys.argv[3])
+    else: orchestrate()

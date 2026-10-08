@@ -7,7 +7,7 @@ L=min(n, 150), and u=min(n, 20).  The returned pU table is indexed by the
 row as an interval start; explicit coordinate tests protect this convention.
 """
 
-from functools import cache
+from functools import lru_cache
 
 
 def _load_rna():
@@ -55,6 +55,7 @@ class FoldProfiler:
         self.max_span = max_span
         self.unpaired = unpaired
         self._rna = _RNA if rna_module is _DEFAULT_RNA else rna_module
+        self._matrix = lru_cache(maxsize=2)(self._matrix)
 
     @property
     def available(self) -> bool:
@@ -102,7 +103,6 @@ class FoldProfiler:
         segment = self.profile(sequence)[start:end]
         return sum(segment) / len(segment) if segment else 0.0
 
-    @cache  # noqa: B019 - one profiler instance per run, matching FoldEngine
     def _matrix(self, sequence: str):
         if not self.available:
             raise RuntimeError(

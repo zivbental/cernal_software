@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { CircuitBoard, Library } from "lucide-react";
 
 import { useRecentRuns } from "@/api/queries";
@@ -18,7 +19,8 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function DashboardPage() {
-  const runs = useRecentRuns(50);
+  const [offset, setOffset] = useState(0);
+  const runs = useRecentRuns(50, offset);
 
   return (
     <>
@@ -42,6 +44,8 @@ function DashboardPage() {
 
       {runs.isLoading ? (
         <Loading />
+      ) : runs.isError ? (
+        <p role="alert">Could not load run history. <button onClick={() => runs.refetch()}>Retry</button></p>
       ) : runs.data && runs.data.length > 0 ? (
         <div className="overflow-hidden rounded-xl border border-border">
           {runs.data.map((run) => (
@@ -68,6 +72,11 @@ function DashboardPage() {
       ) : (
         <EmptyRuns />
       )}
+      <nav aria-label="Run history pages" className="mt-4 flex justify-between">
+        <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</button>
+        <span>Runs {offset + 1}–{offset + (runs.data?.length ?? 0)}</span>
+        <button disabled={(runs.data?.length ?? 0) < 50} onClick={() => setOffset(offset + 50)}>Next</button>
+      </nav>
     </>
   );
 }

@@ -8,7 +8,7 @@ remotes::install_github("zivbental/cernal_software", subdir = "clients/r")
 library(cernal)
 
 cl  <- cernal_client(Sys.getenv("CERNAL_API_KEY"), base_url = "https://your-cernal-host")
-job <- cernal_design(cl, trigger_sequence = "AUGGCUAAGCUUAACGGAUCC", organism = "ecoli")
+job <- cernal_design(cl, trigger_sequence = "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA", organism = "ecoli")
 df  <- cernal_results(cernal_wait(job))
 head(df)
 ```
@@ -23,7 +23,7 @@ job <- cernal_design(
   dge_csv       = readr::read_file("deseq2.csv"),
   organism      = "ecoli",
   gate_families = "toehold",
-  constraints   = list(max_triggers = 2L, min_separation = 1.0, max_p_adj = 0.01),
+  constraints   = list(max_triggers = 1L, min_separation = 1.0, max_p_adj = 0.01),
   scoring       = list(weights = list(predicted_leakage = 4.0)),
   seed          = 42L
 )
@@ -37,9 +37,25 @@ candidate, metric decomposition as columns, so it drops straight into `dplyr` an
 `cernal_rate_limited` (with `$retry_after`), `cernal_run_failed` (with
 `$error_summary`) — so `tryCatch(..., cernal_validation_error = function(e) ...)` works.
 
-**Not independently verified against a live server** — built directly from
-docs/public-api.md §11.2's spec and this repo's actual API responses, but no R
-interpreter was available to run it. `tests/testthat/test-conformance.R` is written
-and ready; it needs `CERNAL_TEST_BASE_URL`/`CERNAL_TEST_API_KEY` pointed at a running
-MockEngine deployment (see `.gitlab-ci.yml`'s `client-r` job) and a human with R to
-confirm it passes before this ships.
+The raw/table and live HTTP conformance suite passed in hosted Ubuntu R CI on
+8 October 2026. The live suite uses a real LocalEngine-computed, precompleted
+fixture; it does not exercise R polling through a live worker queue.
+
+## Verification and result contracts (8 October 2026)
+
+No package publication is claimed. Install from this repository's source; public
+registry releases require separate maintainer authorization. Python HTTP conformance
+and transport/ranking regressions execute against a local API. The R raw/table and
+live HTTP conformance suite passed in [hosted Ubuntu CI](https://github.com/zivbental/cernal_software/actions/runs/37802426550/job/113397823314).
+MATLAB runtime conformance remains unexecuted; its source changes are experimental.
+
+Submission result options (`top_n`, `include_rejected`, `include_metrics`,
+`include_artifacts`) remain on the job handle across queued completion. Persist them
+when reconstructing a resumed handle; explicit results calls can override them.
+Server-side `wait` is bounded to 0–300 seconds and submission transport timeout is
+at least `wait + 10` seconds. Best-candidate helpers choose the lowest accepted rank
+and return no result when all candidates are rejected or unranked.
+
+Raw candidate JSON retains nested design, triggers, warnings and metrics. Flattened
+tables are a separate convenience contract and are not compared to raw JSON column
+sets. R exposes `cernal_candidates(job)` and MATLAB `job.rawCandidates()`.

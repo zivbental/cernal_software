@@ -16,7 +16,6 @@ Primitives that no gate family uses live with the pipeline step that does:
 
 * ``engine.stages.folding`` — ``FoldProfiler`` (S1). A gate is handed a trigger that has
   already been judged accessible; only stage 2 asks that question.
-* ``engine.stages.off_target`` — ``OffTargetScanner`` (S5). Stages 2, 3 and 4.
 * ``engine.stages.motifs`` — ``MotifScreener`` (S7). Stages 2, 3 and 5.
 * ``engine.sequences`` — pure sequence functions (S6), used by everything, and therefore
   at the engine root rather than under any one layer.

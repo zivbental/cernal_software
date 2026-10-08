@@ -261,7 +261,7 @@ try {
   const required = {
     "/guide": [
       "How to compile a circuit",
-      "MockEngine",
+      "LocalEngine",
       "manifest.json",
       "summary.csv",
       "separate output-specific candidates",
@@ -269,7 +269,7 @@ try {
     ],
     "/use-cases": [
       "Choose a supported workflow",
-      "simulated results",
+      "small real run",
       "What CERNAL does not establish",
     ],
     "/faq": [

@@ -61,6 +61,8 @@ class ApiKeyAuth(APIKeyHeader):
 
         request.user = api_key.owner  # a real User, so get_owned() needs no changes
         request.api_key = api_key  # scopes, quotas and throttling read this
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            require_scope(request, "read")
         _touch_last_used(api_key)
         return api_key.owner
 
@@ -155,3 +157,45 @@ def enforce_concurrency_ceiling(request) -> None:
             f"{active} run(s) already active; this key allows {api_key.max_concurrent_runs}.",
             headers={"Retry-After": "60"},
         )
+
+
+def protect_auth_entry(request) -> None:
+    """Check CSRF and a shared per-address counter before password hashing or session creation."""
+    import hashlib
+
+    from django.conf import settings
+    from ninja.utils import check_csrf
+
+    from api.errors import PermissionDenied
+
+    if check_csrf(request) is not None:
+        raise PermissionDenied("A valid CSRF token and same-origin request are required.")
+    limit = getattr(settings, "AUTH_ATTEMPTS_PER_MINUTE", 30)
+    ident = hashlib.sha256(_auth_client_address(request).encode()).hexdigest()
+    bucket = int(timezone.now().timestamp()) // 60
+    # Per-minute slots use cache.add's insert-if-absent operation. Avoid read/incr
+    # counters: several supported backends implement incr as a non-atomic get/set.
+    admitted = any(
+        cache.add(f"auth-attempts:{ident}:{bucket}:{slot}", True, timeout=120)
+        for slot in range(limit)
+    )
+    if not admitted:
+        from ninja.errors import Throttled
+
+        raise Throttled(wait=60)
+
+
+def _auth_client_address(request) -> str:
+    """Only an explicitly trusted immediate proxy can supply the client address."""
+    from ipaddress import ip_address
+
+    from django.conf import settings
+
+    peer = request.META.get("REMOTE_ADDR", "unknown")
+    if peer in settings.AUTH_TRUSTED_PROXY_ADDRESSES:
+        supplied = request.META.get("HTTP_X_CERNAL_CLIENT_IP", "")
+        try:
+            return str(ip_address(supplied))
+        except ValueError:
+            pass
+    return peer

@@ -140,8 +140,6 @@ def main(argv=None) -> int:
                             openness=worse,
                             accessibility=worse,
                             mfe=0.0,
-                            off_target_penalty=0.0,
-                            segment_specificity=0.0,
                             gc_content=sq.gc_content(window_a),
                         ),
                         TriggerCandidate(
@@ -153,8 +151,6 @@ def main(argv=None) -> int:
                             openness=worse,
                             accessibility=worse,
                             mfe=0.0,
-                            off_target_penalty=0.0,
-                            segment_specificity=0.0,
                             gc_content=sq.gc_content(window_b),
                         ),
                     )
