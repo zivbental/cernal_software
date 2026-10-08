@@ -14,7 +14,7 @@ from cernal import Client
 
 c = Client(api_key=os.environ["CERNAL_API_KEY"], base_url="https://your-cernal-host")
 
-job = c.design(trigger_sequence="AUGGCUAAGCUUAACGGAUCC", organism="ecoli")
+job = c.design(trigger_sequence="AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA", organism="ecoli")
 df = job.wait().to_dataframe()
 print(df.head())
 ```
@@ -27,7 +27,7 @@ job = c.design(
     organism="ecoli",
     gate_families=["toehold"],
     constraints={
-        "max_triggers": 2,
+        "max_triggers": 1,
         "min_separation": 1.0,
         "max_p_adj": 0.01,
         "trigger_lengths": [30, 33, 36],
@@ -37,7 +37,7 @@ job = c.design(
         "weights": {"predicted_leakage": 4.0, "gc_content": 0.0},
         "hard_filters": [{"metric": "dynamic_range", "minimum": 10.0}],
     },
-    budget={"max_designs": 50_000, "max_runtime_seconds": 1800},
+    budget={"max_designs": 20},
     seed=42,
     top_n=25,
 )
@@ -72,9 +72,9 @@ to `uv pip install ./clients/python[pandas]`; `.to_dicts()` always works.
 
 No package publication is claimed. Install from this repository's source; public
 registry releases require separate maintainer authorization. Python HTTP conformance
-and transport/ranking regressions execute against a local API. R and MATLAB source
-clients are experimental until their runtime suites pass; local source review does
-not constitute language-runtime verification.
+and transport/ranking regressions execute against a local API. The R raw/table and
+live HTTP conformance suite passed in [hosted Ubuntu CI](https://github.com/zivbental/cernal_software/actions/runs/37802426550/job/113397823314).
+MATLAB runtime conformance remains unexecuted; its source changes are experimental.
 
 Submission result options (`top_n`, `include_rejected`, `include_metrics`,
 `include_artifacts`) remain on the job handle across queued completion. Persist them

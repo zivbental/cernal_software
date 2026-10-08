@@ -60,6 +60,7 @@ def selection_inventory(request, raw, host):
         "selected_genes": [],
         "selection_warnings": warnings,
         "selection_error": None,
+        "effective_constraints": dataclasses.asdict(tools["constraints"]),
     }
     try:
         genes = GeneSelector(tools["constraints"], tools["screener"]).select(
@@ -84,10 +85,16 @@ def selection_inventory(request, raw, host):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument(
+        "--catalog-key", action="append", help="Limit to exact catalog keys; repeatable."
+    )
     args = parser.parse_args()
     source_root = Path(client.__file__).resolve().parents[2]
     catalog_root = source_root / "src/apps/expression/catalog"
     manifest = json.loads((catalog_root / "manifest.json").read_text())
+    unknown = set(args.catalog_key or []) - manifest.keys()
+    if unknown:
+        parser.error(f"Unknown catalog key(s): {sorted(unknown)}")
     report = {
         "schema": "cernal-catalog-smoke-v1",
         "recorded_at": datetime.now(UTC).isoformat(),
@@ -99,6 +106,7 @@ def main():
             (catalog_root / "manifest.json").read_bytes()
         ).hexdigest(),
         "params": PARAMS,
+        "default_hard_filters": LocalEngine().capabilities().hard_filters,
         "seed": 42,
         "interpretation": (
             "Bounded local DE source-path smoke; selected_genes is the pre-inversion stage-1 "
@@ -108,10 +116,14 @@ def main():
             "outcome. Neither candidate counts nor study titles establish disease selectivity "
             "or wet-lab efficacy. No C. acnes public comparison is bundled."
         ),
+        "expected_comparisons": len(args.catalog_key or manifest),
+        "complete": False,
         "comparisons": [],
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     for key, metadata in sorted(manifest.items()):
+        if args.catalog_key and key not in args.catalog_key:
+            continue
         start = time.monotonic()
         path = catalog_root / metadata["csv_path"]
         raw = path.read_bytes()
@@ -145,8 +157,21 @@ def main():
                 seed=42,
                 output_dir=output_dir,
             )
+            selection_started = time.monotonic()
             record["selection"] = selection_inventory(request, raw, host)
-            result = LocalEngine().run(request, lambda pct, stage: True)
+            record["selection_elapsed_seconds"] = round(time.monotonic() - selection_started, 3)
+            stage_times = []
+
+            def progress(pct, stage, stage_times=stage_times, start=start, key=key):
+                if not stage_times or stage_times[-1]["stage"] != stage:
+                    stage_times.append(
+                        {"stage": stage, "elapsed_seconds": round(time.monotonic() - start, 3)}
+                    )
+                    print(f"{key}: {stage}", flush=True)
+                return True
+
+            result = LocalEngine().run(request, progress)
+            record["stage_progress"] = stage_times
             record.update(
                 terminal_status=result.status,
                 error=result.error,
@@ -158,10 +183,23 @@ def main():
                 rejected=len(result.rejected),
                 warnings=result.warnings,
                 scientific_provenance=result.scientific_provenance,
+                effective_params=result.params,
+                candidate_details=[
+                    {
+                        "ref": candidate.ref,
+                        "is_rejected": candidate.is_rejected,
+                        "rejection_reason": candidate.rejection_reason,
+                        "warnings": candidate.warnings,
+                        "metrics": {metric.name: metric.raw_value for metric in candidate.metrics},
+                        "construct_sha256": candidate.design.get("construct_sha256"),
+                    }
+                    for candidate in result.candidates
+                ],
                 artifact_count=len(result.artifacts),
                 elapsed_seconds=round(time.monotonic() - start, 3),
             )
         report["comparisons"].append(record)
+        report["complete"] = len(report["comparisons"]) == report["expected_comparisons"]
         args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
         print(
             f"{key}: {record['terminal_status']} / {record['outcome']} "
