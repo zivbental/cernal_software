@@ -18,6 +18,9 @@
 name: CI
 
 on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 1"
   pull_request:
   push:
     branches: [main]
@@ -61,6 +64,8 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run python manage.py check
+      - run: uv run python manage.py makemigrations --check --dry-run
+      - run: uv run python tools/gen_api_surface.py --check
       - run: uv run pytest -q
 
   # Python client conformance (docs/public-api.md §11.4): submits
@@ -115,3 +120,84 @@ jobs:
       - run: npm run build:fast
       - run: npm run check
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+
+  release-windows:
+    name: Windows supervisor runtime (manual/scheduled)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      - run: uv run pytest tests/test_worker_supervision.py tests/test_run_lifecycle.py -q
+
+  dependency-review:
+    name: dependency advisory review (manual/scheduled)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      - run: uv run --with pip-audit pip-audit --local --format json --output python-advisories.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm --prefix frontend audit --json > javascript-advisories.json
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-advisories
+          path: '*-advisories.json'
+
+  browser-queued:
+    name: browser (real SQLite queue + worker + LocalEngine)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm --prefix frontend ci
+      - run: npm --prefix frontend run build:fast
+      - run: cd frontend && npx playwright install --with-deps chromium
+      - run: node frontend/e2e/queued.mjs
+
+  client-r:
+    name: R (raw/table contracts + live HTTP conformance)
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+      DATABASE_URL: sqlite:////tmp/cernal-r-ci.sqlite3
+      MEDIA_ROOT: /tmp/cernal-r-ci-media
+      CERNAL_SUPERVISED_CHILD: "1"
+      REVIEWER_LOGIN_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      - uses: r-lib/actions/setup-r@v2
+      - run: Rscript -e 'install.packages(c("httr2", "tibble", "jsonlite", "testthat"), repos="https://cloud.r-project.org")'
+      - run: R CMD INSTALL clients/r
+      - run: uv run python manage.py migrate --noinput
+      - run: uv run python manage.py createcachetable
+      - run: uv run python tools/prepare_client_conformance.py --key-output /tmp/cernal-r-ci-key
+      - run: |
+          uv run python manage.py runserver 127.0.0.1:8765 --noreload > /tmp/cernal-r-ci-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do
+            curl --fail --silent http://127.0.0.1:8765/api/health >/dev/null && break
+            sleep 1
+          done
+          export CERNAL_TEST_BASE_URL=http://127.0.0.1:8765
+          export CERNAL_TEST_API_KEY="$(cat /tmp/cernal-r-ci-key)"
+          echo "::add-mask::$CERNAL_TEST_API_KEY"
+          Rscript -e 'library(cernal); testthat::test_dir("clients/r/tests/testthat", stop_on_failure=TRUE)'
