@@ -132,7 +132,7 @@ def test_artifacts_expose_a_category_and_a_readable_label(auth_client, completed
 
 
 def _zip_names(response) -> list[str]:
-    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+    with zipfile.ZipFile(io.BytesIO(b"".join(response.streaming_content))) as archive:
         return archive.namelist()
 
 

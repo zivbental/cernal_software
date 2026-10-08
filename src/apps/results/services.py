@@ -378,6 +378,7 @@ def build_run_manifest(run, result: JobResult) -> dict:
         "seed": run.seed,
         "engine_version": result.engine_version,
         "params": run.params_snapshot,
+        "scientific_provenance": getattr(result, "scientific_provenance", {}),
         "warnings": list(result.warnings),
         "candidate_count": run.candidates.count(),
         "submitted_at": run.submitted_at,
