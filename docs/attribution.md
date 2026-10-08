@@ -8,6 +8,7 @@ the last being a requirement of iGEM's 2026 [Policy on the Responsible Use of Ar
 Intelligence](https://igem.org/legal?tab=ai-policy-teams), §4, *Disclosure Through the
 Attribution Form*.
 
+> Release decision owners and deadlines are tracked in [release decisions](release-decisions.md).
 > Lines marked **`TODO`** can only be answered by the team. Fill them in before the
 > Attribution Form is submitted and before the GitLab freeze — after the freeze this
 > file cannot be changed.
@@ -49,7 +50,7 @@ contributors**, and that the team can explain and has verified the output.
 Under §5 of the policy, AI-assisted output must be independently reviewed and verified
 before being incorporated. For this project that means, concretely:
 
-- **AI-generated code was reviewed and tested.** The suite is 415 tests, and
+- **AI-generated code was reviewed and tested.** The dated audit records the executed suite;
   [`tests/test_boundary.py`](../tests/test_boundary.py) mechanically enforces the
   engine/Django separation rule. `TODO` — confirm the team reviewed the engine stubs
   and scoring logic rather than accepting them unread.
@@ -122,7 +123,7 @@ standard SPDX identifier, so it is called out here rather than folded into the "
 row above. It does not affect CERNAL's own license; state it alongside ViennaRNA on the
 wiki's software page.
 
-**ViennaRNA** is planned as the engine's RNA folding backend
+**ViennaRNA** is the engine's RNA folding backend
 ([deployment.md](deployment.md), [engine.md](engine.md) — `FoldEngine`). Its license is a
 custom one: free for research, education and commercial use, but it **forbids
 redistribution for a fee** and is **not OSI-approved**.
@@ -169,12 +170,10 @@ iGEM's AI policy §6 is unambiguous: simulated or generated material may be used
 must be *clearly distinguished* from real observations and must never be represented as
 a result the team obtained.
 
-**Mock engine results are simulated.** With `CERNAL_ENGINE=engine.client.MockEngine`
-(the default), every number the product displays is deterministic fake output. The
-application labels this in the footer — "Mock engine — results are simulated" — but
-**screenshots do not carry that label**. Screenshots taken against MockEngine, and the
-mockup screenshots in `design-reference/guide-shots/`, must not appear on the wiki
-presented as results.
+**Historical mockup results are simulated.** The production default is now
+`LocalEngine` and computes real folding proxies. Historical design-reference
+screenshots and browser HTTP-fixture results must be labeled as illustrative; real
+execution still does not establish experimental circuit activity or screening release.
 
 ## 6. Personal data
 
@@ -196,4 +195,4 @@ safety form.
 - [ ] This file's content transferred to the iGEM Attribution Form
 - [ ] Wiki software page states the license, the repository URL, and the ViennaRNA and Biopython caveats
 - [ ] Example dataset either cited or relabelled as synthetic
-- [ ] No MockEngine output published as a result
+- [ ] No simulated or illustrative output published as experimental evidence
