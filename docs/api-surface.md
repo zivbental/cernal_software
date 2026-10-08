@@ -39,9 +39,9 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 63 |
 | Public classes | 105 |
-| Public callables (excluding `__init__`) | 336 |
-| — `BUILT` | 320 |
-| — `STUB` | 8 |
+| Public callables (excluding `__init__`) | 338 |
+| — `BUILT` | 323 |
+| — `STUB` | 7 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
 | `__init__` constructors | 20 |
@@ -62,7 +62,7 @@ layers above it, never the ones below.
 | gate_tools | `engine.gates.tools.ais_china` |  | 5 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 7 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 15 | 1 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 16 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
@@ -101,7 +101,7 @@ layers above it, never the ones below.
 | stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
 | stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
-| stages | `engine.stages.plasmids` |  | 7 | 0 | Stage 5 — plasmid construction. |
+| stages | `engine.stages.plasmids` |  | 9 | 0 | Stage 5 — plasmid construction. |
 | stages | `engine.stages.quality` | S15 | 1 | 0 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 4 | 0 | Stage 6 — the compiler's output. |
 | stages | `engine.stages.switches` |  | 3 | 0 | Stage 3 — switch design and validation. |
@@ -231,6 +231,7 @@ What a circuit expresses when it fires.
 | `MCHERRY` |  | `'mcherry'` |
 | `LUCIFERASE` |  | `'luciferase'` |
 | `ANTIBIOTIC` |  | `'ampr'` |
+| `KANAMYCIN` |  | `'kanr'` |
 | `APOPTOSIS` |  | `'apoptosis'` |
 | `CUSTOM` |  | `'other'` |
 
@@ -284,6 +285,7 @@ The parsed differential-expression input.
 | `hypothesis_universe_complete` | `bool \| None` | `None` |
 | `source_row_count` | `int \| None` | `None` |
 | `columns` | `tuple[str, ...]` | `()` |
+| `detected_columns` | `tuple[tuple[str, str], ...]` | `()` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -538,6 +540,7 @@ One stretch of the assembled construct.
 | `kind` | `SegmentKind` |  |
 | `name` | `str` |  |
 | `sequence` | `str` |  |
+| `annotations` | `tuple[str, ...]` | `()` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -614,6 +617,12 @@ Stage 5 output — an orderable construct.
 | `standard` | `AssemblyStandard` |  |
 | `violations` | `tuple[str, ...]` | `()` |
 | `coding_regions` | `tuple[tuple[int, int, str, str], ...]` | `()` |
+| `backbone_annotations` | `tuple[str, ...]` | `()` |
+| `insertion_index` | `int \| None` | `None` |
+| `assembly_method` | `str` | `'expression_cassette'` |
+| `assembly_notes` | `tuple[str, ...]` | `()` |
+| `payload_optimization` | `str` | `''` |
+| `eligibility_violations` | `tuple[str, ...]` | `()` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -1044,7 +1053,7 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 | `BUILT` | `def ensemble_defect(self, sequence: str, target: str) -> float` | How far the predicted ensemble sits from an intended structure. |
 | `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` | Probability that each pair of positions is bonded, over the whole ensemble. |
 | `BUILT` | `def pooled_pair_probabilities(self, strands: str) -> list[list[float]]` | ``base_pair_probabilities`` Boltzmann-averaged over all strand orderings. |
-| `STUB` | `def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]` | Every structure within an energy window of the MFE. |
+| `BUILT` | `def suboptimal(self, sequence: str, delta: float = 2.0, *, max_structures: int = 1000, timeout_seconds: float = 2.0) -> list[FoldResult]` | Enumerate exact structures within ``delta`` kcal/mol of MFE. |
 | `BUILT` | `def mfe_with_window_open(self, strands: str, window: tuple[int, int]) -> tuple[str, float]` | The most stable structure that leaves ``window`` single-stranded. |
 | `BUILT` | `def refolding_saddle(self, strands: str, start: str, target: str, *, width: int = 20) -> float \| None` | Highest energy on a direct refolding path from ``start`` to ``target``. |
 | `BUILT` | `def layout_coordinates(self, structure: str) -> list[tuple[float, float]]` | Where each nucleotide sits when a structure is drawn, one point per base. |
@@ -1963,15 +1972,19 @@ Stage 5 — plasmid construction.
 | `PROMOTERS` | `dict[Host, tuple[str, str]]` | `{Host.HUMAN: ('I712004', 'CGATGTACGGGCCAGATATACGCGTTGACATTGATTATTGCCTAGTTATTAATAGTAATCA…` |
 | `TERMINATORS` | `dict[Host, tuple[str, str]]` | `{Host.HUMAN: ('K404108', 'GACGGGTGGCATCCCTGTGACCCCTCCCCAGTGCCTCTCCTGGCCCTGGAAGTTGCCACTC…` |
 | `PAYLOADS` | `dict[DesiredOutcome, tuple[str, str]]` | `{DesiredOutcome.GFP: ('GFP', 'ATGCGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGAT…` |
+| `EXTERNAL_PARTS` |  | `{'AmpR': 'J01749.1', 'KanR': 'V00618.1'}` |
+| `PAYLOAD_HOSTS` |  | `{outcome: (Host.ECOLI,) if outcome in (DesiredOutcome.ANTIBIOTIC, DesiredOutcome.KANAMY…` |
 | `BACKBONES` | `dict[str, tuple[str, str]]` | `{'psb1a3': ('pSB1A3', 'TACTAGTAGCGGCCGCTGCAGTCCGGCAAAAAAGGGCAAGGTGTCACCACCCTGCCCTTTTTCT…` |
 | `SBOL_NAMESPACE` |  | `'https://cernal.igem.org/2026'` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def validate_payload_cds(name: str, sequence: str) -> str` | Validate a payload coding sequence and return it as uppercase DNA. |
+| `BUILT` | `def validate_backbone_insertion(backbone: tuple[Segment, ...], insertion: int) -> None` | Reject insertion through known local functional feature intervals. |
 | `BUILT` | `def parse_custom_backbone(genbank_text: str) -> Segment` | Parse a researcher-supplied backbone from raw GenBank text (docs/plasmids.md Q13, docs/ROADMAP.md E5b) — the second and last function in this module that touches Biopython (ADR 0007), confined here for the same reason ``to_genbank`` is: a… |
 | `BUILT` | `def to_genbank(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an annotated circular GenBank file. |
 | `BUILT` | `@cache def load_registry_catalog() -> dict[str, dict]` | The bundled Registry metadata, keyed by local part name. Empty if never synced. |
+| `BUILT` | `@cache def load_part_catalog() -> dict[str, dict]` | Registry plus separately pinned primary GenBank CDS metadata. |
 | `BUILT` | `def to_sbol3(design: PlasmidDesign) -> bytes` | Render a ``PlasmidDesign`` as an SBOL 3 document (sorted N-Triples). |
 
 #### `class PlasmidBuilder`
@@ -1980,7 +1993,7 @@ Assembles a circuit onto a backbone and checks it can be built.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, screener: MotifScreener, codons: CodonOptimizer, standard: AssemblyStandard = AssemblyStandard.RFC10, backbone: tuple[Segment, ...] = ()) -> None` |  |
+| `BUILT` | `def __init__(self, screener: MotifScreener, codons: CodonOptimizer, standard: AssemblyStandard = AssemblyStandard.RFC10, backbone: tuple[Segment, ...] = (), *, insertion_index: int = 0, optimize_codons: bool = False) -> None` |  |
 | `BUILT` | `def build(self, circuit: CircuitCandidate, outcome: DesiredOutcome, *, custom_payload: str \| None = None) -> PlasmidDesign` | Lay out one circuit as an orderable construct. |
 | `BUILT` | `def payload_segment(self, outcome: DesiredOutcome) -> Segment` | The coding sequence for the chosen output. |
 
@@ -2135,7 +2148,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.10.0-scientific-qa'` |
+| `ENGINE_VERSION` |  | `'local-0.11.0-scientific-qa'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -2244,6 +2257,8 @@ What this engine build can do.
 | `supported_hosts` | `list[str]` | `field(default_factory=list)` |
 | `family_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
 | `supported_outputs` | `list[str]` | `field(default_factory=list)` |
+| `output_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
+| `backbone_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
 | `input_modes` | `list[str]` | `field(default_factory=list)` |
 | `limits` | `dict` | `field(default_factory=dict)` |
 | `constraints` | `dict` | `field(default_factory=dict)` |

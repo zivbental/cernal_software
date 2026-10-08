@@ -998,8 +998,8 @@ Two things worth doing that are not code:
 and input limits. Component implementation is separate from production availability.
 Result-shaping options remain on Python/R/MATLAB job handles through polling; pass
 them explicitly when resuming a handle. Raw nested candidate JSON and flattened R/
-MATLAB tables have separate contracts. R/MATLAB source changes remain experimental
-until their runtime conformance suites execute. Install clients from this source tree;
+MATLAB tables have separate contracts. R raw/table and live HTTP conformance passed
+in [hosted Ubuntu CI](https://github.com/zivbental/cernal_software/actions/runs/37802426550/job/113397823314); MATLAB runtime conformance remains unexecuted. Install clients from this source tree;
 no registry publication is claimed. Scientific scores are uncalibrated proxies, and
 completion is separate from sequence screening/release. See the current roadmap and
 remediation ledger for verified behavior and open acceptance work.

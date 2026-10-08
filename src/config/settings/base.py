@@ -135,6 +135,10 @@ MAX_DATASET_MB = env.int("MAX_DATASET_MB", default=100)
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_DATASET_MB * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
+# Empty outside a deliberately configured proxy deployment. Trusted proxies must
+# overwrite X-Cernal-Client-IP, not forward a user-supplied value.
+AUTH_TRUSTED_PROXY_ADDRESSES = env.list("AUTH_TRUSTED_PROXY_ADDRESSES", default=[])
+
 # --- Background work (docs/architecture.md §9) --------------------------------
 
 Q_CLUSTER = {
@@ -159,6 +163,7 @@ RUN_HEARTBEAT_SECONDS = env.int("RUN_HEARTBEAT_SECONDS", default=10)
 RUN_HEARTBEAT_TIMEOUT = env.int("RUN_HEARTBEAT_TIMEOUT", default=120)
 RUN_EXECUTION_TIMEOUT = env.int("RUN_EXECUTION_TIMEOUT", default=Q_CLUSTER["timeout"] + 30)
 RUN_QUEUE_REPUBLISH_SECONDS = env.int("RUN_QUEUE_REPUBLISH_SECONDS", default=Q_CLUSTER["retry"])
+RUN_QUEUE_TIMEOUT = env.int("RUN_QUEUE_TIMEOUT", default=7200)
 RUN_STAGING_ROOT = VAR_DIR / "result-staging"
 
 # --- Reviewer instant login ------------------------------------------------------

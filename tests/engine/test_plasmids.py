@@ -281,8 +281,8 @@ def test_build_uses_mammalian_parts_for_human(builder):
 
 
 def test_build_refuses_an_unconfigured_outcome(builder):
-    with pytest.raises(InputValidationError, match="ampr"):
-        builder.build(_circuit(), DesiredOutcome.ANTIBIOTIC)
+    with pytest.raises(InputValidationError, match="apoptosis"):
+        builder.build(_circuit(), DesiredOutcome.APOPTOSIS)
 
 
 # --- build: DesiredOutcome.CUSTOM ---------------------------------------------------
@@ -744,3 +744,32 @@ def test_opt_in_codon_rewrite_preserves_protein_and_records_exact_mutations(make
     assert builder.screener.is_compliant(payload.sequence)
     again = builder.build(_circuit(host=host), DesiredOutcome.CUSTOM, custom_payload=original)
     assert again.payload_optimization == compiled.payload_optimization
+
+
+def test_candidate_provenance_cannot_mutate_cached_primary_source_catalog(builder, tmp_path):
+    from types import SimpleNamespace
+
+    from engine.pipeline import _candidate_result
+    from engine.stages.plasmids import load_part_catalog
+    from engine.store import CandidateStore
+
+    circuit = _circuit()
+    assembled = builder.build(circuit, DesiredOutcome.ANTIBIOTIC)
+    source = load_part_catalog()["AmpR"]
+    expected_start = source["coordinates"]["start"]
+    candidate = _candidate_result(
+        CandidateStore(str(tmp_path), "provenance"),
+        circuit.designs[0],
+        SimpleNamespace(
+            name="toehold",
+            version="test",
+            folder=SimpleNamespace(versions=lambda: {"model": "test"}),
+        ),
+        _trigger(),
+        [],
+        None,
+        assembled,
+        DesiredOutcome.ANTIBIOTIC,
+    )
+    candidate.design["payload_source"]["coordinates"]["start"] = 0
+    assert source["coordinates"]["start"] == expected_start

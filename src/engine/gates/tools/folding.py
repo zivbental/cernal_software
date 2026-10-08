@@ -36,6 +36,7 @@ import subprocess
 import sys
 from functools import lru_cache
 from itertools import permutations
+from pathlib import Path
 
 import RNA
 
@@ -604,11 +605,18 @@ class FoldEngine:
             },
             allow_nan=False,
         )
+        # Pytest/source-checkout callers can import through sys.path without exporting
+        # PYTHONPATH. Bootstrap the same package tree explicitly; its parent is src
+        # in a checkout and site-packages for an installed package. Keep caller cwd
+        # and environment untouched while loading this exact engine implementation.
+        package_root = str(Path(__file__).resolve().parents[3])
         try:
             completed = subprocess.run(
                 [
                     sys.executable,
                     "-c",
+                    "import sys\n"
+                    f"sys.path.insert(0, {package_root!r})\n"
                     "from engine.gates.tools.folding import _suboptimal_worker\n"
                     "_suboptimal_worker()",
                 ],

@@ -88,7 +88,10 @@ sequence-release certification; its disclosure scope still needs the release own
   retained and shifted around a caller-supplied 0-based insertion boundary (default
   file origin). Insertions disrupting known functional features are rejected. Exact
   sequence/frame compilation is implemented; enzyme-cut/overlap selection and a
-  reviewed cloning protocol remain unspecified. Catalog vectors without annotated
+  reviewed cloning protocol remain unspecified. Catalog vectors are scoped to E. coli;
+  other hosts require a supplied custom vector or an expression cassette. Uploaded
+  vector replication/selection and host function remain explicitly unverified. Catalog
+  vectors without annotated
   features cannot establish disruption-free insertion or orderability evidence.
 - ENG-12: selected candidate architecture, stable/transcript identifiers, model versions,
   digests and trigger snapshots are retained. Full discarded-stage provenance and
@@ -104,8 +107,14 @@ sequence-release certification; its disclosure scope still needs the release own
   caveats and digests are retained. Host-specific sequence/frame compilation is tested;
   one-design native mCherry/firefly cases took 6.90/56.51 seconds respectively.
   Luciferase requires substrate/cofactors and neither reporter's activity is calibrated
-  in this N-terminal fusion. Specific resistance CDSs and context-specific apoptosis
-  remain pending source/specification work. No arbitrary apoptosis sequence is substituted.
+  in this N-terminal fusion. Distinct E. coli-only AmpR beta-lactamase (GenBank
+  J01749.1/AAB59737.1, reverse CDS 3292:4153, 861 nt) and KanR neomycin
+  phosphotransferase (V00618.1/CAA23892.1, forward CDS 150:945, 795 nt) are pinned
+  from primary annotated records. Source-protein translation and digests are checked.
+  Native one-design tests took 7.95/9.50 seconds respectively. Fusion resistance,
+  including AmpR secretion, remains unvalidated. `output_hosts`/`backbone_hosts`
+  explicitly scope selections. Context-specific apoptosis remains unspecified; no
+  arbitrary apoptosis sequence is substituted.
 - GAP-02: no transcriptome specificity/orthogonality subsystem or independent benchmark
   exists yet. Required specification: intended interactions, background RNA universe,
   versions/isoforms, negative/positive controls, timeouts and host scope. An empty

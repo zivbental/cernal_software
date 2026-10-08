@@ -1008,7 +1008,7 @@ def test_c_acnes_is_prokaryotic_and_gets_the_collaborators_codon_table(direct_re
     assert build_tools(direct_request(), Host.ECOLI)["aisc"] is None
 
 
-@pytest.mark.parametrize("output", ["mcherry", "luciferase"])
+@pytest.mark.parametrize("output", ["mcherry", "luciferase", "ampr", "kanr"])
 def test_pinned_reporter_runs_actual_full_payload_context(direct_request, always_continue, output):
     request = direct_request(
         params={
@@ -1030,3 +1030,19 @@ def test_pinned_reporter_runs_actual_full_payload_context(direct_request, always
             is not None
         )
         assert candidate.design["payload_optimization"] == {"status": "not_requested"}
+
+
+def test_forbidden_exact_trigger_changes_actual_candidate_eligibility(
+    direct_request, always_continue
+):
+    baseline = LocalEngine().run(direct_request(), always_continue)
+    assert baseline.accepted
+    blocked = LocalEngine().run(
+        direct_request(params={"constraints": {"forbidden_motifs": [CLEAN_TRIGGER]}}),
+        always_continue,
+    )
+    assert blocked.status == "succeeded"
+    assert not blocked.candidates
+    assert any(
+        "Exact trigger excluded" in warning and "user-1" in warning for warning in blocked.warnings
+    )

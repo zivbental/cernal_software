@@ -49,6 +49,7 @@ deferred in ``stages/switches.py`` for the same reason: implementing either mean
 editing something under ``gates/``.
 """
 
+import copy
 import dataclasses
 import json
 import math
@@ -109,11 +110,12 @@ from engine.stages.genes import GeneSelector
 from engine.stages.motifs import MotifScreener
 from engine.stages.plasmids import (
     BACKBONES,
+    PAYLOAD_HOSTS,
     PAYLOADS,
     PROMOTERS,
     TERMINATORS,
     PlasmidBuilder,
-    load_registry_catalog,
+    load_part_catalog,
     parse_custom_backbone,
     to_genbank,
     to_sbol3,
@@ -337,7 +339,8 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         warnings.append(
             "Human expression constructs use a CMV promoter and hGH polyadenylation signal. "
             "Mammalian expression and switch activity are computational predictions, not "
-            "wet-lab validated. The GFP payload is not human-codon-optimized."
+            "wet-lab validated. Payload activity and codon adaptation require "
+            "experimental validation."
         )
         if constraints.standard is AssemblyStandard.NONE:
             warnings.append(
@@ -350,6 +353,11 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                 "mammalian GenBank backbone to assemble a complete vector."
             )
 
+    if (request.params.get("backbone") or {}).get("custom_genbank"):
+        warnings.append(
+            "Custom vector coordinates are compiled; replication, selection and "
+            "host compatibility remain user-supplied and unverified."
+        )
     if not families:
         raise InputValidationError(
             "None of the requested gate families could be built for this host: "
@@ -364,6 +372,13 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             + ("; ".join(outcome_warnings) if outcome_warnings else "no output was requested.")
         )
 
+    if any(
+        outcome in (DesiredOutcome.ANTIBIOTIC, DesiredOutcome.KANAMYCIN) for outcome in outcomes
+    ):
+        warnings.append(
+            "Resistance payload identity is verified, but switch N-terminal fusion "
+            "resistance is unvalidated; AmpR secretion may be affected."
+        )
     profile = resolve_profile(request.scoring_profile, request.params.get("scoring"))
     store = CandidateStore(request.output_dir, request.run_id)
 
@@ -805,7 +820,12 @@ def _resolve_outputs(params: dict, host: Host) -> tuple[list[DesiredOutcome], li
                 else:
                     buildable.append(outcome)
         elif outcome in PAYLOADS:
-            buildable.append(outcome)
+            if host not in PAYLOAD_HOSTS[outcome]:
+                warnings.append(
+                    f"Payload {outcome.value!r} is supported computationally only for E. coli."
+                )
+            else:
+                buildable.append(outcome)
         else:
             warnings.append(
                 f"Skipped output {outcome.value!r}: no payload sequence is configured "
@@ -924,6 +944,12 @@ def _direct_trigger(
 
     max_window = max(constraints.trigger_lengths)
     if len(sequence) <= max_window:
+        violations = screener.violations(sequence)
+        if violations:
+            return [], [
+                "Exact trigger excluded by configured motif screen: "
+                + "; ".join(map(str, violations))
+            ]
         # Preserve today's selection behaviour: the whole paste is the one
         # trigger. openness/accessibility follow TriggerScorer.score's already-decided
         # convention (mean, then minimum, of the same profile slice) rather than
@@ -1582,8 +1608,11 @@ def _candidate_result(
             "insertion_index": plasmid.insertion_index,
             "assembly_notes": list(plasmid.assembly_notes),
             "payload_id": outcome.value,
-            "payload_source": load_registry_catalog().get(
-                next(s.name for s in plasmid.plasmid.segments if s.kind is SegmentKind.PAYLOAD), {}
+            "payload_source": copy.deepcopy(
+                load_part_catalog().get(
+                    next(s.name for s in plasmid.plasmid.segments if s.kind is SegmentKind.PAYLOAD),
+                    {},
+                )
             ),
             "construct_sha256": sha256_bytes(plasmid.plasmid.sequence.encode()),
             "topology": "circular"

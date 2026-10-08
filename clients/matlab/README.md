@@ -4,14 +4,14 @@
 addpath('/path/to/cernal_software/clients/matlab');
 
 c   = cernal.Client(getenv('CERNAL_API_KEY'), 'BaseURL', 'https://your-cernal-host');
-job = c.design('trigger_sequence', 'AUGGCUAAGCUUAACGGAUCC', 'organism', 'ecoli');
+job = c.design('trigger_sequence', 'AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA', 'organism', 'ecoli');
 T   = job.wait().results();          % a MATLAB table
 head(T)
 
 job = c.design('dge_csv', fileread('deseq2.csv'), ...
                'organism', 'ecoli', ...
                'gate_families', {'toehold'}, ...
-               'constraints', struct('max_triggers', 2, 'min_separation', 1.0), ...
+               'constraints', struct('max_triggers', 1, 'min_separation', 1.0), ...
                'seed', 42);
 T = job.wait().results();
 writetable(T, 'candidates.csv');
@@ -44,9 +44,9 @@ someone with MATLAB.
 
 No package publication is claimed. Install from this repository's source; public
 registry releases require separate maintainer authorization. Python HTTP conformance
-and transport/ranking regressions execute against a local API. R and MATLAB source
-clients are experimental until their runtime suites pass; local source review does
-not constitute language-runtime verification.
+and transport/ranking regressions execute against a local API. The R raw/table and
+live HTTP conformance suite passed in [hosted Ubuntu CI](https://github.com/zivbental/cernal_software/actions/runs/37802426550/job/113397823314).
+MATLAB runtime conformance remains unexecuted; its source changes are experimental.
 
 Submission result options (`top_n`, `include_rejected`, `include_metrics`,
 `include_artifacts`) remain on the job handle across queued completion. Persist them

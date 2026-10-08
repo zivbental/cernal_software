@@ -131,5 +131,4 @@ def test_an_output_with_no_payload_sequence_is_rejected_before_queueing(auth_cli
     )
     assert response.status_code == 422
     assert not AnalysisRun.objects.exists()
-    assert "ampr" in response.json()["error"]["message"]
     assert "apoptosis" in response.json()["error"]["message"]
