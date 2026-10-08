@@ -392,3 +392,57 @@ def test_normalized_configuration_does_not_share_mutable_request_blocks():
     normalized = validate_job_configuration(params, ["toehold"], "default", "direct", "ACGU")
     normalized["annotation"]["nested"].append("changed")
     assert params["annotation"]["nested"] == ["original"]
+
+
+def test_suboptimal_child_imports_source_without_pythonpath(monkeypatch, tmp_path):
+    """A pytest sys.path entry is process-local, unlike exported PYTHONPATH."""
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    monkeypatch.chdir(tmp_path)
+    folder = FoldEngine()
+    results = folder.suboptimal("GGGAAACCC", 0.5)
+    assert results
+    assert results[0] == folder.mfe("GGGAAACCC")
+    with pytest.raises(ValueError, match="count limit"):
+        folder.suboptimal("GGGAAACCC", 0.5, max_structures=1)
+
+
+def test_suboptimal_child_imports_same_installed_package_layout_without_pythonpath(tmp_path):
+    import os
+    import shutil
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    import engine.gates.tools.folding as folding
+
+    source = Path(folding.__file__).resolve().parents[3]
+    installed = tmp_path / "site packages' quoted"
+    for relative in (
+        "engine/__init__.py",
+        "engine/domain.py",
+        "engine/gates/__init__.py",
+        "engine/gates/tools/__init__.py",
+        "engine/gates/tools/folding.py",
+    ):
+        target = installed / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / relative, target)
+    script = (
+        "import sys\n"
+        f"sys.path.insert(0, {str(installed)!r})\n"
+        "from pathlib import Path\n"
+        "import engine.gates.tools.folding as folding\n"
+        f"assert Path(folding.__file__).is_relative_to({str(installed)!r})\n"
+        "folder = folding.FoldEngine()\n"
+        "assert folder.suboptimal('GGGAAACCC', 0.5)[0] == folder.mfe('GGGAAACCC')\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
