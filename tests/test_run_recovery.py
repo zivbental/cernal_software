@@ -174,3 +174,43 @@ def test_completed_run_cannot_be_reimported(run):
     services._finish(run, RunStatus.COMPLETED)
     with pytest.raises(services.RunError, match="failed run"):
         services.retry_result_import(run)
+
+
+def test_cancel_during_import_rolls_back_rows_and_artifact_bytes(run, monkeypatch, media_root):
+    original_import = services.import_job_result
+    before = {path for path in media_root.rglob("*") if path.is_file()}
+
+    def importing(*args, prepare=None, finalize=None):
+        def cancel_before_finalize():
+            AnalysisRun.objects.filter(pk=run.pk).update(cancel_requested=True)
+            finalize()
+
+        return original_import(*args, prepare=prepare, finalize=cancel_before_finalize)
+
+    monkeypatch.setattr(services, "import_job_result", importing)
+    monkeypatch.setattr(
+        services, "load_engine", lambda _: Mock(run=Mock(return_value=result_for(run)))
+    )
+    services.execute_run(str(run.pk))
+    run.refresh_from_db()
+    assert run.status == RunStatus.CANCELLED
+    assert run.cancel_requested
+    assert not run.candidates.exists()
+    assert not run.artifacts.exists()
+    assert {path for path in media_root.rglob("*") if path.is_file()} == before
+
+
+def test_failed_import_retry_is_terminal_and_retains_a_recoverable_copy(run, monkeypatch):
+    monkeypatch.setattr(
+        services, "load_engine", lambda _: Mock(run=Mock(return_value=result_for(run)))
+    )
+    monkeypatch.setattr(services, "import_job_result", Mock(side_effect=ResultImportError("disk")))
+    services.execute_run(str(run.pk))
+    run.refresh_from_db()
+    with pytest.raises(ResultImportError):
+        services.retry_result_import(run)
+    retry = AnalysisRun.objects.exclude(pk=run.pk).get()
+    assert retry.status == RunStatus.FAILED
+    assert retry.finished_at is not None
+    assert (services._staging_dir(retry) / "result.json").is_file()
+    assert (services._staging_dir(run) / "result.json").is_file()

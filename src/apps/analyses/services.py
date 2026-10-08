@@ -66,6 +66,10 @@ class InvalidTransition(RunError):
     """An illegal status change was attempted."""
 
 
+class _ImportCancelled(RunError):
+    """Roll back imported records and files before acknowledging cancellation."""
+
+
 # --- Submission -------------------------------------------------------------------
 
 
@@ -391,6 +395,9 @@ def _execute(run: AnalysisRun) -> None:
         temporary.replace(manifest)
         try:
             _import_and_complete(run, result, output_dir)
+        except _ImportCancelled:
+            _finish(run, RunStatus.CANCELLED, stage="Cancelled", cancel_requested=True)
+            return
         except ResultImportError as exc:
             # The science succeeded; only the import failed. Say so plainly, so a retry
             # can re-import rather than recompute (design map 07).
@@ -421,33 +428,38 @@ def _owns_execution(run):
     ).exists()
 
 
-@transaction.atomic
 def _import_and_complete(run, result, output_dir):
-    # Acquire the SQLite write lock before reading cancellation or writing results.
-    active = AnalysisRun.objects.filter(
-        pk=run.pk,
-        status=RunStatus.RUNNING,
-        execution_token=run.execution_token,
-    )
-    if not active.update(updated_at=timezone.now()):
-        raise InvalidTransition("The run no longer owns its execution lease.")
-    if active.filter(cancel_requested=True).exists():
-        _finish(run, RunStatus.CANCELLED, stage="Cancelled")
-        return
-    import_job_result(run, result, output_dir)
-    # A cancellation invoked in the same transaction must also win; raising rolls
-    # back every candidate/metric row, then the caller completes cancellation.
-    if active.filter(cancel_requested=True).exists():
-        raise InvalidTransition("Cancellation requested during result import.")
-    _finish(
-        run,
-        RunStatus.COMPLETED,
-        stage="Completed",
-        progress_pct=100,
-        engine_version=result.engine_version,
-        warnings=list(result.warnings),
-    )
-    logger.info("Run %s completed with %d candidates", run.id, run.candidates.count())
+    def prepare():
+        # Take the write lock before reading cancellation. The importer's transaction
+        # owns both finalization and commit so storage cleanup also covers their errors.
+        active = AnalysisRun.objects.filter(
+            pk=run.pk, status=RunStatus.RUNNING, execution_token=run.execution_token
+        )
+        if not active.update(updated_at=timezone.now()):
+            raise InvalidTransition("The run no longer owns its execution lease.")
+        if active.filter(cancel_requested=True).exists():
+            raise _ImportCancelled()
+
+    def finalize():
+        if AnalysisRun.objects.filter(pk=run.pk, cancel_requested=True).exists():
+            raise _ImportCancelled()
+        _finish(
+            run,
+            RunStatus.COMPLETED,
+            stage="Completed",
+            progress_pct=100,
+            engine_version=result.engine_version,
+            warnings=list(result.warnings),
+        )
+
+    try:
+        import_job_result(run, result, output_dir, prepare=prepare, finalize=finalize)
+    except BaseException:
+        # Database rollback does not restore this Python object's attributes. Retain
+        # the original lease token; later failure/cancellation still uses its CAS.
+        run.status = RunStatus.RUNNING
+        raise
+    logger.info("Run %s completed with %d candidates", run.id, len(result.candidates))
 
 
 def _progress_callback(run: AnalysisRun):
@@ -650,21 +662,39 @@ def retry_result_import(source):
             f"Results re-imported from failed run {source.pk}; science was not recomputed.",
         ],
     )
-    with transaction.atomic():
-        new = AnalysisRun.objects.create(
-            created_by=source.created_by,
-            input_mode=source.input_mode,
-            dataset=source.dataset,
-            trigger_sequence=source.trigger_sequence,
-            organism=source.organism,
-            params_snapshot=source.params_snapshot,
-            gate_families=source.gate_families,
-            scoring_profile=source.scoring_profile,
-            seed=source.seed,
-            idempotency_key=f"import-{source.pk.hex}-{uuid.uuid4().hex[:16]}",
-            status=RunStatus.QUEUED,
-            submitted_at=timezone.now(),
-        )
-        _transition(new, RunStatus.RUNNING, started_at=timezone.now(), execution_token=uuid.uuid4())
-        _import_and_complete(new, result, path)
+    new = AnalysisRun.objects.create(
+        created_by=source.created_by,
+        input_mode=source.input_mode,
+        dataset=source.dataset,
+        trigger_sequence=source.trigger_sequence,
+        organism=source.organism,
+        params_snapshot=source.params_snapshot,
+        gate_families=source.gate_families,
+        scoring_profile=source.scoring_profile,
+        seed=source.seed,
+        idempotency_key=f"import-{source.pk.hex}-{uuid.uuid4().hex[:16]}",
+        status=RunStatus.QUEUED,
+        submitted_at=timezone.now(),
+    )
+    _transition(new, RunStatus.RUNNING, started_at=timezone.now(), execution_token=uuid.uuid4())
+    target = _staging_dir(new)
+    try:
+        with _run_heartbeat(new):
+            shutil.copytree(path, target)
+            (target / "result.json").write_text(
+                json.dumps(asdict(result), allow_nan=False), encoding="utf-8"
+            )
+            _import_and_complete(new, result, target)
+    except BaseException:
+        try:
+            _finish(
+                new,
+                RunStatus.FAILED,
+                stage="Import retry failed; result retained",
+                error_summary="Import retry failed. Review the retained output and operator logs.",
+            )
+        except InvalidTransition:
+            logger.info("Re-import attempt %s is already terminal or lost its lease", new.pk)
+        raise
+    shutil.rmtree(target, ignore_errors=True)
     return new
