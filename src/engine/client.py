@@ -126,16 +126,166 @@ def lookup_reference_gene(organism: str, identifier: str) -> dict:
         raise ValueError(str(exc)) from exc
 
 
+def normalize_trigger_sequence(sequence: str) -> str:
+    """Normalize one RNA/DNA sequence or one FASTA record without changing symbols."""
+    from engine import sequences
+
+    if not isinstance(sequence, str):
+        raise ValueError("Trigger sequence must be text.")
+    lines = sequence.strip().splitlines()
+    headers = [index for index, line in enumerate(lines) if line.lstrip().startswith(">")]
+    if headers:
+        if headers != [0] or not lines[0].lstrip()[1:].strip():
+            raise ValueError("Provide one FASTA record with one nonempty header.")
+        lines = lines[1:]
+    normalized = sequences.to_rna("".join("".join(lines).split()))
+    if not normalized or not sequences.is_valid_rna(normalized):
+        raise ValueError(
+            "Trigger sequence must contain only A/C/G/T/U; ambiguous symbols are unsupported."
+        )
+    return normalized
+
+
+def inspect_expression_input(path: str) -> dict:
+    """Shared upload and preview interpretation, exposed through the engine boundary."""
+    from pathlib import Path
+
+    from engine.inputs import _canonical_columns, parse_dge_table
+
+    source = Path(path)
+    try:
+        table = parse_dge_table(source.read_bytes(), source.name)
+    except (OSError, EngineError) as exc:
+        return {
+            "valid": False,
+            "errors": [str(exc)],
+            "warnings": [],
+            "columns": [],
+            "row_count": 0,
+            "preview": [],
+            "selected_sheet": 0 if source.suffix.lower() == ".xlsx" else None,
+        }
+    aliases = _canonical_columns(
+        [
+            "gene_id",
+            "gene_symbol",
+            "log2fc",
+            "padj",
+            "pvalue",
+            "base_mean",
+            "base_expression",
+            "target_expression",
+            "lfc_se",
+            "stat",
+        ]
+    )
+    fields = {
+        "gene_symbol": "symbol",
+        "log2fc": "log2_fold_change",
+        "padj": "p_adj",
+        "pvalue": "p_value",
+        "base_expression": "control_mean",
+        "target_expression": "target_mean",
+    }
+    columns = [
+        key
+        for key in aliases
+        if key in ("gene_id", "log2fc")
+        or any(getattr(row, fields.get(key, key)) not in (None, "") for row in table.rows)
+    ]
+    return {
+        "valid": bool(table.rows),
+        "errors": [] if table.rows else ["No usable effect-size rows were found."],
+        "warnings": [
+            "Tested hypothesis universe is unspecified; raw p-values do not establish FDR control."
+        ],
+        "columns": columns,
+        "row_count": table.source_row_count,
+        "preview": [
+            {key: getattr(row, fields.get(key, key)) for key in columns} for row in table.rows[:100]
+        ],
+        "selected_sheet": 0 if source.suffix.lower() == ".xlsx" else None,
+    }
+
+
+def validate_job_configuration(
+    params: dict,
+    gate_families: list[str],
+    scoring_profile: str,
+    input_mode: str,
+    trigger_sequence: str = "",
+    organism: str = "",
+) -> dict:
+    """Validate a runnable configuration before queueing; return normalized parameters."""
+    from engine.domain import Host
+    from engine.gates.registry import get_family
+    from engine.pipeline import (
+        _UNBUILDABLE_FAMILIES,
+        _build_constraints,
+        _resolve_backbone,
+        _resolve_outputs,
+    )
+    from engine.scoring.profiles import resolve_profile
+
+    if not isinstance(params, dict):
+        raise ValueError("params must be an object.")
+    if input_mode not in ("direct", "de", "gene"):
+        raise ValueError("input_mode must be direct, de, or gene.")
+    try:
+        host = Host(organism or params.get("host", "ecoli"))
+        constraints = _build_constraints(params)
+        resolve_profile(scoring_profile, params.get("scoring"))
+        families = gate_families or ["toehold"]
+        for name in families:
+            family = get_family(name)
+            if (
+                name in _UNBUILDABLE_FAMILIES
+                or not family.available
+                or host not in family.supported_hosts
+            ):
+                raise ValueError(
+                    f"Gate family {name!r} is not production supported for {host.value}."
+                )
+        outputs, warnings = _resolve_outputs(params, host)
+        if warnings or not outputs:
+            raise ValueError("; ".join(warnings) or "No supported output requested.")
+        _resolve_backbone(params)
+        if host is Host.HUMAN and (params.get("backbone") or {}).get("catalog_key"):
+            raise ValueError("Bundled bacterial backbones are incompatible with Human expression.")
+        if input_mode == "direct":
+            normalized = normalize_trigger_sequence(trigger_sequence)
+            if len(normalized) > 10_000:
+                raise ValueError("Trigger sequence exceeds the 10,000-nucleotide compute limit.")
+    except (EngineError, TypeError, KeyError) as exc:
+        raise ValueError(str(exc)) from exc
+    return {**params, "host": host.value, "constraints": dataclasses.asdict(constraints)}
+
+
 def _installed_capabilities(engine_version: str) -> EngineCapabilities:
     """Read the registries. Engine-internal, so importing them here is fine."""
-    from engine.gates.registry import describe_families
+    from engine.domain import Constraints, Host
+    from engine.gates.registry import describe_families, get_family
+    from engine.pipeline import _UNBUILDABLE_FAMILIES, MAX_TRIGGER_LENGTH
     from engine.scoring.profiles import DEFAULT_V1, available_profiles
     from engine.stages.plasmids import BACKBONES
 
     return EngineCapabilities(
         engine_version=engine_version,
         schema_version=SCHEMA_VERSION,
-        gate_families=describe_families(),
+        gate_families=[
+            dataclasses.replace(f, available=f.available and f.name not in _UNBUILDABLE_FAMILIES)
+            for f in describe_families()
+        ],
+        supported_hosts=[host.value for host in Host],
+        family_hosts={
+            f.name: sorted(host.value for host in get_family(f.name).supported_hosts)
+            for f in describe_families()
+            if f.available and f.name not in _UNBUILDABLE_FAMILIES
+        },
+        supported_outputs=["gfp", "other"],
+        input_modes=["direct", "de", "gene"],
+        limits={"max_trigger_length": MAX_TRIGGER_LENGTH, "max_de_rows": 200_000},
+        constraints=dataclasses.asdict(Constraints()),
         scoring_profiles=available_profiles(),
         # The vocabulary a caller may name in a custom `scoring` block (docs/public-api.md
         # §7, §9.1) — what makes an unknown or misspelled metric name a 422 instead of a
@@ -183,7 +333,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.9.0-all-hosts-direct-de-gene"
+    ENGINE_VERSION = "local-0.10.0-scientific-qa"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

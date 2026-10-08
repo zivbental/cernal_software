@@ -1,31 +1,14 @@
-"""Differential-expression input parsing — the edge where a CSV becomes a ``DgeTable``.
+"""Shared differential-expression parsing for upload, preview and engine execution.
 
-Nothing else in the engine may read a raw file. Stages take typed records, never a
-path, a DataFrame or a dict of strings (CLAUDE.md §6 — "CSVs are exports, never the
-inter-stage interface"; docs/integration.md GAP-1: "nothing in ``src/engine/`` converts
-``JobRequest.input_path`` into ``CountMatrix`` / ``DgeTable`` / ``SampleMetadata``").
-This module is that edge for the DGE table, and it is the only one — everything
-downstream of :func:`parse_dge_table` sees a ``DgeTable`` of ``DgeRow`` records.
-
-**Deliberately independent of ``apps.datasets.services``.** The engine may never import
-Django or ``apps`` (CLAUDE.md §4, machine-checked by ``tests/test_boundary.py``), so the
-column-alias table below is a second, narrower copy of the platform's own
-``COLUMN_ALIASES`` (``src/apps/datasets/services.py``) — only the columns ``DgeRow`` has
-a field for. **Keep the two in sync**: a header spelling the platform's upload validator
-accepts but this parser does not recognise is a file that validates on upload and then
-silently drops that column here, which is exactly the kind of two-implementations-of-one-
-thing failure CLAUDE.md §1 warns about, made unavoidable only by the Platform⇄Engine
-boundary itself.
-
-Unlike the platform's validator, this module never *rejects* a file for looking odd —
-that shallow, synchronous check already happened at upload time
-(docs/modalities.md §A1). Its job is narrower and stricter: turn recognised columns into
-typed, correctly-``None``d values, and drop only the rows that cannot be identified or
-carry no effect size at all — there is nothing to rank a gene on without a fold change.
+The first XLSX worksheet or sniffed UTF-8 text table is interpreted once. Headers
+are normalized before validation; duplicate identifiers, malformed numerics and row
+shapes are errors. Explicit missing statistics remain None. A missing effect size
+is untested and excluded, invalidating any full-universe BH declaration.
 """
 
 import csv
 import io
+import math
 from pathlib import Path
 from zipfile import BadZipFile
 
@@ -83,25 +66,24 @@ def _canonical_columns(headers: list[str]) -> dict[str, str]:
 
 
 def _as_float(value: str | None) -> float | None:
-    """A parsed number, or ``None`` — never ``0.0`` for something that did not parse.
-
-    ``""``, ``NA``, ``NaN`` and ``null`` are DESeq2's and R's own spellings of "not
-    tested" (docs/genes.md §3); an unparseable string is treated the same way rather
-    than raised on, since the platform's own upload validation already rejected a file
-    with genuinely broken numerics before this parser ever sees it.
-    """
+    """A finite number or an explicit missing value; malformed values are errors."""
     if value is None:
         return None
-    text = value.strip()
-    if text in ("", "NA", "NaN", "nan", "null", "None"):
+    text = str(value).strip()
+    if text.casefold() in ("", "na", "nan", "null", "none"):
         return None
     try:
-        return float(text)
-    except ValueError:
-        return None
+        number = float(text)
+    except (ValueError, TypeError):
+        raise InputValidationError(f"Invalid numeric value {text!r}.") from None
+    if not math.isfinite(number):
+        raise InputValidationError(f"Nonfinite numeric value {text!r} is not allowed.")
+    return number
 
 
-def parse_dge_table(raw: bytes, filename: str = "dge.csv") -> DgeTable:
+def parse_dge_table(
+    raw: bytes, filename: str = "dge.csv", *, hypothesis_universe_complete: bool | None = None
+) -> DgeTable:
     """Parse differential-expression CSV, TSV, TXT, or XLSX into a ``DgeTable``.
 
     Args:
@@ -113,13 +95,9 @@ def parse_dge_table(raw: bytes, filename: str = "dge.csv") -> DgeTable:
             materialized CSV, is comma-separated).
 
     Returns:
-        A ``DgeTable``. A row missing a usable ``gene_id`` or ``log2_fold_change`` is
-        dropped — there is no identifier to join on, or no effect size to rank on — but
-        every other column is ``None`` when the file does not carry it, never a
-        fabricated number. Rows are returned in file order; a duplicate ``gene_id`` is
-        kept (not deduplicated here — ``DgeTable.by_gene_id()`` already documents that a
-        later row wins, and ``GeneSelector`` is where a scientific choice about
-        duplicates belongs, not a parser).
+        A ``DgeTable`` in file order. Explicitly missing effect sizes are excluded;
+        malformed values, empty identifiers and duplicates are rejected. Completeness
+        is unknown unless a caller explicitly declares the tested hypothesis universe.
 
     Raises:
         InputValidationError: the file cannot be decoded as UTF-8, has no header row, or
@@ -131,7 +109,7 @@ def parse_dge_table(raw: bytes, filename: str = "dge.csv") -> DgeTable:
     if suffix == ".xlsx":
         try:
             workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
-            sheet_rows = workbook.active.iter_rows(values_only=True)
+            sheet_rows = workbook.worksheets[0].iter_rows(values_only=True)
             headers = [str(value or "").strip() for value in next(sheet_rows, ())]
             reader = (
                 dict(zip(headers, (None if v is None else str(v) for v in values), strict=False))
@@ -163,44 +141,81 @@ def parse_dge_table(raw: bytes, filename: str = "dge.csv") -> DgeTable:
         raise InputValidationError("The differential-expression file has no header row.")
 
     canonical = _canonical_columns(headers)
+    normalized = list(canonical.values())
+    if any(not header.strip() for header in headers) or len(set(normalized)) != len(headers):
+        if workbook is not None:
+            workbook.close()
+        raise InputValidationError("Blank or duplicate normalized column headers are not allowed.")
     if "gene_id" not in canonical.values():
+        if workbook is not None:
+            workbook.close()
         raise InputValidationError(
             "No gene identifier column found. Recognised names include: gene_id, gene, "
             "ensembl_id, locus_tag."
         )
+    if "log2fc" not in normalized:
+        if workbook is not None:
+            workbook.close()
+        raise InputValidationError("A log2 fold change column is required (log2fc).")
 
     try:
         rows: list[DgeRow] = []
+        seen_ids: set[str] = set()
         for index, raw_row in enumerate(reader):
             if index >= MAX_ROWS:
-                break
+                raise InputValidationError(f"Input exceeds the {MAX_ROWS:,}-row limit.")
+            if None in raw_row or any(value is None for value in raw_row.values()):
+                # Blank XLSX cells are legitimate missing values. DictReader None values
+                # indicate fewer cells than the header, which is a malformed text row.
+                if suffix != ".xlsx":
+                    raise InputValidationError(f"Row {index + 2}: cell count differs from header.")
             row = {
                 canonical.get(key, key): value for key, value in raw_row.items() if key is not None
             }
 
             gene_id = (row.get("gene_id") or "").strip()
             log2fc = _as_float(row.get("log2fc"))
-            if not gene_id or log2fc is None:
+            if not gene_id:
+                raise InputValidationError(f"Row {index + 2}: gene identifier is required.")
+            if gene_id in seen_ids:
+                raise InputValidationError(
+                    f"Row {index + 2}: duplicate gene identifier {gene_id!r}."
+                )
+            seen_ids.add(gene_id)
+            if log2fc is None:
                 # Not "not tested" — this row cannot be identified or has no effect size to
                 # rank on at all, so there is nothing a downstream stage could do with it.
                 continue
 
-            rows.append(
-                DgeRow(
-                    gene_id=gene_id,
-                    log2_fold_change=log2fc,
-                    symbol=(row.get("gene_symbol") or "").strip(),
-                    p_adj=_as_float(row.get("padj")),
-                    p_value=_as_float(row.get("pvalue")),
-                    base_mean=_as_float(row.get("base_mean")),
-                    control_mean=_as_float(row.get("base_expression")),
-                    target_mean=_as_float(row.get("target_expression")),
-                    lfc_se=_as_float(row.get("lfc_se")),
-                    stat=_as_float(row.get("stat")),
-                )
+            parsed = DgeRow(
+                gene_id=gene_id,
+                log2_fold_change=log2fc,
+                symbol=(row.get("gene_symbol") or "").strip(),
+                p_adj=_as_float(row.get("padj")),
+                p_value=_as_float(row.get("pvalue")),
+                base_mean=_as_float(row.get("base_mean")),
+                control_mean=_as_float(row.get("base_expression")),
+                target_mean=_as_float(row.get("target_expression")),
+                lfc_se=_as_float(row.get("lfc_se")),
+                stat=_as_float(row.get("stat")),
             )
+            for name in ("p_adj", "p_value"):
+                value = getattr(parsed, name)
+                if value is not None and not 0 <= value <= 1:
+                    raise InputValidationError(f"Row {index + 2}: {name} must be between 0 and 1.")
+            for name in ("base_mean", "control_mean", "target_mean", "lfc_se"):
+                value = getattr(parsed, name)
+                if value is not None and value < 0:
+                    raise InputValidationError(f"Row {index + 2}: {name} must be nonnegative.")
+            rows.append(parsed)
     finally:
         if workbook is not None:
             workbook.close()
 
-    return DgeTable(rows=tuple(rows))
+    return DgeTable(
+        rows=tuple(rows),
+        hypothesis_universe_complete=(
+            hypothesis_universe_complete if len(rows) == len(seen_ids) else False
+        ),
+        source_row_count=len(seen_ids),
+    )
