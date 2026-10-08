@@ -1,5 +1,5 @@
 classdef testCernal < matlab.unittest.TestCase
-    % Submits the shared fixture (clients/fixtures/) against a live MockEngine server
+    % Submits the shared fixture (clients/fixtures/) against a live LocalEngine server
     % and checks the exact candidate column set (docs/public-api.md §11.4). Skipped
     % unless CERNAL_TEST_BASE_URL/CERNAL_TEST_API_KEY are set — matching
     % docs/public-api.md §11.4: MATLAB conformance is a manual, pre-release run, not
@@ -41,7 +41,8 @@ classdef testCernal < matlab.unittest.TestCase
             testCase.verifyLessThanOrEqual(height(T), testCase.Fixture.top_n);
 
             expected = sort(string(testCase.ExpectedColumns.candidate_columns));
-            actual = sort(string(T.Properties.VariableNames));
+            raw = job.rawCandidates();
+            actual = sort(string(fieldnames(raw(1))));
             testCase.verifyTrue(all(ismember(expected, actual)));
         end
 

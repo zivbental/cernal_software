@@ -32,7 +32,7 @@ def api_key(transactional_db, settings, tmp_path):
     from apps.analyses.models import AnalysisRun, InputMode, RunStatus
     from apps.results.services import import_job_result
     from engine.client import LocalEngine
-    from engine.contract import INPUT_DIRECT, SCHEMA_VERSION, JobRequest
+    from engine.contract import INPUT_DIRECT, SCHEMA_VERSION, SUCCEEDED, JobRequest
 
     user = get_user_model().objects.create_user(
         username="conformance-python", password="x", is_active=True
@@ -70,6 +70,8 @@ def api_key(transactional_db, settings, tmp_path):
             output_dir=output_dir,
         )
         result = LocalEngine().run(request, lambda pct, stage: True)
+        assert result.status == SUCCEEDED, result.error
+        assert any(not candidate.is_rejected for candidate in result.candidates)
         import_job_result(run, result, output_dir)
 
     run.status = RunStatus.COMPLETED

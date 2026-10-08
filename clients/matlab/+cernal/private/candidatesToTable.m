@@ -32,7 +32,7 @@ function T = candidatesToTable(candidates)
             end
             for m = 1:numel(metrics)
                 metric = metrics{m};
-                row.(metric.name) = metric.raw_value;
+                row.(metric.name) = valueOrNaN(metric, 'raw_value');
             end
         end
         rows{i} = row;

@@ -1,7 +1,7 @@
 {
-  "trigger_sequence": "AUGGCUAAGCUUAACGGAUCCAUGGCUAAGCUUAACGGAUCC",
+  "trigger_sequence": "AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA",
   "organism": "ecoli",
   "seed": 42,
-  "idempotency_key": "clients-conformance-fixture-v1",
+  "idempotency_key": "clients-conformance-fixture-v2",
   "top_n": 5
 }
