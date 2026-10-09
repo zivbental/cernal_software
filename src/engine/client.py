@@ -226,6 +226,9 @@ def validate_job_configuration(
     for block in ("constraints", "payload", "backbone", "scoring", "statistics", "target_gene"):
         if block in params and not isinstance(params[block], dict):
             raise ValueError(f"params.{block} must be an object.")
+    # Presentation only: retained in the snapshot for the UI, never a search budget.
+    if "top_n" in params and (type(params["top_n"]) is not int or not 1 <= params["top_n"] <= 1000):
+        raise ValueError("top_n must be an integer between 1 and 1000.")
     budget = params.get("budget", {})
     if not isinstance(budget, dict) or set(budget) - {"max_designs"}:
         raise ValueError("budget supports only max_designs (integer 1..1000).")

@@ -21,6 +21,7 @@ const errors=[];
 page.on('pageerror', (error) => errors.push(error.message));
 let failSubmit=true, submitStatus=null, empty=false, historyError=false;
 let notes=[];
+let detailGate=null, detailError=false;
 const dataset={id:"mock-data",name:"Wizard fixture",validation_status:"VALID",size_bytes:1000,validation_report:{rows:2,columns:[],errors:[],warnings:[]}};
 const queries=[];
 const submissions=[];
@@ -30,6 +31,7 @@ const version={app_version:'test', engine:'LocalEngine', engine_version:'test', 
  supported_hosts:['ecoli','yeast','human','c_acnes'],family_hosts:{toehold:['ecoli','c_acnes'],prokaryotic_toehold:['ecoli','c_acnes'],eukaryotic_toehold:['human','yeast']},supported_outputs:['gfp','mcherry','luciferase','ampr','kanr','other'],output_hosts:{gfp:['ecoli','yeast','human','c_acnes'],mcherry:['ecoli','yeast','human','c_acnes'],luciferase:['ecoli','yeast','human','c_acnes'],other:['ecoli','yeast','human','c_acnes'],ampr:['ecoli'],kanr:['ecoli']},backbone_hosts:{psb1c3:['ecoli']},input_modes:['de','direct','gene'],limits:{},constraints:{},scoring_profiles:['default'],available_backbones:[{key:'psb1c3',name:'pSB1C3',length_bp:2070}]};
 const run={id:'mock-run',status:'COMPLETED',organism:'Human',engine_version:'test',seed:42,
  params_snapshot:{payload:{outputs:['gfp','other']}},warnings:['UNIQUE_RUN_WARNING: exports held'],counts:{candidates:7907,artifacts:0}};
+const otherRun={...run,id:'other-run',params_snapshot:{top_n:10,payload:{outputs:['gfp']}}};
 const candidate=(rank)=>({id:`candidate-${rank}`,run_id:'mock-run',rank,engine_ref:`cand-${rank}`,overall_score:0.7,gate_family:'eukaryotic_toehold',logic_type:'SINGLE',summary:`Candidate ${rank}`,warnings:['UNIQUE_CANDIDATE_WARNING'],is_rejected:false,rejection_reason:'',output:'GFP'});
 await page.route('**/api/**', async route=>{
  const url=new URL(route.request().url()), path=url.pathname;
@@ -48,10 +50,15 @@ await page.route('**/api/**', async route=>{
  } else if(path==='/api/runs') {
    if(historyError) return route.fulfill({status:500,json:{error:{message:'Injected history failure'}}});
    body=[];
- } else if(path==='/api/runs/mock-run' || path==='/api/runs/mock-run/detail') body=run;
- else if(path==='/api/runs/mock-run/candidates') {
+ } else if(path==='/api/runs/mock-run/detail') {
+   if(detailGate) await detailGate;
+   if(detailError) return route.fulfill({status:500,json:{error:{message:'Injected frozen configuration failure'}}});
+   body=run;
+ } else if(path==='/api/runs/mock-run') body=run;
+ else if(path==='/api/runs/other-run' || path==='/api/runs/other-run/detail') body=otherRun;
+ else if(path==='/api/runs/mock-run/candidates' || path==='/api/runs/other-run/candidates') {
    queries.push(url.searchParams);
-   const offset=Number(url.searchParams.get('offset')??0), count=empty?0:7907;
+   const offset=Number(url.searchParams.get('offset')??0), count=empty?0:Math.min(7907,Number(url.searchParams.get('top_n')??7907));
    body={count,items:Array.from({length:Math.min(50,Math.max(0,count-offset))},(_,i)=>candidate(offset+i+1))};
  } else if(path.endsWith('/annotations')) {
    if(route.request().method()==='POST') notes.push({id:'review-note',author:'browser-test',created_at:'2026-10-08T00:00:00Z',...route.request().postDataJSON()});
@@ -80,11 +87,33 @@ try {
  await page.getByRole('button',{name:'Compile & Optimize'}).click();
  await page.getByRole('alert').filter({hasText:'Failed to fetch'}).waitFor();
  assert.equal(await sequence.inputValue(),'>record\nAACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA');
+ assert.deepEqual(submissions.at(-1).params.budget,{max_designs:20});
+ assert.equal(submissions.at(-1).params.top_n,25);
+ await page.getByRole('button',{name:'Advanced Options',exact:true}).click();
+ const maxDesigns=page.getByLabel('Evaluation budget (validated gate designs)',{exact:true});
+ const topN=page.getByLabel('Results to display (top ranked)',{exact:true});
+ assert.equal(await maxDesigns.inputValue(),'20');
+ assert.equal(await topN.inputValue(),'25');
+ for(const [input,normal] of [[maxDesigns,'20'],[topN,'25']]) {
+   for(const invalid of ['', '0', '-1', '1.5', '1001']) {
+     await input.fill(invalid);
+     assert(await page.getByRole('button',{name:'Compile & Optimize'}).isDisabled(),`Invalid limit ${invalid} must block submission`);
+   }
+   for(const boundary of ['1','1000']) {
+     await input.fill(boundary);
+     assert(!(await page.getByRole('button',{name:'Compile & Optimize'}).isDisabled()),`Boundary ${boundary} must be accepted`);
+   }
+   await input.fill(normal);
+ }
+ await maxDesigns.fill('13');
+ await topN.fill('7');
  for(const status of [401,403,404,422,429,500]) {
    submitStatus=status;
    await page.getByRole('button',{name:'Compile & Optimize'}).click();
    await page.getByRole('alert').filter({hasText:`Injected submission ${status}`}).waitFor();
  }
+ assert.equal(submissions.at(-1).params.budget.max_designs,13);
+ assert.equal(submissions.at(-1).params.top_n,7);
  submitStatus=null;
  await sequence.fill('>one\nACGU\n>two\nACGU');
  await page.getByText('Paste one FASTA record at a time.',{exact:true}).waitFor();
@@ -150,6 +179,89 @@ try {
  await page.getByRole('button',{name:'Custom',exact:true}).click();
  await page.getByText('Page 1 of 159',{exact:true}).waitFor();
  assert(queries.some(query=>query.get('output')==='Custom'&&!query.get('offset')));
+ // Legacy runs without top_n keep the complete paginated view.
+ assert.equal(await page.getByLabel('Result view',{exact:true}).inputValue(),'all');
+ assert(!queries.at(-1).has('top_n'));
+ // Historical freeform params must not create an invalid query or hide old results.
+ for(const invalid of [null,'25',0,1001,1.5]) {
+   run.params_snapshot.top_n=invalid;
+   await page.reload();
+   await page.getByText('Page 1 of 159',{exact:true}).waitFor();
+   assert.equal(await page.getByLabel('Result view',{exact:true}).inputValue(),'all');
+   assert(!queries.at(-1).has('top_n'));
+ }
+ // A configured display cap is global, even with server-side filters and sorting.
+ run.params_snapshot.top_n=75;
+ let releaseDetail;
+ detailGate=new Promise(resolve=>{releaseDetail=resolve;});
+ const beforeDelayedDetail=queries.length;
+ await page.reload();
+ await page.getByRole('heading',{name:'Computational Design Results'}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Last',exact:true}).count(),0);
+ assert.equal(queries.length,beforeDelayedDetail,'No unbounded candidate query while configuration is pending');
+ releaseDetail();
+ detailGate=null;
+ await page.getByText('Page 1 of 2',{exact:true}).waitFor();
+ assert.equal(await page.getByLabel('Result view',{exact:true}).inputValue(),'top');
+ assert.equal(queries.at(-1).get('top_n'),'75');
+ await page.getByRole('button',{name:'Next',exact:true}).click();
+ await page.getByText('Page 2 of 2',{exact:true}).waitFor();
+ await page.getByText('cand-75',{exact:true}).waitFor();
+ assert.equal(await page.getByText('cand-76',{exact:true}).count(),0);
+ assert(await page.getByRole('button',{name:'Next',exact:true}).isDisabled());
+ await page.getByRole('button',{name:'Custom',exact:true}).click();
+ await page.getByText('Page 1 of 2',{exact:true}).waitFor();
+ assert.equal(queries.at(-1).get('top_n'),'75');
+ assert.equal(queries.at(-1).get('output'),'Custom');
+ await page.getByRole('button',{name:'Precision Filters',exact:true}).click();
+ await Promise.all([
+   page.waitForResponse(response=>response.url().includes('sort=engine_ref')),
+   page.getByLabel('Sort by',{exact:true}).selectOption('engine_ref'),
+ ]);
+ assert.equal(queries.at(-1).get('top_n'),'75');
+ await page.getByLabel('Result view',{exact:true}).selectOption('all');
+ await page.getByText('Page 1 of 159',{exact:true}).waitFor();
+ assert(!queries.at(-1).has('top_n'));
+ await page.getByRole('button',{name:'Last',exact:true}).click();
+ await page.getByText('cand-7907',{exact:true}).waitFor();
+ await page.getByLabel('Result view',{exact:true}).selectOption('top');
+ await page.getByText('Page 1 of 2',{exact:true}).waitFor();
+ const showRejected=page.getByLabel('Show rejected candidates',{exact:false});
+ if(!(await showRejected.isVisible())) await page.getByRole('button',{name:'Precision Filters',exact:true}).click();
+ await showRejected.check();
+ await page.getByText('Page 1 of 159',{exact:true}).waitFor();
+ assert.equal(await page.getByLabel('Result view',{exact:true}).inputValue(),'all');
+ assert.equal(queries.at(-1).get('include_rejected'),'true');
+ assert(!queries.at(-1).has('top_n'));
+ // Same route, different run: client-side navigation must reset view, filters and page.
+ await page.getByRole('button',{name:'Last',exact:true}).click();
+ await page.getByText('Page 159 of 159',{exact:true}).waitFor();
+ const navigateRun=async(id)=>page.evaluate((runId)=>{
+   window.history.pushState({},'',`/runs/${runId}`);
+   window.dispatchEvent(new PopStateEvent('popstate'));
+ },id);
+ await navigateRun('other-run');
+ await page.getByRole('option',{name:'Top 10 accepted results',exact:true}).waitFor({state:'attached'});
+ await page.getByText('Page 1 of 1',{exact:true}).waitFor();
+ assert.equal(await page.getByLabel('Result view',{exact:true}).inputValue(),'top');
+ assert.equal(queries.at(-1).get('top_n'),'10');
+ assert(!queries.at(-1).has('include_rejected'));
+ assert(!queries.at(-1).has('offset'));
+ await navigateRun('mock-run');
+ await page.getByRole('option',{name:'Top 75 accepted results',exact:true}).waitFor({state:'attached'});
+ await page.getByText('Page 1 of 2',{exact:true}).waitFor();
+ assert.equal(await page.getByLabel('Result view',{exact:true}).inputValue(),'top');
+ detailError=true;
+ const beforeFailedDetail=queries.length;
+ await page.reload();
+ const detailAlert=page.getByRole('alert').filter({hasText:'Could not load the frozen run configuration'});
+ await detailAlert.waitFor();
+ assert.equal(queries.length,beforeFailedDetail,'No unbounded candidate query when configuration fails');
+ assert.equal(await page.getByRole('button',{name:'Last',exact:true}).count(),0);
+ detailError=false;
+ await detailAlert.getByRole('button',{name:'Retry',exact:true}).click();
+ await page.getByText('Page 1 of 2',{exact:true}).waitFor();
+ assert.equal(queries.at(-1).get('top_n'),'75');
  empty=true;
  await page.reload();
  await page.getByText('No candidate is selected.',{exact:false}).waitFor();
@@ -158,5 +270,5 @@ try {
  await page.goto(origin+'/dashboard');
  await page.getByRole('alert').filter({hasText:'Could not load run history'}).waitFor();
  assert.deepEqual(errors,[]);
- console.log('Browser contracts passed: paste integrity, capability rejection, offline retry, four-host/three-mode wizard readiness, HTTP401/403/404/422/429/500, catalog empty, custom vector insertion boundary, review save/delete, warning/proxy labels, candidate 201/7907, global output filter, empty completion and history error.');
+ console.log('Browser contracts passed: paste integrity, capability rejection, offline retry, four-host/three-mode wizard readiness, HTTP401/403/404/422/429/500, catalog empty, custom vector insertion boundary, review save/delete, warning/proxy labels, evaluation/display defaults and validation, independent payload limits, global top-N paging/filtering/sorting, full/rejected/legacy access, candidate 201/7907, global output filter, empty completion and history error.');
 } finally { await browser.close(); await new Promise(done=>server.close(done)); }

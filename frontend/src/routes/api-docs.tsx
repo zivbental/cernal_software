@@ -202,7 +202,7 @@ const PARAMETERS: ParamRow[] = [
   { field: "budget", type: "object", default: "{}", notes: "Cost ceiling for this run — every field explained below." },
   { field: "payload", type: "object", default: "{}", notes: "What the circuit expresses — every field explained below." },
   { field: "backbone", type: "object", default: "{}", notes: "Use catalog_key, or custom_genbank plus insertion_index (a zero-based boundary between vector bases). Omit for a cassette. The engine rejects protected feature disruption; no cloning protocol is inferred." },
-  { field: "top_n", type: "integer", default: "25", notes: "How many ranked candidates the results endpoint returns." },
+  { field: "top_n", type: "integer", default: "25", notes: "Default number of accepted results displayed after ranking (1–1,000). Does not reduce evaluation or stored/exported results." },
   { field: "include_rejected", type: "boolean", default: "false", notes: "Include candidates a hard filter disqualified, with their reason." },
   { field: "include_metrics", type: "boolean", default: "true", notes: "Embed the full metric decomposition per candidate." },
   { field: "include_artifacts", type: "string[]", default: "[]", notes: 'Artifact kinds to embed, e.g. ["fasta", "structure_svg"].' },
@@ -231,7 +231,7 @@ const SCORING_FIELDS: ParamRow[] = [
 ];
 
 const BUDGET_FIELDS: ParamRow[] = [
-  { field: "max_designs", type: "integer", default: "20", notes: "Deterministic gate-design evaluation cap (1–1,000). Payload alternatives are evaluated for each retained gate. Truncation is reported in warnings and provenance." },
+  { field: "max_designs", type: "integer", default: "20", notes: "Deterministic validated gate-design evaluation cap (1–1,000). Each selected output is evaluated separately for every retained gate. This does not cap final candidate count. Truncation is reported in warnings and provenance." },
 ];
 
 const PAYLOAD_FIELDS: ParamRow[] = [
@@ -531,7 +531,7 @@ function ApiDocsPage() {
             <ul className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
               <li><span className="font-medium text-foreground">Client</span> — stateless besides the key and base URL. One per script, reused for every call.</li>
               <li><span className="font-medium text-foreground">Job</span> — returned by <code className="font-mono text-xs">design()</code>. Already resolved if the server answered inline.</li>
-              <li><span className="font-medium text-foreground">Candidate</span> — one ranked design. <code className="font-mono text-xs">top_n</code> of them per job, best first.</li>
+              <li><span className="font-medium text-foreground">Candidate</span> — one ranked design. <code className="font-mono text-xs">top_n</code> controls the default results display, best first; all evaluated candidates remain stored.</li>
               <li><span className="font-medium text-foreground">Metric</span> — one of the nine scored measurements on a candidate. See Scoring below.</li>
               <li><span className="font-medium text-foreground">Artifact</span> — one output file (FASTA, an SVG structure render, …), fetched fresh on request.</li>
             </ul>

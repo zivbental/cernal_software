@@ -52,6 +52,9 @@ export interface CompileConfig {
    * changes what the researcher gets back rather than only how it is filtered.
    */
   maxCircuitGates: number;
+  /** Editable strings preserve empty/invalid values until submission validation. */
+  maxDesigns: string;
+  topN: string;
   /**
    * The plasmid vector to assemble onto (docs/plasmids.md Q13) — a catalog key from
    * `useVersion().available_backbones`, `"none"` for the bare construct (today's
@@ -82,6 +85,8 @@ export const DEFAULT_CONFIG: CompileConfig = {
   minGateStability: -32,
   // Physical multi-gate constructs require reviewed integration; production uses one gate.
   maxCircuitGates: 1,
+  maxDesigns: "20",
+  topN: "25",
   // A real backbone by default, not "none" — the whole point of this feature is a
   // researcher who just clicks through getting an orderable plasmid, not a bare
   // four-segment construct (docs/plasmids.md §13 note on this being a deliberate
@@ -695,6 +700,29 @@ export function StepLogic({
             unit=" kcal/mol"
             onChange={(v) => patch({ minGateStability: v })}
           />
+          <div>
+            <label htmlFor="max-designs" className="mb-1.5 block text-xs text-foreground">Evaluation budget (validated gate designs)</label>
+            <input id="max-designs" type="number" min={1} max={1000} step={1}
+              value={config.maxDesigns} onChange={(event) => patch({ maxDesigns: event.target.value })}
+              aria-describedby="max-designs-help"
+              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" />
+            <p id="max-designs-help" className="mt-2 text-xs text-muted-foreground">
+              Evaluate up to this many validated gate designs (1–1,000; default 20).
+              Every selected output is evaluated separately for each retained gate design.
+              A larger budget can increase runtime; this is not a cap on generated candidates or final results.
+            </p>
+          </div>
+          <div>
+            <label htmlFor="top-n" className="mb-1.5 block text-xs text-foreground">Results to display (top ranked)</label>
+            <input id="top-n" type="number" min={1} max={1000} step={1}
+              value={config.topN} onChange={(event) => patch({ topN: event.target.value })}
+              aria-describedby="top-n-help"
+              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" />
+            <p id="top-n-help" className="mt-2 text-xs text-muted-foreground">
+              Initially show up to this many accepted results after ranking (1–1,000; default 25).
+              This does not reduce computation. All evaluated results remain stored and available in the full results view and exports.
+            </p>
+          </div>
           <SliderRow
             label="Max Gates Per Circuit"
             value={config.maxCircuitGates}

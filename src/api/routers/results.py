@@ -59,6 +59,7 @@ def list_candidates(
     include_rejected: bool = Query(default=False),
     output: str | None = Query(default=None),
     min_score: float | None = Query(default=None, ge=0, le=1),
+    top_n: int | None = Query(default=None, ge=1, le=1000),
 ):
     get_owned(AnalysisRun, run_id, request.user)
 
@@ -69,6 +70,10 @@ def list_candidates(
     queryset = Candidate.objects.filter(run_id=run_id)
     if not include_rejected:
         queryset = queryset.filter(is_rejected=False)
+    # Select the globally best accepted results before display sorting/filtering
+    # and pagination. Omission preserves access to the complete stored run.
+    if top_n is not None:
+        queryset = queryset.filter(is_rejected=False, rank__lte=top_n)
     if gate_family:
         queryset = queryset.filter(gate_family=gate_family)
     if output:
