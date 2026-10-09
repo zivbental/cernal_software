@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 import os
 import sys
 import time
@@ -299,8 +300,12 @@ def main(argv=None) -> int:
         help="take every Nth point of the 96-point (closure x upper3 x lower3) grid. Use this "
         "and NOT --limit to estimate a rate: --limit stops in generator order and the grid is "
         "iterated closure-outer, so 20 rows reach only 4 of 16 closures -- and survival differs "
-        "between closures by up to 37x, so the rate comes out biased. Striding covers all 16 at "
-        "1/N of the cost.",
+        "between closures by up to 37x, so the rate comes out biased. N must be COPRIME with the "
+        "grid size or it aliases an axis instead: lower3 has period 2 in the index and upper3 "
+        "period 6, so a stride of 6 shares a factor with both and visits one level of each and "
+        "never the others. Measured the hard way -- a stride of 6 produced 4,927 rows carrying a "
+        "single lower3 level. 5, 7, 11 and 13 are coprime with 96; 2, 3, 4, 6, 8 and 12 are not, "
+        "and are refused.",
     )
     args = parser.parse_args(argv)
 
@@ -344,9 +349,28 @@ def main(argv=None) -> int:
     else:
         print(f"  stems per pair: {args.stems}, chosen by stem_order={args.stem_order!r}")
     if args.grid_stride > 1:
+        # Coprimality is the whole correctness condition. `i, i+N, i+2N, ...` mod `grid` covers
+        # every residue iff gcd(N, grid) == 1; otherwise it covers only grid/gcd of them and the
+        # axes whose period shares that factor are silently pinned to one level.
+        common = math.gcd(args.grid_stride, grid)
+        if common != 1:
+            usable = [
+                n
+                for n in range(2, grid // 2)
+                if math.gcd(n, grid) == 1 and n <= args.grid_stride * 2
+            ][:8]
+            print(
+                f"\n  --grid-stride {args.grid_stride} shares the factor {common} with the "
+                f"{grid}-point grid, so it would visit only {grid // common} of its points and "
+                f"pin an axis to one level: lower3 has period 2 in the index and upper3 period 6.\n"
+                f"  Measured the hard way -- a stride of 6 gave 4,927 rows with a single lower3 "
+                f"level and no wobble_GU at all.\n"
+                f"  Coprime strides near it: {', '.join(str(n) for n in usable)}"
+            )
+            return 2
         print(
             f"  grid stride {args.grid_stride}: every {args.grid_stride}th of the {grid} points, "
-            f"so all {len(first.CLOSURES)} closures are represented"
+            f"coprime with {grid} so every closure, upper3 and lower3 level is reached"
         )
     print(f"  {len(MEASURED)} measurement columns, from ToeholdAndGate.MEASURED_KEYS")
     print(f"  {len(RUN)} run-setting columns repeated on every row, so a row says how it was built")
