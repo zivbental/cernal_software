@@ -64,7 +64,7 @@ await page.route('**/api/**', async route=>{
    body={count,items:Array.from({length:Math.min(50,Math.max(0,count-offset))},(_,i)=>({
      ...candidate(offset+i+1),
      // Make query completion observable in the rendered rows, even when page counts match.
-     summary:`Candidate ${offset+i+1} · ${output} · ${sort}`,
+     summary:`Candidate ${offset+i+1} · ${output} · ${sort}${url.searchParams.get('include_rejected')==='true'?' · including rejected':''}`,
    }))};
  } else if(path.endsWith('/annotations')) {
    if(route.request().method()==='POST') notes.push({id:'review-note',author:'browser-test',created_at:'2026-10-08T00:00:00Z',...route.request().postDataJSON()});
@@ -240,11 +240,17 @@ try {
  await page.getByText('Page 1 of 2',{exact:true}).waitFor();
  const showRejected=page.getByLabel('Show rejected candidates',{exact:false});
  if(await precisionFilters.getAttribute('aria-expanded')!=='true') await precisionFilters.click();
- await showRejected.check();
+ // .check() verifies the same DOM checkbox after dispatch, but this query
+ // temporarily unmounts the filters. Click once, then verify the settled UI.
+ assert.equal(await showRejected.isChecked(),false);
+ await showRejected.click();
+ await page.getByText('Candidate 1 · Custom · engine_ref · including rejected',{exact:true}).waitFor();
  await page.getByText('Page 1 of 159',{exact:true}).waitFor();
  assert.equal(await page.getByLabel('Result view',{exact:true}).inputValue(),'all');
  assert.equal(queries.at(-1).get('include_rejected'),'true');
  assert(!queries.at(-1).has('top_n'));
+ if(await precisionFilters.getAttribute('aria-expanded')!=='true') await precisionFilters.click();
+ assert.equal(await showRejected.isChecked(),true);
  // Same route, different run: client-side navigation must reset view, filters and page.
  await page.getByRole('button',{name:'Last',exact:true}).click();
  await page.getByText('Page 159 of 159',{exact:true}).waitFor();
