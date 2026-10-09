@@ -1605,7 +1605,18 @@ class ToeholdAndGate(ToeholdGate):
         # The replacement is `xstar_engA_11 > ...` and `xstar_engA_10 < ...`, which is a SCORING
         # change: it needs thresholds set from a measured distribution and a version bump, so it is
         # recorded here rather than made silently. The observables now exist either way.
-        ("A_S_11", ">", 0.5),  # τ6  — and keep it open with both present
+        # τ6 REMOVED. `A_S_11 > 0.5` asked "is x* open with both triggers present" with a
+        # partner-blind measure, which cannot tell "x* is free" from "x* is held by trigger A"
+        # -- so the designed outcome registered as the failure mode. Quantified on 712 designs
+        # that pass the ON ceiling: `A_S_11` median **0.0003**, so the gate rejected almost
+        # everything, while `xstar_engA_11` on the same designs has median **0.9997**.
+        #
+        # `xstar_engA_11` and `mainpre_engA_11` replace it as OBSERVABLES and deliberately not
+        # as a threshold. The sample says they are a mechanism flag rather than a quality
+        # filter: the four best-separating designs in it (7.265, 7.149, 7.117, 6.964) all have
+        # `xstar_engA_10` at 0.0000 -- the OFF side passing perfectly -- and `xstar_engA_11`
+        # between 0.18 and 0.47. They separate the states by a route that is not the designed
+        # one, and a floor on `engA_11` would have discarded the best designs in the run.
         ("A_M_11", ">", 0.5),  # τ7  — trigger A opens the main hairpin, but only with B
         ("A_r2_star_00", ">", 0.5),  # τ8  — the toehold is available to begin with
         ("d_off", "<", 0.1),  # τ9  — the OFF state is the structure we drew
@@ -2477,6 +2488,66 @@ class ToeholdAndGate(ToeholdGate):
             len_x=design.architecture["len_x"],
         )
 
+    #: Every key ``generate_designs`` puts on ``GateDesign.architecture``, declared once.
+    #:
+    #: Same reason as ``MEASURED_KEYS`` below: a reader keeping its own list is how a computed
+    #: value gets dropped. On the generation side it already had -- nine of these were produced
+    #: by the levers and thrown away before any CSV, including ``wobble_applied``, the single
+    #: field that makes a lever's effect estimable at all.
+    #:
+    #: **The conditional comparison is what these are for.** Comparing an override against the
+    #: control across all designs mixes the designs the lever never changed, where the natural
+    #: sequence already was the override, with the ones it did -- and the first group is
+    #: identical to the control by construction. Measured consequence: ``wobble_GU`` against
+    #: ``trigger_derived`` came out 17.7% against 16.4%, a diluted number read as a null result.
+    #: With ``lower3_strong_before``, ``upper3_natural`` and ``closure_natural`` the comparison
+    #: splits on whether the lever had anything to do.
+    #:
+    #: Geometry has no such field and cannot: Kim and naive differ in invasion length, so
+    #: ``find_trigger_pairs`` returns a different candidate set and ``secondary_stems`` a
+    #: different front. A cross-geometry comparison is paired by trigger pair but not by stem.
+    GENERATION_KEYS: ClassVar[tuple[str, ...]] = (
+        # identity and coordinates
+        "geometry",
+        "scheme",
+        "len_x",
+        "stem_index",
+        "closure",
+        "upper3",
+        "lower3",
+        "trigger_a_id",
+        "trigger_b_id",
+        "gene_a",
+        "gene_b",
+        "aug_index",
+        "rbs_span",
+        "rbs_core_motif",
+        "augs_outside_window",
+        "augs_upstream_of_rbs",
+        "domain_map",
+        "main_stem_arms",
+        "w_rank",
+        "w_flank",
+        # the stem's three Pareto objectives and the two differences
+        "lock_energy",
+        "ddg_pref",
+        "a_site_energy",
+        "b_site_energy",
+        "lock_minus_a_site",
+        # what each lever FOUND, and whether it changed anything
+        "closure_natural",
+        "closure_changed",
+        "upper3_natural",
+        "upper3_changed",
+        "lower3_strong_before",
+        "lower3_forced",
+        "wobble_applied",
+        # the lever's side effects on the reading frame
+        "main_z_repaired",
+        "rare_codons_after_aug",
+        "codons_after_aug",
+    )
+
     #: Every key ``measure_design`` returns, declared once so a reader never keeps its own list.
     #:
     #: **This exists because a parallel list is how a measured column disappears.** The run that
@@ -3036,12 +3107,31 @@ class ToeholdAndGate(ToeholdGate):
             else:
                 sequence[lo : lo + len(text)] = list(text)
 
+        # What was there BEFORE any lever ran. These are the conditioning variables that make
+        # a lever's effect estimable: comparing an override against the control across all
+        # designs mixes the designs it never changed -- where the natural sequence already was
+        # the override -- with the ones it did, and the first group is identical to the control
+        # by construction, so it dilutes the effect toward zero. Measured consequence: wobble_GU
+        # against trigger_derived came out 17.7% against 16.4%, which is a diluted number and
+        # not a null result.
+        cl_lo, cl_hi = base.domains["bulge_star"]
+        mz_lo, _mz_hi = base.domains["main_z"]
+        notes["closure_natural"] = "".join(sequence[cl_lo:cl_hi])
+        notes["upper3_natural"] = "".join(sequence[mz_lo : mz_lo + 3])
+        # The bottom three pairs' natural strength, read off `main_pre_star` exactly as
+        # `_apply_lower3` reads it. `== 2` means Green's two-strong-one-weak is already met and
+        # the wobble lever is a no-op, which is the condition the comparison has to split on.
+        mps_lo, _ = base.domains["main_pre_star"]
+        notes["lower3_strong_before"] = sum(1 for i in range(3) if sequence[mps_lo + i] in "GC")
+
         if closure[1] is not None:
             put("bulge_star", closure[1])
+            notes["closure_changed"] = notes["closure_natural"] != closure[1]
 
         if upper3[1] is not None:
             put("k1_star", upper3[1], at_end=True)
             put("main_z", sq.reverse_complement(upper3[1]))
+            notes["upper3_changed"] = notes["upper3_natural"] != sq.reverse_complement(upper3[1])
 
         if lower3[1] is not None:
             applied = self._apply_lower3(sequence, base, lower3[1])
@@ -3063,6 +3153,13 @@ class ToeholdAndGate(ToeholdGate):
         )
         notes["rare_codons_after_aug"] = self._rare_codons_after_aug(switch)
         notes["codons_after_aug"] = self._codons_after_aug(switch)
+        # Present on EVERY design, including the ones whose lever was `trigger_derived` and so
+        # never ran. A key that appears only when a lever fired is a column that reads as
+        # missing for the control arm, which is the comparison's own denominator.
+        notes.setdefault("closure_changed", False)
+        notes.setdefault("upper3_changed", False)
+        notes.setdefault("wobble_applied", 0)
+        notes.setdefault("lower3_forced", False)
         return switch, notes
 
     def _apply_lower3(self, sequence: list[str], base, level: str):

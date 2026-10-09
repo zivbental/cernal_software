@@ -30,40 +30,13 @@ TRANSCRIPT = (
     "AAGCUGUCCUUCCCCGAGGGCUUCAAGUGGGAGCGCGUGAUGAACUUCGAGGACGGCGGCGUGGUG"
 )
 
-#: Written at GENERATION time, free of folding. Losing one of these is losing the
-#: coordinates or the axis a later measurement is read against.
-ARCHITECTURE_KEYS = (
-    "geometry",
-    "scheme",
-    "len_x",
-    "stem_index",
-    "closure",
-    "upper3",
-    "lower3",
-    "trigger_a_id",
-    "trigger_b_id",
-    "gene_a",
-    "gene_b",
-    "aug_index",
-    "rbs_span",
-    "rbs_core_motif",
-    "augs_outside_window",
-    "augs_upstream_of_rbs",
-    "domain_map",
-    "main_stem_arms",
-    "w_rank",
-    "w_flank",
-    "lock_energy",
-    "ddg_pref",
-    "a_site_energy",
-    "b_site_energy",
-    # `ddg_pref` above already IS `lock_energy - b_site_energy`, so only the a-site
-    # difference is a column of its own. Carried, with no threshold: nothing reads it until
-    # there is a measured distribution to set one from.
-    "lock_minus_a_site",
-    "rare_codons_after_aug",
-    "codons_after_aug",
-)
+#: Written at GENERATION time, free of folding -- from the ENGINE's declaration, never a second
+#: list. Nine of these were produced by the levers and discarded before any output, including
+#: `wobble_applied`, which is the one field that makes a lever's effect estimable at all: comparing
+#: an override against the control across all designs mixes the designs it never changed, where the
+#: natural sequence already was the override, with the ones it did. The assertion below is two-way,
+#: for the same reason it is on the measurement side.
+ARCHITECTURE_KEYS = ProkaryoticToeholdAndGate.GENERATION_KEYS
 
 #: Written by the one MEASUREMENT pass -- taken from the ENGINE's own declaration, never a second
 #: list. A parallel list is how a measurement gets computed and then dropped: `measure_design`
@@ -139,9 +112,31 @@ def _first_design(gate):
 
 @pytest.mark.parametrize("family", FAMILIES, ids=lambda f: f.__name__)
 def test_architecture_carries_every_generation_time_key(family, built):
+    """Declaration and result must agree EXACTLY, both ways.
+
+    Declared-but-absent is a column that vanished. Present-but-undeclared is the one that was
+    invisible: the lever computes it and every reader works from the declaration, so it is
+    produced and dropped. That is what happened to all nine wobble and repair fields.
+
+    `wobble_codon` and its three siblings are deliberately NOT declared: `_apply_lower3` emits
+    them only when the lever actually converted something, so requiring them on every design
+    would demand a value for a lever that never ran.
+    """
     _gate, design, _site_a, _site_b = built[family]
-    missing = [key for key in ARCHITECTURE_KEYS if key not in design.architecture]
-    assert not missing, f"architecture lost: {missing}"
+    optional = {
+        "wobble_codon",
+        "wobble_made_stop",
+        "wobble_made_rare",
+        "wobble_rescued",
+        "aug_utr_unrepairable",
+    }
+    declared = set(ARCHITECTURE_KEYS)
+    present = set(design.architecture) - optional
+    assert not declared - present, f"architecture lost: {sorted(declared - present)}"
+    assert not present - declared, (
+        f"architecture carries undeclared key(s), so no reader can know they exist: "
+        f"{sorted(present - declared)}"
+    )
 
 
 @pytest.mark.parametrize("family", FAMILIES, ids=lambda f: f.__name__)

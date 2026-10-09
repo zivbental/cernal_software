@@ -108,6 +108,37 @@ IDENTITY = (
     "lower3",
 )
 STEM = ("lock_energy", "a_site_energy", "b_site_energy", "ddg_pref", "lock_minus_a_site")
+#: What each design-decision lever FOUND and whether it changed anything -- taken from the engine's
+#: declaration, never listed here. Without these a lever's effect is not estimable: comparing an
+#: override against the control across all designs mixes the designs it never touched, where the
+#: natural sequence already was the override, with the ones it did. Measured: `wobble_GU` against
+#: `trigger_derived` came out 17.7% against 16.4%, which is that dilution and not a null result.
+_LEVER_NAMES = (
+    "closure_natural",
+    "closure_changed",
+    "upper3_natural",
+    "upper3_changed",
+    "lower3_strong_before",
+    "lower3_forced",
+    "wobble_applied",
+    "main_z_repaired",
+    "rare_codons_after_aug",
+    "codons_after_aug",
+)
+# Tied to the engine's declaration rather than being a parallel list: a name the engine stops
+# putting on `architecture` fails here at import, instead of silently becoming an empty column.
+assert set(_LEVER_NAMES) <= set(ProkaryoticToeholdAndGate.GENERATION_KEYS), sorted(
+    set(_LEVER_NAMES) - set(ProkaryoticToeholdAndGate.GENERATION_KEYS)
+)
+LEVERS = (
+    *_LEVER_NAMES,
+    # Produced by `_apply_lower3` only when the wobble lever actually converted something, so
+    # they are empty on every other row rather than zero -- an unapplied lever made no codon.
+    "wobble_codon",
+    "wobble_made_stop",
+    "wobble_made_rare",
+    "wobble_rescued",
+)
 PAIR = ("l_local_a", "l_local_b", "l_local_min")
 SURVIVAL = ("skipped", "assembly_violations", "n_switch", "stems_selected")
 #: The settings this shard was launched with, repeated on every row.
@@ -143,7 +174,7 @@ RUN = (
 #: here a zero reads as perfect and clears every threshold.
 MEASURED = ProkaryoticToeholdAndGate.MEASURED_KEYS
 
-FIELDS = IDENTITY + STEM + PAIR + SURVIVAL + RUN + MEASURED
+FIELDS = IDENTITY + STEM + LEVERS + PAIR + SURVIVAL + RUN + MEASURED
 
 
 def build_gates(folder: FoldEngine) -> dict[str, object]:
@@ -374,6 +405,10 @@ def main(argv=None) -> int:
         )
     print(f"  {len(MEASURED)} measurement columns, from ToeholdAndGate.MEASURED_KEYS")
     print(f"  {len(RUN)} run-setting columns repeated on every row, so a row says how it was built")
+    print(
+        f"  {len(LEVERS)} lever columns (what each decision found, and whether it changed "
+        f"anything) -- the conditional comparison needs these"
+    )
     if args.access and not args.control:
         print(
             "\n  --access needs --control. `measure_design` takes ONE transcript and prices both\n"
@@ -540,6 +575,17 @@ def main(argv=None) -> int:
                     "lock_minus_a_site": (
                         None if lock is None or a_site is None else lock - a_site
                     ),
+                    # Straight off `architecture`, by the engine's own names. A missing key
+                    # stays empty rather than becoming 0 -- `wobble_codon` absent means the
+                    # lever never ran, which is a different fact from a codon of zero.
+                    **{
+                        name: (
+                            "|".join(arch[name])
+                            if isinstance(arch.get(name), tuple)
+                            else arch.get(name, "")
+                        )
+                        for name in LEVERS
+                    },
                     **run_settings,
                     "stems_selected": stems_here,
                     "l_local_a": round(la, 6),
