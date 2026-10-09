@@ -1881,6 +1881,11 @@ class ToeholdAndGate(ToeholdGate):
             if state == "00":
                 toehold = switch.domains["r2_star"]
                 observables["A_r2_star_00"] = _mean_unpaired(matrix, *toehold)
+                # The same region weighted by closeness to the secondary hairpin, carried
+                # BESIDE the flat mean and not instead of it: 346,528 stored rows already
+                # hold `A_r2_star_00` under the flat definition, and redefining a name
+                # leaves nothing in the data to say which definition produced which row.
+                observables["A_r2_star_w_00"] = _mean_unpaired_3prime_weighted(matrix, *toehold)
 
         observables["d_off"] = self.folder.ensemble_defect(
             switch.sequence, switch.dot_bracket
@@ -2455,6 +2460,80 @@ class ToeholdAndGate(ToeholdGate):
             domains={name: tuple(span) for name, span in design.architecture["domain_map"].items()},
             len_x=design.architecture["len_x"],
         )
+
+    #: Every key ``measure_design`` returns, declared once so a reader never keeps its own list.
+    #:
+    #: **This exists because a parallel list is how a measured column disappears.** The run that
+    #: produced 346,528 rows hand-listed 24 of these and wrote those; the other 66 were folded and
+    #: discarded on every row, so any question needing one of them meant re-running the sweep for
+    #: numbers that had already been computed. The same hand-list carried ``free_xstar_01``, which
+    #: names no observable this class has ever returned -- 0 values out of 346,528, and nothing
+    #: anywhere said so.
+    #:
+    #: ``tests/engine/gates/test_toehold_and_inventory.py`` asserts EQUALITY against what
+    #: ``measure_design`` actually returns, in both directions: a new measurement that is not
+    #: declared fails, and a declared one that stops being returned fails. Adding a measurement is
+    #: therefore an edit here in the same change.
+    #:
+    #: ``skipped`` is deliberately absent: it is a reason, not a measurement, and it is present
+    #: only when the ON ceiling stopped the pass. A ``None`` beside it means **not attempted**,
+    #: which is a different fact from a measurement that was attempted and failed.
+    MEASURED_KEYS: ClassVar[tuple[str, ...]] = (
+        # Free: no folding at all.
+        "gc_content",
+        "switch_length",
+        "longest_homopolymer",
+        "component_count",
+        # The main stem's two arms, per state. `open_11` is taken first and alone, because its
+        # ceiling rejects most designs before the other three tubes are folded.
+        *(f"open_{state}" for state in ("00", "01", "10", "11")),
+        "andness",
+        # The 30-nt ribosome footprint -- a different window from `open_*`, similar name, both
+        # load-bearing.
+        *(f"dG_open_{state}" for state in ("00", "01", "10", "11")),
+        "dG_open_flank_00",
+        "separation",
+        "ddG_AND",
+        "flank_penalty",
+        *(f"P_open_{state}" for state in ("00", "01", "10", "11")),
+        # Accessibility of the stem and toehold, as means of per-base unpaired probability.
+        *(f"A_S_{state}" for state in ("00", "01", "10", "11")),
+        *(f"A_M_{state}" for state in ("00", "01", "10", "11")),
+        *(f"A_S_full_{state}" for state in ("00", "01", "10", "11")),
+        "A_r2_star_00",
+        "A_r2_star_w_00",
+        "A_M_ratio",
+        "A_M_gain",
+        *(f"aug_{state}" for state in ("00", "01", "10", "11")),
+        # Partner-aware: what x* is open FOR. These seven partition x* exactly and sum to 1.
+        *(f"xstar_locked_{state}" for state in ("00", "01", "10", "11")),
+        *(f"xstar_engA_{state}" for state in ("00", "01", "10", "11")),
+        *(f"xstar_engB_{state}" for state in ("00", "01", "10", "11")),
+        *(f"xstar_linker_{state}" for state in ("00", "01", "10", "11")),
+        *(f"xstar_sec_z_{state}" for state in ("00", "01", "10", "11")),
+        *(f"xstar_other_{state}" for state in ("00", "01", "10", "11")),
+        # How much of each intended duplex forms, per state.
+        *(
+            f"hairpin_{name}_{state}"
+            for name in ("main_pre", "k1", "lock", "sec", "worst")
+            for state in ("00", "01", "10", "11")
+        ),
+        "d_off",
+        "dG_bind_B",
+        "dG_bind_A_given_B",
+        # The refolding barrier: measured at 52% of the cost of a fully measured design, so it
+        # is taken last.
+        "barrier",
+        # Pair-level, and ``None`` unless ``measure_design`` is given the transcript and both
+        # sites. Measured on the real PFAS transcripts: 10 to 34 s per window, against 0.25 to
+        # 0.54 s for a whole enumerated design -- these fold the 1.4 to 2.2 kb transcript, not
+        # the switch. They are a property of the trigger PAIR, identical for every design on it,
+        # so they can be filled afterwards over the few hundred distinct windows without
+        # re-folding one design. A caller that leaves them out must say so rather than let two
+        # empty columns read as an unmeasurable quantity.
+        "access_a",
+        "access_b",
+    )
 
     def measure_design(
         self,
@@ -3467,6 +3546,40 @@ def _mean_paired_to(
         for j in range(*partner):
             total += matrix[i][j] if i < j else matrix[j][i]
     return total / (hi - lo)
+
+
+def _mean_unpaired_3prime_weighted(matrix: list[list[float]], start: int, end: int) -> float | None:
+    """``_mean_unpaired`` with TRIANGULAR weights rising toward the 3' end of the span.
+
+    For ``r2_star``, whose 3' end abuts the secondary hairpin's first base, this is "openness
+    weighted by closeness to the hairpin": the base next to ``sw_x`` weighs ``L`` and the base
+    ``L - 1`` nucleotides away weighs 1. Measured span on a real design -- ``r2_star`` 3-35,
+    ``sw_x`` starting at 35 -- so distance from the hairpin grows toward the 5' end and the
+    weight grows the other way.
+
+    **Why a trigger's toehold should not be averaged flat.** Nucleation happens at one end, not
+    across a whole window, so a 32-nt region open at its far end and closed where the trigger
+    actually arrives scores the same as the reverse under a flat mean. On a 32-nt span these
+    weights sum to 528, of which the 3'-most 9 bases hold 252 and the 5'-most 9 hold 45 -- 47.7%
+    against 8.5%, where a flat mean gives each group 28.1%. The two cannot be confused for one
+    another.
+
+    Triangular rather than harmonic or exponential **by declaration, not by evidence**: it is the
+    gentlest form consistent with "weighted by distance", and the flat mean is carried beside it
+    so which form discriminates stays a measurement rather than an assertion.
+
+    Returns ``None`` on the same contract as ``_mean_unpaired`` -- an empty span, or one that
+    does not lie inside the matrix, is a missing measurement and never a zero.
+    """
+    n = len(matrix)
+    if not 0 <= start < end <= n:
+        return None
+    total = weight_sum = 0.0
+    for offset, index in enumerate(range(start, end), start=1):
+        unpaired = max(0.0, 1.0 - sum(matrix[index]))
+        total += offset * unpaired
+        weight_sum += offset
+    return total / weight_sum
 
 
 def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float | None:

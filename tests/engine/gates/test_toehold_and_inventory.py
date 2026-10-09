@@ -65,80 +65,12 @@ ARCHITECTURE_KEYS = (
     "codons_after_aug",
 )
 
-#: Written by the one MEASUREMENT pass. `open_*` is taken over the main stem's arms and
-#: `dG_open_*` over the 30-nt ribosome footprint -- different quantities, similar names,
-#: both load-bearing, so both are required here.
-MEASUREMENT_KEYS = (
-    "gc_content",
-    "switch_length",
-    "longest_homopolymer",
-    "component_count",
-    "open_00",
-    "open_01",
-    "open_10",
-    "open_11",
-    "andness",
-    "barrier",
-    "access_a",
-    "access_b",
-    "dG_open_00",
-    "dG_open_01",
-    "dG_open_10",
-    "dG_open_11",
-    "dG_open_flank_00",
-    "separation",
-    "ddG_AND",
-    "flank_penalty",
-    "A_S_00",
-    "A_S_01",
-    "A_S_10",
-    "A_S_11",
-    "A_M_00",
-    "A_M_01",
-    "A_M_10",
-    "A_M_11",
-    "A_S_full_00",
-    "A_S_full_01",
-    "A_S_full_10",
-    "A_S_full_11",
-    "A_r2_star_00",
-    "A_M_ratio",
-    "A_M_gain",
-    "P_open_00",
-    "P_open_01",
-    "P_open_10",
-    "P_open_11",
-    "d_off",
-    "dG_bind_B",
-    "dG_bind_A_given_B",
-    # Partner-AWARE, and the distinction is the whole point: `A_S_{state}` says whether x*
-    # is open, these say what it is open FOR. The mechanism is a sequence of answers to the
-    # second question -- locked with no trigger, still locked with A alone, freed by B,
-    # taken by A -- and a design can satisfy "open" while failing "open for A" by refolding
-    # onto a third thing.
-    *(f"xstar_locked_{state}" for state in ("00", "01", "10", "11")),
-    *(f"xstar_engA_{state}" for state in ("00", "01", "10", "11")),
-    *(f"xstar_engB_{state}" for state in ("00", "01", "10", "11")),
-    # Where x* actually goes once B frees it. Measured on the panel: sw_x and trigger B are
-    # both 0.000, and the missing 0.5 to 0.7 is the LINKER (0.27 to 0.61) with some of
-    # `secondary_z` (0.09 to 0.42). `other` is the residual, so the seven terms close to 1
-    # and a partner nobody named cannot go missing -- asserted below.
-    *(f"xstar_linker_{state}" for state in ("00", "01", "10", "11")),
-    *(f"xstar_sec_z_{state}" for state in ("00", "01", "10", "11")),
-    *(f"xstar_other_{state}" for state in ("00", "01", "10", "11")),
-    # The AUG's own openness: the base the ribosome has to reach. Not a restatement of
-    # `A_M`, which spans main_z through aug to main_pre and averages the bulge in with the
-    # arms, so a design with a paired AUG and open arms reads as fine there.
-    *(f"aug_{state}" for state in ("00", "01", "10", "11")),
-    # How much of each intended duplex forms, in EVERY state and not only the OFF one. The
-    # matrices are already built per tube, so the other three states cost only a read -- and
-    # they are what names which duplex gives way, and to which trigger.
-    *(
-        f"hairpin_{name}_{state}"
-        for name in ("main_pre", "k1", "lock", "sec", "worst")
-        for state in ("00", "01", "10", "11")
-    ),
-)
+#: Written by the one MEASUREMENT pass -- taken from the ENGINE's own declaration, never a second
+#: list. A parallel list is how a measurement gets computed and then dropped: `measure_design`
+#: returns 90 numbers, this test used to name 41 of them and `tools/characterise_axes.py` named 24,
+#: and nothing related the three, so 66 folded values were discarded on every row of a
+#: 346,528-design run. The assertion below is therefore two-way.
+MEASURED_KEYS = ProkaryoticToeholdAndGate.MEASURED_KEYS
 
 #: The seven terms x* can be in, which partition it exactly. Asserted as a sum rather than
 #: as presence: a double-counted term, a span read against the wrong partner, or a trigger
@@ -214,14 +146,29 @@ def test_architecture_carries_every_generation_time_key(family, built):
 
 @pytest.mark.parametrize("family", FAMILIES, ids=lambda f: f.__name__)
 def test_the_measurement_pass_carries_every_metric(family, built):
+    """The declaration and the result must agree EXACTLY, in both directions.
+
+    Declared-but-absent is a column that vanished. Returned-but-undeclared is worse and was
+    invisible: the number is folded and then discarded, because every reader works from the
+    declaration. That is what left 66 of 90 measurements unwritten on every row of a
+    346,528-design run, and what let `free_xstar_01` sit in a runner's column list naming an
+    observable this class has never returned.
+    """
     gate, design, site_a, site_b = built[family]
     measured = gate.measure_design(design, transcript=TRANSCRIPT, site_a=site_a, site_b=site_b)
-    missing = [key for key in MEASUREMENT_KEYS if key not in measured]
-    assert not missing, f"measure_design lost: {missing}"
+
+    # `skipped` is a reason, not a measurement, and appears only when the ceiling stopped the
+    # pass -- which it did not here, since no ceiling was given.
+    returned = set(measured) - {"skipped"}
+    declared = set(MEASURED_KEYS)
+    assert not declared - returned, f"declared but not measured: {sorted(declared - returned)}"
+    assert not returned - declared, (
+        f"measured but not declared, so no reader can carry it: {sorted(returned - declared)}"
+    )
 
     # Present is not the same as measured. Anything that came back None is reported, so a
     # whole column quietly going None is visible here rather than three layers downstream.
-    unmeasured = sorted(key for key in MEASUREMENT_KEYS if measured.get(key) is None)
+    unmeasured = sorted(key for key in MEASURED_KEYS if measured.get(key) is None)
     assert unmeasured == [], f"present but unmeasured: {unmeasured}"
 
 

@@ -1370,6 +1370,7 @@ Two-input AND toehold.
 | `SECONDARY_CAP` | `ClassVar[str]` | `''` |
 | `MAX_INVASION_STALL` | `ClassVar[int]` | `2` |
 | `RT_KCAL` | `ClassVar[float]` | `0.0019872042586408 * 310.15` |
+| `MEASURED_KEYS` | `ClassVar[tuple[str, ...]]` | `('gc_content', 'switch_length', 'longest_homopolymer', 'component_count', *(f'open_{sta…` |
 | `CLOSURES` | `ClassVar[tuple[tuple[str, str \| None], ...]]` | `(('open_3x3', None), ('closed_UAU', 'UAU'), ('closed_CAU', 'CAU'), ('closed_CGU', 'CGU'…` |
 | `UPPER3` | `ClassVar[tuple[tuple[str, str \| None], ...]]` | `(('trigger_derived', None), ('WWW_UAU', 'UAU'), ('WWW_AUA', 'AUA'))` |
 | `LOWER3_WOBBLE` | `ClassVar[str]` | `'<wobble>'` |

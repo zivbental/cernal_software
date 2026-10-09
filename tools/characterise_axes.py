@@ -109,34 +109,21 @@ IDENTITY = (
 STEM = ("lock_energy", "a_site_energy", "b_site_energy", "ddg_pref", "lock_minus_a_site")
 PAIR = ("l_local_a", "l_local_b", "l_local_min")
 SURVIVAL = ("skipped", "assembly_violations", "n_switch")
-#: Names read off ``measure_design``'s result. Anything it does not return stays empty rather than
-#: becoming 0.0 -- on every lower-is-better quantity here a zero reads as perfect.
-MEASURED = (
-    "open_11",
-    "open_00",
-    "open_01",
-    "open_10",
-    "separation",
-    "ddG_AND",
-    "d_off",
-    "dG_bind_B",
-    "dG_bind_A_given_B",
-    "A_M_11",
-    "A_M_10",
-    "A_M_01",
-    "A_M_00",
-    "dG_open_11",
-    "dG_open_10",
-    "dG_open_01",
-    "dG_open_00",
-    "free_xstar_01",
-    "aug_11",
-    "flank_penalty",
-    "A_r2_star_00",
-    "gc_content",
-    "switch_length",
-    "longest_homopolymer",
-)
+#: Every name ``measure_design`` returns, taken from the ENGINE's declaration rather than listed
+#: here. This used to be a hand-picked tuple of 24 against the 90 the pass actually computes, so 66
+#: folded numbers were discarded on every row of a 346,528-design run -- the entire x* breakdown,
+#: every hairpin fidelity, all four ``A_S``/``A_S_full`` states, all four ``P_open``. Any question
+#: needing one of them meant re-running the sweep for values that had already been computed.
+#:
+#: It also carried ``free_xstar_01``, which names no observable the engine has ever returned: 0
+#: values out of 346,528, with nothing to say so. ``tests/engine/gates/test_toehold_and_inventory``
+#: now asserts this declaration equals ``measure_design``'s result in BOTH directions, so a name
+#: that does not exist and a measurement nobody carries are each a test failure.
+#:
+#: Anything not returned stays empty rather than becoming 0.0 -- on every lower-is-better quantity
+#: here a zero reads as perfect and clears every threshold.
+MEASURED = ProkaryoticToeholdAndGate.MEASURED_KEYS
+
 FIELDS = IDENTITY + STEM + PAIR + SURVIVAL + MEASURED
 
 
@@ -224,6 +211,21 @@ def main(argv=None) -> int:
         help="THIS shard as i/n, ONE argument. Written as two flags argparse rejects it and the "
         "run produces nothing, which has happened on this project before",
     )
+    parser.add_argument(
+        "--access",
+        action="store_true",
+        help=(
+            "also price access_a/access_b from the transcript. Requires --control, because "
+            "measure_design takes ONE transcript and prices both windows on it -- correct for a "
+            "validation design from one gene, wrong for a PFAS pair whose windows sit on two "
+            "different mRNAs. OFF by default on cost too, measured not assumed: 10-34 s per "
+            "window on the real PFAS transcripts against 0.25-0.54 s for a whole enumerated "
+            "design, since these fold the 1.4-2.2 kb transcript and not the switch. They are "
+            "properties of the trigger PAIR, so they can be filled afterwards over the few "
+            "hundred distinct windows without re-folding one design, and this run already "
+            "records a pair-level accessibility in l_local_a/b/min from RNAplfold."
+        ),
+    )
     parser.add_argument("--resume", action="store_true", help="skip keys already on disk")
     parser.add_argument("--status", action="store_true", help="report progress and exit")
     parser.add_argument(
@@ -301,6 +303,24 @@ def main(argv=None) -> int:
         f"{len(first.UPPER3)} upper3 x {len(first.LOWER3)} lower3 = {grid}"
     )
     print(f"  stems per pair: {args.stems}, chosen by stem_order={args.stem_order!r}")
+    print(f"  {len(MEASURED)} measurement columns, from ToeholdAndGate.MEASURED_KEYS")
+    if args.access and not args.control:
+        print(
+            "\n  --access needs --control. `measure_design` takes ONE transcript and prices both\n"
+            "  windows on it. That is right for a validation design from one gene, and wrong\n"
+            "  for a PFAS pair whose windows sit on two different mRNAs: access_b would be\n"
+            "  trigger B's window priced against trigger A's transcript -- a plausible\n"
+            "  number that means nothing.\n"
+            "  Filling it for cross-gene pairs needs a transcript_b on the engine's signature."
+        )
+        return 2
+    if not args.access:
+        print(
+            "  access_a/access_b are NOT measured (no --access): 10-34 s per window on these\n"
+            "  transcripts against 0.25-0.54 s per design, and they are pair-level, so\n"
+            "  l_local_a/b/min carries accessibility here and these can be filled afterwards\n"
+            "  over the distinct windows without re-folding a design."
+        )
 
     # ---- the transcripts, and the trigger pairs on them ---------------------------------
     if args.control:
@@ -435,7 +455,17 @@ def main(argv=None) -> int:
                     "n_switch": len(design.sequence),
                 }
                 try:
-                    measured = gate.measure_design(design, on_ceiling=args.on_ceiling)
+                    measured = gate.measure_design(
+                        design,
+                        on_ceiling=args.on_ceiling,
+                        # Given all three, the accessibility terms are priced from the
+                        # transcript; without them they are None -- never 0.0, since these are
+                        # costs and zero reads as free. `--access` is gated on `--control`
+                        # above, so `src_a` really is the transcript both windows came from.
+                        transcript=src_a if args.access else None,
+                        site_a=(a0, a1) if args.access else None,
+                        site_b=(b0, b1) if args.access else None,
+                    )
                 except Exception as error:
                     row["skipped"] = f"measure_error:{type(error).__name__}"
                 else:
