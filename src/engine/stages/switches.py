@@ -312,3 +312,406 @@ class SwitchValidator:
                 "Normalized ensemble defect is nonfinite or outside [0, 1]."
             )
         return ValidationResult(ok=True, structure_deviation=defect)
+
+
+def run_endogenous_crispr(config: dict, folder: FoldEngine, on_progress=None) -> dict:
+    """Run the explicit-input research workbench independently of the application pipeline.
+
+    External scores are required, keyed by genomic/transcript coordinates. Missing
+    or invalid scores are input errors detected before folding begins.
+    """
+    import json
+    import math
+    from dataclasses import asdict, fields, replace
+    from tempfile import TemporaryFile
+
+    from engine import sequences as sq
+    from engine.domain import CrisprObjective, CrisprObservables, CrisprTemplate
+    from engine.gates.crispr import CrisprGate, scan_spacers
+    from engine.scoring.crispr import (
+        calibrate_scale,
+        inner_objective,
+        measurement_rejections,
+        outer_objective,
+        validate_objective,
+    )
+
+    if not isinstance(config, dict):
+        raise ValueError("CRISPR input must be a JSON object")
+    required = (
+        "scaffold",
+        "scaffold_reference",
+        "target_dna",
+        "activation_window",
+        "transcripts",
+        "templates",
+        "objective",
+        "spacer_metrics",
+        "trigger_metrics",
+        "score_source",
+        "calibration_source",
+    )
+    missing = [key for key in required if config.get(key) is None]
+    if missing:
+        raise ValueError("Missing required inputs: " + ", ".join(missing))
+    for key in ("objective", "transcripts", "spacer_metrics", "trigger_metrics"):
+        if not isinstance(config[key], dict):
+            raise ValueError(f"{key} must be an object")
+    for key in ("target_dna", "scaffold", "scaffold_reference"):
+        if not isinstance(config[key], str) or not config[key].strip():
+            raise ValueError(f"{key} must be a non-empty string")
+    window = config["activation_window"]
+    if (
+        not isinstance(window, (list, tuple))
+        or len(window) != 2
+        or any(type(value) is not int for value in window)
+    ):
+        raise ValueError("activation_window must contain two integer coordinates [start, end)")
+    temperature = folder.temperature
+    if (
+        type(temperature) not in (int, float)
+        or not math.isfinite(temperature)
+        or temperature <= -273.15
+    ):
+        raise ValueError("temperature_c must be finite and above absolute zero")
+    if not isinstance(config["templates"], (list, tuple)) or any(
+        not isinstance(t, dict) for t in config["templates"]
+    ):
+        raise ValueError("templates must be an array of objects")
+    for identifier, sequence in config["transcripts"].items():
+        if not isinstance(identifier, str) or not identifier.strip():
+            raise ValueError("transcripts must have non-empty string identifiers")
+        if not isinstance(sequence, str):
+            raise ValueError(f"transcripts[{identifier}] must be a sequence string")
+    for key in ("score_source", "calibration_source"):
+        if not isinstance(config[key], str) or not config[key].strip():
+            raise ValueError(f"{key} must describe the source; use synthetic for a toy demo")
+    if "scale_lambda" in config["objective"]:
+        raise ValueError("Remove scale_lambda: it is computed from the ranking batch")
+    if "spacer_score_mode" in config["objective"]:
+        raise ValueError("Remove spacer_score_mode: Q_S now uses the specificity formula only")
+    try:
+        objective = CrisprObjective(**config["objective"])
+    except TypeError as exc:
+        raise ValueError(f"Invalid objective fields: {exc}") from exc
+    validate_objective(objective)
+    if any("loop" in t for t in config["templates"]):
+        raise ValueError("Remove template.loop: loop sequence is derived from the trigger")
+    try:
+        templates = tuple(CrisprTemplate(**t) for t in config["templates"])
+    except TypeError as exc:
+        raise ValueError(f"Invalid template fields: {exc}") from exc
+    if not templates or not config["scaffold_reference"]:
+        raise ValueError("Non-empty templates and scaffold reference required")
+    stride, top_k = config.get("trigger_stride", 1), config.get("top_k", 10)
+    max_pairs = config.get("max_pairs", 1000)
+    max_length = config.get("max_switch_length", 200)
+    audit_limit = config.get("guide_audit_limit", 1000)
+    if type(audit_limit) is not int or audit_limit < 0:
+        raise ValueError("guide_audit_limit must be a nonnegative integer")
+    for name, value in (
+        ("trigger_stride", stride),
+        ("top_k", top_k),
+        ("max_pairs", max_pairs),
+        ("max_switch_length", max_length),
+    ):
+        if type(value) is not int or value < 1:
+            raise ValueError(f"{name} must be a positive integer")
+    if "guide_molar" in config or "trigger_molar" in config:
+        raise ValueError(
+            "Remove guide_molar/trigger_molar: ON now uses the connected gT ensemble, "
+            "not a concentration-weighted tube"
+        )
+    if config.get("host", "human") not in ("human", "yeast"):
+        raise ValueError("host must be human or yeast")
+    host = Host.HUMAN if config.get("host", "human") == "human" else Host.YEAST
+    constraints = Constraints(max_switch_length=max_length)
+    gate_kwargs = {
+        "scaffold": config["scaffold"],
+        "scaffold_reference": config["scaffold_reference"],
+        "templates": templates,
+    }
+    # Validate architecture even when target scan finds no spacers.
+    CrisprGate(host, folder, **gate_kwargs)
+    spacers = scan_spacers(config["target_dna"], tuple(config["activation_window"]))
+    windows = []
+    if not isinstance(config["transcripts"], dict) or not config["transcripts"]:
+        raise ValueError("transcripts must map identifiers to RNA sequences")
+    for transcript_id, sequence in sorted(config["transcripts"].items()):
+        rna = sq.to_rna(sequence)
+        if not sq.is_valid_rna(rna):
+            raise ValueError(f"Invalid transcript {transcript_id}")
+        for length in sorted({t.trigger_length for t in templates}):
+            for start, window in sq.windows(rna, length, stride):
+                windows.append(
+                    {
+                        "id": f"{transcript_id}:{start}:{length}",
+                        "transcript_id": transcript_id,
+                        "start": start,
+                        "length": length,
+                        "sequence": window,
+                    }
+                )
+    if len(spacers) * len(windows) > max_pairs:
+        raise ValueError(
+            "Search exceeds max_pairs; narrow the input or explicitly raise the budget"
+        )
+    # Validate every supplied score and coverage before starting any candidate fold.
+    for name, metrics, keys in (
+        ("spacer_metrics", config["spacer_metrics"], ("eta_on", "eta_off")),
+        ("trigger_metrics", config["trigger_metrics"], ("q_trigger",)),
+    ):
+        for identifier, values in metrics.items():
+            if not isinstance(identifier, str) or not identifier or not isinstance(values, dict):
+                raise ValueError(f"{name} must map non-empty identifiers to score objects")
+            for key in keys:
+                value = values.get(key)
+                if (
+                    type(value) not in (int, float)
+                    or not math.isfinite(value)
+                    or not 0 <= value <= 1
+                ):
+                    raise ValueError(f"{name}[{identifier}].{key} must be a finite number in [0,1]")
+            if name == "trigger_metrics" and values.get("accessibility") is not None:
+                value = values["accessibility"]
+                if (
+                    type(value) not in (int, float)
+                    or not math.isfinite(value)
+                    or not 0 <= value <= 1
+                ):
+                    raise ValueError(
+                        f"trigger_metrics[{identifier}].accessibility must be in [0,1]"
+                    )
+    if spacers and windows:
+        for name, candidates in (("spacer_metrics", spacers), ("trigger_metrics", windows)):
+            missing_ids = [item["id"] for item in candidates if item["id"] not in config[name]]
+            if missing_ids:
+                preview = ", ".join(missing_ids[:5])
+                raise ValueError(f"Missing {name} for {len(missing_ids)} candidates: {preview}")
+    pairs, audit = [], []
+    evaluated_guides = 0
+    rejection_counts = {}
+    measurement_failure_counts = {}
+    measurement_failures = 0
+    threshold_rejected_guides = 0
+    total = len(spacers) * len(windows)
+    batch_count = 0
+    with TemporaryFile(mode="w+t", encoding="utf-8") as spool:
+        for spacer in spacers:
+            for window in windows:
+                pair_id = spacer["id"] + "|" + window["id"]
+                if on_progress:
+                    on_progress(len(pairs), total, pair_id)
+                row = {
+                    "pair_id": pair_id,
+                    "spacer": spacer,
+                    "trigger": window,
+                    "rejections": [],
+                    "j_best": None,
+                    "phi": None,
+                    "guide": None,
+                    "measurement_failures": 0,
+                    "measurement_errors": {},
+                }
+                pairs.append(row)
+                sm = config["spacer_metrics"][spacer["id"]]
+                tm = config["trigger_metrics"][window["id"]]
+                precheck = outer_objective(
+                    0.0, sm["eta_on"], sm["eta_off"], tm["q_trigger"], objective
+                )
+                if precheck["rejections"]:
+                    row["rejections"].extend(precheck["rejections"])
+                    continue
+                gate = CrisprGate(host, folder, spacer=spacer["sequence"], **gate_kwargs)
+                # Only accessibility is consumed from this adapter record. Other stage-2
+                # measurements are unavailable, deliberately None, never fabricated zeros.
+                trigger = TriggerCandidate(
+                    trigger_id=window["id"],
+                    gene_id=window["transcript_id"],
+                    symbol=window["transcript_id"],
+                    sequence=window["sequence"],
+                    start_index=window["start"],
+                    openness=None,
+                    accessibility=tm.get("accessibility"),
+                    mfe=None,
+                    gc_content=sq.gc_content(window["sequence"]),
+                )
+                trigger_set = TriggerSet(activators=(trigger,))
+                compatible = gate.is_compatible(trigger_set, constraints)
+                if not compatible.ok:
+                    row["rejections"].append(compatible.reason)
+                    continue
+                feasible_in_pair = 0
+                row["evaluated_guides"] = 0
+                for design in gate.generate_designs(trigger_set, constraints):
+                    item = {
+                        "pair_id": pair_id,
+                        "design_id": design.design_id,
+                        "guide": design.sequence,
+                        "architecture": design.architecture,
+                    }
+                    measured = {field.name: None for field in fields(CrisprObservables)}
+                    item.update(
+                        observables=measured,
+                        feasible=False,
+                        j=None,
+                        j_accessibility=None,
+                        j_energy=None,
+                        rejections=[],
+                        evaluation_status="rejected",
+                        measurement_error=None,
+                    )
+                    try:
+                        for batch in gate.measurement_stages(design):
+                            failures = measurement_rejections(batch, objective)
+                            measured.update(batch)
+                            if failures:
+                                item["rejections"] = failures
+                                break
+                        else:
+                            item["feasible"] = True
+                            item["evaluation_status"] = "feasible"
+                    except (ArithmeticError, ValueError) as exc:
+                        reason = f"{type(exc).__name__}: {exc}"
+                        item.update(
+                            feasible=None,
+                            j=None,
+                            rejections=[],
+                            evaluation_status="measurement_failed",
+                            measurement_error=reason,
+                        )
+                        measurement_failures += 1
+                        row["measurement_failures"] += 1
+                        row["measurement_errors"][reason] = (
+                            row["measurement_errors"].get(reason, 0) + 1
+                        )
+                        measurement_failure_counts[reason] = (
+                            measurement_failure_counts.get(reason, 0) + 1
+                        )
+                    evaluated_guides += 1
+                    row["evaluated_guides"] += 1
+                    if item["feasible"] is False:
+                        threshold_rejected_guides += 1
+                    for reason in item["rejections"]:
+                        rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
+                    # Limit diagnostic retention only; EVERY candidate is still evaluated.
+                    if len(audit) < audit_limit:
+                        audit.append(item)
+                    if item["feasible"]:
+                        feasible_in_pair += 1
+                        batch_count += 1
+                        spool.write(json.dumps(item, allow_nan=False) + "\n")
+                row["inner_feasible_guides"] = feasible_in_pair
+                if feasible_in_pair == 0 and row["measurement_failures"] == 0:
+                    row["rejections"].append(
+                        "No feasible guide in the exhaustive binary-complement search"
+                    )
+        # A missing observation can change the global lambda and every winner.
+        # Preserve diagnostic measurements, but never rank an incomplete batch.
+        if batch_count and not measurement_failures:
+            spool.seek(0)
+            objective = replace(
+                objective,
+                scale_lambda=calibrate_scale(
+                    (CrisprObservables(**json.loads(line)["observables"]) for line in spool),
+                    objective.w_on,
+                    objective.w_off,
+                ),
+            )
+            # Score stored measurements only after the global batch scale is known.
+            # Temporary storage avoids retaining all feasible guides in RAM or refolding.
+            spool.seek(0)
+            pair_rows = {row["pair_id"]: row for row in pairs}
+            for line in spool:
+                item = json.loads(line)
+                scored = inner_objective(CrisprObservables(**item["observables"]), objective)
+                row = pair_rows[item["pair_id"]]
+                if row["j_best"] is None or scored["j"] > row["j_best"]:
+                    row.update(
+                        j_best=scored["j"],
+                        guide=item["guide"],
+                        architecture=item["architecture"],
+                        observables=item["observables"],
+                    )
+            for item in audit:
+                if item["feasible"]:
+                    item.update(
+                        **inner_objective(CrisprObservables(**item["observables"]), objective)
+                    )
+            for row in pairs:
+                if row["j_best"] is not None:
+                    sm = config["spacer_metrics"][row["spacer"]["id"]]
+                    tm = config["trigger_metrics"][row["trigger"]["id"]]
+                    row.update(
+                        outer_objective(
+                            row["j_best"], sm["eta_on"], sm["eta_off"], tm["q_trigger"], objective
+                        )
+                    )
+    ranked = sorted(
+        (r for r in pairs if not r["rejections"] and r["phi"] is not None),
+        key=lambda r: (-r["phi"], not r["selectable"], r["pair_id"]),
+    )
+    for rank, row in enumerate(ranked, 1):
+        row["rank"] = rank
+    selectable = [row for row in ranked if row["selectable"]]
+    return {
+        "status": (
+            "measurement_incomplete"
+            if measurement_failures
+            else "ranked"
+            if selectable
+            else "no_positive_switch_candidates"
+            if ranked
+            else "no_feasible_candidates"
+        ),
+        "measurement_complete": measurement_failures == 0,
+        "model": CrisprGate.ensemble_model,
+        "gate_version": CrisprGate.version,
+        "limitations": [
+            "OFF is free g; ON is conditioned on connected gT structures",
+            "No strand concentrations or prediction of the fraction bound in solution",
+            "ON includes alternative connected folds; spacer opening is not imposed",
+            "Homodimers/oligomers omitted",
+            "Naked-RNA equilibrium; no dCas9, DNA binding, kinetics or cell environment",
+            "Isolated trigger window; transcript-context suitability supplied externally",
+            "Exhaustive over binary spacer/trigger-complement choices; "
+            "not all four bases per position",
+            "User-confirmed 5-prime order: BT, B, E-prime, loop, E, S, C",
+            "J and Phi are composite ranking scores, not physical free energies",
+            "Scores have no demonstrated cross-gate comparability without joint calibration",
+        ],
+        "input": config,
+        "objective_parameters": asdict(objective),
+        "lambda_calculation": {
+            "method": "mean-absolute-energy/mean-absolute-accessibility",
+            "scope": "all-inner-feasible-guides-across-prechecked-pairs",
+            "candidate_count": batch_count,
+            "value": objective.scale_lambda,
+            "status": (
+                "measurement_incomplete"
+                if measurement_failures
+                else "computed"
+                if batch_count
+                else "empty_batch"
+            ),
+        },
+        "versions": folder.versions(),
+        "summary": {
+            "spacers": len(spacers),
+            "trigger_windows": len(windows),
+            "pairs": len(pairs),
+            "evaluated_guides": evaluated_guides,
+            "measurement_failed_guides": measurement_failures,
+            "threshold_rejected_guides": threshold_rejected_guides,
+            "inner_feasible_guides": batch_count,
+            "retained_guide_audits": len(audit),
+            "omitted_guide_audits": evaluated_guides - len(audit),
+            "feasible_pairs": len(ranked),
+            "selectable_pairs": len(selectable),
+        },
+        "top_candidates": selectable[:top_k],
+        "pairs": pairs,
+        "guide_audit": audit,
+        "guide_rejection_counts": rejection_counts,
+        "measurement_failure_counts": measurement_failure_counts,
+    }
