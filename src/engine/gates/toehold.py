@@ -1588,7 +1588,17 @@ class ToeholdAndGate(ToeholdGate):
     THRESHOLDS: ClassVar[tuple[tuple[str, str, float], ...]] = (
         ("A_S_00", "<", 0.2),  # τ1  — the inhibitory hairpin is shut with no trigger
         ("A_M_00", "<", 0.2),  # τ2  — so is the main one
-        ("A_S_10", "<", 0.2),  # τ3  — trigger A alone must not open the inhibitory hairpin
+        # τ3 REPLACED. `A_S_10 < 0.2` was partner-blind: it asked whether x* is unpaired,
+        # which cannot distinguish "the lock holds" from "trigger A has taken it". Measured on
+        # 712 designs past the ON ceiling, `A_S_10` has a median of **0.0006** and sails
+        # through, while `xstar_engA_10` on the same designs has a median of **0.9988** --
+        # trigger A alone holding x* almost completely. The leak this gate exists to catch.
+        #
+        # 0.5 is where the distribution puts it, not a round number: strongly bimodal, with
+        # only 7.0% of values between 0.2 and 0.8, so the cut falls in the empty middle. And it
+        # is measured for EVERY design now, not only the ones past the ceiling.
+        ("xstar_engA_10", "<", 0.5),  # τ3a — trigger A alone must not take x*
+        ("mainpre_engA_10", "<", 0.5),  # τ3b — nor reach the main stem's ascending arm
         ("A_M_10", "<", 0.2),  # τ4a — nor the main one. The dangerous leak.
         ("A_M_01", "<", 0.2),  # τ4b — and neither may trigger B, which is the harder test
         ("A_S_01", ">", 0.5),  # τ5  — but trigger B must open the inhibitory hairpin
@@ -1825,6 +1835,16 @@ class ToeholdAndGate(ToeholdGate):
         aug_span = switch.domains["aug"]
         linker = switch.domains["linker"]
         secondary_z = switch.domains["secondary_z"]
+        # The RBS-loop-to-linker span, 57 nt. Nothing else covers it: `A_M` is
+        # main_z+aug+main_pre and deliberately excludes the ribosome binding site, and the
+        # Shine-Dalgarno core alone is 11 nt. The ribosome needs the binding site and the start
+        # codon reachable TOGETHER, and that question had no column on this path.
+        rbs_linker = (switch.domains["rbs_loop"][0], linker[1])
+        # The Shine-Dalgarno core inside the loop, without the designed 5' flank.
+        rbs_core = (
+            switch.domains["rbs_loop"][0] + len(self.RBS_FLANK),
+            switch.domains["rbs_loop"][1],
+        )
         duplexes = _intended_duplexes(switch.domains)
         for state, strands in tubes.items():
             # Pooled, not the bare matrix: state 11 has three strands and therefore two
@@ -1857,6 +1877,23 @@ class ToeholdAndGate(ToeholdGate):
             # of `A_M`, which spans main_z through aug to main_pre and averages the bulge in
             # with the arms, so a design with a paired AUG and open arms looks fine there.
             observables[f"aug_{state}"] = _mean_unpaired(matrix, *aug_span)
+
+            # **The strongest single metric anyone has on Green's measured switches**, and it was
+            # free: +0.356 on his 168 and +0.390 on his 13, against the Barrier's +0.179/+0.280.
+            # Green's own S13 agrees from the other side -- "the RBS/mRNA secondary structure
+            # terms constitute the category of parameters with the strongest overall
+            # correlation". It is VISTA's Ideal Ensemble Defect over a region whose specified
+            # structure is "completely unpaired", which collapses to the mean base-pairing
+            # probability there, so it is `1 - mean_unpaired` off a matrix already in hand.
+            # LOWER is better, unlike every other mean here.
+            unpaired = _mean_unpaired(matrix, *rbs_linker)
+            observables[f"ied_rbs_linker_{state}"] = None if unpaired is None else 1.0 - unpaired
+            # The same 31-nt ribosome footprint `dG_open_{state}` prices in energy, as a
+            # probability instead. Two statistics over one window, which is the only way to tell
+            # whether a window's edge comes from the window or from the statistic.
+            observables[f"meanW_{state}"] = _mean_unpaired(matrix, *rank)
+            # The Shine-Dalgarno core on its own.
+            observables[f"rbs11_mean_{state}"] = _mean_unpaired(matrix, *rbs_core)
 
             # Where x* goes, as a CLOSED accounting rather than a list of whichever partners
             # happened to clear a display threshold:
@@ -1913,6 +1950,49 @@ class ToeholdAndGate(ToeholdGate):
                 # hold `A_r2_star_00` under the flat definition, and redefining a name
                 # leaves nothing in the data to say which definition produced which row.
                 observables["A_r2_star_w_00"] = _mean_unpaired_3prime_weighted(matrix, *toehold)
+
+        # The worst-OFF forms the panel ranks on. Pure arithmetic over values just measured, so
+        # there is no second definition of "the OFF state" anywhere and no extra fold. `max` for
+        # an accessibility because the worst OFF state is the most open one; `max` for `ied` too,
+        # since higher ied means more paired and the worst OFF state is the one that LEAKS, i.e.
+        # the least paired -- so that one takes `min`.
+        def worst_max(prefix: str) -> float | None:
+            values = [observables.get(f"{prefix}_{s}") for s in ("00", "01", "10")]
+            present = [v for v in values if v is not None]
+            return max(present) if len(present) == len(values) else None
+
+        def gain(prefix: str) -> float | None:
+            on, off = observables.get(f"{prefix}_11"), worst_max(prefix)
+            return None if on is None or off is None else on - off
+
+        observables["A_M_off"] = worst_max("A_M")
+        observables["aug_off"] = worst_max("aug")
+        observables["aug_gain"] = gain("aug")
+        observables["meanW_off"] = worst_max("meanW")
+        observables["meanW_gain"] = gain("meanW")
+        # `ied` is lower-better, so its gain is the OFF state MINUS the ON state, and its worst
+        # OFF state is the least-paired one.
+        ied_off_values = [observables.get(f"ied_rbs_linker_{s}") for s in ("01", "10")]
+        ied_present = [v for v in ied_off_values if v is not None]
+        observables["ied_off_worst"] = min(ied_present) if len(ied_present) == 2 else None
+        observables["ied_gain"] = (
+            None
+            if observables.get("ied_rbs_linker_00") is None
+            or observables.get("ied_rbs_linker_11") is None
+            else observables["ied_rbs_linker_00"] - observables["ied_rbs_linker_11"]
+        )
+        observables["ied_gain_worst"] = (
+            None
+            if observables["ied_off_worst"] is None or observables.get("ied_rbs_linker_11") is None
+            else observables["ied_off_worst"] - observables["ied_rbs_linker_11"]
+        )
+        # One extra fold, and a tiny one: the MFE of the isolated 57-nt subsequence. +0.334 on
+        # G168 by rank and +0.693 by Pearson on G13. A 57-nt fold is milliseconds against about
+        # a second for a whole design, so it is affordable where `dG_arm_{state}` and
+        # `rbs_aug_open_{state}` -- four constrained folds each -- are not and are left out.
+        observables["dG_rbs_linker"] = self.folder.mfe(
+            switch.sequence[rbs_linker[0] : rbs_linker[1]]
+        ).energy
 
         observables["d_off"] = self.folder.ensemble_defect(
             switch.sequence, switch.dot_bracket
@@ -2596,6 +2676,20 @@ class ToeholdAndGate(ToeholdGate):
         *(f"xstar_locked_{state}" for state in ("00", "01", "10", "11")),
         *(f"xstar_engA_{state}" for state in ("00", "01", "10", "11")),
         *(f"mainpre_engA_{state}" for state in ("00", "01", "10", "11")),
+        # Green's RBS/mRNA structure terms -- the strongest category on his measured switches,
+        # and free here because the matrix for each state is already built.
+        *(f"ied_rbs_linker_{state}" for state in ("00", "01", "10", "11")),
+        *(f"meanW_{state}" for state in ("00", "01", "10", "11")),
+        *(f"rbs11_mean_{state}" for state in ("00", "01", "10", "11")),
+        "ied_off_worst",
+        "ied_gain",
+        "ied_gain_worst",
+        "meanW_off",
+        "meanW_gain",
+        "A_M_off",
+        "aug_off",
+        "aug_gain",
+        "dG_rbs_linker",
         *(f"xstar_engB_{state}" for state in ("00", "01", "10", "11")),
         *(f"xstar_linker_{state}" for state in ("00", "01", "10", "11")),
         *(f"xstar_sec_z_{state}" for state in ("00", "01", "10", "11")),
@@ -2691,7 +2785,27 @@ class ToeholdAndGate(ToeholdGate):
         out["open_11"] = self.folder.open_penalty(
             f"{switch.sequence}&{trigger_a}&{trigger_b}", arms
         )
+        # ---- the state-10 leak, BEFORE the ceiling decides ----------------------------
+        # These two were produced only for designs that pass, so no stored row carried them for
+        # a rejected one -- 0 of 2,408 in the sample -- and asking what the rejected designs
+        # look like took a separate run. That run measured Spearman **-0.500** between
+        # `open_11` and `xstar_engA_10`: the ceiling is not independent of the leak it does not
+        # look at, so a threshold calibrated only on survivors is calibrated on a population the
+        # ceiling already shaped.
+        #
+        # One dimer, about 0.86 s, and nothing is wasted on a passer: the matrix is cached on the
+        # instance, so `four_tube_observables` finds this tube already folded.
+        leak_matrix = self.folder.pooled_pair_probabilities(f"{switch.sequence}&{trigger_a}")
+        a_block = (len(switch.sequence), len(switch.sequence) + len(trigger_a))
+        out["xstar_engA_10"] = _mean_paired_to(leak_matrix, switch.domains["sw_xs"], a_block)
+        out["mainpre_engA_10"] = _mean_paired_to(
+            leak_matrix, switch.domains["main_pre_star"], a_block
+        )
+
         if on_ceiling is not None and (out["open_11"] is None or out["open_11"] > on_ceiling):
+            # A reason, with the leak terms measured beside it. A design that fails is a
+            # measurement, not an absence -- which is the contract the characterisation run
+            # is built on.
             out["skipped"] = "on_ceiling"
             return out
 

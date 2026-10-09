@@ -1360,7 +1360,7 @@ Two-input AND toehold.
 | `RNASE_E_CUT_OFFSET` | `ClassVar[int]` | `2` |
 | `RARE_CODONS` | `ClassVar[frozenset[str]]` | `frozenset({'AGG', 'AGA', 'CGA', 'AUA', 'CUA', 'CGG'})` |
 | `RBS_CORE` | `ClassVar[str]` | `'AGGAGA'` |
-| `THRESHOLDS` | `ClassVar[tuple[tuple[str, str, float], ...]]` | `(('A_S_00', '<', 0.2), ('A_M_00', '<', 0.2), ('A_S_10', '<', 0.2), ('A_M_10', '<', 0.2)…` |
+| `THRESHOLDS` | `ClassVar[tuple[tuple[str, str, float], ...]]` | `(('A_S_00', '<', 0.2), ('A_M_00', '<', 0.2), ('xstar_engA_10', '<', 0.5), ('mainpre_eng…` |
 | `STEM_INDEPENDENT` | `ClassVar[frozenset[str]]` | `frozenset({'dG_open_00', 'dG_open_10', 'dG_open_11', 'dG_open_flank_00', 'flank_penalty…` |
 | `ARM_LEN` | `ClassVar[int]` | `18` |
 | `TOEHOLD_TRIM` | `ClassVar[int]` | `0` |

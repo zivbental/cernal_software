@@ -56,7 +56,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import math
 import os
 import sys
 import time
@@ -328,15 +327,15 @@ def main(argv=None) -> int:
         "--grid-stride",
         type=int,
         default=1,
-        help="take every Nth point of the 96-point (closure x upper3 x lower3) grid. Use this "
-        "and NOT --limit to estimate a rate: --limit stops in generator order and the grid is "
-        "iterated closure-outer, so 20 rows reach only 4 of 16 closures -- and survival differs "
-        "between closures by up to 37x, so the rate comes out biased. N must be COPRIME with the "
-        "grid size or it aliases an axis instead: lower3 has period 2 in the index and upper3 "
-        "period 6, so a stride of 6 shares a factor with both and visits one level of each and "
-        "never the others. Measured the hard way -- a stride of 6 produced 4,927 rows carrying a "
-        "single lower3 level. 5, 7, 11 and 13 are coprime with 96; 2, 3, 4, 6, 8 and 12 are not, "
-        "and are refused.",
+        help="take every Nth CLOSURE BLOCK and all six (upper3 x lower3) points inside it. "
+        "Blocks and not points, because a design and its control differ in one axis and so sit "
+        "at ADJACENT grid positions -- lower3 has period 2, so a pair is i and i+1, and no "
+        "point stride can take both. Measured: a coprime point stride covered every level of "
+        "every axis and left the conditional analysis with zero matched pairs. The offset "
+        "rotates per shard, so with six shards at --grid-stride 2 the even and odd closures are "
+        "split between them and all 16 are covered, each shard internally complete. Use this "
+        "and NOT --limit, which stops in generator order and reaches 4 of 16 closures while "
+        "survival between closures differs by a factor of 8.8.",
     )
     args = parser.parse_args(argv)
 
@@ -383,25 +382,22 @@ def main(argv=None) -> int:
         # Coprimality is the whole correctness condition. `i, i+N, i+2N, ...` mod `grid` covers
         # every residue iff gcd(N, grid) == 1; otherwise it covers only grid/gcd of them and the
         # axes whose period shares that factor are silently pinned to one level.
-        common = math.gcd(args.grid_stride, grid)
-        if common != 1:
-            usable = [
-                n
-                for n in range(2, grid // 2)
-                if math.gcd(n, grid) == 1 and n <= args.grid_stride * 2
-            ][:8]
+        block = len(first.UPPER3) * len(first.LOWER3)
+        blocks = grid // block
+        if args.grid_stride > blocks:
             print(
-                f"\n  --grid-stride {args.grid_stride} shares the factor {common} with the "
-                f"{grid}-point grid, so it would visit only {grid // common} of its points and "
-                f"pin an axis to one level: lower3 has period 2 in the index and upper3 period 6.\n"
-                f"  Measured the hard way -- a stride of 6 gave 4,927 rows with a single lower3 "
-                f"level and no wobble_GU at all.\n"
-                f"  Coprime strides near it: {', '.join(str(n) for n in usable)}"
+                f"\n  --grid-stride {args.grid_stride} exceeds the {blocks} closure blocks in "
+                f"the grid, so some shards would sample nothing."
             )
             return 2
         print(
-            f"  grid stride {args.grid_stride}: every {args.grid_stride}th of the {grid} points, "
-            f"coprime with {grid} so every closure, upper3 and lower3 level is reached"
+            f"  grid stride {args.grid_stride}: every {args.grid_stride}th closure BLOCK, all "
+            f"{block} (upper3 x lower3) points inside it -- so every design keeps its control "
+            f"and the conditional comparison has pairs to pair"
+        )
+        print(
+            f"    about {blocks // args.grid_stride} of {blocks} closures per shard, offset by "
+            f"shard index, so the {shards} shards cover all {blocks} between them"
         )
     print(f"  {len(MEASURED)} measurement columns, from ToeholdAndGate.MEASURED_KEYS")
     print(f"  {len(RUN)} run-setting columns repeated on every row, so a row says how it was built")
@@ -541,9 +537,15 @@ def main(argv=None) -> int:
             # the designs rather than by calling `_select_stems` again: one source of truth,
             # and re-selecting could disagree with what was built.
             stems_here = len({design.architecture.get("stem_index") for design in designs})
+            # One closure block is `len(UPPER3) * len(LOWER3)` consecutive grid points, and a
+            # design's control sits inside the same block, so blocks are kept whole and the
+            # stride skips blocks. The shard index is the offset, so the six shards between
+            # them cover every closure.
+            block = len(gate.UPPER3) * len(gate.LOWER3)
             for position, design in enumerate(designs):
-                if args.grid_stride > 1 and position % args.grid_stride:
-                    continue
+                if args.grid_stride > 1:
+                    if (position // block - index) % args.grid_stride:
+                        continue
                 arch = design.architecture
                 key = (
                     f"{gene_a}>{gene_b}|{pair.x_start}|{pair.xstar_start}|{pair.len_x}|{geom}"

@@ -119,7 +119,88 @@ ALIASES: dict[str, str] = {
     "hairpin_sec": "hairpin_sec_00",
     # The engine prefixes an accessibility mean with `A_`.
     "r2_star_00": "A_r2_star_00",
+    # `engaged_arm_11` and `mainpre_engA_11` are one quantity: the mean probability that
+    # `main_pre_star` is paired to trigger A in the ON tube. The engine's name says which partner.
+    "engaged_arm_11": "mainpre_engA_11",
+    # The state left implicit again.
+    "rbs11_mean": "rbs11_mean_11",
+    "aug11_mean": "aug_11",
+    # `free_xstar_{state}` is the mean UNPAIRED probability over x*, which the engine calls
+    # `A_S_{state}`. Recorded here because `free_xstar_01` is the exact name that sat in a
+    # runner's column list and produced 0 values out of 346,528 -- this alias is what it meant.
+    "free_xstar_00": "A_S_00",
+    "free_xstar_01": "A_S_01",
+    "free_xstar_10": "A_S_10",
+    "free_xstar_11": "A_S_11",
 }
+
+#: Quantities that are properties of the trigger PAIR, so measuring them per design would store
+#: one value many times and invite ranking designs on something constant within a cell -- which is
+#: how `access` came to sit inside a score it could not reorder. The run carries
+#: `l_local_a/b/min` for this job.
+PAIR_LEVEL = frozenset(
+    {
+        "l_green_a",
+        "l_green_b",
+        "l_green_worst",
+        "eff_toehold_a",
+        "eff_run_a_g0",
+        "eff_run_a_g1",
+        "eff_run_a_g2",
+        "eff_run_lo",
+        "eff_run_hi",
+        "land_site_nt",
+        "land_run_g0",
+        "land_run_g1",
+        "land_run_g2",
+    }
+)
+
+#: Each needs one more CONSTRAINED fold per tube, so these are a budget decision rather than an
+#: oversight. Roughly +40% on a fully measured design for the four-state ones. Priced here so the
+#: next person chooses instead of rediscovering them.
+NEEDS_A_FOLD = frozenset(
+    {
+        "dG_arm_00",
+        "dG_arm_11",
+        "rbs_aug_open_00",
+        "rbs_aug_open_11",
+        "aug_z_open_00",
+        "aug_z_open_01",
+        "aug_z_open_10",
+        "aug_z_open_11",
+        "aug_z_sep",
+        "rbs11_open",
+        "rbs11_p",
+        "aug11_open",
+    }
+)
+
+#: Off this path by decision. `offtarget*` needs the transcriptome scanner main removed.
+#: `drift_repaired` and the `_before`/`_after` columns belong to repair EXPERIMENTS, not to a
+#: measurement pass, and `f2_*` are readings of an objective aggregate -- which CLAUDE.md section 3
+#: forbids a family from emitting at all.
+OFF_THIS_PATH = frozenset(
+    {
+        "offtarget",
+        "offtarget_fires",
+        "offtarget_blocks",
+        "drift_repaired",
+        "oof_augs_before",
+        "oof_augs_after",
+        "f2_before",
+        "f2_after",
+        # `engages_stem_mfe` asks whether trigger A contacts the main stem in the MFE STRUCTURE.
+        # The engine measures the same question as an ensemble mean -- `mainpre_engA_11` -- and
+        # that is deliberate: `four_tube_observables` chooses no representative structure,
+        # because where the minimum free energy structure carries little of the ensemble,
+        # substituting it answers a different and worse question. One quantity, better statistic.
+        "engages_stem_mfe",
+    }
+)
+
+#: Every classified name, so the audit can report what is left over -- the genuinely unexplained.
+CLASSIFIED = PAIR_LEVEL | NEEDS_A_FOLD | OFF_THIS_PATH
 
 #: A column whose suffix names a READING of a metric rather than a metric: `open_11_before` is
 #: `open_11` taken at one point in an experiment. Stripped before the comparison.
@@ -200,11 +281,24 @@ def main() -> int:
         return 0
 
     union = sorted({name for gap in missing.values() for name in gap})
-    print(f"\n  {len(union)} quantities the notebook writes and the engine does not produce:\n")
-    for source, gap in missing.items():
-        print(f"    {source}")
-        for name in gap:
+    buckets = (
+        ("pair-level -- l_local_a/b/min already does this job", PAIR_LEVEL),
+        ("needs a constrained fold per tube -- a budget decision", NEEDS_A_FOLD),
+        ("off this path by decision", OFF_THIS_PATH),
+    )
+    print(f"\n  {len(union)} notebook names the engine does not produce, classified:\n")
+    for label, bucket in buckets:
+        here = sorted(n for n in union if n in bucket)
+        if here:
+            print(f"    {label}  ({len(here)})")
+            print(f"      {', '.join(here)}")
+    leftover = sorted(n for n in union if n not in CLASSIFIED)
+    if leftover:
+        print(f"\n    UNEXPLAINED ({len(leftover)}) -- these have no decision recorded:")
+        for name in leftover:
             print(f"      {name}")
+    else:
+        print("\n    Nothing unexplained: every gap has a recorded reason.")
     print(
         "\n  Each needs a DECISION, not a fix by default: an objective aggregate belongs to\n"
         "  whoever is ranking (CLAUDE.md section 3 forbids a family emitting a total), while a\n"

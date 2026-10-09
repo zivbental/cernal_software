@@ -1632,11 +1632,13 @@ def test_the_gates_report_every_failure_not_the_first():
     """A design failing one threshold and a design failing six are different objects, and
     when nothing passes, *which* gate is binding is the entire result."""
     gate = _and_gate()
-    hopeless = dict.fromkeys(
-        (name for name, _, _ in gate.THRESHOLDS), 0.35
-    )  # fails every < 0.2 and every > 0.5 at once
-    hopeless["separation"] = 0.0
-    hopeless["ddG_AND"] = 0.0
+    # A value chosen PER THRESHOLD to fail it, not one value for all. A single 0.35 used to fail
+    # every threshold because they were all `< 0.2` or `> 0.5`; the state-10 leak thresholds are
+    # `< 0.5`, which 0.35 passes, so the shortcut silently tested 10 of 12. Deriving the value
+    # from the threshold makes this hold for whatever the table contains next.
+    hopeless = {
+        name: (limit + 1.0 if op == "<" else limit - 1.0) for name, op, limit in gate.THRESHOLDS
+    }
 
     violations = gate.gate_violations(hopeless)
 
