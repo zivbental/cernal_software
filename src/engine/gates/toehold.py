@@ -870,7 +870,17 @@ class ToeholdAndGate(ToeholdGate):
     #: initiation rules match the architecture spec, the RNase E pattern left the hard screen
     #: and trigger B's window is screened. Every one of those moves the numbers, so the label
     #: moves with them -- a stored result from 0.2.0-stub is not comparable with one from here.
-    version = "0.3.0"
+    #:
+    #: 0.4.0: 45 columns ADDED and none moved. The x* partner breakdown became a closed
+    #: seven-term accounting in all four states (free, own arm, trigger A, trigger B, linker,
+    #: secondary_z, residual -- verified to sum to 1.0 within 1e-6 on real designs of both
+    #: geometries), hairpin fidelity is measured in states 01, 10 and 11 as well as 00, and
+    #: `lock_minus_a_site` is carried unranked. Each is a read off a pair-probability matrix
+    #: the pass already built, so nothing refolds and no existing number changes -- the engine's
+    #: state-00 fidelity agrees with `objective_energy`'s independent derivation to three
+    #: decimals on all five terms. The label still moves, because a 0.3.0 row has no
+    #: `hairpin_*_10` column at all and absent must not read as unmeasured.
+    version = "0.4.0"
     kind = GateKind.TOEHOLD_AND
     label = "AND Toehold"
     description = "Two-input translational AND"
@@ -1780,9 +1790,24 @@ class ToeholdAndGate(ToeholdGate):
         # Tubes are built `switch&A&B` and `pooled_pair_probabilities` maps every ordering
         # back onto these positions, so the index does not depend on which one dominates.
         a_block = (len(switch.sequence), len(switch.sequence) + len(trigger_a))
+        # Trigger B's block is per STATE, not one offset reused. The tubes are `switch&B` for
+        # 01 and `switch&A&B` for 11, so B starts after the switch in one and after trigger A
+        # in the other; a single offset would read A's positions as B's in state 11. An absent
+        # trigger gets an empty block, and `_mean_paired_to` returns 0.0 for it -- which here
+        # is a true measurement, not a sentinel: x* cannot be bound to a strand in another tube.
+        base = len(switch.sequence)
+        b_blocks = {
+            "00": (base, base),
+            "01": (base, base + len(trigger_b)),
+            "10": (base, base),
+            "11": (base + len(trigger_a), base + len(trigger_a) + len(trigger_b)),
+        }
         xstar = switch.domains["sw_xs"]
         own_arm = switch.domains["sw_x"]
         aug_span = switch.domains["aug"]
+        linker = switch.domains["linker"]
+        secondary_z = switch.domains["secondary_z"]
+        duplexes = _intended_duplexes(switch.domains)
         for state, strands in tubes.items():
             # Pooled, not the bare matrix: state 11 has three strands and therefore two
             # orderings, and in "switch&B&A" trigger A's arcs cross trigger B's, so
@@ -1805,6 +1830,54 @@ class ToeholdAndGate(ToeholdGate):
             # of `A_M`, which spans main_z through aug to main_pre and averages the bulge in
             # with the arms, so a design with a paired AUG and open arms looks fine there.
             observables[f"aug_{state}"] = _mean_unpaired(matrix, *aug_span)
+
+            # Where x* goes, as a CLOSED accounting rather than a list of whichever partners
+            # happened to clear a display threshold:
+            #
+            #     free + own_arm + trigger_a + trigger_b + linker + secondary_z + other = 1
+            #
+            # `free` is `A_S_{state}` and the first two partners are the terms just above, so
+            # these four complete the sum. The reason it is worth four columns: "x* freed by B
+            # alone" is the weakest term in the lock, and the obvious reading -- that B fails to
+            # open it -- is wrong. B releases the secondary stem completely (x*-to-sw_x and
+            # x*-to-B both measured at 0.000), and the missing 0.5 to 0.7 goes to the LINKER
+            # (0.27 to 0.61) with some of `secondary_z` (0.09 to 0.42). x* is freed and then
+            # immediately re-paired, so it is not available for trigger A -- and the linker is a
+            # constant we choose, which makes this actionable rather than merely descriptive.
+            #
+            # `other` is the residual, not a drop: every remaining partner is still counted, so
+            # the sum closes and a partner nobody named cannot go missing.
+            observables[f"xstar_linker_{state}"] = _mean_paired_to(matrix, xstar, linker)
+            observables[f"xstar_sec_z_{state}"] = _mean_paired_to(matrix, xstar, secondary_z)
+            observables[f"xstar_engB_{state}"] = _mean_paired_to(matrix, xstar, b_blocks[state])
+            free = observables[f"A_S_{state}"]
+            if free is None:
+                observables[f"xstar_other_{state}"] = None
+            else:
+                named = (
+                    observables[f"xstar_locked_{state}"]
+                    + observables[f"xstar_engA_{state}"]
+                    + observables[f"xstar_linker_{state}"]
+                    + observables[f"xstar_sec_z_{state}"]
+                    + observables[f"xstar_engB_{state}"]
+                )
+                observables[f"xstar_other_{state}"] = (1.0 - free) - named
+
+            # Hairpin fidelity in EVERY state, not only the OFF one. The matrix for this tube is
+            # already built, so the other three states cost nothing beyond reading it -- and the
+            # question they answer is the mechanism itself: which intended duplex gives way, and
+            # to which trigger. `worst` is the minimum rather than the mean, because a hairpin
+            # with one arm fully formed and the other absent is not half a hairpin, it is a
+            # different structure.
+            for name, (left, right) in duplexes.items():
+                observables[f"hairpin_{name}_{state}"] = _duplex_formed(matrix, left, right)
+            formed = [
+                observables[f"hairpin_{name}_{state}"]
+                for name in duplexes
+                if observables[f"hairpin_{name}_{state}"] is not None
+            ]
+            observables[f"hairpin_worst_{state}"] = min(formed) if formed else None
+
             if state == "00":
                 toehold = switch.domains["r2_star"]
                 observables["A_r2_star_00"] = _mean_unpaired(matrix, *toehold)
@@ -3226,6 +3299,17 @@ class ToeholdAndGate(ToeholdGate):
                     "ddg_pref": stem.ddg_pref,
                     "a_site_energy": stem.a_site_energy,
                     "b_site_energy": stem.b_site_energy,
+                    # The symmetric partner of `ddg_pref`, which already IS
+                    # `lock_energy - b_site_energy` and is therefore not repeated under a second
+                    # name. That difference asks whether trigger B can displace the switch's own
+                    # copy, and `>= 0` is required (R6). This one asks the same question for
+                    # trigger A on the secondary arm -- and no threshold is applied, because
+                    # there is no measured distribution to set one from yet. Carried, nothing
+                    # reads it. Measured on this branch's own designs the margin runs to a median
+                    # of -4.36 with a maximum of +2.66, against Kim's working +3.86, so the
+                    # direction the data points in is that we are too stingy to A, not too
+                    # generous -- which is exactly why the threshold waits for the distribution.
+                    "lock_minus_a_site": stem.lock_energy - stem.a_site_energy,
                     **notes,
                 }
                 yield GateDesign(
@@ -3300,6 +3384,66 @@ def _filler(length: int) -> str:
     if length <= 0:
         return ""
     return (_FILLER_UNIT * (length // len(_FILLER_UNIT) + 1))[:length]
+
+
+def _intended_duplexes(
+    domains: dict[str, tuple[int, int]],
+) -> dict[str, tuple[range, range]]:
+    r"""The four duplexes the two hairpins are meant to form, as ranges to be zipped.
+
+    Each entry is ``(ascending, descending)`` so that ``a[k]`` is the base meant to pair with
+    ``b[k]``; a caller zips them. Pairing is antiparallel, which is why the 3' side counts down::
+
+        main stem     main_pre_star <-> main_pre        9 bp
+                      k1_star       <-> main_z          6 bp
+        secondary     sw_x          <-> sw_xs       len_x bp
+                      k2_star       <-> secondary_z    k2 bp
+
+    Read entirely off the domain map ``assemble`` returns, so both geometries are measured
+    against their own intended shape without assuming any length. ``objective_energy`` derives
+    the same four from ``len(switch) - 75`` plus arithmetic for the secondary spans because from
+    a CSV row a bare string is all it has; here the spans are named, so there is nothing to
+    re-derive and no 3'-anchored assumption to break when a 3'-side length changes.
+
+    **What is deliberately absent.** The linker and the cap/r2* stretch carry internal structure
+    by design, so counting their folding as deviation is what makes a whole-molecule ensemble
+    defect the wrong instrument. The loops (``rbs_loop``, ``secondary_loop``) are unpaired by
+    intent. And the **AUG bulge** (``bulge_star`` against ``aug``) is not a stem on purpose -- the
+    AUG sits open in the OFF state and the ``closure`` axis varies it deliberately -- so scoring
+    it as deviation would penalise the very thing being explored. Its openness is reported
+    separately, as ``aug_{state}``.
+    """
+
+    def pair(five: str, three: str) -> tuple[range, range]:
+        lo_a, hi_a = domains[five]
+        lo_b, hi_b = domains[three]
+        return range(lo_a, hi_a), range(hi_b - 1, lo_b - 1, -1)
+
+    return {
+        "main_pre": pair("main_pre_star", "main_pre"),
+        "k1": pair("k1_star", "main_z"),
+        "lock": pair("sw_x", "sw_xs"),
+        "sec": pair("k2_star", "secondary_z"),
+    }
+
+
+def _duplex_formed(matrix: list[list[float]], left: range, right: range) -> float | None:
+    """How much of one intended duplex actually forms in this tube, 0 to 1.
+
+    One term per pair. The matrix is symmetric with a zero diagonal, so summing both triangles
+    reads a probability above 1 -- a real bug in this repo's history, which is why the index
+    order is forced here rather than trusted.
+
+    Returns ``None`` when no pair of the duplex lies inside the matrix, never ``0.0``: higher is
+    better, so zero is the worst score rather than a missing one, and a duplex entirely outside
+    the matrix means the domain map and the folded strands are out of step.
+    """
+    pairs = [
+        (i, j) for i, j in zip(left, right, strict=False) if i != j and max(i, j) < len(matrix)
+    ]
+    if not pairs:
+        return None
+    return sum(matrix[min(i, j)][max(i, j)] for i, j in pairs) / len(pairs)
 
 
 def _mean_paired_to(

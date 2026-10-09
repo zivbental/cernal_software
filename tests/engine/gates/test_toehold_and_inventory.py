@@ -57,6 +57,10 @@ ARCHITECTURE_KEYS = (
     "ddg_pref",
     "a_site_energy",
     "b_site_energy",
+    # `ddg_pref` above already IS `lock_energy - b_site_energy`, so only the a-site
+    # difference is a column of its own. Carried, with no threshold: nothing reads it until
+    # there is a measured distribution to set one from.
+    "lock_minus_a_site",
     "rare_codons_after_aug",
     "codons_after_aug",
 )
@@ -107,6 +111,46 @@ MEASUREMENT_KEYS = (
     "d_off",
     "dG_bind_B",
     "dG_bind_A_given_B",
+    # Partner-AWARE, and the distinction is the whole point: `A_S_{state}` says whether x*
+    # is open, these say what it is open FOR. The mechanism is a sequence of answers to the
+    # second question -- locked with no trigger, still locked with A alone, freed by B,
+    # taken by A -- and a design can satisfy "open" while failing "open for A" by refolding
+    # onto a third thing.
+    *(f"xstar_locked_{state}" for state in ("00", "01", "10", "11")),
+    *(f"xstar_engA_{state}" for state in ("00", "01", "10", "11")),
+    *(f"xstar_engB_{state}" for state in ("00", "01", "10", "11")),
+    # Where x* actually goes once B frees it. Measured on the panel: sw_x and trigger B are
+    # both 0.000, and the missing 0.5 to 0.7 is the LINKER (0.27 to 0.61) with some of
+    # `secondary_z` (0.09 to 0.42). `other` is the residual, so the seven terms close to 1
+    # and a partner nobody named cannot go missing -- asserted below.
+    *(f"xstar_linker_{state}" for state in ("00", "01", "10", "11")),
+    *(f"xstar_sec_z_{state}" for state in ("00", "01", "10", "11")),
+    *(f"xstar_other_{state}" for state in ("00", "01", "10", "11")),
+    # The AUG's own openness: the base the ribosome has to reach. Not a restatement of
+    # `A_M`, which spans main_z through aug to main_pre and averages the bulge in with the
+    # arms, so a design with a paired AUG and open arms reads as fine there.
+    *(f"aug_{state}" for state in ("00", "01", "10", "11")),
+    # How much of each intended duplex forms, in EVERY state and not only the OFF one. The
+    # matrices are already built per tube, so the other three states cost only a read -- and
+    # they are what names which duplex gives way, and to which trigger.
+    *(
+        f"hairpin_{name}_{state}"
+        for name in ("main_pre", "k1", "lock", "sec", "worst")
+        for state in ("00", "01", "10", "11")
+    ),
+)
+
+#: The seven terms x* can be in, which partition it exactly. Asserted as a sum rather than
+#: as presence: a double-counted term, a span read against the wrong partner, or a trigger
+#: offset taken from the wrong tube all break the sum and none breaks a presence check.
+XSTAR_TERMS = (
+    "A_S",  # free -- paired to nothing
+    "xstar_locked",  # its own arm, sw_x
+    "xstar_engA",
+    "xstar_engB",
+    "xstar_linker",
+    "xstar_sec_z",
+    "xstar_other",  # the residual, so nothing is dropped
 )
 
 FAMILIES = (ProkaryoticToeholdAndGate, KimSecondaryArmToeholdAndGate)
@@ -179,6 +223,43 @@ def test_the_measurement_pass_carries_every_metric(family, built):
     # whole column quietly going None is visible here rather than three layers downstream.
     unmeasured = sorted(key for key in MEASUREMENT_KEYS if measured.get(key) is None)
     assert unmeasured == [], f"present but unmeasured: {unmeasured}"
+
+
+@pytest.mark.parametrize("family", FAMILIES, ids=lambda f: f.__name__)
+def test_the_xstar_breakdown_accounts_for_all_of_it(family, built):
+    """The seven x* terms must sum to 1.0 in every state, or they are not a breakdown.
+
+    x* is either unpaired or paired to exactly one thing, so the partition is exhaustive by
+    construction -- `other` is the residual rather than a named list, which is what stops a
+    partner nobody thought of from silently vanishing. What the sum actually tests is that all
+    seven are read off the SAME matrix with one term per pair: the matrix is symmetric with a
+    zero diagonal, so summing both triangles pushes a probability above 1, and that has been a
+    real bug in this repo.
+
+    It also pins the per-state trigger offsets. The tubes are ``switch&B`` for 01 and
+    ``switch&A&B`` for 11, so trigger B starts after the switch in one and after trigger A in
+    the other. Reusing one offset would read A's positions as B's in state 11 and the sum would
+    exceed 1.
+    """
+    gate, design, site_a, site_b = built[family]
+    measured = gate.measure_design(design, transcript=TRANSCRIPT, site_a=site_a, site_b=site_b)
+    for state in ("00", "01", "10", "11"):
+        terms = {name: measured[f"{name}_{state}"] for name in XSTAR_TERMS}
+        if any(value is None for value in terms.values()):
+            # A tube that could not be folded reports None throughout, which is a legal
+            # outcome; what is not legal is a partial breakdown.
+            assert all(value is None for value in terms.values()), (
+                f"state {state} has some x* terms measured and some not: {terms}"
+            )
+            continue
+        total = sum(terms.values())
+        assert math.isclose(total, 1.0, abs_tol=1e-6), (
+            f"state {state}: the x* terms sum to {total!r}, not 1.0 -- {terms}"
+        )
+        assert terms["xstar_other"] >= -1e-6, (
+            f"state {state}: the residual is negative ({terms['xstar_other']!r}), so a named "
+            f"term is counted twice -- {terms}"
+        )
 
 
 @pytest.mark.parametrize("family", FAMILIES, ids=lambda f: f.__name__)
