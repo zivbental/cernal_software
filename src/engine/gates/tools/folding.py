@@ -618,6 +618,94 @@ class FoldEngine:
             return 1.0 if cost > -_FLOAT32_ENERGY_ULP else None
         return probability
 
+    def sample_structures(
+        self,
+        strands: str,
+        n_samples: int,
+        seed: int | None = None,
+        first_strand: int | None = None,
+    ) -> list[str]:
+        """Structures drawn from the Boltzmann ensemble, not just the best one.
+
+        :meth:`mfe` returns the single most stable structure; sampling shows what the
+        molecule does the rest of the time, and is the only way to ask a joint question
+        ("is region X open *in the same structure* as region Y?").
+
+        Args:
+            strands: RNA, uppercase. One sequence, or several joined with ``&``; same
+                indexing as :meth:`base_pair_probabilities` (positions over the
+                concatenation with the ``&`` removed, first strand first). The strand order
+                must already be one ViennaRNA can represent without a pseudoknot.
+            n_samples: How many structures to draw.
+            seed: If given, seeds ViennaRNA's random generator before drawing. That
+                generator is process-global, so this is for reproducible reports, not for
+                concurrent callers.
+            first_strand: Index (in ``strands``) of the strand to write first when drawing;
+                the others follow in their cyclic order, so the structure stays nested.
+                ``None`` writes the last strand first (the validated choice for a switch
+                with its trigger: the trigger first). See the strand-order gotcha below.
+
+        Returns:
+            Dot-bracket strings (``&`` removed, in the caller's strand order). **May be
+            shorter than ``n_samples``**: ViennaRNA's stochastic backtracking can drop a
+            draw on a numerically awkward multiloop, so normalise by ``len(result)``,
+            never by ``n_samples``.
+
+        Not cached: draws are stochastic, so a second caller must not receive the first
+        caller's samples.
+
+        Gotchas:
+            * ``uniq_ML`` is required for stochastic backtracking and is set on a
+              compound built here, not in :meth:`_compound`, so :meth:`mfe`,
+              :meth:`partition` and :meth:`base_pair_probabilities` keep their model.
+            * **Strand order matters.** ViennaRNA's ``pbacktrack`` can draw from the wrong
+              ensemble depending on which strand is written first: for real ~120-nt
+              switches plus their trigger, ``switch&trigger`` never drew the MFE and
+              returned structures with Boltzmann weight ~1e-11 as 70-75% of draws, while
+              ``trigger&switch`` matched exp(-(E-G)/RT) and the exact stem marginals. In a
+              switch with two hairpins and one trigger, the order that matched was the
+              one with the trigger on the side of the switch nearest its target hairpin
+              (trigger first for the 5' hairpin, last for the 3' one); the other order
+              drew the untargeted hairpin open. Not exact either (on a 57-nt construct the
+              top structure came out 4 points under its Boltzmann probability). Check
+              marginals built from samples against :meth:`base_pair_probabilities`.
+        """
+        parts = strands.split("&")
+        count = len(parts)
+        first = (count - 1) if first_strand is None else first_strand
+        if not 0 <= first < count:
+            raise ValueError(f"first_strand {first_strand} is outside the {count} strands")
+        if seed is not None:
+            RNA.init_rand(seed)
+        model = RNA.md()
+        model.temperature = self.temperature
+        model.uniq_ML = 1
+        order = [(first + k) % count for k in range(count)]  # a cyclic rotation: stays nested
+        drawn_order = "&".join(parts[i] for i in order)
+        fold_compound = RNA.fold_compound(drawn_order, model)
+        fold_compound.pf()
+        drawn = list(fold_compound.pbacktrack(n_samples))
+        if count == 1 or order == list(range(count)):
+            return drawn
+        # Map each position of the drawn frame back to the caller's strand order.
+        original_start = [sum(len(parts[j]) for j in range(i)) for i in range(count)]
+        to_original: list[int] = []
+        for i in order:
+            to_original.extend(original_start[i] + k for k in range(len(parts[i])))
+        total = len(to_original)
+        mapped = []
+        for structure in drawn:
+            out = ["."] * total
+            stack: list[int] = []
+            for i, char in enumerate(structure):
+                if char == "(":
+                    stack.append(i)
+                elif char == ")":
+                    a, b = sorted((to_original[stack.pop()], to_original[i]))
+                    out[a], out[b] = "(", ")"
+            mapped.append("".join(out))
+        return mapped
+
     def suboptimal(self, sequence: str, delta: float = 2.0) -> list[FoldResult]:
         """Every structure within an energy window of the MFE.
 

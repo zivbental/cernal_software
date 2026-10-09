@@ -278,7 +278,7 @@ pair for which `fuse()` reports a problem is skipped and counted in the grid cel
 | 0, 2 | Intro markdown; path setup and `fx.bootstrap()` | |
 | 4 | Parameters (Step 1) | |
 | 5 | One `FoldEngine`; `use_fold_engine`; imports | one instance for the whole notebook |
-| 7 | Plotting, CSS and scoring helpers: `structure_png`, `bpp_heatmap_png`, `layout_bar_png`, `_single_badness`, `_and_off_term`, `_on_off_ratio`, `_mean_or_none`, `_plan_class`, `_off_breakdown_text`, `_single_sort_key`, `_average_ranks`, `_spearman_rho`, `_kendall_tau_b`, `csv_vs_report_rank_png`, `_render_pdf`, formatting helpers | no folding of its own |
+| 7 | Plotting, CSS and scoring helpers: `structure_png`, `bpp_heatmap_png`, `layout_bar_png`, `_single_badness`, `_and_off_term`, `_on_off_ratio`, `_mean_or_none`, `_plan_class`, `_off_breakdown_text`, `_single_sort_key`, `_render_pdf`, formatting helpers | no folding of its own |
 | 9 | **Snapshot restore** (pure load) and `_report_root` (`var/reports`, found by walking up to `pyproject.toml`) | |
 | 10 | Load `SINGLE_POOL_N` designs. With `FILTER_HOMOPOLYMER_RUN`: load the whole file, filter, then cut (filtering a pre-capped pool would shrink it instead of backfilling) | |
 | 11 | Single screen: for every candidate the jobs `alone`, `real` (`with_joint=True`), up to `SINGLE_N_FAKES` fakes (`pick_fake_triggers`); all of all candidates in **one** `run_parallel_single_exact` call | exact, parallel |
@@ -382,18 +382,8 @@ two per row, larger than the single report's, legend below the plot.
   `+A+B` the order is B (pink) first, then A (blue). Palette: shared teal for `spacer`,
   distinct colours for `loop` and `prefix`.
 
-**Single report only: CSV ranking vs this report's ranking** (between Summary and
-Candidates). A scatter of CSV rank (`postgen_global_rank`, x) against rank by this report's
-order (y, 1 = best at top) for the **whole scored pool**, report rows highlighted, with
-Spearman rho and Kendall tau-b; saved as `csv_vs_report_rank_<ts>.png` with the same
-timestamp as the HTML. Ties: the report ranking is the position under `_single_sort_key`
-(`ON - OFF` rounded to 1 decimal, then dG); only candidates tied in both get the average
-of the positions they span. rho = Pearson correlation of the two average-rank vectors; tau-b =
-`(C - D) / sqrt((n0 - n1)(n0 - n2))`. Both vectors are oriented 1 = best, so a positive
-value means the CSV order and the report order agree. numpy / pure python only.
-A second scatter in the same section ranks the pool by dG alone (more negative = 1) against
-the CSV rank, with its own rho and tau-b, saved as `csv_vs_dg_rank_<ts>.png`; it leaves ON
-and OFF out entirely.
+The CSV-rank vs report-rank and CSV-rank vs dG-rank scatter plots (2026-10-07) were removed
+from the single report on 2026-10-08; the report is Summary then Candidates.
 
 ## Step 5 — limitations to state in the report
 
