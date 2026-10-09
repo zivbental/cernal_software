@@ -72,6 +72,10 @@ function CompilePage() {
     (version.data?.output_hosts?.[output] ?? version.data?.supported_hosts ?? []).includes(config.organism)), [version.data, config.organism]);
 
   const blocker = useMemo(() => {
+    if (config.maxDesigns.trim() === "" || !Number.isSafeInteger(Number(config.maxDesigns)) || Number(config.maxDesigns) < 1 || Number(config.maxDesigns) > 1000)
+      return "Evaluation budget must be a whole number from 1 to 1,000.";
+    if (config.topN.trim() === "" || !Number.isSafeInteger(Number(config.topN)) || Number(config.topN) < 1 || Number(config.topN) > 1000)
+      return "Results to display must be a whole number from 1 to 1,000.";
     if (!version.data?.family_hosts || !version.data?.supported_outputs)
       return "Capability information is unavailable. Reload before submitting.";
     if (!(version.data.family_hosts[config.mechanism] ?? []).includes(config.organism))
@@ -127,6 +131,8 @@ function CompilePage() {
       organism: config.organism,
       input_mode: submittedInputMode,
       mechanism: config.mechanism,
+      budget: { max_designs: Number(config.maxDesigns) },
+      top_n: Number(config.topN),
       payload: {
         outputs: config.outputs,
         custom_sequence: parseSequence(config.customPayload).sequence || null,

@@ -456,7 +456,13 @@ class DesignIn(Schema):
     budget: dict = Field(default_factory=dict)
 
     # --- output shaping ---
-    top_n: int = Field(default=25, ge=1, le=1000)
+    top_n: int = Field(
+        default=25,
+        ge=1,
+        le=1000,
+        strict=True,
+        description="Ranked rows shown (accepted by default); no evaluation or storage cap.",
+    )
     include_rejected: bool = False
     include_metrics: bool = True
     include_artifacts: list[str] = Field(default_factory=list)

@@ -38,6 +38,7 @@ export function PrecisionFilters({
     <div className="overflow-hidden rounded-xl border border-border bg-surface-2">
       <button
         type="button"
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between px-5 py-3 text-left transition hover:bg-surface"
       >
@@ -57,6 +58,7 @@ export function PrecisionFilters({
           <label className="block">
             <span className="mb-1.5 block text-xs text-muted-foreground">Sort by</span>
             <select
+              aria-label="Sort by"
               value={filters.sort}
               onChange={(e) => patch({ sort: e.target.value })}
               className="w-full rounded-md border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:border-mint focus:outline-none"

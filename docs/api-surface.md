@@ -37,14 +37,14 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 63 |
-| Public classes | 105 |
-| Public callables (excluding `__init__`) | 338 |
-| — `BUILT` | 323 |
+| Modules | 64 |
+| Public classes | 106 |
+| Public callables (excluding `__init__`) | 343 |
+| — `BUILT` | 328 |
 | — `STUB` | 7 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
-| `__init__` constructors | 20 |
+| `__init__` constructors | 21 |
 
 ## Index
 
@@ -68,6 +68,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
 | gates | `engine.gates.base` |  | 10 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
+| gates | `engine.gates.euk_antisense` |  | 5 | 0 | Eukaryotic antisense NOT gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
 | gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
@@ -168,6 +169,7 @@ The switch chemistries. One value per registered ``GateFamily``.
 | `TOEHOLD` |  | `'toehold'` |
 | `TOEHOLD_AND` |  | `'toehold_and'` |
 | `ANTISENSE_NOT` |  | `'antisense_not'` |
+| `EUK_ANTISENSE_NOT` |  | `'euk_antisense_not'` |
 | `CRISPR` |  | `'crispr'` |
 
 #### `class Regulation(StrEnum)`
@@ -1187,6 +1189,46 @@ Transcriptional control via a trigger-gated guide RNA.
 | `STUB` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build a hairpin-blocked sgRNA the trigger unblocks. |
 | `STUB` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Measure a guide design, on the same metric names as every other family. |
 | `BUILT` | `def emit_sequence(self, design: GateDesign) -> str` | The synthesis-ready sequence. |
+
+### `engine.gates.euk_antisense`
+
+`src/engine/gates/euk_antisense.py`
+
+Eukaryotic antisense NOT gate.
+
+#### `class EukaryoticAntisenseNotGate(GateFamily)`
+
+Translational NOT gate for a scanning ribosome.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` |  | `'euk_antisense'` |
+| `version` |  | `'0.1.0'` |
+| `kind` |  | `GateKind.EUK_ANTISENSE_NOT` |
+| `label` |  | `'Eukaryotic Antisense Repression'` |
+| `description` |  | `"Kozak NOT gate: trigger binds the 5' UTR and a short in-frame linker"` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.YEAST, Host.HUMAN})` |
+| `max_inputs` |  | `1` |
+| `available` |  | `True` |
+| `WINDOW_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(30, 40, 50, 70)` |
+| `WINDOW_STEP` | `ClassVar[int]` | `AntisenseNotGate.WINDOW_STEP` |
+| `KOZAK` | `ClassVar[str]` | `AntisenseNotGate.KOZAK_EUKARYOTIC` |
+| `CDS_FOLD_NT` | `ClassVar[int]` | `60` |
+| `MIN_UTR_NT` | `ClassVar[int]` | `15` |
+| `MIN_LINKER_NT` | `ClassVar[int]` | `6` |
+| `MAX_LINKER_NT` | `ClassVar[int]` | `24` |
+| `LINKER_STEP` | `ClassVar[int]` | `3` |
+| `MAX_HOMOPOLYMER_A` | `ClassVar[int]` | `5` |
+| `MIN_TRIGGER_ACCESSIBILITY` | `ClassVar[float]` | `AntisenseNotGate.MIN_TRIGGER_ACCESSIBILITY` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, codons: CodonOptimizer, payload: str) -> None` |  |
+| `BUILT` | `def required_tools(self) -> list[ToolRequirement]` |  |
+| `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | One repressor, long enough for the shortest window, on a eukaryotic host. |
+| `BUILT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Yield one design per window and in-frame linker length. |
+| `BUILT` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Score Kozak openness and trigger binding with the shared ``FoldEngine``. |
+| `BUILT` | `def emit_sequence(self, design: GateDesign) -> str` |  |
 
 ### `engine.gates.registry`
 
