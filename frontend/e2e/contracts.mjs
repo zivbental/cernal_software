@@ -59,7 +59,13 @@ await page.route('**/api/**', async route=>{
  else if(path==='/api/runs/mock-run/candidates' || path==='/api/runs/other-run/candidates') {
    queries.push(url.searchParams);
    const offset=Number(url.searchParams.get('offset')??0), count=empty?0:Math.min(7907,Number(url.searchParams.get('top_n')??7907));
-   body={count,items:Array.from({length:Math.min(50,Math.max(0,count-offset))},(_,i)=>candidate(offset+i+1))};
+   const output=url.searchParams.get('output')??'all outputs';
+   const sort=url.searchParams.get('sort')??'rank';
+   body={count,items:Array.from({length:Math.min(50,Math.max(0,count-offset))},(_,i)=>({
+     ...candidate(offset+i+1),
+     // Make query completion observable in the rendered rows, even when page counts match.
+     summary:`Candidate ${offset+i+1} · ${output} · ${sort}`,
+   }))};
  } else if(path.endsWith('/annotations')) {
    if(route.request().method()==='POST') notes.push({id:'review-note',author:'browser-test',created_at:'2026-10-08T00:00:00Z',...route.request().postDataJSON()});
    body=route.request().method()==='POST'?notes.at(-1):notes;
@@ -210,15 +216,19 @@ try {
  assert.equal(await page.getByText('cand-76',{exact:true}).count(),0);
  assert(await page.getByRole('button',{name:'Next',exact:true}).isDisabled());
  await page.getByRole('button',{name:'Custom',exact:true}).click();
+ // Page counts alone can match before the new query has rendered. Waiting for its
+ // row avoids opening Precision Filters just before a loading remount closes it.
+ await page.getByText('Candidate 1 · Custom · rank',{exact:true}).waitFor();
  await page.getByText('Page 1 of 2',{exact:true}).waitFor();
  assert.equal(queries.at(-1).get('top_n'),'75');
  assert.equal(queries.at(-1).get('output'),'Custom');
- await page.getByRole('button',{name:'Precision Filters',exact:true}).click();
- await Promise.all([
-   page.waitForResponse(response=>response.url().includes('sort=engine_ref')),
-   page.getByLabel('Sort by',{exact:true}).selectOption('engine_ref'),
- ]);
+ const sortBy=page.getByLabel('Sort by',{exact:true});
+ if(!(await sortBy.isVisible())) await page.getByRole('button',{name:'Precision Filters',exact:true}).click();
+ await sortBy.selectOption('engine_ref');
+ await page.getByText('Candidate 1 · Custom · engine_ref',{exact:true}).waitFor();
+ assert.equal(queries.at(-1).get('sort'),'engine_ref');
  assert.equal(queries.at(-1).get('top_n'),'75');
+ assert.equal(queries.at(-1).get('output'),'Custom');
  await page.getByLabel('Result view',{exact:true}).selectOption('all');
  await page.getByText('Page 1 of 159',{exact:true}).waitFor();
  assert(!queries.at(-1).has('top_n'));
@@ -271,4 +281,11 @@ try {
  await page.getByRole('alert').filter({hasText:'Could not load run history'}).waitFor();
  assert.deepEqual(errors,[]);
  console.log('Browser contracts passed: paste integrity, capability rejection, offline retry, four-host/three-mode wizard readiness, HTTP401/403/404/422/429/500, catalog empty, custom vector insertion boundary, review save/delete, warning/proxy labels, evaluation/display defaults and validation, independent payload limits, global top-N paging/filtering/sorting, full/rejected/legacy access, candidate 201/7907, global output filter, empty completion and history error.');
+} catch(error) {
+ // These contracts contain only isolated synthetic fixtures, never user records.
+ console.error('Browser contract failure URL:',page.url());
+ console.error('Recent candidate queries:',queries.slice(-12).map(query=>Object.fromEntries(query)));
+ console.error('Page errors:',errors);
+ console.error('Rendered fixture text:',(await page.locator('body').innerText({timeout:1000}).catch(()=>'(unavailable)')).slice(-8000));
+ throw error;
 } finally { await browser.close(); await new Promise(done=>server.close(done)); }
