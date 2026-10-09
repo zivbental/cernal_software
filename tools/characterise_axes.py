@@ -108,7 +108,7 @@ IDENTITY = (
 )
 STEM = ("lock_energy", "a_site_energy", "b_site_energy", "ddg_pref", "lock_minus_a_site")
 PAIR = ("l_local_a", "l_local_b", "l_local_min")
-SURVIVAL = ("skipped", "assembly_violations", "n_switch")
+SURVIVAL = ("skipped", "assembly_violations", "n_switch", "stems_selected")
 #: The settings this shard was launched with, repeated on every row.
 #:
 #: **Because a row has to say how it was built.** None of these was on a row before. Launch at
@@ -262,10 +262,15 @@ def main(argv=None) -> int:
     )
     parser.add_argument(
         "--stem-order",
-        choices=("front", "lock"),
-        default="front",
-        help="'front' spreads the pick over the (lock_energy x a_site_energy) Pareto front; "
-        "'lock' is the historic one-edge rule, for comparison",
+        choices=("front_tops", "front", "lock"),
+        default="front_tops",
+        help="'front_tops' (default): one stem per non-empty square of the 3x3 "
+        "(lock_energy x a_site_energy) board, plus the strongest stem on each of the three "
+        "Pareto axes -- so b_site_energy, which the board cannot see, is represented. An empty "
+        "square gives up its slot and there is NO quota: the count follows the data, measured 8 "
+        "to 10 per cell, and lands in the stems_selected column. 'front' is the same board with "
+        "a quota, filling any leftover slot from the lock edge. 'lock' is the historic one-edge "
+        "rule, kept for comparison. --stems applies to the latter two only.",
     )
     parser.add_argument("--min-access", type=float, default=None, help="require l_local_min > this")
     parser.add_argument("--min-len-x", type=int, default=None, help="require len_x >= this")
@@ -287,6 +292,16 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--flush-every", type=int, default=100, help="rows between flush+fsync")
     parser.add_argument("--limit", type=int, default=0, help="stop after N rows (smoke test)")
+    parser.add_argument(
+        "--grid-stride",
+        type=int,
+        default=1,
+        help="take every Nth point of the 96-point (closure x upper3 x lower3) grid. Use this "
+        "and NOT --limit to estimate a rate: --limit stops in generator order and the grid is "
+        "iterated closure-outer, so 20 rows reach only 4 of 16 closures -- and survival differs "
+        "between closures by up to 37x, so the rate comes out biased. Striding covers all 16 at "
+        "1/N of the cost.",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -320,7 +335,19 @@ def main(argv=None) -> int:
         f"  grid per (pair, stem, geometry): {len(first.CLOSURES)} closures x "
         f"{len(first.UPPER3)} upper3 x {len(first.LOWER3)} lower3 = {grid}"
     )
-    print(f"  stems per pair: {args.stems}, chosen by stem_order={args.stem_order!r}")
+    if args.stem_order == "front_tops":
+        print(
+            f"  stems per pair: NO QUOTA (stem_order='front_tops') -- one per non-empty 3x3 "
+            f"square plus each axis's extreme; --stems {args.stems} is ignored. The count per "
+            f"cell lands in stems_selected."
+        )
+    else:
+        print(f"  stems per pair: {args.stems}, chosen by stem_order={args.stem_order!r}")
+    if args.grid_stride > 1:
+        print(
+            f"  grid stride {args.grid_stride}: every {args.grid_stride}th of the {grid} points, "
+            f"so all {len(first.CLOSURES)} closures are represented"
+        )
     print(f"  {len(MEASURED)} measurement columns, from ToeholdAndGate.MEASURED_KEYS")
     print(f"  {len(RUN)} run-setting columns repeated on every row, so a row says how it was built")
     if args.access and not args.control:
@@ -450,7 +477,14 @@ def main(argv=None) -> int:
             except Exception as error:
                 print(f"    {gene_a}/{gene_b} {geom}: generate_designs {type(error).__name__}")
                 continue
-            for design in designs:
+            # How many stems the rule actually returned for this cell. `front_tops` has no
+            # quota, so this varies between pairs and the row has to carry it. Recovered from
+            # the designs rather than by calling `_select_stems` again: one source of truth,
+            # and re-selecting could disagree with what was built.
+            stems_here = len({design.architecture.get("stem_index") for design in designs})
+            for position, design in enumerate(designs):
+                if args.grid_stride > 1 and position % args.grid_stride:
+                    continue
                 arch = design.architecture
                 key = (
                     f"{gene_a}>{gene_b}|{pair.x_start}|{pair.xstar_start}|{pair.len_x}|{geom}"
@@ -483,6 +517,7 @@ def main(argv=None) -> int:
                         None if lock is None or a_site is None else lock - a_site
                     ),
                     **run_settings,
+                    "stems_selected": stems_here,
                     "l_local_a": round(la, 6),
                     "l_local_b": round(lb, 6),
                     "l_local_min": round(worse, 6),

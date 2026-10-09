@@ -880,7 +880,13 @@ class ToeholdAndGate(ToeholdGate):
     #: state-00 fidelity agrees with `objective_energy`'s independent derivation to three
     #: decimals on all five terms. The label still moves, because a 0.3.0 row has no
     #: `hairpin_*_10` column at all and absent must not read as unmeasured.
-    version = "0.4.0"
+    #: 0.5.0: the stem selection rule and four new columns. `stem_order="front_tops"` takes one
+    #: stem per non-empty 3x3 square plus the strongest stem on each of the THREE Pareto axes,
+    #: gives up an empty square's slot instead of filling it from the lock edge, and has no
+    #: quota -- the count follows the data (measured: 7 of 9 squares occupied, median, so about
+    #: 10 stems). That changes WHICH designs exist for a pair, so results are not comparable
+    #: across the label. `mainpre_engA_{state}` is additive and free.
+    version = "0.5.0"
     kind = GateKind.TOEHOLD_AND
     label = "AND Toehold"
     description = "Two-input translational AND"
@@ -1804,6 +1810,7 @@ class ToeholdAndGate(ToeholdGate):
         }
         xstar = switch.domains["sw_xs"]
         own_arm = switch.domains["sw_x"]
+        main_pre_star = switch.domains["main_pre_star"]
         aug_span = switch.domains["aug"]
         linker = switch.domains["linker"]
         secondary_z = switch.domains["secondary_z"]
@@ -1825,6 +1832,15 @@ class ToeholdAndGate(ToeholdGate):
             observables[f"xstar_locked_{state}"] = _mean_paired_to(matrix, xstar, own_arm)
             observables[f"xstar_engA_{state}"] = (
                 0.0 if trigger_a not in strands else _mean_paired_to(matrix, xstar, a_block)
+            )
+            # The SECOND half of the designed ON path, and the one `xstar_engA` cannot see.
+            # B frees x*, A nucleates there, and then A invades the main stem's ascending arm:
+            # `xstar_engA_11` says A arrived, this says A opened something. Measured per domain
+            # on a real design in state 11, trigger A puts 2.98 of 3 expected pairs on the freed
+            # x* and 7.97 of 9 on `main_pre_star`. In state 10 the same term is the leak's own
+            # measure -- A reaching the main arm with no B present.
+            observables[f"mainpre_engA_{state}"] = (
+                0.0 if trigger_a not in strands else _mean_paired_to(matrix, main_pre_star, a_block)
             )
             # The AUG's own openness: the base the ribosome has to reach. Not a restatement
             # of `A_M`, which spans main_z through aug to main_pre and averages the bulge in
@@ -2508,6 +2524,7 @@ class ToeholdAndGate(ToeholdGate):
         # Partner-aware: what x* is open FOR. These seven partition x* exactly and sum to 1.
         *(f"xstar_locked_{state}" for state in ("00", "01", "10", "11")),
         *(f"xstar_engA_{state}" for state in ("00", "01", "10", "11")),
+        *(f"mainpre_engA_{state}" for state in ("00", "01", "10", "11")),
         *(f"xstar_engB_{state}" for state in ("00", "01", "10", "11")),
         *(f"xstar_linker_{state}" for state in ("00", "01", "10", "11")),
         *(f"xstar_sec_z_{state}" for state in ("00", "01", "10", "11")),
@@ -4022,15 +4039,40 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
     rather than its corner. Bins are visited in a fixed order and any budget left over goes to
     the lock-sorted remainder, so the result is deterministic and a resumed run rebuilds it.
 
+    ``"front_tops"`` is ``"front"`` without the quota, plus the third axis:
+
+    * one stem per **non-empty** square of the 3x3 board, nearest that square's centre. An empty
+      square contributes nothing -- the slot is given up rather than filled from the lock edge.
+    * the single strongest stem on **each of the three Pareto axes** -- ``lock_energy``,
+      ``a_site_energy`` and ``b_site_energy`` -- deduplicated against the representatives.
+
+    The third axis matters because the board cannot see it. ``secondary_stems`` returns the
+    non-dominated set over all three, but the squares are cut on two, so stems differing only in
+    trigger B's grip land in one square and the centre rule picks among them blind to it:
+    measured, ``b_site_energy`` still spreads a median 3.05 kcal/mol inside a square and up to
+    15.00 in the worst one. Its own extreme puts it back in the set at the cost of one stem.
+
+    **``budget`` is ignored for this order.** The data decides the count, so there is no quota and
+    no leftover slot to fill. Measured occupancy on 60 real cells is 7 of 9 squares (median;
+    6:3, 7:34, 8:19, 9:4), so the natural output is about 10 stems and runs roughly 9 to 12.
+    Callers record the actual count -- it varies between pairs, which is only safe if the row says
+    what it was.
+
     An unknown ``order`` falls back to ``"lock"`` and is **not** silently different: the caller
     declared a value this function does not implement, and the historic rule is the safe reading.
     """
     if budget <= 0 or not stems:
         return []
     by_lock = sorted(stems, key=lambda stem: stem.lock_energy)
-    if order != "front" or len(stems) <= budget:
+    if order not in ("front", "front_tops"):
+        return by_lock[:budget]
+    if order == "front" and len(stems) <= budget:
         return by_lock[:budget]
 
+    #: Slices per axis. Three, and left at three deliberately: the depth question that would
+    #: have justified a finer board is answered by `front_tops` adding the axis extremes
+    #: instead, so this stays a constant rather than becoming a knob nobody turns. It is named
+    #: here so a reader can find it, and the selection rule itself is recorded per row.
     bins = 3
     locks = sorted(stem.lock_energy for stem in stems)
     sites = sorted(stem.a_site_energy for stem in stems)
@@ -4064,11 +4106,35 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
                 ),
             )
         )
-        if len(chosen) >= budget:
+        if order == "front" and len(chosen) >= budget:
             return chosen[:budget]
-    # Fewer occupied bins than the budget: fill from the lock-sorted remainder, which keeps the
-    # historic rule's designs in the set rather than inventing a third ordering.
+
     taken = {id(stem) for stem in chosen}
+    if order == "front_tops":
+        # The strongest stem on each Pareto axis. These are free energies, so "strongest" is
+        # most negative; the extra sort keys make the choice total, because two stems with the
+        # same energy on one axis must still order deterministically for a resumed run to
+        # rebuild the same set.
+        for axis in ("lock_energy", "a_site_energy", "b_site_energy"):
+            top = min(
+                stems,
+                key=lambda stem: (
+                    getattr(stem, axis),
+                    stem.lock_energy,
+                    stem.a_site_energy,
+                    stem.b_site_energy,
+                ),
+            )
+            if id(top) not in taken:
+                taken.add(id(top))
+                chosen.append(top)
+        # No budget truncation: see the docstring. An empty square gave up its slot and the
+        # count is whatever the data supports.
+        return chosen
+
+    # `order == "front"`: fewer occupied bins than the budget, so fill from the lock-sorted
+    # remainder, which keeps the historic rule's designs in the set rather than inventing a
+    # third ordering.
     for stem in by_lock:
         if len(chosen) >= budget:
             break

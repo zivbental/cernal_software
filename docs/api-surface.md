@@ -1344,7 +1344,7 @@ Two-input AND toehold.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'toehold_and'` |
-| `version` |  | `'0.4.0'` |
+| `version` |  | `'0.5.0'` |
 | `kind` |  | `GateKind.TOEHOLD_AND` |
 | `label` |  | `'AND Toehold'` |
 | `description` |  | `'Two-input translational AND'` |
