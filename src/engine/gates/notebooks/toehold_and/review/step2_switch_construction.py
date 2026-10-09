@@ -187,7 +187,7 @@ print("  A-anchored and unlocked schemes are excluded in generate_designs, measu
 limits = Constraints()
 print(
     f"\n  Constraints: stems_per_pair {limits.stems_per_pair}  "
-    f"min_window_gap {limits.min_window_gap}  overlap_range {limits.overlap_range}"
+    f"overlap_range {limits.overlap_range}  stems_per_pair {limits.stems_per_pair}"
 )
 per_pair = grid * limits.stems_per_pair
 total_designs = per_pair * len(pairs)

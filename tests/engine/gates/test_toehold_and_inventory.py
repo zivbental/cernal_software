@@ -173,6 +173,56 @@ def test_the_measurement_pass_carries_every_metric(family, built):
 
 
 @pytest.mark.parametrize("family", FAMILIES, ids=lambda f: f.__name__)
+def test_overlap_range_narrows_the_search_and_each_geometry_clamps_its_own_ceiling(family, built):
+    """`Constraints.overlap_range` must change the result, and never move trigger B's site.
+
+    For its whole life this field was declared and unread: `_overlap_lengths` walked
+    `range(invasion, MIN_OVERLAP - 1, -1)` and ignored it, so setting it raised no error and
+    changed nothing. That is why this exercises it rather than asserting it exists.
+
+    The ceiling is the geometry's own `SECONDARY_INVASION_LEN`, not a shared 18: Kim's secondary
+    arm is 20 nt but trigger B invades only 17 of it, so a declared 18 cannot be reached there.
+    A declared range may only narrow what the architecture can build.
+    """
+    gate, design, _site_a, _site_b = built[family]
+    role_a, role_b = design.trigger_set.activators
+    trigger_a, trigger_b = role_a.sequence, role_b.sequence
+
+    wide = gate._overlap_lengths(trigger_a, trigger_b, Constraints())
+    assert wide, "the fixture's pair has no overlap at all, so nothing below can be read"
+    (found,) = wide
+
+    # A floor above the pair's overlap leaves nothing.
+    assert (
+        gate._overlap_lengths(trigger_a, trigger_b, Constraints(overlap_range=(found + 1, 18)))
+        == ()
+    )
+    # A ceiling at the overlap keeps it.
+    assert gate._overlap_lengths(
+        trigger_a, trigger_b, Constraints(overlap_range=(gate.MIN_OVERLAP, found))
+    ) == (found,)
+    # The declared ceiling can never exceed what this geometry's arm supports.
+    for length in gate._overlap_lengths(trigger_a, trigger_b, Constraints(overlap_range=(4, 18))):
+        assert length <= gate.SECONDARY_INVASION_LEN
+
+
+def test_min_window_gap_is_gone_from_constraints():
+    """It was read by nobody, so it is removed rather than withheld.
+
+    The gap that exists is `find_trigger_pairs(transcript, min_window_gap=...)`, defaulting to
+    the class constant, and it never consulted `Constraints`. The cross-gene path cannot use one
+    at all: two windows on separate transcripts cannot overlap. A field wired to nothing is worse
+    than no field, because setting it raises no error and changes no behaviour.
+    """
+    import dataclasses
+
+    names = {field.name for field in dataclasses.fields(Constraints)}
+    assert "min_window_gap" not in names
+    # The real knob is still there, on the class that owns the scan.
+    assert isinstance(ProkaryoticToeholdAndGate.MIN_WINDOW_GAP, int)
+
+
+@pytest.mark.parametrize("family", FAMILIES, ids=lambda f: f.__name__)
 def test_the_xstar_breakdown_accounts_for_all_of_it(family, built):
     """The seven x* terms must sum to 1.0 in every state, or they are not a breakdown.
 

@@ -455,7 +455,6 @@ The researcher's limits, carried into every stage that has to respect them.
 | `trigger_gc_range` | `tuple[float, float]` | `(30.0, 70.0)` |
 | `stems_per_pair` | `int` | `2` |
 | `stem_order` | `str` | `'lock'` |
-| `min_window_gap` | `int` | `50` |
 | `overlap_range` | `tuple[int, int]` | `(4, 18)` |
 | `direction_balance` | `bool` | `True` |
 

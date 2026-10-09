@@ -143,16 +143,14 @@ def test_every_constraint_the_api_rejects_is_an_explicit_decision():
     #: adding it to CONSTRAINT_KEYS and to that table, then removing it from this set.
     not_exposed = {
         "direction_balance",
-        # The four below are the two-input AND family's design-space budget. Each changes
-        # WHICH designs get built rather than which pass: `stems_per_pair` and `stem_order`
-        # pick how many points of the secondary-stem Pareto front are sampled and from
-        # where, `overlap_range` sets the len_x floor and ceiling, `min_window_gap` the
-        # distance two trigger windows must keep. A request that set one would produce a
-        # candidate pool that is not comparable with any other run's, and the result records
-        # the scoring profile but not these -- so they stay out until the distributions that
-        # would justify a default are measured.
-        "min_window_gap",
-        "overlap_range",
+        # `overlap_range` is EXPOSED (see CONSTRAINT_KEYS) and `min_window_gap` is gone from
+        # the engine entirely -- it was read by nobody. These two remain withheld, and the
+        # reason is not that a request would go unrecorded (`JobResult.params` echoes the
+        # request verbatim) but that they are a COMPUTE budget for one family: they pick how
+        # many points of the secondary-stem Pareto front get built and from which part of it.
+        # The API has its own budget block for compute, and a per-family sampling rule sitting
+        # among cross-family search constraints would be read as biology. Exposing either
+        # means deciding where a generation budget belongs first.
         "stem_order",
         "stems_per_pair",
         "max_base_expression",

@@ -2907,7 +2907,7 @@ class ToeholdAndGate(ToeholdGate):
         # decide, and that is what the loop does.
         for role_a, role_b in ((first, second), (second, first)):
             trigger_a, trigger_b = sq.to_rna(role_a.sequence), sq.to_rna(role_b.sequence)
-            for len_x in self._overlap_lengths(trigger_a, trigger_b):
+            for len_x in self._overlap_lengths(trigger_a, trigger_b, constraints):
                 yield from self._designs_for_overlap(
                     trigger_set, role_a, role_b, trigger_a, trigger_b, len_x, constraints
                 )
@@ -3216,7 +3216,9 @@ class ToeholdAndGate(ToeholdGate):
         """
         return sum(1 for codon in self._codons_after_aug(switch) if codon in self.RARE_CODONS)
 
-    def _overlap_lengths(self, trigger_a: str, trigger_b: str) -> tuple[int, ...]:
+    def _overlap_lengths(
+        self, trigger_a: str, trigger_b: str, constraints: Constraints | None = None
+    ) -> tuple[int, ...]:
         """Overlap lengths at which these two triggers actually share a duplex, longest first.
 
         **The overlap has to be re-derived here, and this is the only place it can be.**
@@ -3243,6 +3245,7 @@ class ToeholdAndGate(ToeholdGate):
         positions out of the conflict-free core into the contested region and degrades
         trigger A's site, trigger B's site and the lock at once.
         """
+        constraints = Constraints() if constraints is None else constraints
         min_a, min_b = self.role_footprints()
         if len(trigger_a) < min_a or len(trigger_b) < min_b:
             # `is_compatible` reports this with a reason and the designer calls it first,
@@ -3252,9 +3255,21 @@ class ToeholdAndGate(ToeholdGate):
             # `secondary_stems` raises `fixed alignment needs equal lengths` because
             # trigger A was too short to supply an `ext` as long as trigger B's `k2`.
             return ()
-        invasion = self.SECONDARY_INVASION_LEN
-        for len_x in range(invasion, self.MIN_OVERLAP - 1, -1):
-            len_k2 = invasion - len_x
+        # The declared range, intersected with what this geometry can actually build.
+        # `overlap_range` was a field on `Constraints` that nothing read: this walked
+        # `range(invasion, MIN_OVERLAP - 1, -1)` and ignored it, so a caller setting it got no
+        # error and no change. The ceiling is the family's own `SECONDARY_INVASION_LEN` -- 18
+        # for this geometry and 17 for Kim's, whose arm is 20 but which trigger B invades only
+        # 17 of -- so a declared ceiling can only narrow it, never widen it past what the
+        # architecture has arm for.
+        low, high = constraints.overlap_range
+        floor = max(self.MIN_OVERLAP, int(low))
+        ceiling = min(self.SECONDARY_INVASION_LEN, int(high))
+        for len_x in range(ceiling, floor - 1, -1):
+            # From the GEOMETRY, never from `ceiling`. This is where trigger B's `x*` begins --
+            # the offset `secondary_stems` and `_secondary_domains` slice at -- so a narrowed
+            # `overlap_range` must shrink the SEARCH and never move trigger B's site.
+            len_k2 = self.SECONDARY_INVASION_LEN - len_x
             x = trigger_a[self.ARM_LEN : self.ARM_LEN + len_x]
             x_star = trigger_b[len_k2 : len_k2 + len_x]
             if len(x) != len_x or len(x_star) != len_x:

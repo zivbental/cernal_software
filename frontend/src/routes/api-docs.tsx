@@ -218,6 +218,7 @@ const CONSTRAINTS_FIELDS: ParamRow[] = [
   { field: "min_separation", type: "float", default: "0.5", notes: "Minimum |log2 fold change| for a gene to be considered usable." },
   { field: "max_p_adj", type: "float", default: "0.05", notes: "Adjusted p-value significance threshold." },
   { field: "trigger_lengths", type: "integer[]", default: "[30, 33, 36]", notes: "Window sizes to scan, in nt." },
+  { field: "overlap_range", type: "integer[2]", default: "[4, 18]", notes: "Two-input AND gates only: [low, high] length in nt of the overlap the two triggers share. 4 is the shortest run that can nucleate; 18 is the longest secondary arm any geometry has, and Kim's geometry clamps to 17 because trigger B invades only 17 of its 20-nt arm. Narrowing it only narrows the search." },
   { field: "max_switch_length", type: "integer", default: "200", notes: "Synthesis length ceiling, in nt." },
   { field: "forbidden_motifs", type: "string[]", default: "[]", notes: 'Sequence motifs to reject, e.g. ["GGTCTC", "GAATTC"].' },
   { field: "standard", type: "string", default: '"RFC10"', notes: '"RFC10" | "RFC1000" — which restriction sites are banned.' },

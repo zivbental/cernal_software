@@ -24,6 +24,7 @@ CONSTRAINT_KEYS = {
     "min_separation",
     "max_p_adj",
     "trigger_lengths",
+    "overlap_range",
     "max_switch_length",
     "forbidden_motifs",
     "standard",

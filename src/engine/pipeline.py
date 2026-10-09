@@ -819,6 +819,29 @@ def _build_constraints(params: dict) -> Constraints:
                 raise InputValidationError("Every forbidden motif must contain only A/C/G/T/U.")
             normalized.append(sq.to_dna(sq.to_rna(motif)))
         raw["forbidden_motifs"] = tuple(dict.fromkeys(normalized))
+    if "overlap_range" in raw:
+        band = raw["overlap_range"]
+        # The bound is ARCHITECTURAL, not a taste. `MIN_OVERLAP` is 4 because below four
+        # contiguous nucleotides there is no nucleation site -- the same criterion a knockout
+        # has to defeat. The ceiling is the secondary arm trigger B invades, which is 18 for
+        # the naive geometry and **17** for Kim's, whose arm is 20 but which B invades only 17
+        # of. This function runs before a family is chosen, so it validates the widest
+        # architectural window and each family clamps its own ceiling in `_overlap_lengths`.
+        # Validating against a bare 18 would admit len_x=18 and yield zero pairs in one of the
+        # two geometries with nothing to say why.
+        if (
+            not isinstance(band, (list, tuple))
+            or len(band) != 2
+            or any(isinstance(v, bool) or not isinstance(v, int) for v in band)
+            or not 4 <= band[0] <= band[1] <= 18
+        ):
+            raise InputValidationError(
+                "overlap_range must be [low, high] integers within 4-18 with low <= high. "
+                "4 is the shortest run that can nucleate; 18 is the longest secondary arm "
+                "any geometry has, and Kim's geometry clamps itself to 17 because trigger B "
+                "invades only 17 of its 20-nt arm."
+            )
+        raw["overlap_range"] = tuple(band)
     if "trigger_gc_range" in raw:
         band = raw["trigger_gc_range"]
         if (

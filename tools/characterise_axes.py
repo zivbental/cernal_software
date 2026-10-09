@@ -109,6 +109,24 @@ IDENTITY = (
 STEM = ("lock_energy", "a_site_energy", "b_site_energy", "ddg_pref", "lock_minus_a_site")
 PAIR = ("l_local_a", "l_local_b", "l_local_min")
 SURVIVAL = ("skipped", "assembly_violations", "n_switch")
+#: The settings this shard was launched with, repeated on every row.
+#:
+#: **Because a row has to say how it was built.** None of these was on a row before. Launch at
+#: `--stems 6` tonight, resume at `--stems 9` tomorrow, and it is the same file with nothing to
+#: tell the two halves apart -- and every analysis here is WITHIN a (pair, geometry) cell, so a
+#: cell whose halves came from different samples of the Pareto front cannot be compared inside
+#: itself and nothing would say so. The same applies to a shard accidentally launched at
+#: `--stem-order lock`, or to concatenating two nights' files.
+RUN = (
+    "stem_order",
+    "stems_per_pair",
+    "overlap_low",
+    "overlap_high",
+    "on_ceiling",
+    "pair_order",
+    "min_access",
+    "min_len_x",
+)
 #: Every name ``measure_design`` returns, taken from the ENGINE's declaration rather than listed
 #: here. This used to be a hand-picked tuple of 24 against the 90 the pass actually computes, so 66
 #: folded numbers were discarded on every row of a 346,528-design run -- the entire x* breakdown,
@@ -124,7 +142,7 @@ SURVIVAL = ("skipped", "assembly_violations", "n_switch")
 #: here a zero reads as perfect and clears every threshold.
 MEASURED = ProkaryoticToeholdAndGate.MEASURED_KEYS
 
-FIELDS = IDENTITY + STEM + PAIR + SURVIVAL + MEASURED
+FIELDS = IDENTITY + STEM + PAIR + SURVIVAL + RUN + MEASURED
 
 
 def build_gates(folder: FoldEngine) -> dict[str, object]:
@@ -304,6 +322,7 @@ def main(argv=None) -> int:
     )
     print(f"  stems per pair: {args.stems}, chosen by stem_order={args.stem_order!r}")
     print(f"  {len(MEASURED)} measurement columns, from ToeholdAndGate.MEASURED_KEYS")
+    print(f"  {len(RUN)} run-setting columns repeated on every row, so a row says how it was built")
     if args.access and not args.control:
         print(
             "\n  --access needs --control. `measure_design` takes ONE transcript and prices both\n"
@@ -389,6 +408,21 @@ def main(argv=None) -> int:
         writer.writeheader()
         handle.flush()
 
+    # Resolved once: constant for the shard, written on every row. `overlap_range` is
+    # split into two columns rather than stored as the repr of a tuple, so a reader gets
+    # numbers instead of a string to parse back.
+    run_settings = {
+        "stem_order": constraints.stem_order,
+        "stems_per_pair": constraints.stems_per_pair,
+        "overlap_low": constraints.overlap_range[0],
+        "overlap_high": constraints.overlap_range[1],
+        "on_ceiling": args.on_ceiling,
+        "pair_order": args.pair_order,
+        # `None` stays empty, never 0.0: a floor that was not applied is not a floor of zero.
+        "min_access": "" if args.min_access is None else args.min_access,
+        "min_len_x": "" if args.min_len_x is None else args.min_len_x,
+    }
+
     started = time.time()
     written = resumed = 0
     for job_i, (a_sym, b_sym, pair, la, lb, worse) in enumerate(mine):
@@ -448,6 +482,7 @@ def main(argv=None) -> int:
                     "lock_minus_a_site": (
                         None if lock is None or a_site is None else lock - a_site
                     ),
+                    **run_settings,
                     "l_local_a": round(la, 6),
                     "l_local_b": round(lb, 6),
                     "l_local_min": round(worse, 6),

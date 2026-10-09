@@ -518,8 +518,14 @@ class Constraints:
             lower3 = 96 designs per stem per pair per role assignment, so this number
             multiplies the whole sweep; an undeclared default would be an invisible
             per-family filter, which CLAUDE.md section 3 is explicit about.
-        min_window_gap: Nucleotides required between the two trigger windows when both come
-            from one transcript. ``ToeholdAndGate.MIN_WINDOW_GAP``'s own comment says "This
+        min_window_gap: REMOVED. It was read by nobody -- the gap that exists is
+            ``find_trigger_pairs(transcript, min_window_gap=...)``, a keyword argument
+            defaulting to the class constant ``ToeholdAndGate.MIN_WINDOW_GAP``, which never
+            consulted this record. And the cross-gene path cannot use it at all:
+            ``find_cross_gene_pairs`` states that two windows on separate transcripts cannot
+            overlap, so there is nothing to space apart. A declared field wired to nothing is
+            worse than no field, because setting it raises no error and changes no behaviour.
+            Historical note kept so the removal is not re-litigated: "This
             belongs in ``Constraints`` and there is no field for it yet" -- it does now.
             Irrelevant when the two triggers come from different genes, where the windows
             cannot collide.
@@ -555,7 +561,6 @@ class Constraints:
     trigger_gc_range: tuple[float, float] = (30.0, 70.0)
     stems_per_pair: int = 2
     stem_order: str = "lock"
-    min_window_gap: int = 50
     overlap_range: tuple[int, int] = (4, 18)
     direction_balance: bool = True
 
