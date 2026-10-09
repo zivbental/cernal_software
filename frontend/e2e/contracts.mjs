@@ -222,8 +222,10 @@ try {
  await page.getByText('Page 1 of 2',{exact:true}).waitFor();
  assert.equal(queries.at(-1).get('top_n'),'75');
  assert.equal(queries.at(-1).get('output'),'Custom');
- const sortBy=page.getByLabel('Sort by',{exact:true});
- if(!(await sortBy.isVisible())) await page.getByRole('button',{name:'Precision Filters',exact:true}).click();
+ const precisionFilters=page.getByRole('button',{name:'Precision Filters',exact:true});
+ if(await precisionFilters.getAttribute('aria-expanded')!=='true') await precisionFilters.click();
+ const sortBy=page.getByRole('combobox',{name:'Sort by',exact:true});
+ await sortBy.waitFor();
  await sortBy.selectOption('engine_ref');
  await page.getByText('Candidate 1 · Custom · engine_ref',{exact:true}).waitFor();
  assert.equal(queries.at(-1).get('sort'),'engine_ref');
@@ -237,7 +239,7 @@ try {
  await page.getByLabel('Result view',{exact:true}).selectOption('top');
  await page.getByText('Page 1 of 2',{exact:true}).waitFor();
  const showRejected=page.getByLabel('Show rejected candidates',{exact:false});
- if(!(await showRejected.isVisible())) await page.getByRole('button',{name:'Precision Filters',exact:true}).click();
+ if(await precisionFilters.getAttribute('aria-expanded')!=='true') await precisionFilters.click();
  await showRejected.check();
  await page.getByText('Page 1 of 159',{exact:true}).waitFor();
  assert.equal(await page.getByLabel('Result view',{exact:true}).inputValue(),'all');
