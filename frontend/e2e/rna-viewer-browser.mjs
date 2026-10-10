@@ -279,6 +279,31 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       assert.match(await readout().innerText(), /Select a nucleotide/);
     }
 
+    async function openPrecisionFilters() {
+      const toggle = page.getByRole("button", { name: "Precision Filters", exact: true });
+      await toggle.waitFor();
+      const slider = page.getByRole("slider", { name: "Minimum score", exact: true });
+      // Results may unmount this panel while a new server-side filter loads.
+      // Reopen it as a user would, whether the prior query was cached or not.
+      if (!(await slider.isVisible())) await toggle.click();
+      await slider.waitFor();
+      return slider;
+    }
+    function candidateResponse(expected) {
+      return page.waitForResponse(response => {
+        const url = new URL(response.url());
+        return url.pathname === `/api/runs/${runA}/candidates`
+          && response.request().method() === "GET"
+          && Object.entries(expected).every(([key, value]) => url.searchParams.get(key) === value);
+      });
+    }
+    async function screenshotViewer(filename) {
+      // Element screenshots scroll under the sticky app header. Hide only that
+      // overlay for the crop; ordinary page screenshots retain the real header.
+      await viewer().screenshot({ path: `${shots}/${filename}`,
+        style: "header.sticky { visibility: hidden !important; }" });
+    }
+
     await check("dashboard navigation and exact annotated geometry", async () => {
       await page.goto(`${origin}/dashboard`);
       await page.getByRole("heading", { name: "Dashboard", exact: true }).waitFor();
@@ -307,7 +332,7 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       assert.equal(await svg().locator('[data-base-index="16"]').evaluate(node => node === document.activeElement), true);
       await viewer().getByText("Stored dot-bracket structure", { exact: true }).click();
       assert.equal(await viewer().locator("pre").innerText(), fixture.hairpin.structure);
-      await viewer().screenshot({ path: `${shots}/annotated-viewer.png` });
+      await screenshotViewer("annotated-viewer.png");
     });
 
     await check("candidate switching clears geometry selection zoom and rotation", async () => {
@@ -372,18 +397,40 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       await pages.getByText("Page 1 of 1", { exact: true }).waitFor();
       await expectDiagram(fixture.alternate, main[1].engine_ref);
       assert(requests.some(({ query }) => query.output === "Custom" && !query.offset));
-      await page.getByRole("button", { name: "Precision Filters", exact: true }).click();
-      await page.getByRole("slider", { name: "Minimum score", exact: true }).press("End");
+      await (await openPrecisionFilters()).press("End");
       await page.getByText("No candidate is selected.", { exact: false }).waitFor();
       assert.equal(await svg().count(), 0);
       assert.equal(await canvas().count(), 0);
-      await page.getByRole("slider", { name: "Minimum score", exact: true }).press("Home");
+      const minimumScore = await openPrecisionFilters();
+      assert.equal(await minimumScore.inputValue(), "100", "Score filter survives the empty-results remount");
+      await minimumScore.press("Home");
       await expectDiagram(fixture.alternate, main[1].engine_ref);
-      await page.getByLabel("Sort by", { exact: true }).selectOption("engine_ref");
+      assert.equal(await (await openPrecisionFilters()).inputValue(), "0");
+      await Promise.all([
+        candidateResponse({ output: "Custom", sort: "engine_ref", include_rejected: null }),
+        page.getByLabel("Sort by", { exact: true }).selectOption("engine_ref"),
+      ]);
       await expectDiagram(fixture.alternate, main[1].engine_ref);
-      await page.getByLabel("Show rejected candidates", { exact: false }).check();
-      await page.getByRole("button", { name: "All outputs", exact: true }).click();
+      await openPrecisionFilters();
+      assert.equal(await page.getByLabel("Sort by", { exact: true }).inputValue(), "engine_ref");
+      await Promise.all([
+        candidateResponse({ output: "Custom", sort: "engine_ref", include_rejected: "true" }),
+        page.getByLabel("Show rejected candidates", { exact: false }).check(),
+      ]);
+      await expectDiagram(fixture.alternate, main[1].engine_ref);
+      await openPrecisionFilters();
+      assert(await page.getByLabel("Show rejected candidates", { exact: false }).isChecked());
+      await Promise.all([
+        candidateResponse({ output: null, sort: "engine_ref", include_rejected: "true" }),
+        page.getByRole("button", { name: "All outputs", exact: true }).click(),
+      ]);
       await page.waitForFunction(() => document.body.textContent.includes("57 matching candidates"));
+      // The uncached all-output query resets selection to its first sorted row.
+      await expectDiagram(fixture.allDots, main[2].engine_ref);
+      await expectReset();
+      await openPrecisionFilters();
+      assert.equal(await page.getByLabel("Sort by", { exact: true }).inputValue(), "engine_ref");
+      assert(await page.getByLabel("Show rejected candidates", { exact: false }).isChecked());
       assert(requests.some(({ query }) => query.sort === "engine_ref" && query.include_rejected === "true"));
       assert(requests.some(({ query }) => query.offset === "50"));
       assert(requests.some(({ query }) => query.min_score === "1"));
@@ -501,7 +548,7 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       await page.setViewportSize({ width: 390, height: 844 });
       await openRna();
       await expectDiagram(fixture.hairpin, main[0].engine_ref);
-      await viewer().screenshot({ path: `${shots}/mobile-viewer.png` });
+      await screenshotViewer("mobile-viewer.png");
       await viewer().scrollIntoViewIfNeeded();
       await page.screenshot({ path: `${shots}/mobile-page.png` });
       const measure = () => page.evaluate(() => {
