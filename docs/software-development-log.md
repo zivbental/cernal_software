@@ -55,8 +55,8 @@ This notebook is CERNAL's contest-ready, evidence-first record of meaningful sof
 ## 2026-10-10 — Integrate saved gate structures into run results
 
 - **Contributor(s):** OpenAI Codex, authorized by the maintainer; drawing primitives by the iGEM TAU 2026 Team from cernal-rnaviz
-- **Task / issue / PR:** Dedicated `dot/integrate-rna-gate-visualizer` branch; draft review
-- **Commit reference(s):** This change, discoverable in file history; based on [`e8e560d`](https://github.com/zivbental/cernal_software/commit/e8e560d002a651ea4497af61ec014f28c0187e23)
+- **Task / issue / PR:** [Draft PR #67](https://github.com/zivbental/cernal_software/pull/67), `dot/integrate-rna-gate-visualizer`
+- **Commit reference(s):** Initial integration [`71d7f06`](https://github.com/zivbental/cernal_software/commit/71d7f060f72ca5fae086aee8154361d4ac376702), 2026-10-10; based on [`e8e560d`](https://github.com/zivbental/cernal_software/commit/e8e560d002a651ea4497af61ec014f28c0187e23)
 - **Status:** In progress; not merged or deployed
 
 ### Motivation and implementation
@@ -86,16 +86,16 @@ licensed source is pinned and its notices are retained in both vendored subsets.
 - Ruff, formatting, Django check and `git diff --check`: passed
 - Independent source review verified ownership, indexing, native bounds, upstream
   license parity and 2,000-nt stress layouts; no unresolved code-review blocker
-- Initial full pytest: 2,170 passed, five failed, six errors. Four failures and six
-  errors reproduce on unchanged base `e8e560d` (`test_euk_antisense`, obsolete
-  `off_target_penalty` fixture). The remaining failure was an isolated-install test
-  fixture omitting newly required modules; its explicit file list is corrected and
-  all 153 scientific-QA/layout/endpoint tests pass. Final full rerun and exact-head CI
-  are pending at initial draft publication.
+- Final full `uv run --no-sync pytest -q`: **2,171 passed, four failed, six errors**.
+  All failures/errors reproduce on unchanged base `e8e560d` (`test_euk_antisense`,
+  obsolete `off_target_penalty` fixture). The initial run also exposed an isolated-
+  install test fixture omitting newly required modules; its file list was corrected,
+  preserving its assertions and resolving that regression.
+- CI results and synthetic browser screenshots are tracked in [PR #67](https://github.com/zivbental/cernal_software/pull/67).
 - Local headless browser execution: blocked by environment socket restrictions;
   supported cloud browser cannot reach the isolated fixture server. No local browser
   pass or visual result is claimed. The new 28-case browser suite and synthetic
-  screenshots/report are wired into CI for verification there.
+  screenshots/report run in CI; see the PR for exact-head verification status.
 
 ### Decisions and review
 

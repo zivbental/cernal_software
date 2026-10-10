@@ -196,7 +196,9 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
   let browser;
   let page;
   let currentCheck = "launch";
+  let currentPhase = null;
   const failures = [];
+  const failureDiagnostics = [];
   const pageErrors = [];
   const outbound = [];
   let passed = 0;
@@ -217,6 +219,7 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
 
     async function check(label, action) {
       currentCheck = label;
+      currentPhase = null;
       const errorCount = pageErrors.length;
       try {
         await action();
@@ -224,7 +227,22 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
         passed++;
         console.log(`  ${label}: ok`);
       } catch (error) {
-        failures.push(`${label}: ${error.message}`);
+        failures.push(`${label}${currentPhase ? ` [${currentPhase}]` : ""}: ${error.message}`);
+        failureDiagnostics.push({ check: label, phase: currentPhase,
+          controls: await page.evaluate(() => ({
+            selects: [...document.querySelectorAll("select")].map(element => ({
+              label: [...element.labels].map(label => label.textContent.trim()).join(" | "),
+              value: element.value,
+            })),
+            sliders: [...document.querySelectorAll('input[type="range"]')].map(element => ({
+              label: element.getAttribute("aria-label"), value: element.value,
+            })),
+            checkboxes: [...document.querySelectorAll('input[type="checkbox"]')].map(element => ({
+              label: [...element.labels].map(label => label.textContent.trim()).join(" | "),
+              checked: element.checked,
+            })),
+          })).catch(() => null),
+        });
         const slug = label.replace(/\W+/g, "-");
         await page.screenshot({ path: `${shots}/FAIL-${slug}.png` }).catch(() => {});
         await writeFile(`${shots}/FAIL-${slug}.txt`, await page.locator("body").innerText().catch(() => "Page unavailable"));
@@ -289,6 +307,8 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       await slider.waitFor();
       return slider;
     }
+    const sortBy = () => page.getByRole("button", { name: "Precision Filters", exact: true })
+      .locator("..").getByRole("combobox", { name: /^Sort by/ });
     function candidateResponse(expected) {
       return page.waitForResponse(response => {
         const url = new URL(response.url());
@@ -393,26 +413,39 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       await expectDiagram(fixture.hairpin, main[0].engine_ref);
       await pages.getByRole("button", { name: "Last", exact: true }).click();
       await expectDiagram(fixture.alternate, main[50].engine_ref);
+      currentPhase = "filter to Custom output";
       await page.getByRole("button", { name: "Custom", exact: true }).click();
       await pages.getByText("Page 1 of 1", { exact: true }).waitFor();
       await expectDiagram(fixture.alternate, main[1].engine_ref);
       assert(requests.some(({ query }) => query.output === "Custom" && !query.offset));
+      currentPhase = "filter to an empty score range";
       await (await openPrecisionFilters()).press("End");
       await page.getByText("No candidate is selected.", { exact: false }).waitFor();
       assert.equal(await svg().count(), 0);
       assert.equal(await canvas().count(), 0);
+      currentPhase = "recover from empty score range";
       const minimumScore = await openPrecisionFilters();
       assert.equal(await minimumScore.inputValue(), "100", "Score filter survives the empty-results remount");
       await minimumScore.press("Home");
       await expectDiagram(fixture.alternate, main[1].engine_ref);
       assert.equal(await (await openPrecisionFilters()).inputValue(), "0");
+      currentPhase = "locate and verify the sort control";
+      const sort = sortBy();
+      await sort.waitFor();
+      assert.equal(await sort.count(), 1, "Exactly one visible precision-filter sort control");
+      assert.equal(await sort.inputValue(), "rank");
+      assert(!(await sort.isDisabled()));
+      // The wrapping <label> also contains option text, so an exact getByLabel
+      // match for "Sort by" cannot find it. Use its scoped accessible role.
+      currentPhase = "change sort from Rank to Identifier";
       await Promise.all([
         candidateResponse({ output: "Custom", sort: "engine_ref", include_rejected: null }),
-        page.getByLabel("Sort by", { exact: true }).selectOption("engine_ref"),
+        sort.selectOption("engine_ref"),
       ]);
       await expectDiagram(fixture.alternate, main[1].engine_ref);
       await openPrecisionFilters();
-      assert.equal(await page.getByLabel("Sort by", { exact: true }).inputValue(), "engine_ref");
+      assert.equal(await sortBy().inputValue(), "engine_ref");
+      currentPhase = "include rejected candidates";
       await Promise.all([
         candidateResponse({ output: "Custom", sort: "engine_ref", include_rejected: "true" }),
         page.getByLabel("Show rejected candidates", { exact: false }).check(),
@@ -420,6 +453,7 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       await expectDiagram(fixture.alternate, main[1].engine_ref);
       await openPrecisionFilters();
       assert(await page.getByLabel("Show rejected candidates", { exact: false }).isChecked());
+      currentPhase = "restore all outputs with retained filters";
       await Promise.all([
         candidateResponse({ output: null, sort: "engine_ref", include_rejected: "true" }),
         page.getByRole("button", { name: "All outputs", exact: true }).click(),
@@ -429,7 +463,7 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       await expectDiagram(fixture.allDots, main[2].engine_ref);
       await expectReset();
       await openPrecisionFilters();
-      assert.equal(await page.getByLabel("Sort by", { exact: true }).inputValue(), "engine_ref");
+      assert.equal(await sortBy().inputValue(), "engine_ref");
       assert(await page.getByLabel("Show rejected candidates", { exact: false }).isChecked());
       assert(requests.some(({ query }) => query.sort === "engine_ref" && query.include_rejected === "true"));
       assert(requests.some(({ query }) => query.offset === "50"));
@@ -588,7 +622,7 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
     if (!failures.length && !pageErrors.length) failures.push(`${currentCheck}: ${error.message}`);
     throw error;
   } finally {
-    await writeFile(`${shots}/report.json`, JSON.stringify({ passed, failures, pageErrors, outbound, unknownRequests, requests }, null, 2) + "\n");
+    await writeFile(`${shots}/report.json`, JSON.stringify({ passed, failures, failureDiagnostics, pageErrors, outbound, unknownRequests, requests }, null, 2) + "\n");
     await browser?.close();
     await new Promise(done => server.close(done));
   }
