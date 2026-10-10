@@ -50,7 +50,7 @@ from engine.gates.tools.binding import (
     weakest_binding_confidence,
 )
 from engine.gates.tools.codons import CodonOptimizer
-from engine.gates.tools.folding import FoldEngine
+from engine.gates.tools.folding import FoldEngine, mean_unpaired, unpaired_defect
 from engine.gates.tools.translation import TranslationScorer
 
 
@@ -1885,9 +1885,11 @@ class ToeholdAndGate(ToeholdGate):
             # correlation". It is VISTA's Ideal Ensemble Defect over a region whose specified
             # structure is "completely unpaired", which collapses to the mean base-pairing
             # probability there, so it is `1 - mean_unpaired` off a matrix already in hand.
-            # LOWER is better, unlike every other mean here.
-            unpaired = _mean_unpaired(matrix, *rbs_linker)
-            observables[f"ied_rbs_linker_{state}"] = None if unpaired is None else 1.0 - unpaired
+            # LOWER is better, unlike every other mean here -- which is why the reduction
+            # is a named tool function rather than an inversion written out here. Written
+            # inline it was one measurement with two definitions, and the second copy
+            # (`notebooks/.../candidates.py`) was free to disagree about the None case.
+            observables[f"ied_rbs_linker_{state}"] = unpaired_defect(matrix, *rbs_linker)
             # The same 31-nt ribosome footprint `dG_open_{state}` prices in energy, as a
             # probability instead. Two statistics over one window, which is the only way to tell
             # whether a window's edge comes from the window or from the statistic.
@@ -3886,28 +3888,15 @@ def _mean_unpaired_3prime_weighted(matrix: list[list[float]], start: int, end: i
     return total / weight_sum
 
 
-def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float | None:
-    """Mean P(unpaired) over ``[start, end)`` from a ``base_pair_probabilities`` matrix.
-
-    P(unpaired) at position i is ``1 - sum(matrix[i])`` — the matrix is already symmetric
-    and 0-indexed (``FoldEngine.base_pair_probabilities``'s contract), so this sums a
-    position's pairing probability to *every* other position regardless of which strand
-    it is on. For a dimer matrix that is exactly what "is the AUG still accessible with
-    the trigger bound" needs. (Duplicated from the same helper in ``gates/antisense.py``
-    rather than imported — see the port's open questions on promoting it to a shared
-    tool.)
-
-    Returns ``None`` for a span that is empty or does not lie inside the matrix, never
-    ``0.0``: this is an accessibility, so higher is better, and 0.0 is the worst possible
-    score rather than a missing one. A span that runs off the end means the domain map and
-    the folded sequence are out of step, which is a bug upstream — reporting it as a fully
-    sequestered region would hide that and rank the design as if it had been measured.
-    """
-    n = len(matrix)
-    if not 0 <= start < end <= n:
-        return None
-    unpaired = [max(0.0, 1.0 - sum(matrix[i])) for i in range(start, end)]
-    return sum(unpaired) / len(unpaired)
+#: The shared span reduction, re-exported under its historic private name.
+#:
+#: The definition now lives in ``gates/tools/folding.py`` beside the adapter that produces
+#: the matrix it reads, which is where this module's own docstring asked for it to be
+#: promoted. Sixteen modules import ``_mean_unpaired`` from here, so the name is kept as
+#: an alias rather than broken; new code should import ``mean_unpaired`` from the tool.
+#: ``unpaired_defect`` replaced the ``1.0 - _mean_unpaired(...)`` that used to be written
+#: out at each call site.
+_mean_unpaired = mean_unpaired
 
 
 # --- The AND gate's secondary (inhibitory) stem -------------------------------------

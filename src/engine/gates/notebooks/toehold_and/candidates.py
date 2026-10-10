@@ -46,7 +46,7 @@ from engine import sequences as sq
 from engine.domain import Host
 from engine.gates.toehold import ProkaryoticToeholdAndGate, _mean_unpaired
 from engine.gates.tools.codons import CodonOptimizer
-from engine.gates.tools.folding import FoldEngine
+from engine.gates.tools.folding import FoldEngine, unpaired_defect
 from engine.gates.tools.translation import TranslationScorer
 
 RESULTS = Path(__file__).resolve().parent / "results"
@@ -330,7 +330,11 @@ def _green_rules(gate, transcript, picks, bgrow) -> list[tuple]:
         # mean base-pairing probability. Calibrated against Green's 168 measured switches it
         # is the strongest correctly-signed predictor we have -- rho -0.356 against ON/OFF,
         # ahead of Green's own MFE form (+0.334) over the identical span. LOWER is better.
-        ied = 1.0 - _mean_unpaired(
+        # The reduction is the tool's `unpaired_defect`, not `1.0 - _mean_unpaired`
+        # written out here: the same arithmetic at two call sites is how one measurement
+        # acquires two definitions, and this copy would have raised on the None that the
+        # engine's copy returns for an unmeasurable span.
+        ied = unpaired_defect(
             gate.folder.pooled_pair_probabilities(f"{switch}&{a}&{b}"),
             sws_end + 18,
             len(switch),

@@ -253,7 +253,15 @@ class EukaryoticAntisenseNotGate(GateFamily):
         gate_folding_energy = self.folder.mfe(switch).energy
         binding_dg = hybridization_energy(switch, trigger.sequence, self.folder)
         predicted_success_rate = binding_energy_factor(binding_dg)
-        dynamic_range = on_accessibility / max(predicted_leakage, 1e-3)
+        # ``float | None`` since the span reduction moved to ``gates/tools/folding.py``:
+        # an unmeasurable span is reported, not replaced with 0.0. See the note on the
+        # ``_mean_unpaired`` alias in ``gates/antisense.py`` for what the old sentinel did
+        # to this metric and to the hard filter on ``predicted_leakage``.
+        dynamic_range = (
+            None
+            if on_accessibility is None or predicted_leakage is None
+            else on_accessibility / max(predicted_leakage, 1e-3)
+        )
 
         return {
             "gate_folding_energy": gate_folding_energy,

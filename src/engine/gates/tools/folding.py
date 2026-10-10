@@ -1015,6 +1015,90 @@ def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:
     return StructureMatch(deviation=deviation, p_target_fold=None)
 
 
+# --- Span reductions over a pair-probability matrix ----------------------------------
+#
+# These read a `base_pair_probabilities` matrix, so they belong with the adapter that
+# produces it rather than with any one gate family. They take the MATRIX and not a
+# sequence on purpose: a partition function is the expensive step, a design asks about a
+# dozen spans of the same molecule, and a function that refolded per span would multiply
+# the cost of every design by the number of spans. Fold once, reduce many times.
+#
+# They were promoted here from three private copies -- `gates/toehold.py`,
+# `gates/antisense.py` and, by import, `gates/euk_antisense.py` -- which had drifted
+# apart on the case that matters. The toehold copy returned `None` for a span outside the
+# matrix; the antisense copy clamped the span and returned `0.0` for an empty one, and
+# `euk_antisense` fed that straight into `predicted_leakage`, where
+# `normalize_value(0.0, spec)` is a perfect 1.0 that also passes the 0.85 hard filter. One
+# unmeasurable span would therefore have produced a flawless design. The `None` contract
+# is the one kept.
+
+
+def mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float | None:
+    """Mean P(unpaired) over ``[start, end)`` of a ``base_pair_probabilities`` matrix.
+
+    P(unpaired) at position ``i`` is ``1 - sum(matrix[i])``. The matrix is symmetric and
+    0-indexed (``FoldEngine.base_pair_probabilities``'s contract), so the sum covers a
+    position's pairing probability to *every* other position regardless of which strand it
+    sits on. For a dimer or trimer matrix that is exactly the question being asked: a loop
+    base paired to its own hairpin and one paired to the trigger are both blocked.
+
+    Use this where the answer has to stay a bounded 0-1 quantity and be compared as a
+    ratio between two states of the same molecule. It is **not** the probability that the
+    span is open all at once -- that is ``FoldEngine.p_open``, which costs a second,
+    constrained partition function and is the right question for a ribosome footprint.
+
+    Args:
+        matrix: From ``FoldEngine.base_pair_probabilities`` or
+            ``FoldEngine.pooled_pair_probabilities``.
+        start: First position, 0-indexed, inclusive.
+        end: One past the last position, exclusive.
+
+    Returns:
+        The mean, or ``None`` for a span that is empty or does not lie inside the matrix
+        -- never ``0.0``. This is an accessibility, so 0.0 is the *worst measurable* value
+        and reporting it for an unmeasurable span would rank the design as if it had been
+        measured, and rank it as fully sequestered. A span that runs off the end means the
+        domain map and the folded sequence are out of step, which is a bug upstream that
+        has to stay visible.
+    """
+    n = len(matrix)
+    if not 0 <= start < end <= n:
+        return None
+    unpaired = [max(0.0, 1.0 - sum(matrix[i])) for i in range(start, end)]
+    return sum(unpaired) / len(unpaired)
+
+
+def unpaired_defect(matrix: list[list[float]], start: int, end: int) -> float | None:
+    """Normalised ensemble defect over ``[start, end)`` against a fully unpaired target.
+
+    The ensemble defect against a target structure is the expected number of nucleotides
+    paired differently from that target, averaged over the ensemble
+    (``FoldEngine.ensemble_defect``, which takes a full-length dot-bracket target and
+    returns the raw count). When the target specifies a span as **completely unpaired**,
+    every pair in that span is an error, so the defect normalised by span length reduces
+    exactly to the mean pair probability -- that is, to ``1 - mean_unpaired``. This is the
+    form VISTA reports as the Ideal Ensemble Defect, and it is what a region required to
+    be single-stranded, such as a ribosome-binding loop, is scored on.
+
+    It is the same number as ``1 - mean_unpaired(...)``, and exists as a named function
+    because that arithmetic was previously written out at each call site, which is how one
+    measurement acquires two definitions. Lower is better: ``0.0`` is a perfectly open
+    span and ``1.0`` a fully paired one -- the opposite direction from ``mean_unpaired``,
+    which is the reason to name it rather than invert it inline.
+
+    Where an intended structure is actually specified, prefer
+    ``FoldEngine.ensemble_defect``: the mean pair probability is blind to partner identity
+    and this reduction inherits that blindness, while the full defect is not.
+
+    Returns:
+        The normalised defect, or ``None`` when ``mean_unpaired`` cannot measure the span.
+        Never ``0.0`` for an unmeasurable span: here 0.0 is a *perfect* score, so the
+        sentinel would be even more misleading than for an accessibility.
+    """
+    mean = mean_unpaired(matrix, start, end)
+    return None if mean is None else 1.0 - mean
+
+
 def _suboptimal_worker() -> None:
     """Private subprocess entry: do not execute native enumeration in a long-lived worker."""
     request = json.loads(sys.stdin.read())

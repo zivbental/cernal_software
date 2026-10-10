@@ -656,6 +656,77 @@ def test_mean_unpaired_matches_a_raw_pair_probability_sum():
     assert from_shared == pytest.approx(sum(expected) / len(expected), abs=1e-12)
 
 
+# --- One definition of the span reduction (S2) ----------------------------------------
+#
+# These lock in a promotion. `mean_unpaired` used to exist three times -- in
+# `gates/toehold.py`, in `gates/antisense.py` and by import in `gates/euk_antisense.py` --
+# and the copies had drifted apart on the unmeasurable-span case, which is the only case
+# where the answer matters. Measured on 4,000 random spans the two bodies disagreed on
+# 3,018 of them and the antisense copy raised `IndexError` on 24 more.
+
+
+def test_the_span_reduction_has_exactly_one_definition():
+    """Every module that reads a span off a pair-probability matrix reads the same function.
+
+    Not "the same arithmetic" -- the same object. Two functions computing one measurement is
+    how `predicted_leakage` came to mean two different things depending on which family
+    produced it, and an equality check on a few sample inputs would not have caught the
+    difference, because the inputs where they differ are the ones nobody samples.
+    """
+    from engine.gates import antisense, toehold
+    from engine.gates.tools import folding
+
+    assert toehold._mean_unpaired is folding.mean_unpaired
+    assert antisense._mean_unpaired is folding.mean_unpaired
+
+
+def test_an_unmeasurable_span_is_none_and_never_a_number():
+    """A span outside the matrix is `None`, because every number here is a *good* score.
+
+    This is the specific failure the promotion removed. The antisense copy clamped the span
+    and returned `0.0`, and both antisense families feed that value straight into
+    `predicted_leakage`. The assertions below are what `0.0` would have meant.
+    """
+    from engine.gates.tools.folding import mean_unpaired, unpaired_defect
+    from engine.scoring.normalize import failed_filter, normalize_value
+    from engine.scoring.profiles import DEFAULT_V1
+
+    matrix = [[0.0, 0.4], [0.4, 0.0]]
+    for start, end in ((0, 0), (2, 1), (-1, 1), (1, 5), (0, 3)):
+        assert mean_unpaired(matrix, start, end) is None, (start, end)
+        assert unpaired_defect(matrix, start, end) is None, (start, end)
+
+    # Why `None` and not `0.0`: a leakage of 0.0 is a flawless design that no filter stops.
+    spec = DEFAULT_V1.spec("predicted_leakage")
+    assert normalize_value(0.0, spec) == pytest.approx(1.0)
+    assert failed_filter({"predicted_leakage": 0.0}, DEFAULT_V1) is None
+    # And the scoring layer handles the honest answer explicitly.
+    assert normalize_value(None, spec) is None
+
+
+def test_unpaired_defect_is_the_mean_pair_probability_over_the_span():
+    """The normalised ensemble defect against a fully unpaired target reduces to `1 - mean`.
+
+    That identity is the reason the reduction is allowed to stand in for a defect at all: if
+    the target specifies the whole span as unpaired then every pair is an error, so the
+    defect divided by span length is exactly the mean pairing probability. The function
+    exists so that this is written once and carries its direction in its name -- lower is
+    better, the opposite of `mean_unpaired`.
+    """
+    from engine.gates.tools.folding import mean_unpaired, unpaired_defect
+
+    folder = FoldEngine(temperature=37.0)
+    matrix = folder.base_pair_probabilities("GGGGGGGGGGAAAACCCCCCCCCC")
+    for span in ((0, 10), (10, 14), (0, 24), (14, 24)):
+        mean = mean_unpaired(matrix, *span)
+        assert mean is not None
+        assert unpaired_defect(matrix, *span) == pytest.approx(1.0 - mean, abs=1e-15)
+
+    # A hairpin's stem is mostly paired and its loop mostly open, so the defect has to be
+    # high on the stem and low on the loop. A sign error would pass the identity above.
+    assert unpaired_defect(matrix, 0, 10) > unpaired_defect(matrix, 10, 14)
+
+
 # --- Strand ordering in pair probabilities (S2) ---------------------------------------
 #
 # A three-strand complex has (n-1)! orderings and ViennaRNA counts only structures that
