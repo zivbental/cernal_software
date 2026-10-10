@@ -103,3 +103,18 @@ empty isolated-monomer ensembles while its connected ensemble remains valid;
 FA/FB are therefore not used to reject that connected measurement. The objective
 and the conditional ON definition are unchanged. See
 `docs/crispr-pr65-review-fixes.md` for review coverage and remaining decisions.
+
+
+### Research export release boundary (2026-10-11)
+
+The CLI applies the project's `fail_closed_release` to each unique full guide in
+retained audits and recommendations. JSON includes `sequence_release` audit
+manifests and a `sequence_export` summary. An unapproved guide is null in JSON and
+blank in CSV; its numerical diagnostics and rank are retained. Raw input, spacer
+and trigger sequence fields, PAMs, and architecture sequence fragments are not
+exported. Keep the original input separately; `input_sha256` identifies it.
+The current unprovisioned screening stack returns `HOLD_SYSTEM`, so no guide
+sequences are released. There is no research bypass. This restriction applies at
+the CLI artifact boundary; the internal Python result is unchanged. Use a fresh
+output directory for each run, since a failure before writing leaves old files
+untouched.

@@ -134,3 +134,18 @@ uv run pytest tests/engine -q
 המודול מקבל את ציוני eta_on, eta_off ו־q_trigger כקלט מהפייפליין. נבדקים סוגי הנתונים, טווח 0–1, סופיות המספרים וכיסוי כל הספייסרים וחלונות הטריגר שייכנסו לחיפוש. חסר אינו מוחלף באפס ואינו מסווג כפסילה ביולוגית. גם ציונים נוספים שסופקו נבדקים. לפני החישובים נבדקים הרצפים, גבולות חלון המטרה, מבנה ה־scaffold, תבניות האורכים, המשקלים, הספים ופרמטרי ההרצה.
 
 אפשר להגדיר את המצב כ״גרסה ראשונית ממומשת ונבדקת של מנוע התכנון החישובי״. ההרצה זמינה דרך tools/run_crispr.py או engine.pipeline.run_crispr_workbench. חיבור חוזה הקלט למערכת הקבוצתית ולאתר, והרצה וולידציה על נתונים ביולוגיים, הם שלבים נפרדים שנותרו.
+
+
+### Research export release boundary (2026-10-11)
+
+The CLI applies the project's `fail_closed_release` to each unique full guide in
+retained audits and recommendations. JSON includes `sequence_release` audit
+manifests and a `sequence_export` summary. An unapproved guide is null in JSON and
+blank in CSV; its numerical diagnostics and rank are retained. Raw input, spacer
+and trigger sequence fields, PAMs, and architecture sequence fragments are not
+exported. Keep the original input separately; `input_sha256` identifies it.
+The current unprovisioned screening stack returns `HOLD_SYSTEM`, so no guide
+sequences are released. There is no research bypass. This restriction applies at
+the CLI artifact boundary; the internal Python result is unchanged. Use a fresh
+output directory for each run, since a failure before writing leaves old files
+untouched.

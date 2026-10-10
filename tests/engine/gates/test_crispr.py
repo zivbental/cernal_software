@@ -227,8 +227,9 @@ class FoldingTests(unittest.TestCase):
                 self.f.constraint_probability("GAAAC", constraint)
 
     def test_supplied_scaffold_defect_still_matches_native_ensemble(self):
-        c = config()
+        c = json.loads((ROOT / "examples/crispr/your_model.template.json").read_text())
         seq, reference = sq.to_rna(c["scaffold"]), c["scaffold_reference"]
+        self.assertEqual(len(seq), 80)
         self.assertAlmostEqual(
             self.f.region_defect(seq, reference),
             self.f.ensemble_defect(seq, reference) / len(seq),
