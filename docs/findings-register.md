@@ -110,6 +110,28 @@ Reproduce: `uv run python src/engine/gates/notebooks/toehold_and/review/axis_eff
 **Only 6 of 16 closures ever reached a scored population.** The ten absent ones are the systematic
 ladder `d2_*`/`d1_*`/`d0_*` (mismatch count × GC count) — where a non-monotonic optimum would live.
 
+## The night run, 431,916 designs — which design decisions help, asked conditionally
+
+Every row here is paired **inside a (pair, geometry) cell**, so the trigger pair, the geometry, the
+stem and every other axis are held fixed and the only thing that differs is the one decision. And
+every lever row is **conditioned**: only designs where the lever had something to write are
+compared, because the ones it never touched are the control by construction and dilute the answer.
+
+| finding | the number | dataset | reasoning lives in | reproduce |
+|---|---|---|---|---|
+| Both stem levers do one thing: a stronger stem lowers the state-10 leak and raises separation | `wobble_GU` 65 cells to 0 on separation and 66 to 0 on the leak, of 86; `WWW_UAU` 61–1 and 70–0 of 70; `WWW_AUA` 49–0 and 56–0 of 56. Sign test p = 5e-20 to 2e-21 | PFAS | `tools/analyse_levers.py` | `uv run python tools/analyse_levers.py --out axes_pfas_v2` |
+| **But the typical magnitude is negligible** — the consistency is the result, not the size | median paired difference among pairs that differ at all: **+0.0005 on separation, +0.0001 on A_M_ratio, +0.0004 on the leak — 0.00 sd in every case.** The effect is in the tail: only **8.5% (wobble), 14.3% (WWW_UAU), 16.5% (WWW_AUA)** of pairs improve separation by more than 1.0 log2 | PFAS | `tools/analyse_levers.py` | the same command |
+| What a lever can honestly be claimed to do: widen the top tail without hurting the rest | `wobble_GU` is **strictly worse in 6.7%** of 11,470 matched pairs, so 93.3% are equal or better; `WWW_UAU` 19.1% worse, `WWW_AUA` 18.3% | PFAS | this register | the same command |
+| Turning both levers on is better than either alone, and the cost does not add | separation mean +0.320 (upper3 alone) + 0.242 (wobble alone) = 0.562 against **+0.632 measured together**; the leak 0.059 + 0.035 = 0.094 against **+0.096**; the ON-state cost stays at the upper3-alone level (−0.021 against −0.023) | PFAS | `tools/analyse_closure.py` | `uv run python tools/analyse_closure.py --out axes_pfas_v2` |
+| `ied_gain` does not respond to either lever — the cost I reported on it does not exist | 30 cells to 36 (p = 0.54) for `wobble_GU`, 30 to 40 (p = 0.28) for `WWW_UAU`. **Supersedes** my earlier report of an IED cost | PFAS | `tools/analyse_levers.py` | the same command |
+| Only `wobble_GU` pays a real ON-state cost; `WWW_UAU`'s is not distinguishable from nothing | `A_M_11` 18 cells to 48, p = **3e-04** for `wobble_GU`; 32 to 38, p = **0.55** for `WWW_UAU`. **Supersedes** "all three levers pay an ON-state cost" | PFAS | `tools/analyse_levers.py` | the same command |
+| The closure axis **reverses** between survival and performance, and survival was the wrong measure | survival through the ceiling: `open_3x3` 35.1%, `closed_CAU` 7.5% (21,658 built per level). Performance paired against `open_3x3`: `closed_CAU` separation **+2.21**, leak **+0.348** (20 cells, 20–0); the leak comparison is **unanimous in all twelve closures** — 72–0 at the largest | PFAS | `tools/analyse_closure.py` | `uv run python tools/analyse_closure.py --out axes_pfas_v2` |
+| `ied_rbs_linker`, the strongest metric on Green's measured switches, was never computed here and is free | +0.356 on Green 168 and +0.390 on Green 13 in the panel's own table, against the Barrier's +0.179/+0.280. It is `1 - mean_unpaired` over `rbs_loop[0]..linker[1]`, read off a matrix the pass already builds. Measured now: median `ied_rbs_linker_11` 0.3262 against `_00` 0.4573 | PFAS | `ToeholdAndGate.four_tube_observables` | `uv run python tools/audit_column_coverage.py` |
+| The AND gain exists against "no trigger" and vanishes against "one trigger" | `ied_gain` median **+0.1256** against state 00; `ied_gain_worst` median **0.0000** against the worst OFF state, on 25,607 fully measured designs. `separation` median 0.0000 and `A_M_ratio` median exactly 1.000 say the same thing three ways | PFAS | this register | `uv run python tools/analyse_closure.py --out axes_pfas_v2` |
+| The state-10 leak is now measured on every design, not only survivors | 85,388 of 85,388, with **25.1%** below the 0.5 floor. Spearman **−0.500** between `open_11` and `xstar_engA_10` on a separate 600-design run, so the ceiling is not independent of the leak it does not look at | PFAS | `ToeholdAndGate.measure_design` | `uv run python tools/analyse_levers.py --out axes_pfas_v2` |
+
+---
+
 ## Open contradictions, kept rather than resolved by assertion
 
 | the two claims | status |
@@ -141,3 +163,6 @@ ladder `d2_*`/`d1_*`/`d0_*` (mismatch count × GC count) — where a non-monoton
 | Rebuild aggregates the way production does | a two-term scratch copy moved f4 by +0.139 |
 | Coordinates are 0-based, **end exclusive** | I read a window `end` as inclusive and 940 of 941 checks failed |
 | Measure, don't estimate | five runtime estimates were wrong; `secondary_stems` alone was ~60× slower than assumed |
+| Never change a sweep's column set while a resumable run is on disk | `FIELDS` grew 47 → 162 columns in one day; 85,388 of 431,916 rows went in at the new width under the old header and `skipped` came back holding `True`. Nothing was lost — `tools/split_mixed_schema.py` recovered both tables, 0 rows of any other width — and `characterise_axes.py` now refuses to append under a different header |
+| A subsample stride must be coprime with the grid, and blocks beat points | stride 6 on a 96-point grid pinned `lower3` to one level across 4,927 rows. And a coprime POINT stride covers every level yet leaves the paired comparison with **zero** matched pairs, because a design and its control sit at adjacent positions — stride whole closure blocks instead |
+| Survival through a filter is not a performance measure | reporting it inverted the closure axis: `open_3x3` survives best (35.1%) and is the worst closure to build on every performance measure |
