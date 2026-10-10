@@ -484,6 +484,42 @@ def main(argv=None) -> int:
 
     # ---- the run ------------------------------------------------------------------------
     fresh = not out_path.exists()
+    if not fresh:
+        # REFUSE rather than append a row the stored header cannot describe. The header
+        # is written once, when the file is created, which is what makes `--resume` work
+        # -- and it means a later run with a different FIELDS appends wide rows under a
+        # narrow header. That happened: FIELDS grew from 47 to 162 columns during one day
+        # while a resumable run was on disk, and 85,388 of 431,916 rows went in at the new
+        # width under the old header. Nothing was lost and `tools/split_mixed_schema.py`
+        # recovered both tables, but a reader using the stored header mapped the first 47
+        # values of a 162-field row onto the wrong names, so `skipped` came back holding
+        # True and False -- position 23 of the new order is `lower3_forced`, a boolean.
+        with out_path.open(encoding="utf-8", newline="") as probe:
+            stored = next(csv.reader(probe), [])
+        if tuple(stored) != tuple(FIELDS):
+            added = [c for c in FIELDS if c not in stored]
+            gone = [c for c in stored if c not in FIELDS]
+            print(
+                f"\n  {out_path.name} was written with a DIFFERENT column set: "
+                f"{len(stored)} columns on disk against {len(FIELDS)} now.\n"
+                "  Appending would put wide rows under a narrow header and misalign "
+                f"every name.\n"
+            )
+            if added:
+                print(
+                    f"  columns added since:   {', '.join(added[:8])}"
+                    f"{' ...' if len(added) > 8 else ''}"
+                )
+            if gone:
+                print(
+                    f"  columns removed since: {', '.join(gone[:8])}"
+                    f"{' ...' if len(gone) > 8 else ''}"
+                )
+            print(
+                f"  Either run under a new --out name, or split the file first:\n"
+                f"    uv run python tools/split_mixed_schema.py --out {args.out} --apply"
+            )
+            return 2
     handle = out_path.open("a", encoding="utf-8", newline="")
     writer = csv.DictWriter(handle, fieldnames=FIELDS, extrasaction="ignore")
     if fresh:
