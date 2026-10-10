@@ -50,6 +50,36 @@ Use the audit's ENG, PLAT, PD and GAP identifiers in commits and release evidenc
 Only Offer and Ziv merge approved changes into `main`. Deployment, package
 publication and ordering require their own explicit authorization.
 
+### Open · a message for whoever owns `gates/antisense.py` and `gates/euk_antisense.py`
+
+**Nothing in those two files was changed. This is a report, not a patch.**
+
+While moving the toehold family's span reduction into `gates/tools/folding.py`, we
+noticed that `antisense.py` carries its own `_mean_unpaired` — and that the two copies
+disagree about what to return for a span that falls outside the pair-probability matrix.
+The toehold copy returns `None`; the antisense copy clamps the span to the matrix and
+returns `0.0` for an empty one. `euk_antisense.py` imports the antisense copy.
+
+Why it may matter to you: both families pass that value straight to `predicted_leakage`,
+and both are `available = True`, so the value reaches `engine.scoring`. There,
+`normalize_value(0.0, predicted_leakage_spec)` is **1.0** — a perfect score — and
+`failed_filter({"predicted_leakage": 0.0}, DEFAULT_V1)` is `None`, so the 0.85 hard filter
+does not fire. `dynamic_range = on_accessibility / max(predicted_leakage, 1e-3)` turns the
+same value into a 1000× fold change. So a span that could not be measured would score as
+a flawless design that outranks every measured one, and nothing logs it.
+
+We have not checked whether that span can actually occur on your path, and we are not
+going to without being asked — that is your code and your call. If you want the shared
+definition, it is `mean_unpaired` in
+[`src/engine/gates/tools/folding.py`](../src/engine/gates/tools/folding.py), with the
+`None` contract that CLAUDE.md §3 requires; swapping to it would make `on_accessibility`
+and `predicted_leakage` `float | None` and the two `dynamic_range` lines would need to
+carry the `None` through rather than divide by it.
+
+Also worth knowing, since CLAUDE.md §7 says otherwise: `AntisenseNotGate` and
+`EukaryoticAntisenseNotGate` are both **`available = True`** today. Only `CrisprGate` is
+`False`. That table row has been corrected.
+
 ### Open · `FoldEngine.versions()` under-records what sets the numbers
 
 **For whoever owns [`src/engine/gates/tools/folding.py`](../src/engine/gates/tools/folding.py).**

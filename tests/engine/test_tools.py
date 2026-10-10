@@ -658,34 +658,31 @@ def test_mean_unpaired_matches_a_raw_pair_probability_sum():
 
 # --- One definition of the span reduction (S2) ----------------------------------------
 #
-# These lock in a promotion. `mean_unpaired` used to exist three times -- in
-# `gates/toehold.py`, in `gates/antisense.py` and by import in `gates/euk_antisense.py` --
-# and the copies had drifted apart on the unmeasurable-span case, which is the only case
-# where the answer matters. Measured on 4,000 random spans the two bodies disagreed on
-# 3,018 of them and the antisense copy raised `IndexError` on 24 more.
+# The reduction lives in `gates/tools/folding.py`, beside the adapter that produces the
+# matrix it reads, and `gates/toehold.py` keeps the private name as an alias. These tests
+# cover the toehold family only. Other gate families are not this branch's to change; where
+# one carries its own copy, that is recorded in `docs/ROADMAP.md` for its owner.
 
 
-def test_the_span_reduction_has_exactly_one_definition():
-    """Every module that reads a span off a pair-probability matrix reads the same function.
+def test_the_toehold_span_reduction_is_the_shared_one():
+    """The toehold family reads the tool's function, not a copy of its arithmetic.
 
-    Not "the same arithmetic" -- the same object. Two functions computing one measurement is
-    how `predicted_leakage` came to mean two different things depending on which family
-    produced it, and an equality check on a few sample inputs would not have caught the
-    difference, because the inputs where they differ are the ones nobody samples.
+    Not "the same arithmetic" -- the same object. An equality check on a few sample inputs
+    would not be enough, because two copies of a reduction differ precisely on the inputs
+    nobody thinks to sample.
     """
-    from engine.gates import antisense, toehold
+    from engine.gates import toehold
     from engine.gates.tools import folding
 
     assert toehold._mean_unpaired is folding.mean_unpaired
-    assert antisense._mean_unpaired is folding.mean_unpaired
 
 
 def test_an_unmeasurable_span_is_none_and_never_a_number():
     """A span outside the matrix is `None`, because every number here is a *good* score.
 
-    This is the specific failure the promotion removed. The antisense copy clamped the span
-    and returned `0.0`, and both antisense families feed that value straight into
-    `predicted_leakage`. The assertions below are what `0.0` would have meant.
+    The assertions below are why the contract has to be `None`. A 0.0 substituted for a
+    span that could not be measured is a perfect score that no hard filter stops, so it
+    would rank above every design that was measured honestly.
     """
     from engine.gates.tools.folding import mean_unpaired, unpaired_defect
     from engine.scoring.normalize import failed_filter, normalize_value

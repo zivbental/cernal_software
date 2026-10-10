@@ -31,7 +31,7 @@ from engine.domain import (
 from engine.gates.base import GateFamily
 from engine.gates.tools.binding import binding_energy_factor, hybridization_energy
 from engine.gates.tools.codons import CodonOptimizer
-from engine.gates.tools.folding import FoldEngine, mean_unpaired
+from engine.gates.tools.folding import FoldEngine
 
 
 class AntisenseNotGate(GateFamily):
@@ -368,16 +368,7 @@ class AntisenseNotGate(GateFamily):
         binding_dg = hybridization_energy(switch, trigger.sequence, self.folder)
         predicted_success_rate = binding_energy_factor(binding_dg)
 
-        # Both inputs are now ``float | None``: the shared reduction reports an
-        # unmeasurable span rather than substituting 0.0. A ratio of an unmeasured
-        # quantity is not a measurement, so it is ``None`` too -- and the previous
-        # `max(leakage, 1e-3)` floor would have turned a 0.0 sentinel into a dynamic
-        # range of 1000x, the best in any batch, on a design nobody had measured.
-        dynamic_range = (
-            None
-            if on_accessibility is None or predicted_leakage is None
-            else on_accessibility / max(predicted_leakage, 1e-3)
-        )
+        dynamic_range = on_accessibility / max(predicted_leakage, 1e-3)
 
         repressors = design.trigger_set.repressors
         return {
@@ -403,18 +394,21 @@ class AntisenseNotGate(GateFamily):
         return design.sequence
 
 
-#: The shared span reduction, re-exported under the private name this module and
-#: ``euk_antisense`` already import.
-#:
-#: This module used to carry its own copy, and the copy differed from
-#: ``gates/toehold.py``'s on the only case where the answer matters. It clamped a span to
-#: the matrix and returned ``0.0`` for an empty one, and both families feed the result
-#: straight into ``predicted_leakage`` -- a scored metric whose hard filter is 0.85 and
-#: for which ``normalize_value(0.0, spec)`` is a perfect **1.0** that passes. One span
-#: that could not be measured would therefore have produced a flawless, unfilterable
-#: design. The shared definition returns ``None`` instead, per CLAUDE.md section 3, and the
-#: call sites below carry the ``None`` through rather than substituting a number.
-_mean_unpaired = mean_unpaired
+def _mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float:
+    """Mean P(unpaired) over ``[start, end)`` from a ``base_pair_probabilities`` matrix.
+
+    P(unpaired) at position i is ``1 - sum(matrix[i])`` — matrix is already symmetric and
+    0-indexed (``FoldEngine.base_pair_probabilities``'s contract), so this sums a position's
+    pairing probability to *every* other position regardless of which strand it is on. For
+    a dimer matrix that is exactly what "residual leakage" needs: a loop position paired to
+    itself and one paired to the trigger both count as blocked.
+    """
+    n = len(matrix)
+    end = min(end, n)
+    if end <= start:
+        return 0.0
+    unpaired = [max(0.0, 1.0 - sum(matrix[i])) for i in range(start, end)]
+    return sum(unpaired) / len(unpaired)
 
 
 def _longest_open_run(
