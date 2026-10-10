@@ -772,3 +772,22 @@ by measurement — its PyPI classifiers stop at 3.12 (ADR 0008).
 - **Found new work?** Add it here, with an id, a size and what it blocks. Not in a
   separate document — that is how the previous fourteen planning files happened.
 - **Want to change a settled decision?** Write the ADR first.
+
+## Endogenous CRISPR research workbench
+
+An explicit-input research entry point now implements the endogenous CRISPR model:
+`engine.pipeline.run_crispr_workbench` and `tools/run_crispr.py`. It scans SpCas9 NGG
+spacers and trigger windows, exhaustively enumerates the agreed binary blocker
+choices, applies staged thermodynamic gates, computes one batch lambda, and ranks
+pair winners with the separate J/Phi objective. Normalized spacer/trigger scores
+are required upstream inputs and validated before candidate folding.
+
+The existing application pipeline remains unchanged. `CrisprGate.available` stays
+False until its explicit input contract is integrated. OFF is free guide; ON is
+conditional on a connected guide-trigger complex, without concentration mixing.
+Measurement failures block final ranking and remain distinct from threshold rejection.
+
+See [running the workbench](crispr-workbench.he.md) and
+[implementation and assumptions](crispr-implementation.he.md). Examples and the
+user-input template are under `examples/crispr/`; these are software checks,
+not evidence of biological function.

@@ -20,7 +20,6 @@ Folding, the open-run helper and the binding sigmoid are the prokaryotic
 gate's. This file does not call ViennaRNA itself.
 """
 
-import math
 from collections.abc import Iterator
 from typing import ClassVar
 
@@ -40,7 +39,7 @@ from engine.gates.antisense import (
     _mean_unpaired,
 )
 from engine.gates.base import GateFamily
-from engine.gates.tools.binding import hybridization_energy
+from engine.gates.tools.binding import binding_energy_factor, hybridization_energy
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 
@@ -69,7 +68,7 @@ class EukaryoticAntisenseNotGate(GateFamily):
     """
 
     name = "euk_antisense"
-    version = "0.1.0"
+    version = "0.1.1"
     kind = GateKind.EUK_ANTISENSE_NOT
     label = "Eukaryotic Antisense Repression"
     description = "Kozak NOT gate: trigger binds the 5' UTR and a short in-frame linker"
@@ -253,7 +252,7 @@ class EukaryoticAntisenseNotGate(GateFamily):
 
         gate_folding_energy = self.folder.mfe(switch).energy
         binding_dg = hybridization_energy(switch, trigger.sequence, self.folder)
-        predicted_success_rate = _binding_energy_factor(binding_dg)
+        predicted_success_rate = binding_energy_factor(binding_dg)
         dynamic_range = on_accessibility / max(predicted_leakage, 1e-3)
 
         return {
@@ -276,15 +275,6 @@ def _force_plus4_g(linker: str) -> str:
     if not linker:
         return linker
     return "G" + linker[1:]
-
-
-def _binding_energy_factor(binding_dg: float) -> float:
-    """The prokaryotic family's sigmoid, so both NOT gates share one success scale."""
-    reference = AntisenseNotGate._DG_REFERENCE_KCAL
-    steepness = AntisenseNotGate._DG_STEEPNESS
-    x = (binding_dg - reference) / steepness
-    x = max(-50.0, min(50.0, x))
-    return 1.0 / (1.0 + math.exp(x))
 
 
 def _mean_paired_to_partner(

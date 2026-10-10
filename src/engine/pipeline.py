@@ -1763,3 +1763,14 @@ def _write_artifacts(
         )
 
     return artifacts
+
+
+def run_crispr_workbench(config: dict, on_progress=None) -> dict:
+    """Composition entry point for the explicit-input CRISPR research workbench."""
+    from engine.gates.tools.folding import FoldEngine
+    from engine.stages.switches import run_endogenous_crispr
+
+    if not isinstance(config, dict):
+        raise ValueError("CRISPR input must be a JSON object")
+    folder = FoldEngine(temperature=config.get("temperature_c", 37.0), cache_size=4096)
+    return run_endogenous_crispr(config, folder, on_progress)

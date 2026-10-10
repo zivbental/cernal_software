@@ -37,14 +37,14 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 63 |
-| Public classes | 105 |
-| Public callables (excluding `__init__`) | 338 |
-| — `BUILT` | 323 |
-| — `STUB` | 7 |
+| Modules | 65 |
+| Public classes | 109 |
+| Public callables (excluding `__init__`) | 360 |
+| — `BUILT` | 347 |
+| — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
-| `__init__` constructors | 20 |
+| `__init__` constructors | 21 |
 
 ## Index
 
@@ -53,21 +53,23 @@ layers above it, never the ones below.
 
 | Layer | Module | S | Not `STUB` | `STUB` | Purpose |
 | --- | --- | --- | ---: | ---: | --- |
-| domain | `engine.domain` |  | 30 | 0 | The engine's scientific vocabulary. |
+| domain | `engine.domain` |  | 31 | 0 | The engine's scientific vocabulary. |
 | sequences | `engine.sequences` | S6 | 12 | 0 | S6 — sequence facts. Pure functions, no state, no dependencies. |
 | scoring | `engine.scoring` |  | 0 | 0 |  |
+| scoring | `engine.scoring.crispr` |  | 5 | 0 | The document's inner J and outer Phi, separate from DEFAULT_V1 ranking. |
 | scoring | `engine.scoring.normalize` |  | 5 | 0 | Turning heterogeneous raw metrics into comparable normalized values. |
 | scoring | `engine.scoring.profiles` |  | 8 | 0 | Versioned scoring profiles. |
 | gate_tools | `engine.gates.tools` |  | 0 | 0 | Scientific primitives shared across the gate families. |
 | gate_tools | `engine.gates.tools.ais_china` |  | 5 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 7 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 16 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 22 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
 | gates | `engine.gates.base` |  | 10 | 0 | The GateFamily interface. |
-| gates | `engine.gates.crispr` |  | 3 | 2 | CRISPR-derived sgRNA gate. |
+| gates | `engine.gates.crispr` |  | 8 | 0 | Research implementation of the endogenous iSBH-sgRNA construction. |
+| gates | `engine.gates.euk_antisense` |  | 5 | 0 | Eukaryotic antisense NOT gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
 | gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
@@ -104,7 +106,7 @@ layers above it, never the ones below.
 | stages | `engine.stages.plasmids` |  | 9 | 0 | Stage 5 — plasmid construction. |
 | stages | `engine.stages.quality` | S15 | 1 | 0 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 4 | 0 | Stage 6 — the compiler's output. |
-| stages | `engine.stages.switches` |  | 3 | 0 | Stage 3 — switch design and validation. |
+| stages | `engine.stages.switches` |  | 4 | 0 | Stage 3 — switch design and validation. |
 | stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
@@ -112,7 +114,7 @@ layers above it, never the ones below.
 | top | `engine.contract` |  | 4 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Shared differential-expression parsing for upload, preview and engine execution. |
-| top | `engine.pipeline` |  | 2 | 0 | The real scientific pipeline. |
+| top | `engine.pipeline` |  | 3 | 0 | The real scientific pipeline. |
 | top | `engine.safety` |  | 12 | 0 | Offline-first, fail-closed release control for output sequences. |
 | top | `engine.store` | S11, S13 | 5 | 0 | S11, S13 — provenance and pruning. |
 | top | `engine.transcriptome` |  | 5 | 0 | Pinned, offline reference sequences and identifier aliases for all four hosts. |
@@ -130,6 +132,8 @@ The engine's scientific vocabulary.
 | Constant | Type | Value |
 | --- | --- | --- |
 | `HOST_TRACKS` | `Mapping[Host, Track]` | `MappingProxyType({Host.ECOLI: Track.PROKARYOTIC, Host.YEAST: Track.EUKARYOTIC, Host.HUM…` |
+| `CRISPR_TRIGGER_TAIL_LENGTHS` |  | `(10, 15, 20)` |
+| `CRISPR_LOOP_LENGTHS` |  | `tuple(range(14, 33, 2))` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
@@ -168,6 +172,7 @@ The switch chemistries. One value per registered ``GateFamily``.
 | `TOEHOLD` |  | `'toehold'` |
 | `TOEHOLD_AND` |  | `'toehold_and'` |
 | `ANTISENSE_NOT` |  | `'antisense_not'` |
+| `EUK_ANTISENSE_NOT` |  | `'euk_antisense_not'` |
 | `CRISPR` |  | `'crispr'` |
 
 #### `class Regulation(StrEnum)`
@@ -692,6 +697,58 @@ What the quality check found before anything expensive runs.
 | `errors` | `tuple[str, ...]` | `()` |
 | `stats` | `dict` | `field(default_factory=dict)` |
 
+#### `class CrisprTemplate`
+
+`@dataclass(frozen=True, slots=True)`
+
+Length-only architecture; the trigger supplies BT, B target, E-prime and loop.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `loop_length` | `int` |  |
+| `extension_length` | `int` |  |
+| `trigger_tail_length` | `int` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@property def trigger_length(self) -> int` |  |
+
+#### `class CrisprObservables`
+
+`@dataclass(frozen=True, slots=True)`
+
+Structural observables for free-guide OFF and connected-guide-trigger ON.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `a_off` | `float` |  |
+| `a_on` | `float` |  |
+| `d_off` | `float` |  |
+| `d_on` | `float` |  |
+| `dg_bind` | `float` |  |
+
+#### `class CrisprObjective`
+
+`@dataclass(frozen=True, slots=True)`
+
+Parameters for the CRISPR objective and feasibility gates.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `tau_off` | `float` | `field(default=0.05, kw_only=True)` |
+| `tau_on` | `float` | `field(default=0.5, kw_only=True)` |
+| `epsilon` | `float` | `field(default=0.1, kw_only=True)` |
+| `w_on` | `float` |  |
+| `w_off` | `float` |  |
+| `w_energy` | `float` |  |
+| `w_accessibility` | `float` |  |
+| `scale_lambda` | `float \| None` | `field(default=None, kw_only=True)` |
+| `v_on` | `float` |  |
+| `v_off` | `float` |  |
+| `w_spacer` | `float` |  |
+| `w_trigger` | `float` |  |
+| `off_target_max` | `float` |  |
+
 ## Layer 2 · Sequences — S6, the most-reinvented module in the repo
 
 Pure functions over nucleotide strings: no state, no dependencies, all BUILT. If you are about to write a reverse-complement, a GC%, a codon split, a translation or a sliding window, it is already here. Note `gc_content` returns **percent (0-100)**, not a fraction.
@@ -734,6 +791,20 @@ The metric vocabulary lives in `DEFAULT_V1` and nowhere else. `GateFamily.evalua
 `src/engine/scoring/__init__.py`
 
 *Empty file — no docstring, no public symbols, no re-exports.*
+
+### `engine.scoring.crispr`
+
+`src/engine/scoring/crispr.py`
+
+The document's inner J and outer Phi, separate from DEFAULT_V1 ranking.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def validate_objective(p: CrisprObjective) -> None` |  |
+| `BUILT` | `def measurement_rejections(measured: dict[str, float], p: CrisprObjective) -> list[str]` | Validate available measurements and apply their existing hard gates. |
+| `BUILT` | `def inner_objective(o: CrisprObservables, p: CrisprObjective) -> dict` | Hard gates precede J. None serializes mathematical -infinity honestly. |
+| `BUILT` | `def outer_objective(j: float, eta_on: float, eta_off: float, q_trigger: float, p: CrisprObjective) -> dict` |  |
+| `BUILT` | `def calibrate_scale(observations: Iterable[CrisprObservables], w_on: float, w_off: float) -> float` | Compute mean \|JE\| / mean \|JA\| over one ranking batch, in bounded memory. |
 
 ### `engine.scoring.normalize`
 
@@ -1057,6 +1128,12 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 | `BUILT` | `def mfe_with_window_open(self, strands: str, window: tuple[int, int]) -> tuple[str, float]` | The most stable structure that leaves ``window`` single-stranded. |
 | `BUILT` | `def refolding_saddle(self, strands: str, start: str, target: str, *, width: int = 20) -> float \| None` | Highest energy on a direct refolding path from ``start`` to ``target``. |
 | `BUILT` | `def layout_coordinates(self, structure: str) -> list[tuple[float, float]]` | Where each nucleotide sits when a structure is drawn, one point per base. |
+| `BUILT` | `def constrained_free_energy(self, strands: str, constraint: str = '') -> float` | Partition free energy, using FcAB (connected states) for a heterodimer. |
+| `BUILT` | `def constraint_probability(self, strands: str, constraint: str) -> float` | Joint event Z_constrained / Z; never multiply marginal probabilities. |
+| `BUILT` | `def region_accessibility(self, strands: str, start: int, end: int) -> float` | Probability every nucleotide in [start, end) is simultaneously unpaired. |
+| `BUILT` | `def region_defect(self, strands: str, reference: str, start: int = 0) -> float` | Normalized expected incorrect bases in a region of the first strand. |
+| `BUILT` | `def binding_free_energy(self, strand_a: str, strand_b: str) -> float` | Standard binding free energy from connected AB and free A/B ensembles. |
+| `BUILT` | `def heterodimer_equilibrium(self, strand_a: str, strand_b: str, a_molar: float, b_molar: float) -> tuple[float, float]` | Return (binding free energy, fraction of A bound) for {A, B, AB}. |
 | `BUILT` | `def versions(self) -> dict[str, str]` | The tool versions this run was computed with. |
 
 ### `engine.gates.tools.translation` · S9
@@ -1162,31 +1239,76 @@ Base class for every switch chemistry.
 
 `src/engine/gates/crispr.py`
 
-CRISPR-derived sgRNA gate.
+Research implementation of the endogenous iSBH-sgRNA construction.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def scan_spacers(dna: str, window: tuple[int, int]) -> list[dict]` | SpCas9 NGG on both strands. Window bounds the whole protospacer, not PAM. |
 
 #### `class CrisprGate(GateFamily)`
-
-Transcriptional control via a trigger-gated guide RNA.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'crispr'` |
-| `version` |  | `'0.0.0-planned'` |
+| `version` |  | `'0.12.2-research'` |
+| `ensemble_model` |  | `'off-g-on-connected-gT-v1'` |
 | `kind` |  | `GateKind.CRISPR` |
 | `label` |  | `'CRISPR-Cas sgRNA Gate'` |
-| `description` |  | `'Transcriptional control · iSBH'` |
+| `description` |  | `'Endogenous iSBH research model; explicit target and scaffold required'` |
 | `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.YEAST, Host.HUMAN})` |
 | `max_inputs` |  | `1` |
 | `available` |  | `False` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine) -> None` |  |
-| `BUILT` | `def required_tools(self) -> list[ToolRequirement]` | External tools this family needs, checked before a run starts. |
-| `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | Can this family build anything for this trigger set on this host? |
-| `STUB` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Build a hairpin-blocked sgRNA the trigger unblocks. |
-| `STUB` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Measure a guide design, on the same metric names as every other family. |
-| `BUILT` | `def emit_sequence(self, design: GateDesign) -> str` | The synthesis-ready sequence. |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, *, spacer: str = '', scaffold: str = '', scaffold_reference: str = '', templates: tuple[CrisprTemplate, ...] = ()) -> None` |  |
+| `BUILT` | `def required_tools(self) -> list[ToolRequirement]` |  |
+| `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` |  |
+| `BUILT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` |  |
+| `BUILT` | `def observables(self, design: GateDesign) -> CrisprObservables` | Collect every measurement without applying feasibility thresholds. |
+| `BUILT` | `def measurement_stages(self, design: GateDesign) -> Iterator[dict[str, float]]` | Yield OFF accessibility, OFF defect, ON accessibility, then ON defect. |
+| `BUILT` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Only shared raw metrics. J and Phi are handled by engine.scoring.crispr. |
+| `BUILT` | `def emit_sequence(self, design: GateDesign) -> str` |  |
+
+### `engine.gates.euk_antisense`
+
+`src/engine/gates/euk_antisense.py`
+
+Eukaryotic antisense NOT gate.
+
+#### `class EukaryoticAntisenseNotGate(GateFamily)`
+
+Translational NOT gate for a scanning ribosome.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `name` |  | `'euk_antisense'` |
+| `version` |  | `'0.1.1'` |
+| `kind` |  | `GateKind.EUK_ANTISENSE_NOT` |
+| `label` |  | `'Eukaryotic Antisense Repression'` |
+| `description` |  | `"Kozak NOT gate: trigger binds the 5' UTR and a short in-frame linker"` |
+| `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.YEAST, Host.HUMAN})` |
+| `max_inputs` |  | `1` |
+| `available` |  | `True` |
+| `WINDOW_LENGTHS` | `ClassVar[tuple[int, ...]]` | `(30, 40, 50, 70)` |
+| `WINDOW_STEP` | `ClassVar[int]` | `AntisenseNotGate.WINDOW_STEP` |
+| `KOZAK` | `ClassVar[str]` | `AntisenseNotGate.KOZAK_EUKARYOTIC` |
+| `CDS_FOLD_NT` | `ClassVar[int]` | `60` |
+| `MIN_UTR_NT` | `ClassVar[int]` | `15` |
+| `MIN_LINKER_NT` | `ClassVar[int]` | `6` |
+| `MAX_LINKER_NT` | `ClassVar[int]` | `24` |
+| `LINKER_STEP` | `ClassVar[int]` | `3` |
+| `MAX_HOMOPOLYMER_A` | `ClassVar[int]` | `5` |
+| `MIN_TRIGGER_ACCESSIBILITY` | `ClassVar[float]` | `AntisenseNotGate.MIN_TRIGGER_ACCESSIBILITY` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, codons: CodonOptimizer, payload: str) -> None` |  |
+| `BUILT` | `def required_tools(self) -> list[ToolRequirement]` |  |
+| `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | One repressor, long enough for the shortest window, on a eukaryotic host. |
+| `BUILT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Yield one design per window and in-frame linker length. |
+| `BUILT` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Score Kozak openness and trigger binding with the shared ``FoldEngine``. |
+| `BUILT` | `def emit_sequence(self, design: GateDesign) -> str` |  |
 
 ### `engine.gates.registry`
 
@@ -2043,6 +2165,10 @@ Assembles every artefact a run produces, including the PDF.
 
 Stage 3 — switch design and validation.
 
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def run_endogenous_crispr(config: dict, folder: FoldEngine, on_progress = None) -> dict` | Run the explicit-input research workbench independently of the application pipeline. |
+
 #### `class SwitchDesigner`
 
 Dispatches trigger sets to the gate families that can realise them.
@@ -2401,6 +2527,7 @@ The real scientific pipeline.
 | --- | --- | --- |
 | `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
 | `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute a direct, differential-expression, or reference-gene job. |
+| `BUILT` | `def run_crispr_workbench(config: dict, on_progress = None) -> dict` | Composition entry point for the explicit-input CRISPR research workbench. |
 
 ### `engine.safety`
 
