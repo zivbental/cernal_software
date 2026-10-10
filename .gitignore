@@ -44,3 +44,4 @@ desktop.ini
 
 # Local agent checkouts are not project submodules.
 .claude/worktrees/
+frontend/test-results/

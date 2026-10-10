@@ -37,10 +37,15 @@ import sys
 from functools import lru_cache
 from itertools import permutations
 from pathlib import Path
+from types import SimpleNamespace
 
 import RNA
 
+from engine import sequences
 from engine.domain import FoldResult, StructureMatch
+from engine.errors import EngineError, StructureLayoutUnavailable
+from engine.gates.tools.rnaviz.layout import build_bases_and_links
+from engine.gates.tools.rnaviz.models import Base, Link
 
 # ViennaRNA's ``pf()`` returns a C ``float``, so every ensemble free energy this module
 # handles lands exactly on the single-precision grid — verified by round-tripping real
@@ -53,6 +58,9 @@ from engine.domain import FoldResult, StructureMatch
 # distinguish them, and no threshold should be set inside that band. Quoted as the
 # coarsest case so it is a bound rather than an estimate.
 _FLOAT32_ENERGY_ULP = 3.1e-05
+
+# Presentation limit only: bounds native layout work, never filters scientific designs.
+_MAX_STRUCTURE_LAYOUT_NT = 2_000
 
 
 class FoldEngine:
@@ -379,6 +387,35 @@ class FoldEngine:
         if depth:
             raise ValueError("Target structure has unbalanced parentheses.")
 
+    @staticmethod
+    def structure_layout(sequence: str, structure: str) -> tuple[list[Base], list[Link]]:
+        """Lay out an existing single-strand structure without folding or scoring it.
+
+        Coordinates reproduce cernal-rnaviz's default NAVIEW geometry. Selecting the
+        algorithm explicitly avoids reading or mutating ``RNA.cvar.rna_plot_type``.
+        The 2,000 nt cap is a viewer limit, not a scientific validity rule. No fold
+        compound, thermodynamic model, cache, file or network service is involved.
+        """
+        if not isinstance(sequence, str) or not isinstance(structure, str):
+            raise ValueError("Stored sequence and structure must be text.")
+        if sequence != sequence.upper() or not sequences.is_valid_rna(sequence):
+            raise ValueError("Stored sequence must contain only uppercase RNA bases A/C/G/U.")
+        FoldEngine.validate_target(sequence, structure)
+        if len(sequence) > _MAX_STRUCTURE_LAYOUT_NT:
+            raise StructureLayoutUnavailable(
+                f"Stored structure exceeds the {_MAX_STRUCTURE_LAYOUT_NT:,} nt viewer limit."
+            )
+
+        try:
+            coordinates = {
+                index: SimpleNamespace(X=x, Y=y)
+                for index, (x, y) in enumerate(FoldEngine.layout_coordinates(structure))
+            }
+            bases, links = build_bases_and_links(sequence, coordinates, RNA.ptable(structure))
+        except (RuntimeError, SystemError, ValueError, OverflowError) as exc:
+            raise EngineError("Stored structure layout could not be generated.") from exc
+        return bases, links
+
     def ensemble_defect(self, sequence: str, target: str) -> float:
         """How far the predicted ensemble sits from an intended structure.
 
@@ -690,7 +727,8 @@ class FoldEngine:
             return None
         return float(saddle) / 100.0
 
-    def layout_coordinates(self, structure: str) -> list[tuple[float, float]]:
+    @staticmethod
+    def layout_coordinates(structure: str) -> list[tuple[float, float]]:
         """Where each nucleotide sits when a structure is drawn, one point per base.
 
         ViennaRNA's naview layout — the same algorithm behind ``RNAplot`` and the familiar
@@ -710,9 +748,24 @@ class FoldEngine:
             * The underlying vector comes back one entry longer than the structure — the
               trailing point is padding, not a base — and is trimmed here so no caller
               rediscovers it as a stray point at the origin.
+            * A one-nucleotide NAVIEW layout is nonfinite in ViennaRNA 2.7.2; its sole
+              point is placed at the origin. All returned coordinates must be finite.
         """
-        points = RNA.naview_xy_coordinates(structure)
-        return [(points[i].X, points[i].Y) for i in range(len(structure))]
+        if not isinstance(structure, str):
+            raise ValueError("Stored structure must be text.")
+        FoldEngine.validate_target("A" * len(structure), structure)
+        if len(structure) == 1:
+            return [(0.0, 0.0)]
+        try:
+            points = RNA.naview_xy_coordinates(structure)
+            if not points or len(points) < len(structure):
+                raise EngineError("Stored structure layout returned incomplete coordinates.")
+            coordinates = [(points[i].X, points[i].Y) for i in range(len(structure))]
+        except (RuntimeError, SystemError, ValueError, OverflowError) as exc:
+            raise EngineError("Stored structure layout could not be generated.") from exc
+        if not all(math.isfinite(x) and math.isfinite(y) for x, y in coordinates):
+            raise EngineError("Stored structure layout returned nonfinite coordinates.")
+        return coordinates
 
     def versions(self) -> dict[str, str]:
         """The tool versions this run was computed with.

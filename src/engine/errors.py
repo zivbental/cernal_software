@@ -27,6 +27,10 @@ class ScoringProfileError(EngineError):
     """The requested scoring profile is unknown, or its metric set is inconsistent."""
 
 
+class StructureLayoutUnavailable(EngineError):
+    """A valid stored structure exceeds the interactive viewer's supported size."""
+
+
 class JobCancelled(EngineError):
     """Raised internally when a progress callback reports that the run should stop.
 
