@@ -5,20 +5,15 @@ and "two designs folded under different model settings produce free energies tha
 ``engine.scoring`` will normalise onto the same axis as though they were comparable".
 The AIS-China library (``vendor/ais-china-codon-optimization-v2``, used unmodified) does
 ``import RNA`` in ``codon_v2/rna.py`` and calls ``RNA.params_load(<their .par file>)``.
-That call is **process-global**: once it has run, *every* fold in the process — including
-every ``FoldEngine`` fold — uses their parameters, not ViennaRNA's built-in ones.
+That call changes global energy tables. CERNAL now snapshots its explicitly selected
+model independently, so external parameter loads cannot silently change its cached or
+uncached design folds. The deliberately altered-table control below verifies this.
 
-That is harmless today for exactly one reason: their ``config/rna_turner2004.par`` is
-numerically identical to ViennaRNA 2.7.2's built-in Turner 2004 defaults (all 8,059 lines;
-only the line endings differ), so loading it changes no number. Today's equivalence is a
-fact about *one version of one file*. A submodule bump can replace that file with Turner
-1999, Andronescu 2007, or a retuned set; nothing in the library would complain, nothing
-would log, and from then on the ``gate_folding_energy`` of every design in the run would be
-computed on a different energy axis than the one recorded in ``FoldEngine.versions()``.
-It would look like a plausible result. The AST-based house rule
-(``test_only_the_two_folding_adapters_import_a_folding_library``) cannot see this, because
-the submodule lives outside ``src/engine/``. This file is the machine check that stands
-in for it.
+Vendor equivalence remains worth checking: its diagnostic metrics use its own model.
+Its ``config/rna_turner2004.par`` is numerically identical to ViennaRNA 2.7.2's bundled
+Turner 2004 defaults (all 8,059 lines; only line endings differ). That is a fact about
+one version of one file. A vendor bump can change it without any import-layer rule
+noticing, because the third-party source lives outside ``src/engine/``.
 
 **If one of these tests fails after a bump, do not edit the test.** Either the bump
 changed the energy model — in which case it must not be merged as-is, because a second
@@ -211,14 +206,42 @@ def test_the_guard_has_teeth(pristine, parameter_file, tmp_path):
     Without this, the identical-fold assertions above could be passing for the wrong
     reason (an unused ``params_load``, a cache, an energy that does not depend on stacking).
     One CG/CG stacking term is weakened by 1 kcal/mol in a copy of their file; the same
-    comparison must now fail.
+    raw-library comparison must now fail, while CERNAL stays on its explicit model.
     """
     text = parameter_file.read_bytes().decode("ascii")
     assert "  -240  -330" in text, "their file no longer has the line this control edits"
     altered = tmp_path / "altered.par"
     altered.write_bytes(text.replace("  -240  -330", "  -140  -330", 1).encode("ascii"))
     assert RNA.params_load(str(altered))
-    assert _folds(REFERENCE_STRANDS) != pristine, (
-        "Weakening a stacking energy changed nothing, so the equivalence tests in this "
-        "file cannot detect a different energy model."
-    )
+    # The raw library changes, proving this is a real different energy axis. The
+    # shared adapter must now stay on its explicitly selected bundled model.
+    raw = [RNA.fold_compound(strand).mfe()[1] for strand in REFERENCE_STRANDS]
+    assert raw != [fold[1] for fold in pristine]
+    assert _folds(REFERENCE_STRANDS) == pristine
+
+
+def test_vendor_optimization_shares_the_folding_parameter_lock(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from engine.gates.tools import VIENNA_PARAMETER_LOCK
+
+    adapter = AisChinaCodons()
+
+    def attempt_lock():
+        acquired = VIENNA_PARAMETER_LOCK.acquire(blocking=False)
+        if acquired:
+            VIENNA_PARAMETER_LOCK.release()
+        return acquired
+
+    def check_vendor_call(*args, **kwargs):
+        # A second thread must fail immediately while the wrapper calls the vendor.
+        # No sleeps or scheduling assumptions: future.result waits for the attempt.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            assert pool.submit(attempt_lock).result() is False
+        raise RuntimeError("checked shared lock")
+
+    monkeypatch.setattr(adapter._pipeline, "optimize", check_vendor_call)
+    with pytest.raises(RuntimeError, match="checked shared lock"):
+        adapter.optimize("AUGGCUUAA", seed=7)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        assert pool.submit(attempt_lock).result() is True  # Error paths release the lock too.
