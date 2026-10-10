@@ -37,7 +37,30 @@ REM     `lower3_strong_before` the wobble lever reads as 17.7% against 16.4%, wh
 REM     of designs it never touched diluting the 56.7% it did.
 REM
 REM  ---------------------------------------------------------------------------------------
-REM  SIZING. The per-design cost is an ESTIMATE FROM COMPONENTS, not a measured rate: 0.25 s for
+REM  WHY THE CEILING IS 8.0 AND NOT 4.0. `open_11` is recorded for every design even when the
+REM  ceiling stops it, so the whole distribution is known: median 5.41, and 30.0% of designs sit
+REM  at or below 4.0 against 77.3% below 8.0. Two consequences.
+REM
+REM   * A threshold can only be swept DOWNWARD after the fact. At a ceiling of 4.0 nothing above
+REM     it was ever fully measured, so "what would a ceiling of 8 have given" is unanswerable --
+REM     and a sensitivity analysis is something the judging criteria ask for by name.
+REM   * It is also the one open scientific question. The closures that GATE best are the ones the
+REM     ceiling rejects: `closed_CAU` gates 34.1% of its survivors and survives only 7.5%, against
+REM     `open_3x3` at 12.6% and 35.1%. Whether 4.0 is the right line cannot be decided from data
+REM     in which everything above it is unmeasured.
+REM
+REM  Measured, not assumed: 0.861 s per design at ceiling 8.0 over 900 designs, against 0.957 s at
+REM  ceiling 4.0 over the 431,916-design run. So raising it is NOT the 2.58x the pass-rate ratio
+REM  suggests -- a design the ceiling stops still pays the expensive three-strand `open_11` fold
+REM  and the state-10 matrix, and only the three OFF tubes and the barrier are saved.
+REM
+REM  SIZING. The per-design cost above is measured on 900 designs across 2 trigger pairs, which is
+REM  a small sample of pairs; each shard prints its OWN rate every 100 rows and that is the one to
+REM  read. 70 pairs per gene pair = 210 pairs x 864 designs = 181,440 designs, about 8 hours on
+REM  six cores at 0.9 s. The old estimate-from-components line it replaces said 1.65 s and was
+REM  wrong by nearly half.
+REM
+REM  (superseded) The per-design cost was an ESTIMATE FROM COMPONENTS, not a measured rate: 0.25 s for
 REM  a design the ceiling stops, plus 0.86 s for the state-10 matrix it now always pays, plus
 REM  3.5 s for a fully measured one (whose state-10 matrix is already cached) -- about 1.65 s per
 REM  design at the measured 22.8% pass rate. Each shard prints its OWN rate every 100 rows; read
@@ -61,9 +84,10 @@ setlocal
 cd /d "%~dp0.."
 if not exist tools\logs mkdir tools\logs
 
-set OUT=axes_pfas
-set PAIRS=40
+set OUT=axes_c8
+set PAIRS=70
 set STRIDE=2
+set CEIL=8.0
 set EXTRA=
 
 if /i "%1"=="control" (
@@ -81,10 +105,10 @@ if /i "%1"=="smoke" (
   set EXTRA=--limit 60
 )
 
-echo Launching 6 shards:  out=%OUT%  pairs=%PAIRS% per gene pair  grid-stride=%STRIDE%  %EXTRA%
+echo Launching 6 shards:  out=%OUT%  pairs=%PAIRS% per gene pair  grid-stride=%STRIDE%  on-ceiling=%CEIL%  %EXTRA%
 echo.
 
-for %%i in (0 1 2 3 4 5) do start "axes %OUT% %%i" /high /min cmd /c "uv run python tools\characterise_axes.py --out %OUT% --shard %%i/6 --pairs %PAIRS% --grid-stride %STRIDE% %EXTRA% --resume > tools\logs\%OUT%_%%i.log 2>&1"
+for %%i in (0 1 2 3 4 5) do start "axes %OUT% %%i" /high /min cmd /c "uv run python tools\characterise_axes.py --out %OUT% --shard %%i/6 --pairs %PAIRS% --grid-stride %STRIDE% --on-ceiling %CEIL% %EXTRA% --resume > tools\logs\%OUT%_%%i.log 2>&1"
 
 echo Six windows started, minimised, at high priority.
 echo   logs      tools\logs\%OUT%_*.log
