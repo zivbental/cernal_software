@@ -50,6 +50,35 @@ Use the audit's ENG, PLAT, PD and GAP identifiers in commits and release evidenc
 Only Offer and Ziv merge approved changes into `main`. Deployment, package
 publication and ordering require their own explicit authorization.
 
+### Open · `FoldEngine.versions()` under-records what sets the numbers
+
+**For whoever owns [`src/engine/gates/tools/folding.py`](../src/engine/gates/tools/folding.py).**
+`versions()` is what a run writes into `JobResult` so the result stays interpretable
+after an upgrade, and its own docstring says to "include anything that changes the
+numbers, not only the library version." Read today it returns two things:
+
+```python
+{"ViennaRNA": RNA.__version__, "temperature_c": str(self.temperature)}
+```
+
+Four things that change every energy are not in there: the **energy-parameter set**
+(ViennaRNA 2.x's default is Turner 2004, and `rna_turner1999.par` ships with the
+library, so which one was loaded is a real question), and the model details carried on
+the `RNA.md()` — `dangles`, `special_hp`, `noLP` and `noGU`. All four are set
+deliberately in this codebase and all four are invisible in the recorded provenance.
+The failure mode is specific: a rerun on a future ViennaRNA whose defaults had moved
+would produce different numbers, and nothing in the stored output would show why.
+`noGU` matters most, because one of the toehold family's construction levers works
+entirely through G·U wobbles and would silently stop working.
+
+The fix is to read them back off the model-details object rather than restate them as
+literals — a value restated is a value that can drift from what was used. Nothing
+should be *changed* about how folding is configured; this is a provenance gap only.
+
+It was found while writing the iGEM model page, which states the settings in prose
+because the output does not carry them. It is **not** on the wiki page: the page
+documents the model, not our defect list.
+
 ---
 
 > **Historical planning archive (written before the 8 October 2026 audit).**
