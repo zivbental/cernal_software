@@ -12,7 +12,14 @@ from ninja.pagination import LimitOffsetPagination, paginate
 
 from api.auth import get_owned
 from api.errors import Conflict, NotFound, ValidationFailed
-from api.schemas import AnnotationIn, AnnotationOut, ArtifactOut, CandidateDetailOut, CandidateOut
+from api.schemas import (
+    AnnotationIn,
+    AnnotationOut,
+    ArtifactOut,
+    CandidateDetailOut,
+    CandidateOut,
+    CandidateStructureOut,
+)
 from api.security import require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun
@@ -25,6 +32,7 @@ from apps.results.models import (
     filter_by_category,
 )
 from apps.results.services import build_candidates_csv
+from engine.client import layout_stored_structure
 
 router = Router()
 
@@ -82,6 +90,20 @@ def list_candidates(
 @router.get("/candidates/{candidate_id}", response=CandidateDetailOut)
 def get_candidate(request, candidate_id: UUID):
     return get_owned(Candidate, candidate_id, request.user, select_related=("run",))
+
+
+@router.get("/candidates/{candidate_id}/structure", response=CandidateStructureOut)
+def get_candidate_structure(request, candidate_id: UUID):
+    """Draw the stored primary switch; this does not predict or recompute a fold."""
+    candidate = get_owned(Candidate, candidate_id, request.user, select_related=("run",))
+    design = candidate.design
+    if not isinstance(design, dict):
+        return layout_stored_structure(design, design)
+    return layout_stored_structure(
+        design.get("switch_sequence"),
+        design.get("structure"),
+        structure_kind=design.get("structure_kind"),
+    )
 
 
 @router.get("/runs/{run_id}/artifacts", response=list[ArtifactOut])

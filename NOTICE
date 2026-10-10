@@ -19,6 +19,17 @@ This product includes third-party software and design work that is licensed
 separately. See docs/attribution.md for the full list, the licenses that apply,
 and the disclosure of AI-assisted work required by iGEM.
 
+This product includes adapted drawing primitives from cernal-rnaviz.
+Copyright 2026 iGEM TAU 2026 Team, Tel Aviv University.
+Licensed under the Apache License, Version 2.0.
+Source: https://github.com/talberez/cernal-rnaviz
+Commit: aa112e17a76941233987bb4287c2c66511c40d13
+Locations: src/engine/gates/tools/rnaviz and frontend/src/vendor/cernal-rnaviz
+(each retains LICENSE, NOTICE and PROVENANCE.md).
+The Base/Link models, build_bases_and_links helper, and adapted single-strand
+drawing primitives are reused. Upstream folding and service code are not
+incorporated. Modified files identify the changes.
+
 Of particular note: the ViennaRNA Package, used by the scientific engine for RNA
 secondary-structure prediction, is NOT distributed under an OSI-approved license.
 It is a dependency installed by the user, not redistributed as part of CERNAL.

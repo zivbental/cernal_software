@@ -280,6 +280,19 @@ export interface CandidateDetail extends Candidate {
   metrics: Metric[];
 }
 
+/** Geometry for the saved switch structure. No folding or energies are computed. */
+export interface CandidateStructure {
+  status: "available" | "unavailable" | "invalid" | "error";
+  reason: string | null;
+  sequence: string;
+  structure: string;
+  structure_kind: string | null;
+  bases: Array<{ index: number; char: string; x: number; y: number }>;
+  links: Array<{ source: number; target: number }>;
+  renderer: string;
+  renderer_version: string;
+}
+
 /** Categories the download UI groups artifacts under (apps.results.models.ArtifactCategory). */
 export type ArtifactCategory =
   | "summary"

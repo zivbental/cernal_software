@@ -21,6 +21,7 @@ import {
   type Artifact,
   type Candidate,
   type CandidateDetail,
+  type CandidateStructure,
   type Dataset,
   type DatasetPreview,
   type DecisionTag,
@@ -51,6 +52,7 @@ export const keys = {
   runStatus: (id: string) => ["run", id, "status"] as const,
   candidates: (runId: string, params: string) => ["candidates", runId, params] as const,
   candidate: (id: string) => ["candidate", id] as const,
+  candidateStructure: (id: string) => ["candidate", id, "structure"] as const,
   artifacts: (runId: string) => ["artifacts", runId] as const,
   annotations: (candidateId: string) => ["annotations", candidateId] as const,
   apiKeys: ["api-keys"] as const,
@@ -319,6 +321,17 @@ export function useCandidate(id: string | null) {
     queryKey: keys.candidate(id ?? ""),
     queryFn: () => api.get<CandidateDetail>(`/candidates/${id}`),
     enabled: Boolean(id),
+  });
+}
+
+/** Loaded only while the structure view is mounted; cancelled on navigation. */
+export function useCandidateStructure(id: string) {
+  return useQuery({
+    queryKey: keys.candidateStructure(id),
+    queryFn: ({ signal }) => api.get<CandidateStructure>(`/candidates/${id}/structure`, signal),
+    enabled: Boolean(id),
+    staleTime: Infinity,
+    retry: false,
   });
 }
 

@@ -225,6 +225,16 @@ export function GuideContent() {
 
         <GuideSection id="interpret" title="5. Interpret results and downloads">
           <p>
+            Open a completed run, select a candidate, then choose <strong>RNA Structure</strong>
+            {" "}beside Plasmid Map and Logic Circuit. The cernal-rnaviz drawing shows the
+            saved switch structure; zoom, rotate, or select a nucleotide to inspect it.
+            Region labels appear only when the saved architecture matches the sequence.
+            An <strong>Intended target structure</strong> is the designed pairing pattern,
+            not a predicted OFF/ON fold or experimental validation. Missing structures
+            are shown as unavailable, and historical multi-gate candidates show only
+            their primary switch. Viewing a structure does not refold or modify the run.
+          </p>
+          <p>
             Scores are weighted rankings, not probabilities of experimental
             success. Missing metrics mean “not measured,” not zero. In Precision
             Filters, enable <strong>Show rejected candidates</strong> to see

@@ -383,6 +383,7 @@ purpose.
 |---|---|
 | `GET /api/runs/{id}/candidates` | Paginated |
 | `GET /api/candidates/{id}` | Full detail incl. metric decomposition |
+| `GET /api/candidates/{id}/structure` | Read-only layout of the stored primary switch |
 | `GET /api/runs/{id}/artifacts` | |
 | `GET /api/artifacts/{id}/download` | Authorized file serve, one artifact |
 | `GET /api/runs/{id}/artifacts/download` | Everything, one `?category=`, or a hand-picked `?ids=`, as one `.zip` |
@@ -409,6 +410,55 @@ convention.
 Returns `triggers`, `design` (sequences, structure, logic graph) and the full `metrics`
 list. Each metric carries `raw_value`, `normalized_value`, `weight` and `direction`: the
 researcher is shown the decomposition, never a single opaque score (design map 12).
+
+### Stored candidate structure
+
+`GET /api/candidates/{candidate_id}/structure` accepts the same session or read-scoped
+API-key authentication and ownership/staff permissions as candidate detail. Unauthenticated
+requests return `401`; missing candidates and other owners' candidates return `404`.
+
+The response has this shape (an abbreviated example):
+
+```json
+{
+  "status": "available",
+  "reason": null,
+  "sequence": "GGGAAACCC",
+  "structure": "(((...)))",
+  "structure_kind": "intended_target",
+  "bases": [{"index": 0, "char": "G", "x": 92.5, "y": 92.5}],
+  "links": [{"source": 0, "target": 8}],
+  "renderer": "cernal-rnaviz",
+  "renderer_version": "aa112e17a76941233987bb4287c2c66511c40d13"
+}
+```
+
+`bases` contains one node per nucleotide, with zero-based indexes and finite coordinates.
+`links` contains each stored base pair exactly once; adjacent backbone connections are
+implicit in sequence order. Geometry uses the licensed cernal-rnaviz conversion and
+explicit ViennaRNA NAVIEW layout, with `(0, 0)` for a single unpaired nucleotide.
+
+All successfully authorized reads return `200`, with one of these display states:
+
+- `available`: stored sequence and dot-bracket data can be drawn; `reason` is null.
+- `unavailable`: sequence/structure is missing or empty, or the structure exceeds the
+  **2,000 nucleotide viewer limit**. This is not a scientific rejection.
+- `invalid`: malformed stored data (non-text, non-uppercase RNA alphabet, mismatched
+  length, unsupported dot-bracket symbols, or unbalanced parentheses).
+- `error`: a known native/layout failure, with a safe display reason.
+
+All other states have a nonempty `reason` and empty `bases` and `links`. Existing text
+values are returned unchanged; missing/non-text sequence or structure fields return
+empty strings. `structure_kind` retains its stored string exactly, including unknown
+labels, or is null when no string provenance was recorded. Do not infer that an old
+candidate's structure is a predicted fold. `intended_target` denotes the designed
+target pairing, not a predicted or experimentally measured structure.
+
+The input is `design.switch_sequence` and `design.structure`, also for old candidates
+without renderer metadata or artifacts. For multi-gate candidates these fields represent
+the **primary switch**, not the whole circuit or concatenated component switches.
+The request performs no folding, energy/probability/scoring calculation, scientific
+recomputation, external sequence submission, or writes to candidate/run records.
 
 ### Artifacts
 

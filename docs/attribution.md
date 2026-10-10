@@ -140,6 +140,19 @@ This does not affect CERNAL's own license, but it constrains distribution:
 
 ## 4. Design assets
 
+The stored RNA structure viewer reuses the `Base`/`Link` models and
+`build_bases_and_links` conversion from **cernal-rnaviz**, copyright 2026 iGEM TAU
+2026 Team, Tel Aviv University, licensed under Apache-2.0. The source is pinned to
+[`aa112e17a76941233987bb4287c2c66511c40d13`](https://github.com/talberez/cernal-rnaviz/tree/aa112e17a76941233987bb4287c2c66511c40d13).
+The [backend provenance record](../src/engine/gates/tools/rnaviz/PROVENANCE.md) lists
+the exact subset and modifications. The React drawing also adapts the single-strand
+renderer, geometry helpers and palette, as described in the
+[frontend provenance record](../frontend/src/vendor/cernal-rnaviz/PROVENANCE.md).
+Both directories retain the upstream `LICENSE` and `NOTICE`.
+The viewer uses stored candidate data and computes drawing coordinates only, through
+the existing ViennaRNA adapter. It does not add a folding service or alter scientific
+results, scores, structures, or provenance labels.
+
 | Asset | Origin | License / permission |
 |---|---|---|
 | CERNAL logo (`frontend/src/assets/cernal-logo.png`, `cernal-logo-animated.svg`) | `TODO` — team-designed, or generated? | `TODO` |
