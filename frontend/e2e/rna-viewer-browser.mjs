@@ -448,7 +448,9 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       currentPhase = "include rejected candidates";
       await Promise.all([
         candidateResponse({ output: "Custom", sort: "engine_ref", include_rejected: "true" }),
-        page.getByLabel("Show rejected candidates", { exact: false }).check(),
+        // check() waits for the original checkbox after the loading remount removes it.
+        // Click once, then verify the persisted checked state after reopening below.
+        page.getByLabel("Show rejected candidates", { exact: false }).click(),
       ]);
       await expectDiagram(fixture.alternate, main[1].engine_ref);
       await openPrecisionFilters();
