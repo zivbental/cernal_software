@@ -724,6 +724,8 @@ class FoldEngine:
         force a specific pair, and . is unconstrained. Indices exclude '&'.
         A 999 FcAB means no connected ensemble; it is represented internally by
         +inf, never exposed as a successful measurement or an arbitrary score.
+        Impossible target pairs also give +inf (zero constrained partition).
+        Malformed constraints raise ValueError; they are not empty physical events.
         Numerical PF failures raise; callers distinguish errors from threshold rejections.
         """
         parts = strands.split("&")
@@ -734,16 +736,44 @@ class FoldEngine:
         n = sum(map(len, parts))
         if constraint and (len(constraint) != n or set(constraint) - set(".x()")):
             raise ValueError("Invalid constraint length or alphabet")
+        if constraint:
+            self.validate_target("".join(parts), constraint.replace("x", "."))
         fc = self._compound(strands)
         if constraint:
-            fc.hc_add_from_db(constraint, RNA.CONSTRAINT_DB_DEFAULT | RNA.CONSTRAINT_DB_ENFORCE_BP)
+            # ENFORCE_BP can introduce noncanonical pairs or silently drop pairs
+            # with too short a hairpin. Neither is a subset of the original ensemble.
+            # Check against this compound's model before calling the native parser.
+            model = fc.params.model_details
+            encoded = fc.sequence_encoding
+            cut = len(parts[0])
+            stack = []
+            for j, char in enumerate(constraint):
+                if char == "(":
+                    stack.append(j)
+                elif char == ")":
+                    i = stack.pop()
+                    same_strand = (i < cut) == (j < cut)
+                    pair_type = model.pair[encoded[i + 1]][encoded[j + 1]]
+                    if (
+                        not pair_type
+                        or (model.noGU and pair_type in (3, 4))
+                        or (same_strand and j - i <= model.min_loop_size)
+                        or (model.max_bp_span > 0 and j - i > model.max_bp_span)
+                    ):
+                        return math.inf  # A validly specified, empty event.
+            if not fc.hc_add_from_db(
+                constraint, RNA.CONSTRAINT_DB_DEFAULT | RNA.CONSTRAINT_DB_ENFORCE_BP
+            ):
+                raise ArithmeticError("Native constraint parser failed")
         if len(parts) == 2:
             # Python 2.7 bindings: structure, FA, FB, FcAB, FAB.
-            _, fa, fb, energy, fab = fc.pf_dimer()
-            if not all(math.isfinite(v) and abs(v) < 1e4 for v in (fa, fb, fab)):
-                raise ArithmeticError("Dimer partition calculation failed")
+            # A forced interstrand pair makes isolated FA/FB infinite by design.
+            # Only the connected ensemble and its containing total are relevant here.
+            _, _, _, energy, fab = fc.pf_dimer()
             if energy == 999.0:
                 return math.inf
+            if not math.isfinite(fab) or abs(fab) >= 1e4:
+                raise ArithmeticError("Dimer partition calculation failed")
         else:
             _, energy = fc.pf()
         if not math.isfinite(energy) or abs(energy) >= 1e4:

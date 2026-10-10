@@ -63,7 +63,7 @@ def scan_spacers(dna: str, window: tuple[int, int]) -> list[dict]:
 
 class CrisprGate(GateFamily):
     name = "crispr"
-    version = "0.12.1-research"
+    version = "0.12.2-research"
     ensemble_model = "off-g-on-connected-gT-v1"
     kind = GateKind.CRISPR
     label = "CRISPR-Cas sgRNA Gate"

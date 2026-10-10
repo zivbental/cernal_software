@@ -94,3 +94,12 @@ the supplied activation window. The PAM itself must be in the supplied DNA but
 need not be inside the protospacer window. Cas type and targeting window are not inferred.
 
 Input preflight (0.12.1) validates JSON shapes, sequence alphabets, coordinates, scaffold/reference consistency, complete template geometry, finite numerical parameters and score coverage. Every supplied eta_on/eta_off/q_trigger must be a numeric value in [0,1]; booleans, strings, null, NaN and infinity are rejected. Every scanned spacer and trigger window that enters a pair must have scores under its coordinate-based identifier. Missing scores raise a contextual error before any candidate folding. No upstream score is replaced or inferred.
+
+
+PR #65 correction (0.12.2): constrained partitions reject impossible pairs from the
+active folding model as empty events (probability zero). This includes short
+intramolecular spans and noncanonical pairs. A forced interstrand pair may have
+empty isolated-monomer ensembles while its connected ensemble remains valid;
+FA/FB are therefore not used to reject that connected measurement. The objective
+and the conditional ON definition are unchanged. See
+`docs/crispr-pr65-review-fixes.md` for review coverage and remaining decisions.

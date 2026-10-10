@@ -1250,7 +1250,7 @@ Research implementation of the endogenous iSBH-sgRNA construction.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'crispr'` |
-| `version` |  | `'0.12.1-research'` |
+| `version` |  | `'0.12.2-research'` |
 | `ensemble_model` |  | `'off-g-on-connected-gT-v1'` |
 | `kind` |  | `GateKind.CRISPR` |
 | `label` |  | `'CRISPR-Cas sgRNA Gate'` |
@@ -1283,7 +1283,7 @@ Translational NOT gate for a scanning ribosome.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'euk_antisense'` |
-| `version` |  | `'0.1.0'` |
+| `version` |  | `'0.1.1'` |
 | `kind` |  | `GateKind.EUK_ANTISENSE_NOT` |
 | `label` |  | `'Eukaryotic Antisense Repression'` |
 | `description` |  | `"Kozak NOT gate: trigger binds the 5' UTR and a short in-frame linker"` |

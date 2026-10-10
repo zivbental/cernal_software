@@ -8,6 +8,8 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from unittest.mock import patch
 
+import RNA
+
 from engine import sequences as sq
 from engine.domain import (
     Constraints,
@@ -174,6 +176,63 @@ class FoldingTests(unittest.TestCase):
         expected_correct += sum(1 - sum(bpp[i]) for i in (3, 4, 5))
         self.assertAlmostEqual(
             self.f.region_defect(seq, "(((...)))"), 1 - expected_correct / 9, places=5
+        )
+
+    def test_impossible_pairs_have_zero_probability_and_correct_defect(self):
+        for seq, reference, expected in (
+            ("GC", "()", 1.0),
+            ("GCAAAA", "()....", 2 / 6),
+            ("AAAAA", "(...)", 2 / 5),
+        ):
+            with self.subTest(seq=seq):
+                self.assertEqual(self.f.constraint_probability(seq, reference), 0.0)
+                self.assertAlmostEqual(self.f.region_defect(seq, reference), expected)
+                self.assertAlmostEqual(
+                    self.f.region_defect(seq, reference),
+                    self.f.ensemble_defect(seq, reference) / len(seq),
+                )
+        # Same-strand short pairs stay impossible within a connected dimer.
+        self.assertEqual(self.f.constraint_probability("GC&GC", "().."), 0.0)
+        self.assertEqual(self.f.region_defect("GC&GC", "()"), 1.0)
+
+    def test_forced_interstrand_pair_uses_connected_not_monomer_partition(self):
+        self.assertAlmostEqual(
+            self.f.constraint_probability("GGGG&CCCC", "(......)"), 0.854777, places=6
+        )
+        # Interstrand pairs have no minimum hairpin span, including across the cut.
+        self.assertGreater(self.f.constraint_probability("GGGG&CCCC", "...()..."), 0)
+        self.assertEqual(self.f.constraint_probability("G&C", "()"), 1.0)
+
+    def test_constraint_pairs_respect_active_model_settings(self):
+        for settings, sequence in (
+            ({"min_loop_size": 5}, "GAAAC"),
+            ({"max_bp_span": 3}, "GAAAC"),
+            ({"noGU": 1}, "GAAAU"),
+        ):
+            with self.subTest(settings=settings):
+                model = RNA.md()
+                for name, value in settings.items():
+                    setattr(model, name, value)
+                folder = FoldEngine()
+                with patch.object(
+                    folder, "_compound", lambda s, model=model: RNA.fold_compound(s, model)
+                ):
+                    self.assertEqual(folder.constraint_probability(sequence, "(...)"), 0.0)
+        # Wobble is valid in the default model and must not be universally rejected.
+        self.assertGreater(self.f.constraint_probability("GAAAU", "(...)"), 0.0)
+
+    def test_constraint_balance_rejected_before_native_parser(self):
+        for constraint in ("(...(", ")...(", "....)"):
+            with self.subTest(constraint=constraint), self.assertRaises(ValueError):
+                self.f.constraint_probability("GAAAC", constraint)
+
+    def test_supplied_scaffold_defect_still_matches_native_ensemble(self):
+        c = config()
+        seq, reference = sq.to_rna(c["scaffold"]), c["scaffold_reference"]
+        self.assertAlmostEqual(
+            self.f.region_defect(seq, reference),
+            self.f.ensemble_defect(seq, reference) / len(seq),
+            delta=2e-6,
         )
 
     def test_region_defect_at_nonzero_offset_matches_pair_probabilities(self):
@@ -596,6 +655,22 @@ class WorkbenchTests(unittest.TestCase):
             for name, value in early["observables"].items():
                 if value is not None:
                     self.assertEqual(value, complete["observables"][name])
+
+    def test_impossible_scaffold_never_yields_recommendations_with_real_folding(self):
+        c = config()
+        c.update(scaffold="GC", scaffold_reference="()")
+        self.measure.side_effect = self.real_measurement_stages
+        result = run_crispr_workbench(c)
+        self.assertEqual(result["status"], "no_feasible_candidates")
+        self.assertEqual(result["top_candidates"], [])
+        self.assertEqual(result["summary"]["evaluated_guides"], 480)
+        self.assertEqual(result["summary"]["measurement_failed_guides"], 0)
+        self.assertEqual(result["summary"]["inner_feasible_guides"], 0)
+        measured = [d for d in result["guide_audit"] if d["observables"]["d_off"] is not None]
+        self.assertTrue(measured)
+        for design in measured:
+            self.assertEqual(design["observables"]["d_off"], 1.0)
+            self.assertIn("d_off >= epsilon", design["rejections"])
 
     def test_global_batch_scale_precedes_winners_and_excludes_rejected_guides(self):
         from itertools import islice
