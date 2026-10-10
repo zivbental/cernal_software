@@ -3114,6 +3114,41 @@ class ToeholdAndGate(ToeholdGate):
                     trigger_set, role_a, role_b, trigger_a, trigger_b, len_x, constraints
                 )
 
+    #: Cycle 2's chosen closure set: the **energetic centre of each d**, plus Green's choice
+    #: where no centre exists, plus the control. One rule and one stated exception.
+    #:
+    #: ``d`` counts how many of the three bulge positions pair with the start codon facing them
+    #: across the helix, in the real antiparallel register -- bulge position ``i`` faces ``AUG``
+    #: position ``2 - i``, so the bulge sees ``GUA``. The centre of a class is the option whose
+    #: ``fixed_alignment_energy`` against the AUG is nearest the class mean::
+    #:
+    #:     d = 3   CGU  +1.80   class mean 2.07   {CAU 1.40, CGU 1.80, UAU 3.00}
+    #:     d = 2   AGU  +3.20   class mean 3.63   {CGC 2.60, AAU 2.90, AGU 3.20, CCU 5.80}
+    #:     d = 1   AAC  +3.40   class mean 3.48   {AAA 3.20, CCC 3.30, AAC 3.40, AGC 4.00}
+    #:     d = 0   ---   none: every option is exactly 0.00, because with no pair there is no
+    #:                   energy to be in the middle of
+    #:
+    #: **``AUG`` fills d = 0 on external evidence instead.** It is the most common bulge in
+    #: Green's measured library -- 62.5% of the 176 located structurally in his Table S1, median
+    #: ON/OFF 86.5 on n = 102 -- and it was never one of our sixteen. Its rivals there are not
+    #: distinguishable from it (``AUA`` p = 0.91, ``GUG`` p = 0.33) or have single-digit n, so it
+    #: is the only d = 0 choice that is not a sample of one.
+    #:
+    #: **Why not our own gating rates.** ``closed_CAU`` looked like the best closure anywhere:
+    #: 34.1% gating against ``trigger_derived``'s 12.6%. Head to head inside its own class,
+    #: PAIRED within a cell so the trigger pair, the stem and every other axis are held fixed, it
+    #: is **2 cells to 2 against CGU (p = 1.0)** and 3 to 3 against UAU. The 34.1% was an
+    #: unconditional rate across different trigger pairs. Under the paired test the d = 3 and
+    #: d = 2 classes are flat, and in d = 1 and d = 0 what is distinguishable is which option is
+    #: WORSE -- ``AGC`` loses 14-43 and ``GCC`` loses 4-28 -- not which is best.
+    CLOSURES_CHOSEN: ClassVar[tuple[tuple[str, str | None], ...]] = (
+        ("trigger_derived", None),
+        ("green_AUG", "AUG"),
+        ("centre_d1_AAC", "AAC"),
+        ("centre_d2_AGU", "AGU"),
+        ("centre_d3_CGU", "CGU"),
+    )
+
     #: Levels for the AUG bulge's closure, patched into ``bulge_star``. All sixteen, because
     #: the (depth, G+C) grid is the axis and leaving cells out makes the sweep uneven.
     #:
@@ -3186,9 +3221,17 @@ class ToeholdAndGate(ToeholdGate):
         cap = self.SECONDARY_CAP or "none"
         return f"arm{self.SECONDARY_ARM_LEN}/inv{self.SECONDARY_INVASION_LEN}/cap{cap}"
 
-    def _axis_grid(self):
-        """Every (closure, upper3, lower3) point. A generator, so nothing is held at once."""
-        for closure in self.CLOSURES:
+    def _axis_grid(self, closure_set: str = "full"):
+        """Every (closure, upper3, lower3) point. A generator, so nothing is held at once.
+
+        ``closure_set`` selects which closure axis to walk: ``"full"`` is all sixteen and is
+        what cycle 1's 431,916 designs were built on, ``"chosen"`` is the five of
+        ``CLOSURES_CHOSEN``. Both are kept because the argument for the chosen set is a
+        comparison against the full one, and replacing the axis outright would make cycle 1
+        unreproducible.
+        """
+        closures = self.CLOSURES_CHOSEN if closure_set == "chosen" else self.CLOSURES
+        for closure in closures:
             for upper3 in self.UPPER3:
                 for lower3 in self.LOWER3:
                     yield closure, upper3, lower3
@@ -3557,7 +3600,7 @@ class ToeholdAndGate(ToeholdGate):
             if stem.scheme not in ("B-anchored", "mixed"):
                 continue
             base = self.assemble(trigger_a, trigger_b, len_x, stem)
-            for closure, upper3, lower3 in self._axis_grid():
+            for closure, upper3, lower3 in self._axis_grid(constraints.closure_set):
                 built = self._apply_axes(base, closure, upper3, lower3)
                 if built is None:
                     continue

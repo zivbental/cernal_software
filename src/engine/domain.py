@@ -560,6 +560,16 @@ class Constraints:
     max_base_expression: float | None = None
     trigger_gc_range: tuple[float, float] = (30.0, 70.0)
     stems_per_pair: int = 2
+    #: Which closure axis ``ToeholdAndGate`` walks. ``"full"`` is all sixteen levels, which
+    #: cycle 1's 431,916 designs were built on; ``"chosen"`` is the five of
+    #: ``CLOSURES_CHOSEN`` -- the energetic centre of each d, with Green's ``AUG`` filling
+    #: d = 0 where no centre exists because every option there is exactly 0.00.
+    #:
+    #: Declared rather than hardcoded for the same reason ``stem_order`` is: it changes WHICH
+    #: designs exist for a trigger pair, so two runs under different settings hold
+    #: incomparable candidate pools and the row has to say which it was.
+    closure_set: str = "full"
+
     stem_order: str = "lock"
     overlap_range: tuple[int, int] = (4, 18)
     direction_balance: bool = True

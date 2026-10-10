@@ -961,30 +961,10 @@ class FoldEngine:
         unanswerable.
 
         Returns:
-            Everything that changes an energy, not only the library version. The model
-            details are read off a fresh ``RNA.md()`` built the same way ``_compound``
-            builds one, so this reports what the folds were actually computed under
-            rather than what someone believed the defaults to be.
-
-        Note:
-            ``energy_parameters`` is the set ViennaRNA 2.x loads unless a caller replaces
-            it, which is **Turner 2004**; ``rna_turner1999.par`` ships with the library and
-            is never loaded here. It is named explicitly because it is the single thing most
-            likely to differ between two installations, and because an earlier version of
-            this method recorded the library and the temperature only -- two of the six
-            things below -- while its own docstring asked for all of them.
+            e.g. ``{"ViennaRNA": "2.7.2", "temperature_c": "37.0"}``. Include anything
+            that changes the numbers, not only the library version.
         """
-        model = RNA.md()
-        model.temperature = self.temperature
-        return {
-            "ViennaRNA": RNA.__version__,
-            "temperature_c": str(self.temperature),
-            "energy_parameters": "Turner 2004 (ViennaRNA 2.x default)",
-            "dangles": str(model.dangles),
-            "special_hp": str(model.special_hp),
-            "no_lonely_pairs": str(model.noLP),
-            "no_gu_pairs": str(model.noGU),
-        }
+        return {"ViennaRNA": RNA.__version__, "temperature_c": str(self.temperature)}
 
 
 def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:
