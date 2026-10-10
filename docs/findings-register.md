@@ -150,6 +150,9 @@ compared, because the ones it never touched are the control by construction and 
 | VISTA's Table 6 is not reproducible | use their Tables 4/5 as data, never Table 6 as a target |
 | Green's correlation with our arms is real but modest | ρ ≈ +0.3 for IED and A_M; f5 +0.366, f2 +0.306, f4 +0.213, Barrier +0.179, f1 **−0.107** |
 | The bundled transcripts are **CDS only** | no UTRs, no operon context, so accessibility is folded on an incomplete molecule |
+| The closure's alignment energy does not order performance | `AGU` vs `AAC`, **0.20 kcal/mol** apart, is the more consistent paired comparison (`A_M_ratio` 74.5%–2.7%, `ied_gain` 80.4%–19.6%, p = 0.0009) than `CAU` vs `CCU`, **4.40** apart, which splits 47.8%–52.2% on `ied_gain` (p = 0.82). The classes overlap in energy — `UAU` is d = 3 at 3.00, above `CGC` at d = 2 and 2.60 — Spearman d↔energy −0.705. So the chosen set's rule is **one representative per d**, with the energetic centre as a declared tie-break inside the class |
+| Two near-identical energies can be opposite sides of one trade | `AGU` beats `AAC` on every OFF-state measure and **loses the ON state**: `A_M_11` worse in 74.9% of matched designs, median −0.0508. Dropping either one removes a real point of the ON/OFF trade, not a duplicate |
+| Six concurrent shards run 2–3× slower per design than one | the probe measured 0.861 s single-process; the six-way run measured 1.611–2.385 s, so an 8-hour projection became 9–18. Time the run in its real concurrency, never in a single process |
 
 ## Method notes that cost time to learn
 

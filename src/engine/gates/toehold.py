@@ -3114,13 +3114,14 @@ class ToeholdAndGate(ToeholdGate):
                     trigger_set, role_a, role_b, trigger_a, trigger_b, len_x, constraints
                 )
 
-    #: Cycle 2's chosen closure set: the **energetic centre of each d**, plus Green's choice
-    #: where no centre exists, plus the control. One rule and one stated exception.
+    #: Cycle 2's chosen closure set: **one representative per d**, plus the control. The
+    #: energetic centre of the class is the declared TIE-BREAK inside a d, not the reason for
+    #: the choice -- see "why d and not energy" below, which is measured.
     #:
     #: ``d`` counts how many of the three bulge positions pair with the start codon facing them
     #: across the helix, in the real antiparallel register -- bulge position ``i`` faces ``AUG``
-    #: position ``2 - i``, so the bulge sees ``GUA``. The centre of a class is the option whose
-    #: ``fixed_alignment_energy`` against the AUG is nearest the class mean::
+    #: position ``2 - i``, so the bulge sees ``GUA``. Within a class the representative is the
+    #: option whose ``fixed_alignment_energy`` against the AUG is nearest the class mean::
     #:
     #:     d = 3   CGU  +1.80   class mean 2.07   {CAU 1.40, CGU 1.80, UAU 3.00}
     #:     d = 2   AGU  +3.20   class mean 3.63   {CGC 2.60, AAU 2.90, AGU 3.20, CCU 5.80}
@@ -3133,6 +3134,23 @@ class ToeholdAndGate(ToeholdGate):
     #: ON/OFF 86.5 on n = 102 -- and it was never one of our sixteen. Its rivals there are not
     #: distinguishable from it (``AUA`` p = 0.91, ``GUG`` p = 0.33) or have single-digit n, so it
     #: is the only d = 0 choice that is not a sample of one.
+    #:
+    #: **Why d and not energy, measured.** The set's three real rungs are 1.80, 3.20 and 3.40 --
+    #: ``AUG``'s 0.00 is a sentinel, since ``fixed_alignment_energy`` returns 0.0 by contract
+    #: when no pair is possible -- so two of them sit 0.20 kcal/mol apart, well inside
+    #: ViennaRNA's own error. That looks like a redundant pair until the energies are tested
+    #: against performance, and then it is the energy axis that fails. Paired inside a cell on
+    #: 25,607 measured designs, ``AGU`` against ``AAC`` (0.20 apart) is the MORE consistent
+    #: comparison: ``A_M_ratio`` 74.5% to 2.7%, ``ied_gain`` 80.4% to 19.6% (p = 0.0009). The
+    #: far pair ``CAU`` against ``CCU`` (4.40 apart) splits 47.8% to 52.2% on ``ied_gain``
+    #: (p = 0.82) -- a coin flip. The classes themselves overlap in energy (``UAU`` is d = 3 at
+    #: 3.00, above ``CGC`` at d = 2 and 2.60; ``CCU`` is d = 2 at 5.80, the extreme of the set),
+    #: Spearman d against energy -0.705. And the two near-identical energies are not redundant
+    #: designs: ``AGU`` wins every OFF-state measure and LOSES the ON state, ``A_M_11`` worse in
+    #: 74.9% of matched designs, median -0.0508 -- they sit on opposite sides of one trade.
+    #: Effect size stated honestly: the median paired difference is exactly 0.0000 on
+    #: ``separation`` and ``A_M_ratio``, so most designs are unaffected and the whole difference
+    #: is in the tail (4 of 255 at +6.4 separation), on n = 255 across 28 cells.
     #:
     #: **Why not our own gating rates.** ``closed_CAU`` looked like the best closure anywhere:
     #: 34.1% gating against ``trigger_derived``'s 12.6%. Head to head inside its own class,
