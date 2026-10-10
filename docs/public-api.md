@@ -458,6 +458,8 @@ Content-Type: application/json
 **`resolved` is not decoration.** It echoes every default the server chose, so a run is
 reproducible from its response alone and a caller can diff two runs' configurations
 without reading this document. It is the API-level equivalent of `params_snapshot`.
+This includes `resolved.folding`, containing all effective thermodynamic settings for
+new runs. Older runs that did not record those settings return an empty object.
 
 ### What the endpoint does
 
@@ -547,6 +549,17 @@ POST /api/design
     "standard":          "RFC10"       // RFC10 | RFC1000 → which sites are banned
   },
 
+  // ─── thermodynamic model — shared across every folding calculation ──────
+  "folding": {
+    "temperature_celsius": 37.0,
+    "dangles": 2,
+    "special_hairpins": true,
+    "no_lonely_pairs": false,
+    "no_gu": false,
+    "no_gu_closure": false,
+    "energy_parameters": "turner2004"
+  },
+
   // ─── how candidates are compared (§9.1) ─────────────────────────────────
   "scoring": {
     "base": "default",
@@ -573,6 +586,19 @@ POST /api/design
   "notes": "sweep 3 of 5"
 }
 ```
+
+`folding` is optional. Its default values are shown above and are frozen into the run's
+parameter snapshot. To model a 25 °C experiment with Turner 1999 parameters, pass
+`"folding": {"temperature_celsius": 25, "energy_parameters": "turner1999"}`; every
+other setting retains its default. `POST /api/runs` accepts this under `params.folding`.
+
+Temperature must be a finite number from 0 through 100 °C; dangles must be the integer
+`0` or `2`, because partition-function calculations do not consistently support `1`
+and `3`. The four switches must be JSON booleans. Supported energy parameter sets are
+`turner2004`, `turner1999` and `andronescu2007`; arbitrary parameter files are not
+accepted. Unknown keys, string-encoded numbers and malformed values return 422 before
+submission, including when `strict=false` or `dry_run=true`. See the
+[folding model reference](api.md#folding-model) for each setting's meaning.
 
 ### 9.1 Custom scoring — the standout feature, and the one with a trap
 

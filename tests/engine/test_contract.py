@@ -123,3 +123,77 @@ def test_capabilities_advertise_the_scoring_vocabulary():
         "predicted_leakage",
         "state_separation",
     }
+
+
+@pytest.mark.parametrize("params", [{}, {"folding": {}}])
+def test_job_configuration_snapshots_all_folding_defaults(params):
+    from engine.client import validate_job_configuration
+
+    normalized = validate_job_configuration(params, ["toehold"], "default", "direct", "ACGU")
+    assert normalized["folding"] == {
+        "temperature_celsius": 37.0,
+        "dangles": 2,
+        "special_hairpins": True,
+        "no_lonely_pairs": False,
+        "no_gu": False,
+        "no_gu_closure": False,
+        "energy_parameters": "turner2004",
+    }
+    assert params in ({}, {"folding": {}})
+
+
+@pytest.mark.parametrize("temperature", [0, 25.5, 100])
+@pytest.mark.parametrize("energy_parameters", ["turner2004", "turner1999", "andronescu2007"])
+def test_job_configuration_preserves_custom_folding_settings(temperature, energy_parameters):
+    from engine.client import validate_job_configuration
+
+    folding = {
+        "temperature_celsius": temperature,
+        "dangles": 0,
+        "special_hairpins": False,
+        "no_lonely_pairs": True,
+        "no_gu": True,
+        "no_gu_closure": True,
+        "energy_parameters": energy_parameters,
+    }
+    params = {"folding": folding}
+    normalized = validate_job_configuration(params, ["toehold"], "default", "direct", "ACGU")
+    assert normalized["folding"] == folding
+    normalized["folding"]["dangles"] = 2
+    assert params["folding"]["dangles"] == 0
+
+
+@pytest.mark.parametrize(
+    "folding",
+    [
+        None,
+        False,
+        "",
+        [],
+        {"temperature": 25},
+        {"temperature_celsius": -0.1},
+        {"temperature_celsius": 100.1},
+        {"temperature_celsius": float("nan")},
+        {"temperature_celsius": float("inf")},
+        {"temperature_celsius": "25"},
+        {"temperature_celsius": True},
+        {"dangles": 1},
+        {"dangles": 3},
+        {"dangles": -1},
+        {"dangles": 2.0},
+        {"dangles": "2"},
+        {"dangles": False},
+        {"special_hairpins": "false"},
+        {"no_lonely_pairs": 1},
+        {"no_gu": 0},
+        {"no_gu_closure": None},
+        {"energy_parameters": "unknown"},
+        {"energy_parameters": "/tmp/parameters.par"},
+        {"energy_parameters": ["turner2004"]},
+    ],
+)
+def test_job_configuration_rejects_invalid_folding_settings(folding):
+    from engine.client import validate_job_configuration
+
+    with pytest.raises(ValueError):
+        validate_job_configuration({"folding": folding}, ["toehold"], "default", "direct", "ACGU")

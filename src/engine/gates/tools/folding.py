@@ -34,13 +34,17 @@ import math
 import os
 import subprocess
 import sys
+from dataclasses import asdict
 from functools import lru_cache
+from hashlib import sha256
 from itertools import permutations
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import RNA
 
-from engine.domain import FoldResult, StructureMatch
+from engine.domain import FoldingConfig, FoldResult, StructureMatch
+from engine.gates.tools import VIENNA_PARAMETER_LOCK
 
 # ViennaRNA's ``pf()`` returns a C ``float``, so every ensemble free energy this module
 # handles lands exactly on the single-precision grid — verified by round-tripping real
@@ -53,6 +57,174 @@ from engine.domain import FoldResult, StructureMatch
 # distinguish them, and no threshold should be set inside that band. Quoted as the
 # coarsest case so it is a bound rather than an estimate.
 _FLOAT32_ENERGY_ULP = 3.1e-05
+
+
+# All CERNAL snapshot creation and compound construction shares this lock. Native folds
+# use copied parameters after leaving it. Never load an energy file for every fold.
+_PARAMETER_LOCK = VIENNA_PARAMETER_LOCK
+_ENERGY_TABLES = {
+    "turner2004": RNA.parameter_set_rna_turner2004,
+    "turner1999": RNA.parameter_set_rna_turner1999,
+    "andronescu2007": RNA.parameter_set_rna_andronescu2007,
+}
+
+
+def _model(config: FoldingConfig, window_size: int, max_bp_span: int, uniq_ml: int):
+    """Explicit scalar defaults: RNA.md()/reset() otherwise inherit mutable globals."""
+    return RNA.md(
+        temperature=config.temperature_celsius,
+        dangles=config.dangles,
+        special_hp=int(config.special_hairpins),
+        noLP=int(config.no_lonely_pairs),
+        noGU=int(config.no_gu),
+        noGUclosure=int(config.no_gu_closure),
+        betaScale=1.0,
+        pf_smooth=1,
+        logML=0,
+        circ=0,
+        circ_penalty=1,
+        gquad=0,
+        uniq_ML=uniq_ml,
+        energy_set=0,
+        backtrack=1,
+        backtrack_type="F",
+        compute_bpp=1,
+        max_bp_span=max_bp_span,
+        min_loop_size=3,
+        window_size=window_size,
+        oldAliEn=0,
+        ribo=0,
+        cv_fact=1.0,
+        nc_fact=1.0,
+        sfact=1.07,
+        salt=1.021,
+        saltMLLower=6,
+        saltMLUpper=24,
+        saltDPXInit=99999,
+        saltDPXInitFact=-45.324,
+        helical_rise=2.8,
+        backbone_length=6.0,
+    )
+
+
+def _fresh_parameters(model):
+    # ViennaRNA 2.7.2 caches RNA.param/exp_param by model details only: loading a
+    # different energy table does NOT invalidate these caches. First request a model
+    # that differs from the wanted one, then the wanted one, for BOTH parameter types.
+    other = RNA.md()
+    other.temperature = model.temperature + 1.0
+    RNA.param(other)
+    parameters = RNA.param(model)
+    RNA.exp_param(other)
+    exp_parameters = RNA.exp_param(model)
+    return parameters, exp_parameters
+
+
+@lru_cache(maxsize=32)
+def _parameter_snapshot(config: FoldingConfig, window_size: int, max_bp_span: int, uniq_ml: int):
+    """Snapshot bundled tables once, restoring the previous global tables even on error.
+
+    Caller holds _PARAMETER_LOCK. Only native objects copied into compounds are used
+    for calculations. The cache key includes every configurable model field and each
+    algorithm override; no snapshot or global energy setting is a run's mutable state.
+    """
+    model = _model(config, window_size, max_bp_span, uniq_ml)
+    text = _ENERGY_TABLES[config.energy_parameters]
+    digest = sha256(text.encode("utf-8")).hexdigest()
+    label = f"cernal:{config.energy_parameters}:{digest}"
+    previous_name = RNA.last_parameter_file() or ""
+    with TemporaryDirectory(prefix="cernal-parameters-") as directory:
+        previous_path = Path(directory) / "previous.par"
+        if not RNA.params_save(str(previous_path)):
+            raise RuntimeError("Could not snapshot ViennaRNA energy parameters.")
+        previous = previous_path.read_text(encoding="utf-8")
+        try:
+            if not RNA.params_load_from_string(text, label):
+                raise RuntimeError(f"Could not load ViennaRNA energy parameters: {label}")
+            parameters, exp_parameters = _fresh_parameters(model)
+            if parameters.param_file != label or exp_parameters.param_file != label:
+                raise RuntimeError("ViennaRNA did not apply the requested energy parameter set.")
+        finally:
+            if not RNA.params_load_from_string(previous, previous_name):
+                raise RuntimeError("Could not restore ViennaRNA energy parameters.")
+            # Also restore parameter caches, not merely the raw global tables.
+            _fresh_parameters(RNA.md())
+    details = parameters.model_details
+    effective = {
+        name: getattr(details, name)
+        for name in dir(details)
+        if not name.startswith("_")
+        and name not in ("this", "thisown", "alias", "pair", "rtype", "nonstandards")
+        and not callable(getattr(details, name))
+    }
+    provenance = {
+        "schema": "cernal-folding-model-v1",
+        "viennarna_version": RNA.__version__,
+        "configuration": asdict(config),
+        "model_details": effective,
+        "sequence_length_normalization": {
+            "window_size": "clamped to nucleotide count; -1 means full length",
+            "max_bp_span": "clamped to window size; -1 means full window",
+        },
+        "energy_parameters": {
+            "name": config.energy_parameters,
+            "source": f"ViennaRNA.parameter_set_rna_{config.energy_parameters}",
+            "sha256": digest,
+            "hash_basis": "UTF-8 bytes of the bundled parameter string loaded",
+            "loaded_identity": parameters.param_file,
+        },
+        "ensemble_caveats": (
+            [
+                "ViennaRNA noLP excludes pairs that cannot stack; "
+                "lonely pairs may remain in ensembles."
+            ]
+            if config.no_lonely_pairs
+            else []
+        ),
+        "suboptimal_model_override": {"uniq_ML": 1},
+    }
+    return parameters, exp_parameters, json.dumps(provenance, sort_keys=True, allow_nan=False)
+
+
+def folding_provenance(
+    config: FoldingConfig, *, window_size: int = -1, max_bp_span: int = -1, uniq_ml: int = 0
+) -> dict:
+    """Return detached JSON-compatible evidence of the actual parameter snapshots."""
+    with _PARAMETER_LOCK:
+        _, _, encoded = _parameter_snapshot(config, window_size, max_bp_span, uniq_ml)
+        return json.loads(encoded)
+
+
+def configured_compound(
+    strands: str,
+    config: FoldingConfig,
+    *,
+    window_size: int = -1,
+    max_bp_span: int = -1,
+    uniq_ml: int = 0,
+    options: int = 0,
+):
+    """The shared model/energy authority for design, RNAplfold and suboptimal folds."""
+    with _PARAMETER_LOCK:
+        parameters, exp_parameters, _ = _parameter_snapshot(
+            config, window_size, max_bp_span, uniq_ml
+        )
+        compound = RNA.fold_compound(
+            strands, _model(config, window_size, max_bp_span, uniq_ml), options
+        )
+        compound.params_subst(parameters)
+        compound.exp_params_subst(exp_parameters)
+        # pf() sanitizes these fields and reloads GLOBAL tables if MFE/PF model
+        # details differ afterward. Normalize both snapshots before that check,
+        # including sequences whose MFE is zero (mfe/rescale is not a sufficient fix).
+        length = len(strands) - strands.count("&")
+        effective_window = min(window_size, length) if window_size > 0 else length
+        effective_span = min(max_bp_span, effective_window) if max_bp_span > 0 else effective_window
+        for parameters_copy in (compound.params, compound.exp_params):
+            parameters_copy.model_details.window_size = effective_window
+            parameters_copy.model_details.max_bp_span = effective_span
+        compound.exp_params_rescale()
+    return compound
 
 
 class FoldEngine:
@@ -69,6 +241,9 @@ class FoldEngine:
             and matches mammalian culture; *E. coli* work is often done at 37 too, but a
             wet-lab protocol at 30 should be reflected here. **Recorded on the run** —
             it changes every energy this module returns.
+        config: Immutable run-wide model. Use ``FoldingConfig`` for energy table,
+            dangling ends, special hairpins, lonely pairs and GU options. Its validated
+            defaults are explicit; global ViennaRNA settings never configure a run.
         cache_size: Maximum cached folds. Each entry holds a sequence and its structure,
             so 100k entries is roughly tens of MB. Raise it before raising the machine
             size.
@@ -80,8 +255,21 @@ class FoldEngine:
         ('(((...)))', -1.2)
     """
 
-    def __init__(self, temperature: float = 37.0, cache_size: int = 1_024) -> None:
-        self.temperature = temperature
+    def __init__(
+        self,
+        temperature: float = 37.0,
+        cache_size: int = 1_024,
+        *,
+        config: FoldingConfig | None = None,
+    ) -> None:
+        if config is not None and temperature != 37.0:
+            raise ValueError("Pass either config or a nondefault temperature, not both.")
+        self._config = (
+            config if config is not None else FoldingConfig(temperature_celsius=temperature)
+        )
+        if not isinstance(self._config, FoldingConfig):
+            raise ValueError("config must be a FoldingConfig.")
+        self._provenance = json.dumps(folding_provenance(self._config), sort_keys=True)
         if isinstance(cache_size, bool) or not isinstance(cache_size, int) or cache_size < 0:
             raise ValueError("cache_size must be a nonnegative integer")
         self._cache_size = cache_size
@@ -92,6 +280,17 @@ class FoldEngine:
         self._base_pair_probabilities_cached = lru_cache(maxsize=min(cache_size, 2))(
             self._base_pair_probabilities_cached
         )
+
+    @property
+    def config(self) -> FoldingConfig:
+        return self._config
+
+    @property
+    def temperature(self) -> float:
+        return self.config.temperature_celsius
+
+    def provenance(self) -> dict:
+        return json.loads(self._provenance)
 
     def _compound(self, strands: str) -> RNA.fold_compound:
         """Build a ``fold_compound`` at this engine's temperature.
@@ -113,9 +312,7 @@ class FoldEngine:
         ``RNA.cvar.temperature``, which is process-global and unsafe once folding moves
         to a process pool (see docs/ROADMAP.md §3).
         """
-        model = RNA.md()
-        model.temperature = self.temperature
-        return RNA.fold_compound(strands, model)
+        return configured_compound(strands, self.config)
 
     def mfe(self, strands: str) -> FoldResult:
         """Fold a sequence — or a multi-strand complex — and return its most stable
@@ -599,7 +796,7 @@ class FoldEngine:
         payload = json.dumps(
             {
                 "sequence": sequence,
-                "temperature": self.temperature,
+                "folding": asdict(self.config),
                 "delta": delta,
                 "max_structures": max_structures,
             },
@@ -722,10 +919,16 @@ class FoldEngine:
         unanswerable.
 
         Returns:
-            e.g. ``{"ViennaRNA": "2.7.2", "temperature_c": "37.0"}``. Include anything
-            that changes the numbers, not only the library version.
+            The legacy version/temperature strings plus canonical JSON ``folding_model``
+            with effective model fields and loaded energy-table identity and SHA-256.
+            ``provenance()`` exposes the same evidence as a structured dictionary.
         """
-        return {"ViennaRNA": RNA.__version__, "temperature_c": str(self.temperature)}
+        provenance = self.provenance()
+        return {
+            "ViennaRNA": RNA.__version__,
+            "temperature_c": str(self.temperature),
+            "folding_model": json.dumps(provenance, sort_keys=True, separators=(",", ":")),
+        }
 
 
 def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:
@@ -779,10 +982,8 @@ def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:
 def _suboptimal_worker() -> None:
     """Private subprocess entry: do not execute native enumeration in a long-lived worker."""
     request = json.loads(sys.stdin.read())
-    model = RNA.md()
-    model.temperature = request["temperature"]
-    model.uniq_ML = 1
-    compound = RNA.fold_compound(request["sequence"], model)
+    config = FoldingConfig.from_mapping(request["folding"])
+    compound = configured_compound(request["sequence"], config, uniq_ml=1)
     results: dict[str, float] = {}
 
     def collect(structure, energy, _data):

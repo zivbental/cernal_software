@@ -81,6 +81,7 @@ from engine.domain import (
     Constraints,
     CountMatrix,
     DesiredOutcome,
+    FoldingConfig,
     GateDesign,
     Host,
     LogicGraph,
@@ -213,7 +214,11 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         specificity is consequently never *measured* on this path, only defaulted —
         the warning below says so, so a 0.0 penalty is never mistaken for a clean scan.
     """
-    folder = FoldEngine()
+    try:
+        folding_config = FoldingConfig.from_mapping(request.params.get("folding", {}))
+    except ValueError as exc:
+        raise InputValidationError(str(exc)) from exc
+    folder = FoldEngine(config=folding_config)
     if host is Host.HUMAN and (request.params.get("backbone") or {}).get("catalog_key"):
         raise InputValidationError(
             "The bundled backbones are bacterial BioBrick vectors. For Human expression, "
@@ -250,7 +255,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
 
     tools: dict[str, object] = {
         "folder": folder,
-        "profiler": FoldProfiler(),
+        "profiler": FoldProfiler(config=folding_config),
         "screener": screener,
         "codons": codons,
         "aisc": aisc,
@@ -572,7 +577,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             candidates,
             warnings,
             request.output_dir,
-            engine_version="local-0.11.0-scientific-qa",
+            engine_version="local-0.12.0-scientific-qa-folding-model",
             profile_version=profile.version,
         )
     )
@@ -612,6 +617,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             "scoring_profile": profile.name,
             "scoring_profile_version": profile.version,
             "tool_versions": tools["folder"].versions(),
+            "folding_model": tools["folder"].provenance(),
             "seed": request.seed,
             "experimental_validation": "unavailable",
             "output_semantics": "alternative_single_payload_constructs_cross_product",
@@ -1511,6 +1517,9 @@ def _trigger_feature(trigger: TriggerCandidate) -> dict:
             "max_span": trigger.rnaplfold_max_span,
             "unpaired": trigger.rnaplfold_unpaired,
             "temperature_celsius": trigger.rnaplfold_temperature_celsius,
+            "folding_model": (
+                json.loads(trigger.rnaplfold_model) if trigger.rnaplfold_model else None
+            ),
         },
         # Which window this candidate came from (docs/triggers.md T2) —
         # 0 for the single-trigger fast path, a real scanned offset
@@ -1624,6 +1633,7 @@ def _candidate_result(
             if any(s.kind is SegmentKind.BACKBONE for s in plasmid.plasmid.segments)
             else "linear",
             "tool_versions": family.folder.versions(),
+            "folding_model": family.folder.provenance(),
             # The whole construct, not the switch alone - matches
             # convention (client.py) and Plasmid.length_bp's own definition. The
             # frontend's PlasmidRing draws arcs proportional to this against

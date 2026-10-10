@@ -23,3 +23,9 @@ Primitives that no gate family uses live with the pipeline step that does:
 Everything here imports nothing but ``engine.domain``, ``engine.sequences`` and its
 scientific library, which is what makes each one testable with no pipeline around it.
 """
+
+from threading import RLock
+
+# Shared synchronization, not a second folding implementation. The vendor adapter
+# has an optional direct RNA-optimization path that also loads ViennaRNA globals.
+VIENNA_PARAMETER_LOCK = RLock()
