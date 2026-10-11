@@ -26,7 +26,7 @@ def sd_or_default(sd: float | None, default: float) -> float:
 def verification_tolerance(
     sd: float | None, n_drawn: int, *, default_sd: float, sigma: float, floor_nt: float
 ) -> float:
-    """tau = sigma * sd / sqrt(N) + floor; ``default_sd`` (<= L/2) is used only if ``sd`` is missing."""
+    """tau = sigma * sd / sqrt(N) + floor; ``default_sd`` (<= L/2) only if ``sd`` is missing."""
     return sigma * sd_or_default(sd, default_sd) / math.sqrt(n_drawn) + floor_nt
 
 
