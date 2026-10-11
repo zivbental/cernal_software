@@ -154,7 +154,11 @@ RUN = (
     "overlap_low",
     "overlap_high",
     "on_ceiling",
-    "pair_order",
+        "pair_order",
+    # What produced the row. A scoring change keeps the columns identical and alters what
+    # one of them means, which the header guard below cannot see -- so the version has to
+    # be on the row itself.
+    "gate_version",
     "min_access",
     # Which rule set the accessibility floor: "", "literal" or "mean". Under "mean" the
     # VALUE differs per gene pair, so the rule is what a row can usefully carry; the
@@ -523,6 +527,7 @@ def main(argv=None) -> int:
 
     # ---- the run ------------------------------------------------------------------------
     fresh = not out_path.exists()
+    existing_version = ""
     if not fresh:
         # REFUSE rather than append a row the stored header cannot describe. The header
         # is written once, when the file is created, which is what makes `--resume` work
@@ -535,6 +540,13 @@ def main(argv=None) -> int:
         # True and False -- position 23 of the new order is `lower3_forced`, a boolean.
         with out_path.open(encoding="utf-8", newline="") as probe:
             stored = next(csv.reader(probe), [])
+        # The first data row's version, read while the file is open anyway. A table with
+        # only a header has nothing to compare against and is treated as fresh.
+        existing_version = ""
+        if "gate_version" in stored:
+            with out_path.open(encoding="utf-8", newline="") as probe:
+                row = next(csv.DictReader(probe), None)
+            existing_version = (row or {}).get("gate_version") or ""
         if tuple(stored) != tuple(FIELDS):
             added = [c for c in FIELDS if c not in stored]
             gone = [c for c in stored if c not in FIELDS]
@@ -560,6 +572,21 @@ def main(argv=None) -> int:
             )
             return 2
     handle = out_path.open("a", encoding="utf-8", newline="")
+        # A scoring change leaves the columns identical and changes what a row MEANS, so
+    # the header guard above cannot catch it. Compare the stored version instead.
+    if args.resume and existing_version and existing_version != first.version:
+        raise SystemExit(
+            f"\n  {out_path.name} was written by gate version {existing_version!r} and "
+            f"this is {first.version!r}.\n"
+            "  Appending would leave one table built under two scoring rules, with "
+            "nothing in the\n"
+            "  columns to say which row is which. Every comparison here is paired inside "
+            "a cell, so a\n"
+            "  cell split across two rules is worse than a missing cell.\n\n"
+            "  Either finish the table under the version that started it, or write to a "
+            "new --out.\n"
+        )
+
     writer = csv.DictWriter(handle, fieldnames=FIELDS, extrasaction="ignore")
     if fresh:
         writer.writeheader()
@@ -576,6 +603,7 @@ def main(argv=None) -> int:
         "on_ceiling": args.on_ceiling,
         "pair_order": args.pair_order,
         # `None` stays empty, never 0.0: a floor that was not applied is not a floor of zero.
+                "gate_version": first.version,
         "min_access": "" if args.min_access is None else args.min_access,
         # Which rule set the floor, so a row says how its pair was selected. The value
         # itself differs per gene pair under `mean`, and is printed at startup.
