@@ -288,3 +288,86 @@ def test_profiler_window_parameters_cannot_make_cached_provenance_stale():
         for invalid in (0, -1, True, 2.0):
             with pytest.raises(ValueError, match="positive integer"):
                 FoldProfiler(**{name: invalid})
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        FoldingConfig(),
+        FoldingConfig(
+            temperature_celsius=25,
+            energy_parameters="turner1999",
+            dangles=0,
+            no_gu=True,
+        ),
+        FoldingConfig(
+            temperature_celsius=42,
+            energy_parameters="andronescu2007",
+            special_hairpins=False,
+            no_gu_closure=True,
+        ),
+    ],
+)
+def test_crispr_connected_constraints_use_configured_model_and_restore_globals(config):
+    # Independent fresh-process reference also covers a forced pair immediately
+    # across the strand cut, where the same-strand hairpin minimum must not apply.
+    cases = [
+        ["GGGAAACCC", "........."],
+        ["GGGG&CCCC", "........"],
+        ["GGGG&CCCC", "(......)"],
+        ["GGGG&CCCC", "...()..."],
+        ["GGGG", "...."],
+        ["CCCC", "...."],
+    ]
+    script = (
+        _REFERENCE.split("values = []")[0]
+        + r"""
+values = []
+for sequence, constraint in json.loads(sys.argv[2]):
+    fc = RNA.fold_compound(sequence, md)
+    assert fc.hc_add_from_db(constraint,
+        RNA.CONSTRAINT_DB_DEFAULT | RNA.CONSTRAINT_DB_ENFORCE_BP)
+    values.append(fc.pf_dimer()[3] if "&" in sequence else fc.pf()[1])
+print(json.dumps(values))
+"""
+    )
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            script,
+            json.dumps(dataclasses.asdict(config)),
+            json.dumps(cases),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    expected = json.loads(completed.stdout)
+    # Leave deliberately different global tables active throughout all calculations.
+    RNA.params_load_RNA_Andronescu2007()
+    previous_name = RNA.last_parameter_file()
+    folder = FoldEngine(config=config)
+    for (sequence, constraint), energy in zip(cases, expected, strict=True):
+        assert folder.constrained_free_energy(sequence, constraint) == pytest.approx(
+            energy, abs=1e-6
+        )
+    assert folder.binding_free_energy("GGGG", "CCCC") == pytest.approx(
+        expected[1] - expected[4] - expected[5], abs=1e-6
+    )
+    assert folder.constraint_probability("GGGG&CCCC", "(......)") == pytest.approx(
+        math.exp((expected[1] - expected[2]) / folder.rt), abs=1e-6
+    )
+    assert folder.constrained_free_energy("GGGG&CCCC", "xxxxxxxx") == math.inf
+    assert folder.constraint_probability("GGGG&CCCC", "xxxxxxxx") == 0.0
+    assert folder.provenance()["configuration"] == dataclasses.asdict(config)
+    assert RNA.last_parameter_file() == previous_name
+
+
+def test_crispr_constraints_respect_no_gu_configuration_without_native_monkeypatch():
+    allowed = FoldEngine(config=FoldingConfig(temperature_celsius=25))
+    forbidden = FoldEngine(config=FoldingConfig(temperature_celsius=25, no_gu=True))
+    assert allowed.constraint_probability("GAAAU", "(...)") > 0
+    assert forbidden.constrained_free_energy("GAAAU", "(...)") == math.inf
+    assert forbidden.constraint_probability("GAAAU", "(...)") == 0.0
