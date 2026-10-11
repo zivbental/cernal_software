@@ -85,6 +85,9 @@ class FoldEngine:
         if isinstance(cache_size, bool) or not isinstance(cache_size, int) or cache_size < 0:
             raise ValueError("cache_size must be a nonnegative integer")
         self._cache_size = cache_size
+        self.constrained_free_energy = lru_cache(maxsize=min(cache_size, 4096))(
+            self.constrained_free_energy
+        )
         # Instance-owned wrappers retain no tools through a class-level cache. Cycles
         # between an instance and its bound wrappers are reclaimed by Python's GC.
         for name in ("mfe", "structure_energy", "partition", "_partition_with_unpaired"):
@@ -713,6 +716,183 @@ class FoldEngine:
         """
         points = RNA.naview_xy_coordinates(structure)
         return [(points[i].X, points[i].Y) for i in range(len(structure))]
+
+    def constrained_free_energy(self, strands: str, constraint: str = "") -> float:
+        """Partition free energy, using FcAB (connected states) for a heterodimer.
+
+        Constraints use ViennaRNA notation: x is forced unpaired, parentheses
+        force a specific pair, and . is unconstrained. Indices exclude '&'.
+        A 999 FcAB means no connected ensemble; it is represented internally by
+        +inf, never exposed as a successful measurement or an arbitrary score.
+        Impossible target pairs also give +inf (zero constrained partition).
+        Malformed constraints raise ValueError; they are not empty physical events.
+        Numerical PF failures raise; callers distinguish errors from threshold rejections.
+        """
+        parts = strands.split("&")
+        if len(parts) not in (1, 2) or any(not p or set(p) - set("ACGU") for p in parts):
+            raise ValueError("Expected one or two non-empty uppercase RNA strands")
+        if not math.isfinite(self.temperature) or self.temperature <= -273.15:
+            raise ValueError("Invalid folding temperature")
+        n = sum(map(len, parts))
+        if constraint and (len(constraint) != n or set(constraint) - set(".x()")):
+            raise ValueError("Invalid constraint length or alphabet")
+        if constraint:
+            self.validate_target("".join(parts), constraint.replace("x", "."))
+        fc = self._compound(strands)
+        if constraint:
+            # ENFORCE_BP can introduce noncanonical pairs or silently drop pairs
+            # with too short a hairpin. Neither is a subset of the original ensemble.
+            # Check against this compound's model before calling the native parser.
+            model = fc.params.model_details
+            encoded = fc.sequence_encoding
+            cut = len(parts[0])
+            stack = []
+            for j, char in enumerate(constraint):
+                if char == "(":
+                    stack.append(j)
+                elif char == ")":
+                    i = stack.pop()
+                    same_strand = (i < cut) == (j < cut)
+                    pair_type = model.pair[encoded[i + 1]][encoded[j + 1]]
+                    if (
+                        not pair_type
+                        or (model.noGU and pair_type in (3, 4))
+                        or (same_strand and j - i <= model.min_loop_size)
+                        or (model.max_bp_span > 0 and j - i > model.max_bp_span)
+                    ):
+                        return math.inf  # A validly specified, empty event.
+            if not fc.hc_add_from_db(
+                constraint, RNA.CONSTRAINT_DB_DEFAULT | RNA.CONSTRAINT_DB_ENFORCE_BP
+            ):
+                raise ArithmeticError("Native constraint parser failed")
+        if len(parts) == 2:
+            # Python 2.7 bindings: structure, FA, FB, FcAB, FAB.
+            # A forced interstrand pair makes isolated FA/FB infinite by design.
+            # Only the connected ensemble and its containing total are relevant here.
+            _, _, _, energy, fab = fc.pf_dimer()
+            if energy == 999.0:
+                return math.inf
+            if not math.isfinite(fab) or abs(fab) >= 1e4:
+                raise ArithmeticError("Dimer partition calculation failed")
+        else:
+            _, energy = fc.pf()
+        if not math.isfinite(energy) or abs(energy) >= 1e4:
+            raise ArithmeticError("Partition calculation failed")
+        return float(energy)
+
+    def constraint_probability(self, strands: str, constraint: str) -> float:
+        """Joint event Z_constrained / Z; never multiply marginal probabilities."""
+        reference = self.constrained_free_energy(strands)
+        if not math.isfinite(reference):
+            raise ValueError("No connected two-strand ensemble")
+        constrained = self.constrained_free_energy(strands, constraint)
+        if constrained == math.inf:
+            return 0.0  # A measured empty subset, not a failed measurement.
+        rt = self.rt
+        log_p = (reference - constrained) / rt
+        if log_p > 2e-5:
+            raise ArithmeticError("Constrained partition function exceeds total")
+        return math.exp(min(0.0, log_p))
+
+    def region_accessibility(self, strands: str, start: int, end: int) -> float:
+        """Probability every nucleotide in [start, end) is simultaneously unpaired."""
+        n = len(strands.replace("&", ""))
+        if not 0 <= start < end <= n:
+            raise ValueError("Invalid accessibility interval")
+        return self.constraint_probability(
+            strands, "." * start + "x" * (end - start) + "." * (n - end)
+        )
+
+    def region_defect(self, strands: str, reference: str, start: int = 0) -> float:
+        """Normalized expected incorrect bases in a region of the first strand.
+
+        start is a zero-based offset; reference describes only the region.
+
+        Constrained PF ratios work for connected dimers as well as monomers;
+        this avoids confusing cofold's null-model BPP with conditional gT BPP.
+        Every target pair is counted twice, once for each nucleotide.
+        """
+        n = len(strands.replace("&", ""))
+        if (
+            not reference
+            or type(start) is not int
+            or start < 0
+            or start + len(reference) > len(strands.split("&")[0])
+        ):
+            raise ValueError("Invalid reference region")
+        stack, partners = [], {}
+        for i, char in enumerate(reference):
+            if char == "(":
+                stack.append(i)
+            elif char == ")" and stack:
+                j = stack.pop()
+                partners[i], partners[j] = j, i
+            elif char != ".":
+                raise ValueError("Scaffold reference must be balanced dot-bracket")
+        if stack:
+            raise ValueError("Unbalanced scaffold reference")
+        correct = 0.0
+        for i, char in enumerate(reference):
+            if char == ")":
+                continue
+            constraint = ["."] * n
+            if char == ".":
+                constraint[start + i] = "x"
+                count = 1
+            else:
+                constraint[start + i], constraint[start + partners[i]] = "(", ")"
+                count = 2
+            correct += count * self.constraint_probability(strands, "".join(constraint))
+        return max(0.0, min(1.0, 1.0 - correct / len(reference)))
+
+    def binding_free_energy(self, strand_a: str, strand_b: str) -> float:
+        """Standard binding free energy from connected AB and free A/B ensembles.
+
+        Concentrations are not needed for this quantity. It does not predict
+        the fraction of strands bound in a solution.
+        """
+        if "&" in strand_a or "&" in strand_b:
+            raise ValueError("Supply two individual strands")
+        dg = (
+            self.constrained_free_energy(strand_a + "&" + strand_b)
+            - self.constrained_free_energy(strand_a)
+            - self.constrained_free_energy(strand_b)
+        )
+        if not math.isfinite(dg):
+            raise ValueError("No connected strand_a-strand_b ensemble")
+        return dg
+
+    def heterodimer_equilibrium(
+        self,
+        strand_a: str,
+        strand_b: str,
+        a_molar: float,
+        b_molar: float,
+    ) -> tuple[float, float]:
+        """Return (binding free energy, fraction of A bound) for {A, B, AB}.
+
+        Total concentrations are in M. This restricted model excludes homodimers
+        and larger complexes. It has no assumptions about biological regions or
+        strand lengths. Callers decide which observables to mix by bound fraction.
+        """
+        if not (math.isfinite(a_molar) and math.isfinite(b_molar) and a_molar > 0 and b_molar > 0):
+            raise ValueError("Require finite positive strand concentrations")
+        dg = self.binding_free_energy(strand_a, strand_b)
+        rt = self.rt
+        # Solve x = K (g0-x)(t0-x), in logs, with K relative to 1 M standard state.
+        # Bisection avoids quadratic cancellation and overflowing exp(-dG/RT).
+        lo, hi = 0.0, min(a_molar, b_molar)
+        for _ in range(100):
+            x = (lo + hi) / 2
+            if x == lo or x == hi:
+                break
+            log_ratio = math.log(x) - math.log(a_molar - x) - math.log(b_molar - x)
+            if log_ratio < -dg / rt:
+                lo = x
+            else:
+                hi = x
+        fraction = ((lo + hi) / 2) / a_molar
+        return dg, fraction
 
     def versions(self) -> dict[str, str]:
         """The tool versions this run was computed with.

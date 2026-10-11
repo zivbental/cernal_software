@@ -918,3 +918,63 @@ class QcReport:
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
     stats: dict = field(default_factory=dict)
+
+
+CRISPR_TRIGGER_TAIL_LENGTHS = (10, 15, 20)
+CRISPR_LOOP_LENGTHS = tuple(range(14, 33, 2))
+
+
+@dataclass(frozen=True, slots=True)
+class CrisprTemplate:
+    """Length-only architecture; the trigger supplies BT, B target, E-prime and loop."""
+
+    loop_length: int
+    extension_length: int
+    trigger_tail_length: int
+
+    def __post_init__(self) -> None:
+        if type(self.extension_length) is not int or self.extension_length != 10:
+            raise ValueError("E and E-prime must each contain exactly 10 nucleotides")
+        if (
+            type(self.trigger_tail_length) is not int
+            or self.trigger_tail_length not in CRISPR_TRIGGER_TAIL_LENGTHS
+        ):
+            raise ValueError("BT length must be one of 10, 15, 20 nucleotides")
+        if type(self.loop_length) is not int or self.loop_length not in CRISPR_LOOP_LENGTHS:
+            raise ValueError("Loop length must be 14 through 32 nucleotides in steps of 2")
+
+    @property
+    def trigger_length(self) -> int:
+        return self.loop_length + self.extension_length + 20 + self.trigger_tail_length
+
+
+@dataclass(frozen=True, slots=True)
+class CrisprObservables:
+    """Structural observables for free-guide OFF and connected-guide-trigger ON."""
+
+    a_off: float
+    a_on: float
+    d_off: float
+    d_on: float
+    dg_bind: float
+
+
+@dataclass(frozen=True, slots=True)
+class CrisprObjective:
+    """Parameters for the CRISPR objective and feasibility gates."""
+
+    # Selected thresholds.
+    tau_off: float = field(default=0.05, kw_only=True)
+    tau_on: float = field(default=0.50, kw_only=True)
+    epsilon: float = field(default=0.10, kw_only=True)
+
+    w_on: float
+    w_off: float
+    w_energy: float
+    w_accessibility: float
+    scale_lambda: float | None = field(default=None, kw_only=True)
+    v_on: float
+    v_off: float
+    w_spacer: float
+    w_trigger: float
+    off_target_max: float
