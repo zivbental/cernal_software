@@ -287,6 +287,8 @@ export function useCancelRun(id: string) {
 /* ---------- results ---------- */
 
 export interface CandidateFilters {
+  /** Restrict to the run's globally top-ranked accepted results; omit for all results. */
+  topN?: number;
   sort?: string;
   gateFamily?: string;
   output?: string;
@@ -300,6 +302,7 @@ export function useCandidates(runId: string, filters: CandidateFilters = {}, ena
   const search = new URLSearchParams();
   search.set("limit", String(filters.limit ?? 200));
   if (filters.offset) search.set("offset", String(filters.offset));
+  if (filters.topN !== undefined) search.set("top_n", String(filters.topN));
   if (filters.sort) search.set("sort", filters.sort);
   if (filters.output) search.set("output", filters.output);
   if (filters.minScore) search.set("min_score", String(filters.minScore));
