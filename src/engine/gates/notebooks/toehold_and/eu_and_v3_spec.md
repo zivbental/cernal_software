@@ -8,8 +8,8 @@ One notebook builds two reports in one run: **part 1** the single-switch report
 (`eu_and_v3_report_<time>.{html,pdf}`), **part 2** the AND report
 (`eu_and_v3_and_report_<time>.{html,pdf}`) from the top `AND_TOP_N` designs of part 1, plus CSV
 exports and (optionally) the data for an interactive page. It replaces
-`and_eu_report.ipynb` for ranking by stem opening (that notebook used exact
-partition-function quantities; its spec is in git history).
+the earlier `and_eu_report.ipynb`, which ranked by exact partition-function quantities (removed;
+see git history).
 
 ## Context to read first
 
@@ -183,7 +183,7 @@ threshold counts Monte-Carlo noise only; percentages are not fully neutral to st
    of the stem are used. OFF does not become neutral either.
 9. **Mixed rank systems.** The "single rank" shown in part 2 is the rank in part 1 (tied
    group first); never recompute it from `ON - OFF` alone.
-10. **`and_eu_report.ipynb` traps still apply to anything built on `_joint_state_parallel.py`**:
+10. **Traps inherited from the earlier AND report still apply to `_joint_state_parallel.py`**:
     select fakes by sequence, not transcript position; accept G·U wobbles in complementarity
     screens; never `try/except: return 0.0` around a fold; do not read joint events from
     marginals (use `constrained_probability`).
