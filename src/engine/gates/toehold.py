@@ -2809,22 +2809,30 @@ class ToeholdAndGate(ToeholdGate):
             # measurement, not an absence -- which is the contract the characterisation run
             # is built on.
             #
-            # OPEN DEFECT, do not fix mid-run. This gates on `open_11`, the opening cost of
-            # the MAIN STEM'S ARMS (15 nt). The value it is set against is external --
-            # Green's 168 have a median ON cost of 3.64 kcal/mol and his 77 above 20-fold
-            # ON/OFF have 3.07 -- but that number is measured over the RIBOSOME'S WINDOW,
-            # which is `dG_open_11` here and 31 nt. The two are different measurements of
-            # different spans: measured on the same designs they differ by a median 0.83 and
-            # by up to 7.55 kcal/mol. So no setting of this ceiling is calibrated against
-            # Green while it reads `open_11`.
+            # WHY THIS GATES ON THE "WRONG" SPAN, AND WHY THAT IS SAFE.
             #
-            # The fix is to read `dG_open_11`, which is already computed for every design,
-            # and to recalibrate the value on that scale. It is NOT made here because a
-            # characterisation run is in progress and changing which quantity a filter reads
-            # part-way through leaves one table built under two rules -- the exact failure
-            # recorded in docs/findings-register.md under "never change a sweep's column set
-            # while a resumable run is on disk". Tracked in docs/ROADMAP.md; it is a scoring
-            # change and needs a version bump and a golden-fixture update in the same commit.
+            # `open_11` is the opening cost of the MAIN STEM'S ARMS (15 nt). The value it is
+            # set against is external and measured on a different span: Green's 168 have a
+            # median ON cost of 3.64 kcal/mol over the RIBOSOME'S WINDOW, which is
+            # `dG_open_11` here and 31 nt. So this gate is not itself calibrated.
+            #
+            # It does not need to be, because the two spans are NESTED. `w_rank` is
+            # span(-17, +13) around the start codon; the arms are 6 nt before it and 9 after.
+            # Both sit inside it, so opening the window costs at least as much as opening the
+            # arms -- `dG_open_11 >= open_11` by construction, not by luck. Measured on
+            # 147,244 designs the gap runs +0.12 to +7.45, median +0.83, Spearman +0.974.
+            #
+            # Therefore a ceiling of C here admits a SUPERSET of what a ceiling of C on
+            # `dG_open_11` would admit, and the correct filter can be applied afterwards at
+            # no cost. At the 8.0 the runs use: 0.0% of designs in the 7.0-8.0 band of
+            # `open_11` are below a 7.2 footprint ceiling, so nothing admissible is lost.
+            #
+            # CAUTION, and the reason this is written out. `dG_open_11` is NOT computed for a
+            # design stopped here -- empty on all 54,200 rejected rows of `axes_c8`. The
+            # superset argument is what makes that acceptable, and it only holds while the
+            # ceiling here is at least as permissive as the footprint ceiling it stands in
+            # for. Lower this below ~7.2 and designs start being discarded unmeasured on the
+            # quantity that decides them. Tracked in docs/ROADMAP.md.
             out["skipped"] = "on_ceiling"
             return out
 

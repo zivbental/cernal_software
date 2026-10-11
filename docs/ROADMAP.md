@@ -50,32 +50,35 @@ Use the audit's ENG, PLAT, PD and GAP identifiers in commits and release evidenc
 Only Offer and Ziv merge approved changes into `main`. Deployment, package
 publication and ordering require their own explicit authorization.
 
-### Open · the ON-state ceiling reads the wrong span
+### Resolved · the ON-state ceiling reads a nested span, which is safe
 
-**Found while writing the model page's Methods.** `measure_design`'s `on_ceiling` gates on
-`open_11`, the opening cost of the **main stem's arms**, 15 nt. The value it is set against
-is external and good — Green's 168 measured switches have a median ON cost of **3.64
-kcal/mol**, and the 77 of them above 20-fold ON/OFF have **3.07**, so a ceiling of 4.0 means
-"no costlier to open than a switch known to work". But that number is measured over the
-**ribosome's window**, which in this engine is `dG_open_11` over 31 nt.
+Recorded because the first version of this entry got it wrong in the alarming direction.
 
-They are two measurements of two different spans. Measured on the same designs they differ
-by a **median 0.83 and by up to 7.55 kcal/mol**. No setting of the ceiling is calibrated
-against Green while it reads `open_11`.
+`measure_design`'s `on_ceiling` gates on `open_11`, the main stem's arms, 15 nt. The value
+it is set against is external and measured on a different span: Green's 168 have a median
+ON cost of **3.64 kcal/mol** over the ribosome's window, which here is `dG_open_11`, 31 nt.
+So the gate is not itself calibrated, and the first version of this note concluded that no
+setting of it could be.
 
-**The fix:** gate on `dG_open_11`, which is already computed for every design, and set the
-value on that scale against Green's 3.64 / 3.07.
+**That conclusion was wrong, because the spans are nested.** `w_rank` is span(−17, +13)
+around the start codon; the arms are 6 nt before it and 9 after, both inside it. Opening a
+superset costs at least as much as opening a subset, so `dG_open_11 ≥ open_11` by
+construction. Measured on 147,244 designs: gap +0.12 to +7.45, median +0.83, Spearman
+**+0.974**.
 
-**Why it has not been done:** a characterisation run is in progress. Changing which quantity
-a filter reads part-way through leaves one table built under two rules, which is the failure
-already in the register under "never change a sweep's column set while a resumable run is on
-disk". Do it between runs, with a version bump and a golden-fixture update in the same
-commit, and state in the release note that no earlier result is comparable across the change.
+So a ceiling of C on the arms admits a **superset** of what a ceiling of C on the footprint
+would admit, and the correct filter is applied afterwards for free. At the 8.0 the runs use,
+**0.0%** of designs in the 7.0–8.0 band of `open_11` are below a 7.2 footprint ceiling —
+nothing admissible was discarded. Of the designs that were measured, 109,803 of 147,244
+(**74.6%**) pass a 7.2 footprint ceiling, and that filter can be applied to the existing
+table today.
 
-Until then every number quoted from a run says which span its ceiling was measured on. The
-runs themselves use 8.0 rather than 4.0 deliberately and for a separate reason: a threshold
-can only be swept downward after the fact, so a low ceiling makes its own sensitivity
-analysis impossible.
+**What remains true and needs care.** `dG_open_11` is not computed for a design the ceiling
+stops — empty on all 54,200 rejected rows. The superset argument is what makes that
+acceptable, and it holds only while the arms ceiling stays at least as permissive as the
+footprint ceiling standing behind it. Lowering it below ~7.2 would start discarding designs
+unmeasured on the quantity that decides them. Future runs should gate on `dG_open_11`
+directly, computing it before the check; that is a scoring change needing a version bump.
 
 ### Open · widen the reading-frame repair to the whole acceptance window
 
