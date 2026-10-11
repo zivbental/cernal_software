@@ -2,7 +2,7 @@
 
 For one state (a switch alone, or a switch with its real trigger) the main quantity is
 
-    OPEN = E[r] = sum over structures s of P(s) * r(s)
+    Open = E[r] = sum over structures s of P(s) * r(s)
 
 where r(s) is the length of the longest stretch of consecutive ``stem_up`` nt that are not paired
 to a ``stem_down`` nt in structure s. It is estimated as the mean of r over structures drawn from
@@ -12,6 +12,10 @@ The matrix cannot give E[r] (it does not know which positions are open together)
 the expected *number* of open nt exactly, E[k] = sum over stem_up nt i of
 (1 - sum over stem_down nt j of p_ij), and E[r] <= E[k] always. Each state therefore also returns
 E[k] sampled and from the matrix: the sampler is checked on E[k], and E[r] against that bound.
+
+``DesignJob.controls`` are mismatched triggers: their states are not sampled (the sampler is
+unreliable for them) but get the exact matrix E[k], an upper bound of their Open, from
+``matrix_open_nt``.
 
 No draw is filtered: ViennaRNA's sampler returns wrong draws for some switch + trigger pairs, and
 the comparison with the matrix is what flags a bad state.

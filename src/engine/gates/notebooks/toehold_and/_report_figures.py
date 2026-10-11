@@ -2,10 +2,9 @@
 probability heatmap as a PNG.
 
 Folding stays in ``FoldEngine`` (``mfe``, ``layout_coordinates``, ``base_pair_probabilities``); this
-module only draws what it is handed. ``structure_svg`` is the drawing used by
-``and_eu_report.ipynb``
-(lettered circles scaled by the median neighbour gap, flipped y; the idea follows Offer's
-``structure_figures.py``).
+module only draws what it is handed. ``structure_svg`` draws the lettered circles scaled by the
+median neighbour gap, flipped y (the idea follows Offer's ``structure_figures.py``; it was first
+used by the older ``and_eu_report.ipynb``, now in git history).
 """
 
 from __future__ import annotations

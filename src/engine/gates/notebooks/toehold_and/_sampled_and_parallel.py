@@ -1,9 +1,9 @@
 """Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by
-``eu_and_v3_and.ipynb``).
+part 2 of ``eu_and_v3.ipynb``).
 
-An AND candidate has two hairpins, A (5' half) and B (3' half). For a structure s let r_A(s), r_B(s)
-be the longest run of consecutive open ``stem_up`` nt of each hairpin (open = not paired to a
-``stem_down`` nt of the same hairpin), and k_A(s), k_B(s) the numbers of open nt. For a state
+An AND candidate has two hairpins, A (5' half) and B (3' half). For a structure s let r_A(s),
+r_B(s) be the longest run of consecutive open ``stem_up`` nt of each hairpin (open = not paired to
+a ``stem_down`` nt of the same hairpin), and k_A(s), k_B(s) the numbers of open nt. For a state
 
     Open = E[ min(r_A, r_B) ]      the expected longest run that is open in BOTH hairpins at once
     E[k] = E[ min(k_A, k_B) ]      the expected number of nt open in both hairpins
@@ -13,11 +13,19 @@ both estimated as the mean over structures drawn from the Boltzmann ensemble
 sampler hairpin by hairpin, and bounds the joint quantities: min(r_A, r_B) <= min(k_A, k_B), so
 Open <= E[min(k_A, k_B)] <= min(E[k_A], E[k_B]).
 
-Four states per candidate: alone, +A, +B, +A+B. The strand order of +A+B is
-``_joint_state_parallel.both_triggers_extra`` (fused & tB & tA, nested). ViennaRNA's sampler is
-sensitive to which strand is written first, and the order that matched the matrix puts a trigger on
-the side of the switch nearest its target hairpin: trigger A before the fused strand, trigger B
-after it. No draw is filtered; the matrix check flags a bad state.
+The report's ON uses the sum E[r_A + r_B] (``run_a_sampled`` + ``run_b_sampled``), divided by
+L_A + L_B in the notebook; the min-based Open above is what OFF uses (and ``ON_min``).
+
+Four states per candidate: alone, +A, +B, +A+B, sampled. Each ``AndJob.controls`` pair (two
+mismatched triggers in the +A+B layout) gets the exact matrix E[k_A], E[k_B] only, with no
+sampling: the sampler is unreliable for mismatched states, and min(E[k_A], E[k_B]) is an upper
+bound of the control's Open.
+
+The strand order of +A+B is ``_joint_state_parallel.both_triggers_extra`` (fused & tB & tA,
+nested). ViennaRNA's sampler is sensitive to which strand is written first, and the order that
+matched the matrix puts a trigger on the side of the switch nearest its target hairpin: trigger A
+before the fused strand, trigger B after it. No draw is filtered; the matrix check flags a bad
+state.
 
 Folding goes through the one shared ``FoldEngine`` published with
 ``_joint_state_parallel.use_fold_engine`` (CLAUDE.md sec 5); this module only schedules and counts.
