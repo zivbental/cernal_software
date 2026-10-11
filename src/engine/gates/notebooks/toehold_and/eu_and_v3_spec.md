@@ -87,11 +87,16 @@ floored). `dG = G(switch+trigger) - G(switch) - G(trigger alone)` (ensemble free
 Fusion: hairpin A = design A up to its own Kozak; hairpin B = design B after its own prefix;
 optional spacer between (see below). Four states per candidate: alone, +A, +B, +A+B, plus
 `N_CONTROLS` control states (two mismatched triggers in the +A+B layout).
-`ON_min = 100 E[min(r_A, r_B)]_{+A+B} / L`, `L = min(L_A, L_B)` — the longest run open in both
-hairpins at once, weighted by `P(s)`: the joint activation. `OFF = 100 max(Open_alone, Open_+A,
-Open_+B, Control) / L` with the same `Open = E[min(r_A, r_B)]` for the OFF states and
-`Control = max_j min(E[k_A], E[k_B])_matrix` (upper bound). ON and OFF use one rule and one
-denominator, so `ON_min - OFF` compares like with like. Candidates are ranked by
+`ON_min = 100 E[min(r_A / L_A, r_B / L_B)]_{+A+B}` — in each structure each hairpin's longest
+open run as a fraction of its **own** stem, the smaller of the two, weighted by `P(s)`: both
+hairpins open at once, each relative to its own length (`open_frac_sampled`). `OFF = 100
+max(Open_alone, Open_+A, Open_+B, Control)` with the same `Open = E[min(r_A / L_A, r_B / L_B)]`
+for the OFF states and `Control = max_j min(E[k_A] / L_A, E[k_B] / L_B)_matrix` (upper bound).
+ON and OFF use one rule, so `ON_min - OFF` compares like with like. The earlier form
+`100 E[min(r_A, r_B)] / min(L_A, L_B)` compared the runs in nucleotides: with stems of 21 and 12 nt,
+"A open for 12 of 21, B fully open" scored 100%, the same as both fully open. Per-hairpin
+normalisation scores it 57%; for equal stems the two forms are identical. `E[min(r_A, r_B)]` in
+nt (`open_sampled`) is still sampled and used by the sampler check (below) and the nt columns. Candidates are ranked by
 `ON_min - OFF` (joint). The sum-based `ON_sum = 100 E[r_A + r_B] / (L_A + L_B)` and
 `ON_sum - OFF` are listed for information only (table, CSV and explorer rows); they would give
 credit when only one hairpin opens (`ON_sum = 50`, `ON_min = 0`). The summary also counts the
@@ -212,6 +217,13 @@ the other states; percentages are not fully neutral to stem length.
 
 ## Change log
 
+- 2026-10-11 (per-hairpin ON / OFF): the AND `ON_min`, `OFF` and `Control` are normalised by each
+  hairpin's own stem, `E[min(r_A / L_A, r_B / L_B)]`, instead of `E[min(r_A, r_B)] / min(L_A, L_B)`
+  (see "AND report"). The sampler returns `open_frac_sampled`; the nt fields stay for the check.
+  Results saved before this change lack the field and are refused on load (run the sampling
+  again). Values change only for candidates with `L_A != L_B` (71% of the last run, 15 of its top
+  20); in that run no candidate had `ON_min` more than 10 pp above `ON_sum`, so the change was
+  expected to move few ranks. Test: `tests/engine/gates/test_sampled_and_per_hairpin.py`.
 - 2026-10-11 (decision after the PR #68 review): the AND ranking, tied group and noise use the
   joint `ON_min - OFF`; `ON_sum - OFF` stays as an indicative column; the AND CSV gains
   `ONmin_pct` and the explorer rows `on`/`diff` now hold the joint values (`onSum`/`diffSum`

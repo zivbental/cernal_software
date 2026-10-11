@@ -5,21 +5,26 @@ An AND candidate has two hairpins, A (5' half) and B (3' half). For a structure 
 r_B(s) be the longest run of consecutive open ``stem_up`` nt of each hairpin (open = not paired to
 a ``stem_down`` nt of the same hairpin), and k_A(s), k_B(s) the numbers of open nt. For a state
 
-    Open = E[ min(r_A, r_B) ]      the expected longest run that is open in BOTH hairpins at once
-    E[k] = E[ min(k_A, k_B) ]      the expected number of nt open in both hairpins
+    Open = E[ min(r_A / L_A, r_B / L_B) ]   the expected longest run that is open in BOTH hairpins
+                                            at once, each run as a fraction of its OWN stem (L_h)
+    E[k] = E[ min(k_A, k_B) ]               the expected number of nt open in both hairpins (nt)
 
 both estimated as the mean over structures drawn from the Boltzmann ensemble
 (``FoldEngine.sample_structures``). The matrix gives E[k_A] and E[k_B] exactly, which checks the
-sampler hairpin by hairpin, and bounds the joint quantities: min(r_A, r_B) <= min(k_A, k_B), so
-Open <= E[min(k_A, k_B)] <= min(E[k_A], E[k_B]).
+sampler hairpin by hairpin, and bounds the joint quantities: min(r_A / L_A, r_B / L_B) <=
+min(k_A / L_A, k_B / L_B), so Open <= E[min(k_A / L_A, k_B / L_B)] <= min(E[k_A] / L_A,
+E[k_B] / L_B).
 
-The report's ON uses the sum E[r_A + r_B] (``run_a_sampled`` + ``run_b_sampled``), divided by
-L_A + L_B in the notebook; the min-based Open above is what OFF uses (and ``ON_min``).
+The report's ON (``ON_min``) and OFF use this per-hairpin Open (``open_frac_sampled``, a fraction
+of 0-1): normalising each hairpin by its own stem keeps a long, half-open stem from being
+hidden behind a short, fully open one, which min(r_A, r_B) / min(L_A, L_B) would do. The
+information-only sum E[r_A + r_B] (``run_a_sampled`` + ``run_b_sampled``) is divided by
+L_A + L_B in the notebook. ``open_sampled`` (E[min(r_A, r_B)], nt) stays for the sampler check.
 
 Four states per candidate: alone, +A, +B, +A+B, sampled. Each ``AndJob.controls`` pair (two
 mismatched triggers in the +A+B layout) gets the exact matrix E[k_A], E[k_B] only, with no
-sampling: the sampler is unreliable for mismatched states, and min(E[k_A], E[k_B]) is an upper
-bound of the control's Open.
+sampling: the sampler is unreliable for mismatched states, and min(E[k_A] / L_A, E[k_B] / L_B)
+is an upper bound of the control's Open.
 
 The strand order of +A+B is ``_joint_state_parallel.both_triggers_extra`` (fused & tB & tA,
 nested). ViennaRNA's sampler is sensitive to which strand is written first, and the order that
@@ -76,11 +81,14 @@ def and_state(engine, strands: str, first_strand: int | None, job: AndJob) -> di
         strands, job.n_samples, seed=job.seed, first_strand=first_strand
     )
     sq = {"k_a": 0, "k_b": 0}
-    sums = {"run_min": 0, "k_min": 0, "k_a": 0, "k_b": 0, "r_a": 0, "r_b": 0}
+    sums = {"run_min": 0, "run_frac_min": 0.0, "k_min": 0, "k_a": 0, "k_b": 0, "r_a": 0, "r_b": 0}
+    l_a = job.stem_up_a[1] - job.stem_up_a[0]
+    l_b = job.stem_up_b[1] - job.stem_up_b[0]
     for structure in drawn:
         k_a, r_a = open_counts(structure, job.stem_up_a, job.stem_down_a)
         k_b, r_b = open_counts(structure, job.stem_up_b, job.stem_down_b)
         sums["run_min"] += min(r_a, r_b)
+        sums["run_frac_min"] += min(r_a / l_a, r_b / l_b)
         sums["k_min"] += min(k_a, k_b)
         sums["k_a"] += k_a
         sq["k_a"] += k_a * k_a
@@ -102,6 +110,7 @@ def and_state(engine, strands: str, first_strand: int | None, job: AndJob) -> di
         "k_a_sd": sd("k_a"),
         "k_b_sd": sd("k_b"),
         "open_sampled": sums["run_min"] / n if n else None,
+        "open_frac_sampled": sums["run_frac_min"] / n if n else None,
         "k_min_sampled": sums["k_min"] / n if n else None,
         "k_a_sampled": sums["k_a"] / n if n else None,
         "k_b_sampled": sums["k_b"] / n if n else None,
@@ -124,8 +133,9 @@ def _and_worker(job: AndJob) -> dict:
     out = {"key": job.key}
     for state, (strands, first_strand) in state_strands(job).items():
         out[state] = and_state(engine, strands, first_strand, job)
-    # Controls (two mismatched triggers in the +A+B layout): exact matrix only. min(E[k_A], E[k_B])
-    # is an upper bound of E[min(r_A, r_B)]; the sampler is unreliable for mismatched states.
+    # Controls (two mismatched triggers in the +A+B layout): exact matrix only. min(E[k_A] / L_A,
+    # E[k_B] / L_B) is an upper bound of E[min(r_A / L_A, r_B / L_B)]; the sampler is unreliable
+    # for mismatched states.
     out["controls"] = []
     for ctrl_a, ctrl_b in job.controls:
         strands = "&".join((job.fused, *both_triggers_extra(ctrl_a, ctrl_b)))
