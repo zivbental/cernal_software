@@ -763,7 +763,9 @@ def test_candidate_provenance_cannot_mutate_cached_primary_source_catalog(builde
         SimpleNamespace(
             name="toehold",
             version="test",
-            folder=SimpleNamespace(versions=lambda: {"model": "test"}),
+            folder=SimpleNamespace(
+                versions=lambda: {"model": "test"}, provenance=lambda: {"model": "test"}
+            ),
         ),
         _trigger(),
         [],

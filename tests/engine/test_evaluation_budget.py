@@ -30,7 +30,7 @@ def cheap_pipeline(monkeypatch, make_request):
             "families": [family],
             "warnings": [],
             "profiler": None,
-            "folder": SimpleNamespace(versions=lambda: {}),
+            "folder": SimpleNamespace(versions=lambda: {}, provenance=lambda: {}),
             "screener": None,
             "translation": None,
             "plasmid_builder": None,

@@ -167,6 +167,7 @@ def _resolved(run: AnalysisRun) -> dict:
         ),
         "seed": run.seed,
         "constraints": run.params_snapshot.get("constraints", {}),
+        "folding": run.params_snapshot.get("folding", {}),
         "organism": run.organism,
         "budget": run.params_snapshot.get("budget", {}),
         "payload": run.params_snapshot.get("payload", {}),
@@ -217,6 +218,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
 
     params = {
         "constraints": body.constraints,
+        "folding": body.folding,
         "scoring": scoring,
         "payload": body.payload,
         "backbone": body.backbone,
@@ -261,6 +263,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                     ),
                     "seed": body.seed,
                     "constraints": params["constraints"],
+                    "folding": params["folding"],
                     "organism": body.organism,
                     "budget": params.get("budget", {}),
                     "payload": params.get("payload", {}),

@@ -393,6 +393,7 @@ def test_top_n_does_not_reduce_evaluation_budget_or_estimate(client, design_key,
             "organism": "ecoli",
             "top_n": 1,
             "budget": {"max_designs": 40},
+            "folding": {"temperature_celsius": 25, "energy_parameters": "turner1999"},
             "payload": {"outputs": ["gfp", "other"], "custom_sequence": "ATGGCTGCTTAA"},
         },
         dry_run=dry_run,
@@ -402,6 +403,8 @@ def test_top_n_does_not_reduce_evaluation_budget_or_estimate(client, design_key,
     assert body["estimate"]["candidate_upper_bound"] == 80
     assert body["estimate"]["designs"] > 1
     assert body["resolved"]["budget"]["max_designs"] == 40
+    assert body["resolved"]["folding"]["temperature_celsius"] == 25
+    assert body["resolved"]["folding"]["energy_parameters"] == "turner1999"
     if dry_run == "true":
         assert not AnalysisRun.objects.exists()
     else:
