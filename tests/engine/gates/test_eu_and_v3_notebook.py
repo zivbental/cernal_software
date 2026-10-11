@@ -73,6 +73,16 @@ def test_both_reports_render_with_and_without_control_triggers(tmp_path, control
         assert "median control" in single and "n/a" in single and "n/a" in both
     else:
         assert any(r["n_controls"] > 0 for r in namespace["scored"])
+    # the AND ranking is the joint ON_min - OFF: its best candidate is in the tied group, and the
+    # sum-based difference is only indicative
+    ranked = [r for r in namespace["scored_and"] if r["diff_min_pp"] is not None]
+    best = max(ranked, key=lambda r: r["diff_min_pp"])
+    assert best["tied"]
+    assert all(r["diff_min_pp"] <= best["diff_min_pp"] for r in ranked if r["tied"])
+    assert (
+        "ONmin_pct"
+        in next(tmp_path.glob("eu_and_v3_and_all_candidates_*.csv")).read_text().splitlines()[0]
+    )
     csvs = list(tmp_path.glob("eu_and_v3_*all*.csv"))
     assert len(csvs) == 2
     assert all("n_controls" in path.read_text(encoding="utf-8").splitlines()[0] for path in csvs)

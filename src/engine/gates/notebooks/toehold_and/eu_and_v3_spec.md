@@ -87,24 +87,17 @@ floored). `dG = G(switch+trigger) - G(switch) - G(trigger alone)` (ensemble free
 Fusion: hairpin A = design A up to its own Kozak; hairpin B = design B after its own prefix;
 optional spacer between (see below). Four states per candidate: alone, +A, +B, +A+B, plus
 `N_CONTROLS` control states (two mismatched triggers in the +A+B layout).
-`ON = 100 E[r_A + r_B] / (L_A + L_B)` — per structure the two longest runs are added, divided
-by the stem lengths together and weighted by `P(s)`.
-`OFF = 100 max(Open_alone, Open_+A, Open_+B, Control) / L`, `L = min(L_A, L_B)`, where
-`Open = E[min(r_A, r_B)]` for the OFF states (the run that is open in both hairpins at once)
-and `Control = max_j min(E[k_A], E[k_B])_matrix` (upper bound). ON is a sum and OFF a
-minimum on purpose: ON rewards each hairpin that responds to its own trigger, OFF flags both
-open at once. `ON_min = 100 E[min(r_A, r_B)]_{+A+B} / L` and `ON_min - OFF` are listed beside
-(like with like). Candidates are ranked by `ON - OFF` (sum-based ON).
-
-**What the ranking represents.** `ON - OFF` asks whether each hairpin responds to its own
-trigger (sum) and whether any state opens both hairpins at once without both triggers (OFF). It
-does not require the hairpins to open in the same structure: one hairpin open and the other
-closed with both triggers gives `ON = 50`, `ON_min = 0`, and scores 50 although it is not a
-working AND. Joint activation is therefore kept visible beside the ranking: the
-`ON_min - OFF` column (table and CSV) and a summary row counting the listed candidates whose
-`ON_min` is below half of `ON`. Choose by `ON_min - OFF` when a true AND is required. (Whether
-the ranking itself should be `ON_min - OFF` is an open methodology decision, raised in the PR
-review.)
+`ON_min = 100 E[min(r_A, r_B)]_{+A+B} / L`, `L = min(L_A, L_B)` — the longest run open in both
+hairpins at once, weighted by `P(s)`: the joint activation. `OFF = 100 max(Open_alone, Open_+A,
+Open_+B, Control) / L` with the same `Open = E[min(r_A, r_B)]` for the OFF states and
+`Control = max_j min(E[k_A], E[k_B])_matrix` (upper bound). ON and OFF use one rule and one
+denominator, so `ON_min - OFF` compares like with like. Candidates are ranked by
+`ON_min - OFF` (joint). The sum-based `ON_sum = 100 E[r_A + r_B] / (L_A + L_B)` and
+`ON_sum - OFF` are listed for information only (table, CSV and explorer rows); they would give
+credit when only one hairpin opens (`ON_sum = 50`, `ON_min = 0`). The summary also counts the
+listed candidates whose `ON_min` is below half of `ON_sum` (uneven response) and the rank
+agreement between the two orders. `ratio = ON_min / max(OFF, OFF_FLOOR_PCT)` is information
+only. The tied group, the noise and the verification all refer to `ON_min - OFF`.
 `dG = G(+A+B) - min(G_alone + G_A + G_B, G_+A + G_B, G_+B + G_A)`.
 
 ### Spacer
@@ -145,8 +138,8 @@ G·U wobble). `single_rank` in part 2 = rank in part 1.
 - The matrix gives `E[k]` exactly (`sum_i (1 - sum_j p_ij)`), not runs, joint events or
   `P(k >= m)`. For +A+B it bounds the sum `E[r_A + r_B] <= E[k_A] + E[k_B]`.
 - **Noise:** the second run (`SEED + CHECK_SEED_OFFSET`) gives the seed-to-seed change of
-  `ON - OFF`; median and 95th percentile are reported.
-- **Tied group:** designs within the 95th percentile of the best `ON - OFF` form one group
+  `ON - OFF` (AND: `ON_min - OFF`); median and 95th percentile are reported.
+- **Tied group:** designs within the 95th percentile of the best `ON - OFF` (AND: `ON_min - OFF`) form one group
   (marked †), listed first and ordered by `dG` (more negative first); the rest follow by
   `ON - OFF`. Only sampling noise is counted. A more stable hairpin makes `dG` less negative,
   so this ordering slightly favours less stable switches (stated in the reports).
@@ -219,6 +212,10 @@ the other states; percentages are not fully neutral to stem length.
 
 ## Change log
 
+- 2026-10-11 (decision after the PR #68 review): the AND ranking, tied group and noise use the
+  joint `ON_min - OFF`; `ON_sum - OFF` stays as an indicative column; the AND CSV gains
+  `ONmin_pct` and the explorer rows `on`/`diff` now hold the joint values (`onSum`/`diffSum`
+  the sum-based ones).
 - 2026-10-11 (review of PR #68): `sample_structures` uses the shared configured compound and a
   sampling lock; the wobble-aware trigger-pair screen compares complementary bases against the
   reversed (not reverse-complemented) partner, so A×12 vs U×12 is caught; a measured `sd = 0`
@@ -227,7 +224,7 @@ the other states; percentages are not fully neutral to stem length.
   `tests/engine/gates/`, portable fixture `tests/fixtures/eu_and_v3_small.csv`.
 
 - 2026-10-11: single and AND notebooks merged; AND pool taken from part 1; OFF includes
-  `N_CONTROLS` mismatched-trigger controls; ON of the AND = `E[r_A + r_B] / (L_A + L_B)`;
+  `N_CONTROLS` mismatched-trigger controls; ON of the AND = `E[r_A + r_B] / (L_A + L_B)` (later replaced, see below);
   `E[k]` columns moved to Appendix A; data export for an interactive page.
 - 2026-10-08/09: `dG` includes the triggers folded alone; tied group by seed-to-seed noise;
   per-state tolerance; spacer text; first reports.
