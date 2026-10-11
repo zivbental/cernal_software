@@ -37,10 +37,10 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 65 |
-| Public classes | 110 |
-| Public callables (excluding `__init__`) | 371 |
-| — `BUILT` | 358 |
+| Modules | 68 |
+| Public classes | 113 |
+| Public callables (excluding `__init__`) | 376 |
+| — `BUILT` | 363 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -63,8 +63,11 @@ layers above it, never the ones below.
 | gate_tools | `engine.gates.tools.ais_china` |  | 5 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 7 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 27 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 28 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.rnaviz` |  | 0 | 0 | Licensed cernal-rnaviz drawing primitives; no folding or sequence services. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
+| gate_tools | `engine.gates.tools.rnaviz.layout` |  | 1 | 0 | Turning ViennaRNA output into something drawable. |
+| gate_tools | `engine.gates.tools.rnaviz.models` |  | 2 | 0 | Drawable nucleotide and base-pair types adapted from cernal-rnaviz. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
 | gates | `engine.gates.base` |  | 10 | 0 | The GateFamily interface. |
@@ -110,7 +113,7 @@ layers above it, never the ones below.
 | stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
-| top | `engine.client` |  | 10 | 0 | The Platform-facing engine interface. |
+| top | `engine.client` |  | 11 | 0 | The Platform-facing engine interface. |
 | top | `engine.contract` |  | 4 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Shared differential-expression parsing for upload, preview and engine execution. |
@@ -1149,13 +1152,14 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 | `BUILT` | `def p_open(self, strands: str, window: tuple[int, int]) -> float \| None` | Joint probability that **every** base in ``window`` is unpaired at once. |
 | `BUILT` | `def p_open_by_order(self, strands: str, window: tuple[int, int]) -> tuple[list[float], list[float], list[float]] \| None` | ``p_open`` resolved per strand ordering, for auditing the spread above. |
 | `BUILT` | `@staticmethod def validate_target(sequence: str, target: str) -> None` | Reject malformed single-strand dot-bracket structures before native calls. |
+| `BUILT` | `@staticmethod def structure_layout(sequence: str, structure: str) -> tuple[list[Base], list[Link]]` | Lay out an existing single-strand structure without folding or scoring it. |
 | `BUILT` | `def ensemble_defect(self, sequence: str, target: str) -> float` | How far the predicted ensemble sits from an intended structure. |
 | `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` | Probability that each pair of positions is bonded, over the whole ensemble. |
 | `BUILT` | `def pooled_pair_probabilities(self, strands: str) -> list[list[float]]` | ``base_pair_probabilities`` Boltzmann-averaged over all strand orderings. |
 | `BUILT` | `def suboptimal(self, sequence: str, delta: float = 2.0, *, max_structures: int = 1000, timeout_seconds: float = 2.0) -> list[FoldResult]` | Enumerate exact structures within ``delta`` kcal/mol of MFE. |
 | `BUILT` | `def mfe_with_window_open(self, strands: str, window: tuple[int, int]) -> tuple[str, float]` | The most stable structure that leaves ``window`` single-stranded. |
 | `BUILT` | `def refolding_saddle(self, strands: str, start: str, target: str, *, width: int = 20) -> float \| None` | Highest energy on a direct refolding path from ``start`` to ``target``. |
-| `BUILT` | `def layout_coordinates(self, structure: str) -> list[tuple[float, float]]` | Where each nucleotide sits when a structure is drawn, one point per base. |
+| `BUILT` | `@staticmethod def layout_coordinates(structure: str) -> list[tuple[float, float]]` | Where each nucleotide sits when a structure is drawn, one point per base. |
 | `BUILT` | `def constrained_free_energy(self, strands: str, constraint: str = '') -> float` | Partition free energy, using FcAB (connected states) for a heterodimer. |
 | `BUILT` | `def constraint_probability(self, strands: str, constraint: str) -> float` | Joint event Z_constrained / Z; never multiply marginal probabilities. |
 | `BUILT` | `def region_accessibility(self, strands: str, start: int, end: int) -> float` | Probability every nucleotide in [start, end) is simultaneously unpaired. |
@@ -1163,6 +1167,14 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 | `BUILT` | `def binding_free_energy(self, strand_a: str, strand_b: str) -> float` | Standard binding free energy from connected AB and free A/B ensembles. |
 | `BUILT` | `def heterodimer_equilibrium(self, strand_a: str, strand_b: str, a_molar: float, b_molar: float) -> tuple[float, float]` | Return (binding free energy, fraction of A bound) for {A, B, AB}. |
 | `BUILT` | `def versions(self) -> dict[str, str]` | The tool versions this run was computed with. |
+
+### `engine.gates.tools.rnaviz`
+
+`src/engine/gates/tools/rnaviz/__init__.py`
+
+Licensed cernal-rnaviz drawing primitives; no folding or sequence services.
+
+*No public symbols — the docstring is the whole file.*
 
 ### `engine.gates.tools.translation` · S9
 
@@ -1181,6 +1193,60 @@ Initiation strength for one host, dispatching on its track.
 | `STUB` | `def rbs_strength(self, sequence: str, start_index: int) -> float` | Prokaryotic: Shine-Dalgarno complementarity and spacing. |
 | `STUB` | `def kozak_match(self, sequence: str, start_index: int) -> float` | Eukaryotic: agreement with the Kozak consensus. |
 | `STUB` | `def ramp_is_unstructured(self, sequence: str, start_index: int) -> bool` | Whether the region just downstream of the AUG is open enough to translate. |
+
+### `engine.gates.tools.rnaviz.layout`
+
+`src/engine/gates/tools/rnaviz/layout.py`
+
+Turning ViennaRNA output into something drawable.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def build_bases_and_links(sequence: str, coordinates: Any, pair_table: Any, start_offset: int = 0) -> tuple[list[Base], list[Link]]` | Build the node and edge lists for one folded strand. |
+
+### `engine.gates.tools.rnaviz.models`
+
+`src/engine/gates/tools/rnaviz/models.py`
+
+Drawable nucleotide and base-pair types adapted from cernal-rnaviz.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `JsonDict` |  | `dict[str, Any]` |
+
+#### `class Base`
+
+`@dataclass(slots=True)`
+
+One nucleotide, with the 2D layout coordinates ViennaRNA computed for it.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `index` | `int` |  |
+| `char` | `str` |  |
+| `x` | `float` |  |
+| `y` | `float` |  |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def to_dict(self) -> JsonDict` |  |
+
+#### `class Link`
+
+`@dataclass(slots=True)`
+
+A base pair between two nucleotides, by index into the base list.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `source` | `int` |  |
+| `target` | `int` |  |
+| `probability` | `float \| None` | `None` |
+| `type` | `str \| None` | `None` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def to_dict(self) -> JsonDict` |  |
 
 ## Layer 5 · Gate families — where a switch chemistry goes
 
@@ -2286,6 +2352,7 @@ The Platform-facing engine interface.
 | `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.LocalEngine``. |
 | `BUILT` | `def label_for_custom_scoring(base_name: str, overrides: dict \| None) -> str` | The label the engine will actually score under (docs/public-api.md §9.1) — computable from the request alone, before the engine ever runs, so the Platform can echo it in a submission's ``resolved`` field without building a ``ScoringProfile… |
 | `BUILT` | `def lookup_reference_gene(organism: str, identifier: str) -> dict` | Resolve a public reference gene without exposing engine internals to the API. |
+| `BUILT` | `def layout_stored_structure(sequence: object, structure: object, *, structure_kind: object = None) -> dict` | Return drawing data for a stored primary switch, never a new scientific result. |
 | `BUILT` | `def normalize_trigger_sequence(sequence: str) -> str` | Normalize one RNA/DNA sequence or one FASTA record without changing symbols. |
 | `BUILT` | `def inspect_expression_input(path: str, limit: int \| None = 100) -> dict` | Shared upload and preview interpretation, exposed through the engine boundary. |
 | `BUILT` | `def validate_job_configuration(params: dict, gate_families: list[str], scoring_profile: str, input_mode: str, trigger_sequence: str = '', organism: str = '') -> dict` | Validate a runnable configuration before queueing; return normalized parameters. |
@@ -2524,6 +2591,10 @@ A requested gate family is not registered in this engine build.
 #### `class ScoringProfileError(EngineError)`
 
 The requested scoring profile is unknown, or its metric set is inconsistent.
+
+#### `class StructureLayoutUnavailable(EngineError)`
+
+A valid stored structure exceeds the interactive viewer's supported size.
 
 #### `class JobCancelled(EngineError)`
 

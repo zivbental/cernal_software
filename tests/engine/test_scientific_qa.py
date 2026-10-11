@@ -417,12 +417,20 @@ def test_suboptimal_child_imports_same_installed_package_layout_without_pythonpa
 
     source = Path(folding.__file__).resolve().parents[3]
     installed = tmp_path / "site packages' quoted"
+    # Include folding.py's actual engine import dependencies. This fixture models an
+    # installed package, not a partial installation missing required layout modules;
+    # the regression under test is the child's package bootstrap without PYTHONPATH.
     for relative in (
         "engine/__init__.py",
         "engine/domain.py",
+        "engine/errors.py",
+        "engine/sequences.py",
         "engine/gates/__init__.py",
         "engine/gates/tools/__init__.py",
         "engine/gates/tools/folding.py",
+        "engine/gates/tools/rnaviz/__init__.py",
+        "engine/gates/tools/rnaviz/layout.py",
+        "engine/gates/tools/rnaviz/models.py",
     ):
         target = installed / relative
         target.parent.mkdir(parents=True, exist_ok=True)

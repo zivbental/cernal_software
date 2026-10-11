@@ -13,6 +13,7 @@ import { ArtifactDownloads } from "@/components/results/ArtifactDownloads";
 import { MetricGrid } from "@/components/results/MetricGrid";
 import { PlasmidLegend, PlasmidRing } from "@/components/results/PlasmidRing";
 import { LogicCircuitView } from "@/components/results/LogicCircuit";
+import { RnaStructureView } from "@/components/results/RnaStructureView";
 import { RunStatusBadge } from "@/components/results/RunStatusBadge";
 import { PrecisionFilters, type Filters, DEFAULT_FILTERS } from "@/components/results/PrecisionFilters";
 import { Loading } from "@/components/layout/Loading";
@@ -183,7 +184,7 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
   const [offset, setOffset] = useState(0);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState<"plasmid" | "logic">("plasmid");
+  const [view, setView] = useState<"plasmid" | "logic" | "rna">("plasmid");
 
   const [outputFilter, setOutputFilter] = useState<string | null>(null);
   const candidates = useCandidates(runId, {
@@ -269,18 +270,20 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                       {detail.data.engine_ref} ·{" "}
-                      {view === "plasmid" ? "Plasmid Map" : "Logic Circuit"}
+                      {view === "plasmid" ? "Plasmid Map" : view === "logic" ? "Logic Circuit" : "RNA Structure"}
                     </div>
-                    <div className="inline-flex rounded-lg border border-border bg-surface p-1">
+                    <div className="inline-flex flex-wrap rounded-lg border border-border bg-surface p-1">
                       {(
                         [
                           { k: "plasmid", label: "Plasmid Map", Icon: Dna },
                           { k: "logic", label: "Logic Circuit", Icon: CircuitBoard },
+                          { k: "rna", label: "RNA Structure", Icon: Dna },
                         ] as const
                       ).map((tab) => (
                         <button
                           key={tab.k}
                           onClick={() => setView(tab.k)}
+                          aria-pressed={view === tab.k}
                           className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs transition ${
                             view === tab.k
                               ? "bg-card font-medium text-foreground shadow-clinical"
@@ -300,6 +303,8 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
                         <PlasmidRing candidate={detail.data} />
                         <PlasmidLegend segments={detail.data.design.plasmid_segments ?? []} />
                       </div>
+                    ) : view === "rna" ? (
+                      <RnaStructureView key={detail.data.id} candidate={detail.data} />
                     ) : (
                       <div className="w-full">
                         <LogicCircuitView

@@ -74,9 +74,10 @@ frontend:
     - npm run check
     - npm run build
     - npx playwright install --with-deps chromium
-    - npm run test:browser
+    - RNA_VIEWER_SCREENSHOT_DIR=test-results/rna-viewer npm run test:browser
   artifacts:
-    paths: [src/static/app/]
+    when: always
+    paths: [src/static/app/, frontend/test-results/rna-viewer/]
     expire_in: 1 week
 
 browser-queued:

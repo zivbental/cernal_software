@@ -127,6 +127,53 @@ def lookup_reference_gene(organism: str, identifier: str) -> dict:
         raise ValueError(str(exc)) from exc
 
 
+def layout_stored_structure(
+    sequence: object, structure: object, *, structure_kind: object = None
+) -> dict:
+    """Return drawing data for a stored primary switch, never a new scientific result.
+
+    Unknown provenance stays unknown. Missing historical data is unavailable; malformed
+    stored data is invalid. Known layout failures are safe data, while programming
+    errors still propagate. No engine/tool instance or scientific computation is created.
+    """
+    from engine.errors import StructureLayoutUnavailable
+
+    result = {
+        "status": "unavailable",
+        "reason": None,
+        "sequence": sequence if isinstance(sequence, str) else "",
+        "structure": structure if isinstance(structure, str) else "",
+        "structure_kind": structure_kind if isinstance(structure_kind, str) else None,
+        "bases": [],
+        "links": [],
+        "renderer": "cernal-rnaviz",
+        "renderer_version": "aa112e17a76941233987bb4287c2c66511c40d13",
+    }
+    if any(value is not None and not isinstance(value, str) for value in (sequence, structure)):
+        result.update(status="invalid", reason="Stored sequence and structure must be text.")
+        return result
+    if not sequence or not structure:
+        result["reason"] = "This candidate has no stored sequence and structure to display."
+        return result
+    from engine.gates.tools.folding import FoldEngine
+
+    try:
+        bases, links = FoldEngine.structure_layout(sequence, structure)
+    except StructureLayoutUnavailable as exc:
+        result["reason"] = str(exc)
+    except ValueError as exc:
+        result.update(status="invalid", reason=str(exc))
+    except EngineError as exc:
+        result.update(status="error", reason=str(exc))
+    else:
+        result.update(
+            status="available",
+            bases=[base.to_dict() for base in bases],
+            links=[link.to_dict() for link in links],
+        )
+    return result
+
+
 def normalize_trigger_sequence(sequence: str) -> str:
     """Normalize one RNA/DNA sequence or one FASTA record without changing symbols."""
     from engine import sequences

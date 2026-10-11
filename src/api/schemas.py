@@ -5,6 +5,7 @@ docs/domain-model.md. Nothing here exposes storage paths or internal identifiers
 """
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from ninja import Field, ModelSchema, Schema
@@ -362,6 +363,30 @@ class CandidateDetailOut(CandidateOut):
         if not getattr(obj, "_include_metrics", True):
             return None
         return list(obj.metrics.all())
+
+
+class StructureBaseOut(Schema):
+    index: int
+    char: str
+    x: float
+    y: float
+
+
+class StructureLinkOut(Schema):
+    source: int
+    target: int
+
+
+class CandidateStructureOut(Schema):
+    status: Literal["available", "unavailable", "invalid", "error"]
+    reason: str | None
+    sequence: str
+    structure: str
+    structure_kind: str | None
+    bases: list[StructureBaseOut]
+    links: list[StructureLinkOut]
+    renderer: Literal["cernal-rnaviz"]
+    renderer_version: str
 
 
 class ArtifactOut(ModelSchema):

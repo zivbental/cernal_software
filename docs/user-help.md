@@ -30,6 +30,9 @@ historical summaries:
   `frontend/src/components/compile/`
 - result filters, failures, and downloads: `frontend/src/routes/runs.$runId.tsx` and
   `frontend/src/components/results/`
+- RNA Structure tab, saved-target labels, region mapping and primary-switch limit:
+  `frontend/src/components/results/RnaStructureView.tsx`, `frontend/src/lib/rna-structure.ts`,
+  and `GET /api/candidates/{candidate_id}/structure` in `src/api/routers/results.py`
 - frozen run metadata and execution: `src/apps/analyses/`
 - ownership: `src/api/auth.py` and `src/api/routers/runs.py`
 - account approval: `src/api/routers/auth.py`
@@ -43,6 +46,7 @@ npm run build:fast
 npm run test:help
 npm run check
 npm run build
+node e2e/rna-viewer-browser.mjs
 ```
 
 `npm run test:help` renders the actual help content with the existing esbuild/React SSR
@@ -55,6 +59,12 @@ shallow clones still validate the pinned revision and tracked local source targe
 Seven negative controls exercise bad routes, missing rendered and source-evidenced
 fragments, unsafe schemes, malformed URLs, duplicate IDs, and nonexistent source paths.
 It is part of `npm run check`; live external HTTP checks remain separate.
+
+The stored RNA viewer has pure adapter contracts in `e2e/rna-structure.mjs` (included
+in `npm run check`) and same-origin fixture browser contracts in
+`e2e/rna-viewer-browser.mjs` (included in `npm run test:browser`). These use synthetic
+sequences and cover candidate/run navigation, viewer controls, unavailable/invalid
+data, legacy provenance, and request failures without contacting a folding service.
 
 For browser verification, sign in with an approved account and visit `/use-cases`,
 `/guide`, and `/faq` at desktop and narrow viewport widths. Follow the help navigation,

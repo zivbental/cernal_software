@@ -131,6 +131,15 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+        env:
+          RNA_VIEWER_SCREENSHOT_DIR: test-results/rna-viewer
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rna-viewer-browser
+          path: frontend/test-results/rna-viewer/
+          if-no-files-found: ignore
+          retention-days: 7
 
   release-windows:
     name: Windows supervisor runtime (manual/scheduled)

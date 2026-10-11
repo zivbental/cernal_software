@@ -12,8 +12,9 @@
     "typecheck": "tsc --noEmit",
     "test:render": "node e2e/render-logic.mjs",
     "test:help": "node e2e/help-content.mjs",
-    "check": "tsc --noEmit && eslint . && node e2e/render-logic.mjs && node e2e/help-content.mjs",
-    "test:browser": "node e2e/contracts.mjs",
+    "test:rna": "node e2e/rna-structure.mjs",
+    "check": "tsc --noEmit && eslint . && node e2e/render-logic.mjs && node e2e/help-content.mjs && node e2e/rna-structure.mjs",
+    "test:browser": "node e2e/contracts.mjs && node e2e/rna-viewer-browser.mjs",
     "test:smoke": "node e2e/smoke.mjs"
   },
   "dependencies": {
