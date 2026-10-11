@@ -50,35 +50,29 @@ Use the audit's ENG, PLAT, PD and GAP identifiers in commits and release evidenc
 Only Offer and Ziv merge approved changes into `main`. Deployment, package
 publication and ordering require their own explicit authorization.
 
-### Resolved · the ON-state ceiling reads a nested span, which is safe
+### Done · the ON ceiling reads the ribosome's window
 
-Recorded because the first version of this entry got it wrong in the alarming direction.
+`measure_design` gated on `open_11`, the main stem's arms (15 nt), while the value it
+stands for is measured over the ribosome's window (31 nt). Two earlier versions of this
+entry argued first that this was a defect and then that it was safe because the spans are
+nested. Both were beside the point: the gate now reads `dG_open_11`, the span the number
+belongs to, and there is nothing to reconcile.
 
-`measure_design`'s `on_ceiling` gates on `open_11`, the main stem's arms, 15 nt. The value
-it is set against is external and measured on a different span: Green's 168 have a median
-ON cost of **3.64 kcal/mol** over the ribosome's window, which here is `dG_open_11`, 31 nt.
-So the gate is not itself calibrated, and the first version of this note concluded that no
-setting of it could be.
+* threshold **7.2 kcal/mol** — the highest ON cost among Green's 77 switches above
+  20-fold ON/OFF; the median over all 168 is 3.64
+* `dG_open_11` is computed from the same ON-tube complex as `open_11`, so the extra cost
+  is one constrained partition function, not a second fold
+* `open_11` stays as an observable: every design built before the change carries it, and
+  it is what the stem levers act on most directly
+* **family version 0.6.0.** A run under 0.5.0 and a run under 0.6.0 are not comparable at
+  the same numeric setting, and the release note must say so
+* `tools/run_axes.cmd` and `tools/run_axes_complete.cmd` now default to `CEIL=7.2`
 
-**That conclusion was wrong, because the spans are nested.** `w_rank` is span(−17, +13)
-around the start codon; the arms are 6 nt before it and 9 after, both inside it. Opening a
-superset costs at least as much as opening a subset, so `dG_open_11 ≥ open_11` by
-construction. Measured on 147,244 designs: gap +0.12 to +7.45, median +0.83, Spearman
-**+0.974**.
-
-So a ceiling of C on the arms admits a **superset** of what a ceiling of C on the footprint
-would admit, and the correct filter is applied afterwards for free. At the 8.0 the runs use,
-**0.0%** of designs in the 7.0–8.0 band of `open_11` are below a 7.2 footprint ceiling —
-nothing admissible was discarded. Of the designs that were measured, 109,803 of 147,244
-(**74.6%**) pass a 7.2 footprint ceiling, and that filter can be applied to the existing
-table today.
-
-**What remains true and needs care.** `dG_open_11` is not computed for a design the ceiling
-stops — empty on all 54,200 rejected rows. The superset argument is what makes that
-acceptable, and it holds only while the arms ceiling stays at least as permissive as the
-footprint ceiling standing behind it. Lowering it below ~7.2 would start discarding designs
-unmeasured on the quantity that decides them. Future runs should gate on `dG_open_11`
-directly, computing it before the check; that is a scoring change needing a version bump.
+**The run in progress keeps the old rule.** Its shards loaded 0.5.0 and will not pick this
+up unless restarted, so `axes_c8` is a 0.5.0 table. Everything in it that was fully
+measured carries `dG_open_11` and can be re-filtered at 7.2 without re-running — 109,803 of
+147,244 (74.6%) pass. Designs it stopped at the old ceiling have no `dG_open_11` and would
+need rebuilding to be judged on the new one.
 
 ### Open · the invasion-run cap has no source
 

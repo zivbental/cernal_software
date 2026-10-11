@@ -40,7 +40,7 @@ REM Identical to tools\run_axes.cmd except STRIDE.
 set OUT=axes_c8
 set PAIRS=70
 set STRIDE=1
-set CEIL=8.0
+set CEIL=7.2
 
 echo.
 echo   Completing the grid for %OUT%.

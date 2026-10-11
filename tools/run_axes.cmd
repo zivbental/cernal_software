@@ -87,7 +87,7 @@ if not exist tools\logs mkdir tools\logs
 set OUT=axes_c8
 set PAIRS=70
 set STRIDE=2
-set CEIL=8.0
+set CEIL=7.2
 set EXTRA=
 
 if /i "%1"=="control" (

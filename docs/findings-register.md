@@ -1,3 +1,4 @@
+| The ON ceiling now reads the window its value is calibrated on | Was `open_11`, the stem arms (15 nt); is now **`dG_open_11`**, the ribosome window (31 nt), which is the span Green's figures are measured over. Threshold **7.2 kcal/mol** — the highest ON cost among his 77 switches above 20-fold ON/OFF, against a median of 3.64 over all 168. Family version **0.6.0**: a run under 0.5.0 and one under 0.6.0 are not comparable at the same numeric setting. `open_11` is still recorded and decides nothing |
 # Findings register — every measured number, and what reproduces it
 
 One row per finding: the number, the file that holds its reasoning, and the command that

@@ -29,6 +29,7 @@ no figure.
 from __future__ import annotations
 
 import argparse
+import math
 import pathlib
 
 WIDTH = 900
@@ -364,6 +365,155 @@ def levers() -> str:
                 "giving the domain it patches and the exact substitution it makes.")
 
 
+# --- 4.5  how the space is cut down ---------------------------------------------------
+
+
+def funnel() -> str:
+    """Each cut, with what it leaves.
+
+    Bar length is logarithmic. The first cut is four orders of magnitude, and on a linear
+    scale every stage after it would be invisible -- which would hide the part of the
+    figure that is actually about design decisions.
+    """
+    stages = (
+        ("every candidate pair", 53530, "all three gene pairs", "pairs"),
+        ("carried into the sweep", 210, "a declared budget, spread across the ranking",
+         "pairs"),
+        ("in both geometries", 420, "neither stem layout has been retired", "cells"),
+        ("with its own stems", 3555, "about 9 per cell; the data sizes this", "stems"),
+        ("over the lever grid", 341280, "16 closures, 3 upper3, 2 lower3", "designs"),
+        ("folded in four tubes", 147129, "the rest stop at the ON-state ceiling",
+         "designs"),
+    )
+    left, top, row_h, bar_max = 290, 96, 46, 440
+    peak = math.log10(max(n for _, n, _, _ in stages))
+    out = [
+        _text(8, 28, "How the space is cut, and by what", "mt-title"),
+        _text(8, 48, "Bar length is logarithmic: the first cut alone is four orders of "
+                     "magnitude.", "mt-caption"),
+    ]
+    for index, (label, count, why, unit) in enumerate(stages):
+        y = top + index * row_h
+        width = bar_max * math.log10(count) / peak
+        folded = index >= 4
+        out.append(
+            f'<rect class="mt-funnel{" mt-funnel--fold" if folded else ""}" '
+            f'x="{left}" y="{y}" width="{width:.1f}" height="30" />'
+        )
+        out.append(_text(left - 12, y + 21, label, "mt-dom", "end"))
+        out.append(_text(left + width + 10, y + 21, f"{count:,} {unit}", "mt-value"))
+        out.append(_text(8, y + 21, why, "mt-note"))
+    base = top + len(stages) * row_h
+    out.append(_text(8, base + 22, "Only the last two rows involve folding. Everything "
+                                   "above them is counting, and is what makes the folding "
+                                   "affordable.", "mt-note"))
+    return _svg(out, base + 44,
+                "A logarithmic funnel from 53,530 candidate trigger pairs down to the "
+                "147,129 designs folded in all four tubes, with the reason for each cut.")
+
+
+# --- 4.6  the four tubes --------------------------------------------------------------
+
+
+def tubes() -> str:
+    """What each tube contains, what it has to show, and which one holds the leak."""
+    cells = (
+        ("00", "the switch alone", "both hairpins shut", "", "plain"),
+        ("10", "the switch + trigger A",
+         "nothing should change: A has no exposed site", "where the leak lives", "leak"),
+        ("01", "the switch + trigger B",
+         "the inhibitory hairpin opens, the main one does not",
+         "the harder of the two to pass", "plain"),
+        ("11", "the switch + both triggers", "the footprint comes free",
+         "the only ON state", "on"),
+    )
+    w, h, gap, left, top = 404, 126, 26, 36, 100
+    out = [
+        _text(8, 28, "The four tubes", "mt-title"),
+        _text(8, 48, "Folded at equilibrium with the triggers in excess. The left digit "
+                     "is trigger A.", "mt-caption"),
+    ]
+    for index, (state, contents, must, note, kind) in enumerate(cells):
+        x = left + (index % 2) * (w + gap)
+        y = top + (index // 2) * (h + gap)
+        out.append(f'<rect class="mt-tube mt-tube--{kind}" x="{x}" y="{y}" '
+                   f'width="{w}" height="{h}" rx="4" />')
+        out.append(_text(x + 18, y + 38, state, "mt-state-big"))
+        out.append(_text(x + 86, y + 34, contents, "mt-dom"))
+        out.append(_text(x + 18, y + 68, must, "mt-note"))
+        if note:
+            out.append(_text(x + 18, y + 98, note,
+                             "mt-leak-note" if kind == "leak" else "mt-note"))
+    base = top + 2 * (h + gap)
+    out.append(_text(8, base + 14, "10 and 01 are not the same test. In 10 the molecule "
+                                   "is shut and the question is whether A gets a grip "
+                                   "anyway;", "mt-note"))
+    out.append(_text(8, base + 34, "in 01 the main hairpin is already exposed and the "
+                                   "question is whether it stays shut without A.",
+                     "mt-note"))
+    return _svg(out, base + 56,
+                "The four tube states in a two by two grid: what each contains, what it "
+                "has to show, and that state 10 is where the leak lives.")
+
+
+# --- 4.8  the two windows, and why one bounds the other -------------------------------
+
+
+def windows() -> str:
+    """The ribosome's window contains the stem's arms, which is the whole argument."""
+    scale, left, mid = 16, 150, 176
+
+    def at(pos):
+        return left + (pos + 20) * scale
+
+    out = [
+        _text(8, 28, "Two windows, one inside the other", "mt-title"),
+        _text(8, 48, "Positions counted from the A of the start codon, which is +1. "
+                     "There is no zero.", "mt-caption"),
+        f'<line class="mt-axis-line" x1="{at(-20)}" y1="{mid}" x2="{at(16)}" y2="{mid}" />',
+    ]
+    for pos in (-17, -6, 1, 10, 13):
+        out.append(f'<line class="mt-tick" x1="{at(pos)}" y1="{mid - 7}" '
+                   f'x2="{at(pos)}" y2="{mid + 7}" />')
+        out.append(_text(at(pos), mid + 26, f"{pos:+d}", "mt-axis", "middle"))
+    out.append(f'<rect class="mt-aug" x="{at(1)}" y="{mid - 14}" '
+               f'width="{3 * scale}" height="28" rx="3" />')
+    out.append(_text(at(1) + 1.5 * scale, mid + 5, "AUG", "mt-pill-text", "middle"))
+
+    for y, lo, hi, label, why, kind in (
+        (mid - 70, -17, 13, "the ribosome&#8217;s window, 31 nt",
+         "what Green&#8217;s 3.64 kcal/mol is measured over", "wide"),
+        (mid + 62, -6, 9, "the main stem&#8217;s arms, 15 nt",
+         "what the ON-state ceiling filters", "narrow"),
+    ):
+        out.append(f'<rect class="mt-span mt-span--{kind}" x="{at(lo)}" y="{y - 14}" '
+                   f'width="{(hi - lo + 1) * scale}" height="28" rx="3" />')
+        out.append(_text(at(lo) + 10, y + 5, label, "mt-dom"))
+        # Under the bar, not beside it: the wide span reaches x=678 and its note is
+        # 43 characters, which ran 130 units past the figure's right edge.
+        out.append(_text(at(lo) + 10, y + (26 if kind == "wide" else -22), why, "mt-note"))
+        for edge in (lo, hi + 1):
+            out.append(f'<line class="mt-lead" x1="{at(edge)}" y1="{y}" '
+                       f'x2="{at(edge)}" y2="{mid}" />')
+
+    base = mid + 116
+    for offset, line in enumerate((
+        "The ON-state ceiling is read over the WIDE span, which is the one an initiating "
+        "30S subunit occupies and the one",
+        "Green&#8217;s published ON costs are measured over. 7.2 kcal/mol is the highest "
+        "cost among his switches above 20-fold ON/OFF.",
+        "The narrow span is recorded for every design and decides nothing. The two are "
+        "not interchangeable: measured on 147,244",
+        "designs they differ by a median of 0.83 and by up to 7.45 kcal/mol, so every "
+        "number says which span it belongs to.",
+    )):
+        out.append(_text(8, base + offset * 20, line, "mt-note"))
+    return _svg(out, base + 96,
+                "The ribosome's 31-nucleotide window drawn above the main stem's "
+                "15-nucleotide arms, showing the narrow span lying entirely inside "
+                "the wide one.")
+
+
 def _svg(parts: list[str], height: int, aria: str) -> str:
     body = "\n    ".join(parts)
     return (
@@ -374,6 +524,9 @@ def _svg(parts: list[str], height: int, aria: str) -> str:
 
 FIGURES = {
     "methods-triggers.svg": triggers,
+    "methods-funnel.svg": funnel,
+    "methods-tubes.svg": tubes,
+    "methods-windows.svg": windows,
     "methods-overlaps.svg": overlaps,
     "methods-conflicts.svg": conflicts,
     "methods-levers.svg": levers,

@@ -886,7 +886,7 @@ class ToeholdAndGate(ToeholdGate):
     #: quota -- the count follows the data (measured: 7 of 9 squares occupied, median, so about
     #: 10 stems). That changes WHICH designs exist for a pair, so results are not comparable
     #: across the label. `mainpre_engA_{state}` is additive and free.
-    version = "0.5.0"
+    version = "0.6.0"
     kind = GateKind.TOEHOLD_AND
     label = "AND Toehold"
     description = "Two-input translational AND"
@@ -2783,9 +2783,21 @@ class ToeholdAndGate(ToeholdGate):
         # discriminates between CHEMISTRIES, not between designs within one).
         out["component_count"] = float(len(design.trigger_set.activators) + 2)
 
-        # ---- the ON tube, first, because its ceiling is what makes the sweep affordable
-        out["open_11"] = self.folder.open_penalty(
-            f"{switch.sequence}&{trigger_a}&{trigger_b}", arms
+                # ---- the ON tube, first, because its ceiling is what makes the sweep affordable
+        on_strands = f"{switch.sequence}&{trigger_a}&{trigger_b}"
+        # Two spans of the same complex, so the second costs one more constrained
+        # partition function rather than a second fold.
+        #
+        # `dG_open_11` is the RIBOSOME'S WINDOW and is what the ceiling reads, because that
+        # is the span the ceiling's value is calibrated on: Green's 168 have a median ON
+        # cost of 3.64 kcal/mol there, and the 77 of them above 20-fold ON/OFF have 3.07.
+        #
+        # `open_11` is the MAIN STEM'S ARMS. It is kept as an observable -- every design
+        # built before this change carries it, and it is the quantity the stem levers act
+        # on most directly -- but it decides nothing.
+        out["open_11"] = self.folder.open_penalty(on_strands, arms)
+        out["dG_open_11"] = self.folder.open_penalty(
+            on_strands, (tuple(design.architecture["w_rank"]),)
         )
         # ---- the state-10 leak, BEFORE the ceiling decides ----------------------------
         # These two were produced only for designs that pass, so no stored row carried them for
@@ -2804,35 +2816,18 @@ class ToeholdAndGate(ToeholdGate):
             leak_matrix, switch.domains["main_pre_star"], a_block
         )
 
-        if on_ceiling is not None and (out["open_11"] is None or out["open_11"] > on_ceiling):
+        if on_ceiling is not None and (
+            out["dG_open_11"] is None or out["dG_open_11"] > on_ceiling
+        ):
             # A reason, with the leak terms measured beside it. A design that fails is a
             # measurement, not an absence -- which is the contract the characterisation run
             # is built on.
             #
-            # WHY THIS GATES ON THE "WRONG" SPAN, AND WHY THAT IS SAFE.
-            #
-            # `open_11` is the opening cost of the MAIN STEM'S ARMS (15 nt). The value it is
-            # set against is external and measured on a different span: Green's 168 have a
-            # median ON cost of 3.64 kcal/mol over the RIBOSOME'S WINDOW, which is
-            # `dG_open_11` here and 31 nt. So this gate is not itself calibrated.
-            #
-            # It does not need to be, because the two spans are NESTED. `w_rank` is
-            # span(-17, +13) around the start codon; the arms are 6 nt before it and 9 after.
-            # Both sit inside it, so opening the window costs at least as much as opening the
-            # arms -- `dG_open_11 >= open_11` by construction, not by luck. Measured on
-            # 147,244 designs the gap runs +0.12 to +7.45, median +0.83, Spearman +0.974.
-            #
-            # Therefore a ceiling of C here admits a SUPERSET of what a ceiling of C on
-            # `dG_open_11` would admit, and the correct filter can be applied afterwards at
-            # no cost. At the 8.0 the runs use: 0.0% of designs in the 7.0-8.0 band of
-            # `open_11` are below a 7.2 footprint ceiling, so nothing admissible is lost.
-            #
-            # CAUTION, and the reason this is written out. `dG_open_11` is NOT computed for a
-            # design stopped here -- empty on all 54,200 rejected rows of `axes_c8`. The
-            # superset argument is what makes that acceptable, and it only holds while the
-            # ceiling here is at least as permissive as the footprint ceiling it stands in
-            # for. Lower this below ~7.2 and designs start being discarded unmeasured on the
-            # quantity that decides them. Tracked in docs/ROADMAP.md.
+            # The threshold is read against `dG_open_11`, the cost of opening the ribosome's
+            # window, which is the span Green's figures are measured over. Before version
+            # 0.6.0 it was read against `open_11`, the stem's arms, which is a different and
+            # smaller span; results from before that change are not comparable with results
+            # after it at the same numeric setting.
             out["skipped"] = "on_ceiling"
             return out
 
