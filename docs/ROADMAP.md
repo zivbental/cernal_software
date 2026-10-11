@@ -50,6 +50,33 @@ Use the audit's ENG, PLAT, PD and GAP identifiers in commits and release evidenc
 Only Offer and Ziv merge approved changes into `main`. Deployment, package
 publication and ordering require their own explicit authorization.
 
+### Open · the ON-state ceiling reads the wrong span
+
+**Found while writing the model page's Methods.** `measure_design`'s `on_ceiling` gates on
+`open_11`, the opening cost of the **main stem's arms**, 15 nt. The value it is set against
+is external and good — Green's 168 measured switches have a median ON cost of **3.64
+kcal/mol**, and the 77 of them above 20-fold ON/OFF have **3.07**, so a ceiling of 4.0 means
+"no costlier to open than a switch known to work". But that number is measured over the
+**ribosome's window**, which in this engine is `dG_open_11` over 31 nt.
+
+They are two measurements of two different spans. Measured on the same designs they differ
+by a **median 0.83 and by up to 7.55 kcal/mol**. No setting of the ceiling is calibrated
+against Green while it reads `open_11`.
+
+**The fix:** gate on `dG_open_11`, which is already computed for every design, and set the
+value on that scale against Green's 3.64 / 3.07.
+
+**Why it has not been done:** a characterisation run is in progress. Changing which quantity
+a filter reads part-way through leaves one table built under two rules, which is the failure
+already in the register under "never change a sweep's column set while a resumable run is on
+disk". Do it between runs, with a version bump and a golden-fixture update in the same
+commit, and state in the release note that no earlier result is comparable across the change.
+
+Until then every number quoted from a run says which span its ceiling was measured on. The
+runs themselves use 8.0 rather than 4.0 deliberately and for a separate reason: a threshold
+can only be swept downward after the fact, so a low ceiling makes its own sensitivity
+analysis impossible.
+
 ### Open · widen the reading-frame repair to the whole acceptance window
 
 **For the toehold AND family, found while writing the model page.**

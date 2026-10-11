@@ -2808,6 +2808,23 @@ class ToeholdAndGate(ToeholdGate):
             # A reason, with the leak terms measured beside it. A design that fails is a
             # measurement, not an absence -- which is the contract the characterisation run
             # is built on.
+            #
+            # OPEN DEFECT, do not fix mid-run. This gates on `open_11`, the opening cost of
+            # the MAIN STEM'S ARMS (15 nt). The value it is set against is external --
+            # Green's 168 have a median ON cost of 3.64 kcal/mol and his 77 above 20-fold
+            # ON/OFF have 3.07 -- but that number is measured over the RIBOSOME'S WINDOW,
+            # which is `dG_open_11` here and 31 nt. The two are different measurements of
+            # different spans: measured on the same designs they differ by a median 0.83 and
+            # by up to 7.55 kcal/mol. So no setting of this ceiling is calibrated against
+            # Green while it reads `open_11`.
+            #
+            # The fix is to read `dG_open_11`, which is already computed for every design,
+            # and to recalibrate the value on that scale. It is NOT made here because a
+            # characterisation run is in progress and changing which quantity a filter reads
+            # part-way through leaves one table built under two rules -- the exact failure
+            # recorded in docs/findings-register.md under "never change a sweep's column set
+            # while a resumable run is on disk". Tracked in docs/ROADMAP.md; it is a scoring
+            # change and needs a version bump and a golden-fixture update in the same commit.
             out["skipped"] = "on_ceiling"
             return out
 
