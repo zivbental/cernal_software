@@ -37,10 +37,10 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 69 |
+| Modules | 68 |
 | Public classes | 109 |
-| Public callables (excluding `__init__`) | 360 |
-| — `BUILT` | 327 |
+| Public callables (excluding `__init__`) | 358 |
+| — `BUILT` | 325 |
 | — `STUB` | 25 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -71,11 +71,10 @@ layers above it, never the ones below.
 | gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
-| gates | `engine.gates.notebooks.toehold_and._context_loader` |  | 3 | 0 | Loader for a hand-made "toehold + context" CSV (``toeohld_daniel.csv``-style). |
 | gates | `engine.gates.notebooks.toehold_and._joint_state_parallel` |  | 18 | 0 | Parallel worker for ``joint_state()`` (see ``toehold_and_eu_test.ipynb``'s "joint-state helpers" cell for the serial, documented original). |
 | gates | `engine.gates.notebooks.toehold_and._report_figures` |  | 3 | 0 | Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a base-pair probability heatmap as a PNG. |
-| gates | `engine.gates.notebooks.toehold_and._sampled_and_parallel` |  | 3 | 0 | Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by ``eu_and_v3_and.ipynb``). |
-| gates | `engine.gates.notebooks.toehold_and._sampled_stem_parallel` |  | 3 | 0 | Expected longest open run of the stem, by sampling, in parallel (used by ``eu_and_v3.ipynb``). |
+| gates | `engine.gates.notebooks.toehold_and._sampled_and_parallel` |  | 3 | 0 | Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by part 2 of ``eu_and_v3.ipynb``). |
+| gates | `engine.gates.notebooks.toehold_and._sampled_stem_parallel` |  | 4 | 0 | Expected longest open run of the stem, by sampling, in parallel (used by ``eu_and_v3.ipynb``). |
 | gates | `engine.gates.notebooks.toehold_and._switch_construct` |  | 4 | 0 | Shared AND-construct builder and single-switch loader/measurement. |
 | gates | `engine.gates.notebooks.toehold_and.build_report` |  | 1 | 0 | Assemble the architecture decision report, inlining the eight structure figures. |
 | gates | `engine.gates.notebooks.toehold_and.bulge_geometry` |  | 6 | 0 | What the AUG bulge actually is, which side is designable, and what the two hairpins weigh. |
@@ -1227,18 +1226,6 @@ Render an HTML report to PDF via headless Chromium (Playwright).
 | `BUILT` | `def render_pdf(html_path: Path, pdf_path: Path, *, landscape: bool = True) -> None` |  |
 | `BUILT` | `def main() -> None` |  |
 
-### `engine.gates.notebooks.toehold_and._context_loader`
-
-`src/engine/gates/notebooks/toehold_and/_context_loader.py`
-
-Loader for a hand-made "toehold + context" CSV (``toeohld_daniel.csv``-style).
-
-| Status | Function | Purpose |
-| --- | --- | --- |
-| `BUILT` | `def locate_trigger_site(core, gene, wobble_max_fraction)` | Longest antiparallel-complementary run between ``core`` and ``gene``. |
-| `BUILT` | `def hairpin_chains(structure, max_unpaired_per_side, lo, hi)` | Every hairpin in ``structure`` as the stack of pairs from its loop outwards. |
-| `BUILT` | `def load_context_designs(path, folder, *, tx_start_marker, kozak_nt, wobble_max_fraction, trigger_flank_nt, max_bulge_nt)` | Rows of a toehold+context CSV as design dicts, plus ``(line_no, reason)`` problems. |
-
 ### `engine.gates.notebooks.toehold_and._joint_state_parallel`
 
 `src/engine/gates/notebooks/toehold_and/_joint_state_parallel.py`
@@ -1381,20 +1368,20 @@ Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a bas
 | Constant | Type | Value |
 | --- | --- | --- |
 | `DOMAIN_COLORS` |  | `{'prefix': '#C9A227', 'toehold': '#1F6FEB', 'stem_up': '#7E97AC', 'loop': '#8E6AA8', 's…` |
-| `DOMAIN_COLORS_B` |  | `{'toehold': '#E67E22', 'stem_up': '#9CB5A0', 'loop': '#C27BA0', 'stem_down': '#9CB5A0',…` |
+| `DOMAIN_COLORS_B` |  | `{'toehold': '#17A2B8', 'stem_up': '#9CB5A0', 'loop': '#C27BA0', 'stem_down': '#C9D9CB',…` |
 | `SPACER_COLOR` |  | `'#B0B0B0'` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def domain_fill(domains: dict, palette: dict \| None = None, suffix: str = '') -> list[tuple[int, int, str, str]]` | ``(start, end, colour, label)`` per non-empty domain of a ``{name: (start, end)}`` dict. |
 | `BUILT` | `def structure_svg(points, sequence, structure, title, spans = (), domain_fill = (), visible_len = None, construct_len = None, spacing = 23.0, pad = 34.0, radius = 7.4, legend_ncol = 3)` | One folded structure as an inline SVG: every base a circle with its letter inside, the backbone through them and a rung on every base pair, filled by domain. |
-| `BUILT` | `def bpp_heatmap_png(sequence: str, matrix, title: str, boundary = None) -> str` | Base-pair-probability heatmap as a base64 PNG; ``boundary``: a strand junction position (or several) marked with a dotted crosshair. |
+| `BUILT` | `def bpp_heatmap_png(sequence: str, matrix, title: str, boundary = None, dpi: int = 120) -> str` | Base-pair-probability heatmap as a base64 PNG; ``boundary``: a strand junction position (or several) marked with a dotted crosshair. |
 
 ### `engine.gates.notebooks.toehold_and._sampled_and_parallel`
 
 `src/engine/gates/notebooks/toehold_and/_sampled_and_parallel.py`
 
-Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by ``eu_and_v3_and.ipynb``).
+Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by part 2 of ``eu_and_v3.ipynb``).
 
 | Status | Function | Purpose |
 | --- | --- | --- |
@@ -1419,6 +1406,7 @@ One AND candidate: the fused switch, the two real triggers and both hairpins' st
 | `temperature` | `float` |  |
 | `n_samples` | `int` |  |
 | `seed` | `int` |  |
+| `controls` | `tuple` | `()` |
 
 ### `engine.gates.notebooks.toehold_and._sampled_stem_parallel`
 
@@ -1430,6 +1418,7 @@ Expected longest open run of the stem, by sampling, in parallel (used by ``eu_an
 | --- | --- | --- |
 | `BUILT` | `def open_counts(structure: str, stem_up: tuple[int, int], stem_down: tuple[int, int]) -> tuple[int, int]` | ``(k, r)`` of a dot-bracket (``&`` removed): the number of open ``stem_up`` nt, and the longest stretch of consecutive open ones. Open = not paired to a ``stem_down`` nt. |
 | `BUILT` | `def stem_open_state(engine, strands: str, job: DesignJob) -> dict` | E[r] and E[k] of one state, sampled, plus E[k] from the exact matrix. |
+| `BUILT` | `def matrix_open_nt(engine, strands: str, job: DesignJob) -> float` | Exact E[k] of one state from the base-pair-probability matrix (no sampling). |
 | `BUILT` | `def run_parallel_designs(jobs: list[DesignJob], max_workers: int = 6) -> dict[str, dict]` | One process-pool call for all designs (fork, like every ``run_parallel*`` here). |
 
 #### `class DesignJob(NamedTuple)`
@@ -1446,6 +1435,7 @@ One design: the switch with its real trigger, and the switch alone.
 | `temperature` | `float` |  |
 | `n_samples` | `int` |  |
 | `seed` | `int` |  |
+| `controls` | `tuple` | `()` |
 
 ### `engine.gates.notebooks.toehold_and._switch_construct`
 
