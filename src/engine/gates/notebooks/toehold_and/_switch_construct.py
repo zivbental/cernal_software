@@ -1,6 +1,6 @@
 """Shared AND-construct builder and single-switch loader/measurement.
 
-Shared by ``toehold_and_eu_test.ipynb`` and ``and_eu_report.ipynb`` so there is one
+Used by ``eu_and_v3.ipynb`` (the older notebooks that shared it are removed) so there is one
 implementation of each (``CLAUDE.md`` §1 — "two implementations of one measurement produce
 two numbers and only one reaches the report").
 

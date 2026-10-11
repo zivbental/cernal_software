@@ -38,9 +38,9 @@ so that convention is the only rule there is.
 | | Count |
 | --- | ---: |
 | Modules | 68 |
-| Public classes | 109 |
-| Public callables (excluding `__init__`) | 358 |
-| — `BUILT` | 325 |
+| Public classes | 103 |
+| Public callables (excluding `__init__`) | 347 |
+| — `BUILT` | 314 |
 | — `STUB` | 25 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -71,7 +71,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
-| gates | `engine.gates.notebooks.toehold_and._joint_state_parallel` |  | 18 | 0 | Parallel worker for ``joint_state()`` (see ``toehold_and_eu_test.ipynb``'s "joint-state helpers" cell for the serial, documented original). |
+| gates | `engine.gates.notebooks.toehold_and._joint_state_parallel` |  | 7 | 0 | Shared helpers of the toehold notebooks (used by ``eu_and_v3.ipynb`` and its workers). |
 | gates | `engine.gates.notebooks.toehold_and._report_figures` |  | 3 | 0 | Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a base-pair probability heatmap as a PNG. |
 | gates | `engine.gates.notebooks.toehold_and._sampled_and_parallel` |  | 3 | 0 | Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by part 2 of ``eu_and_v3.ipynb``). |
 | gates | `engine.gates.notebooks.toehold_and._sampled_stem_parallel` |  | 4 | 0 | Expected longest open run of the stem, by sampling, in parallel (used by ``eu_and_v3.ipynb``). |
@@ -1230,134 +1230,17 @@ Render an HTML report to PDF via headless Chromium (Playwright).
 
 `src/engine/gates/notebooks/toehold_and/_joint_state_parallel.py`
 
-Parallel worker for ``joint_state()`` (see ``toehold_and_eu_test.ipynb``'s "joint-state helpers" cell for the serial, documented original).
-
-| Constant | Type | Value |
-| --- | --- | --- |
-| `FAKE_SWEEP_STATES` |  | `(('alone', ()), ('+fake1', ('fake_a',)), ('+fake2', ('fake_b',)), ('+fake1+fake2', ('fa…` |
-| `FAKE_SWEEP_MATRIX_STATES` |  | `frozenset({'+A', '+B', '+A+B'})` |
+Shared helpers of the toehold notebooks (used by ``eu_and_v3.ipynb`` and its workers).
 
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def use_fold_engine(engine) -> None` | Publish the single shared ``FoldEngine`` for the workers to fold through. |
-| `BUILT` | `def stem_closed_fraction(structure: str, stem_up_span: tuple[int, int], stem_down_span: tuple[int, int]) -> float` | Fraction of ``stem_up_span`` paired SPECIFICALLY to ``stem_down_span`` in one sampled structure -- the intended OFF hairpin actually closing, not just "paired to something". |
-| `BUILT` | `def misfolded_fraction(structure: str, footprint_span: tuple[int, int], stem_down_span: tuple[int, int], n_self: int) -> float` | Fraction of ``footprint_span`` paired INTRAMOLECULARLY but NOT to its own ``stem_down_span`` -- paired to something other than what either the OFF hairpin (``stem_closed_fraction``) or a real binding event (``_frac_paired_to_external``, ``trigger_bound``) would call correct, e.g. |
-| `BUILT` | `def run_parallel_single(jobs: list[SingleStateJob], max_workers: int = 6) -> dict[str, dict]` | Single-input counterpart to ``run_parallel`` -- same fork-context reasoning. |
 | `BUILT` | `def both_triggers_extra(trigger_a: str, trigger_b: str) -> tuple[str, str]` | The ONE place the strand order of a two-real-trigger AND state is decided. |
 | `BUILT` | `def trigger_pair_too_similar(trigger_a: str, trigger_b: str, *, max_overlap_nt: int, wobble_max_fraction: float) -> bool` | True when an AND pair's own two REAL triggers (trigger A, trigger B) are too similar to each other by EITHER of two independent checks, each compared against ``max_overlap_nt``: a complementary run (wobble included, :func:`_longest_complementary_run_wobble` -- would they hybridize to each other) or a same-direction identity run (:func:`_longest_identity_run` -- are they (nearly) the same sequence, i.e. |
-| `BUILT` | `def pick_fake_design(design_5p, design_3p, exclude_ranks, pool, start_offset = 0, *, max_overlap_nt = None, wobble_max_fraction = None)` | Pool design with no meaningful sequence complementarity to EITHER A's or B's own footprint (toehold+stem_up) -- a real off-target trigger picked by sequence dissimilarity, not by genomic position (two triggers from non-overlapping windows… |
 | `BUILT` | `def pick_fake_trigger(real_triggers, exclude_ranks, pool, start_offset = 0, *, max_overlap_nt = 8)` | Next pool design whose TRIGGER shares at most ``max_overlap_nt`` nt of identical sequence with EVERY real trigger in ``real_triggers``. |
 | `BUILT` | `def pick_fake_triggers(real_triggers, exclude_ranks, pool, n, start_offset = 0, *, max_overlap_nt)` | Up to ``n`` distinct fakes for one footprint set: :func:`pick_fake_trigger` called with ``start_offset``, ``start_offset + 1``, ... |
 | `BUILT` | `def generate_spacer_candidates(n: int, min_length: int = 15, max_length: int = 20, seed: int = 1) -> list[str]` | A fixed, reproducible pool of low-GC candidate spacer sequences -- lengths cycle 15..20 so the whole requested range is covered, and every base is drawn A/U-biased (A-U pairs are weaker than G-C, hence a low-GC spacer). |
 | `BUILT` | `def pick_optimized_spacer(design_5p, design_3p, candidates: list[str]) -> tuple[str, int]` | Picks the candidate spacer with the smallest worst-case complementary run against either design's toehold OR trigger ("minimal interaction" estimated as no hybridization with triggers or toeholds). |
-| `BUILT` | `def run_parallel_fake_sweep(jobs: list[FakeSweepJob], max_workers: int = 6) -> dict[str, dict]` | Same fork-context reasoning as every other ``run_parallel*`` in this module. |
-| `BUILT` | `def run_parallel_constrained_bind(jobs: list[ConstrainedBindJob], max_workers: int = 6) -> dict[str, dict]` | Same fork-context reasoning as every other ``run_parallel*`` in this module. |
-| `BUILT` | `def run_parallel_single_decomp(jobs: list[SingleDecompJob], max_workers: int = 6) -> dict[str, dict]` | Same fork-context reasoning as every other ``run_parallel*`` in this module. |
-| `BUILT` | `def designed_pairs(fused: str, duplexes: tuple[tuple[int, str, int], ...]) -> list[tuple[int, int]] \| None` | The designed footprint-trigger duplex(es), from the sequences -- not from an MFE. |
-| `BUILT` | `def run_parallel_single_exact(jobs: list[SingleExactJob], max_workers: int = 6) -> dict[str, dict]` | Same fork-context reasoning as every other ``run_parallel*`` in this module. |
-| `BUILT` | `def and_pair_jobs(built: dict, key_prefix: str, trigger_a: str, trigger_b: str, fakes_a: list[dict], fakes_b: list[dict], *, temperature: float) -> list[AndDecompJob]` | Every state job of one (pair, spacer): ``alone``, ``+A`` / ``+B`` (``own_side``: the exact P of that hairpin's own duplex), ``+A+B`` (the only one with ``with_joint``; strands via :func:`both_triggers_extra`), then per side each fake alone and with its own real trigger (``+fakeA{i}``/``+A+fakeA{i}``, ``+fakeB{i}``/``+B+fakeB{i}``). |
-| `BUILT` | `def run_parallel_and_decomp(jobs: list[AndDecompJob], max_workers: int = 6) -> dict[str, dict]` | Same fork-context reasoning as every other ``run_parallel*`` in this module. |
-
-#### `class SingleStateJob(NamedTuple)`
-
-Single-input state job -- one switch, one trigger (or none), one footprint. There is no "both" state to speak of; the only question is whether the footprint reads as paired in a real sampled structure, not just on average.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `key` | `str` |  |
-| `switch` | `str` |  |
-| `trigger` | `str` |  |
-| `footprint` | `tuple[int, int]` |  |
-| `temperature` | `float` |  |
-| `n_samples` | `int` | `1200` |
-| `threshold` | `float` | `0.8` |
-
-#### `class FakeSweepJob(NamedTuple)`
-
-One AND pair, checked across ten states: the fused switch alone, with each of two off-target ("fake") triggers alone and together, with each real trigger alone, with both real triggers, and with each real trigger paired against a fake in the other slot -- the full leakage/specificity sweep, not just the "both real" state every other job type here checks.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `key` | `str` |  |
-| `fused` | `str` |  |
-| `trigger_a` | `str` |  |
-| `trigger_b` | `str` |  |
-| `fake_a` | `str` |  |
-| `fake_b` | `str` |  |
-| `footprint_5p` | `tuple[int, int]` |  |
-| `footprint_3p` | `tuple[int, int]` |  |
-| `temperature` | `float` |  |
-| `n_samples` | `int` | `1200` |
-| `threshold` | `float` | `0.8` |
-
-#### `class ConstrainedBindJob(NamedTuple)`
-
-Real Boltzmann sampling of the fused AND molecule with ONE role's footprint HARD-CONSTRAINED to the exact base pairs it forms when bound to its own trigger in isolation (read off a real MFE fold, not an idealized/assumed alignment) -- then…
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `key` | `str` |  |
-| `fused` | `str` |  |
-| `trigger_bound` | `str` |  |
-| `trigger_check` | `str` |  |
-| `footprint_bound` | `tuple[int, int]` |  |
-| `footprint_check` | `tuple[int, int]` |  |
-| `fake` | `str` |  |
-| `temperature` | `float` |  |
-| `n_samples` | `int` | `1200` |
-| `threshold` | `float` | `0.8` |
-
-#### `class SingleDecompJob(NamedTuple)`
-
-One state of one single-input switch: ``extra`` is the second strand (the real trigger, or a fake), or ``""`` for the switch alone.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `key` | `str` |  |
-| `switch` | `str` |  |
-| `extra` | `str` |  |
-| `footprint` | `tuple[int, int]` |  |
-| `stem_up` | `tuple[int, int]` |  |
-| `stem_down` | `tuple[int, int]` |  |
-| `temperature` | `float` |  |
-| `n_samples` | `int` | `1200` |
-| `threshold` | `float` | `0.7` |
-
-#### `class SingleExactJob(NamedTuple)`
-
-One state of one single-input switch, exact-only. ``extra`` is the second strand (the real trigger, or a fake), or ``""`` for the switch alone.
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `key` | `str` |  |
-| `switch` | `str` |  |
-| `extra` | `str` |  |
-| `footprint` | `tuple[int, int]` |  |
-| `stem_up` | `tuple[int, int]` |  |
-| `stem_down` | `tuple[int, int]` |  |
-| `temperature` | `float` |  |
-| `with_joint` | `bool` | `False` |
-
-#### `class AndDecompJob(NamedTuple)`
-
-One state of one AND pair, exact-only: ``extra`` lists whichever trigger/fake strands ride along with ``fused`` for this state (``()`` = alone).
-
-| Attribute | Type | Default |
-| --- | --- | --- |
-| `key` | `str` |  |
-| `fused` | `str` |  |
-| `extra` | `tuple[str, ...]` |  |
-| `footprint_a` | `tuple[int, int]` |  |
-| `stem_up_a` | `tuple[int, int]` |  |
-| `stem_down_a` | `tuple[int, int]` |  |
-| `footprint_b` | `tuple[int, int]` |  |
-| `stem_up_b` | `tuple[int, int]` |  |
-| `stem_down_b` | `tuple[int, int]` |  |
-| `temperature` | `float` |  |
-| `with_joint` | `bool` | `False` |
-| `own_side` | `str` | `''` |
-| `trigger_a` | `str` | `''` |
-| `trigger_b` | `str` | `''` |
 
 ### `engine.gates.notebooks.toehold_and._report_figures`
 
