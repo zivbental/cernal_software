@@ -37,10 +37,10 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 73 |
+| Modules | 74 |
 | Public classes | 115 |
-| Public callables (excluding `__init__`) | 399 |
-| — `BUILT` | 386 |
+| Public callables (excluding `__init__`) | 407 |
+| — `BUILT` | 394 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -79,6 +79,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
 | gates | `engine.gates.notebooks.toehold_and._joint_state_parallel` |  | 7 | 0 | Shared helpers of the toehold notebooks (used by ``eu_and_v3.ipynb`` and its workers). |
 | gates | `engine.gates.notebooks.toehold_and._report_figures` |  | 3 | 0 | Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a base-pair probability heatmap as a PNG. |
+| gates | `engine.gates.notebooks.toehold_and._report_stats` |  | 8 | 0 | Statistics behind the ``eu_and_v3`` reports that must be testable on their own. |
 | gates | `engine.gates.notebooks.toehold_and._sampled_and_parallel` |  | 3 | 0 | Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by part 2 of ``eu_and_v3.ipynb``). |
 | gates | `engine.gates.notebooks.toehold_and._sampled_stem_parallel` |  | 4 | 0 | Expected longest open run of the stem, by sampling, in parallel (used by ``eu_and_v3.ipynb``). |
 | gates | `engine.gates.notebooks.toehold_and._switch_construct` |  | 4 | 0 | Shared AND-construct builder and single-switch loader/measurement. |
@@ -1642,6 +1643,23 @@ Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a bas
 | `BUILT` | `def domain_fill(domains: dict, palette: dict \| None = None, suffix: str = '') -> list[tuple[int, int, str, str]]` | ``(start, end, colour, label)`` per non-empty domain of a ``{name: (start, end)}`` dict. |
 | `BUILT` | `def structure_svg(points, sequence, structure, title, spans = (), domain_fill = (), visible_len = None, construct_len = None, spacing = 23.0, pad = 34.0, radius = 7.4, legend_ncol = 3)` | One folded structure as an inline SVG: every base a circle with its letter inside, the backbone through them and a rung on every base pair, filled by domain. |
 | `BUILT` | `def bpp_heatmap_png(sequence: str, matrix, title: str, boundary = None, dpi: int = 120) -> str` | Base-pair-probability heatmap as a base64 PNG; ``boundary``: a strand junction position (or several) marked with a dotted crosshair. |
+
+### `engine.gates.notebooks.toehold_and._report_stats`
+
+`src/engine/gates/notebooks/toehold_and/_report_stats.py`
+
+Statistics behind the ``eu_and_v3`` reports that must be testable on their own.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def sd_or_default(sd: float \| None, default: float) -> float` | ``sd`` when it was measured (including a valid 0.0), ``default`` when it is missing. |
+| `BUILT` | `def verification_tolerance(sd: float \| None, n_drawn: int, *, default_sd: float, sigma: float, floor_nt: float) -> float` | tau = sigma * sd / sqrt(N) + floor. ``default_sd`` (sd(k) <= L/2) only when ``sd`` is missing. |
+| `BUILT` | `def state_ok(state: dict, stem_len: int, *, sigma: float, floor_nt: float) -> bool` | Single-switch state verified: sampled mean k and sampled Open agree with the exact matrix. |
+| `BUILT` | `def open_value(state: dict, name: str) -> float \| None` | Open of an AND state: E[r_A] + E[r_B] for +A+B (ON), E[min(r_A, r_B)] for the others. |
+| `BUILT` | `def state_ok_and(state: dict, name: str, l_a: int, l_b: int, *, sigma: float, floor_nt: float) -> bool` | AND state verified: each hairpin's sampled E[k] agrees with its matrix value within its own tolerance, and the sampled Open does not exceed the matrix bound. |
+| `BUILT` | `def median_or_none(values: Iterable[float \| None]) -> float \| None` | Median of the non-missing values, ``None`` when there are none. |
+| `BUILT` | `def median_text(values: Iterable[float \| None], *, unit: str = '', digits: int = 1) -> str` | The median as text with its unit, or ``n/a`` when no value is available. |
+| `BUILT` | `def pct_text(value: float \| None, *, digits: int = 1) -> str` | A percentage as text, ``n/a`` for a missing value. |
 
 ### `engine.gates.notebooks.toehold_and._sampled_and_parallel`
 

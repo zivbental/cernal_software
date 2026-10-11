@@ -48,7 +48,8 @@ Data: `CSV_PATH`, `COLUMNS` (maps this CSV's columns), `CARRY_METRICS`, `N_DESIG
 scored in part 1). Sampling: `TEMPERATURE_C`, `N_SAMPLES`, `SEED`, `MAX_WORKERS`,
 `CHECK_SEED_OFFSET` (second, independent run with `SEED + offset` that only measures noise).
 Verification: `VERIFY_SIGMA`, `VERIFY_FLOOR_NT`. Report: `OFF_FLOOR_PCT`, `REPORT_TOP_N`,
-`RESULTS_TO_LOAD` (re-render part 1 from a saved results file). Controls: `N_CONTROLS`,
+`RESULTS_TO_LOAD` (re-render part 1 from a saved results file), `OUTPUT_DIR` (None = `var/reports`),
+`MAKE_PDF` (False = HTML and CSV only, no browser). Controls: `N_CONTROLS`,
 `CONTROL_MAX_OVERLAP_NT`, `CONTROL_EXTRA_TRIGGERS` (extra sequences offered as controls, used
 when the table's own triggers all overlap). Part 2: `AND_TOP_N`, spacer settings
 (`SPACER_VARIANTS`, `SPACER_MIN_LENGTH`/`MAX_LENGTH`, `SPACER_SEED`,
@@ -94,6 +95,16 @@ and `Control = max_j min(E[k_A], E[k_B])_matrix` (upper bound). ON is a sum and 
 minimum on purpose: ON rewards each hairpin that responds to its own trigger, OFF flags both
 open at once. `ON_min = 100 E[min(r_A, r_B)]_{+A+B} / L` and `ON_min - OFF` are listed beside
 (like with like). Candidates are ranked by `ON - OFF` (sum-based ON).
+
+**What the ranking represents.** `ON - OFF` asks whether each hairpin responds to its own
+trigger (sum) and whether any state opens both hairpins at once without both triggers (OFF). It
+does not require the hairpins to open in the same structure: one hairpin open and the other
+closed with both triggers gives `ON = 50`, `ON_min = 0`, and scores 50 although it is not a
+working AND. Joint activation is therefore kept visible beside the ranking: the
+`ON_min - OFF` column (table and CSV) and a summary row counting the listed candidates whose
+`ON_min` is below half of `ON`. Choose by `ON_min - OFF` when a true AND is required. (Whether
+the ranking itself should be `ON_min - OFF` is an open methodology decision, raised in the PR
+review.)
 `dG = G(+A+B) - min(G_alone + G_A + G_B, G_+A + G_B, G_+B + G_A)`.
 
 ### Spacer
@@ -118,10 +129,18 @@ G·U wobble). `single_rank` in part 2 = rank in part 1.
   trigger on the side of the switch nearest its target hairpin. Single: trigger first (the
   default, last strand first). AND: tA first for +A, fused first for +B, tA first for +A+B
   (written fused & tB & tA, see `both_triggers_extra`: `fused & tA & tB` is a pseudoknot).
+- **Same model as every other fold.** `sample_structures` builds its compound with
+  `configured_compound(..., uniq_ml=1)`, so `no_gu`, dangles, energy tables, temperature and
+  the parameter lock match `mfe`, `partition` and `base_pair_probabilities`; `uniq_ML = 1`
+  (required for stochastic backtracking) is the only override and is recorded in
+  `FoldEngine.provenance()` as `sampling_model_override`. Seeding and drawing run under one
+  lock because ViennaRNA's generator is process-global.
 - **Check per state:** the sampled `E[k]` must equal the matrix `E[k]` within
   `tau = VERIFY_SIGMA * sd(k) / sqrt(N) + VERIFY_FLOOR_NT` (per hairpin for AND; `sd(k)` from
   that state's own draws), and `Open <= E[k]_matrix + tau` (sanity bound). The floor exists
-  because a nearly closed state can have `sd = 0` from 2000 draws. Green/red only shades the
+  because a nearly closed state can have `sd = 0` from 2000 draws. A *measured* `sd = 0` is a
+  real value and is used as is (tolerance = the floor); only a missing `sd` (None/NaN) falls
+  back to `L/2`, which would make the check nearly vacuous (`_report_stats.py`). Green/red only shades the
   `E[k]` cells (Appendix A for AND); it never changes a value.
 - The matrix gives `E[k]` exactly (`sum_i (1 - sum_j p_ij)`), not runs, joint events or
   `P(k >= m)`. For +A+B it bounds the sum `E[r_A + r_B] <= E[k_A] + E[k_B]`.
@@ -162,7 +181,10 @@ complex formed; trigger accessibility/self-structure and cross-talk are not asse
 omits concentration; the sampler fails for some states (shown red, kept in medians); controls
 are one matrix upper bound per mismatched trigger; OFF mixes a sampled alone value with
 matrix bounds for the controls, so the control often sets OFF (stricter ranking); tie
-threshold counts Monte-Carlo noise only; percentages are not fully neutral to stem length.
+threshold counts Monte-Carlo noise only; a design may have fewer than `N_CONTROLS` controls
+or none (no other design's trigger is dissimilar enough): the reports then show `n/a` for the
+control statistics, count the designs with full / fewer / no controls, and OFF falls back to
+the other states; percentages are not fully neutral to stem length.
 
 ## Traps (real mistakes already made here)
 
@@ -188,7 +210,21 @@ threshold counts Monte-Carlo noise only; percentages are not fully neutral to st
     screens; never `try/except: return 0.0` around a fold; do not read joint events from
     marginals (use `constrained_probability`).
 
+11. **A measured zero is not a missing value.** `state.get("k_a_sd") or l_a / 2` treated a real
+    `sd = 0` as missing and widened the tolerance from 0.02 nt to over 0.5 nt, so a sampled mean
+    of 0 verified against a matrix mean of 0.3. Test `is None`, never truthiness.
+12. **Complement the pair test, not the partner.** The wobble helper reverse-complemented B and
+    then tested complementarity again, so A×12 vs U×12 scored 0. Reverse B only.
+13. **An empty control pool is a normal outcome**, not an error and not a zero.
+
 ## Change log
+
+- 2026-10-11 (review of PR #68): `sample_structures` uses the shared configured compound and a
+  sampling lock; the wobble-aware trigger-pair screen compares complementary bases against the
+  reversed (not reverse-complemented) partner, so A×12 vs U×12 is caught; a measured `sd = 0`
+  is no longer replaced by `L/2`; empty control pools give `n/a` instead of an error; the
+  ranking's meaning and the joint metric are stated; regression tests in
+  `tests/engine/gates/`, portable fixture `tests/fixtures/eu_and_v3_small.csv`.
 
 - 2026-10-11: single and AND notebooks merged; AND pool taken from part 1; OFF includes
   `N_CONTROLS` mismatched-trigger controls; ON of the AND = `E[r_A + r_B] / (L_A + L_B)`;

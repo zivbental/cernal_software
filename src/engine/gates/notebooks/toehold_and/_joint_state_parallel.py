@@ -103,8 +103,9 @@ def _longest_complementary_run_wobble(
     a: str, b: str, wobble_max_fraction: float
 ) -> tuple[int, int]:
     """Longest antiparallel-complementary run between ``a`` and ``b``, same DP shape as
-    :func:`_longest_complementary_run` (longest common substring of ``a`` against
-    ``reverse_complement(b)``) but tolerating G*U/U*G wobble matches -- a trap
+    :func:`_longest_complementary_run` (longest stretch of ``a`` whose bases pair with ``b``
+    read backwards, i.e. against ``reverse_complement(b)``) but tolerating G*U/U*G wobble
+    matches -- a trap
     recorded in the old ``and_eu_report_spec.md`` (git history): a real, ViennaRNA-confirmed
     12bp helix scored as only 4nt under exact-complement-only matching because four of its
     positions were wobbles.
@@ -120,15 +121,18 @@ def _longest_complementary_run_wobble(
     so the reported run is always one that, taken as a whole, satisfies the cap, even
     though the DP underneath explored runs that temporarily did not.
     """
-    b_rc = reverse_complement(b)
-    n, m = len(a), len(b_rc)
+    # Antiparallel: a[i] pairs with b read backwards. The pair test below supplies the
+    # complement, so b is only reversed here; complementing it too would turn "A pairs
+    # with U" into a test of "A equals A" (A*12 against U*12 then scores 0).
+    b_rev = b[::-1]
+    n, m = len(a), len(b_rev)
     prev = [(0, 0)] * (m + 1)
     best_len, best_wobble = 0, 0
     for i in range(1, n + 1):
         curr = [(0, 0)] * (m + 1)
         ai = a[i - 1]
         for j in range(1, m + 1):
-            bj = b_rc[j - 1]
+            bj = b_rev[j - 1]
             match, wobble = _is_complementary(ai, bj, allow_wobble=True)
             if match:
                 prev_len, prev_wobble = prev[j - 1]

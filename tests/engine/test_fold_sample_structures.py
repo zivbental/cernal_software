@@ -77,3 +77,71 @@ def test_three_strands_map_back_to_the_callers_order(folder, first_strand):
 def test_a_first_strand_outside_the_strands_is_refused(folder):
     with pytest.raises(ValueError):
         folder.sample_structures(COMPLEX, 5, first_strand=2)
+
+
+# --- Model consistency with the shared configured-compound path ----------------------------
+
+
+def _gu_pairs(structures: list[str], sequence: str) -> int:
+    count = 0
+    for structure in structures:
+        stack = []
+        for i, char in enumerate(structure):
+            if char == "(":
+                stack.append(i)
+            elif char == ")":
+                j = stack.pop()
+                count += {sequence[j], sequence[i]} == {"G", "U"}
+    return count
+
+
+def test_sampling_honours_no_gu():
+    from engine.domain import FoldingConfig
+
+    sequence = "GGGGAAAAUUUU"
+    allowed = FoldEngine(config=FoldingConfig(no_gu=False)).sample_structures(
+        sequence, 1000, seed=42
+    )
+    forbidden = FoldEngine(config=FoldingConfig(no_gu=True)).sample_structures(
+        sequence, 1000, seed=42
+    )
+    assert _gu_pairs(allowed, sequence) > 0  # the control: G-U pairs do occur when allowed
+    assert _gu_pairs(forbidden, sequence) == 0
+    assert allowed != forbidden
+
+
+@pytest.mark.parametrize(
+    "override",
+    [{"dangles": 0}, {"temperature_celsius": 25.0}, {"no_lonely_pairs": True}],
+)
+def test_sampling_follows_the_engine_configuration(override):
+    """Sampled marginals agree with the same engine's pair-probability matrix."""
+    from engine.domain import FoldingConfig
+
+    engine = FoldEngine(config=FoldingConfig(**override))
+    n = 3000
+    samples = engine.sample_structures("GGGGAAAAUUUUCCCCAAAAGGGG", n, seed=5)
+    matrix = engine.base_pair_probabilities("GGGGAAAAUUUUCCCCAAAAGGGG")
+    paired = [0] * len(matrix)
+    for structure in samples:
+        for i, char in enumerate(structure):
+            paired[i] += char != "."
+    for i, count in enumerate(paired):
+        assert count / len(samples) == pytest.approx(sum(matrix[i]), abs=0.05)
+
+
+def test_sampling_model_is_recorded_in_the_provenance(folder):
+    assert folder.provenance()["sampling_model_override"] == {"uniq_ML": 1}
+
+
+def test_seeded_draws_stay_reproducible_under_threads(folder):
+    from concurrent.futures import ThreadPoolExecutor
+
+    expected = {seed: folder.sample_structures(COMPLEX, 60, seed=seed) for seed in (1, 2, 3, 4)}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {
+            seed: [pool.submit(folder.sample_structures, COMPLEX, 60, seed) for _ in range(3)]
+            for seed in expected
+        }
+    for seed, jobs in futures.items():
+        assert all(job.result() == expected[seed] for job in jobs)
