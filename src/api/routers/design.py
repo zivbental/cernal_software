@@ -11,12 +11,13 @@ having read nothing.
 
 import math
 import time
+from urllib.parse import urlencode
 from uuid import UUID
 
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import F
-from ninja import Router, Status
+from ninja import Query, Router, Status
 
 from api.auth import get_owned
 from api.errors import Conflict, ValidationFailed
@@ -166,6 +167,7 @@ def _resolved(run: AnalysisRun) -> dict:
         ),
         "seed": run.seed,
         "constraints": run.params_snapshot.get("constraints", {}),
+        "folding": run.params_snapshot.get("folding", {}),
         "organism": run.organism,
         "budget": run.params_snapshot.get("budget", {}),
         "payload": run.params_snapshot.get("payload", {}),
@@ -216,6 +218,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
 
     params = {
         "constraints": body.constraints,
+        "folding": body.folding,
         "scoring": scoring,
         "payload": body.payload,
         "backbone": body.backbone,
@@ -260,6 +263,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                     ),
                     "seed": body.seed,
                     "constraints": params["constraints"],
+                    "folding": params["folding"],
                     "organism": body.organism,
                     "budget": params.get("budget", {}),
                     "payload": params.get("payload", {}),
@@ -347,6 +351,21 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
             )
             return Status(200, {**results, "resolved": _resolved(run)})
 
+    # A plain REST caller following results_url must get the same presentation as
+    # the synchronous wait response. Defaults keep the existing URL unchanged.
+    result_options = {}
+    if body.top_n != 25:
+        result_options["top_n"] = body.top_n
+    if body.include_rejected:
+        result_options["include_rejected"] = "true"
+    if not body.include_metrics:
+        result_options["include_metrics"] = "false"
+    if body.include_artifacts:
+        result_options["include_artifacts"] = ",".join(body.include_artifacts)
+    results_url = f"/api/design/{run.id}/results"
+    if result_options:
+        results_url += "?" + urlencode(result_options)
+
     return Status(
         202,
         {
@@ -354,7 +373,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
             "status": run.status,
             "progress_pct": run.progress_pct,
             "poll_url": f"/api/design/{run.id}",
-            "results_url": f"/api/design/{run.id}/results",
+            "results_url": results_url,
             "web_url": f"/runs/{run.id}",
             "estimate": estimate,
             "resolved": _resolved(run),
@@ -415,7 +434,7 @@ def get_design_results(
     request,
     run_id: UUID,
     format: str = "json",
-    top_n: int = 25,
+    top_n: int = Query(default=25, ge=1, le=1000),
     include_rejected: bool = False,
     include_artifacts: str = "",
     include_metrics: bool = True,

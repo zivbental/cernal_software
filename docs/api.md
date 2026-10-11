@@ -352,6 +352,84 @@ are checked here *and*, unconditionally (no `strict` opt-out), on `POST /api/run
 — those two are the ones the engine itself cannot silently ignore, so both submission
 paths reject a typo in them at submission time rather than in the worker.
 
+### Folding model
+
+Set `folding` on `POST /api/design`, or the same object at `params.folding` on
+`POST /api/runs`. Omitted fields receive the defaults below. One model is shared by
+design folding and local transcript accessibility calculations within the run.
+
+```json
+{
+  "folding": {
+    "temperature_celsius": 37.0,
+    "dangles": 2,
+    "special_hairpins": true,
+    "no_lonely_pairs": false,
+    "no_gu": false,
+    "no_gu_closure": false,
+    "energy_parameters": "turner2004"
+  }
+}
+```
+
+| Field | Accepted values | Meaning |
+|---|---|---|
+| `temperature_celsius` | Finite number, 0–100 inclusive | Folding temperature in °C |
+| `dangles` | Integer `0` or `2` | Disable dangling-end energies or use the double-dangle model |
+| `special_hairpins` | Boolean | Include special hairpin-loop energies |
+| `no_lonely_pairs` | Boolean | Enable ViennaRNA's no-lonely-pairs model option |
+| `no_gu` | Boolean | Disallow GU base pairs |
+| `no_gu_closure` | Boolean | Disallow GU pairs closing loops |
+| `energy_parameters` | `turner2004`, `turner1999`, `andronescu2007` | Built-in ViennaRNA RNA energy parameter set |
+
+Only dangle models `0` and `2` are supported: ViennaRNA partition-function calculations
+do not consistently implement `1` and `3`. Parameter file paths and arbitrary model
+fields are unsupported. Values are checked without coercion: `"25"`, `true` as a
+temperature, `2.0` as a dangle model, and `0`/`1` as booleans are rejected. Unknown fields,
+non-object blocks and invalid values return 422 on both endpoints, including
+`dry_run=true` and `strict=false`.
+
+Every effective setting is stored in `params_snapshot.folding` and echoed as
+`resolved.folding` by the design submission, dry-run and results responses. Changing
+folding settings changes a run's idempotency identity; use a new `idempotency_key` for
+a different model. An older stored run without recorded settings returns an empty
+`resolved.folding` object rather than claiming it used today's defaults.
+
+The result manifest records structured evidence at
+`scientific_provenance.folding_model`; each candidate carries the same model at
+`design.folding_model`. The legacy string-valued `tool_versions` also contains canonical
+JSON under `folding_model`. Evidence includes the installed ViennaRNA version, normalized
+configuration, actual native model fields, loaded energy-table identity and SHA-256 of
+the exact bundled parameter string loaded. A name alone is not treated as identity.
+Scanned trigger features additionally record the local model and clamped window/span at
+`rnaplfold.folding_model`; older/manual records leave this `null`.
+
+Suboptimal enumeration runs in an isolated process and receives the full configuration;
+its algorithm-only `uniq_ML=1` override is recorded. Full-fold window/span defaults are
+normalized to sequence length before native calculation; provenance states this rule.
+Local opening-energy conversions use the same configured temperature as RNAplfold.
+
+ViennaRNA's `noLP` partition-function approximation excludes pairs that cannot stack;
+lonely pairs may still occur in ensemble structures. This caveat is recorded when enabled.
+Salt remains explicitly fixed at the previous ViennaRNA default, 1.021 M. Built-in model
+choices are computational settings, not experimental validation or calibrated physiological
+conditions. The engine serializes global table loading/restoration and copies both MFE
+and partition-function parameters into each compound. The AIS-China adapter's direct
+`optimize` path shares this lock (its whole call may delay other compound construction);
+ordinary production codon optimization consumes its reference tables only. Other
+third-party code must not mutate
+ViennaRNA globals concurrently outside the shared adapter.
+
+Implementation references: [ViennaRNA model details](https://www.tbi.univie.ac.at/RNA/ViennaRNA/doc/html/eval/model.html),
+[parameter snapshots and PF preparation](https://github.com/ViennaRNA/ViennaRNA/blob/v2.7.2/src/ViennaRNA/params/params.c),
+and [RNAplfold window probabilities](https://www.tbi.univie.ac.at/RNA/ViennaRNA/doc/html/partfunc/window.html).
+The snapshot cache invalidation and full-length PF normalization are covered by real-library
+regression tests; they are required for ViennaRNA 2.7.2, not cosmetic metadata changes.
+
+For direct Python use, pass `FoldEngine(config=FoldingConfig(...))` and
+`FoldProfiler(config=the_same_config)`. `FoldingConfig` is a frozen dataclass in
+`engine.domain`. Existing `FoldEngine(temperature=...)` calls remain supported.
+
 **Custom scoring** — re-weight the nine metrics, or add a hard filter, per run:
 
 ```jsonc

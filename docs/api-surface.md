@@ -38,9 +38,9 @@ so that convention is the only rule there is.
 | | Count |
 | --- | ---: |
 | Modules | 68 |
-| Public classes | 112 |
-| Public callables (excluding `__init__`) | 365 |
-| — `BUILT` | 352 |
+| Public classes | 113 |
+| Public callables (excluding `__init__`) | 376 |
+| — `BUILT` | 363 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -53,7 +53,7 @@ layers above it, never the ones below.
 
 | Layer | Module | S | Not `STUB` | `STUB` | Purpose |
 | --- | --- | --- | ---: | ---: | --- |
-| domain | `engine.domain` |  | 31 | 0 | The engine's scientific vocabulary. |
+| domain | `engine.domain` |  | 32 | 0 | The engine's scientific vocabulary. |
 | sequences | `engine.sequences` | S6 | 12 | 0 | S6 — sequence facts. Pure functions, no state, no dependencies. |
 | scoring | `engine.scoring` |  | 0 | 0 |  |
 | scoring | `engine.scoring.crispr` |  | 5 | 0 | The document's inner J and outer Phi, separate from DEFAULT_V1 ranking. |
@@ -63,7 +63,7 @@ layers above it, never the ones below.
 | gate_tools | `engine.gates.tools.ais_china` |  | 5 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 7 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 23 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 28 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.rnaviz` |  | 0 | 0 | Licensed cernal-rnaviz drawing primitives; no folding or sequence services. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gate_tools | `engine.gates.tools.rnaviz.layout` |  | 1 | 0 | Turning ViennaRNA output into something drawable. |
@@ -103,7 +103,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold_and.window_probabilities` |  | 4 | 0 | The ribosome window as probabilities, base by base, in all four tubes. |
 | stages | `engine.stages` |  | 0 | 0 | The pipeline stages. |
 | stages | `engine.stages.circuits` |  | 3 | 0 | Stage 4 — circuit design and scoring. |
-| stages | `engine.stages.folding` | S1 | 5 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
+| stages | `engine.stages.folding` | S1 | 10 | 0 | S1 — RNAplfold local opening probabilities for trigger selection. |
 | stages | `engine.stages.genes` |  | 1 | 0 | Stage 1 — gene selection. |
 | stages | `engine.stages.motifs` | S7 | 2 | 0 | S7 — prohibited motif screening. |
 | stages | `engine.stages.plasmids` |  | 9 | 0 | Stage 5 — plasmid construction. |
@@ -391,6 +391,7 @@ Stage 2 output — a sub-segment of a transcript, ranked as a possible input.
 | `rnaplfold_max_span` | `int \| None` | `None` |
 | `rnaplfold_unpaired` | `int \| None` | `None` |
 | `rnaplfold_temperature_celsius` | `float \| None` | `None` |
+| `rnaplfold_model` | `str \| None` | `None` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -648,6 +649,26 @@ An external tool a gate family needs, and the version it was validated against.
 | `version` | `str` |  |
 | `optional` | `bool` | `False` |
 
+#### `class FoldingConfig`
+
+`@dataclass(frozen=True, slots=True)`
+
+Immutable, run-wide ViennaRNA model; defaults reproduce the original model.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `temperature_celsius` | `float` | `37.0` |
+| `dangles` | `int` | `2` |
+| `special_hairpins` | `bool` | `True` |
+| `no_lonely_pairs` | `bool` | `False` |
+| `no_gu` | `bool` | `False` |
+| `no_gu_closure` | `bool` | `False` |
+| `energy_parameters` | `str` | `'turner2004'` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@classmethod def from_mapping(cls, values: dict) -> 'FoldingConfig'` |  |
+
 #### `class FoldResult`
 
 `@dataclass(frozen=True, slots=True)`
@@ -903,7 +924,9 @@ Constructed once per run by `engine.pipeline.build_tools` and injected. `engine.
 
 Scientific primitives shared across the gate families.
 
-*No public symbols — the docstring is the whole file.*
+| Constant | Type | Value |
+| --- | --- | --- |
+| `VIENNA_PARAMETER_LOCK` |  | `RLock()` |
 
 ### `engine.gates.tools.ais_china`
 
@@ -1108,6 +1131,8 @@ S2, S4 — RNA secondary structure prediction for gate designs.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
+| `BUILT` | `def folding_provenance(config: FoldingConfig, *, window_size: int = -1, max_bp_span: int = -1, uniq_ml: int = 0) -> dict` | Return detached JSON-compatible evidence of the actual parameter snapshots. |
+| `BUILT` | `def configured_compound(strands: str, config: FoldingConfig, *, window_size: int = -1, max_bp_span: int = -1, uniq_ml: int = 0, options: int = 0)` | The shared model/energy authority for design, RNAplfold and suboptimal folds. |
 | `BUILT` | `def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch` | **S4** · S4 — compare a predicted structure against the one a generator intended. |
 
 #### `class FoldEngine` · S2
@@ -1116,7 +1141,10 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, temperature: float = 37.0, cache_size: int = 1024) -> None` |  |
+| `BUILT` | `def __init__(self, temperature: float = 37.0, cache_size: int = 1024, *, config: FoldingConfig \| None = None) -> None` |  |
+| `BUILT` | `@property def config(self) -> FoldingConfig` |  |
+| `BUILT` | `@property def temperature(self) -> float` |  |
+| `BUILT` | `def provenance(self) -> dict` |  |
 | `BUILT` | `def mfe(self, strands: str) -> FoldResult` | Fold a sequence — or a multi-strand complex — and return its most stable predicted structure. |
 | `BUILT` | `def structure_energy(self, strands: str, structure: str) -> float \| None` | Energy of one **given** structure, rather than the best one. |
 | `BUILT` | `def partition(self, sequence: str) -> float` | Ensemble free energy over all structures, not just the most stable one. |
@@ -2081,9 +2109,14 @@ Profile marginal and joint local opening probabilities in transcript context.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, window: int = DEFAULT_WINDOW, max_span: int = DEFAULT_MAX_SPAN, unpaired: int = DEFAULT_UNPAIRED, *, rna_module = _DEFAULT_RNA) -> None` |  |
+| `BUILT` | `def __init__(self, window: int = DEFAULT_WINDOW, max_span: int = DEFAULT_MAX_SPAN, unpaired: int = DEFAULT_UNPAIRED, *, config: FoldingConfig \| None = None, rna_module = _DEFAULT_RNA) -> None` |  |
+| `BUILT` | `@property def window(self) -> int` |  |
+| `BUILT` | `@property def max_span(self) -> int` |  |
+| `BUILT` | `@property def unpaired(self) -> int` |  |
+| `BUILT` | `@property def config(self) -> FoldingConfig` | Immutable model used by every cached local probability calculation. |
+| `BUILT` | `@property def temperature_celsius(self) -> float` | Temperature used for both local probabilities and their opening energies. |
 | `BUILT` | `@property def available(self) -> bool` | Whether ViennaRNA can perform the requested calculation. |
-| `BUILT` | `def provenance(self, sequence: str) -> dict[str, str \| int \| float \| None]` | Exact RNAplfold implementation and clamped parameters for ``sequence``. |
+| `BUILT` | `def provenance(self, sequence: str) -> dict` | Exact RNAplfold implementation and clamped parameters for ``sequence``. |
 | `BUILT` | `def profile(self, sequence: str) -> list[float]` | Return one marginal unpaired probability per transcript position. |
 | `BUILT` | `def joint_probability(self, sequence: str, start: int, end: int) -> float` | Return joint pU for ``sequence[start:end]`` using 0-based half-open coordinates. |
 | `BUILT` | `def openness(self, sequence: str, start: int, end: int) -> float` | Mean one-base marginal pU over a 0-based half-open interval. |
@@ -2341,7 +2374,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.11.0-scientific-qa'` |
+| `ENGINE_VERSION` |  | `'local-0.12.0-scientific-qa-folding-model'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |

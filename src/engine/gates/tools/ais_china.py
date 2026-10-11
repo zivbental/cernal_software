@@ -71,6 +71,7 @@ from pathlib import Path
 from types import ModuleType
 
 from engine import sequences
+from engine.gates.tools import VIENNA_PARAMETER_LOCK
 
 #: The submodule's pinned commit. ``tests/engine/test_ais_china.py`` checks the checked-out
 #: submodule against this, so a bump is a deliberate edit to this line, the test run, and
@@ -472,7 +473,11 @@ class AisChinaCodons:
             }
 
         try:
-            report = self._pipeline.optimize(request, refs=self._refs)
+            # Their optional RNA strategies load global energy tables. Serialize with
+            # CERNAL snapshot creation; otherwise a concurrent model selection could
+            # temporarily change their diagnostics, or vice versa. No vendor edits.
+            with VIENNA_PARAMETER_LOCK:
+                report = self._pipeline.optimize(request, refs=self._refs)
         except self._sequence.InputError as error:
             raise ValueError(f"[{error.field}] {error}") from error
         return self._convert_report(report)

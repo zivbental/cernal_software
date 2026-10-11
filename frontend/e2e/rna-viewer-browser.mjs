@@ -35,7 +35,7 @@ const attempts = new Map();
 const runs = [runA, runB].map((id, index) => ({
   id, status: "COMPLETED", organism: index ? "Synthetic second run" : "Synthetic RNA viewer QA",
   created_at: "2026-10-09T12:00:00Z", stage: "Completed", engine_version: "fixture",
-  seed: 42, params_snapshot: { payload: { outputs: ["gfp", "other"] } },
+  seed: 42, params_snapshot: { ...(index ? { top_n: 1 } : {}), payload: { outputs: ["gfp", "other"] } },
   warnings: [], counts: { candidates: index ? 2 : 57, artifacts: 0 },
 }));
 const version = {
@@ -137,6 +137,7 @@ const server = createServer(async (req, res) => {
         if (path === `${prefix}/artifacts`) return respond(res, []);
         if (path === `${prefix}/candidates`) {
           let items = [...(run.id === runA ? main : second)];
+          if (url.searchParams.has("top_n")) items = items.filter(item => !item.is_rejected).slice(0, Number(url.searchParams.get("top_n")));
           if (url.searchParams.has("output")) items = items.filter(item => item.output === url.searchParams.get("output"));
           if (url.searchParams.has("min_score")) items = items.filter(item => item.overall_score >= Number(url.searchParams.get("min_score")));
           if (url.searchParams.get("sort") === "engine_ref") items.sort((a, b) => a.engine_ref.localeCompare(b.engine_ref));
@@ -499,6 +500,30 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       await page.goForward();
       await page.getByRole("button", { name: "RNA Structure", exact: true }).click();
       await expectDiagram(fixture.alternate, second[0].engine_ref);
+      await expectReset();
+    });
+
+    await check("saved result limits and all-results switching preserve RNA identity", async () => {
+      await openRun(runB);
+      const resultView = page.getByRole("combobox", { name: "Result view", exact: true });
+      assert.equal(await resultView.inputValue(), "top");
+      assert.equal(await row(second[1]).count(), 0);
+      await page.getByRole("button", { name: "RNA Structure", exact: true }).click();
+      await expectDiagram(fixture.alternate, second[0].engine_ref);
+      assert(requests.some(({ path, query }) => path === `/api/runs/${runB}/candidates` && query.top_n === "1"));
+      await resultView.selectOption("all");
+      await row(second[1]).waitFor();
+      await choose(2, second);
+      await expectDiagram(fixture.hairpin, second[1].engine_ref);
+      await page.getByRole("button", { name: "Zoom in RNA", exact: true }).click();
+      await page.getByRole("button", { name: "Rotate RNA right", exact: true }).click();
+      await resultView.selectOption("top");
+      await expectDiagram(fixture.alternate, second[0].engine_ref);
+      await expectReset();
+      assert.equal(await row(second[1]).count(), 0);
+      await openRna();
+      assert.equal(await resultView.inputValue(), "all");
+      await expectDiagram(fixture.hairpin, main[0].engine_ref);
       await expectReset();
     });
 

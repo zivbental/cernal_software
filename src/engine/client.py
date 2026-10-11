@@ -253,7 +253,7 @@ def validate_job_configuration(
     organism: str = "",
 ) -> dict:
     """Validate a runnable configuration before queueing; return normalized parameters."""
-    from engine.domain import Host
+    from engine.domain import FoldingConfig, Host
     from engine.gates.registry import get_family
     from engine.pipeline import (
         _UNBUILDABLE_FAMILIES,
@@ -270,9 +270,13 @@ def validate_job_configuration(
         raise ValueError("scientific_provenance is engine-generated metadata, not a parameter.")
     if input_mode not in ("direct", "de", "gene"):
         raise ValueError("input_mode must be direct, de, or gene.")
+    folding = FoldingConfig.from_mapping(params.get("folding", {}))
     for block in ("constraints", "payload", "backbone", "scoring", "statistics", "target_gene"):
         if block in params and not isinstance(params[block], dict):
             raise ValueError(f"params.{block} must be an object.")
+    # Presentation only: retained in the snapshot for the UI, never a search budget.
+    if "top_n" in params and (type(params["top_n"]) is not int or not 1 <= params["top_n"] <= 1000):
+        raise ValueError("top_n must be an integer between 1 and 1000.")
     budget = params.get("budget", {})
     if not isinstance(budget, dict) or set(budget) - {"max_designs"}:
         raise ValueError("budget supports only max_designs (integer 1..1000).")
@@ -375,6 +379,7 @@ def validate_job_configuration(
             else {}
         ),
         "constraints": dataclasses.asdict(constraints),
+        "folding": dataclasses.asdict(folding),
         "budget": {"max_designs": max_designs},
     }
     return copy.deepcopy(normalized)
@@ -465,7 +470,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.11.0-scientific-qa"
+    ENGINE_VERSION = "local-0.12.0-scientific-qa-folding-model"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

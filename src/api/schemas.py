@@ -442,7 +442,7 @@ class AnnotationOut(ModelSchema):
 
 class DesignIn(Schema):
     """Everything ``POST /api/design`` accepts. ``constraints``, ``scoring``,
-    ``budget`` and ``payload`` are free-form dicts, not nested schemas — the same
+    ``folding``, ``budget`` and ``payload`` are dicts, not nested schemas — the same
     reason ``RunIn.params`` is a dict: their real shape is ``engine.domain.Constraints``
     / a scoring profile / etc, which ``api/`` may not import (architecture.md §3).
     ``strict`` (default ``True``, unlike the legacy run endpoint) is what catches a
@@ -474,6 +474,17 @@ class DesignIn(Schema):
     # --- search constraints: engine.domain.Constraints, field for field ---
     constraints: dict = Field(default_factory=dict)
 
+    # --- one thermodynamic model shared by design and transcript folding ---
+    folding: dict = Field(
+        default_factory=dict,
+        description=(
+            "Folding model: temperature_celsius (0..100), dangles (0 or 2), "
+            "special_hairpins, no_lonely_pairs, no_gu, no_gu_closure (booleans), "
+            "energy_parameters (turner2004, turner1999 or andronescu2007). "
+            "Unknown fields and invalid values are rejected even when strict=false."
+        ),
+    )
+
     # --- how candidates are compared (§9.1) ---
     scoring: dict = Field(default_factory=dict)
 
@@ -481,7 +492,13 @@ class DesignIn(Schema):
     budget: dict = Field(default_factory=dict)
 
     # --- output shaping ---
-    top_n: int = Field(default=25, ge=1, le=1000)
+    top_n: int = Field(
+        default=25,
+        ge=1,
+        le=1000,
+        strict=True,
+        description="Ranked rows shown (accepted by default); no evaluation or storage cap.",
+    )
     include_rejected: bool = False
     include_metrics: bool = True
     include_artifacts: list[str] = Field(default_factory=list)
@@ -509,6 +526,7 @@ class DesignResolvedOut(Schema):
     scoring_profile: str
     seed: int | None
     constraints: dict
+    folding: dict = Field(default_factory=dict)
     organism: str = "ecoli"
     budget: dict = Field(default_factory=dict)
     payload: dict = Field(default_factory=dict)

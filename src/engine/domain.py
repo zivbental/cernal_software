@@ -437,6 +437,8 @@ class TriggerCandidate:
     rnaplfold_max_span: int | None = None
     rnaplfold_unpaired: int | None = None
     rnaplfold_temperature_celsius: float | None = None
+    # Immutable JSON evidence of the actual local-fold model; None for legacy records.
+    rnaplfold_model: str | None = None
 
     @property
     def length(self) -> int:
@@ -872,6 +874,53 @@ class ToolRequirement:
     name: str
     version: str
     optional: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class FoldingConfig:
+    """Immutable, run-wide ViennaRNA model; defaults reproduce the original model.
+
+    Only dangling-end models 0 and 2 are supported because ViennaRNA's partition
+    function does not implement 1 and 3 consistently with MFE. Energy tables are
+    named, bundled ViennaRNA sets, never arbitrary server-side file paths.
+    """
+
+    temperature_celsius: float = 37.0
+    dangles: int = 2
+    special_hairpins: bool = True
+    no_lonely_pairs: bool = False
+    no_gu: bool = False
+    no_gu_closure: bool = False
+    energy_parameters: str = "turner2004"
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.temperature_celsius, bool)
+            or not isinstance(self.temperature_celsius, (int, float))
+            or not 0 <= self.temperature_celsius <= 100
+        ):
+            raise ValueError("folding.temperature_celsius must be a finite number from 0 to 100.")
+        object.__setattr__(self, "temperature_celsius", float(self.temperature_celsius))
+        if type(self.dangles) is not int or self.dangles not in (0, 2):
+            raise ValueError("folding.dangles must be 0 or 2 (consistent MFE/ensemble models).")
+        for name in ("special_hairpins", "no_lonely_pairs", "no_gu", "no_gu_closure"):
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"folding.{name} must be a boolean.")
+        if self.energy_parameters not in ("turner2004", "turner1999", "andronescu2007"):
+            raise ValueError(
+                "folding.energy_parameters must be turner2004, turner1999 or andronescu2007."
+            )
+
+    @classmethod
+    def from_mapping(cls, values: dict) -> "FoldingConfig":
+        if not isinstance(values, dict):
+            raise ValueError("folding must be an object.")
+        unknown = set(values) - set(cls.__dataclass_fields__)
+        if unknown:
+            raise ValueError(
+                f"Unknown folding parameter(s): {', '.join(map(str, sorted(unknown, key=str)))}"
+            )
+        return cls(**values)
 
 
 @dataclass(frozen=True, slots=True)
