@@ -106,7 +106,7 @@ export function RequestFlow() {
   );
 }
 
-/** What each object owns, and how many of the next thing it holds — Client 1 → Job N → Candidate top_n → Metric ×9. */
+/** What each object owns, and how many of the next thing it holds — Client 1 → Job N → Candidate (top_n display) → Metric ×9. */
 export function ObjectMap() {
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface p-5">
@@ -120,7 +120,7 @@ export function ObjectMap() {
           <div className="ml-4 mt-1.5 space-y-1.5 border-l border-dashed border-border pl-5">
             <div>
               <div className="py-1 font-mono text-[10.5px] text-muted-foreground">
-                .candidates() → top_n Candidates, ranked
+                .candidates() → top_n displayed, all stored
               </div>
               <Node icon={<ListChecks className="h-4 w-4" />} label="Candidate" sub="rank, overall_score, output" />
               <div className="ml-4 mt-1.5 border-l border-dashed border-border pl-5">

@@ -343,6 +343,10 @@ export interface ApiKeyCreated extends ApiKey {
 
 /** The wizard's configuration, frozen into params_snapshot at submission. */
 export interface RunParams {
+  /** Cap on validated gate designs evaluated; outputs are evaluated separately. */
+  budget?: { max_designs?: number };
+  /** Presentation only, after ranking accepted results; stored results stay complete. */
+  top_n?: number;
   schema_version?: string;
   organism?: string;
   input_mode?: InputMode;

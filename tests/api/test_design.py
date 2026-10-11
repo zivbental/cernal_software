@@ -379,3 +379,148 @@ def test_estimate_respects_design_budget_and_output_cross_product(client, design
     assert estimate["designs"] == estimate["candidate_upper_bound"] == 2
     assert estimate.get("seconds") is None
     assert estimate["runtime_calibrated"] is False
+
+
+@pytest.mark.parametrize("dry_run", ["true", "false"])
+def test_top_n_does_not_reduce_evaluation_budget_or_estimate(client, design_key, dry_run):
+    from apps.analyses.models import AnalysisRun
+
+    response = _post(
+        client,
+        design_key,
+        {
+            "trigger_sequence": TRIGGER,
+            "organism": "ecoli",
+            "top_n": 1,
+            "budget": {"max_designs": 40},
+            "payload": {"outputs": ["gfp", "other"], "custom_sequence": "ATGGCTGCTTAA"},
+        },
+        dry_run=dry_run,
+    )
+    assert response.status_code in (200, 202), response.content
+    body = response.json()
+    assert body["estimate"]["candidate_upper_bound"] == 80
+    assert body["estimate"]["designs"] > 1
+    assert body["resolved"]["budget"]["max_designs"] == 40
+    if dry_run == "true":
+        assert not AnalysisRun.objects.exists()
+    else:
+        assert AnalysisRun.objects.get(pk=body["job_id"]).params_snapshot["budget"] == {
+            "max_designs": 40,
+        }
+
+
+def test_async_results_url_preserves_top_n_without_pruning_stored_candidates(client, design_key):
+    import csv
+    import io
+    from urllib.parse import parse_qs, urlsplit
+
+    from apps.analyses.models import AnalysisRun, RunStatus
+    from apps.results.models import Candidate
+
+    response = _post(
+        client,
+        design_key,
+        {
+            "trigger_sequence": TRIGGER,
+            "organism": "ecoli",
+            "top_n": 2,
+            "budget": {"max_designs": 40},
+        },
+    )
+    assert response.status_code == 202, response.content
+    body = response.json()
+    assert parse_qs(urlsplit(body["results_url"]).query)["top_n"] == ["2"]
+    run = AnalysisRun.objects.get(pk=body["job_id"])
+    run.status = RunStatus.COMPLETED
+    run.save(update_fields=["status"])
+    # Generation order differs from score order, and a rejected row comes first.
+    Candidate.objects.bulk_create(
+        [
+            Candidate(
+                run=run,
+                engine_ref="cand-000000",
+                is_rejected=True,
+                rejection_reason="Hard-filter diagnostic",
+                gate_family="toehold",
+            ),
+            *[
+                Candidate(
+                    run=run,
+                    engine_ref=f"cand-{index:06d}",
+                    rank=31 - index,
+                    overall_score=index / 31,
+                    gate_family="toehold",
+                )
+                for index in range(1, 31)
+            ],
+        ]
+    )
+    result = client.get(body["results_url"], HTTP_X_API_KEY=design_key)
+    assert result.status_code == 200, result.content
+    assert [c["engine_ref"] for c in result.json()["candidates"]] == [
+        "cand-000030",
+        "cand-000029",
+    ]
+    assert Candidate.objects.filter(run=run).count() == 31
+    csv_response = client.get(
+        f"/api/design/{run.id}/results?format=csv&top_n=2",
+        HTTP_X_API_KEY=design_key,
+    )
+    rows = list(csv.DictReader(io.StringIO(csv_response.content.decode())))
+    assert len(rows) == 31
+    all_results = client.get(
+        f"/api/design/{run.id}/results?top_n=100&include_rejected=true",
+        HTTP_X_API_KEY=design_key,
+    ).json()
+    assert len(all_results["candidates"]) == 31
+    assert all_results["candidates"][-1]["is_rejected"] is True
+
+
+def test_async_results_url_preserves_nondefault_output_options(client, design_key):
+    from urllib.parse import parse_qs, urlsplit
+
+    body = _post(
+        client,
+        design_key,
+        {
+            "trigger_sequence": TRIGGER,
+            "organism": "ecoli",
+            "top_n": 7,
+            "include_rejected": True,
+            "include_metrics": False,
+            "include_artifacts": ["design_table", "safety_audit"],
+        },
+    ).json()
+    query = parse_qs(urlsplit(body["results_url"]).query)
+    assert query == {
+        "top_n": ["7"],
+        "include_rejected": ["true"],
+        "include_metrics": ["false"],
+        "include_artifacts": ["design_table,safety_audit"],
+    }
+
+
+@pytest.mark.parametrize("value", [0, -1, 1001, True, False, 1.5, "2", None])
+@pytest.mark.parametrize("dry_run", ["true", "false"])
+def test_top_n_requires_a_bounded_integer_before_submission(client, design_key, value, dry_run):
+    from apps.analyses.models import AnalysisRun
+
+    response = _post(
+        client,
+        design_key,
+        {
+            "trigger_sequence": TRIGGER,
+            "organism": "ecoli",
+            "top_n": value,
+        },
+        dry_run=dry_run,
+    )
+    assert response.status_code == 422, response.content
+    assert not AnalysisRun.objects.exists()
+
+
+@pytest.mark.parametrize("value", [0, -1, 1001, "true", "1.5"])
+def test_design_results_reject_invalid_top_n(auth_client, run, value):
+    response = auth_client.get(f"/api/design/{run.id}/results?top_n={value}")
+    assert response.status_code == 422, response.content

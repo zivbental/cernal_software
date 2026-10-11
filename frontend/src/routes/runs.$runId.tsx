@@ -65,7 +65,9 @@ function RunPage() {
       <WarningList title="Run warnings" warnings={status.data.warnings ?? []} />
       {run.isError && <p role="alert">Could not load the frozen run configuration. <button onClick={() => run.refetch()}>Retry</button></p>}
       {run.data && <details className="mb-4 rounded-xl border border-border p-4"><summary>Run provenance and frozen configuration</summary><p>Engine {run.data.engine_version || "pending"} · Seed {run.data.seed ?? "unspecified"} · Host {run.data.organism}</p><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(run.data.params_snapshot, null, 2)}</pre></details>}
-      {done ? <Results runId={runId} outputs={run.data?.params_snapshot.payload?.outputs ?? []} /> : <RunProgress runId={runId} status={status.data} />}
+      {done ? (
+        run.data ? <Results key={runId} topN={run.data.params_snapshot.top_n} runId={runId} outputs={run.data.params_snapshot.payload?.outputs ?? []} /> : run.isLoading ? <Loading /> : null
+      ) : <RunProgress runId={runId} status={status.data} />}
     </>
   );
 }
@@ -173,7 +175,11 @@ function RunProgress({ runId, status }: { runId: string; status: RunStatusRespon
 
 /* ---------- results ---------- */
 
-function Results({ runId, outputs: configuredOutputs }: { runId: string; outputs: string[] }) {
+function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId: string; outputs: string[]; topN?: number }) {
+  // Older /runs submissions allowed freeform params; invalid historical values mean all results.
+  const topN = typeof savedTopN === "number" && Number.isInteger(savedTopN) && savedTopN >= 1 && savedTopN <= 1000 ? savedTopN : undefined;
+  const [showAll, setShowAll] = useState(false);
+  const limited = !showAll && topN !== undefined;
   const [offset, setOffset] = useState(0);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -181,6 +187,7 @@ function Results({ runId, outputs: configuredOutputs }: { runId: string; outputs
 
   const [outputFilter, setOutputFilter] = useState<string | null>(null);
   const candidates = useCandidates(runId, {
+    topN: limited ? topN : undefined,
     includeRejected: filters.includeRejected,
     sort: filters.sort,
     limit: 50,
@@ -211,8 +218,27 @@ function Results({ runId, outputs: configuredOutputs }: { runId: string; outputs
           <SectionHeading
             kicker="Step 04 · Fulfillment"
             title="Ranked Candidates"
-            desc={`${candidates.data?.count ?? 0} matching candidates. Showing ${items.length ? offset + 1 : 0}–${offset + items.length}. Filters apply to the entire run.`}
+            desc={`${candidates.data?.count ?? 0} matching candidates. Showing ${items.length ? offset + 1 : 0}–${offset + items.length}. ${limited ? `Filters apply within the globally top ${topN} accepted results.` : "Filters apply to the entire run."}`}
           />
+
+          <div className="mb-4 space-y-2 text-sm">
+            <label className="flex items-center gap-2">
+              Result view
+              <select aria-label="Result view" value={limited ? "top" : "all"}
+                onChange={(event) => {
+                  setShowAll(event.target.value === "all");
+                  setFilters((current) => ({ ...current, includeRejected: false }));
+                  setOffset(0);
+                }} className="rounded-md border border-border bg-card px-3 py-2">
+                {topN !== undefined && <option value="top">Top {topN} accepted results</option>}
+                <option value="all">All stored results</option>
+              </select>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              The display limit selects the globally top-ranked accepted results before filters or table sorting. It does not reduce computation or stored results.
+              Exports retain all results. Showing rejected candidates switches to all stored results.
+            </p>
+          </div>
 
           {outputs.length > 1 && (
             <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -311,7 +337,7 @@ function Results({ runId, outputs: configuredOutputs }: { runId: string; outputs
             </div>
 
             <div>
-              <PrecisionFilters filters={filters} onChange={(next) => { setFilters(next); setOffset(0); }} />
+              <PrecisionFilters filters={filters} onChange={(next) => { setFilters(next); if (next.includeRejected) setShowAll(true); setOffset(0); }} />
 
               <div className="mt-4 space-y-2">
                 {visible.map((candidate) => (
