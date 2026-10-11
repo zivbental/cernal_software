@@ -22,8 +22,12 @@ see git history).
   `stem_open_state`, `run_parallel_designs`) and `_sampled_and_parallel.py` (AND workers:
   `AndJob`, `state_strands`, `and_state`, `run_parallel_and`) in this folder.
 - `_joint_state_parallel.py` (`use_fold_engine`, `both_triggers_extra`, `pick_fake_triggers`,
-  `trigger_pair_too_similar`, spacer generation and selection) and `_switch_construct.py`
-  (`load_ranked_designs`, `fuse`) — shared with older notebooks.
+  `trigger_pair_too_similar`, spacer generation and selection), `_switch_construct.py`
+  (`load_ranked_designs`, `fuse`, `upstream_augs`) and `_report_stats.py` (verification
+  tolerance, `state_ok`, `state_ok_and`, medians that return `n/a` for an empty column).
+- Tests: `tests/engine/gates/test_toehold_and_helpers.py`, `test_sampled_and_per_hairpin.py`
+  and the end-to-end `test_eu_and_v3_notebook.py` (small fixture `tests/fixtures/eu_and_v3_small.csv`,
+  `MAKE_PDF = False`).
 - `_report_figures.py` — 2D structure SVG, base-pair heat map PNG, domain colours.
 - `src/engine/gates/notebooks/toehold/render_pdf.py` — HTML to PDF (Playwright).
 
@@ -115,8 +119,12 @@ is a competing start codon. An AUG beginning at or after the start of `stem_down
 counted. Spacer candidates containing `AUG` are removed from the pool first (so a spacer never
 causes the exclusion; an AUG made at a junction still does). The count is reported next to the
 other exclusions (self-pairs / too similar / upstream AUG / fuse failed). Part 1 (single
-switches) is not screened. The toggle is for comparison; with it off the old candidate set
-returns.
+switches) is not screened. The toggle is for comparison: with it off the candidate set is the
+one without this screen (the spacer pool is then also unfiltered). The screen looks only for the
+AUG triplet in the fused sequence; it does not judge Kozak context, reading frame or whether the
+AUG is accessible. In the run of 2026-10-11 (top 20 of 150 designs) the 800 pair variants (20 x 20
+ordered pairs, with and without a spacer) lost 40 self-pairs and 80 too-similar pairs, and the
+screen then removed 580 of the remaining 680 (85%), leaving 100 candidates.
 
 ### Spacer
 `generate_spacer_candidates`: a fixed pool (`SPACER_CANDIDATE_POOL_SIZE`, seed `SPACER_SEED`)
@@ -129,7 +137,9 @@ pool order). Both variants (`no_spacer`, `spacer`) are run and ranked together.
 The top `AND_TOP_N` rows of part 1's ranking (tied group first, then `ON - OFF`), taken from
 memory (`scored`). All ordered pairs, no self-pairs, no pair whose triggers share a run above
 `FAKE_MAX_SEQ_OVERLAP_NT` (identity, or complementarity with at most `WOBBLE_MAX_FRACTION`
-G·U wobble). `single_rank` in part 2 = rank in part 1.
+G·U wobble), and no construct with an AUG before the second hairpin's `stem_down` (see
+"Upstream AUG screen"). Pairs are screened in that order and each exclusion is counted
+(self-pairs / too similar / upstream AUG / fuse failed). `single_rank` in part 2 = rank in part 1.
 
 ## Sampling and verification
 
@@ -171,7 +181,8 @@ separate PNG only) → details per listed design (parts table, 2D structures of 
 details appendix; CSV of all designs) → **Part 2**: pool → fuse candidates and sample the
 four states twice (+ control matrices) → ranking, tied group, `dG`, noise → details per listed
 candidate → report (landscape PDF; Appendix A with the `E[k]` columns and the verification) →
-export rows and detail panels for an interactive page.
+export rows and detail panels for an interactive page → plot of the trigger positions of the
+listed candidates (PNG, outside the report).
 
 Part 2 names that would clash with part 1 end in `_and` (the two parts share one kernel).
 
@@ -180,9 +191,15 @@ Part 2 names that would clash with part 1 end in `_and` (the two parts share one
 `eu_and_v3_report_<t>.{html,pdf}`, `eu_and_v3_all_designs_<t>.csv`,
 `eu_and_v3_correlation_<t>.png`, `eu_and_v3_results_<t>.json` (`results`, `check`);
 `eu_and_v3_and_report_<t>.{html,pdf}`, `eu_and_v3_and_all_candidates_<t>.csv`,
-`eu_and_v3_and_results_<t>.json`; `eu_and_v3_and_artifact_<t>/rows.json` and `d/s<n>.js`
-(detail panels, four candidates per file). Page counts: about 2 pages of details per design
-(single), 5 per candidate (AND).
+`eu_and_v3_and_results_<t>.json`; `eu_and_v3_and_trigger_positions_<t>.png`;
+`eu_and_v3_and_artifact_<t>/rows.json` and `d/s<n>.js` (detail panels, four candidates per
+file). `rows.json` fields: `on`/`diff` = joint `ON_min` and `ON_min - OFF`, `onSum`/`diffSum` the
+sum-based ones, `off`, `offSource`, `ctrl`, `ratio`, `dG`, `tied`, `ok` (four states), the single
+ranks `A`/`B`, the CSV ranks `csvA`/`csvB`, stem and trigger lengths, spacer. The interactive page
+itself (filters, sortable table, expandable panels) is built from these files by a template that
+is **not stored in the repository**; changing the meaning of a field here means updating that
+template by hand. Page counts: about 2 pages of details per design (single), 5 per candidate
+(AND).
 
 ## Limitations (stated in the reports)
 
@@ -195,7 +212,9 @@ matrix bounds for the controls, so the control often sets OFF (stricter ranking)
 threshold counts Monte-Carlo noise only; a design may have fewer than `N_CONTROLS` controls
 or none (no other design's trigger is dissimilar enough): the reports then show `n/a` for the
 control statistics, count the designs with full / fewer / no controls, and OFF falls back to
-the other states; percentages are not fully neutral to stem length.
+the other states; percentages are not fully neutral to stem length; the upstream-AUG screen is
+a plain triplet search and part 1 is not screened; a screen that removes most pairs (85% of those
+reaching it in the last run) leaves a small candidate pool, so `AND_TOP_N` bounds what part 2 can find.
 
 ## Traps (real mistakes already made here)
 
@@ -227,6 +246,11 @@ the other states; percentages are not fully neutral to stem length.
 12. **Complement the pair test, not the partner.** The wobble helper reverse-complemented B and
     then tested complementarity again, so A×12 vs U×12 scored 0. Reverse B only.
 13. **An empty control pool is a normal outcome**, not an error and not a zero.
+14. **An upstream-AUG count is not a quality score.** A construct with an AUG before the second
+    `stem_down` is removed before any folding; it never appears in the CSV with a flag. To see
+    what the screen removed, run with `EXCLUDE_UPSTREAM_AUG = False`.
+15. **Results saved before a definition change cannot be re-rendered.** `RESULTS_TO_LOAD_AND`
+    refuses files without `open_frac_sampled`; sample again instead of defaulting the field.
 
 ## Change log
 
@@ -234,7 +258,6 @@ the other states; percentages are not fully neutral to stem length.
   `stem_down` are excluded and spacer candidates containing AUG are dropped
   (`EXCLUDE_UPSTREAM_AUG`); the exclusion count joins the others in the report. Tests:
   `tests/engine/gates/test_toehold_and_helpers.py`, `test_eu_and_v3_notebook.py`.
-
 - 2026-10-11: last cell of the notebook draws the trigger positions of the first `REPORT_TOP_N` AND
   candidates on the transcript (`eu_and_v3_and_trigger_positions_<time>.png`, outside the report).
 - 2026-10-11 (per-hairpin ON / OFF): the AND `ON_min`, `OFF` and `Control` are normalised by each
@@ -254,7 +277,6 @@ the other states; percentages are not fully neutral to stem length.
   is no longer replaced by `L/2`; empty control pools give `n/a` instead of an error; the
   ranking's meaning and the joint metric are stated; regression tests in
   `tests/engine/gates/`, portable fixture `tests/fixtures/eu_and_v3_small.csv`.
-
 - 2026-10-11: single and AND notebooks merged; AND pool taken from part 1; OFF includes
   `N_CONTROLS` mismatched-trigger controls; ON of the AND = `E[r_A + r_B] / (L_A + L_B)` (later replaced, see below);
   `E[k]` columns moved to Appendix A; data export for an interactive page.

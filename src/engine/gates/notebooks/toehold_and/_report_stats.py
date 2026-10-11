@@ -1,6 +1,6 @@
 """Statistics behind the ``eu_and_v3`` reports that must be testable on their own.
 
-Three things live here because a silent mistake in any of them changes what the report says:
+Two things live here because a silent mistake in any of them changes what the report says:
 
 * the per-state verification tolerance (:func:`verification_tolerance`, :func:`state_ok`,
   :func:`state_ok_and`) -- a *measured* standard deviation of 0 is a real value (a state that
@@ -46,7 +46,8 @@ def state_ok(state: dict, stem_len: int, *, sigma: float, floor_nt: float) -> bo
 
 
 def open_value(state: dict, name: str) -> float | None:
-    """Open of an AND state: E[r_A] + E[r_B] for +A+B (ON), E[min(r_A, r_B)] for the others."""
+    """Open of an AND state in nt, as the sampler check needs it: E[r_A] + E[r_B] for +A+B (bounded
+    by E[k_A] + E[k_B]), E[min(r_A, r_B)] for the others. The ranking uses ``open_frac_sampled``."""
     if state["open_sampled"] is None:
         return None
     if name == "+A+B":

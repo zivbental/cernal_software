@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 74 |
 | Public classes | 115 |
-| Public callables (excluding `__init__`) | 407 |
-| — `BUILT` | 394 |
+| Public callables (excluding `__init__`) | 408 |
+| — `BUILT` | 395 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -82,7 +82,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold_and._report_stats` |  | 8 | 0 | Statistics behind the ``eu_and_v3`` reports that must be testable on their own. |
 | gates | `engine.gates.notebooks.toehold_and._sampled_and_parallel` |  | 3 | 0 | Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by part 2 of ``eu_and_v3.ipynb``). |
 | gates | `engine.gates.notebooks.toehold_and._sampled_stem_parallel` |  | 4 | 0 | Expected longest open run of the stem, by sampling, in parallel (used by ``eu_and_v3.ipynb``). |
-| gates | `engine.gates.notebooks.toehold_and._switch_construct` |  | 4 | 0 | Shared AND-construct builder and single-switch loader/measurement. |
+| gates | `engine.gates.notebooks.toehold_and._switch_construct` |  | 5 | 0 | Shared AND-construct builder and single-switch loader/measurement. |
 | gates | `engine.gates.notebooks.toehold_and.build_report` |  | 1 | 0 | Assemble the architecture decision report, inlining the eight structure figures. |
 | gates | `engine.gates.notebooks.toehold_and.bulge_geometry` |  | 6 | 0 | What the AUG bulge actually is, which side is designable, and what the two hairpins weigh. |
 | gates | `engine.gates.notebooks.toehold_and.design_panel` |  | 4 | 0 | The whole A0 pipeline, end to end, for a wet-lab panel. One command, no hand-holding. |
@@ -1653,9 +1653,9 @@ Statistics behind the ``eu_and_v3`` reports that must be testable on their own.
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def sd_or_default(sd: float \| None, default: float) -> float` | ``sd`` when it was measured (including a valid 0.0), ``default`` when it is missing. |
-| `BUILT` | `def verification_tolerance(sd: float \| None, n_drawn: int, *, default_sd: float, sigma: float, floor_nt: float) -> float` | tau = sigma * sd / sqrt(N) + floor. ``default_sd`` (sd(k) <= L/2) only when ``sd`` is missing. |
+| `BUILT` | `def verification_tolerance(sd: float \| None, n_drawn: int, *, default_sd: float, sigma: float, floor_nt: float) -> float` | tau = sigma * sd / sqrt(N) + floor; ``default_sd`` (<= L/2) only if ``sd`` is missing. |
 | `BUILT` | `def state_ok(state: dict, stem_len: int, *, sigma: float, floor_nt: float) -> bool` | Single-switch state verified: sampled mean k and sampled Open agree with the exact matrix. |
-| `BUILT` | `def open_value(state: dict, name: str) -> float \| None` | Open of an AND state: E[r_A] + E[r_B] for +A+B (ON), E[min(r_A, r_B)] for the others. |
+| `BUILT` | `def open_value(state: dict, name: str) -> float \| None` | Open of an AND state in nt, as the sampler check needs it: E[r_A] + E[r_B] for +A+B (bounded by E[k_A] + E[k_B]), E[min(r_A, r_B)] for the others. The ranking uses ``open_frac_sampled``. |
 | `BUILT` | `def state_ok_and(state: dict, name: str, l_a: int, l_b: int, *, sigma: float, floor_nt: float) -> bool` | AND state verified: each hairpin's sampled E[k] agrees with its matrix value within its own tolerance, and the sampled Open does not exceed the matrix bound. |
 | `BUILT` | `def median_or_none(values: Iterable[float \| None]) -> float \| None` | Median of the non-missing values, ``None`` when there are none. |
 | `BUILT` | `def median_text(values: Iterable[float \| None], *, unit: str = '', digits: int = 1) -> str` | The median as text with its unit, or ``n/a`` when no value is available. |
@@ -1732,6 +1732,7 @@ Shared AND-construct builder and single-switch loader/measurement.
 | `BUILT` | `def motif_self_bind_score(sequence, motif_seq)` | Best fractional match, sliding a window the length of ``motif_seq`` across ``sequence``, against the reverse complement of ``motif_seq`` -- built entirely from existing engine functions (``windows`` for the scan, ``reverse_complement`` for… |
 | `BUILT` | `def load_ranked_designs(path, folder, columns, carry_metrics, limit = None)` | Rows of a NucSyn ``results_ranked.csv``, kept in file order (already ranked). |
 | `BUILT` | `def fuse(design_5p, design_3p, cut_before, keep_after, spacer)` | One AND candidate: every domain from both halves, relocated into the fused frame. |
+| `BUILT` | `def upstream_augs(built)` | Start positions (0-based, in the fused RNA) of every AUG that begins before the second hairpin's ``stem_down``. |
 | `BUILT` | `def measure(built, trigger_5p, trigger_3p, folder, own_kozak_rc_3p, own_prefix_rc_5p)` | Energies for the four states, both toehold accessibilities, and the Kozak/prefix self-binding risk of whichever toehold each fixed element could actually reach. |
 
 ### `engine.gates.notebooks.toehold_and.build_report`
