@@ -67,7 +67,21 @@ BASE_Y = 258
 APEX_Y = 118  # a loop's lowest point; its interior runs up to APEX_Y - LOOP_R
 LOOP_R = 26
 STEM_TOP = APEX_Y + 10
-STEM_BOTTOM = BASE_Y - 28
+
+#: One base pair is PITCH units of stem, in BOTH hairpins. Drawing them at different
+#: pitches makes one stem look denser than the other when the only real difference is how
+#: many pairs it has, so the pitch is a constant and the stem's length follows from it.
+#: 18 bp at 6 units is 108, and the main hairpin's 6 + 9 bp plus a 3-nt internal loop is
+#: 36 + 18 + 54 = 108 as well, so the two hairpins are the same height by arithmetic
+#: rather than by adjustment.
+PITCH = 6
+MAIN_STEM_BP = 18
+STEM_BOTTOM = STEM_TOP + PITCH * MAIN_STEM_BP
+
+#: The internal loop that holds the start codon: 3 unpaired positions on each side, so it
+#: occupies 3 pitches of the main hairpin's stem.
+LOOP_FROM = STEM_TOP + PITCH * 6
+LOOP_TO = LOOP_FROM + PITCH * 3
 NAME_Y = 82
 SYMBOL_Y = 284
 TRIG_Y = 314
@@ -128,6 +142,20 @@ def _pill(cx: float, cy: float, label: str, kind: str) -> str:
         f'width="{PILL_W}" height="{PILL_H}" rx="{9 if kind != "aug" else 3}" />\n    '
         f'<text class="st-pill-text st-pill-text--{kind}" x="{cx:.1f}" '
         f'y="{cy + 4.5:.1f}" text-anchor="middle">{label}</text>'
+    )
+
+
+def _bulge(cx: float, cy: float) -> str:
+    """The three unpaired bases facing the start codon across the main stem.
+
+    Drawn as three open circles on the ascending arm rather than labelled, because the
+    thing worth seeing is that they are UNPAIRED and that there are exactly as many of
+    them as there are bases in the codon opposite. A word here would not fit and would
+    not say more.
+    """
+    return "\n    ".join(
+        f'<circle class="st-bulge" cx="{cx:.1f}" cy="{cy + offset:.1f}" r="3.2" />'
+        for offset in (-PITCH, 0, PITCH)
     )
 
 
@@ -200,7 +228,7 @@ def _closed_pair() -> tuple[str, str]:
         H2_X,
         enter_x=H2_X - 12,
         exit_x=H2_X + LOOP_R * 2 + 22,
-        blocks=((6, STEM_TOP, 172), (9, 196, STEM_BOTTOM)),
+        blocks=((6, STEM_TOP, LOOP_FROM), (9, LOOP_TO, STEM_BOTTOM)),
     )
     backbone = (
         f'<path class="st-bb" d="M 24 {BASE_Y} {h1_path}{h2_path}'
@@ -215,8 +243,9 @@ def _shut_decorations() -> str:
     return f"""<path class="st-toehold" d="M 28 {BASE_Y} L 196 {BASE_Y}" />
     <path class="st-site" d="M {descend} {STEM_TOP} L {descend} {STEM_BOTTOM}" />
     {_pill(H1_X + LOOP_R, APEX_Y - LOOP_R + 2, "15 nt", "loop")}
-    {_pill(H2_X + LOOP_R, APEX_Y - LOOP_R + 2, "RBS", "rbs")}
-    {_pill(H2_X + LOOP_R, 184, "AUG", "aug")}
+    {_pill(H2_X + LOOP_R + 9, APEX_Y - LOOP_R + 2, "RBS", "rbs")}
+    {_pill(H2_X + LOOP_R + 9, (LOOP_FROM + LOOP_TO) / 2, "AUG", "aug")}
+    {_bulge(H2_X, (LOOP_FROM + LOOP_TO) / 2)}
     {_symbol(112, "r2*")}
     {_symbol(descend, "x*")}
     {_symbol(H2_X - 6, "a = 0")}"""
@@ -266,7 +295,7 @@ def panel_01() -> str:
         h2_x,
         enter_x=open_to,
         exit_x=h2_x + LOOP_R * 2 + 22,
-        blocks=((6, STEM_TOP, 172), (9, 196, STEM_BOTTOM)),
+        blocks=((6, STEM_TOP, LOOP_FROM), (9, LOOP_TO, STEM_BOTTOM)),
     )
     return f"""
     <path class="st-bb" d="M 24 {BASE_Y} L {open_to} {BASE_Y} {h2_path}L {GENE_X - 10} {BASE_Y}" />
@@ -275,8 +304,9 @@ def panel_01() -> str:
     <text class="st-name" x="444" y="{NAME_Y}" text-anchor="middle">main hairpin</text>
     <path class="st-toehold" d="M 28 {BASE_Y} L 196 {BASE_Y}" />
     <path class="st-open" d="M 296 {BASE_Y} L {open_to} {BASE_Y}" />
-    {_pill(h2_x + LOOP_R, APEX_Y - LOOP_R + 2, "RBS", "rbs")}
-    {_pill(h2_x + LOOP_R, 184, "AUG", "aug")}
+    {_pill(h2_x + LOOP_R + 9, APEX_Y - LOOP_R + 2, "RBS", "rbs")}
+    {_pill(h2_x + LOOP_R + 9, (LOOP_FROM + LOOP_TO) / 2, "AUG", "aug")}
+    {_bulge(h2_x, (LOOP_FROM + LOOP_TO) / 2)}
     {_symbol(346, "x* free")}
     {_trigger(30, 266, "Trigger B", "b")}
     {_five_prime()}

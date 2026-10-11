@@ -50,6 +50,33 @@ Use the audit's ENG, PLAT, PD and GAP identifiers in commits and release evidenc
 Only Offer and Ziv merge approved changes into `main`. Deployment, package
 publication and ordering require their own explicit authorization.
 
+### Open · widen the reading-frame repair to the whole acceptance window
+
+**For the toehold AND family, found while writing the model page.**
+
+A 30S subunit does not scan. It anchors on the Shine–Dalgarno and accepts a start codon a
+short distance downstream, with 6–8 nt optimal (Reeve et al. 2014, after Vellanoweth &
+Rabinowitz 1992). So:
+
+* an `AUG` **upstream** of the Shine–Dalgarno starts nothing. `augs_upstream_of_rbs`
+  counts them and is right to — 3,716 across 2,176 designs, none reachable.
+* an out-of-frame `AUG` **inside the acceptance window** is a competing start that
+  produces a different protein.
+
+Computed from the family's own constants, `RBS_CORE` (`AGGAGA`) ends exactly where
+`rbs_loop` ends, so the whole spacer to the start codon is `main_z`, 6 nt — our planned
+start sits at the optimal distance, and `main_z` is also trigger A's own `k1` copied in,
+which means sensed sequence we do not choose lands in exactly the dangerous place.
+
+`_repair_main_z` repairs `main_z` and nothing else. An out-of-frame `AUG` a little further
+downstream — inside `main_pre`, the three codons after the start — is still plausibly
+inside the window, and today it is validated and rejected rather than repaired. The same
+applies to the in-frame stop check.
+
+The task: define the acceptance window explicitly from the Shine–Dalgarno position rather
+than implicitly as "the spacer", and run both repairs over it. This changes which designs
+survive, so it needs a version bump and a golden-fixture update in the same commit.
+
 ### Open · a message for whoever owns `gates/antisense.py` and `gates/euk_antisense.py`
 
 **Nothing in those two files was changed. This is a report, not a patch.**
