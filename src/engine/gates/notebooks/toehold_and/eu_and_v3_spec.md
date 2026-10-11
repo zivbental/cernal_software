@@ -217,6 +217,8 @@ the other states; percentages are not fully neutral to stem length.
 
 ## Change log
 
+- 2026-10-11: last cell of the notebook draws the trigger positions of the first `REPORT_TOP_N` AND
+  candidates on the transcript (`eu_and_v3_and_trigger_positions_<time>.png`, outside the report).
 - 2026-10-11 (per-hairpin ON / OFF): the AND `ON_min`, `OFF` and `Control` are normalised by each
   hairpin's own stem, `E[min(r_A / L_A, r_B / L_B)]`, instead of `E[min(r_A, r_B)] / min(L_A, L_B)`
   (see "AND report"). The sampler returns `open_frac_sampled`; the nt fields stay for the check.
