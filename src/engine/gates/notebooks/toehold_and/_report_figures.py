@@ -208,11 +208,11 @@ def structure_svg(
     )
 
 
-def bpp_heatmap_png(sequence: str, matrix, title: str, boundary=None) -> str:
+def bpp_heatmap_png(sequence: str, matrix, title: str, boundary=None, dpi: int = 120) -> str:
     """Base-pair-probability heatmap as a base64 PNG; ``boundary``: a strand junction position
     (or several) marked with a dotted crosshair."""
     arr = np.array(matrix)
-    fig, ax = plt.subplots(figsize=(3.6, 3.3), dpi=120)
+    fig, ax = plt.subplots(figsize=(3.6, 3.3), dpi=dpi)
     im = ax.imshow(arr, cmap="magma", vmin=0.0, vmax=1.0, origin="upper")
     if boundary is None:
         boundary = ()
