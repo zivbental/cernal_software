@@ -80,6 +80,22 @@ footprint ceiling standing behind it. Lowering it below ~7.2 would start discard
 unmeasured on the quantity that decides them. Future runs should gate on `dG_open_11`
 directly, computing it before the check; that is a scoring change needing a version bump.
 
+### Open · the invasion-run cap has no source
+
+`MAX_INVASION_STALL = 2` in `ToeholdAndGate`, with the comment *"Three in a row is enough
+to stall branch migration."* **That number is not attributed to anything.** It is a hard
+filter — it rejected 5 of 12 all-A builds in one test, so it is doing real work — and a
+hard filter with no provenance is exactly what CLAUDE.md §3 warns about.
+
+Find where it came from, or set it from something. Candidates to check: the
+strand-displacement kinetics literature already in the team's folder
+(`Toehold/RBS/Control of DNA strand displacement kinetics using toehold exchange`), Green
+2014's supplementary, and Kim 2019. If nothing supports it, it should either be derived
+from a measured distribution of stall runs across real candidate stems, or demoted from a
+filter to a recorded observable so the choice is visible rather than silent.
+
+The wiki page must not state a justification for it until one exists.
+
 ### Open · widen the reading-frame repair to the whole acceptance window
 
 **For the toehold AND family, found while writing the model page.**
