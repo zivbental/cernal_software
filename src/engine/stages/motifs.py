@@ -64,7 +64,13 @@ class MotifScreener:
     ) -> None:
         self.standard = standard
         self.max_homopolymer = max_homopolymer
-        self.sites = dict(RFC10_SITES if standard is AssemblyStandard.RFC10 else RFC1000_SITES)
+        self.sites = dict(
+            {
+                AssemblyStandard.RFC10: RFC10_SITES,
+                AssemblyStandard.RFC1000: RFC1000_SITES,
+                AssemblyStandard.NONE: {},
+            }[standard]
+        )
         self.extra = dict(extra_motifs or {})
 
     def violations(self, sequence: str, *, circular: bool = False) -> tuple[Violation, ...]:

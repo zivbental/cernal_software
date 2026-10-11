@@ -14,7 +14,7 @@ orders from the synthesis company. A reviewer cannot see them; a test can.
 **Why AST and not grep.** Almost every rule here is written *about* in a docstring
 somewhere in ``src/engine/`` — ``gates/tools/folding.py`` warns you not to touch
 ``RNA.cvar.temperature``, ``pipeline.py`` sketches ``FoldEngine()`` in a code block,
-``gates/crispr.py`` discusses ``OffTargetScanner``. A text search flags all of those and
+``gates/crispr.py`` discusses genomic off-target search. A text search flags those and
 teaches the team to ignore this file. An AST scan sees only real code, so a failure here
 is always a real failure. It also catches what a runtime check would miss: imports inside
 functions, inside ``if TYPE_CHECKING``, and inside branches that never execute.
@@ -54,15 +54,42 @@ FOLDING_ADAPTERS = (
     "engine/stages/folding.py",
 )
 
+#: Import roots that mean "this module rewrites codons itself".
+#:
+#: ``eso`` is the Evolutionary Stability Optimizer; ``dnachisel`` is the constraint solver
+#: ESO drives, reachable directly and therefore the easy way to bypass the adapter;
+#: ``python_codon_tables`` is where the host usage tables come from.
+#:
+#: ``dnachisel`` is on this list for a reason that is not about codons at all: it ships
+#: ``AvoidHairpins`` and other secondary-structure constraints with their own
+#: thermodynamics. A module reaching for it directly would become a second folding
+#: authority, which rule 1 exists to prevent but cannot see — rule 1 only knows the names
+#: in ``FOLDING_LIBRARIES``. ``avoid_hairpins`` stays False in the adapter; ``FoldEngine``
+#: is the only thing in this repo that decides what a structure is worth.
+#:
+#: ``python_codon_tables`` is here because a table carries a *convention*. Relative
+#: adaptiveness (max 1.0 within a synonymous family) and relative frequency (sums to 1.0
+#: within a family) are different numbers of the same shape, so two modules loading tables
+#: independently is two conventions that agree by luck.
+CODON_LIBRARIES = ("eso", "dnachisel", "python_codon_tables")
+
+#: The only module allowed to import one, for the same reason there are exactly two
+#: folding adapters: one host usage table, one optimiser configuration, one seeded RNG
+#: discipline, one recorded library version per run.
+CODON_ADAPTERS = ("engine/gates/tools/codons.py",)
+
 #: Tools whose configuration decides what a number *means*. Constructing a second one
 #: anywhere is how two incomparable measurements end up on one ranking axis.
 SHARED_TOOLS = (
     "FoldEngine",
     "FoldProfiler",
-    "OffTargetScanner",
     "MotifScreener",
     "CodonOptimizer",
     "TranslationScorer",
+    # Holds the AIS-China reference store and triggers their process-global ViennaRNA
+    # parameter load; one instance per run, like every tool whose configuration decides
+    # what its numbers mean.
+    "AisChinaCodons",
 )
 
 #: The one module allowed to call those constructors (``build_tools``).
@@ -88,6 +115,11 @@ DIAGNOSTIC_METRICS = frozenset(
         # contiguous stretch, not a scattering of open bases. Documented as
         # deliberately undeclared in AntisenseNotGate.evaluate_design.
         "initiation_open_run_nt",
+        # euk_antisense.py: mean probability that a base in the UTR arm or the
+        # coding linker is paired to the trigger. The Kozak loop is excluded
+        # because it is not complementary. Reported beside predicted_success_rate,
+        # which stays the shared hybridization sigmoid so families remain comparable.
+        "flank_binding_probability",
     }
 )
 
@@ -103,7 +135,7 @@ NOTEBOOK_WORKBENCH = "engine/gates/notebooks/"
 
 #: Stage-2 tools. A gate family that touches one of these is re-measuring something the
 #: pipeline already measured and stored on the record it was handed.
-STAGE_ONLY_TOOLS = ("FoldProfiler", "OffTargetScanner")
+STAGE_ONLY_TOOLS = ("FoldProfiler",)
 
 #: Layer ranks. Longest prefix first — ``gates/tools/`` must match before ``gates/``.
 #: An import may point at its own rank or below it, never above.
@@ -116,13 +148,12 @@ LAYER_RANKS: tuple[tuple[str, int], ...] = (
     ("engine/pipeline.py", 5),
 )
 
-#: The documented sideways exception. These three are *tools that happen to live beside
+#: The documented sideways exception. These two are *tools that happen to live beside
 #: the stages* because no gate family uses them (see engine/gates/tools/__init__.py).
 #: Every other stage-imports-a-stage is a stage doing another stage's job.
 STAGE_TOOL_MODULES = frozenset(
     {
         "engine.stages.folding",  # S1 · FoldProfiler
-        "engine.stages.off_target",  # S5 · OffTargetScanner
         "engine.stages.motifs",  # S7 · MotifScreener
     }
 )
@@ -511,14 +542,14 @@ def test_shared_tools_are_constructed_only_in_the_pipeline(path: Path):
     """Only ``pipeline.build_tools()`` may construct a shared tool (docs/engine.md §2.4).
 
     Each of these tools carries the configuration that decides what its numbers *mean*:
-    ``FoldEngine`` its folding temperature and cache, ``OffTargetScanner`` its
-    transcriptome build and mismatch tolerance, ``CodonOptimizer`` its codon table.
+    ``FoldEngine`` its folding temperature and cache, ``MotifScreener`` its assembly
+    standard and forbidden-motif set, ``CodonOptimizer`` its codon table.
 
     A second instance produces a second set of numbers under a second configuration, and
-    they land in the same ranking as if they were the same measurement. An off-target
-    penalty computed against a different transcriptome build looks exactly like one
-    computed against the right build — plausible, precise, and meaningless. The cold cache
-    is the least of it.
+    they land in the same ranking as if they were the same measurement. A folding energy
+    computed at a different temperature looks exactly like one computed at the right
+    temperature — plausible, precise, and meaningless. The cold cache is the least of
+    it.
 
     Tools are built once in ``build_tools()`` and passed down. If a class needs one, it
     takes it as a constructor argument.
@@ -577,13 +608,13 @@ def test_gate_families_never_import_scoring(path: Path):
 
 @pytest.mark.parametrize("path", _python_files(ENGINE / "gates"), ids=_id)
 def test_gate_families_do_not_use_stage_tools(path: Path):
-    """``FoldProfiler`` and ``OffTargetScanner`` must not be *used* under ``gates/``.
+    """``FoldProfiler`` must not be *used* under ``gates/``.
 
-    Both belong to stage 2. By the time a gate family sees a ``TriggerCandidate``, its
-    accessibility, openness and off-target penalty have already been measured and stored
-    on the record. Re-measuring them inside the family produces a second number for the
-    same physical quantity, computed with whatever window or mismatch settings the family
-    chose — and only one of the two reaches the report, with nothing indicating which.
+    It belongs to stage 2. By the time a gate family sees a ``TriggerCandidate``, its
+    accessibility and openness have already been measured and stored on the record.
+    Re-measuring them inside the family produces a second number for the same physical
+    quantity, computed with whatever window settings the family chose — and only one of
+    the two reaches the report, with nothing indicating which.
 
     ``TriggerCandidate.accessibility`` is a value to read, not a value to recompute.
 
@@ -924,4 +955,85 @@ def test_every_stub_carries_a_message(path: Path):
         + '\n\nWrite NotImplementedError("Step 5 — what this owes its caller"). The '
         "message is what makes the remaining work greppable, and it is the only thing a "
         "researcher who hits this mid-run has to go on."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Rule 11 — only the codon adapter may import a codon-optimisation library
+# ---------------------------------------------------------------------------
+
+
+def _codon_library_importing_files() -> dict[str, list[tuple[str, int]]]:
+    found: dict[str, list[tuple[str, int]]] = {}
+    for path in ENGINE_FILES:
+        hits = [
+            (module, lineno)
+            for module, lineno in _imported_modules(path)
+            if _root_of(module) in CODON_LIBRARIES
+        ]
+        if hits:
+            found[_rel(path)] = hits
+    return found
+
+
+def test_only_the_codon_adapter_imports_a_codon_optimisation_library():
+    """Rule 1's sibling: ``CodonOptimizer`` is the single front door to ESO/DNAChisel.
+
+    Three separate failures this prevents, none of which raises or logs:
+
+    * **A second folding authority.** DNAChisel ships ``AvoidHairpins`` and friends, with
+      their own thermodynamics. Rule 1 cannot catch a module that reaches for them, because
+      rule 1 only looks for the names in ``FOLDING_LIBRARIES`` — ``import dnachisel`` is
+      invisible to it. Two modules deciding what a hairpin costs is exactly the situation
+      ``FoldEngine`` exists to make impossible.
+    * **Two codon-usage conventions.** A usage table is either relative adaptiveness (max
+      1.0 per synonymous family) or relative frequency (sums to 1.0 per family). They have
+      the same shape and different meanings. ``use_best_codon`` is argmax-invariant so the
+      mistake is silent there, and surfaces only in ``match_codon_usage`` /
+      ``harmonize_rca``, where the sequence is wrong but plausible.
+    * **Unseeded ESO.** ESO is non-deterministic unless Python's global RNG is reseeded
+      immediately before *each* call: seeding once and calling repeatedly still diverges,
+      because each call consumes a different amount of the stream. A second call site that
+      does not know this makes the emitted plasmid depend on how many candidates happened
+      to come before it. The adapter owns that discipline; a bypass loses it.
+
+    If a stage or gate family needs a synonymous rewrite, add a method to
+    ``CodonOptimizer`` and call it — the same instruction rule 1 gives for folding.
+    """
+    offenders = {
+        relpath: hits
+        for relpath, hits in _codon_library_importing_files().items()
+        if relpath not in CODON_ADAPTERS
+    }
+    listed = "\n  ".join(
+        f"{relpath}:{lineno} imports '{module}'"
+        for relpath, hits in sorted(offenders.items())
+        for module, lineno in hits
+    )
+    assert not offenders, (
+        "A module outside the codon adapter imported a codon-optimisation library:\n  "
+        + listed
+        + "\n\nOnly this may:\n  "
+        + "\n  ".join(CODON_ADAPTERS)
+        + "\n\nEvery other module asks CodonOptimizer. One host usage table, one "
+        "optimiser configuration, one seeded RNG discipline, one recorded version."
+    )
+
+
+def test_the_codon_adapter_actually_optimises():
+    """The other half of rule 11, mirroring ``test_both_folding_adapters_actually_fold``.
+
+    An adapter that imports no optimisation library is either unimplemented or returning
+    codon numbers that no model produced. ``translation_score`` feeding a plausible CAI
+    that came from nowhere is the failure this catches: it is stored on every design and
+    read by a human deciding what to order.
+    """
+    importers = set(_codon_library_importing_files())
+    missing = [adapter for adapter in CODON_ADAPTERS if adapter not in importers]
+    assert not missing, (
+        "These modules are declared codon adapters but import no codon-optimisation "
+        "library:\n  "
+        + "\n  ".join(missing)
+        + "\n\nEither they are unimplemented or they are returning codon-adaptation "
+        "numbers that no usage table produced."
     )

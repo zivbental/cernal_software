@@ -1,0 +1,399 @@
+{
+  "motif_name": "AGCAGY",
+  "expanded_motifs_both_strands": [
+    "ACTGCT",
+    "AGCAGC",
+    "AGCAGT",
+    "GCTGCT"
+  ],
+  "states": [
+    "",
+    "A",
+    "G",
+    "AC",
+    "AG",
+    "GC",
+    "ACT",
+    "AGC",
+    "GCT",
+    "ACTG",
+    "AGCA",
+    "GCTG",
+    "ACTGC",
+    "AGCAG",
+    "GCTGC"
+  ],
+  "initial_state": 0,
+  "transitions": [
+    {
+      "state": 0,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 0,
+      "base": "C",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 0,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 0,
+      "base": "T",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 1,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 1,
+      "base": "C",
+      "next_state": 3,
+      "matched_motifs": []
+    },
+    {
+      "state": 1,
+      "base": "G",
+      "next_state": 4,
+      "matched_motifs": []
+    },
+    {
+      "state": 1,
+      "base": "T",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 2,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 2,
+      "base": "C",
+      "next_state": 5,
+      "matched_motifs": []
+    },
+    {
+      "state": 2,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 2,
+      "base": "T",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 3,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 3,
+      "base": "C",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 3,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 3,
+      "base": "T",
+      "next_state": 6,
+      "matched_motifs": []
+    },
+    {
+      "state": 4,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 4,
+      "base": "C",
+      "next_state": 7,
+      "matched_motifs": []
+    },
+    {
+      "state": 4,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 4,
+      "base": "T",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 5,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 5,
+      "base": "C",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 5,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 5,
+      "base": "T",
+      "next_state": 8,
+      "matched_motifs": []
+    },
+    {
+      "state": 6,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 6,
+      "base": "C",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 6,
+      "base": "G",
+      "next_state": 9,
+      "matched_motifs": []
+    },
+    {
+      "state": 6,
+      "base": "T",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 7,
+      "base": "A",
+      "next_state": 10,
+      "matched_motifs": []
+    },
+    {
+      "state": 7,
+      "base": "C",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 7,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 7,
+      "base": "T",
+      "next_state": 8,
+      "matched_motifs": []
+    },
+    {
+      "state": 8,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 8,
+      "base": "C",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 8,
+      "base": "G",
+      "next_state": 11,
+      "matched_motifs": []
+    },
+    {
+      "state": 8,
+      "base": "T",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 9,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 9,
+      "base": "C",
+      "next_state": 12,
+      "matched_motifs": []
+    },
+    {
+      "state": 9,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 9,
+      "base": "T",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 10,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 10,
+      "base": "C",
+      "next_state": 3,
+      "matched_motifs": []
+    },
+    {
+      "state": 10,
+      "base": "G",
+      "next_state": 13,
+      "matched_motifs": []
+    },
+    {
+      "state": 10,
+      "base": "T",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 11,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 11,
+      "base": "C",
+      "next_state": 14,
+      "matched_motifs": []
+    },
+    {
+      "state": 11,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 11,
+      "base": "T",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 12,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 12,
+      "base": "C",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 12,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 12,
+      "base": "T",
+      "next_state": 8,
+      "matched_motifs": [
+        "ACTGCT"
+      ]
+    },
+    {
+      "state": 13,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 13,
+      "base": "C",
+      "next_state": 7,
+      "matched_motifs": [
+        "AGCAGC"
+      ]
+    },
+    {
+      "state": 13,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 13,
+      "base": "T",
+      "next_state": 0,
+      "matched_motifs": [
+        "AGCAGT"
+      ]
+    },
+    {
+      "state": 14,
+      "base": "A",
+      "next_state": 1,
+      "matched_motifs": []
+    },
+    {
+      "state": 14,
+      "base": "C",
+      "next_state": 0,
+      "matched_motifs": []
+    },
+    {
+      "state": 14,
+      "base": "G",
+      "next_state": 2,
+      "matched_motifs": []
+    },
+    {
+      "state": 14,
+      "base": "T",
+      "next_state": 8,
+      "matched_motifs": [
+        "GCTGCT"
+      ]
+    }
+  ],
+  "overlapping_matches": true,
+  "scan_scope_default": "full_CDS_including_stop"
+}

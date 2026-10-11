@@ -9,10 +9,13 @@ classdef Job
     properties (SetAccess = private)
         Client
         Response
+        ResultOptions
     end
 
     methods
-        function obj = Job(client, response)
+        function obj = Job(client, response, resultOptions)
+            if nargin < 3, resultOptions = struct(); end
+            obj.ResultOptions = resultOptions;
             obj.Client = client;
             obj.Response = response;
         end
@@ -30,14 +33,14 @@ classdef Job
             addParameter(p, 'MaxPoll', 15);
             parse(p, varargin{:});
 
-            if isfield(obj.Response, 'candidates')
-                return
-            end
             if ~isfield(obj.Response, 'job_id') || isempty(obj.Response.job_id)
                 error('cernal:Job:wait:noJobId', ...
                     'This job was never submitted (dry_run has no id to wait on).');
             end
 
+            if strcmp(obj.Response.status, 'COMPLETED') && isfield(obj.Response, 'candidates')
+                return
+            end
             terminal = {'COMPLETED', 'FAILED', 'CANCELLED'};
             deadline = datetime('now') + seconds(p.Results.Timeout);
             delay = p.Results.Poll;
@@ -50,7 +53,11 @@ classdef Job
                         'Job %s did not finish within %g s.', obj.Response.job_id, p.Results.Timeout);
                 end
                 pause(min(delay, remaining));
-                obj.Response = obj.Client.status(obj.Response.job_id);
+                remaining = seconds(deadline - datetime('now'));
+                if remaining <= 0
+                    error('cernal:Job:wait:timeout', 'Polling deadline elapsed; resume without resubmitting.');
+                end
+                obj.Response = obj.Client.status(obj.Response.job_id, min(obj.Client.Timeout, remaining));
                 state = obj.Response.status;
                 delay = min(delay * 1.5, p.Results.MaxPoll);
             end
@@ -64,15 +71,27 @@ classdef Job
                     obj.Response.job_id, state, summary);
             end
 
-            obj.Response = obj.Client.results(obj.Response.job_id);
+            names = fieldnames(obj.ResultOptions);
+            args = cell(1, 2 * numel(names));
+            for i = 1:numel(names)
+                args{2*i-1} = names{i}; args{2*i} = obj.ResultOptions.(names{i});
+            end
+            obj.Response = obj.Client.results(obj.Response.job_id, args{:});
         end
 
         function T = results(obj)
             %RESULTS Ranked candidates as a MATLAB table.
-            if ~isfield(obj.Response, 'candidates')
+            if ~isfield(obj.Response, 'job_id') || isempty(obj.Response.job_id) || ~strcmp(obj.Response.status, 'COMPLETED') || ~isfield(obj.Response, 'candidates')
                 error('cernal:Job:results:notReady', 'Call wait() before results().');
             end
             T = candidatesToTable(obj.Response.candidates);
+        end
+
+        function candidates = rawCandidates(obj)
+            if ~isfield(obj.Response, 'job_id') || isempty(obj.Response.job_id) || ~strcmp(obj.Response.status, 'COMPLETED') || ~isfield(obj.Response, 'candidates')
+                error('cernal:Job:results:notReady', 'Call wait() before results().');
+            end
+            candidates = obj.Response.candidates;
         end
 
         function row = best(obj)
@@ -81,7 +100,10 @@ classdef Job
             if height(T) == 0
                 row = table();
             else
-                row = T(1, :);
+                T = T(~T.is_rejected & ~isnan(T.rank), :);
+                if height(T) == 0, row = table(); return; end
+                [~, idx] = min(T.rank);
+                row = T(idx, :);
             end
         end
 

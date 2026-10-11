@@ -1,0 +1,24 @@
+{
+  "v1_annotation_info": {
+    "name": "GCF_000008345.1-RS_2025_04_02",
+    "provider": "NCBI RefSeq",
+    "releaseDate": "2025-04-02",
+    "stats": {
+      "geneCounts": {
+        "total": 2478,
+        "proteinCoding": 2339,
+        "nonCoding": 58,
+        "pseudogene": 81
+      }
+    },
+    "method": "Best-placed reference protein set; GeneMarkS-2+",
+    "pipeline": "NCBI Prokaryotic Genome Annotation Pipeline (PGAP)",
+    "softwareVersion": "6.10"
+  },
+  "v1_qc_passing_cds": 2339,
+  "v2_qc_passing_cds": 2345,
+  "changed_locus_rows": 37,
+  "newly_included": 9,
+  "no_longer_included": 3,
+  "changed_sequence_among_shared_included": 20
+}

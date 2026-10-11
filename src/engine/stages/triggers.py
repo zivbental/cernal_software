@@ -5,6 +5,7 @@ joint opening probabilities are mechanistic hypotheses, not biological-success
 probabilities.  Mean marginal openness is retained as diagnostic evidence.
 """
 
+import json
 import math
 from collections.abc import Iterator
 
@@ -18,7 +19,6 @@ from engine.domain import (
 from engine.gates.tools.folding import FoldEngine
 from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
-from engine.stages.off_target import OffTargetScanner
 
 
 class TriggerScorer:
@@ -43,18 +43,16 @@ class TriggerScorer:
     HYPOTHESIS_LENGTH = 20
     SEED_LENGTH = 8
     GAS_CONSTANT_KCAL_PER_MOL_K = 0.00198720425864083
-    TEMPERATURE_K = 310.15
+    TEMPERATURE_K = 310.15  # Legacy default; runtime uses the profiler's effective model.
     PU_FLOOR = 1e-12
 
     def __init__(
         self,
         profiler: FoldProfiler,
-        off_target: OffTargetScanner,
         screener: MotifScreener,
         folder: FoldEngine,
     ) -> None:
         self.profiler = profiler
-        self.off_target = off_target
         self.screener = screener
         self.folder = folder
 
@@ -90,8 +88,6 @@ class TriggerScorer:
                     local_profile = profile[start:end]
                     openness = sum(local_profile) / length
                     accessibility = min(local_profile)
-                    off_target_report = self.off_target.scan_trigger(window)
-                    segment_specificity = max(0.0, 1.0 - off_target_report.penalty)
 
                     gate_evidence = self._gate_evidence(transcript, profile, start, end)
                     score = gate_evidence.get("selected_seed_probability", openness)
@@ -105,9 +101,9 @@ class TriggerScorer:
                             openness=openness,
                             accessibility=accessibility,
                             mfe=self.folder.mfe(window).energy,
-                            off_target_penalty=off_target_report.penalty,
-                            segment_specificity=segment_specificity,
                             gc_content=sq.gc_content(window),
+                            # The gene's, not the window's — read, never recomputed.
+                            log2_fold_change=gene.log2_fold_change,
                             aug_indexes=sq.find_augs(window),
                             stop_indexes=sq.find_stops(window),
                             score=score,
@@ -134,13 +130,14 @@ class TriggerScorer:
         ):
             return {}
 
+        provenance = self.profiler.provenance(transcript)
         hypothesis_start = end - self.HYPOTHESIS_LENGTH
         p20 = self.profiler.joint_probability(transcript, hypothesis_start, end)
         marginal20 = profile[hypothesis_start:end]
         mean20 = sum(marginal20) / self.HYPOTHESIS_LENGTH
         delta_g = -(
             self.GAS_CONSTANT_KCAL_PER_MOL_K
-            * self.TEMPERATURE_K
+            * (provenance["temperature_celsius"] + 273.15)
             * math.log(max(p20, self.PU_FLOOR))
             / self.HYPOTHESIS_LENGTH
         )
@@ -160,7 +157,6 @@ class TriggerScorer:
         )
         # max() keeps the first item on ties, and trials are transcript-forward earliest first.
         selected = max(trials, key=lambda trial: trial.probability)
-        provenance = self.profiler.provenance(transcript)
         return {
             "gate_toehold_length": toehold_length,
             "hypothesis_start": hypothesis_start,
@@ -177,6 +173,11 @@ class TriggerScorer:
             "rnaplfold_max_span": provenance["max_span"],
             "rnaplfold_unpaired": provenance["unpaired"],
             "rnaplfold_temperature_celsius": provenance["temperature_celsius"],
+            "rnaplfold_model": (
+                json.dumps(provenance["folding_model"], sort_keys=True, allow_nan=False)
+                if "folding_model" in provenance
+                else None
+            ),
         }
 
     @staticmethod

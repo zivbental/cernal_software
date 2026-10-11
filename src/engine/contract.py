@@ -21,6 +21,7 @@ LOWER_BETTER = "LOWER_BETTER"
 #: How the researcher supplied the trigger.
 INPUT_DE = "de"  # differential-expression table
 INPUT_DIRECT = "direct"  # an mRNA sequence pasted straight in
+INPUT_GENE = "gene"  # resolve a named gene from the bundled reference
 
 #: Terminal job outcomes.
 SUCCEEDED = "succeeded"
@@ -54,12 +55,7 @@ class JobRequest:
     @property
     def is_direct_trigger(self) -> bool:
         """True when the researcher pasted a sequence instead of uploading a table."""
-        return self.input_mode == INPUT_DIRECT
-
-    def mock_options(self) -> dict:
-        """Options consumed by MockEngine. Ignored by every real implementation."""
-        options = self.params.get("mock", {})
-        return options if isinstance(options, dict) else {}
+        return self.input_mode in (INPUT_DIRECT, INPUT_GENE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +131,15 @@ class EngineCapabilities:
     #: convention as ``metrics`` — existing callers and stored results are unaffected.
     available_backbones: list[BackboneInfo] = field(default_factory=list)
 
+    supported_hosts: list[str] = field(default_factory=list)
+    family_hosts: dict[str, list[str]] = field(default_factory=dict)
+    supported_outputs: list[str] = field(default_factory=list)
+    output_hosts: dict[str, list[str]] = field(default_factory=dict)
+    backbone_hosts: dict[str, list[str]] = field(default_factory=dict)
+    input_modes: list[str] = field(default_factory=list)
+    limits: dict = field(default_factory=dict)
+    constraints: dict = field(default_factory=dict)
+
     @property
     def available_families(self) -> list[str]:
         """Names the Platform will accept on a submission."""
@@ -207,6 +212,7 @@ class JobResult:
     error: str | None = None
     input_checksum: str = ""
     params: dict = field(default_factory=dict)
+    scientific_provenance: dict = field(default_factory=dict)
 
     @property
     def accepted(self) -> list[CandidateResult]:

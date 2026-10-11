@@ -11,31 +11,23 @@ An expected scientific failure is **data**: the engine returns a ``JobResult`` w
 Cancellation returns ``status="cancelled"``.
 """
 
+import copy
 import dataclasses
 import importlib
-import random
-import time
 from collections.abc import Callable
-from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from engine.artifacts import sha256_file, write_artifact
 from engine.contract import (
     CANCELLED,
     FAILED,
     SCHEMA_VERSION,
-    SUCCEEDED,
-    ArtifactRef,
     BackboneInfo,
-    CandidateResult,
     EngineCapabilities,
     JobRequest,
     JobResult,
     MetricInfo,
 )
-from engine.errors import ChecksumMismatchError, EngineError, InputValidationError, JobCancelled
-from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
-from engine.scoring.profiles import resolve_profile
+from engine.errors import EngineError, JobCancelled
 
 #: ``on_progress(percent, stage) -> keep_going``. Returning ``False`` cancels the run.
 ProgressFn = Callable[[int, str], bool]
@@ -70,7 +62,7 @@ class EngineClient(Protocol):
 
 
 def load_engine(dotted_path: str) -> EngineClient:
-    """Instantiate an engine client from a dotted path, e.g. ``engine.client.MockEngine``.
+    """Instantiate an engine client from a dotted path, e.g. ``engine.client.LocalEngine``.
 
     Takes the path as an argument rather than reading ``settings.CERNAL_ENGINE`` itself:
     this module must not import Django (§3). The Platform passes the setting in.
@@ -122,16 +114,315 @@ def label_for_custom_scoring(base_name: str, overrides: dict | None) -> str:
     return f"custom-{custom_scoring_label(base_name, weights, hard_filters, tie_breakers)}"
 
 
+def lookup_reference_gene(organism: str, identifier: str) -> dict:
+    """Resolve a public reference gene without exposing engine internals to the API."""
+    from engine.domain import Host
+    from engine.errors import EngineError
+    from engine.transcriptome import gene_reference
+
+    try:
+        host = Host(organism)
+        return gene_reference(host, identifier)
+    except (ValueError, EngineError) as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def layout_stored_structure(
+    sequence: object, structure: object, *, structure_kind: object = None
+) -> dict:
+    """Return drawing data for a stored primary switch, never a new scientific result.
+
+    Unknown provenance stays unknown. Missing historical data is unavailable; malformed
+    stored data is invalid. Known layout failures are safe data, while programming
+    errors still propagate. No engine/tool instance or scientific computation is created.
+    """
+    from engine.errors import StructureLayoutUnavailable
+
+    result = {
+        "status": "unavailable",
+        "reason": None,
+        "sequence": sequence if isinstance(sequence, str) else "",
+        "structure": structure if isinstance(structure, str) else "",
+        "structure_kind": structure_kind if isinstance(structure_kind, str) else None,
+        "bases": [],
+        "links": [],
+        "renderer": "cernal-rnaviz",
+        "renderer_version": "aa112e17a76941233987bb4287c2c66511c40d13",
+    }
+    if any(value is not None and not isinstance(value, str) for value in (sequence, structure)):
+        result.update(status="invalid", reason="Stored sequence and structure must be text.")
+        return result
+    if not sequence or not structure:
+        result["reason"] = "This candidate has no stored sequence and structure to display."
+        return result
+    from engine.gates.tools.folding import FoldEngine
+
+    try:
+        bases, links = FoldEngine.structure_layout(sequence, structure)
+    except StructureLayoutUnavailable as exc:
+        result["reason"] = str(exc)
+    except ValueError as exc:
+        result.update(status="invalid", reason=str(exc))
+    except EngineError as exc:
+        result.update(status="error", reason=str(exc))
+    else:
+        result.update(
+            status="available",
+            bases=[base.to_dict() for base in bases],
+            links=[link.to_dict() for link in links],
+        )
+    return result
+
+
+def normalize_trigger_sequence(sequence: str) -> str:
+    """Normalize one RNA/DNA sequence or one FASTA record without changing symbols."""
+    from engine import sequences
+
+    if not isinstance(sequence, str):
+        raise ValueError("Trigger sequence must be text.")
+    lines = sequence.strip().splitlines()
+    headers = [index for index, line in enumerate(lines) if line.lstrip().startswith(">")]
+    if headers:
+        if headers != [0] or not lines[0].lstrip()[1:].strip():
+            raise ValueError("Provide one FASTA record with one nonempty header.")
+        lines = lines[1:]
+    normalized = sequences.to_rna("".join("".join(lines).split()))
+    if not normalized or not sequences.is_valid_rna(normalized):
+        raise ValueError(
+            "Trigger sequence must contain only A/C/G/T/U; ambiguous symbols are unsupported."
+        )
+    return normalized
+
+
+def inspect_expression_input(path: str, limit: int | None = 100) -> dict:
+    """Shared upload and preview interpretation, exposed through the engine boundary."""
+    from pathlib import Path
+
+    from engine.inputs import parse_dge_table
+
+    source = Path(path)
+    try:
+        table = parse_dge_table(source.read_bytes(), source.name)
+    except (OSError, EngineError) as exc:
+        return {
+            "valid": False,
+            "errors": [str(exc)],
+            "warnings": [],
+            "columns": [],
+            "row_count": 0,
+            "preview": [],
+            "selected_sheet": 0 if source.suffix.lower() == ".xlsx" else None,
+        }
+
+    fields = {
+        "gene_symbol": "symbol",
+        "log2fc": "log2_fold_change",
+        "padj": "p_adj",
+        "pvalue": "p_value",
+        "base_expression": "control_mean",
+        "target_expression": "target_mean",
+    }
+    columns = (
+        [key for key in table.columns if key in dataclasses.asdict(table.rows[0]) or key in fields]
+        if table.rows
+        else list(table.columns)
+    )
+    return {
+        "valid": bool(table.rows),
+        "errors": [] if table.rows else ["No usable effect-size rows were found."],
+        "warnings": [
+            "Tested hypothesis universe is unspecified; raw p-values do not establish FDR control."
+        ],
+        "columns": columns,
+        "detected_columns": dict(table.detected_columns),
+        "row_count": table.source_row_count,
+        "preview": [
+            {key: getattr(row, fields.get(key, key)) for key in columns}
+            for row in table.rows[:limit]
+        ],
+        "selected_sheet": 0 if source.suffix.lower() == ".xlsx" else None,
+    }
+
+
+def validate_job_configuration(
+    params: dict,
+    gate_families: list[str],
+    scoring_profile: str,
+    input_mode: str,
+    trigger_sequence: str = "",
+    organism: str = "",
+) -> dict:
+    """Validate a runnable configuration before queueing; return normalized parameters."""
+    from engine.domain import FoldingConfig, Host
+    from engine.gates.registry import get_family
+    from engine.pipeline import (
+        _UNBUILDABLE_FAMILIES,
+        _build_constraints,
+        _resolve_backbone,
+        _resolve_outputs,
+    )
+    from engine.scoring.profiles import resolve_profile
+    from engine.stages.plasmids import validate_backbone_insertion
+
+    if not isinstance(params, dict):
+        raise ValueError("params must be an object.")
+    if "scientific_provenance" in params:
+        raise ValueError("scientific_provenance is engine-generated metadata, not a parameter.")
+    if input_mode not in ("direct", "de", "gene"):
+        raise ValueError("input_mode must be direct, de, or gene.")
+    folding = FoldingConfig.from_mapping(params.get("folding", {}))
+    for block in ("constraints", "payload", "backbone", "scoring", "statistics", "target_gene"):
+        if block in params and not isinstance(params[block], dict):
+            raise ValueError(f"params.{block} must be an object.")
+    # Presentation only: retained in the snapshot for the UI, never a search budget.
+    if "top_n" in params and (type(params["top_n"]) is not int or not 1 <= params["top_n"] <= 1000):
+        raise ValueError("top_n must be an integer between 1 and 1000.")
+    budget = params.get("budget", {})
+    if not isinstance(budget, dict) or set(budget) - {"max_designs"}:
+        raise ValueError("budget supports only max_designs (integer 1..1000).")
+    max_designs = budget.get("max_designs", 20)
+    if (
+        isinstance(max_designs, bool)
+        or not isinstance(max_designs, int)
+        or not 1 <= max_designs <= 1000
+    ):
+        raise ValueError("budget.max_designs must be an integer between 1 and 1000.")
+    selections = [organism, *(params[key] for key in ("host", "organism") if key in params)]
+    if any(not isinstance(value, str) for value in selections):
+        raise ValueError("organism/host selections must be strings.")
+    if not isinstance(gate_families, list) or any(
+        not isinstance(name, str) for name in gate_families
+    ):
+        raise ValueError("gate_families must be a list of family names.")
+    host_values = [value for value in selections if value]
+    if len(set(host_values)) > 1:
+        raise ValueError("Conflicting organism/host selections are not allowed.")
+    payload = params.get("payload") or {}
+    if "outputs" in payload and (
+        not isinstance(payload["outputs"], list)
+        or not payload["outputs"]
+        or any(not isinstance(item, str) for item in payload["outputs"])
+        or len(set(payload["outputs"])) != len(payload["outputs"])
+    ):
+        raise ValueError("payload.outputs must be a nonempty list of unique output identifiers.")
+    if "optimize_codons" in payload and not isinstance(payload["optimize_codons"], bool):
+        raise ValueError("payload.optimize_codons must be a boolean.")
+    statistics = params.get("statistics") or {}
+    if "hypothesis_universe_complete" in statistics and not isinstance(
+        statistics["hypothesis_universe_complete"], bool
+    ):
+        raise ValueError("statistics.hypothesis_universe_complete must be a boolean.")
+    try:
+        try:
+            host = Host(next(iter(host_values), "ecoli"))
+        except ValueError as exc:
+            raise ValueError(f"Unknown organism: {next(iter(host_values), 'ecoli')!r}.") from exc
+        effective = params
+        if host is Host.HUMAN and "standard" not in (params.get("constraints") or {}):
+            effective = {
+                **params,
+                "constraints": {**(params.get("constraints") or {}), "standard": "none"},
+            }
+        constraints = _build_constraints(effective)
+        if constraints.max_circuit_gates > 1 or constraints.max_triggers > 1:
+            raise ValueError(
+                "Unsupported physical circuit: production supports one input and one gate."
+            )
+        resolve_profile(scoring_profile, params.get("scoring"))
+        families = gate_families or ["toehold"]
+        for name in families:
+            family = get_family(name)
+            if (
+                name in _UNBUILDABLE_FAMILIES
+                or not family.available
+                or host not in family.supported_hosts
+            ):
+                raise ValueError(
+                    f"Gate family {name!r} is not production supported for {host.value}."
+                )
+        outputs, warnings = _resolve_outputs(params, host)
+        if warnings or not outputs:
+            raise ValueError("; ".join(warnings) or "No supported output requested.")
+        backbone_segments = _resolve_backbone(params)
+        insertion = (params.get("backbone") or {}).get("insertion_index", 0)
+        if (
+            isinstance(insertion, bool)
+            or not isinstance(insertion, int)
+            or not 0 <= insertion <= sum(segment.length_bp for segment in backbone_segments)
+        ):
+            raise ValueError(
+                "backbone.insertion_index must be a 0-based boundary within the vector."
+            )
+        validate_backbone_insertion(backbone_segments, insertion)
+        if host is not Host.ECOLI and (params.get("backbone") or {}).get("catalog_key"):
+            raise ValueError(
+                "Catalog vectors are currently supported only for E. coli; provide an explicit "
+                "custom vector/cassette for mammalian, yeast or C. acnes context."
+            )
+        if input_mode == "direct":
+            normalized = normalize_trigger_sequence(trigger_sequence)
+            if len(normalized) > 10_000:
+                raise ValueError("Trigger sequence exceeds the 10,000-nucleotide compute limit.")
+    except (EngineError, TypeError, KeyError) as exc:
+        raise ValueError(str(exc)) from exc
+    normalized = {
+        **params,
+        "host": host.value,
+        "payload": {
+            **payload,
+            "outputs": [outcome.value for outcome in outputs],
+            "optimize_codons": payload.get("optimize_codons", False),
+        },
+        **(
+            {"backbone": {**params["backbone"], "insertion_index": insertion}}
+            if backbone_segments
+            else {}
+        ),
+        "constraints": dataclasses.asdict(constraints),
+        "folding": dataclasses.asdict(folding),
+        "budget": {"max_designs": max_designs},
+    }
+    return copy.deepcopy(normalized)
+
+
 def _installed_capabilities(engine_version: str) -> EngineCapabilities:
     """Read the registries. Engine-internal, so importing them here is fine."""
-    from engine.gates.registry import describe_families
+    from engine.domain import Constraints, Host
+    from engine.gates.registry import describe_families, get_family
+    from engine.pipeline import _UNBUILDABLE_FAMILIES, MAX_TRIGGER_LENGTH
     from engine.scoring.profiles import DEFAULT_V1, available_profiles
-    from engine.stages.plasmids import BACKBONES
+    from engine.stages.plasmids import BACKBONES, PAYLOAD_HOSTS
 
     return EngineCapabilities(
         engine_version=engine_version,
         schema_version=SCHEMA_VERSION,
-        gate_families=describe_families(),
+        gate_families=[
+            dataclasses.replace(f, available=f.available and f.name not in _UNBUILDABLE_FAMILIES)
+            for f in describe_families()
+        ],
+        supported_hosts=[host.value for host in Host],
+        family_hosts={
+            f.name: sorted(host.value for host in get_family(f.name).supported_hosts)
+            for f in describe_families()
+            if f.available and f.name not in _UNBUILDABLE_FAMILIES
+        },
+        supported_outputs=[outcome.value for outcome in PAYLOAD_HOSTS],
+        output_hosts={
+            outcome.value: [host.value for host in hosts]
+            for outcome, hosts in PAYLOAD_HOSTS.items()
+        },
+        backbone_hosts={key: ["ecoli"] for key in BACKBONES},
+        input_modes=["direct", "de", "gene"],
+        limits={
+            "max_trigger_length": MAX_TRIGGER_LENGTH,
+            "max_de_rows": 200_000,
+            "max_payload_length": 2000,
+            "max_designs_default": 20,
+            "max_designs_limit": 1000,
+            "max_circuit_gates": 1,
+            "max_triggers": 1,
+        },
+        constraints=dataclasses.asdict(Constraints()),
         scoring_profiles=available_profiles(),
         # The vocabulary a caller may name in a custom `scoring` block (docs/public-api.md
         # §7, §9.1) — what makes an unknown or misspelled metric name a 422 instead of a
@@ -172,20 +463,14 @@ class LocalEngine:
 
     **Partial, honestly.** The ``direct`` input path is real end to end — a pasted
     trigger sequence through toehold design, evaluation and scoring, with real
-    ViennaRNA folding throughout. ``de`` submissions now run too, for *E. coli* and
-    yeast — the two hosts with a bundled reference transcriptome
-    (``engine.transcriptome.available_hosts()``, docs/ROADMAP.md Q1) — and only as
-    single-gene circuits: ``GeneSelector`` real, real transcripts scanned by the same
-    ``TriggerScorer`` the `direct` path uses, but no ``CircuitDesigner`` (no multi-gene
-    Boolean circuits yet), no real off-target scanning, no ``InputQualityCheck`` (there
-    is no count matrix in this product to check), no bundled yeast plasmid backbone
-    (a lab's own upload, or no backbone at all). Human has no bundled transcriptome
-    and no promoter/terminator either. See docs/genes.md and this module's own
-    ``pipeline.py`` docstring for exactly what that does and does not cover.
+    ViennaRNA folding throughout. Direct, differential-expression, and named-gene
+    inputs work for E. coli, yeast, C. acnes, and Human. Human uses pinned mature
+    transcripts, CMV/hGH expression parts, and a custom mammalian backbone or cassette.
+    Computational support does not establish wet-lab performance.
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.5.0-direct-and-de-ecoli-yeast"
+    ENGINE_VERSION = "local-0.12.0-scientific-qa-folding-model"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.
@@ -194,7 +479,7 @@ class LocalEngine:
         just to read capabilities — does not import numpy, pandas and ViennaRNA.
 
         Converts ``JobCancelled``/``EngineError`` into a terminal ``JobResult`` exactly
-        as ``MockEngine.run`` does — an expected scientific failure is data, not a
+        — an expected scientific failure is data, not a
         crash (this module's own docstring) — and stamps ``ENGINE_VERSION`` onto
         whatever ``run_pipeline`` returns, so that string has exactly one source of
         truth rather than being duplicated into ``engine/pipeline.py`` as well.
@@ -223,416 +508,3 @@ class LocalEngine:
     def capabilities(self) -> EngineCapabilities:
         """The families and profiles actually installed in this build."""
         return _installed_capabilities(self.ENGINE_VERSION)
-
-
-# --- Mock engine ------------------------------------------------------------------
-
-_STAGES: list[tuple[int, str]] = [
-    (5, "Validating scientific inputs"),
-    (15, "Loading and preprocessing dataset"),
-    (30, "Discovering candidate features"),
-    (45, "Generating trigger combinations"),
-    (60, "Generating gate designs"),
-    (78, "Evaluating gate designs"),
-    (90, "Scoring and ranking candidates"),
-    (97, "Writing artifacts"),
-]
-
-#: A fixed pool so generated candidates look plausible and stay stable across runs.
-_FEATURE_POOL = [
-    "aceB",
-    "araC",
-    "cheY",
-    "dnaK",
-    "fliC",
-    "gadA",
-    "hns",
-    "ifcA",
-    "katG",
-    "lacZ",
-    "malE",
-    "narG",
-    "ompF",
-    "phoA",
-    "rpoS",
-    "soxS",
-    "tnaA",
-    "uspA",
-    "wrbA",
-    "ybgS",
-    "zwf",
-]
-
-_BASES = "ACGU"
-
-#: Downstream outputs, all equivalent. A run produces candidates for each one selected.
-_OUTPUT_NAMES = {
-    "gfp": "GFP",
-    "mcherry": "mCherry",
-    "luciferase": "Luciferase",
-    "ampr": "AmpR",
-    "apoptosis": "Apoptosis inducer",
-}
-
-
-class MockEngine:
-    """Deterministic fake science.
-
-    Seeded from ``idempotency_key`` (and ``seed`` when supplied), so the same submission
-    always produces byte-identical candidates and artifacts. It exercises the real
-    scoring code, writes real files, honours cancellation, and can be told to fail — so
-    the Platform's success *and* failure paths are both testable before any scientific
-    code exists.
-
-    Options, under ``JobRequest.params["mock"]``:
-
-    ``candidate_count``  how many candidates to generate (default 12)
-    ``step_delay``       seconds to pause per stage, to make progress observable (0.0)
-    ``fail``             raise a scientific failure, producing a ``failed`` result
-    ``fail_message``     the ``error`` text for that failure
-    ``fail_at_stage``    zero-based stage index to fail at (default: the last one)
-    """
-
-    ENGINE_VERSION = "mock-1.0.0"
-
-    def capabilities(self) -> EngineCapabilities:
-        """The same registries the real engine reports, so a mock run configures
-        identically to a real one."""
-        return _installed_capabilities(self.ENGINE_VERSION)
-
-    def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
-        """Run a fake job, deterministically.
-
-        Converts ``JobCancelled`` and ``EngineError`` into terminal results exactly as a
-        real engine must — so the Platform's failure and cancellation paths are exercised
-        long before any science exists.
-        """
-        try:
-            return self._execute(request, on_progress)
-        except JobCancelled:
-            return self._terminal(request, CANCELLED, error=None)
-        except EngineError as exc:
-            return self._terminal(request, FAILED, error=str(exc))
-
-    # -- internals --
-
-    def _terminal(self, request: JobRequest, status: str, error: str | None) -> JobResult:
-        """Build a result carrying no candidates: cancelled, or failed."""
-        return JobResult(
-            schema_version=SCHEMA_VERSION,
-            engine_version=self.ENGINE_VERSION,
-            status=status,
-            error=error,
-            input_checksum=request.input_checksum,
-            params=request.params,
-        )
-
-    def _execute(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
-        """Walk the fake stages, honouring cancellation and injected failure.
-
-        Verifies the input checksum on the first stage exactly as a real engine would, so
-        the Platform's checksum handling is exercised too.
-        """
-        options = request.mock_options()
-        delay = float(options.get("step_delay", 0.0))
-        fail_at = options.get("fail_at_stage", len(_STAGES) - 1)
-
-        profile = resolve_profile(request.scoring_profile, request.params.get("scoring"))
-        rng = self._rng(request)
-
-        for index, (percent, label) in enumerate(_STAGES):
-            if not on_progress(percent, label):
-                raise JobCancelled(label)
-            if delay:
-                time.sleep(delay)
-            if index == 0:
-                self._verify_input(request)
-            if options.get("fail") and index == fail_at:
-                raise InputValidationError(
-                    options.get("fail_message", "Simulated engine failure (MockEngine).")
-                )
-
-        candidates = self._build_candidates(request, profile, rng, options)
-        artifacts = self._write_artifacts(request, candidates)
-
-        return JobResult(
-            schema_version=SCHEMA_VERSION,
-            engine_version=self.ENGINE_VERSION,
-            status=SUCCEEDED,
-            candidates=candidates,
-            artifacts=artifacts,
-            warnings=[
-                "Results produced by MockEngine — these are not real scientific predictions."
-            ],
-            error=None,
-            input_checksum=request.input_checksum,
-            params=request.params,
-        )
-
-    @staticmethod
-    def _rng(request: JobRequest) -> random.Random:
-        """Deterministic per submission. Same key and seed → same stream."""
-        return random.Random(f"{request.idempotency_key}:{request.seed}")
-
-    @staticmethod
-    def _verify_input(request: JobRequest) -> None:
-        """Exercise the same input checks a real engine would."""
-        if request.is_direct_trigger:
-            sequence = request.trigger_sequence.strip().upper()
-            if len(sequence) < 20:
-                raise InputValidationError(
-                    "The trigger sequence is too short to design a switch against "
-                    "(at least 20 nucleotides are needed)."
-                )
-            if set(sequence) - set("ACGU"):
-                raise InputValidationError(
-                    "The trigger sequence contains characters other than A, C, G and U."
-                )
-            return
-
-        path = Path(request.input_path)
-        if not path.is_file():
-            raise InputValidationError("The submitted dataset could not be read.")
-        if request.input_checksum and sha256_file(path) != request.input_checksum:
-            raise ChecksumMismatchError(
-                "The dataset does not match the checksum recorded at submission."
-            )
-
-    def _build_candidates(self, request, profile, rng, options) -> list[CandidateResult]:
-        """Generate candidates from the seeded RNG, scored through the **real** scoring
-        layer.
-
-        Using ``engine.scoring`` rather than inventing numbers is what makes the mock
-        representative: the metric decomposition, hard filters and ranking are the same
-        code a real run uses.
-        """
-        count = int(options.get("candidate_count", 12))
-        families = request.gate_families or ["toehold"]
-        outputs = self._requested_outputs(request)
-        max_triggers = int(request.params.get("max_triggers", 2))
-
-        drafts: list[tuple[CandidateResult, dict]] = []
-
-        for index in range(count):
-            ref = f"cand-{index + 1:03d}"
-            arity = rng.choice([1] * 3 + [2] * 2) if max_triggers > 1 else 1
-            pool = rng.sample(_FEATURE_POOL, arity + 1)
-            features, repressor = pool[:arity], pool[arity]
-            # Roughly half the circuits gate on a transcript that must be absent.
-            if rng.random() < 0.5:
-                repressor = None
-            family = rng.choice(families)
-
-            triggers = {
-                "features": [
-                    {
-                        "feature_id": name,
-                        "base_expression": round(rng.uniform(0.1, 3.0), 3),
-                        "target_expression": round(rng.uniform(2.0, 9.0), 3),
-                        "sequence": self._sequence(rng, 36),
-                    }
-                    for name in features
-                ]
-            }
-            # Round-robin, so every selected output gets a comparable share of the
-            # candidate budget rather than one output dominating by chance.
-            payload_name = outputs[index % len(outputs)]
-            segments = self._plasmid_segments(rng, payload_name)
-            design = {
-                "switch_sequence": self._sequence(rng, 92),
-                "structure": self._structure(rng, 92),
-                "toehold_length": rng.randint(12, 18),
-                "sequence_length_bp": sum(seg["length_bp"] for seg in segments),
-                "plasmid_segments": segments,
-                "logic_graph": self._logic_graph(features, repressor, payload_name),
-            }
-
-            raw = {
-                "state_separation": round(rng.uniform(0.0, 9.5), 3),
-                "trigger_accessibility": round(rng.uniform(0.15, 0.98), 3),
-                "gate_folding_energy": round(rng.uniform(-52.0, -8.0), 2),
-                "predicted_leakage": round(rng.uniform(0.02, 0.95), 3),
-                "orthogonality": round(rng.uniform(0.3, 0.99), 3),
-                "gc_content": round(rng.uniform(38.0, 62.0), 1),
-                "dynamic_range": round(rng.uniform(8.0, 460.0), 1),
-                "predicted_success_rate": round(rng.uniform(0.45, 0.97), 3),
-                "circuit_complexity": float(arity * 2 + rng.randint(0, 3)),
-            }
-
-            logic_type = {1: "single-input", 2: "AND"}.get(arity, f"AND{arity}")
-            metrics = build_metrics(raw, profile)
-            breach = failed_filter(raw, profile)
-
-            drafts.append(
-                (
-                    CandidateResult(
-                        ref=ref,
-                        rank=None,
-                        overall_score=None if breach else weighted_score(metrics, profile),
-                        gate_family=family,
-                        logic_type=logic_type,
-                        triggers=triggers,
-                        design=design,
-                        summary=f"{logic_type} {family} gate on {', '.join(features)}",
-                        metrics=metrics,
-                        warnings=(
-                            ["Low orthogonality may cause cross-talk."]
-                            if raw["orthogonality"] < 0.45
-                            else []
-                        ),
-                        is_rejected=breach is not None,
-                        rejection_reason=breach.reason if breach else "",
-                    ),
-                    raw,
-                )
-            )
-
-        ranks = rank_candidates([(c.ref, c.overall_score) for c, _ in drafts if not c.is_rejected])
-
-        from dataclasses import replace
-
-        return [replace(c, rank=ranks.get(c.ref)) for c, _ in drafts]
-
-    def _write_artifacts(
-        self, request: JobRequest, candidates: list[CandidateResult]
-    ) -> list[ArtifactRef]:
-        """Write real files: a design table, and a FASTA per accepted candidate.
-
-        Real files rather than stubs, so the Platform's artifact import, checksum
-        verification and download paths are exercised end to end.
-        """
-        output_dir = request.output_dir
-        artifacts: list[ArtifactRef] = []
-
-        header = "ref,rank,gate_family,logic_type,overall_score,rejected,rejection_reason"
-        rows = [header]
-        for candidate in sorted(candidates, key=lambda c: c.ref):
-            score = "" if candidate.overall_score is None else f"{candidate.overall_score:.4f}"
-            rows.append(
-                ",".join(
-                    [
-                        candidate.ref,
-                        "" if candidate.rank is None else str(candidate.rank),
-                        candidate.gate_family,
-                        candidate.logic_type,
-                        score,
-                        "yes" if candidate.is_rejected else "no",
-                        f'"{candidate.rejection_reason}"',
-                    ]
-                )
-            )
-        artifacts.append(
-            write_artifact(
-                output_dir,
-                "candidates.csv",
-                "\n".join(rows) + "\n",
-                kind="design_table",
-                media_type="text/csv",
-            )
-        )
-
-        for candidate in sorted((c for c in candidates if not c.is_rejected), key=lambda c: c.ref):
-            fasta = (
-                f">{candidate.ref} {candidate.gate_family} {candidate.logic_type} "
-                f"rank={candidate.rank}\n{candidate.design['switch_sequence']}\n"
-            )
-            artifacts.append(
-                write_artifact(
-                    output_dir,
-                    f"sequences/{candidate.ref}.fasta",
-                    fasta,
-                    kind="sequence_fasta",
-                    media_type="text/x-fasta",
-                    candidate_ref=candidate.ref,
-                )
-            )
-
-        return artifacts
-
-    @staticmethod
-    def _requested_outputs(request: JobRequest) -> list[str]:
-        """Every downstream output the researcher selected, in display form.
-
-        All outputs are equivalent: each one gets its own set of candidate plasmids,
-        because a construct expressing GFP is a different construct from one expressing
-        an antibiotic resistance marker.
-        """
-        payload = request.params.get("payload") or {}
-        selected = payload.get("outputs") or []
-
-        names = [_OUTPUT_NAMES.get(key, str(key)) for key in selected if key != "other"]
-        if "other" in selected and payload.get("custom_sequence"):
-            names.append("Custom")
-
-        return names or ["GFP"]
-
-    @staticmethod
-    def _plasmid_segments(rng: random.Random, payload: str) -> list[dict]:
-        """The construct laid out end to end. Drives the plasmid map.
-
-        ``kind`` is a stable vocabulary; colours belong to the frontend, not here.
-        """
-        return [
-            {"kind": "promoter", "name": "J23119", "length_bp": rng.randint(30, 60)},
-            {"kind": "switch", "name": "toehold_switch", "length_bp": rng.randint(90, 160)},
-            {"kind": "payload", "name": payload, "length_bp": rng.randint(600, 1800)},
-            {"kind": "terminator", "name": "B0015", "length_bp": rng.randint(100, 160)},
-            {"kind": "backbone", "name": "pUC ori", "length_bp": rng.randint(900, 1500)},
-        ]
-
-    @staticmethod
-    def _logic_graph(features: list[str], repressor: str | None, payload: str) -> dict:
-        """The Boolean circuit, as the researcher reads it.
-
-        Letters (A, B, C...) label the genes in the caption so it stays readable
-        regardless of how long the real feature names are.
-        """
-        letters = "ABCDEF"
-        genes = [
-            {
-                "name": letters[index],
-                "role": feature,
-                "state": "ON",
-                "direction": "up",
-            }
-            for index, feature in enumerate(features)
-        ]
-        if repressor is not None:
-            genes.append(
-                {
-                    "name": letters[len(features)],
-                    "role": repressor,
-                    "state": "OFF",
-                    "direction": "down",
-                }
-            )
-
-        activators = [gene["name"] for gene in genes if gene["state"] == "ON"]
-        mid_gate = "AND"
-        outer_gate = "AND"
-        expression = (
-            activators[0] if len(activators) == 1 else f"({f' {mid_gate} '.join(activators)})"
-        )
-        if repressor is not None:
-            expression = f"{expression} {outer_gate} NOT {genes[-1]['name']}"
-
-        return {
-            "genes": genes,
-            "mid_gate": mid_gate,
-            "outer_gate": outer_gate,
-            "invert": repressor is not None,
-            "output": payload,
-            "caption": f"IF {expression} → EXPRESS {payload}",
-        }
-
-    @staticmethod
-    def _sequence(rng: random.Random, length: int) -> str:
-        """A plausible-looking RNA sequence. Deterministic for a given RNG state."""
-        return "".join(rng.choice(_BASES) for _ in range(length))
-
-    @staticmethod
-    def _structure(rng: random.Random, length: int) -> str:
-        """A hairpin in dot-bracket notation, so structure-rendering code has real input."""
-        stem = min(length // 4, 20)
-        loop = length - 2 * stem
-        return "(" * stem + "." * loop + ")" * stem

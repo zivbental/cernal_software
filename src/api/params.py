@@ -14,11 +14,13 @@ sync, rather than two copies drifting apart.
 """
 
 import difflib
+import math
 
 from api.errors import ApiError, ValidationFailed
 
 CONSTRAINT_KEYS = {
     "max_triggers",
+    "max_circuit_gates",
     "min_separation",
     "max_p_adj",
     "trigger_lengths",
@@ -29,7 +31,7 @@ CONSTRAINT_KEYS = {
 SCORING_KEYS = {"base", "weights", "hard_filters", "tie_breakers"}
 BUDGET_KEYS = {"max_designs", "max_runtime_seconds", "on_exceed"}
 PAYLOAD_KEYS = {"outputs", "custom_sequence"}
-BACKBONE_KEYS = {"catalog_key", "custom_genbank"}
+BACKBONE_KEYS = {"catalog_key", "custom_genbank", "insertion_index"}
 
 
 class UnknownParameter(ApiError):
@@ -40,6 +42,8 @@ class UnknownParameter(ApiError):
 def check_known_keys(block: dict, allowed: set[str], name: str) -> None:
     """A typo becomes a 422 naming the mistake, instead of the silent CLAUDE.md §2
     failure — an unknown key is simply never read."""
+    if not isinstance(block, dict):
+        raise ValidationFailed(f"{name} must be an object.")
     unknown = sorted(set(block) - allowed)
     if not unknown:
         return
@@ -58,6 +62,40 @@ def check_scoring_block(scoring: dict, capabilities) -> None:
     ``engine.scoring.profiles.ScoringProfile.validate()`` would otherwise only run once
     the run is already executing, turning a typo into an async FAILED run instead of an
     immediate 422 (CLAUDE.md §2)."""
+    if not isinstance(scoring, dict):
+        raise ValidationFailed("scoring must be an object.")
+    weights = scoring.get("weights", {})
+    filters = scoring.get("hard_filters", [])
+    ties = scoring.get("tie_breakers", [])
+    if not isinstance(weights, dict):
+        raise ValidationFailed("scoring.weights must be an object.")
+    for name, value in weights.items():
+        if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+            raise ValidationFailed(f"scoring.weights.{name} must be a finite nonnegative number.")
+    if not isinstance(ties, list) or any(not isinstance(name, str) for name in ties):
+        raise ValidationFailed("scoring.tie_breakers must be a list of metric names.")
+    if not isinstance(filters, list) or any(not isinstance(item, dict) for item in filters):
+        raise ValidationFailed("scoring.hard_filters must be a list of objects.")
+    known = {metric.name for metric in capabilities.metrics}
+    for item in filters:
+        if not isinstance(item.get("metric"), str):
+            raise ValidationFailed("Every hard filter must name a metric.")
+        for bound in ("minimum", "maximum"):
+            value = item.get(bound)
+            if value is not None and (type(value) not in (int, float) or not math.isfinite(value)):
+                raise ValidationFailed(f"Hard-filter {bound} must be finite numeric data.")
+        if item.get("minimum") is None and item.get("maximum") is None:
+            raise ValidationFailed("Every hard filter must contain a minimum or maximum.")
+        if (
+            item.get("minimum") is not None
+            and item.get("maximum") is not None
+            and item["minimum"] > item["maximum"]
+        ):
+            raise ValidationFailed("Hard-filter minimum cannot exceed maximum.")
+        if item["metric"] in known and (
+            not isinstance(item.get("reason"), str) or not item["reason"].strip()
+        ):
+            raise ValidationFailed(f"Hard filter for {item['metric']} needs a non-empty reason.")
     known = {metric.name for metric in capabilities.metrics}
     hard_filters = scoring.get("hard_filters", [])
     unknown = set(scoring.get("weights", {})) | set(scoring.get("tie_breakers", []))
@@ -100,6 +138,10 @@ def check_backbone_block(backbone: dict, capabilities) -> None:
     (:func:`engine.stages.plasmids.parse_custom_backbone`) that stays engine-side, the
     same boundary ``_resolve_scoring`` already draws for ``ScoringProfile`` construction.
     """
+    if "insertion_index" in backbone:
+        insertion = backbone["insertion_index"]
+        if type(insertion) is not int or insertion < 0:
+            raise ValidationFailed("backbone.insertion_index must be a nonnegative integer.")
     catalog_key = backbone.get("catalog_key")
     custom_genbank = backbone.get("custom_genbank")
     if catalog_key and custom_genbank:

@@ -1,5 +1,21 @@
 # Gene selection — assessment and design
 
+## Current status — 8 October 2026
+
+All four hosts now support direct, named-gene and DE input using bundled references.
+Human uses mature Ensembl release 116 transcript resolution; E. coli, yeast and
+C. acnes use their bundled reference records. `GeneSelector`, `TriggerScorer`, the
+DE parser and circuit enumeration are implemented. No raw count/metadata workflow,
+observed confusion matrix or integrated off-target scan is inferred from these paths.
+
+See [ROADMAP](ROADMAP.md), [remediation status](REMEDIATION_STATUS.md) and the
+[dated audit](SOFTWARE_STATUS_REVIEW_2026-10-08.md) for present limitations.
+
+> **Historical design/development archive:** the text below predates the audit.
+> Claims about absent modules, unsupported Human input, Q1 blockers, installed
+> repository paths, stub counts and tool status are superseded by the status above.
+
+
 **Status:** Built, and now wired into `run_pipeline` for a first, scoped `de` path
 (`engine.pipeline._de_trigger`) — a real compile against a differential-expression
 table now produces real toehold candidates and a real plasmid, verified against real

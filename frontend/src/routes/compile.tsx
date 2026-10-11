@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { CircuitBoard, LayoutDashboard, Loader2 } from "lucide-react";
 
 import { ApiError } from "@/api/client";
+import { parseSequence } from "@/components/compile/sequence";
 import {
   useDatasets,
   useExampleDatasets,
@@ -17,7 +18,6 @@ import { RequireAuth } from "@/components/layout/RequireAuth";
 import { StepRail } from "@/components/layout/Primitives";
 import {
   DEFAULT_CONFIG,
-  ORGANISM_LABELS,
   StepInputs,
   StepLogic,
   StepPayload,
@@ -53,64 +53,90 @@ function CompilePage() {
 
   const [config, setConfig] = useState<CompileConfig>(DEFAULT_CONFIG);
   const [idempotencyKey] = useState(newIdempotencyKey);
-  const patch = (p: Partial<CompileConfig>) => setConfig((c) => ({ ...c, ...p }));
+  const patch = (p: Partial<CompileConfig>) => setConfig((c) => {
+    const next = { ...c, ...p };
+    if (p.organism && version.data) {
+      const allowed = version.data.supported_outputs.filter((output) =>
+        (version.data!.output_hosts?.[output] ?? version.data!.supported_hosts).includes(p.organism!));
+      next.outputs = next.outputs.filter((output) => allowed.includes(output));
+      if (next.outputs.length === 0 && allowed.includes("gfp")) next.outputs = ["gfp"];
+    }
+    return next;
+  });
 
   // Memoized so the blocker useMemo below is not invalidated on every render.
   const families = useMemo(() => version.data?.gate_families ?? [], [version.data]);
-  const backbones = useMemo(() => version.data?.available_backbones ?? [], [version.data]);
+  const backbones = useMemo(() => (version.data?.available_backbones ?? []).filter((backbone) =>
+    (version.data?.backbone_hosts?.[backbone.key] ?? ["ecoli"]).includes(config.organism)), [version.data, config.organism]);
+  const supportedOutputs = useMemo(() => (version.data?.supported_outputs ?? []).filter((output) =>
+    (version.data?.output_hosts?.[output] ?? version.data?.supported_hosts ?? []).includes(config.organism)), [version.data, config.organism]);
 
   const blocker = useMemo(() => {
+    if (config.maxDesigns.trim() === "" || !Number.isSafeInteger(Number(config.maxDesigns)) || Number(config.maxDesigns) < 1 || Number(config.maxDesigns) > 1000)
+      return "Evaluation budget must be a whole number from 1 to 1,000.";
+    if (config.topN.trim() === "" || !Number.isSafeInteger(Number(config.topN)) || Number(config.topN) < 1 || Number(config.topN) > 1000)
+      return "Results to display must be a whole number from 1 to 1,000.";
+    if (!version.data?.family_hosts || !version.data?.supported_outputs)
+      return "Capability information is unavailable. Reload before submitting.";
+    if (!(version.data.family_hosts[config.mechanism] ?? []).includes(config.organism))
+      return "This mechanism is unavailable for the selected organism in the production pipeline.";
+    if (config.outputs.some((output) => !supportedOutputs.includes(output)))
+      return "One or more selected outputs have no supported payload. Choose an output supported for the selected organism.";
+    if (config.maxCircuitGates > (version.data.limits?.max_circuit_gates ?? 1))
+      return "Physical multi-gate compilation is unavailable. Choose one gate per circuit.";
+    if (!["none", "custom"].includes(config.backbone) && !backbones.some((backbone) => backbone.key === config.backbone))
+      return "Choose a backbone supported for this organism, a custom GenBank vector, or a cassette without a backbone.";
     if (config.inputMode === "de") {
       if (!config.datasetId) return "Choose a public dataset, or upload your own, to analyse.";
       const chosen = datasets.data?.find((d) => d.id === config.datasetId);
       if (chosen && chosen.validation_status !== "VALID")
         return "That dataset did not pass validation.";
     } else if (config.inputMode === "gene") {
-      // Informational only — there is no gene->sequence lookup, so this mode never
-      // submits by itself; "Continue" (GenePicker) switches inputMode to "direct".
-      return "Continue to paste the trigger sequence for this gene.";
-    } else if (config.triggerSequence.length < 20) {
+      if (!config.targetGene || config.targetGene.organism !== config.organism)
+        return "Resolve a gene ID or symbol to its reference transcript.";
+    } else if (parseSequence(config.triggerSequence).error) {
+      return parseSequence(config.triggerSequence).error;
+    } else if (parseSequence(config.triggerSequence).sequence.length < 20) {
       return "Paste a trigger sequence of at least 20 nucleotides.";
     }
     if (!families.some((f) => f.name === config.mechanism && f.available))
       return "Choose an available switch mechanism.";
     if (config.outputs.length === 0) return "Choose at least one downstream output.";
-    if (config.outputs.includes("other") && config.customPayload.length < 3)
+    if (config.outputs.includes("other") && parseSequence(config.customPayload).error)
+      return parseSequence(config.customPayload).error;
+    if (config.outputs.includes("other") && parseSequence(config.customPayload).sequence.length < 3)
       return "Paste a sequence for your custom output, or deselect it.";
     if (config.backbone === "custom" && config.customBackboneGenbank.length < 10)
       return "Upload a GenBank file for your custom backbone, or choose a catalog vector.";
+    if (config.backbone === "custom" && (config.customBackboneInsertion.trim() === "" || !Number.isSafeInteger(Number(config.customBackboneInsertion)) || Number(config.customBackboneInsertion) < 0))
+      return "Choose a nonnegative integer insertion boundary for your custom vector.";
     return null;
-  }, [config, datasets.data, families]);
+  }, [config, datasets.data, families, version.data, backbones, supportedOutputs]);
 
   const failed = upload.error ?? useExample.error;
   const uploadError =
     failed instanceof ApiError ? failed.message : failed ? "Could not load that dataset." : null;
-  const submitError = submit.error instanceof ApiError ? submit.error.message : null;
+  const submitError = submit.error instanceof Error ? submit.error.message : submit.error ? "Submission failed. Please retry." : null;
 
   if (version.isLoading) return <Loading />;
+  if (version.isError) return <p role="alert">Could not load capabilities. <button onClick={() => version.refetch()}>Retry</button></p>;
 
   async function onSubmit() {
     if (blocker) return;
 
-    // "gene" is a wizard-only, informational mode (docs/public-datasets.md §16) that
-    // the blocker never lets reach here — it always resolves to "direct" or "de"
-    // before submission. Narrowed once so the API's InputMode type stays honest.
-    const submittedInputMode: "de" | "direct" =
-      config.inputMode === "de" ? "de" : "direct";
+    const submittedInputMode = config.inputMode;
 
     const params: RunParams = {
       schema_version: "1",
       organism: config.organism,
       input_mode: submittedInputMode,
-      logic: {
-        set_a: config.setA.split(",").map((s) => s.trim()).filter(Boolean),
-        set_b: config.setB.split(",").map((s) => s.trim()).filter(Boolean),
-        expression: config.setB.trim() ? "A AND NOT B" : "A",
-      },
       mechanism: config.mechanism,
+      budget: { max_designs: Number(config.maxDesigns) },
+      top_n: Number(config.topN),
       payload: {
         outputs: config.outputs,
-        custom_sequence: config.customPayload || null,
+        custom_sequence: parseSequence(config.customPayload).sequence || null,
+        optimize_codons: config.optimizePayloadCodons,
       },
       // A per-run override of the scoring profile's hard filters (engine.scoring
       // X7), not engine.domain.Constraints — see CompileConfig's own docstring.
@@ -120,6 +146,8 @@ function CompilePage() {
       // (api/params.py check_scoring_block) — it becomes the rejected candidate's
       // recorded rejection_reason, so a researcher can see why their own slider
       // rejected a design.
+      // engine.domain.Constraints, unlike `scoring` above — see RunParams.
+      constraints: { max_circuit_gates: config.maxCircuitGates },
       scoring: {
         hard_filters: [
           {
@@ -134,19 +162,14 @@ function CompilePage() {
           },
         ],
       },
-      // Makes progress observable while the science is still mocked.
-      mock: { candidate_count: 24, step_delay: 0.6 },
     };
 
     if (config.backbone === "custom") {
-      params.backbone = { custom_genbank: config.customBackboneGenbank };
+      params.backbone = { custom_genbank: config.customBackboneGenbank, insertion_index: Number(config.customBackboneInsertion) };
     } else if (config.backbone !== "none") {
       params.backbone = { catalog_key: config.backbone };
     }
 
-    // Informational only (docs/public-datasets.md §16/§19) — rides along on whatever
-    // dataset/sequence actually got submitted, documenting which gene the researcher
-    // had in mind without CERNAL claiming to have resolved it to anything.
     if (config.targetGene) {
       params.target_gene = {
         organism: config.targetGene.organism,
@@ -155,11 +178,12 @@ function CompilePage() {
       };
     }
 
+    try {
     const run = await submit.mutateAsync({
       input_mode: submittedInputMode,
       dataset_id: submittedInputMode === "de" ? config.datasetId : null,
-      trigger_sequence: submittedInputMode === "direct" ? config.triggerSequence : "",
-      organism: ORGANISM_LABELS[config.organism],
+      trigger_sequence: submittedInputMode === "direct" ? parseSequence(config.triggerSequence).sequence : "",
+      organism: config.organism,
       gate_families: [config.mechanism],
       scoring_profile: version.data?.scoring_profiles[0] ?? "default",
       params,
@@ -167,6 +191,7 @@ function CompilePage() {
     });
 
     navigate({ to: "/runs/$runId", params: { runId: run.id } });
+    } catch { /* Mutation error remains visible; retry retains configuration and key. */ }
   }
 
   return (
@@ -178,7 +203,7 @@ function CompilePage() {
           </>
         }
         title="Biological Compiler"
-        description="Translate transcriptomic signals into manufacturable genetic circuits. Inputs → Logic → Payload → Compile."
+        description="Translate transcriptomic signals into computational genetic circuit designs. Inputs → Logic → Payload → Compile."
       />
 
       <div className="mb-8">
@@ -197,20 +222,20 @@ function CompilePage() {
           uploading={upload.isPending}
           uploadError={uploadError}
           onUpload={async (file) => {
-            const dataset = await upload.mutateAsync(file);
-            patch({ datasetId: dataset.validation_status === "VALID" ? dataset.id : null });
+            try { const dataset = await upload.mutateAsync(file);
+            patch({ datasetId: dataset.validation_status === "VALID" ? dataset.id : null }); } catch { /* shown by uploadError */ }
           }}
           examples={examples.data ?? []}
           loadingExample={useExample.isPending}
           onUseExample={async (key) => {
-            const dataset = await useExample.mutateAsync(key);
-            patch({ datasetId: dataset.id });
+            try { const dataset = await useExample.mutateAsync(key);
+            patch({ datasetId: dataset.id }); } catch { /* shown by uploadError */ }
           }}
         />
 
-        <StepLogic config={config} patch={patch} families={families} />
+        <StepLogic config={config} patch={patch} families={families.map((family) => ({ ...family, available: family.available && (version.data?.family_hosts[family.name] ?? []).includes(config.organism) }))} />
 
-        <StepPayload config={config} patch={patch} />
+        <StepPayload config={config} patch={patch} supportedOutputs={supportedOutputs} />
 
         <StepVector config={config} patch={patch} backbones={backbones} />
 

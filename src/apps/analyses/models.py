@@ -17,6 +17,7 @@ class InputMode(models.TextChoices):
 
     DE = "de", "Differential expression"
     DIRECT = "direct", "Direct trigger mRNA"
+    GENE = "gene", "Reference gene"
 
 
 class RunStatus(models.TextChoices):
@@ -58,7 +59,12 @@ class AnalysisRun(UUIDModel, TimestampedModel):
     stands on its own, scoped only to the user who submitted it (``created_by``).
     """
 
-    organism = models.CharField(max_length=100, blank=True, help_text="e.g. E. coli")
+    organism = models.CharField(
+        max_length=100,
+        blank=True,
+        default="ecoli",
+        help_text="Host key: ecoli, yeast or human (engine.domain.Host). Not free text.",
+    )
 
     input_mode = models.CharField(max_length=10, choices=InputMode, default=InputMode.DE)
     dataset = models.ForeignKey(
@@ -79,7 +85,6 @@ class AnalysisRun(UUIDModel, TimestampedModel):
     # --- Immutable submission snapshot ---
     idempotency_key = models.CharField(
         max_length=64,
-        unique=True,
         help_text="Re-submitting with the same key returns the existing run rather than "
         "launching a second computation.",
     )
@@ -114,6 +119,8 @@ class AnalysisRun(UUIDModel, TimestampedModel):
     submitted_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
+    enqueued_at = models.DateTimeField(null=True, blank=True, editable=False)
+    execution_token = models.UUIDField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["-created_at"]
@@ -122,6 +129,9 @@ class AnalysisRun(UUIDModel, TimestampedModel):
             models.Index(fields=["status"]),
         ]
         constraints = [
+            models.UniqueConstraint(
+                fields=["created_by", "idempotency_key"], name="run_owner_idempotency_unique"
+            ),
             models.CheckConstraint(
                 condition=models.Q(progress_pct__gte=0) & models.Q(progress_pct__lte=100),
                 name="progress_pct_within_bounds",
@@ -131,7 +141,7 @@ class AnalysisRun(UUIDModel, TimestampedModel):
             models.CheckConstraint(
                 condition=(
                     models.Q(input_mode="de", dataset__isnull=False)
-                    | models.Q(input_mode="direct", dataset__isnull=True)
+                    | models.Q(input_mode__in=("direct", "gene"), dataset__isnull=True)
                 ),
                 name="run_has_exactly_one_input_source",
             ),

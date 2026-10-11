@@ -5,10 +5,16 @@
 document's original recommendation. **Q12 update, made after this document was
 written:** `PROMOTERS`/`TERMINATORS` now also carry a yeast entry, verified against the
 iGEM Registry API the same way as the *E. coli* ones — real parts, not the placeholder
-this doc's own §13/§14 describe as *E. coli*-only. Human is still open, and not merely
-unbundled: a mammalian expression vector has no BioBrick-style restriction-site
-compliance to check against in the first place, an architectural question this
-document does not answer. `BACKBONES`/Q13 is unchanged by this — still *E. coli* only,
+this doc's own §13/§14 describe as *E. coli*-only. Human direct-trigger construction now uses Registry-verified CMV promoter
+[BBa_I712004](https://registry.igem.org/parts/bba-i712004) and hGH polyadenylation
+[BBa_K404108](https://registry.igem.org/parts/bba-k404108). Its default assembly setting
+is `none`: no restriction-based protocol is claimed, while frame checks, motif checks,
+and release screening still apply. Explicit RFC10/RFC1000 remains available for callers
+who want those checks. A supplied custom mammalian GenBank backbone is appended using
+the existing backbone workflow; without one the result is an expression cassette.
+Bacterial catalog vectors are rejected for Human runs. No cloning overlaps or
+mammalian switch validation are inferred. Human DE discovery remains unavailable
+without a reference transcriptome. `BACKBONES`/Q13 is unchanged by this — still *E. coli* only,
 now deliberately so for yeast too (docs/genes.md D7): a real vector for yeast exists,
 but its assembly grammar could not be verified in time to bundle responsibly. See
 [genes.md](genes.md) D6/D7 and [ROADMAP.md](ROADMAP.md) Q1/Q12/Q13 for the live status;

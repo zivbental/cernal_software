@@ -12,7 +12,7 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 
-import { api } from "./client";
+import { ApiError, api } from "./client";
 import {
   isTerminal,
   type Annotation,
@@ -21,6 +21,7 @@ import {
   type Artifact,
   type Candidate,
   type CandidateDetail,
+  type CandidateStructure,
   type Dataset,
   type DatasetPreview,
   type DecisionTag,
@@ -51,6 +52,7 @@ export const keys = {
   runStatus: (id: string) => ["run", id, "status"] as const,
   candidates: (runId: string, params: string) => ["candidates", runId, params] as const,
   candidate: (id: string) => ["candidate", id] as const,
+  candidateStructure: (id: string) => ["candidate", id, "structure"] as const,
   artifacts: (runId: string) => ["artifacts", runId] as const,
   annotations: (candidateId: string) => ["annotations", candidateId] as const,
   apiKeys: ["api-keys"] as const,
@@ -61,7 +63,10 @@ export const keys = {
 export function useMe(options?: Partial<UseQueryOptions<User | null>>) {
   return useQuery({
     queryKey: keys.me,
-    queryFn: () => api.get<User>("/auth/me").catch(() => null),
+    queryFn: () => api.get<User>("/auth/me").catch((error) => {
+      if (error instanceof ApiError && error.status === 401) return null;
+      throw error;
+    }),
     staleTime: 5 * 60_000,
     retry: false,
     ...options,
@@ -73,6 +78,18 @@ export function useLogin() {
   return useMutation({
     mutationFn: (credentials: { username: string; password: string }) =>
       api.post<User>("/auth/login", credentials),
+    onSuccess: (user) => {
+      queryClient.setQueryData(keys.me, user);
+    },
+  });
+}
+
+/** Instant sign-in as the shared reviewer account — only offered when
+ * `Version.reviewer_login_enabled` is true. */
+export function useReviewerLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<User>("/auth/reviewer-login"),
     onSuccess: (user) => {
       queryClient.setQueryData(keys.me, user);
     },
@@ -206,7 +223,7 @@ export function useMaterializePublicDataset() {
 /* ---------- runs ---------- */
 
 export interface SubmitRunBody {
-  input_mode: "de" | "direct";
+  input_mode: "de" | "direct" | "gene";
   dataset_id?: string | null;
   trigger_sequence?: string;
   organism?: string;
@@ -227,10 +244,10 @@ export function useSubmitRun() {
   });
 }
 
-export function useRecentRuns(limit = 20) {
+export function useRecentRuns(limit = 20, offset = 0) {
   return useQuery({
-    queryKey: keys.recentRuns,
-    queryFn: () => api.get<Run[]>(`/runs?limit=${limit}`),
+    queryKey: [...keys.recentRuns, limit, offset],
+    queryFn: () => api.get<Run[]>(`/runs?limit=${limit}&offset=${offset}`),
   });
 }
 
@@ -272,8 +289,12 @@ export function useCancelRun(id: string) {
 /* ---------- results ---------- */
 
 export interface CandidateFilters {
+  /** Restrict to the run's globally top-ranked accepted results; omit for all results. */
+  topN?: number;
   sort?: string;
   gateFamily?: string;
+  output?: string;
+  minScore?: number;
   includeRejected?: boolean;
   limit?: number;
   offset?: number;
@@ -283,7 +304,10 @@ export function useCandidates(runId: string, filters: CandidateFilters = {}, ena
   const search = new URLSearchParams();
   search.set("limit", String(filters.limit ?? 200));
   if (filters.offset) search.set("offset", String(filters.offset));
+  if (filters.topN !== undefined) search.set("top_n", String(filters.topN));
   if (filters.sort) search.set("sort", filters.sort);
+  if (filters.output) search.set("output", filters.output);
+  if (filters.minScore) search.set("min_score", String(filters.minScore));
   if (filters.gateFamily) search.set("gate_family", filters.gateFamily);
   if (filters.includeRejected) search.set("include_rejected", "true");
   const query = search.toString();
@@ -300,6 +324,17 @@ export function useCandidate(id: string | null) {
     queryKey: keys.candidate(id ?? ""),
     queryFn: () => api.get<CandidateDetail>(`/candidates/${id}`),
     enabled: Boolean(id),
+  });
+}
+
+/** Loaded only while the structure view is mounted; cancelled on navigation. */
+export function useCandidateStructure(id: string) {
+  return useQuery({
+    queryKey: keys.candidateStructure(id),
+    queryFn: ({ signal }) => api.get<CandidateStructure>(`/candidates/${id}/structure`, signal),
+    enabled: Boolean(id),
+    staleTime: Infinity,
+    retry: false,
   });
 }
 

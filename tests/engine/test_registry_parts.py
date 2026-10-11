@@ -18,10 +18,12 @@ import pytest
 
 from engine.stages.plasmids import (
     BACKBONES,
+    EXTERNAL_PARTS,
     PAYLOADS,
     PROMOTERS,
     REGISTRY_PARTS,
     TERMINATORS,
+    load_part_catalog,
     load_registry_catalog,
 )
 
@@ -44,7 +46,7 @@ def test_the_catalog_was_synced_at_all():
 
 
 def test_every_part_in_the_tables_declares_a_registry_part():
-    missing = sorted(set(_local_parts()) - set(REGISTRY_PARTS))
+    missing = sorted(set(_local_parts()) - (set(REGISTRY_PARTS) | set(EXTERNAL_PARTS)))
     assert not missing, (
         f"{missing} appear in a parts table but not in REGISTRY_PARTS, so nothing checks "
         "them against the Registry. Add the mapping and re-run the sync tool."
@@ -67,17 +69,18 @@ def test_the_table_sequence_still_matches_the_registry_part(local_name):
     failure here means the table and the Registry disagree, which is a scientific
     decision for a human (docs/plasmids.md §4), not something to auto-fix.
     """
-    catalog = load_registry_catalog()
+    catalog = load_part_catalog()
     entry = catalog.get(local_name)
     assert entry, f"{local_name} has no catalog entry — re-run tools/sync_registry_parts.py"
 
     sequence = _local_parts()[local_name].strip().upper()
+    identity = entry.get("registry_name", entry.get("accession"))
     assert len(sequence) == entry["length_bp"], (
-        f"{local_name} ({entry['registry_name']}): table has {len(sequence)} nt, "
+        f"{local_name} ({identity}): table has {len(sequence)} nt, "
         f"Registry had {entry['length_bp']} nt when last synced"
     )
     assert hashlib.sha256(sequence.encode()).hexdigest() == entry["sequence_sha256"], (
-        f"{local_name} ({entry['registry_name']}): same length as the Registry part but "
+        f"{local_name} ({identity}): same length as the Registry part but "
         f"different bases — see {entry['url']}"
     )
 

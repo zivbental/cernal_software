@@ -86,7 +86,9 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
   const byCategory = useMemo(() => groupByCategory(artifacts.data ?? []), [artifacts.data]);
   const items = artifacts.data ?? [];
 
-  if (items.length === 0) return null;
+  if (artifacts.isLoading) return <p>Loading artifacts…</p>;
+  if (artifacts.isError) return <p role="alert">Could not load artifacts. <button onClick={() => artifacts.refetch()}>Retry</button></p>;
+  if (items.length === 0) return <p>No downloadable artifacts are available. Sequence release may be held; inspect run warnings.</p>;
 
   const totalSize = items.reduce((sum, a) => sum + a.size_bytes, 0);
 

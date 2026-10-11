@@ -46,3 +46,18 @@ manage.py   text eol=lf
 # hand during a merge conflict.
 uv.lock                     linguist-generated=true
 frontend/package-lock.json  linguist-generated=true
+
+# vendor/: third-party code used UNMODIFIED, so Git must not touch a single byte.
+#
+# `* text=auto` above normalises line endings to LF in the repository. For our own files
+# that is what we want. For vendored files it silently rewrites them: the AIS-China
+# library ships CRLF, and storing it as LF makes the committed bytes differ from upstream.
+# That is not cosmetic. Their own config/rna_model.json records
+# energy_parameter_sha256 = f4a71a54...  over the CRLF bytes of config/rna_turner2004.par,
+# and the LF version hashes to 9521527a... So normalisation would:
+#   * break tests/engine/test_ais_china_energy_model.py on a fresh clone,
+#   * break VENDORED_TREE_SHA256,
+#   * and make the "no modifications" statement that Apache-2.0 4(b) asks for untrue —
+#     line-ending conversion is a modification.
+# `-text` means "never infer text, never convert": the bytes go in and come out unchanged.
+vendor/ais-china-codon-optimization-v2/** -text

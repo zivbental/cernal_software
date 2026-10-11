@@ -363,7 +363,7 @@ and a shared CI key starves their laptop.
 |---|---|---|
 | Requests / minute / key | 60 (configurable per key) | Everything |
 | Concurrent `QUEUED`+`RUNNING` runs / key | 2 | `POST /api/design`, `POST …/runs` |
-| Designs per run | `budget.max_designs`, default 100 000 | §9.3 |
+| Evaluated gate designs per run | `budget.max_designs`, default 20, range 1–1,000 | §9.3 |
 | Inline DGE table | `MAX_DATASET_MB` (100 MB), reusing the existing cap | §8 |
 
 **One deployment note.** No `CACHES` is configured, so Django defaults to
@@ -458,6 +458,8 @@ Content-Type: application/json
 **`resolved` is not decoration.** It echoes every default the server chose, so a run is
 reproducible from its response alone and a caller can diff two runs' configurations
 without reading this document. It is the API-level equivalent of `params_snapshot`.
+This includes `resolved.folding`, containing all effective thermodynamic settings for
+new runs. Older runs that did not record those settings return an empty object.
 
 ### What the endpoint does
 
@@ -525,6 +527,7 @@ POST /api/design
   // ─── input (exactly one) ────────────────────────────────────────────────
   "trigger_sequence": "AUGGCU…",       // → input_mode "direct"
   "dataset_id":       "…",             // → input_mode "de"
+  "gene_id":         "",                         // named-gene mode; exactly one input
   "dge_csv":          "gene_id,log2fc,p_adj\n…",   // inline, ≤ MAX_DATASET_MB
 
   // ─── biology ────────────────────────────────────────────────────────────
@@ -546,6 +549,17 @@ POST /api/design
     "standard":          "RFC10"       // RFC10 | RFC1000 → which sites are banned
   },
 
+  // ─── thermodynamic model — shared across every folding calculation ──────
+  "folding": {
+    "temperature_celsius": 37.0,
+    "dangles": 2,
+    "special_hairpins": true,
+    "no_lonely_pairs": false,
+    "no_gu": false,
+    "no_gu_closure": false,
+    "energy_parameters": "turner2004"
+  },
+
   // ─── how candidates are compared (§9.1) ─────────────────────────────────
   "scoring": {
     "base": "default",
@@ -555,8 +569,7 @@ POST /api/design
   },
 
   // ─── cost ceiling (§9.3) ────────────────────────────────────────────────
-  "budget": {"max_designs": 50000, "max_runtime_seconds": 1800,
-             "on_exceed": "return_best"},   // return_best | fail
+  "budget": {"max_designs": 200},       // validated gates evaluated; default 20
 
   // ─── output shaping ─────────────────────────────────────────────────────
   "top_n": 25,
@@ -572,6 +585,19 @@ POST /api/design
   "notes": "sweep 3 of 5"
 }
 ```
+
+`folding` is optional. Its default values are shown above and are frozen into the run's
+parameter snapshot. To model a 25 °C experiment with Turner 1999 parameters, pass
+`"folding": {"temperature_celsius": 25, "energy_parameters": "turner1999"}`; every
+other setting retains its default. `POST /api/runs` accepts this under `params.folding`.
+
+Temperature must be a finite number from 0 through 100 °C; dangles must be the integer
+`0` or `2`, because partition-function calculations do not consistently support `1`
+and `3`. The four switches must be JSON booleans. Supported energy parameter sets are
+`turner2004`, `turner1999` and `andronescu2007`; arbitrary parameter files are not
+accepted. Unknown keys, string-encoded numbers and malformed values return 422 before
+submission, including when `strict=false` or `dry_run=true`. See the
+[folding model reference](api.md#folding-model) for each setting's meaning.
 
 ### 9.1 Custom scoring — the standout feature, and the one with a trap
 
@@ -614,38 +640,65 @@ documents everywhere else — a scientist who writes `max_trigger` instead of
 `difflib.get_close_matches` gives `did_you_mean` in one line and it is the difference
 between a good API and a merely correct one.
 
-### 9.3 `dry_run` and `budget` — because the search space is unbounded
+### 9.3 Evaluation budget versus ranked result count
 
-[ROADMAP §3](ROADMAP.md) is blunt: top-50 genes in pairs is 12 000 designs and about a
-minute; top-200 in triples is 13 M designs and ~55 hours. **A public API with no ceiling
-is a denial-of-service you serve to yourself.**
+These independent controls already serve different purposes:
 
-```http
-POST /api/design?dry_run=true
+- `budget.max_designs` is the **evaluation budget**: an integer from 1 to 1,000,
+  default **20**. It retains the first validated gate designs in deterministic generator
+  order for full payload-context evaluation. Each gate is paired with **every** requested
+  output, so 200 gates and two outputs can yield 400 candidate records. Rejected candidates
+  also consumed evaluation work. A budget is not a promise that that many valid gates exist.
+- `top_n` is **presentation after scoring, hard filtering and ranking**: an integer from
+  1 to 1,000, default **25** on `/api/design`. It does not reduce folding work, stop the
+  search early, or delete candidates. Results are best among the evaluated pool, not a
+  claim of the global optimum. Raising it cannot recover gates excluded by `max_designs`.
+
+For example, evaluate up to 200 validated gates and show the best 20 accepted candidates:
+
+```python
+job = c.design(
+    trigger_sequence=sequence,
+    organism="ecoli",
+    budget={"max_designs": 200},
+    top_n=20,
+)
+candidates = job.wait().candidates()
 ```
 
-Returns **200 immediately**, queues nothing:
+A candidate is one gate/output construct, not one gate. With the default
+`include_rejected=false`, rejected rows do not occupy the `top_n` slots. With
+`include_rejected=true`, `/api/design/{id}/results` places rejected rows after ranked
+accepted rows and applies `top_n` to that combined list. Full diagnostic access is
+available through the paginated candidates endpoint and CSV export.
 
-```jsonc
-{"estimate": {"genes_surviving": 187, "trigger_candidates": 4210,
-              "trigger_sets": 1225, "designs": 12250,
-              "seconds_1_core": 184, "confidence": "rough"},
- "budget_ok": true,
- "resolved": {…}}
-```
+An asynchronous `POST /api/design` returns a `results_url` preserving nondefault
+`top_n`, `include_rejected`, `include_metrics`, and `include_artifacts` options. Follow
+that URL after completion, or explicitly request
+`GET /api/design/{id}/results?top_n=20`. A bare results URL uses the endpoint default 25.
+The Python client also carries submitted result options through polling.
 
-Two honest notes for whoever builds it. The arithmetic is `designs × 15 ms`, from
-[ROADMAP §3](ROADMAP.md)'s measured ViennaRNA throughput — label it `"rough"` and never
-present it as a guarantee. And under `de` mode a real estimate needs gene counts from the
-dataset, so before the engine's stage 1 exists it can only be bounded from the table's row
-count; say so in the response rather than inventing precision.
+The compiler wizard exposes both controls under advanced settings. A new run stores
+its selected display count in `params.top_n` and evaluation ceiling in
+`params.budget.max_designs`. Its results view can switch between the best K accepted
+candidates and all stored results. Historical runs without a display count retain their
+full-results view. `/api/runs/{id}/candidates?top_n=20` restricts to global accepted
+ranks 1–20 **before** additional filters, sorting and pagination; omit `top_n` to access
+all stored candidates. `include_rejected=true` with this rank filter still returns only
+accepted ranks; omit the rank filter to inspect rejections.
 
-`budget` then enforces it. `max_runtime_seconds` rides the mechanism that already exists:
-`on_progress` returns `False` and the pipeline raises `JobCancelled`, exactly as
-cancellation does. `on_exceed: "return_best"` finishes with what has been evaluated and a
-warning in `JobResult.warnings`; `"fail"` returns a failed run. **This is engine-side
-work** (§14, X6) — the API-side cap is available immediately, the engine-side one lands
-with the pipeline.
+All evaluated candidate records, metrics, artifacts and report data remain stored.
+CSV exports are complete and intentionally ignore display limits. Budget truncation
+is recorded in warnings and `scientific_provenance.design_budget`, including
+`evaluated_gate_designs` and `selection: deterministic_generator_order`. Increasing
+`max_designs` can improve the available pool, with more compute and storage cost;
+changing `top_n` cannot change scores or ranks.
+
+`POST /api/design?dry_run=true` returns an estimate without queueing work. Its
+`candidate_upper_bound` is `max_designs × requested outputs`, independent of `top_n`.
+`seconds` is `null` and `runtime_calibrated` is `false`: there is no calibrated wall-clock
+estimate. `max_runtime_seconds` and `on_exceed` are unsupported and rejected. A
+whole-job runtime timeout is separate work; neither control here supplies one.
 
 ### 9.4 Webhooks — optional, and a genuine security decision
 
@@ -760,7 +813,7 @@ job = c.design(
         weights={"predicted_leakage": 4.0, "gc_content": 0.0},
         hard_filters=[{"metric": "dynamic_range", "minimum": 10.0}],
     ),
-    budget=dict(max_designs=50_000, max_runtime_seconds=1800),
+    budget=dict(max_designs=200),
     seed=42,
     top_n=25,
 )
@@ -906,7 +959,7 @@ serving and upload limits are unchanged and already reviewed
 | Key enumeration via error messages | One 401 code, `invalid_api_key`, for missing / unknown / revoked / expired |
 | A key reading another user's data | Impossible without new code: `authenticate` returns the owning `User` and every endpoint already runs `get_owned` (§3). **Test it explicitly anyway** — key A, run owned by B, expect 404 |
 | Queue exhaustion | `max_concurrent_runs` per key (§6). This is the real one, given `workers: 1` |
-| Compute exhaustion in a single run | `budget.max_designs`, `budget.max_runtime_seconds` (§9.3) |
+| Gate-evaluation ceiling in a single run | `budget.max_designs` (§9.3); no whole-job runtime timeout |
 | Inline `dge_csv` as a memory bomb | Same `MAX_DATASET_MB` cap and the same `create_dataset` validation as the multipart path. No second code path |
 | SSRF via `callback_url` | §9.4. If it cannot be guarded properly, **do not ship it** — polling is sufficient |
 | Escalation from a leaked key | Key auth cannot mint keys, cannot delete projects or datasets, cannot change a password. Those stay session-only |
@@ -990,3 +1043,15 @@ Two things worth doing that are not code:
   returns plausible numbers without saying so is the one thing here that could damage
   credibility rather than build it. Put it in the response — `"engine": "MockEngine"` is
   already in `GET /api/version` — and put it in the documentation.
+
+## Current client/capability contract — 8 October 2026
+
+`GET /api/version` includes authoritative production family/host/output applicability
+and input limits. Component implementation is separate from production availability.
+Result-shaping options remain on Python/R/MATLAB job handles through polling; pass
+them explicitly when resuming a handle. Raw nested candidate JSON and flattened R/
+MATLAB tables have separate contracts. R raw/table and live HTTP conformance passed
+in [hosted Ubuntu CI](https://github.com/zivbental/cernal_software/actions/runs/37802426550/job/113397823314); MATLAB runtime conformance remains unexecuted. Install clients from this source tree;
+no registry publication is claimed. Scientific scores are uncalibrated proxies, and
+completion is separate from sequence screening/release. See the current roadmap and
+remediation ledger for verified behavior and open acceptance work.

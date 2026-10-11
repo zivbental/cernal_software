@@ -2,8 +2,10 @@
 
 CERNAL compiles a transcriptomic signature into an RNA logic circuit on a plasmid. The
 Python engine lives under `src/engine/`; a Django platform wraps it and never touches its
-internals. The engine is **stub-first**: every class, method and docstring already exists,
-and 48 public callables still `raise NotImplementedError("Step 5 — …")`.
+internals. The default engine is `engine.client.LocalEngine`, with real folding and implemented
+input/gene/trigger/switch/circuit/assembly paths. Some components remain incomplete;
+inspect source before assuming any callable is a stub. Current limits and dated
+verification are in `docs/ROADMAP.md` and `docs/REMEDIATION_STATUS.md`.
 
 > **The one-line rule: your job is almost always to FILL A STUB, not to create a file.**
 > If you are about to write `class X:` or create a new module, stop and find the stub that
@@ -54,8 +56,8 @@ Copied verbatim from [`src/engine/scoring/profiles.py`](src/engine/scoring/profi
 | `predicted_leakage` | **lower** better | 2.5 | 0.0 – 1.0 | proxy for OFF-state activation |
 | `orthogonality` | higher better | 1.5 | 0.0 – 1.0 | independence from other gates |
 | `gc_content` | higher better | 0.5 | 30.0 – 70.0 | **percent, 0–100** |
-| `dynamic_range` | higher better | 2.0 | 1.0 – 500.0 | **linear ON/OFF fold change** |
-| `predicted_success_rate` | higher better | 1.0 | 0.0 – 1.0 | model confidence |
+| `dynamic_range` | higher better | 2.0 | 1.0 – 500.0 | **linear initiation-accessibility ratio (proxy)** |
+| `predicted_success_rate` | higher better | 1.0 | 0.0 – 1.0 | uncalibrated binding-energy heuristic |
 | `circuit_complexity` | **lower** better | 1.0 | 1.0 – 10.0 | component count penalty |
 
 Hard filters: `predicted_leakage` max 0.85; `state_separation` min 0.5. Tie-breakers, in
@@ -74,8 +76,8 @@ nothing raises; the candidate ranks on the metrics it spelled correctly.
 **Adding a metric is an edit to `profiles.py` in the same PR** — a new `MetricSpec` with
 its name, direction, weight and `valid_range`, plus a version bump on `DEFAULT_V1`, since
 the profile label is recorded on every run. `structure_deviation`, `translation_score`,
-`off_target_penalty`, `binding_site_accessibility` and `condition_specificity` are real
-fields on the records with **no spec** — they are stored, not scored.
+`binding_site_accessibility` and `condition_specificity` are real fields on the records
+with **no spec** — they are stored, not scored.
 
 ---
 
@@ -122,9 +124,9 @@ pipeline  →  stages  →  gates  →  gates/tools  →  sequences  →  domain
 library. **Nothing imports upward** — a tool that needs to know which stage called it is
 the signal something is in the wrong place.
 
-The one sideways exception: the stage-level tools S1 `stages/folding.py`, S5
-`stages/off_target.py` and S7 `stages/motifs.py` may be imported by sibling stages. One
-screener, three callers. A stage importing another *stage* is not allowed.
+The one sideways exception: the stage-level tools S1 `stages/folding.py` and S7
+`stages/motifs.py` may be imported by sibling stages. One screener, three callers. A
+stage importing another *stage* is not allowed.
 
 `src/engine/` must never import `django`, `apps`, `api` or `config`; platform code imports
 only `engine.contract` and `engine.client`. This half is machine-checked by
@@ -144,15 +146,15 @@ fix the code, do not edit the test.
 
 Every tool is built **once** in `pipeline.build_tools()` and passed down. Your class
 receives them in `__init__` and stores them. Do not write `FoldEngine()`,
-`OffTargetScanner()`, `MotifScreener()`, `CodonOptimizer()`, `TranslationScorer()` or
+`MotifScreener()`, `CodonOptimizer()`, `TranslationScorer()` or
 `FoldProfiler()` anywhere outside `pipeline.py` — not in a stage, not in a gate family,
 not in a helper, not in a loop.
 
 `FoldEngine`'s cache lives on the instance, so a second instance means a cold cache and,
 worse, a second chance to fold at a different temperature — two designs folded at
 different temperatures get normalised onto the same `gate_folding_energy` axis as if
-comparable, and nothing detects it. Same for the index: one `OffTargetScanner`, on the
-same transcriptome build the trigger sequences came from.
+comparable, and nothing detects it. Same for every other tool whose configuration
+decides what its numbers mean.
 
 **Only two modules may `import RNA`:** `src/engine/gates/tools/folding.py` (design-side
 MFE and ensemble, cached) and `src/engine/stages/folding.py` (windowed RNAplfold). Today
@@ -161,9 +163,8 @@ else, never add a second folding library, and never mutate `RNA.cvar.temperature
 process-global and unsafe; model parameters travel on an explicit `RNA.md()`.
 
 Values already computed upstream are **read, not recomputed**:
-`TriggerCandidate.accessibility`, `openness`, `off_target_penalty`,
-`GateDesign.binding_site_off_target`. Recomputing with a slightly different window or
-mismatch model produces two numbers for one quantity, and both get persisted.
+`TriggerCandidate.accessibility` and `openness`. Recomputing with a slightly different
+window produces two numbers for one quantity, and both get persisted.
 
 ---
 
@@ -191,9 +192,8 @@ mutable `RunContext` that accumulates stage state.
 ## 7. Where your code goes
 
 Four destinations for what was one script is normal here — a switch chemistry's
-generator+validation code splits four ways. Generation → `gates/toehold.py`; validation
-→ `stages/switches.py`; off-target → `stages/off_target.py`; visualisation →
-`stages/reporting.py`. (docs/engine.md §5: no possessive or personal names in this
+generator+validation code splits three ways. Generation → `gates/toehold.py`;
+validation → `stages/switches.py`; visualisation → `stages/reporting.py`. (docs/engine.md §5: no possessive or personal names in this
 repo's naming — a pipeline step, not the person who ports it, identifies the row below.)
 
 | Pipeline area | File | Class | Signature to implement |
@@ -203,17 +203,16 @@ repo's naming — a pipeline step, not the person who ports it, identifies the r
 | Trigger Scoring (stage 2) | `src/engine/stages/triggers.py` | `TriggerScorer` | `score(self, genes, sequences: dict[str, str], constraints) -> Iterator[TriggerCandidate]` |
 | Switch generation (stage 3a) | `src/engine/gates/toehold.py` | `ToeholdGate`, `ToeholdAndGate` | `is_compatible`, `generate_designs`, `evaluate_design`, `emit_sequence`, `required_tools` |
 | Switch validation (stage 3b) | `src/engine/stages/switches.py` | `SwitchValidator`, `SwitchDesigner` | `validate(design) -> ValidationResult`; `design(triggers, constraints, *, on_incompatible=None, on_invalid=None) -> Iterator[GateDesign]`; `build_trigger_sets(triggers, constraints) -> Iterator[TriggerSet]` |
-| Circuit Design (stage 4) | `src/engine/stages/circuits.py` | `CircuitDesigner`, `ConfusionEvaluator` | `design(genes, designs, counts) -> Iterator[CircuitCandidate]`; `enumerate_expressions(genes)`; `evaluate(expression, counts, threshold) -> ConfusionMatrix`; `cross_talk_penalty(designs) -> float` |
+| Circuit Design (stage 4) | `src/engine/stages/circuits.py` | `CircuitDesigner`, `ConfusionEvaluator` | `design` and `enumerate_expressions` are **built** (conjunctions up to `Constraints.max_circuit_gates`); `evaluate(expression, counts, threshold) -> ConfusionMatrix` is still a stub, blocked on there being no count matrix in this product |
 | Plasmid Construction (stage 5) | `src/engine/stages/plasmids.py` | `PlasmidBuilder` | `build(circuit, outcome) -> PlasmidDesign`; `payload_segment(outcome) -> Segment` |
 | Compiler's Output (stage 6, S14) | `src/engine/stages/reporting.py` | `StructureRenderer`, `ReportBuilder` | `render_structure(design, output_dir)`; `render_circuit(circuit, output_dir)`; `build(circuits, plasmids, output_dir) -> list[ArtifactRef]` |
 | Antisense / CRISPR gates (unassigned) | `src/engine/gates/antisense.py`, `crispr.py` | `AntisenseNotGate`, `CrisprGate` | both `available = False` today; flipping it is a deliberate declaration |
 | Folding tool (S2, S4 — shared) | `src/engine/gates/tools/folding.py` | `FoldEngine` | `partition`, `ensemble_defect`, `base_pair_probabilities`, `suboptimal`, `versions`; `structure_match()`. **Highest fan-in in the repo — build first** |
 
-Two things have **no home yet** and need a decision before code lands: the CSV →
-`CountMatrix`/`DgeTable` parser (nothing in `src/engine/` parses `JobRequest.input_path`),
-and the supporting-database module (codon tables, transcript sequences, cell atlas,
-backbone). Ask rather than inventing a path — and never let pandas DataFrames travel
-between stages; convert at the edge.
+DE parsing already lives in `src/engine/inputs.py`; reference resolution lives in
+`src/engine/transcriptome.py`. Use those implementations. Raw count/metadata input,
+cell-atlas context and calibrated discrimination require an agreed input specification.
+Never let pandas DataFrames travel between stages; convert at the edge.
 
 Every method annotated `-> Iterator[...]` must actually `yield`; `return list(...)` is the
 violation. Expensive stages call `on_progress(pct, stage)` between batches, not only
@@ -234,8 +233,9 @@ Install once: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`.
 | Lint | `uv run ruff check .` and `uv run ruff format --check .` |
 | Django sanity check | `uv run python manage.py check` |
 
-`tests/engine` is 119 tests in **under half a second** and needs no Django settings — run
-it after every edit; there is no excuse not to. The full suite is ~90 s. Ruff config:
+`tests/engine` needs no Django settings. Run focused tests after edits, then the relevant
+engine/integration suite. Real folding/reference tests can take minutes; use current
+command output for timing and counts rather than historical scaffold estimates. Ruff config:
 line-length 100, target py313, rules `E,F,I,UP,B,C4,DJ,RUF`.
 
 `./do` is a bash wrapper over exactly these commands. It needs Git Bash **and** `uv` on

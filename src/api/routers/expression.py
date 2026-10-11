@@ -15,6 +15,8 @@ from api.schemas import (
     PublicDatasetInfoOut,
     PublicExperimentOut,
 )
+from api.security import require_scope
+from apps.accounts.models import ApiKeyScope
 from apps.datasets.services import DatasetValidationError
 from apps.expression.services import (
     get_comparison_info,
@@ -23,8 +25,17 @@ from apps.expression.services import (
     list_organisms,
     materialize_public_dataset,
 )
+from engine.client import lookup_reference_gene
 
 router = Router()
+
+
+@router.get("/reference-genes/resolve", response=dict)
+def resolve_reference_gene(request, organism: str, gene: str):
+    try:
+        return lookup_reference_gene(organism, gene)
+    except ValueError as exc:
+        raise ValidationFailed(str(exc)) from exc
 
 
 @router.get("/public-datasets/organisms", response=list[OrganismOut], auth=None)
@@ -51,6 +62,7 @@ def materialize(request, payload: MaterializePublicDatasetIn):
     """Copy one curated comparison into a real, owned Dataset — same shape as
     ``POST /api/datasets/example``, generalized from one bundled key to the full
     catalog."""
+    require_scope(request, ApiKeyScope.DESIGN)
     try:
         dataset = materialize_public_dataset(
             user=request.user, comparison_key=payload.comparison_key

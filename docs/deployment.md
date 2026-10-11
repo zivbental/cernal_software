@@ -1,6 +1,8 @@
 # Deployment
 
-> **Planning document for Step 6. Nothing here is implemented yet.** The task list is
+> **Historical cloud design, not a deployed system.** The supported local-worker VM
+> templates and recovery procedures are in [operations.md](operations.md) and `deploy/`.
+> Cloud Run execution below remains unimplemented and unvalidated. The task list is
 > [ROADMAP.md §6](ROADMAP.md); this is the design and the reasoning behind it.
 >
 > The engine's internals are in [engine.md](engine.md); the boundary this depends on is

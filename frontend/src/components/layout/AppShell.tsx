@@ -6,15 +6,13 @@
  */
 
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LogOut, Settings, User } from "lucide-react";
+import { CircuitBoard, LogOut, Settings, User } from "lucide-react";
 import type { ReactNode } from "react";
 
 import cernalLogo from "@/assets/cernal-logo-animated.svg";
 import { useLogout, useMe, useVersion } from "@/api/queries";
 
 const NAV = [
-  // The compiler is the product's front door, so it leads.
-  { to: "/compile", label: "New Circuit" },
   { to: "/dashboard", label: "Dashboard" },
   { to: "/guide", label: "Quick Guide" },
   { to: "/use-cases", label: "Use Cases" },
@@ -22,6 +20,20 @@ const NAV = [
   { to: "/api-docs", label: "API Reference" },
   { to: "/about", label: "About Us" },
 ] as const;
+
+/** The compiler is the product's front door — its own CTA styling (same solid
+ * bg-foreground treatment as the dashboard's "New circuit" buttons) rather than one
+ * more entry in the muted-text nav list, so it reads as the thing to click next. */
+function NewCircuitLink({ className = "" }: { className?: string }) {
+  return (
+    <Link
+      to="/compile"
+      className={`inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition hover:opacity-90 ${className}`}
+    >
+      <CircuitBoard className="h-3.5 w-3.5" /> New Circuit
+    </Link>
+  );
+}
 
 function Nav() {
   const { data: user } = useMe();
@@ -31,12 +43,13 @@ function Nav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   async function onLogout() {
-    await logout.mutateAsync();
-    navigate({ to: "/login" });
+    try { await logout.mutateAsync();
+    navigate({ to: "/login" }); } catch { /* error is rendered below */ }
   }
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
+      {logout.isError && <p role="alert" className="text-xs text-destructive">Sign out failed. Please retry.</p>}
       <div className="mx-auto flex min-h-16 max-w-[1400px] items-center justify-between gap-3 px-4 py-2 sm:px-8">
         <div className="flex min-w-0 items-center gap-4 lg:gap-8">
           <Link to="/dashboard" className="flex items-center gap-2.5">
@@ -47,6 +60,7 @@ function Nav() {
             />
           </Link>
           <nav aria-label="Primary navigation" className="hidden min-w-0 flex-wrap items-center gap-1 lg:flex">
+            <NewCircuitLink className="mr-1" />
             {NAV.map((item) => {
               const active = pathname.startsWith(item.to);
               return (
@@ -109,8 +123,9 @@ function Nav() {
       </div>
       <nav
         aria-label="Primary navigation"
-        className="flex flex-wrap gap-1 border-t border-border px-4 py-2 sm:px-8 lg:hidden"
+        className="flex flex-wrap items-center gap-1 border-t border-border px-4 py-2 sm:px-8 lg:hidden"
       >
+        <NewCircuitLink />
         {NAV.map((item) => (
           <Link
             key={item.to}
@@ -132,7 +147,6 @@ function Nav() {
 
 function Footer() {
   const { data: version } = useVersion();
-  const mock = version?.engine === "MockEngine";
 
   return (
     <footer className="mx-auto flex max-w-[1400px] items-center justify-between border-t border-border px-8 py-6 font-mono text-[11px] text-muted-foreground">
@@ -140,9 +154,8 @@ function Footer() {
       <div className="flex items-center gap-4">
         <span>{version ? `v${version.app_version}` : "—"}</span>
         <span className="flex items-center gap-1.5" title={version?.engine_version}>
-          <span className={`h-1.5 w-1.5 rounded-full ${mock ? "bg-amber-500" : "bg-mint"}`} />
-          {/* Never let a demo be mistaken for real science. */}
-          {mock ? "Mock engine — results are simulated" : "All systems operational"}
+          <span className="h-1.5 w-1.5 rounded-full bg-mint" />
+          {version?.engine ?? "—"}
         </span>
       </div>
     </footer>

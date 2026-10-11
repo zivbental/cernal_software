@@ -1,0 +1,2001 @@
+{
+  "catalog_manifest_sha256": "8b8871cf2a719f798c44c2478a6ae1a39ec9838072cf7e4c63548966b89f683b",
+  "comparisons": [
+    {
+      "accepted": 1,
+      "artifact_count": 5,
+      "candidates": 1,
+      "catalog_key": "ecoli__105638__44541816",
+      "checksum_matches_catalog": true,
+      "comparison_label": "Continuous culture no oxygen / 15 min exposure to oxygen",
+      "elapsed_seconds": 150.671,
+      "engine_commit": "db333b0e0f14d2498c1b506c975aba12f4c91ce2",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "ecoli",
+      "outcome": "productive",
+      "provider_metadata": {
+        "bioset_id": "44541816",
+        "catalog_schema_version": "2",
+        "csv_sha256": "b1ce3d84d956dcd5907138389d1c3076b70c6845f3669bd0f42790e98cc22da0",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "recorded_at": "2026-10-08T15:29:31.169135+00:00",
+      "rejected": 0,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 0,
+        "selected_genes": [
+          {
+            "gene_id": "b2094",
+            "log2_fold_change": -5.514,
+            "regulation": "down",
+            "symbol": "gatA"
+          },
+          {
+            "gene_id": "b1541",
+            "log2_fold_change": -1.848,
+            "regulation": "down",
+            "symbol": "ydfZ"
+          },
+          {
+            "gene_id": "b3917",
+            "log2_fold_change": 3.028,
+            "regulation": "up",
+            "symbol": "sbp"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+          "16 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "b2092",
+          "b4205",
+          "b0499",
+          "b3135",
+          "b1470",
+          "b4286",
+          "b1152",
+          "b0230",
+          "b4308",
+          "b0236"
+        ],
+        "unmapped_rows": 31
+      },
+      "source_checksum": "b1ce3d84d956dcd5907138389d1c3076b70c6845f3669bd0f42790e98cc22da0",
+      "source_url": "https://www.bv-brc.org/view/Bioset/44541816",
+      "terminal_status": "succeeded",
+      "warnings": [
+        "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+        "16 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "2 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 1 gene(s) from the differential-expression table (best: sbp, log2FC=3.03); scanned their real transcripts and kept 50 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 1,
+      "artifact_count": 5,
+      "candidates": 1,
+      "catalog_key": "ecoli__138294__67644164",
+      "checksum_matches_catalog": true,
+      "comparison_label": "Heat-Shocked 15 min / Recombinant T0",
+      "elapsed_seconds": 195.097,
+      "engine_commit": "db333b0e0f14d2498c1b506c975aba12f4c91ce2",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "ecoli",
+      "outcome": "productive",
+      "provider_metadata": {
+        "bioset_id": "67644164",
+        "catalog_schema_version": "2",
+        "csv_sha256": "452d25b413d6c3f3a6eec321da41adfe166578c95fc17492c2bc1fe5012f1cf0",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "recorded_at": "2026-10-08T15:29:31.169135+00:00",
+      "rejected": 0,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 0,
+        "selected_genes": [
+          {
+            "gene_id": "b1060",
+            "log2_fold_change": 6.302,
+            "regulation": "up",
+            "symbol": "bssS"
+          },
+          {
+            "gene_id": "b3687",
+            "log2_fold_change": 5.708,
+            "regulation": "up",
+            "symbol": "ibpA"
+          },
+          {
+            "gene_id": "b1685",
+            "log2_fold_change": -2.921,
+            "regulation": "down",
+            "symbol": "ydiH"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+          "26 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "b3595",
+          "b0691",
+          "b0705",
+          "b2083",
+          "b0218",
+          "b2648",
+          "b4308",
+          "b2238",
+          "b1579",
+          "b0703"
+        ],
+        "unmapped_rows": 33
+      },
+      "source_checksum": "452d25b413d6c3f3a6eec321da41adfe166578c95fc17492c2bc1fe5012f1cf0",
+      "source_url": "https://www.bv-brc.org/view/Bioset/67644164",
+      "terminal_status": "succeeded",
+      "warnings": [
+        "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+        "26 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: bssS, log2FC=6.30); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 1,
+      "artifact_count": 5,
+      "candidates": 1,
+      "catalog_key": "ecoli__85809__68952326",
+      "checksum_matches_catalog": true,
+      "comparison_label": "thymineless - 90 / control - 0",
+      "elapsed_seconds": 40.556,
+      "engine_commit": "db333b0e0f14d2498c1b506c975aba12f4c91ce2",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "ecoli",
+      "outcome": "productive",
+      "provider_metadata": {
+        "bioset_id": "68952326",
+        "catalog_schema_version": "2",
+        "csv_sha256": "e42c2b50e009a4e78f79d99579cf90f5bb1fe713d9e860013302dfa8ce1db360",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "recorded_at": "2026-10-08T15:29:31.169135+00:00",
+      "rejected": 0,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 0,
+        "selected_genes": [
+          {
+            "gene_id": "b4243",
+            "log2_fold_change": -2.977,
+            "regulation": "down",
+            "symbol": "yjgF"
+          },
+          {
+            "gene_id": "b2497",
+            "log2_fold_change": -3.239,
+            "regulation": "down",
+            "symbol": "uraA"
+          },
+          {
+            "gene_id": "b1973",
+            "log2_fold_change": 4.577,
+            "regulation": "up",
+            "symbol": "yodA"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+          "2 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "b2092",
+          "b0705",
+          "b3268",
+          "b1152",
+          "b0691",
+          "b0539",
+          "b4286",
+          "b2648",
+          "b1362",
+          "b2238"
+        ],
+        "unmapped_rows": 30
+      },
+      "source_checksum": "e42c2b50e009a4e78f79d99579cf90f5bb1fe713d9e860013302dfa8ce1db360",
+      "source_url": "https://www.bv-brc.org/view/Bioset/68952326",
+      "terminal_status": "succeeded",
+      "warnings": [
+        "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+        "2 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "2 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 1 gene(s) from the differential-expression table (best: yodA, log2FC=4.58); scanned their real transcripts and kept 50 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 1,
+      "artifact_count": 5,
+      "candidates": 1,
+      "catalog_key": "ecoli__88048__42635036",
+      "checksum_matches_catalog": true,
+      "comparison_label": "0 min after Ampicillin (100 ug/ml) / 0 min before treatment",
+      "elapsed_seconds": 79.763,
+      "engine_commit": "db333b0e0f14d2498c1b506c975aba12f4c91ce2",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "ecoli",
+      "outcome": "productive",
+      "provider_metadata": {
+        "bioset_id": "42635036",
+        "catalog_schema_version": "2",
+        "csv_sha256": "65db01d06301430c7dfcff9b494da5df39b8cab9f171c765bdd8fd10aabaf59c",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "recorded_at": "2026-10-08T15:29:31.169135+00:00",
+      "rejected": 0,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 0,
+        "selected_genes": [
+          {
+            "gene_id": "b1264",
+            "log2_fold_change": -3.518,
+            "regulation": "down",
+            "symbol": "trpE"
+          },
+          {
+            "gene_id": "b4243",
+            "log2_fold_change": 1.523,
+            "regulation": "up",
+            "symbol": "yjgF"
+          },
+          {
+            "gene_id": "b4202",
+            "log2_fold_change": 0.955,
+            "regulation": "up",
+            "symbol": "rpsR"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+          "5 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "b1456",
+          "b1470",
+          "b2092",
+          "b3135",
+          "b4339",
+          "b1579",
+          "b4308",
+          "b2681",
+          "b1152",
+          "b4271"
+        ],
+        "unmapped_rows": 34
+      },
+      "source_checksum": "65db01d06301430c7dfcff9b494da5df39b8cab9f171c765bdd8fd10aabaf59c",
+      "source_url": "https://www.bv-brc.org/view/Bioset/42635036",
+      "terminal_status": "succeeded",
+      "warnings": [
+        "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+        "5 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: yjgF, log2FC=1.52); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 1,
+      "artifact_count": 5,
+      "candidates": 1,
+      "catalog_key": "ecoli__92117__44313016",
+      "checksum_matches_catalog": true,
+      "comparison_label": "WT aerobic pH 8.7 / WT aerobic pH 7.0",
+      "elapsed_seconds": 141.9,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "ecoli",
+      "outcome": "productive",
+      "provider_metadata": {
+        "bioset_id": "44313016",
+        "catalog_schema_version": "2",
+        "csv_sha256": "f3c666e557f115dcf9e82ae116b66c686c84157287e8572b19ec7115b0853cb2",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "W3110"
+      },
+      "recorded_at": "2026-10-08T15:38:48.303803+00:00",
+      "rejected": 0,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 0,
+        "selected_genes": [
+          {
+            "gene_id": "b1923",
+            "log2_fold_change": -5.716,
+            "regulation": "down",
+            "symbol": "fliC"
+          },
+          {
+            "gene_id": "b1887",
+            "log2_fold_change": -3.993,
+            "regulation": "down",
+            "symbol": "cheW"
+          },
+          {
+            "gene_id": "b0163",
+            "log2_fold_change": 1.33,
+            "regulation": "up",
+            "symbol": "yaeH"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+          "21 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "b0691",
+          "b2238",
+          "b1470",
+          "b2092",
+          "b2915",
+          "b0229",
+          "b0218",
+          "b4281",
+          "b0263",
+          "b1579"
+        ],
+        "unmapped_rows": 36
+      },
+      "selection_elapsed_seconds": 63.72,
+      "source_checksum": "f3c666e557f115dcf9e82ae116b66c686c84157287e8572b19ec7115b0853cb2",
+      "source_url": "https://www.bv-brc.org/view/Bioset/44313016",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 63.721,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 63.721,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 141.259,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 141.83,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 141.837,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 141.882,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 141.891,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 141.891,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "The input table has no adjusted or raw p-value column; significance was not assessed, and ranking relies on effect size and the other axes alone.",
+        "21 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "2 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 1 gene(s) from the differential-expression table (best: yaeH, log2FC=1.33); scanned their real transcripts and kept 50 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidates": 1,
+      "catalog_key": "human__E-CURD-149__g3_g1",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'bacterial disease' vs 'normal'",
+      "elapsed_seconds": 62.153,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "human",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "55d87df07f0dec0059609d5d6f6634cac4559ae2e0a881bcdac3b9764122fc84",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "recorded_at": "2026-10-08T15:38:49.477755+00:00",
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 1030,
+        "selected_genes": [
+          {
+            "gene_id": "ENSG00000263503",
+            "log2_fold_change": -23.1,
+            "regulation": "down",
+            "symbol": "MAPK8IP1P2"
+          },
+          {
+            "gene_id": "ENSG00000222335",
+            "log2_fold_change": 5.5,
+            "regulation": "up",
+            "symbol": "Y_RNA"
+          },
+          {
+            "gene_id": "ENSG00000118113",
+            "log2_fold_change": 10.0,
+            "regulation": "up",
+            "symbol": "MMP8"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "Raw p-value coverage is 34%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+          "ENSG00000200648 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "17 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "ENSG00000253931",
+          "ENSG00000288266",
+          "ENSG00000227920",
+          "ENSG00000279764",
+          "ENSG00000280276",
+          "ENSG00000289830",
+          "ENSG00000232692",
+          "ENSG00000234998",
+          "ENSG00000280360",
+          "ENSG00000278266"
+        ],
+        "unmapped_rows": 134
+      },
+      "selection_elapsed_seconds": 27.85,
+      "source_checksum": "55d87df07f0dec0059609d5d6f6634cac4559ae2e0a881bcdac3b9764122fc84",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-CURD-149/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 27.85,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 27.851,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 54.978,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 62.047,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 62.056,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 62.135,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 62.135,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "Human expression constructs use a CMV promoter and hGH polyadenylation signal. Mammalian expression and switch activity are computational predictions, not wet-lab validated. The GFP payload is not human-codon-optimized.",
+        "No restriction-based assembly standard is selected for this Human construct; cloning overlaps and a wet-lab assembly protocol have not been designed.",
+        "No backbone supplied: this is a Human expression cassette. Supply a custom mammalian GenBank backbone to assemble a complete vector.",
+        "Raw p-value coverage is 34%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "ENSG00000200648 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "17 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: Y_RNA, log2FC=5.50); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidates": 1,
+      "catalog_key": "human__E-CURD-45__g2_g1",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'neoplasm' vs 'normal tissue adjacent to neoplasm'",
+      "elapsed_seconds": 431.834,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "human",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "c0f51cdfd0bd5526e8430c74816f5884d6fd88432acdd13b686f12c24e960a4d",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "recorded_at": "2026-10-08T15:38:50.625640+00:00",
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 3000,
+        "selected_genes": [
+          {
+            "gene_id": "ENSG00000264425",
+            "log2_fold_change": 5.7,
+            "regulation": "up",
+            "symbol": "MIR4653"
+          },
+          {
+            "gene_id": "ENSG00000251424",
+            "log2_fold_change": -8.2,
+            "regulation": "down",
+            "symbol": ""
+          },
+          {
+            "gene_id": "ENSG00000140505",
+            "log2_fold_change": -9.4,
+            "regulation": "down",
+            "symbol": "CYP1A2"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+          "ENSG00000239093 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000207279 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000266151 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000274824 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000207278 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000252984 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "99 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "ENSG00000243135",
+          "ENSG00000279218",
+          "ENSG00000279444",
+          "ENSG00000279428",
+          "ENSG00000256863",
+          "ENSG00000278967",
+          "ENSG00000233376",
+          "ENSG00000253931",
+          "ENSG00000224758",
+          "ENSG00000238266"
+        ],
+        "unmapped_rows": 103
+      },
+      "selection_elapsed_seconds": 208.784,
+      "source_checksum": "c0f51cdfd0bd5526e8430c74816f5884d6fd88432acdd13b686f12c24e960a4d",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-CURD-45/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 208.785,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 208.785,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 431.649,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 431.733,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 431.742,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 431.821,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 431.821,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "Human expression constructs use a CMV promoter and hGH polyadenylation signal. Mammalian expression and switch activity are computational predictions, not wet-lab validated. The GFP payload is not human-codon-optimized.",
+        "No restriction-based assembly standard is selected for this Human construct; cloning overlaps and a wet-lab assembly protocol have not been designed.",
+        "No backbone supplied: this is a Human expression cassette. Supply a custom mammalian GenBank backbone to assemble a complete vector.",
+        "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "ENSG00000239093 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000207279 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000266151 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000274824 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000207278 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000252984 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "99 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "2 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 1 gene(s) from the differential-expression table (best: MIR4653, log2FC=5.70); scanned their real transcripts and kept 50 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidates": 1,
+      "catalog_key": "human__E-GEOD-103501__g3_g1",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'Growth Medium' vs 'none' in 'normal'",
+      "elapsed_seconds": 464.091,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "human",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "normal",
+        "configuration_sha256": "0661bfca40eb651d53b488d22cac3aadf08ec56dbb535e2c24ea9d83a7b9ea75",
+        "configuration_url": "https://ftp.ebi.ac.uk/pub/databases/microarray/data/atlas/experiments/E-GEOD-103501/E-GEOD-103501-configuration.xml",
+        "contrast_metadata_verified_at": "2026-10-08",
+        "csv_sha256": "39b13a870d613c015d6cf72fa31e3e02b072d6cbe386b1fddce62a5ac757fa00",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_note": "Healthy/normal monocyte culture medium versus ex vivo/none; not arthritis versus healthy and not an LPS-stimulation comparison.",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "reference_assay_group": "g3",
+        "reference_assays": [
+          "SRR6006896",
+          "SRR6006895",
+          "SRR6006898",
+          "SRR6006897",
+          "SRR6006899"
+        ],
+        "reference_group_label": "normal; none",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "test_assay_group": "g1",
+        "test_assays": [
+          "SRR6006877",
+          "SRR6006878",
+          "SRR6006876",
+          "SRR6006875"
+        ],
+        "test_group_label": "normal; Growth Medium"
+      },
+      "recorded_at": "2026-10-08T15:38:48.303803+00:00",
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 2996,
+        "selected_genes": [
+          {
+            "gene_id": "ENSG00000212195",
+            "log2_fold_change": -5.6,
+            "regulation": "down",
+            "symbol": "U3"
+          },
+          {
+            "gene_id": "ENSG00000278596",
+            "log2_fold_change": -4.5,
+            "regulation": "down",
+            "symbol": "MIR6077"
+          },
+          {
+            "gene_id": "ENSG00000115414",
+            "log2_fold_change": 8.8,
+            "regulation": "up",
+            "symbol": "FN1"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+          "ENSG00000274210 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000283527 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000207308 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000200648 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000264354 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000266698 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000252549 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000252768 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000202119 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000207490 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000222579 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000263712 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000206712 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000207310 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000221740 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000252128 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000252614 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000283296 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000206700 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000222320 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000207267 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000207194 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000252652 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000263828 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "ENSG00000271819 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "101 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "ENSG00000233818",
+          "ENSG00000229646",
+          "ENSG00000278886",
+          "ENSG00000279365",
+          "ENSG00000280060",
+          "ENSG00000234290",
+          "ENSG00000275993",
+          "ENSG00000258831",
+          "ENSG00000279518",
+          "ENSG00000257715"
+        ],
+        "unmapped_rows": 106
+      },
+      "selection_elapsed_seconds": 212.198,
+      "source_checksum": "39b13a870d613c015d6cf72fa31e3e02b072d6cbe386b1fddce62a5ac757fa00",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-GEOD-103501/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 212.198,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 212.199,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 450.004,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 464.004,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 464.016,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 464.076,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 464.085,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 464.085,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "Human expression constructs use a CMV promoter and hGH polyadenylation signal. Mammalian expression and switch activity are computational predictions, not wet-lab validated. The GFP payload is not human-codon-optimized.",
+        "No restriction-based assembly standard is selected for this Human construct; cloning overlaps and a wet-lab assembly protocol have not been designed.",
+        "No backbone supplied: this is a Human expression cassette. Supply a custom mammalian GenBank backbone to assemble a complete vector.",
+        "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "ENSG00000274210 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000283527 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000207308 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000200648 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000264354 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000266698 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000252549 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000252768 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000202119 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000207490 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000222579 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000263712 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000206712 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000207310 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000221740 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000252128 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000252614 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000283296 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000206700 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000222320 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000207267 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000207194 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000252652 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000263828 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "ENSG00000271819 has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "101 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "2 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 1 gene(s) from the differential-expression table (best: FN1, log2FC=8.80); scanned their real transcripts and kept 50 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidates": 1,
+      "catalog_key": "human__E-GEOD-54112__g2_g1",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'ZNF804A knockdown' vs 'control' in 'neural progenitor cell'",
+      "elapsed_seconds": 90.165,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "human",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "neural progenitor cell",
+        "csv_sha256": "fb2138fef40828a92260232b97c327bddb8b21281669ad09d03048e2295c6ec1",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "recorded_at": "2026-10-08T15:38:49.477755+00:00",
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 2567,
+        "selected_genes": [
+          {
+            "gene_id": "ENSG00000189060",
+            "log2_fold_change": 1.5,
+            "regulation": "up",
+            "symbol": "H1-0"
+          },
+          {
+            "gene_id": "ENSG00000197587",
+            "log2_fold_change": 1.6,
+            "regulation": "up",
+            "symbol": "DMBX1"
+          },
+          {
+            "gene_id": "ENSG00000231868",
+            "log2_fold_change": -1.3,
+            "regulation": "down",
+            "symbol": ""
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "Raw p-value coverage is 86%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection."
+        ],
+        "unmapped_identifiers_sample": [
+          "ENSG00000273729",
+          "ENSG00000279675",
+          "ENSG00000280344",
+          "ENSG00000206532",
+          "ENSG00000280135",
+          "ENSG00000182912",
+          "ENSG00000231305",
+          "ENSG00000269974",
+          "ENSG00000279656",
+          "ENSG00000280079"
+        ],
+        "unmapped_rows": 65
+      },
+      "selection_elapsed_seconds": 40.382,
+      "source_checksum": "fb2138fef40828a92260232b97c327bddb8b21281669ad09d03048e2295c6ec1",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-GEOD-54112/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 40.383,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 40.383,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 75.68,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 90.06,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 90.073,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 90.149,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 90.149,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "Human expression constructs use a CMV promoter and hGH polyadenylation signal. Mammalian expression and switch activity are computational predictions, not wet-lab validated. The GFP payload is not human-codon-optimized.",
+        "No restriction-based assembly standard is selected for this Human construct; cloning overlaps and a wet-lab assembly protocol have not been designed.",
+        "No backbone supplied: this is a Human expression cassette. Supply a custom mammalian GenBank backbone to assemble a complete vector.",
+        "Raw p-value coverage is 86%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: H1-0, log2FC=1.50); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidates": 1,
+      "catalog_key": "human__E-MTAB-2580__g1_g2",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'hypoxic condition' vs 'normoxic condition' in 'REST RNA inference'",
+      "elapsed_seconds": 440.957,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "human",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "REST RNA inference",
+        "csv_sha256": "4db6c15cee0e55a6138a7988586ee7c3a3fb3c3ace9b5a75104ff074aebf8374",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "recorded_at": "2026-10-08T15:38:50.625640+00:00",
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 2989,
+        "selected_genes": [
+          {
+            "gene_id": "ENSG00000247095",
+            "log2_fold_change": -1.8,
+            "regulation": "down",
+            "symbol": "MIR210HG"
+          },
+          {
+            "gene_id": "ENSG00000211459",
+            "log2_fold_change": -1.7,
+            "regulation": "down",
+            "symbol": "MT-RNR1"
+          },
+          {
+            "gene_id": "ENSG00000259431",
+            "log2_fold_change": 0.5,
+            "regulation": "up",
+            "symbol": "THTPA"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+          "26 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "ENSG00000210082",
+          "ENSG00000116883",
+          "ENSG00000279369",
+          "ENSG00000235609",
+          "ENSG00000261428",
+          "ENSG00000279092",
+          "ENSG00000280239",
+          "ENSG00000163009",
+          "ENSG00000225205",
+          "ENSG00000261534"
+        ],
+        "unmapped_rows": 35
+      },
+      "selection_elapsed_seconds": 238.107,
+      "source_checksum": "4db6c15cee0e55a6138a7988586ee7c3a3fb3c3ace9b5a75104ff074aebf8374",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-MTAB-2580/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 238.107,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 238.108,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 436.508,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 440.88,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 440.888,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 440.95,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 440.95,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "Human expression constructs use a CMV promoter and hGH polyadenylation signal. Mammalian expression and switch activity are computational predictions, not wet-lab validated. The GFP payload is not human-codon-optimized.",
+        "No restriction-based assembly standard is selected for this Human construct; cloning overlaps and a wet-lab assembly protocol have not been designed.",
+        "No backbone supplied: this is a Human expression cassette. Supply a custom mammalian GenBank backbone to assemble a complete vector.",
+        "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "26 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "2 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 1 gene(s) from the differential-expression table (best: THTPA, log2FC=0.50); scanned their real transcripts and kept 50 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidates": 1,
+      "catalog_key": "yeast__E-GEOD-59814__g1_g2",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'acs1\u0394  acs2\u0394 pUDC140: CEN6 ARS4 pdhA pdhB aceF lpd lplA lplA2' vs 'wild type genotype'",
+      "elapsed_seconds": 58.215,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "yeast",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "ba9d9015d4a8dac5a9944dca8960f76e5dc3eb212176ad76c7561e0360ff00bf",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "recorded_at": "2026-10-08T15:38:48.303803+00:00",
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 3000,
+        "selected_genes": [
+          {
+            "gene_id": "YAR035C-A",
+            "log2_fold_change": 1.1,
+            "regulation": "up",
+            "symbol": ""
+          },
+          {
+            "gene_id": "YNR075C-A",
+            "log2_fold_change": 0.6,
+            "regulation": "up",
+            "symbol": ""
+          },
+          {
+            "gene_id": "YPL223C",
+            "log2_fold_change": -1.8,
+            "regulation": "down",
+            "symbol": ""
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+          "YER053C-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "47 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "YPL276W",
+          "YBR116C",
+          "YDR112W",
+          "YGR051C",
+          "YHR095W",
+          "YAR073W",
+          "YLR349W",
+          "YMR304C-A",
+          "YNL013C",
+          "YOR203W"
+        ],
+        "unmapped_rows": 338
+      },
+      "selection_elapsed_seconds": 29.764,
+      "source_checksum": "ba9d9015d4a8dac5a9944dca8960f76e5dc3eb212176ad76c7561e0360ff00bf",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-GEOD-59814/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 29.764,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 29.765,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 58.029,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 58.142,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 58.15,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 58.204,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 58.204,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "YER053C-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "47 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: YAR035C-A, log2FC=1.10); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidates": 1,
+      "catalog_key": "yeast__E-MTAB-10511__g5_g2",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'isw1delta' vs 'wild type genotype' in 'none' at '0 hour'",
+      "elapsed_seconds": 6.265,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "yeast",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "none at 0 hour",
+        "csv_sha256": "c35b10437b963e958dbcc202fde536a24a01f925572a32f5f91e1647cedd5a83",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "recorded_at": "2026-10-08T15:38:49.477755+00:00",
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 2996,
+        "selected_genes": [
+          {
+            "gene_id": "YBR245C",
+            "log2_fold_change": -14.0,
+            "regulation": "down",
+            "symbol": "ISW1"
+          },
+          {
+            "gene_id": "YFR057W",
+            "log2_fold_change": 4.6,
+            "regulation": "up",
+            "symbol": ""
+          },
+          {
+            "gene_id": "YOR214C",
+            "log2_fold_change": 2.5,
+            "regulation": "up",
+            "symbol": "SPR2"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "1 duplicate gene_id row(s) in the input table; the first occurrence of each was kept.",
+          "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+          "1 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "tF(GAA)B",
+          "tK(CUU)E2",
+          "tK(CUU)D1",
+          "RDN5-6",
+          "RUF5-2",
+          "YDR543C",
+          "YER172C-A",
+          "tA(AGC)J",
+          "tR(UCU)E",
+          "tK(CUU)J"
+        ],
+        "unmapped_rows": 635
+      },
+      "selection_elapsed_seconds": 2.142,
+      "source_checksum": "c35b10437b963e958dbcc202fde536a24a01f925572a32f5f91e1647cedd5a83",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-MTAB-10511/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 2.143,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 2.144,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 4.14,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 6.178,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 6.188,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 6.253,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 6.253,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "1 duplicate gene_id row(s) in the input table; the first occurrence of each was kept.",
+        "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "1 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: YFR057W, log2FC=4.60); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidates": 1,
+      "catalog_key": "yeast__E-MTAB-4651__g7_g1",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'DAL81 deletion' vs 'wild type genotype' in 'chemically defined medium 35 complete'",
+      "elapsed_seconds": 24.598,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "yeast",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "chemically defined medium 35 complete",
+        "csv_sha256": "6c585ae3a291a3373563f74fd7d526206e64b9fafb7e4ab577ce2a522e2ea4df",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "recorded_at": "2026-10-08T15:38:50.625640+00:00",
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 2978,
+        "selected_genes": [
+          {
+            "gene_id": "YIR023W",
+            "log2_fold_change": -5.1,
+            "regulation": "down",
+            "symbol": "DAL81"
+          },
+          {
+            "gene_id": "YNL145W",
+            "log2_fold_change": 0.5,
+            "regulation": "up",
+            "symbol": ""
+          },
+          {
+            "gene_id": "YDR461W",
+            "log2_fold_change": 1.2,
+            "regulation": "up",
+            "symbol": ""
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "1 duplicate gene_id row(s) in the input table; the first occurrence of each was kept.",
+          "Raw p-value coverage is 99%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+          "6 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "YDR509W",
+          "YER068C-A",
+          "YIR023C-A",
+          "YMR135W-A",
+          "YAR047C",
+          "YDL023C",
+          "YGL182C",
+          "YLR366W",
+          "RNA170",
+          "YBR051W"
+        ],
+        "unmapped_rows": 325
+      },
+      "selection_elapsed_seconds": 12.042,
+      "source_checksum": "6c585ae3a291a3373563f74fd7d526206e64b9fafb7e4ab577ce2a522e2ea4df",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-MTAB-4651/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 12.042,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 12.043,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 24.355,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 24.523,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 24.531,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 24.586,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 24.586,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "1 duplicate gene_id row(s) in the input table; the first occurrence of each was kept.",
+        "Raw p-value coverage is 99%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "6 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: YNL145W, log2FC=0.50); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidates": 1,
+      "catalog_key": "yeast__E-MTAB-5313__g1_g2",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'sodium chloride 0.4 molar' at '15 minute' vs 'none' at '0 minute'",
+      "elapsed_seconds": 347.936,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "yeast",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "b8aec76d60dda946175371eef653f0014d64a1cffd7fab80ed23b6f5c7f98fec",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "recorded_at": "2026-10-08T15:38:48.303803+00:00",
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 3000,
+        "selected_genes": [
+          {
+            "gene_id": "YHR087W",
+            "log2_fold_change": 6.7,
+            "regulation": "up",
+            "symbol": ""
+          },
+          {
+            "gene_id": "YDR524C-B",
+            "log2_fold_change": -4.7,
+            "regulation": "down",
+            "symbol": ""
+          },
+          {
+            "gene_id": "YMR169C",
+            "log2_fold_change": 7.4,
+            "regulation": "up",
+            "symbol": ""
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "1 duplicate gene_id row(s) in the input table; the first occurrence of each was kept.",
+          "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+          "YKL106C-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "YER053C-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "YGR174W-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "YIL046W-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "YGL006W-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "239 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "YOL150C",
+          "ENSRNA049609035",
+          "YBR116C",
+          "YDL023C",
+          "YMR324C",
+          "YIR017W-A",
+          "YOR309C",
+          "ENSRNA049607866",
+          "YHR095W",
+          "YLR252W"
+        ],
+        "unmapped_rows": 354
+      },
+      "selection_elapsed_seconds": 174.727,
+      "source_checksum": "b8aec76d60dda946175371eef653f0014d64a1cffd7fab80ed23b6f5c7f98fec",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-MTAB-5313/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 174.727,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 174.727,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 345.479,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 347.877,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 347.883,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 347.928,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 347.928,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "1 duplicate gene_id row(s) in the input table; the first occurrence of each was kept.",
+        "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "YKL106C-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "YER053C-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "YGR174W-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "YIL046W-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "YGL006W-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "239 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: YHR087W, log2FC=6.70); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    },
+    {
+      "accepted": 0,
+      "artifact_count": 3,
+      "candidates": 1,
+      "catalog_key": "yeast__E-MTAB-7657__g3_g1",
+      "checksum_matches_catalog": true,
+      "comparison_label": "'14 hour' vs '6 hour'",
+      "elapsed_seconds": 439.873,
+      "engine_commit": "ee27a200d667f246989dd8e08696f97093ab6a9b",
+      "engine_version": "local-0.10.0-scientific-qa",
+      "error": null,
+      "organism": "yeast",
+      "outcome": "valid_empty",
+      "provider_metadata": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "1525a033eccd1029b7bd12f16791b93347bd7dec24451de206d161e44c537a98",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "recorded_at": "2026-10-08T15:38:49.477755+00:00",
+      "rejected": 1,
+      "scientific_provenance": {
+        "design_budget": {
+          "evaluated_gate_designs": 1,
+          "max_designs": 1,
+          "selection": "deterministic_generator_order",
+          "truncated": true
+        },
+        "experimental_validation": "unavailable",
+        "off_target_screen": "unmeasured",
+        "output_semantics": "alternative_single_payload_constructs_cross_product",
+        "schema": "cernal-scientific-provenance-v1",
+        "scoring_profile": "default",
+        "scoring_profile_version": "v3-computational-proxies",
+        "seed": 42,
+        "tool_versions": {
+          "ViennaRNA": "2.7.2",
+          "temperature_c": "37.0"
+        }
+      },
+      "selection": {
+        "rows": 3000,
+        "rows_with_adjusted_p_value": 0,
+        "rows_with_p_value": 3000,
+        "selected_genes": [
+          {
+            "gene_id": "YDR119W-A",
+            "log2_fold_change": 5.4,
+            "regulation": "up",
+            "symbol": "COX26"
+          },
+          {
+            "gene_id": "YAR035C-A",
+            "log2_fold_change": 3.4,
+            "regulation": "up",
+            "symbol": ""
+          },
+          {
+            "gene_id": "YDL184C",
+            "log2_fold_change": -3.1,
+            "regulation": "down",
+            "symbol": "RPL41A"
+          }
+        ],
+        "selection_error": null,
+        "selection_warnings": [
+          "2 duplicate gene_id row(s) in the input table; the first occurrence of each was kept.",
+          "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+          "YGL006W-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "YGR174W-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+          "257 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2."
+        ],
+        "unmapped_identifiers_sample": [
+          "tA(AGC)F",
+          "snR59",
+          "tH(GUG)G1",
+          "YCL074W",
+          "YOR121C",
+          "YMR119W-A",
+          "YHR071C-A",
+          "snR128",
+          "snR24",
+          "snR39"
+        ],
+        "unmapped_rows": 401
+      },
+      "selection_elapsed_seconds": 207.695,
+      "source_checksum": "1525a033eccd1029b7bd12f16791b93347bd7dec24451de206d161e44c537a98",
+      "source_url": "https://www.ebi.ac.uk/gxa/experiments/E-MTAB-7657/Results",
+      "stage_progress": [
+        {
+          "elapsed_seconds": 207.696,
+          "stage": "Validating inputs"
+        },
+        {
+          "elapsed_seconds": 207.696,
+          "stage": "Selecting genes"
+        },
+        {
+          "elapsed_seconds": 439.481,
+          "stage": "Scoring triggers"
+        },
+        {
+          "elapsed_seconds": 439.788,
+          "stage": "Designing switches"
+        },
+        {
+          "elapsed_seconds": 439.801,
+          "stage": "Evaluating payload context"
+        },
+        {
+          "elapsed_seconds": 439.86,
+          "stage": "Designing circuits"
+        },
+        {
+          "elapsed_seconds": 439.86,
+          "stage": "Writing report"
+        }
+      ],
+      "terminal_status": "succeeded",
+      "warnings": [
+        "2 duplicate gene_id row(s) in the input table; the first occurrence of each was kept.",
+        "Raw p-value coverage is 100%; completeness of the tested hypothesis universe is unverified or incomplete. Filtering on the raw, uncorrected p-value at 0.05 instead; this is not an FDR-controlled selection.",
+        "YGL006W-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "YGR174W-A has zero usable trigger windows and was dropped \u2014 stage 2 could build nothing from it however clean its statistics are.",
+        "257 candidate gene(s) had no matching transcript sequence and were dropped rather than passed on to fail stage 2.",
+        "1 down-regulated gene(s) require a physical inverter; no production NOT compiler exists, so they cannot produce target-state activation constructs.",
+        "Selected 2 gene(s) from the differential-expression table (best: COX26, log2FC=5.40); scanned their real transcripts and kept 100 candidate trigger window(s) after screening. Exact footprints were ranked within footprint buckets by selected joint P8, terminal-20 opening energy and mean marginal openness, then unioned round-robin.",
+        "Design compute budget reached: 1 validated gate designs were retained in deterministic generator order; remaining designs were not evaluated. Each retained gate was paired with every requested output."
+      ]
+    }
+  ],
+  "complete": true,
+  "engine_commit": null,
+  "engine_commits": [
+    "db333b0e0f14d2498c1b506c975aba12f4c91ce2",
+    "ee27a200d667f246989dd8e08696f97093ab6a9b"
+  ],
+  "engine_version": "local-0.10.0-scientific-qa",
+  "expected_comparisons": 15,
+  "interpretation": "Bounded local DE source-path smoke; selected_genes is the pre-inversion stage-1 shortlist. Down signatures cannot activate a production toehold without an unimplemented physical inverter. Unknown source hypothesis-universe completeness is declared false. Zero candidates on succeeded computations is a valid empty outcome. Neither candidate counts nor study titles establish disease selectivity or wet-lab efficacy. No C. acnes public comparison is bundled.",
+  "outcome_counts": {
+    "engine_error": 0,
+    "productive": 5,
+    "valid_empty": 10
+  },
+  "params": {
+    "backbone": {},
+    "budget": {
+      "max_designs": 1
+    },
+    "constraints": {
+      "max_genes": 3
+    },
+    "payload": {
+      "custom_sequence": "ATGGCTGCTGCTGCTGCTTAA",
+      "outputs": [
+        "other"
+      ]
+    },
+    "statistics": {
+      "hypothesis_universe_complete": false
+    }
+  },
+  "recorded_at": "2026-10-08T15:29:31.169135+00:00",
+  "schema": "cernal-catalog-smoke-v1",
+  "seed": 42
+}

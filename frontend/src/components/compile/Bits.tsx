@@ -43,7 +43,7 @@ export function SliderRow({
   unit?: string;
   onChange?: (value: number) => void;
 }) {
-  const pct = ((value - min) / (max - min)) * 100;
+  const pct = max === min ? 0 : ((value - min) / (max - min)) * 100;
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs">

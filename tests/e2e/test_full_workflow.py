@@ -15,15 +15,15 @@ import json
 
 import pytest
 
-from apps.analyses.models import RunStatus
+from apps.analyses.models import AnalysisRun, RunStatus
 from apps.analyses.tasks import run_analysis
 
 DATASET = (
     "gene_id,base_expression,target_expression,log2fc,padj\n"
-    "lacZ,0.82,6.41,2.97,0.0007\n"
-    "rpoS,2.11,0.44,-2.26,0.0041\n"
-    "katG,1.24,5.93,2.26,0.0019\n"
-    "soxS,0.31,4.77,3.94,0.0002\n"
+    "b0344,0.82,6.41,2.97,0.0007\n"
+    "b2741,2.11,0.44,-2.26,0.0041\n"
+    "b3942,1.24,5.93,2.26,0.0019\n"
+    "b4062,0.31,4.77,3.94,0.0002\n"
 )
 
 
@@ -36,7 +36,12 @@ def researcher(db):
 
 
 def test_a_researcher_completes_the_whole_workflow(
-    client, researcher, media_root, django_capture_on_commit_callbacks, csv_upload
+    client,
+    researcher,
+    media_root,
+    django_capture_on_commit_callbacks,
+    csv_upload,
+    screening_released,
 ):
     username, password = researcher
 
@@ -61,23 +66,23 @@ def test_a_researcher_completes_the_whole_workflow(
     assert dataset["validation_status"] == "VALID"
     assert dataset["validation_report"]["rows"] == 4
 
-    # 4. Submit a run. Accepted, not completed.
+    # 4. Submit a real, bounded scientific request. This workflow tests HTTP lifecycle,
+    # so a valid short payload avoids repeating the dedicated GFP science lane.
+    request = {
+        "dataset_id": dataset["id"],
+        "organism": "ecoli",
+        "gate_families": ["toehold"],
+        "scoring_profile": capabilities["scoring_profiles"][0],
+        "seed": 42,
+        "params": {
+            "constraints": {"max_triggers": 1, "max_circuit_gates": 1},
+            "budget": {"max_designs": 3},
+            "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+        },
+        "idempotency_key": "e2e-run-001",
+    }
     with django_capture_on_commit_callbacks(execute=False) as callbacks:
-        submit = client.post(
-            "/api/runs",
-            data=json.dumps(
-                {
-                    "dataset_id": dataset["id"],
-                    "organism": "E. coli",
-                    "gate_families": available[:1],
-                    "scoring_profile": capabilities["scoring_profiles"][0],
-                    "seed": 42,
-                    "params": {"max_triggers": 2, "mock": {"candidate_count": 24}},
-                    "idempotency_key": "e2e-run-001",
-                }
-            ),
-            content_type="application/json",
-        )
+        submit = client.post("/api/runs", data=json.dumps(request), content_type="application/json")
     run = submit.json()
     assert submit.status_code == 202
     assert run["status"] == RunStatus.QUEUED
@@ -95,7 +100,8 @@ def test_a_researcher_completes_the_whole_workflow(
     finished = client.get(f"/api/runs/{run['id']}").json()
     assert finished["status"] == RunStatus.COMPLETED
     assert finished["progress_pct"] == 100
-    assert finished["counts"]["candidates"] == 24
+    # The real engine decides how many designs it finds; there is no count to dial in.
+    assert finished["counts"]["candidates"] > 0
     assert finished["counts"]["artifacts"] > 0
     assert finished["finished_at"] is not None
 
@@ -116,10 +122,15 @@ def test_a_researcher_completes_the_whole_workflow(
         f"/api/runs/{run['id']}/candidates?limit=100&include_rejected=true"
     ).json()
     rejected = [c for c in everything["items"] if c["is_rejected"]]
-    assert rejected, "24 candidates should trip at least one hard filter"
+    assert (
+        len(rejected)
+        == AnalysisRun.objects.get(pk=run["id"]).candidates.filter(is_rejected=True).count()
+    )
     assert all(c["rejection_reason"] for c in rejected)
 
-    # 11. Download an artifact.
+    # 11. Download an artifact. Sequence-bearing artifacts exist only because
+    # ``screening_released`` opened the safety gate for this test; unprovisioned, the
+    # run yields the design table and audit manifests alone (pipeline.py).
     artifacts = client.get(f"/api/runs/{run['id']}/artifacts").json()
     fasta = next(a for a in artifacts if a["kind"] == "sequence_fasta")
     download = client.get(fasta["download_url"])
@@ -138,23 +149,28 @@ def test_a_researcher_completes_the_whole_workflow(
     # 13. Export.
     export = client.get(f"/api/runs/{run['id']}/export.csv")
     rows = list(csv.DictReader(io.StringIO(export.content.decode())))
-    assert len(rows) == 24
-    assert rows[0]["state_separation_raw"]
+    assert len(rows) == everything["count"]
+    # Every metric the profile declares gets a column, measured or not. state_separation
+    # is declared (and carries the heaviest weight) but no gate family computes it yet,
+    # so its cell is honestly blank — the columns that ARE measured carry numbers.
+    assert "state_separation_raw" in rows[0]
+    assert rows[0]["predicted_leakage_raw"]
+    assert rows[0]["gate_folding_energy_raw"]
 
     # 14. Resubmitting with the same idempotency key returns the same run.
     with django_capture_on_commit_callbacks(execute=False):
         again = client.post(
             "/api/runs",
-            data=json.dumps({"dataset_id": dataset["id"], "idempotency_key": "e2e-run-001"}),
+            data=json.dumps(request),
             content_type="application/json",
         ).json()
     assert again["id"] == run["id"]
 
 
-def test_a_failed_run_is_reported_to_the_researcher(
+def test_an_unsupported_host_is_reported_before_queueing(
     client, researcher, media_root, django_capture_on_commit_callbacks, csv_upload
 ):
-    """The failure path is as much a product feature as the success path."""
+    """Invalid scientific configuration must never allocate a queued job."""
     username, password = researcher
     client.post(
         "/api/auth/login",
@@ -164,22 +180,14 @@ def test_a_failed_run_is_reported_to_the_researcher(
 
     dataset = client.post("/api/datasets", data={"file": csv_upload(DATASET)}).json()
 
-    with django_capture_on_commit_callbacks(execute=False):
-        run = client.post(
+    with django_capture_on_commit_callbacks(execute=False) as callbacks:
+        response = client.post(
             "/api/runs",
-            data=json.dumps(
-                {
-                    "dataset_id": dataset["id"],
-                    "organism": "E. coli",
-                    "params": {"mock": {"fail": True, "fail_message": "Organism unsupported."}},
-                }
-            ),
+            data=json.dumps({"dataset_id": dataset["id"], "organism": "E. coli"}),
             content_type="application/json",
-        ).json()
+        )
 
-    run_analysis(run["id"])
-
-    status = client.get(f"/api/runs/{run['id']}").json()
-    assert status["status"] == RunStatus.FAILED
-    assert status["error_summary"] == "Organism unsupported."
-    assert status["counts"]["candidates"] == 0
+    assert response.status_code == 422
+    assert "Unknown organism" in response.json()["error"]["message"]
+    assert not AnalysisRun.objects.exists()
+    assert not callbacks

@@ -1,6 +1,6 @@
 # HTTP API reference
 
-The only HTTP surface in the system — **35 endpoints**. Built with
+The only HTTP surface in the system — see the generated [API surface](api-surface.md) and `/api/openapi.json` for the current inventory. Built with
 [django-ninja](https://django-ninja.dev) (ADR 0004); the machine-readable schema is
 generated at **`/api/openapi.json`** and the interactive docs at **`/api/docs`**.
 
@@ -23,7 +23,7 @@ fields.** A breaking change means a new `api_schema_version` and a `/api/v2/` mo
 
 **Two credentials, one API (ADR 0006).** The SPA authenticates with a session cookie,
 same as always; everything else — a script, `curl`, Snakemake, Nextflow — authenticates
-with an `X-API-Key` header. Both reach the same 35 endpoints with the same ownership
+with an `X-API-Key` header. Both reach the same 43 endpoints with the same ownership
 rules; there is no separate "public API" surface and no second data model. `auth=` tries
 the header first (cheaper, no CSRF path), then the session cookie.
 
@@ -289,6 +289,11 @@ joins across candidates.
 last three are terminal — stop polling. `stage` is human-readable and meant to be shown
 directly. On `FAILED`, `error_summary` is safe to display verbatim.
 
+`worker_available` is a boolean for queued runs and `null` otherwise. It comes from
+the queue cluster's recent heartbeat. `false` means no worker is currently available;
+the submission stays queued and the UI explains the interruption. Both polling
+endpoints (`/api/runs/{id}` and `/api/design/{id}`) expose the field.
+
 ### Cancelling
 
 Cooperative — nothing is killed. A running analysis is flagged and stops at the next
@@ -347,6 +352,84 @@ are checked here *and*, unconditionally (no `strict` opt-out), on `POST /api/run
 — those two are the ones the engine itself cannot silently ignore, so both submission
 paths reject a typo in them at submission time rather than in the worker.
 
+### Folding model
+
+Set `folding` on `POST /api/design`, or the same object at `params.folding` on
+`POST /api/runs`. Omitted fields receive the defaults below. One model is shared by
+design folding and local transcript accessibility calculations within the run.
+
+```json
+{
+  "folding": {
+    "temperature_celsius": 37.0,
+    "dangles": 2,
+    "special_hairpins": true,
+    "no_lonely_pairs": false,
+    "no_gu": false,
+    "no_gu_closure": false,
+    "energy_parameters": "turner2004"
+  }
+}
+```
+
+| Field | Accepted values | Meaning |
+|---|---|---|
+| `temperature_celsius` | Finite number, 0–100 inclusive | Folding temperature in °C |
+| `dangles` | Integer `0` or `2` | Disable dangling-end energies or use the double-dangle model |
+| `special_hairpins` | Boolean | Include special hairpin-loop energies |
+| `no_lonely_pairs` | Boolean | Enable ViennaRNA's no-lonely-pairs model option |
+| `no_gu` | Boolean | Disallow GU base pairs |
+| `no_gu_closure` | Boolean | Disallow GU pairs closing loops |
+| `energy_parameters` | `turner2004`, `turner1999`, `andronescu2007` | Built-in ViennaRNA RNA energy parameter set |
+
+Only dangle models `0` and `2` are supported: ViennaRNA partition-function calculations
+do not consistently implement `1` and `3`. Parameter file paths and arbitrary model
+fields are unsupported. Values are checked without coercion: `"25"`, `true` as a
+temperature, `2.0` as a dangle model, and `0`/`1` as booleans are rejected. Unknown fields,
+non-object blocks and invalid values return 422 on both endpoints, including
+`dry_run=true` and `strict=false`.
+
+Every effective setting is stored in `params_snapshot.folding` and echoed as
+`resolved.folding` by the design submission, dry-run and results responses. Changing
+folding settings changes a run's idempotency identity; use a new `idempotency_key` for
+a different model. An older stored run without recorded settings returns an empty
+`resolved.folding` object rather than claiming it used today's defaults.
+
+The result manifest records structured evidence at
+`scientific_provenance.folding_model`; each candidate carries the same model at
+`design.folding_model`. The legacy string-valued `tool_versions` also contains canonical
+JSON under `folding_model`. Evidence includes the installed ViennaRNA version, normalized
+configuration, actual native model fields, loaded energy-table identity and SHA-256 of
+the exact bundled parameter string loaded. A name alone is not treated as identity.
+Scanned trigger features additionally record the local model and clamped window/span at
+`rnaplfold.folding_model`; older/manual records leave this `null`.
+
+Suboptimal enumeration runs in an isolated process and receives the full configuration;
+its algorithm-only `uniq_ML=1` override is recorded. Full-fold window/span defaults are
+normalized to sequence length before native calculation; provenance states this rule.
+Local opening-energy conversions use the same configured temperature as RNAplfold.
+
+ViennaRNA's `noLP` partition-function approximation excludes pairs that cannot stack;
+lonely pairs may still occur in ensemble structures. This caveat is recorded when enabled.
+Salt remains explicitly fixed at the previous ViennaRNA default, 1.021 M. Built-in model
+choices are computational settings, not experimental validation or calibrated physiological
+conditions. The engine serializes global table loading/restoration and copies both MFE
+and partition-function parameters into each compound. The AIS-China adapter's direct
+`optimize` path shares this lock (its whole call may delay other compound construction);
+ordinary production codon optimization consumes its reference tables only. Other
+third-party code must not mutate
+ViennaRNA globals concurrently outside the shared adapter.
+
+Implementation references: [ViennaRNA model details](https://www.tbi.univie.ac.at/RNA/ViennaRNA/doc/html/eval/model.html),
+[parameter snapshots and PF preparation](https://github.com/ViennaRNA/ViennaRNA/blob/v2.7.2/src/ViennaRNA/params/params.c),
+and [RNAplfold window probabilities](https://www.tbi.univie.ac.at/RNA/ViennaRNA/doc/html/partfunc/window.html).
+The snapshot cache invalidation and full-length PF normalization are covered by real-library
+regression tests; they are required for ViennaRNA 2.7.2, not cosmetic metadata changes.
+
+For direct Python use, pass `FoldEngine(config=FoldingConfig(...))` and
+`FoldProfiler(config=the_same_config)`. `FoldingConfig` is a frozen dataclass in
+`engine.domain`. Existing `FoldEngine(temperature=...)` calls remain supported.
+
 **Custom scoring** — re-weight the nine metrics, or add a hard filter, per run:
 
 ```jsonc
@@ -378,6 +461,7 @@ purpose.
 |---|---|
 | `GET /api/runs/{id}/candidates` | Paginated |
 | `GET /api/candidates/{id}` | Full detail incl. metric decomposition |
+| `GET /api/candidates/{id}/structure` | Read-only layout of the stored primary switch |
 | `GET /api/runs/{id}/artifacts` | |
 | `GET /api/artifacts/{id}/download` | Authorized file serve, one artifact |
 | `GET /api/runs/{id}/artifacts/download` | Everything, one `?category=`, or a hand-picked `?ids=`, as one `.zip` |
@@ -404,6 +488,55 @@ convention.
 Returns `triggers`, `design` (sequences, structure, logic graph) and the full `metrics`
 list. Each metric carries `raw_value`, `normalized_value`, `weight` and `direction`: the
 researcher is shown the decomposition, never a single opaque score (design map 12).
+
+### Stored candidate structure
+
+`GET /api/candidates/{candidate_id}/structure` accepts the same session or read-scoped
+API-key authentication and ownership/staff permissions as candidate detail. Unauthenticated
+requests return `401`; missing candidates and other owners' candidates return `404`.
+
+The response has this shape (an abbreviated example):
+
+```json
+{
+  "status": "available",
+  "reason": null,
+  "sequence": "GGGAAACCC",
+  "structure": "(((...)))",
+  "structure_kind": "intended_target",
+  "bases": [{"index": 0, "char": "G", "x": 92.5, "y": 92.5}],
+  "links": [{"source": 0, "target": 8}],
+  "renderer": "cernal-rnaviz",
+  "renderer_version": "aa112e17a76941233987bb4287c2c66511c40d13"
+}
+```
+
+`bases` contains one node per nucleotide, with zero-based indexes and finite coordinates.
+`links` contains each stored base pair exactly once; adjacent backbone connections are
+implicit in sequence order. Geometry uses the licensed cernal-rnaviz conversion and
+explicit ViennaRNA NAVIEW layout, with `(0, 0)` for a single unpaired nucleotide.
+
+All successfully authorized reads return `200`, with one of these display states:
+
+- `available`: stored sequence and dot-bracket data can be drawn; `reason` is null.
+- `unavailable`: sequence/structure is missing or empty, or the structure exceeds the
+  **2,000 nucleotide viewer limit**. This is not a scientific rejection.
+- `invalid`: malformed stored data (non-text, non-uppercase RNA alphabet, mismatched
+  length, unsupported dot-bracket symbols, or unbalanced parentheses).
+- `error`: a known native/layout failure, with a safe display reason.
+
+All other states have a nonempty `reason` and empty `bases` and `links`. Existing text
+values are returned unchanged; missing/non-text sequence or structure fields return
+empty strings. `structure_kind` retains its stored string exactly, including unknown
+labels, or is null when no string provenance was recorded. Do not infer that an old
+candidate's structure is a predicted fold. `intended_target` denotes the designed
+target pairing, not a predicted or experimentally measured structure.
+
+The input is `design.switch_sequence` and `design.structure`, also for old candidates
+without renderer metadata or artifacts. For multi-gate candidates these fields represent
+the **primary switch**, not the whole circuit or concatenated component switches.
+The request performs no folding, energy/probability/scoring calculation, scientific
+recomputation, external sequence submission, or writes to candidate/run records.
 
 ### Artifacts
 
@@ -584,3 +717,14 @@ is no package manager worth targeting here.
 > engine's actual, tested responses, and both ship a conformance test against
 > `clients/fixtures/`, but treat them as a first draft until someone with the runtime
 > confirms they pass. The Python client has been; its conformance suite is in CI.
+
+## Reference gene input
+
+`GET /api/reference-genes/resolve?organism=human&gene=SELE` resolves a stable ID or
+unambiguous symbol and returns its RNA sequence, canonical gene ID, transcript ID,
+reference release, and selection policy. Authentication is required.
+
+`POST /api/runs` accepts `input_mode: "gene"`, `organism`, and `gene_id` (or
+`params.target_gene.gene_id`). `POST /api/design` accepts `gene_id` as its exclusive
+input source. Sequences and provenance are frozen when the run is submitted. All four
+organisms support DE, direct, and gene input; DE accepts CSV, TSV, TXT, and XLSX.

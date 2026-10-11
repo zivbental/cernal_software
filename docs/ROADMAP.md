@@ -10,51 +10,53 @@
 
 ---
 
-## 0. Where we are
+## 0. Current status — 8 October 2026
 
-| Step | State | Evidence |
+The default and only production engine is `engine.client.LocalEngine`. It performs
+real folding and candidate search; it is a computational prototype with provisional
+scientific models, not an experimentally validated circuit compiler. The dated
+[software audit](SOFTWARE_STATUS_REVIEW_2026-10-08.md) preserves the before state.
+[Remediation status](REMEDIATION_STATUS.md) records current fixes and remaining work.
+
+| Area | Implemented | Current limits |
 |---|---|---|
-| Step 0 — Scaffold | **Complete** | Boots, migrates, admin reachable |
-| Step 1 — Engine contract + MockEngine | **Complete** | Contract, `MockEngine`, gate/scoring layers, boundary test |
-| Step 2 — Domain model | **Complete** | 7 models, migrations, admin back-office, `seed_demo` |
-| Step 3 — API + orchestration | **Complete** | 35 endpoints, run state machine, django-q2 worker, API-key auth (ADR 0006, Phase X) |
-| Step 4 — Frontend integration | **Complete** | React SPA served same-origin: login, wizard, progress, results, static pages. The wizard's `de` mode can also seed itself from a curated, real public-dataset catalog (Phase D, [public-datasets.md](public-datasets.md)), not only an upload |
-| **Step 5 — Real science** | **Started** | §5. `AntisenseNotGate` is real end to end; `FoldEngine.mfe`/`.partition`/`.base_pair_probabilities`/`.versions` and `hybridization_energy` are real. The `direct` input mode runs a full real pipeline under `LocalEngine` (E2a, [smoke-run.md](smoke-run.md)) — `FoldProfiler`, `SwitchDesigner`, `SwitchValidator`'s sequence rules, `build_tools`, `run_pipeline`. A pasted sequence longer than one trigger window is scanned for a usable trigger, not silently truncated (E2b, [triggers.md](triggers.md)) — `TriggerScorer` is real on this path. `PlasmidBuilder.build`/`.payload_segment` are real for the `direct` path (E5a, [plasmids.md](plasmids.md)) — a run produces a real annotated GenBank artifact and populated `plasmid_segments`, GFP payload / *E. coli* only. A run assembles onto a real, selectable plasmid backbone — ten catalog vectors or a researcher's own GenBank upload (E5b, [plasmids.md](plasmids.md)). **`de` mode now runs too, for *E. coli* and yeast** ([genes.md](genes.md), D6): `GeneSelector` real, `parse_dge_table` real, Q1 answered for both hosts by a bundled real NCBI RefSeq transcriptome each (`engine.transcriptome`, `tools/sync_transcriptome.py`), Q12 answered for both by real, iGEM-Registry-verified promoter/terminator parts — verified end to end against real data for both (*E. coli*: a real bundled public dataset, 730 accepted candidates; yeast: real genes from the bundled catalog, 110 accepted candidates). Still single-gene circuits only, no real off-target scanning, no bundled yeast backbone (a lab's own upload, or none), no human (Q1 needs a different, bigger fetch strategy for a spliced genome; Q12 needs an actual assembly-standard decision for a mammalian vector, not a parts lookup). `CircuitDesigner`, `ConfusionEvaluator`, `InputQualityCheck`, `CodonOptimizer` and stage 6 (`ReportBuilder`) are still documented stubs raising `NotImplementedError` |
-| **Step 6 — Deployment** | **Not started** | §6 |
+| Inputs and reference resolution | Direct sequence, named gene and DE table input for E. coli, yeast, Human and C. acnes; CSV/TSV/TXT/XLSX DE parser | Reference mapping completeness and intended contrasts need stewardship; counts/metadata inference is not provided |
+| Scientific tools | ViennaRNA folding, RNAplfold profiling, gene/trigger selection, single-input toehold generation, scoring, construct assembly; CircuitDesigner and CodonOptimizer components exist | Component existence does not establish production integration, physical multigate logic, specificity or experimental efficacy |
+| Capabilities | `GET /api/version` identifies production families, their hosts, outputs and constraints | GFP/custom coding sequences are the supported payloads; AND, antisense and CRISPR remain separate integration tasks |
+| Results and release | Computational ranks, stored warnings and frozen configuration; available artifact downloads | Uncalibrated accessibility/binding quantities are proxies. Sequence release is a separate fail-closed policy decision; an unconfigured adapter holds exports |
+| Product and clients | Wizard, progress, paged results/history, notes/review tags, Python/R/MATLAB source clients | Synthesis ordering has no funded/integrated partner. R and MATLAB execution require their runtimes and have not been verified locally |
+| Delivery | Locked Python 3.13 dependencies, frontend build/check and test lanes | Deployment, screening operations, backup recovery, human data governance and supported-runtime verification remain release acceptance work |
 
-`./do test` → **1116 passing** (plus the Python client's own conformance suite,
-`clients/python/tests/`, verified separately — see Phase X), and `.gitlab-ci.yml` runs
-the same checks plus the frontend
-build on every push. `CERNAL_ENGINE` defaults to `engine.client.MockEngine`, so the entire
-product works end to end on deterministic fake science today.
+Q1 is resolved for reference availability in all four hosts. Q1 does not establish
+transcriptome-wide off-target screening, tissue-specific isoform expression or full
+public-dataset mapping. Q2–Q15 scientific decisions remain scoped to their evidence,
+not silently closed by software tests. Historical execution counts below are dated
+observations and must not be treated as current expected candidate counts.
 
-**What "the engine is stubbed" means precisely:** every class, method and signature
-exists with a docstring recording what it owes its caller. Filling one in is a scientific
-problem, not an architectural one. The stubs are in `src/engine/stages/`,
-`src/engine/gates/` (including `gates/tools/`) and `src/engine/pipeline.py`.
+Run the commands in the audit's reproduction section to obtain current test counts.
+The audit baseline passed 1,655 main-suite tests on 8 October; remediation tests are
+reported separately in the living status file. Formatter/client/browser defects found
+by that audit are tracked as GAP-05 and PD-06–09.
 
----
+## 1. Current priorities
 
-## 1. The critical path
+Resolve privacy/input integrity and worker terminal-state defects, make every
+selectable combination match authoritative production capabilities, and retain
+scientific/release warnings at the point of use. Missing mechanisms, payloads,
+functional validation and off-target work are feature/science tasks with explicit
+acceptance criteria, not completed by disabling UI choices.
 
-```
-Q1 (where do trigger sequences come from?)
-      │  blocks
-      ▼
-E1 domain+tools ──▶ E2 stages 1–3 ──▶ E3 pruning ──▶ E4 toehold ──▶ E6 measure
-      │                                                                 │
-      │                                                                 ▼
-      └──▶ E0 dep groups ──▶ C1 container ──▶ C2 equivalence ──▶ C3–C7 cloud
-```
-
-**Three things can start today with no scientific input:** E0 (dependency groups), E1
-(`domain.py`, `sequences.py` and `stages/motifs.py` are already written; nothing left
-in E1's first rungs needs ViennaRNA), and every task in §4.
-
-**One thing blocks everything else: Q1.** The DE table has gene identifiers, not
-sequences. No amount of infrastructure work answers it.
+Use the audit's ENG, PLAT, PD and GAP identifiers in commits and release evidence.
+Only Offer and Ziv merge approved changes into `main`. Deployment, package
+publication and ordering require their own explicit authorization.
 
 ---
+
+> **Historical planning archive (written before the 8 October 2026 audit).**
+> The remaining numbered sections preserve development decisions and earlier plans.
+> Their implementation-status sentences, timings and counts are superseded by the
+> current status above, source code, `/api/version` and the remediation ledger.
+> The removed simulated engine is mentioned only as historical context.
 
 ## 2. Open questions for the scientific team
 
@@ -63,7 +65,7 @@ specific task.
 
 | # | Question | Blocks |
 |---|---|---|
-| **Q1** | **Where do trigger sequences come from?** The DE table has gene identifiers, not sequences. **Answered for *E. coli* and yeast** ([genes.md](genes.md) D6): a bundled reference transcriptome each — NCBI RefSeq K-12 MG1655 (4,308 real CDS) and S288C (16 chromosomes + mitochondrion, 6,027 real CDS) — fetched by `tools/sync_transcriptome.py`, keyed by locus tag / SGD systematic name, read by `engine.transcriptome.load_transcriptome`. **Deliberately still open for human:** human genes are heavily spliced, so a genomic CDS extraction (what worked for the other two) is the wrong tool — a real answer needs actual mRNA/CDS transcript records and an isoform-choice decision, a bigger, different-shaped task, not just another accession. Phase D (§11, [public-datasets.md](public-datasets.md)) answered a related but distinct question — where a *DE table itself* comes from | **E2** — unblocked for *E. coli* and yeast; human needs a different fetch strategy, not just a different accession |
+| **Q1** | **Answered for all four organisms.** E. coli and yeast use NCBI reference CDSs; C. acnes uses the AIS-China ATCC 6919 CDS reference. Human uses mature Ensembl GRCh38 release 116 cDNA and noncoding transcripts, preferring MANE Select, then canonical, then longest transcript. Gene IDs, unambiguous symbols, and versioned Human IDs resolve offline. | **E2** — direct, DE, and named-gene input supported for all hosts |
 | **Q2** | Thresholds for a usable trigger: minimum fold change, maximum adjusted p, expression bounds | E3 |
 | **Q3** | Maximum trigger-set size. Are 3-input circuits in scope, or is 2 the ceiling? | E3, and the whole compute budget (§3) |
 | **Q4** | Toehold construction rules: stem and loop lengths, RBS sequence, linker, start-codon placement, which toehold lengths to vary | E4 |
@@ -74,7 +76,7 @@ specific task.
 | **Q9** | ~~Antisense NOT: does the trigger transcript *act* as the antisense, or *drive* a separate one?~~ **Answered by implementation:** it acts directly (simpler, no extra transcriptional unit) — `engine/gates/antisense.py`. The "drives a separate antisense RNA" alternative, for amplification, is not built | Deferred family, §7 |
 | **Q10** | CRISPR: activator or repressor effector? It changes what the circuit means and has no home in the run configuration | Deferred family, §7 |
 | **Q11** | Payload sequences. There is no library for GFP, mCherry, luciferase, AmpR or an apoptosis inducer. **Partially answered:** GFP is now in `stages/plasmids.py`'s `PAYLOADS` table (E5a); mCherry, luciferase, AmpR and an apoptosis inducer are still missing | E5a (remaining outputs), E5 |
-| **Q12** | Which constitutive promoter and terminator, per host? **Provisionally answered for *E. coli* and yeast:** J23119/B0015 for *E. coli*; K124002 (GPD/TDH3 promoter) / K1486025 (ADH1 terminator) for yeast, both verified against the iGEM Registry API the same way the *E. coli* parts were — `stages/plasmids.py`'s `PROMOTERS`/`TERMINATORS` tables (E5a). Human still needs its own, and it is not a parts-lookup problem the way *E. coli*/yeast were: a mammalian expression plasmid is not assembled by BioBrick-style restriction-site avoidance at all, so "compliant" has no defined meaning yet for that host. The *E. coli*/yeast defaults need to be a scientific decision rather than a placeholder that quietly becomes permanent | E5a |
+| **Q12** | Constitutive promoter and termination parts are provisionally configured for E. coli, yeast, C. acnes, and Human. Human direct-trigger constructs use Registry-verified CMV BBa_I712004 / hGH polyadenylation BBa_K404108; default assembly setting is `none`, with an uploaded custom mammalian backbone or a bare cassette. No wet-lab protocol, cloning overlaps, or mammalian switch validation is inferred. All hosts now support DE and gene input. | E5a |
 | **Q13** | What backbone does the team build into? **Answered for the `direct` path (E5b), *E. coli* only:** ten real BioBrick vectors in `stages/plasmids.py`'s `BACKBONES` table, fetched and length-verified from the iGEM Registry API, or a lab's own GenBank file via `parse_custom_backbone`. **Deliberately not answered for yeast:** yeast's real BioBrick-family assembly grammar (the "Lim standard", pRS-series vectors) could not be fully verified from public sources in the time available — bundling a backbone under a half-verified restriction-site table is exactly the "almost-right is worse than missing" mistake CLAUDE.md §1 warns against. A yeast run today supplies its own real vector via `custom_genbank`, or omits a backbone entirely (`_resolve_backbone`'s own documented "fully legal choice"). Per-host defaults still open otherwise — a lab's strain/antibiotic choice stays theirs | E5a, E5b |
 | **Q14** | Does the RNA class change the trigger-selection rules? A window inside an mRNA's CDS, its 5′UTR, a lncRNA, or a small RNA are not equivalent choices — an sRNA may be functional only as a whole, and a CDS window is dense with start codons (measured: the #1 cause of switch-design rejection, docs/triggers.md §4). Should scanning prefer, avoid, or weight regions by class? | E2b |
 | **Q15** | ~~What makes a scanned trigger window good, beyond merely buildable?~~ **Answered:** exact 30/33/36-nt gate footprints are shortlisted per bucket using selected joint P8, P20-derived opening energy per nt, and terminal-20 mean marginal openness (`rnaplfold_gate_aware_joint_opening_v2`), then unioned round-robin. Mean marginal openness has the strongest current probing correlation; joint opening remains a mechanistic hypothesis, not a success probability | E2b implemented; functional calibration remains Q6 |
@@ -725,7 +727,7 @@ real, running circuit design) was scoped out on purpose — see D6.
 | **D3** | `apps/expression/services.py` — catalog reads + `materialize_public_dataset`, reusing `apps.datasets.services.create_dataset` unchanged | `apps/expression/services.py` | S | **Done** |
 | **D4** | API layer: catalog browsing, materialize, and one new `GET /datasets/{id}/preview` shared by public and uploaded datasets alike | `api/routers/expression.py`, `api/routers/datasets.py`, `api/schemas.py` | M | **Done** |
 | **D5** | Wizard UI: a public-dataset picker under `de` mode, an informational "Specific Gene" route, and an expression-profile preview (table + volcano) | `frontend/src/components/compile/` | M | **Done** |
-| **D6** | *(deliberately not built)* Gene->sequence resolution, so a selected gene could feed a real `direct` run today | — | — | **Not built.** Discussed and decided against for this phase: even with a sequence, only *E. coli* has real promoters/terminators/payloads/backbones today (Q11–Q13), so human/yeast gene selection would still dead-end downstream. Revisit alongside Q11–Q13, not in isolation |
+| **D6** | Gene-to-sequence resolution for all four organisms, with pinned transcript provenance and frozen sequences at submission | `engine.transcriptome`, API and wizard | M | **Done** |
 
 **Catalog composition**, all real, live-fetched accessions (never fabricated — see
 public-datasets.md for the full per-entry citation list): 5 human (EMBL-EBI Expression
@@ -770,3 +772,22 @@ by measurement — its PyPI classifiers stop at 3.12 (ADR 0008).
 - **Found new work?** Add it here, with an id, a size and what it blocks. Not in a
   separate document — that is how the previous fourteen planning files happened.
 - **Want to change a settled decision?** Write the ADR first.
+
+## Endogenous CRISPR research workbench
+
+An explicit-input research entry point now implements the endogenous CRISPR model:
+`engine.pipeline.run_crispr_workbench` and `tools/run_crispr.py`. It scans SpCas9 NGG
+spacers and trigger windows, exhaustively enumerates the agreed binary blocker
+choices, applies staged thermodynamic gates, computes one batch lambda, and ranks
+pair winners with the separate J/Phi objective. Normalized spacer/trigger scores
+are required upstream inputs and validated before candidate folding.
+
+The existing application pipeline remains unchanged. `CrisprGate.available` stays
+False until its explicit input contract is integrated. OFF is free guide; ON is
+conditional on a connected guide-trigger complex, without concentration mixing.
+Measurement failures block final ranking and remain distinct from threshold rejection.
+
+See [running the workbench](crispr-workbench.he.md) and
+[implementation and assumptions](crispr-implementation.he.md). Examples and the
+user-input template are under `examples/crispr/`; these are software checks,
+not evidence of biological function.

@@ -6,7 +6,7 @@ from django.conf import settings
 from ninja import Router, Status
 
 from api.auth import get_owned, owned_queryset
-from api.errors import ValidationFailed
+from api.errors import Conflict, ValidationFailed
 from api.params import (
     BACKBONE_KEYS,
     CONSTRAINT_KEYS,
@@ -16,10 +16,17 @@ from api.params import (
     check_scoring_block,
 )
 from api.schemas import CancelOut, RunCounts, RunIn, RunOut, RunStatusOut
-from api.security import enforce_concurrency_ceiling, require_scope
+from api.security import TooManyActiveRuns, require_scope
 from apps.accounts.models import ApiKeyScope
-from apps.analyses.models import AnalysisRun, InputMode
-from apps.analyses.services import RunError, cancel_run, submit_run
+from apps.analyses.models import AnalysisRun, InputMode, RunStatus
+from apps.analyses.services import (
+    RunError,
+    RunQuotaExceeded,
+    SubmissionConflict,
+    cancel_run,
+    submit_run,
+)
+from apps.analyses.worker import worker_available
 from apps.datasets.models import Dataset
 from engine.client import load_engine
 
@@ -27,10 +34,11 @@ router = Router()
 
 
 @router.get("/runs", response=list[RunOut])
-def list_all_runs(request, limit: int = 20):
+def list_all_runs(request, limit: int = 20, offset: int = 0):
     """Recent runs — what "My Circuits" shows first. Each run stands on its own."""
-    return owned_queryset(AnalysisRun, request.user).order_by("-created_at")[
-        : max(1, min(limit, 100))
+    offset = max(0, offset)
+    return owned_queryset(AnalysisRun, request.user).order_by("-created_at", "-id")[
+        offset : offset + max(1, min(limit, 100))
     ]
 
 
@@ -55,7 +63,6 @@ def create_run(request, payload: RunIn):
     engine rejects it in the worker (CLAUDE.md §2).
     """
     require_scope(request, ApiKeyScope.DESIGN)
-    enforce_concurrency_ceiling(request)
 
     dataset = None
     if payload.input_mode == InputMode.DE:
@@ -63,10 +70,11 @@ def create_run(request, payload: RunIn):
             raise ValidationFailed("A dataset is required for a differential-expression run.")
         dataset = get_owned(Dataset, payload.dataset_id, request.user)
 
-    constraints = payload.params.get("constraints") or {}
-    scoring = payload.params.get("scoring") or {}
-    backbone = payload.params.get("backbone") or {}
-    check_known_keys(constraints, CONSTRAINT_KEYS, "constraint")
+    constraints = payload.params.get("constraints", {})
+    scoring = payload.params.get("scoring", {})
+    backbone = payload.params.get("backbone", {})
+    capabilities = load_engine(settings.CERNAL_ENGINE).capabilities()
+    check_known_keys(constraints, set(capabilities.constraints) or CONSTRAINT_KEYS, "constraint")
     check_known_keys(scoring, SCORING_KEYS, "scoring field")
     check_known_keys(backbone, BACKBONE_KEYS, "backbone field")
     capabilities = load_engine(settings.CERNAL_ENGINE).capabilities()
@@ -74,18 +82,28 @@ def create_run(request, payload: RunIn):
     check_backbone_block(backbone, capabilities)
 
     try:
+        params = payload.params
+        if payload.input_mode == InputMode.GENE and payload.gene_id:
+            params = {**params, "target_gene": {"gene_id": payload.gene_id}}
         run, _created = submit_run(
             user=request.user,
             dataset=dataset,
             input_mode=payload.input_mode,
             trigger_sequence=payload.trigger_sequence,
             organism=payload.organism,
-            params=payload.params,
+            params=params,
             gate_families=payload.gate_families,
             scoring_profile=payload.scoring_profile,
             seed=payload.seed,
+            max_concurrent_runs=getattr(
+                getattr(request, "api_key", None), "max_concurrent_runs", None
+            ),
             idempotency_key=payload.idempotency_key,
         )
+    except SubmissionConflict as exc:
+        raise Conflict(str(exc)) from None
+    except RunQuotaExceeded as exc:
+        raise TooManyActiveRuns(str(exc), headers={"Retry-After": "60"}) from None
     except RunError as exc:
         raise ValidationFailed(str(exc)) from None
 
@@ -102,6 +120,7 @@ def get_run_status(request, run_id: UUID):
         status=run.status,
         stage=run.stage,
         progress_pct=run.progress_pct,
+        worker_available=worker_available() if run.status == RunStatus.QUEUED else None,
         error_summary=run.error_summary or None,
         warnings=run.warnings or [],
         submitted_at=run.submitted_at,

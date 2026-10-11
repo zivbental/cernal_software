@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Lightbulb } from "lucide-react";
-import { Caveat, HelpNav } from "@/components/docs/HelpNav";
+import { Caveat } from "@/components/docs/HelpNav";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
 import { Panel } from "@/components/layout/Primitives";
@@ -17,17 +17,17 @@ export const Route = createFileRoute("/use-cases")({
 
 const WORKFLOWS = [
   {
-    id: "explore-mock",
-    title: "Explore the interface with simulated results",
-    goal: "Learn the submission, status, ranking, rejection, and download screens without treating the output as science.",
+    id: "explore-interface",
+    title: "Explore the interface on a small real run",
+    goal: "Learn the submission, status, ranking, rejection, and download screens on a run small enough to finish quickly.",
     input:
-      "A public dataset or a pasted transcript, using the default MockEngine installation.",
+      "A public dataset or a pasted transcript, on the default LocalEngine installation.",
     output:
-      "Deterministic, simulated candidates and artifacts shaped like real results.",
+      "Real, reproducible candidates and artifacts — the same ones a full run produces, just fewer.",
     limit:
-      "MockEngine output is fake science. It demonstrates the interface only and is seeded by the idempotency key and optional seed.",
+      "The pipeline is incomplete: off-target specificity is not measured, and state separation and orthogonality are not computed by any gate family, so they report blank. Candidates are designs to test, not validated predictions.",
     href: "/guide#before-running",
-    next: "Check which engine is running",
+    next: "Check what the engine supports",
   },
   {
     id: "de-comparison",
@@ -81,7 +81,6 @@ export function UseCasesContent() {
         title="Choose a supported workflow"
         description="Start with the input you have and the kind of inspection you need."
       />
-      <HelpNav current="/use-cases" />
       <Caveat>
         <strong>Scope:</strong> the current LocalEngine designs from one
         transcript or selects single-gene triggers from DE data. Multi-gene

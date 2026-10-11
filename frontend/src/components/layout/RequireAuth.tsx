@@ -11,7 +11,7 @@ import { useMe } from "@/api/queries";
  * cookie sends the user to /login with a redirect back, instead of showing a broken page.
  */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { data: user, isLoading } = useMe();
+  const { data: user, isLoading, isError, refetch } = useMe();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   if (isLoading) {
@@ -21,6 +21,8 @@ export function RequireAuth({ children }: { children: ReactNode }) {
       </div>
     );
   }
+
+  if (isError) return <p role="alert">Could not check your session. <button onClick={() => refetch()}>Retry</button></p>;
 
   if (!user) {
     return <Navigate to="/login" search={{ redirect: pathname }} replace />;

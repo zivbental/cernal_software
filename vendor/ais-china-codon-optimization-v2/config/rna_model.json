@@ -1,0 +1,36 @@
+{
+  "model_id": "viennarna_turner2004_v1",
+  "viennarna_version": "2.7.2",
+  "energy_parameter_file": "config/rna_turner2004.par",
+  "energy_parameter_sha256": "f4a71a542533ce5420515004a0b51f6949e93d4087204185a35eb38fff30d466",
+  "temperature_c": 37.0,
+  "dangles": 2,
+  "betaScale": 1.0,
+  "salt_molar": 1.021,
+  "noLP": false,
+  "noGU": false,
+  "noGUclosure": false,
+  "gquad": false,
+  "circular": false,
+  "max_bp_span": -1,
+  "compute_base_pair_probabilities": false,
+  "context_cds_nt": 150,
+  "default_target_cds_nt_1based_inclusive": [
+    1,
+    15
+  ],
+  "default_mutable_codon_range_1based_inclusive": [
+    2,
+    30
+  ],
+  "energy_difference_tolerance_kcal_mol": 1e-05,
+  "definition": "G_ensemble(target_all_unpaired)-G_ensemble(unconstrained)",
+  "R_kcal_mol_K": 0.0019872041,
+  "reference_background_context": "CDS-only;missing_upstream;not_full_initiation_context",
+  "engineering_defaults_not_species_optima": true,
+  "salt_note": "ViennaRNA model default;not a measured C.acnes intracellular salt concentration",
+  "sources": [
+    "https://www.tbi.univie.ac.at/RNA/ViennaRNA/doc/html/partfunc/global.html",
+    "https://www.tbi.univie.ac.at/RNA/ViennaRNA/doc/html/man/RNAfold.html"
+  ]
+}

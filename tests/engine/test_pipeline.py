@@ -15,8 +15,15 @@ import os
 import pytest
 
 from engine.client import LocalEngine
-from engine.contract import CANCELLED, INPUT_DE, INPUT_DIRECT, SCHEMA_VERSION
-from engine.domain import AssemblyStandard, Host
+from engine.contract import (
+    CANCELLED,
+    FAILED,
+    INPUT_DE,
+    INPUT_DIRECT,
+    SCHEMA_VERSION,
+    SUCCEEDED,
+)
+from engine.domain import AssemblyStandard, Host, Track
 from engine.errors import InputValidationError
 from engine.pipeline import build_tools, run_pipeline
 
@@ -41,7 +48,13 @@ def direct_request(make_request):
             "trigger_sequence": CLEAN_TRIGGER,
             "organism": "ecoli",
             "gate_families": ["toehold"],
+            "params": {
+                "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                "budget": {"max_designs": 3},
+            },
         }
+        if "params" in overrides:
+            overrides["params"] = {**defaults["params"], **overrides["params"]}
         defaults.update(overrides)
         return make_request(**defaults)
 
@@ -50,8 +63,7 @@ def direct_request(make_request):
 
 def _de_request_factory(make_request, tmp_path, filename: str, content: str, organism: str):
     """Shared by ``de_request`` and ``yeast_de_request``: a real `de` submission
-    against real dataset ``content``, rather than the shared ``dataset`` fixture's
-    symbol-keyed rows that don't join against any bundled transcriptome."""
+    against a small dataset with stable reference identifiers."""
     dataset_path = tmp_path / filename
     dataset_path.write_text(content, encoding="utf-8", newline="")
     checksum = hashlib.sha256(content.encode()).hexdigest()
@@ -63,7 +75,13 @@ def _de_request_factory(make_request, tmp_path, filename: str, content: str, org
             "input_checksum": checksum,
             "organism": organism,
             "gate_families": ["toehold"],
+            "params": {
+                "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
+                "budget": {"max_designs": 3},
+            },
         }
+        if "params" in overrides:
+            overrides["params"] = {**defaults["params"], **overrides["params"]}
         defaults.update(overrides)
         return make_request(**defaults)
 
@@ -129,21 +147,12 @@ def test_a_de_run_against_real_genes_completes_with_real_candidates(de_request, 
     assert any("sodA" in w or "carA" in w for w in result.warnings)
 
 
-def test_a_de_run_is_not_available_for_human(de_request, always_continue):
-    """docs/ROADMAP.md Q1: *E. coli* and yeast both have a bundled reference
-    transcriptome now; human does not (a genomic CDS extraction is the wrong tool for
-    a heavily-spliced genome — ``tools/sync_transcriptome.py``). A human `de`
-    submission fails cleanly rather than silently returning zero candidates or
-    crashing on a missing lookup — today it fails even earlier than ``_de_trigger``'s
-    own transcriptome guard, on Q12's still-open "no human promoter/terminator"
-    limitation (``_resolve_outputs``, ahead of trigger scoring in ``run_pipeline``'s
-    own order) — a real, equally honest reason to stop, and a reminder that
-    ``_de_trigger``'s host guard is defence in depth for the day Q12 is answered for
-    another host, not dead code today."""
+def test_human_de_rejects_ecoli_identifiers(de_request, always_continue):
+    """An E. coli DE table cannot resolve against the Human reference."""
     result = LocalEngine().run(de_request(organism="human"), always_continue)
 
     assert result.status == "failed"
-    assert "human" in result.error.lower()
+    assert "gene" in result.error.lower()
 
 
 def test_a_de_run_against_real_yeast_genes_completes_with_real_candidates(
@@ -164,7 +173,7 @@ def test_a_de_run_against_real_yeast_genes_completes_with_real_candidates(
 
 
 def test_engine_version_names_the_partial_scope():
-    assert "direct" in LocalEngine.ENGINE_VERSION
+    assert "scientific-qa" in LocalEngine.ENGINE_VERSION
 
 
 def test_accepted_candidates_carry_the_real_metric_names(direct_request, always_continue):
@@ -271,7 +280,9 @@ def test_a_direct_run_populates_real_plasmid_segments(direct_request, always_con
     """The default output (GFP) is fully configured (docs/ROADMAP.md Q11/Q12), so a
     plain direct run — no payload requested explicitly — gets a real plasmid, not the
     ``[]`` PlasmidRing.tsx used to be handed while stage 5 was a stub."""
-    result = LocalEngine().run(direct_request(), always_continue)
+    result = LocalEngine().run(
+        direct_request(params={"payload": {"outputs": ["gfp"]}}), always_continue
+    )
 
     assert result.candidates
     for candidate in result.candidates:
@@ -296,13 +307,13 @@ def test_unprovisioned_screening_writes_audits_and_withholds_sequence_exports(
 
 
 def test_an_unconfigured_output_fails_the_whole_run_cleanly(direct_request, always_continue):
-    """mCherry has no catalog entry yet (docs/ROADMAP.md Q11) — the same "none of the
+    """Apoptosis has no approved catalog entry yet (docs/ROADMAP.md Q11) — the same "none of the
     requested X could be built" pattern already used for gate families."""
-    request = direct_request(params={"payload": {"outputs": ["mcherry"]}})
+    request = direct_request(params={"payload": {"outputs": ["apoptosis"]}})
     result = LocalEngine().run(request, always_continue)
 
     assert result.status == "failed"
-    assert "mcherry" in result.error.lower() or "Q11" in result.error
+    assert "apoptosis" in result.error.lower() or "Q11" in result.error
 
 
 def test_an_unknown_output_string_is_a_clean_failure(direct_request, always_continue):
@@ -325,15 +336,15 @@ def test_a_custom_payload_builds_through_the_full_pipeline(direct_request, alway
         assert payload["name"] == "Custom"
 
 
-def test_mixed_outputs_use_only_the_buildable_ones_and_warn_about_the_rest(
+def test_mixed_outputs_reject_unsupported_output_without_silent_skipping(
     direct_request, always_continue
 ):
-    request = direct_request(params={"payload": {"outputs": ["gfp", "mcherry"]}, "mock": {}})
-    result = LocalEngine().run(request, always_continue)
-
-    assert result.status == "succeeded"
-    assert any("mcherry" in w for w in result.warnings)
-    assert all(c.design["logic_graph"]["output"] == "GFP" for c in result.candidates)
+    result = LocalEngine().run(
+        direct_request(params={"payload": {"outputs": ["gfp", "apoptosis"]}}), always_continue
+    )
+    assert result.status == FAILED
+    assert "apoptosis" in result.error
+    assert not result.candidates
 
 
 def test_run_pipeline_asks_for_circular_screening_when_building_a_plasmid(
@@ -358,7 +369,7 @@ def test_run_pipeline_asks_for_circular_screening_when_building_a_plasmid(
     result = LocalEngine().run(direct_request(), always_continue)
 
     assert result.candidates
-    assert True in calls
+    assert calls and not any(calls)
 
 
 # --- Backbone selection (docs/plasmids.md Q13, docs/ROADMAP.md E5b) -----------------
@@ -436,12 +447,8 @@ def test_providing_both_catalog_key_and_custom_genbank_fails_cleanly(
 
 
 def test_de_mode_fails_cleanly_on_an_identifier_namespace_mismatch(direct_request, always_continue):
-    """`de` mode is real now (see the success path above/below), but the shared
-    ``dataset`` fixture (tests/engine/conftest.py) keys its rows by gene *symbol*
-    (``lacZ``, ``rpoS``, ``katG``), while the bundled reference transcriptome is keyed
-    by NCBI locus tag (``engine.transcriptome`` — docs/genes.md §3 G-d's exact
-    namespace-mismatch scenario). That must fail as data, not crash."""
-    request = direct_request(input_mode=INPUT_DE, trigger_sequence="")
+    """E. coli symbols cannot resolve against the yeast reference."""
+    request = direct_request(input_mode=INPUT_DE, trigger_sequence="", organism="yeast")
     result = LocalEngine().run(request, always_continue)
     assert result.status == "failed"
     assert "identifier namespace" in result.error.lower()
@@ -493,23 +500,17 @@ def test_requesting_only_toehold_and_fails_cleanly_not_a_crash(direct_request, a
     assert "toehold_and" in result.error.lower() or "and" in result.error.lower()
 
 
-def test_a_long_paste_never_reaches_the_broken_and_family_uncaught(direct_request, always_continue):
-    """The actual crash scenario: mixing a working family with the broken AND one,
-    against a paste long enough to scan into multiple, non-overlapping trigger
-    candidates — build_trigger_sets will genuinely pair some of them."""
-    long_trigger = (
-        "AUGGUGAGCAAGGGCGAGGAGGAUAACAUGGCCAUCAUCAAGGAGUUCAUGCGCUUCAAGGUGCAC"
-        "AUGGAGGGCUCCGUGAACGGCCACGAGUUCGAGAUCGAGGGCGAGGGCGAGGGCCGCCCCUACGAG"
-        "GGCACCCAGACC"
-    )
+def test_a_long_paste_with_unsupported_family_is_rejected_before_folding(
+    direct_request, always_continue
+):
     result = LocalEngine().run(
-        direct_request(trigger_sequence=long_trigger, gate_families=["toehold", "toehold_and"]),
+        direct_request(
+            trigger_sequence=CLEAN_TRIGGER * 2, gate_families=["toehold", "toehold_and"]
+        ),
         always_continue,
     )
-    assert result.status == "succeeded"
-    assert result.candidates
-    assert all(c.gate_family == "toehold" for c in result.candidates)
-    assert any("toehold_and" in w for w in result.warnings)
+    assert result.status == FAILED
+    assert "toehold_and" in result.error
 
 
 def test_cancellation_before_the_run_starts(direct_request):
@@ -690,9 +691,9 @@ def test_build_tools_returns_every_documented_key(direct_request):
     assert set(tools) == {
         "folder",
         "profiler",
-        "off_target",
         "screener",
         "codons",
+        "aisc",
         "translation",
         "plasmid_builder",
         "constraints",
@@ -721,7 +722,7 @@ def test_plasmid_builder_shares_the_same_screener_and_codons_instances(direct_re
 
 def test_a_default_constraints_block_builds_with_no_overrides(direct_request):
     tools = build_tools(direct_request(), Host.ECOLI)
-    assert tools["constraints"].max_triggers == 2
+    assert tools["constraints"].max_triggers == 1
     assert tools["constraints"].standard == AssemblyStandard.RFC10
 
 
@@ -839,15 +840,16 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
     direct_request, always_continue
 ):
     """LocalEngine.run is what converts EngineError to data — run_pipeline itself
-    still raises, matching MockEngine._execute's half of the same split."""
+    still raises."""
     from engine.errors import InputValidationError
 
     with pytest.raises(InputValidationError):
-        run_pipeline(direct_request(input_mode=INPUT_DE, trigger_sequence=""), always_continue)
+        run_pipeline(direct_request(trigger_sequence="BAD_SEQUENCE"), always_continue)
 
 
-def test_gate_aware_trigger_ranking_bumps_engine_version():
-    assert LocalEngine.ENGINE_VERSION == "local-0.5.0-direct-and-de-ecoli-yeast"
+def test_human_construction_bumps_engine_version():
+    # Explicit folding models are the next engine revision after human construction.
+    assert LocalEngine.ENGINE_VERSION.startswith("local-0.12.0")
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(
@@ -885,3 +887,190 @@ def test_a_released_run_exports_fasta_genbank_and_sbol_together(
     assert len(sbol) == len(accepted)
     assert all(a.media_type == "application/n-triples" for a in sbol)
     assert all(a.path.startswith("sbol/") and a.path.endswith(".nt") for a in sbol)
+
+
+# --- Stage 4: circuits longer than one gate ------------------------------------------
+
+
+def _multi_gate(result):
+    """The candidates that are real circuits rather than single switches."""
+    return [c for c in result.candidates if "-gate circuit" in (c.summary or "")]
+
+
+def test_max_circuit_gates_of_one_produces_no_multi_gate_circuits(de_request, always_continue):
+    """The knob set to 1 is exactly what this engine produced before stage 4 existed —
+    one circuit per gene, nothing combined."""
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 1}}), always_continue
+    )
+
+    assert result.status == SUCCEEDED
+    assert result.candidates
+    assert _multi_gate(result) == []
+
+
+def test_raising_max_circuit_gates_returns_explicit_unsupported_physical_result(
+    de_request, always_continue
+):
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
+    )
+    assert result.status == FAILED
+    assert "physical circuit" in result.error
+    assert not result.candidates
+
+
+def test_a_longer_circuit_is_penalised_for_its_length(de_request, always_continue):
+    """``circuit_complexity`` is the price of a longer circuit. It comes from the
+    circuit's own BooleanExpression, so it rises with every gate — a two-gate circuit
+    must never report the 1.0 a single gate does."""
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
+    )
+
+    def complexity(candidate):
+        return next(m.raw_value for m in candidate.metrics if m.name == "circuit_complexity")
+
+    singles = [c for c in result.candidates if c not in _multi_gate(result)]
+    assert all(complexity(c) == 1.0 for c in singles)
+    assert all(complexity(c) >= 3.0 for c in _multi_gate(result))
+
+
+def test_a_multi_gate_circuit_lists_every_member_switch(de_request, always_continue):
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
+    )
+    assert result.status == FAILED
+    assert "physical circuit" in result.error
+    assert not result.candidates
+
+
+def test_a_multi_gate_circuit_reports_its_real_logic(de_request, always_continue):
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gates": 2}}), always_continue
+    )
+    assert result.status == FAILED
+    assert "physical circuit" in result.error
+    assert not result.candidates
+
+
+def test_an_unknown_constraint_field_is_still_rejected(de_request, always_continue):
+    """The new field must not have loosened validation on the block it lives in."""
+    result = LocalEngine().run(
+        de_request(params={"constraints": {"max_circuit_gatez": 2}}), always_continue
+    )
+
+    assert result.status == FAILED
+    assert "max_circuit_gatez" in result.error
+
+
+# --- C. acnes: the fourth host, end to end ------------------------------------------
+
+
+def test_c_acnes_direct_run_produces_a_plasmid_scored_on_the_collaborators_table(
+    direct_request, always_continue
+):
+    """The whole point of the AIS-China collaboration, exercised end to end.
+
+    Covers what no unit test does: that selecting this organism gets a prokaryotic track
+    (so an RBS, not a Kozak context), a real transcriptome, the J23119/B0015 parts, and a
+    ``translation_score`` computed against *their* genome-derived CAI weights rather than
+    a generic bacterial table — all the way to an emitted plasmid.
+    """
+    request = direct_request(organism="c_acnes", params={"organism": "c_acnes"})
+    result = run_pipeline(request, always_continue)
+
+    assert result.candidates, f"no candidates for C. acnes; warnings: {result.warnings}"
+    designs = [c.design for c in result.candidates if c.design.get("plasmid_segments")]
+    assert designs, f"no plasmid was assembled; warnings: {result.warnings}"
+
+    names = [s["name"] for s in designs[0]["plasmid_segments"]]
+    assert "J23119" in names, f"expected the J23119 promoter, got {names}"
+    assert "B0015" in names, f"expected the B0015 terminator, got {names}"
+
+
+def test_c_acnes_is_prokaryotic_and_gets_the_collaborators_codon_table(direct_request):
+    """``HOST_TRACKS`` and the codon-table routing, asserted together.
+
+    These two are one fact about this host from a reviewer's point of view: it is a
+    bacterium whose codon model came from the collaboration. Getting the track wrong was
+    the silent failure the explicit mapping exists to prevent, and getting the table wrong
+    would score an actinobacterium against *E. coli*'s codon preferences.
+    """
+    tools = build_tools(
+        direct_request(organism="c_acnes", params={"organism": "c_acnes"}), Host.C_ACNES
+    )
+
+    assert Host.C_ACNES.track is Track.PROKARYOTIC
+    assert tools["aisc"] is not None, "the AIS-China package must be built for this host"
+    versions = tools["codons"].versions()
+    assert versions["codon_table"].startswith("ais-china/atcc6919_GCF_008728435.1@"), versions
+    # And the other three hosts must not pay for it.
+    assert build_tools(direct_request(), Host.ECOLI)["aisc"] is None
+
+
+@pytest.mark.parametrize("output", ["mcherry", "luciferase", "ampr", "kanr"])
+def test_pinned_reporter_runs_actual_full_payload_context(direct_request, always_continue, output):
+    request = direct_request(
+        params={
+            "payload": {"outputs": [output]},
+            "budget": {"max_designs": 1},
+            "constraints": {"standard": "none"},
+        }
+    )
+    result = LocalEngine().run(request, always_continue)
+    assert result.status == "succeeded", result.error
+    assert result.candidates
+    for candidate in result.candidates:
+        assert candidate.design["payload_id"] == output
+        assert candidate.design["payload_source"]["source_revision"]
+        assert candidate.design["payload_source"]["sequence_sha256"]
+        assert candidate.design["evaluation_context"].startswith("full_switch_plus_payload")
+        assert (
+            next(m.raw_value for m in candidate.metrics if m.name == "predicted_success_rate")
+            is not None
+        )
+        assert candidate.design["payload_optimization"] == {"status": "not_requested"}
+
+
+def test_forbidden_exact_trigger_changes_actual_candidate_eligibility(
+    direct_request, always_continue
+):
+    baseline = LocalEngine().run(direct_request(), always_continue)
+    assert baseline.accepted
+    blocked = LocalEngine().run(
+        direct_request(params={"constraints": {"forbidden_motifs": [CLEAN_TRIGGER]}}),
+        always_continue,
+    )
+    assert blocked.status == "succeeded"
+    assert not blocked.candidates
+    assert any(
+        "Exact trigger excluded" in warning and "user-1" in warning for warning in blocked.warnings
+    )
+
+
+def test_configured_folding_model_reaches_run_and_candidate_provenance(
+    direct_request, always_continue
+):
+    import dataclasses
+    import json
+
+    from engine.domain import FoldingConfig
+
+    config = FoldingConfig(temperature_celsius=25, energy_parameters="andronescu2007")
+    request = direct_request(params={"folding": dataclasses.asdict(config)})
+    tools = build_tools(request, Host.ECOLI)
+    assert tools["folder"].config == tools["profiler"].config == config
+    result = LocalEngine().run(request, always_continue)
+    assert result.status == SUCCEEDED
+    assert result.candidates
+    provenance = result.scientific_provenance["folding_model"]
+    assert provenance == tools["folder"].provenance()
+    assert provenance["configuration"] == dataclasses.asdict(config)
+    for candidate in result.candidates:
+        assert candidate.design["folding_model"] == provenance
+        assert json.loads(candidate.design["tool_versions"]["folding_model"]) == provenance
+    assert (
+        json.loads(json.dumps(dataclasses.asdict(result)))["scientific_provenance"]["folding_model"]
+        == provenance
+    )

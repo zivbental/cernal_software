@@ -10,6 +10,7 @@ from engine.errors import UnsupportedGateFamilyError
 from engine.gates.antisense import AntisenseNotGate
 from engine.gates.base import GateFamily
 from engine.gates.crispr import CrisprGate
+from engine.gates.euk_antisense import EukaryoticAntisenseNotGate
 from engine.gates.toehold import (
     EukaryoticToeholdAndGate,
     EukaryoticToeholdGate,
@@ -123,4 +124,5 @@ register(ProkaryoticToeholdAndGate)
 register(EukaryoticToeholdGate)
 register(EukaryoticToeholdAndGate)
 register(AntisenseNotGate)
+register(EukaryoticAntisenseNotGate)
 register(CrisprGate)

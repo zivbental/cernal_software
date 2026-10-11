@@ -6,6 +6,7 @@ works with no CORS and nothing sensitive in browser storage (ADR 0003).
 
 from uuid import UUID
 
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth import login as django_login
 from django.contrib.auth import logout as django_logout
@@ -14,7 +15,7 @@ from ninja import Router, Status
 from ninja.security import django_auth
 
 from api.auth import get_owned, owned_queryset
-from api.errors import ApiError, ValidationFailed
+from api.errors import ApiError, NotFound, ValidationFailed
 from api.schemas import (
     ApiKeyCreatedOut,
     ApiKeyCreateIn,
@@ -25,10 +26,11 @@ from api.schemas import (
     UserOut,
     WhoAmIOut,
 )
-from api.security import ApiKeyAuth
+from api.security import ApiKeyAuth, protect_auth_entry
 from apps.accounts.models import ApiKey
 from apps.accounts.services import (
     RegistrationError,
+    get_or_create_reviewer_account,
     issue_api_key,
     regenerate_api_key,
     register_user,
@@ -73,6 +75,7 @@ def register(request, payload: RegisterIn):
     Creates it inactive; a staff member approves it in Django admin. No session is
     established and no email is sent.
     """
+    protect_auth_entry(request)
     try:
         user = register_user(
             username=payload.username,
@@ -99,6 +102,7 @@ def register(request, payload: RegisterIn):
 
 @router.post("/login", response=UserOut, auth=None, url_name="login")
 def login(request, payload: LoginIn):
+    protect_auth_entry(request)
     user = authenticate(request, username=payload.username, password=payload.password)
 
     if user is None:
@@ -115,6 +119,25 @@ def login(request, payload: LoginIn):
         # One message for both cases, so the endpoint cannot be used to enumerate users.
         raise InvalidCredentials("Incorrect username or password.")
 
+    django_login(request, user)
+    return user
+
+
+@router.post("/reviewer-login", response=UserOut, auth=None, url_name="reviewer_login")
+def reviewer_login(request):
+    """Instant sign-in as the shared reviewer account — no username or password.
+
+    404s, not 403s, when the flag is off, so a deployment where this was never meant
+    to ship cannot even tell the endpoint exists.
+    """
+    if not settings.REVIEWER_LOGIN_ENABLED:
+        raise NotFound("Not found.")
+
+    protect_auth_entry(request)
+    try:
+        user = get_or_create_reviewer_account()
+    except RegistrationError as exc:
+        raise ValidationFailed(str(exc)) from None
     django_login(request, user)
     return user
 
@@ -197,7 +220,10 @@ def regenerate_key(request, key_id: UUID):
     in the web UI. The previous secret stops working the instant this returns, and a
     previously revoked key becomes active again."""
     key = get_owned(ApiKey, key_id, request.user)
-    _key, secret = regenerate_api_key(key)
+    try:
+        _key, secret = regenerate_api_key(key)
+    except RegistrationError as exc:
+        raise ValidationFailed(str(exc)) from None
     return _key_with_secret(key, secret)
 
 

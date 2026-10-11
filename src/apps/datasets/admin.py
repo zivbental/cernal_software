@@ -13,6 +13,10 @@ class DatasetAdmin(admin.ModelAdmin):
 
     # A dataset is immutable once uploaded (docs/architecture.md §5).
     readonly_fields = (
+        "file",
+        "validation_status",
+        "schema_version",
+        "name",
         "id",
         "checksum_sha256",
         "size_bytes",
@@ -20,6 +24,12 @@ class DatasetAdmin(admin.ModelAdmin):
         "uploaded_by",
         "validation_report",
     )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     @admin.display(description="Size", ordering="size_bytes")
     def size_display(self, obj) -> str:

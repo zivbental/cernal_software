@@ -17,6 +17,7 @@ from cernal.errors import (
     CernalError,
     RateLimited,
     RunFailed,
+    TransportError,
     ValidationError,
 )
 from cernal.job import Job
@@ -28,6 +29,7 @@ __all__ = [
     "Job",
     "RateLimited",
     "RunFailed",
+    "TransportError",
     "ValidationError",
 ]
 __version__ = "0.1.0"

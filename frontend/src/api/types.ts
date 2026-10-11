@@ -6,7 +6,7 @@
  */
 
 export type RunStatus = "DRAFT" | "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-export type InputMode = "de" | "direct";
+export type InputMode = "de" | "direct" | "gene";
 export type ValidationStatus = "PENDING" | "VALID" | "INVALID";
 export type MetricDirection = "HIGHER_BETTER" | "LOWER_BETTER";
 export type DecisionTag = "NONE" | "PINNED" | "SHORTLISTED" | "REJECTED" | "SYNTHESIZE";
@@ -53,6 +53,15 @@ export interface Version {
   gate_families: GateFamily[];
   scoring_profiles: string[];
   available_backbones: Backbone[];
+  reviewer_login_enabled: boolean;
+  supported_hosts: string[];
+  family_hosts: Record<string, string[]>;
+  supported_outputs: string[];
+  output_hosts?: Record<string, string[]>;
+  backbone_hosts?: Record<string, string[]>;
+  input_modes: string[];
+  limits: Record<string, number>;
+  constraints: Record<string, unknown>;
 }
 
 export interface ExampleDataset {
@@ -108,6 +117,7 @@ export interface PublicDatasetInfo {
   genes_with_adjusted_p_value: number;
   analysis_method: string;
   publication_doi: string;
+  provider_metadata?: Record<string, unknown>;
 }
 
 export interface DatasetProvenance {
@@ -123,6 +133,7 @@ export interface DatasetProvenance {
   retrieved_at: string;
   analysis_method: string;
   publication_doi: string;
+  provider_metadata?: Record<string, unknown>;
 }
 
 export interface DatasetPreviewRow {
@@ -175,6 +186,7 @@ export interface RunStatusResponse {
   status: RunStatus;
   stage: string;
   progress_pct: number;
+  worker_available?: boolean | null;
   error_summary: string | null;
   warnings: string[];
   submitted_at: string | null;
@@ -243,6 +255,7 @@ export interface CandidateDesign {
   sequence_length_bp: number;
   plasmid_segments: PlasmidSegment[];
   logic_graph: LogicGraph;
+  [key: string]: unknown;
 }
 
 export interface Candidate {
@@ -265,6 +278,19 @@ export interface CandidateDetail extends Candidate {
   triggers: { features: Array<Record<string, unknown>> };
   design: CandidateDesign;
   metrics: Metric[];
+}
+
+/** Geometry for the saved switch structure. No folding or energies are computed. */
+export interface CandidateStructure {
+  status: "available" | "unavailable" | "invalid" | "error";
+  reason: string | null;
+  sequence: string;
+  structure: string;
+  structure_kind: string | null;
+  bases: Array<{ index: number; char: string; x: number; y: number }>;
+  links: Array<{ source: number; target: number }>;
+  renderer: string;
+  renderer_version: string;
 }
 
 /** Categories the download UI groups artifacts under (apps.results.models.ArtifactCategory). */
@@ -330,13 +356,17 @@ export interface ApiKeyCreated extends ApiKey {
 
 /** The wizard's configuration, frozen into params_snapshot at submission. */
 export interface RunParams {
+  /** Cap on validated gate designs evaluated; outputs are evaluated separately. */
+  budget?: { max_designs?: number };
+  /** Presentation only, after ranking accepted results; stored results stay complete. */
+  top_n?: number;
   schema_version?: string;
   organism?: string;
   input_mode?: InputMode;
   logic?: { set_a: string[]; set_b: string[]; expression: string };
   mechanism?: string;
   /** All outputs are equivalent; each selected one gets its own plasmid candidates. */
-  payload?: { outputs: string[]; custom_sequence: string | null };
+  payload?: { outputs: string[]; custom_sequence: string | null; optimize_codons?: boolean };
   /**
    * A per-run override of the scoring profile's hard filters (engine.scoring.profiles
    * X7) — the same shape POST /api/design validates. Metric names must be ones the
@@ -349,18 +379,27 @@ export interface RunParams {
     hard_filters?: { metric: string; minimum?: number; maximum?: number; reason: string }[];
   };
   /**
+   * Search constraints — `engine.domain.Constraints`, field for field. Unknown field
+   * names are rejected at submission rather than silently ignored.
+   */
+  constraints?: {
+    /**
+     * How many gates one circuit may combine (not how many inputs one gate takes —
+     * that is `max_triggers`). 1 gives one circuit per gene; higher lets the engine
+     * also propose `A AND NOT B` style circuits, each priced by `circuit_complexity`.
+     */
+    max_circuit_gates?: number;
+    [key: string]: unknown;
+  };
+  /**
    * The plasmid vector the circuit gets assembled onto (docs/plasmids.md Q13). Exactly
    * one of the two fields, or neither (today's bare four-segment construct, unchanged) —
    * the API rejects both being set at once.
    */
-  backbone?: { catalog_key?: string; custom_genbank?: string };
+  backbone?: { catalog_key?: string; custom_genbank?: string; insertion_index?: number };
   /**
-   * Informational only (compile/Steps.tsx's "Specific Gene" route) — recorded on the
-   * submission so the run documents which gene the researcher had in mind, but not
-   * resolved to a sequence or wired into the pipeline. Rides through as a free-form
-   * params key; the engine does not read it today.
+   * Reference identity resolved server-side and frozen with the selected transcript.
    */
   target_gene?: { organism: string; gene_id: string; gene_symbol: string | null };
-  mock?: { candidate_count?: number; step_delay?: number; fail?: boolean };
   [key: string]: unknown;
 }

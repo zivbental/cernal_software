@@ -1,0 +1,30 @@
+cernal-rnaviz — RNA secondary structure folding, interaction analysis and visualization
+Copyright 2026 iGEM TAU 2026 Team, Tel Aviv University
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License in the LICENSE file at the root of this repository, or at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
+
+--------------------------------------------------------------------------------
+
+Third-party software:
+
+The ViennaRNA Package provides every secondary-structure prediction in this
+project — MFE folding, the partition function, and the 2D layout coordinates.
+ViennaRNA is NOT distributed under an OSI-approved license. It is declared as a
+dependency and installed by the user from its own wheel; no part of it is
+redistributed here. See https://www.tbi.univie.ac.at/RNA/ for its terms.
+
+FastAPI, Pydantic and Uvicorn are MIT- and BSD-licensed dependencies, likewise
+installed rather than vendored.
+
+The Inter and Fira Code typefaces are loaded from Google Fonts at runtime under
+the SIL Open Font License; no font files are included in this repository.

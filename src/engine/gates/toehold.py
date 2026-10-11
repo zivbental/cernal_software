@@ -46,6 +46,7 @@ from engine.gates.tools.binding import (
     can_pair,
     fixed_alignment_energy,
     longest_complementary_run,
+    weakest_binding_confidence,
 )
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
@@ -100,11 +101,13 @@ class ToeholdGate(GateFamily):
 
     name = "toehold"
     design_prefix = "toehold"
-    version = "0.8.1"
+    version = "0.10.0-payload-context"
     kind = GateKind.TOEHOLD
     label = "Toehold Riboswitch"
     description = "Translational control · pre-mRNA"
-    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI, Host.YEAST, Host.HUMAN})
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset(
+        {Host.ECOLI, Host.YEAST, Host.HUMAN, Host.C_ACNES}
+    )
     max_inputs = 1
     available = True
 
@@ -287,6 +290,13 @@ class ToeholdGate(GateFamily):
                 f"This gate takes exactly {self.max_inputs} activating input(s) and no "
                 f"repressors, but got {len(trigger_set.activators)} activator(s) and "
                 f"{len(trigger_set.repressors)} repressor(s)."
+            )
+        if any(
+            t.log2_fold_change is not None and t.log2_fold_change < 0
+            for t in trigger_set.activators
+        ):
+            return Compatibility.no(
+                "Down-regulated inputs require a physical inverter for target-state activation."
             )
         if self.host not in self.supported_hosts:
             return Compatibility.no(f"{self.label} is not offered for {self.host.value}.")
@@ -742,23 +752,35 @@ class ToeholdGate(GateFamily):
             * ``trigger_accessibility`` — already measured in stage 2 and carried on the
               trigger. Read it, do not recompute it, or the two disagree.
             * ``translation_score`` — ``self.translation.score(...)`` at the start codon.
-            * ``binding_site_off_target`` — supplied by the validator; do not re-scan.
 
         Gotcha:
             Fold the ON state as a **dimer** (``cofold`` with the ``&`` separator), not as
             a concatenated single strand. Concatenation gives a plausible-looking number
             that means nothing.
 
-        Emits (see the port's metrics audit for why not the others the docstring above
-        names): ``gate_folding_energy``, ``predicted_leakage``, ``dynamic_range``,
-        ``trigger_accessibility``, ``gc_content``. ``translation_score`` and
-        ``binding_site_off_target`` are not legal ``evaluate_design`` keys (they are
-        ``GateDesign`` fields filled elsewhere, not profile metrics) and are not computed
+        Emits ``gate_folding_energy``, ``predicted_leakage``, ``dynamic_range``,
+        ``trigger_accessibility``, ``gc_content``, ``predicted_success_rate``,
+        ``state_separation`` and ``circuit_complexity``.
+
+        ``translation_score`` is not a legal ``evaluate_design`` key (it is a
+        ``GateDesign`` field filled elsewhere, not a profile metric) and is not computed
         here; ``self.translation`` (``TranslationScorer.score``) is not called because it
-        still raises ``NotImplementedError`` — see the port's open questions for
-        ``predicted_success_rate``, which is left unemitted for the same reason.
+        still raises ``NotImplementedError``. ``predicted_success_rate`` no longer waits
+        on it — it is the shared binding sigmoid
+        (``engine.gates.tools.binding.binding_energy_factor``) over
+        ``hybridization_energy``, the same scale ``AntisenseNotGate`` reports on, so the
+        two chemistries stay comparable.
+
+        ``orthogonality`` is **not** emitted, and not because it is unfinished. It is
+        declared as independence *from other gates*; every design this family can build
+        is single-input, so there is no other gate in the circuit to be independent of,
+        and the quantity does not exist to be measured. A number here — 1.0 for "nothing
+        to clash with", or a self-dimerisation figure wearing the name — would be a
+        different quantity under a metric name the profile already defines, which is the
+        failure CLAUDE.md §2 is about. It stays absent, and its spec carries
+        ``missing_behavior=SKIP`` so an inapplicable metric costs a design nothing.
         """
-        switch = design.sequence
+        switch = design.architecture.get("evaluation_sequence", design.sequence)
         trigger = design.trigger_set.activators[0]
         layout = design.architecture.get("kozak_layout", "loop")
 
@@ -798,12 +820,18 @@ class ToeholdGate(GateFamily):
             # good because it measured the wrong partner.
             off_accessibility = 1.0
 
+        activators = design.trigger_set.activators
         return {
             "gate_folding_energy": self.folder.mfe(switch).energy,
             "predicted_leakage": off_accessibility,
             "dynamic_range": on_accessibility / max(off_accessibility, 1e-3),
             "trigger_accessibility": trigger.accessibility,
-            "gc_content": sq.gc_content(switch),
+            "gc_content": sq.gc_content(design.sequence),
+            "predicted_success_rate": weakest_binding_confidence(
+                switch, [t.sequence for t in activators], self.folder
+            ),
+            "state_separation": self.state_separation(activators),
+            "circuit_complexity": self.component_count(len(activators)),
         }
 
     def emit_sequence(self, design: GateDesign) -> str:
@@ -1965,7 +1993,7 @@ class ProkaryoticToeholdGate(ToeholdGate):
     design_prefix = "prokaryotic_toehold"
     label = "Prokaryotic Toehold"
     description = "Prokaryotic single-input translational control"
-    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI})
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI, Host.C_ACNES})
 
 
 class ProkaryoticToeholdAndGate(ToeholdAndGate):
@@ -1975,7 +2003,7 @@ class ProkaryoticToeholdAndGate(ToeholdAndGate):
     design_prefix = "prokaryotic_toehold_and"
     label = "Prokaryotic AND Toehold"
     description = "Prokaryotic two-input translational AND"
-    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI})
+    supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.ECOLI, Host.C_ACNES})
 
 
 class EukaryoticToeholdGate(ToeholdGate):

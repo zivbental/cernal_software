@@ -11,16 +11,18 @@ having read nothing.
 
 import math
 import time
+from urllib.parse import urlencode
 from uuid import UUID
 
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import F
-from ninja import Router, Status
+from ninja import Query, Router, Status
 
 from api.auth import get_owned
-from api.errors import ValidationFailed
+from api.errors import Conflict, ValidationFailed
 from api.params import (
+    BACKBONE_KEYS,
     BUDGET_KEYS,
     CONSTRAINT_KEYS,
     PAYLOAD_KEYS,
@@ -35,14 +37,26 @@ from api.schemas import (
     RunCounts,
     RunStatusOut,
 )
-from api.security import enforce_concurrency_ceiling, require_scope
+from api.security import TooManyActiveRuns, require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
-from apps.analyses.services import RunError, submit_run
+from apps.analyses.services import RunError, RunQuotaExceeded, SubmissionConflict, submit_run
+from apps.analyses.worker import worker_available
 from apps.datasets.models import Dataset
-from apps.datasets.services import DatasetValidationError, create_dataset, validate_expression_file
+from apps.datasets.services import (
+    DatasetValidationError,
+    create_dataset,
+    delete_dataset,
+    validate_expression_file,
+)
 from apps.results.models import Artifact, Candidate
-from engine.client import label_for_custom_scoring, load_engine
+from engine.client import (
+    label_for_custom_scoring,
+    load_engine,
+    lookup_reference_gene,
+    normalize_trigger_sequence,
+    validate_job_configuration,
+)
 
 router = Router()
 
@@ -52,7 +66,6 @@ WAIT_HARD_CEILING = 300.0
 
 #: ROADMAP.md §3, measured on ViennaRNA 2.7.2, one core: a fold + a cofold + a
 #: partition function per design, ~15ms. Never presented as a guarantee.
-_SECONDS_PER_DESIGN = 0.015
 #: ROADMAP.md §3's own worked example: 1,225 trigger sets (top-50 genes, pairs) -> a
 #: measured ~12,250 designs. Used only to keep dry_run's arithmetic consistent with the
 #: one real data point this repo has.
@@ -66,19 +79,24 @@ def _input_mode(body: DesignIn) -> str:
             ("trigger_sequence", body.trigger_sequence),
             ("dataset_id", body.dataset_id),
             ("dge_csv", body.dge_csv),
+            ("gene_id", body.gene_id),
         )
         if value
     ]
     if len(provided) != 1:
         raise ValidationFailed(
-            "Provide exactly one of trigger_sequence, dataset_id or dge_csv.",
+            "Provide exactly one of trigger_sequence, dataset_id, dge_csv or gene_id.",
             detail={"provided": provided},
         )
+    if provided[0] == "gene_id":
+        return InputMode.GENE
     return InputMode.DIRECT if provided[0] == "trigger_sequence" else InputMode.DE
 
 
 def _resolve_gate_families(body: DesignIn, capabilities) -> list[str]:
     available = capabilities.available_families
+    if body.gate_families == []:
+        raise ValidationFailed("Choose at least one gate family.")
 
     if body.gate_families is not None:
         unknown = sorted(set(body.gate_families) - set(available))
@@ -89,7 +107,12 @@ def _resolve_gate_families(body: DesignIn, capabilities) -> list[str]:
             )
         return list(body.gate_families)
 
-    families = [name for name in available if name not in set(body.exclude_gate_families)]
+    families = [
+        name
+        for name in available
+        if name not in set(body.exclude_gate_families)
+        and body.organism in capabilities.family_hosts.get(name, [])
+    ]
     if not families:
         raise ValidationFailed("No gate family remains after applying exclude_gate_families.")
     return families
@@ -103,15 +126,17 @@ def _resolve_scoring(body: DesignIn, capabilities) -> dict:
     return scoring
 
 
-def _estimate(
-    input_mode: str, rows: int | None, constraints: dict, gate_families: list[str]
-) -> dict:
+def _estimate(input_mode: str, rows: int | None, params: dict, gate_families: list[str]) -> dict:
     """Rough, and labelled as such (docs/public-api.md §9.3). ``de`` mode can only be
-    bounded from the dataset's row count — gene selection (stage 1) doesn't exist yet,
-    so how many genes actually survive filtering is unknown until it does."""
+    bounded from the dataset's row count. The surviving gene count and generated trigger
+    windows are unknown before execution."""
+    constraints = params["constraints"]
     n_families = max(1, len(gate_families))
+    max_designs = params["budget"]["max_designs"]
+    outputs = len(params["payload"].get("outputs") or ["gfp"])
+    upper_bound = max_designs * outputs
 
-    if input_mode == InputMode.DIRECT:
+    if input_mode in (InputMode.DIRECT, InputMode.GENE):
         n_lengths = max(1, len(constraints.get("trigger_lengths", (30, 33, 36))))
         designs = n_lengths * n_families
         confidence = "very rough"
@@ -123,8 +148,10 @@ def _estimate(
         confidence = "rough"
 
     return {
-        "designs": designs,
-        "seconds": round(designs * _SECONDS_PER_DESIGN, 1),
+        "designs": min(designs, max_designs) * outputs,
+        "seconds": None,
+        "runtime_calibrated": False,
+        "candidate_upper_bound": upper_bound,
         "confidence": confidence,
     }
 
@@ -140,15 +167,22 @@ def _resolved(run: AnalysisRun) -> dict:
         ),
         "seed": run.seed,
         "constraints": run.params_snapshot.get("constraints", {}),
+        "folding": run.params_snapshot.get("folding", {}),
+        "organism": run.organism,
+        "budget": run.params_snapshot.get("budget", {}),
+        "payload": run.params_snapshot.get("payload", {}),
+        "backbone": run.params_snapshot.get("backbone", {}),
     }
 
 
 def _row_count_for_dry_run(request, body: DesignIn, input_mode: str) -> int | None:
     """Never persists — a dry run creates nothing (§9.3)."""
-    if input_mode == InputMode.DIRECT:
+    if input_mode in (InputMode.DIRECT, InputMode.GENE):
         return None
     if body.dataset_id:
         dataset = get_owned(Dataset, body.dataset_id, request.user)
+        if not dataset.is_usable:
+            raise ValidationFailed("This dataset did not pass validation and cannot be analysed.")
         return (dataset.validation_report or {}).get("rows")
 
     upload = SimpleUploadedFile("dge.csv", body.dge_csv.encode(), content_type="text/csv")
@@ -156,10 +190,14 @@ def _row_count_for_dry_run(request, body: DesignIn, input_mode: str) -> int | No
         report = validate_expression_file(upload)
     except DatasetValidationError as exc:
         raise ValidationFailed(str(exc)) from None
+    if report.get("errors"):
+        raise ValidationFailed(" ".join(report["errors"]))
     return report.get("rows")
 
 
-@router.post("/design", response={202: DesignAcceptedOut, 200: DesignResponseOut})
+@router.post(
+    "/design", response={202: DesignAcceptedOut, 200: DesignResponseOut}, exclude_none=True
+)
 def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = False):
     """Submit, or estimate without submitting (``?dry_run=true``), or block for a
     finished result (``?wait=<seconds>``, ceiling 300s — see ``WAIT_HARD_CEILING``)."""
@@ -171,13 +209,49 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
     scoring = _resolve_scoring(body, capabilities)
 
     if body.strict:
-        check_known_keys(body.constraints, CONSTRAINT_KEYS, "constraint")
+        check_known_keys(
+            body.constraints, set(capabilities.constraints) or CONSTRAINT_KEYS, "constraint"
+        )
         check_known_keys(body.budget, BUDGET_KEYS, "budget field")
         check_known_keys(body.payload, PAYLOAD_KEYS, "payload field")
+        check_known_keys(body.backbone, BACKBONE_KEYS, "backbone field")
+
+    params = {
+        "constraints": body.constraints,
+        "folding": body.folding,
+        "scoring": scoring,
+        "payload": body.payload,
+        "backbone": body.backbone,
+        "top_n": body.top_n,
+        "notes": body.notes,
+    }
+    if body.budget:
+        params["budget"] = body.budget
+    if input_mode == InputMode.GENE:
+        params["target_gene"] = {"gene_id": body.gene_id}
+    try:
+        sequence = body.trigger_sequence
+        if input_mode == InputMode.DIRECT:
+            sequence = normalize_trigger_sequence(sequence)
+            if len(sequence) < 20:
+                raise ValueError("The trigger sequence is too short — at least 20 nucleotides.")
+        elif input_mode == InputMode.GENE:
+            reference = lookup_reference_gene(body.organism, body.gene_id)
+            sequence = reference["sequence"]
+        params = validate_job_configuration(
+            params,
+            gate_families,
+            scoring.get("base", "default"),
+            input_mode,
+            sequence,
+            body.organism,
+        )
+    except ValueError as exc:
+        raise ValidationFailed(str(exc)) from None
 
     if dry_run:
         rows = _row_count_for_dry_run(request, body, input_mode)
-        estimate = _estimate(input_mode, rows, body.constraints, gate_families)
+        estimate = _estimate(input_mode, rows, params, gate_families)
         return Status(
             200,
             {
@@ -188,21 +262,26 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                         scoring.get("base", "default"), scoring
                     ),
                     "seed": body.seed,
-                    "constraints": body.constraints,
+                    "constraints": params["constraints"],
+                    "folding": params["folding"],
+                    "organism": body.organism,
+                    "budget": params.get("budget", {}),
+                    "payload": params.get("payload", {}),
+                    "backbone": params.get("backbone", {}),
                 },
                 "estimate": estimate,
-                # No budget enforcement yet — engine-side work, blocked on the real
-                # pipeline (docs/public-api.md §9.3, §14 X6). True until it lands.
+                # The shared engine validator enforces the supported design-count budget.
                 "budget_ok": True,
             },
         )
 
-    enforce_concurrency_ceiling(request)
-
     dataset = None
+    inline_created = False
     if body.dataset_id:
         dataset = get_owned(Dataset, body.dataset_id, request.user)
     elif body.dge_csv:
+        # Validate content before storing bytes. A rejected inline submission is not an upload.
+        _row_count_for_dry_run(request, body, input_mode)
         try:
             dataset = create_dataset(
                 uploaded_file=SimpleUploadedFile(
@@ -211,36 +290,44 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                 user=request.user,
                 name="dge.csv (inline)",
             )
+            inline_created = True
         except DatasetValidationError as exc:
             raise ValidationFailed(str(exc)) from None
-
-    params = {
-        "constraints": body.constraints,
-        "scoring": scoring,
-        "budget": body.budget,
-        "payload": body.payload,
-        "top_n": body.top_n,
-        "notes": body.notes,
-    }
 
     try:
         run, _created = submit_run(
             user=request.user,
             dataset=dataset,
             input_mode=input_mode,
-            trigger_sequence=body.trigger_sequence,
+            trigger_sequence=sequence,
             organism=body.organism,
             params=params,
             gate_families=gate_families,
             scoring_profile=scoring.get("base", "default"),
             seed=body.seed,
+            max_concurrent_runs=getattr(
+                getattr(request, "api_key", None), "max_concurrent_runs", None
+            ),
             idempotency_key=body.idempotency_key,
         )
+    except SubmissionConflict as exc:
+        if inline_created:
+            delete_dataset(dataset)
+        raise Conflict(str(exc)) from None
+    except RunQuotaExceeded as exc:
+        if inline_created:
+            delete_dataset(dataset)
+        raise TooManyActiveRuns(str(exc), headers={"Retry-After": "60"}) from None
     except RunError as exc:
+        if inline_created:
+            delete_dataset(dataset)
         raise ValidationFailed(str(exc)) from None
 
+    if inline_created and not _created:
+        # Byte-identical retries reuse the original immutable input record.
+        delete_dataset(dataset)
     rows = (dataset.validation_report or {}).get("rows") if dataset else None
-    estimate = _estimate(input_mode, rows, body.constraints, gate_families)
+    estimate = _estimate(input_mode, rows, params, gate_families)
 
     wait = max(0.0, min(wait, WAIT_HARD_CEILING))
     if wait > 0:
@@ -260,8 +347,24 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                 top_n=body.top_n,
                 include_rejected=body.include_rejected,
                 include_artifacts=body.include_artifacts,
+                include_metrics=body.include_metrics,
             )
             return Status(200, {**results, "resolved": _resolved(run)})
+
+    # A plain REST caller following results_url must get the same presentation as
+    # the synchronous wait response. Defaults keep the existing URL unchanged.
+    result_options = {}
+    if body.top_n != 25:
+        result_options["top_n"] = body.top_n
+    if body.include_rejected:
+        result_options["include_rejected"] = "true"
+    if not body.include_metrics:
+        result_options["include_metrics"] = "false"
+    if body.include_artifacts:
+        result_options["include_artifacts"] = ",".join(body.include_artifacts)
+    results_url = f"/api/design/{run.id}/results"
+    if result_options:
+        results_url += "?" + urlencode(result_options)
 
     return Status(
         202,
@@ -270,7 +373,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
             "status": run.status,
             "progress_pct": run.progress_pct,
             "poll_url": f"/api/design/{run.id}",
-            "results_url": f"/api/design/{run.id}/results",
+            "results_url": results_url,
             "web_url": f"/runs/{run.id}",
             "estimate": estimate,
             "resolved": _resolved(run),
@@ -287,6 +390,7 @@ def get_design_status(request, run_id: UUID):
         status=run.status,
         stage=run.stage,
         progress_pct=run.progress_pct,
+        worker_available=worker_available() if run.status == RunStatus.QUEUED else None,
         error_summary=run.error_summary or None,
         warnings=run.warnings or [],
         submitted_at=run.submitted_at,
@@ -297,13 +401,21 @@ def get_design_status(request, run_id: UUID):
 
 
 def _results_payload(
-    run: AnalysisRun, *, top_n: int, include_rejected: bool, include_artifacts: list[str]
+    run: AnalysisRun,
+    *,
+    top_n: int,
+    include_rejected: bool,
+    include_artifacts: list[str],
+    include_metrics: bool = True,
 ) -> dict:
     queryset = Candidate.objects.filter(run=run).prefetch_related("metrics")
     if not include_rejected:
         queryset = queryset.filter(is_rejected=False)
     queryset = queryset.order_by(F("rank").asc(nulls_last=True), "engine_ref")
     candidates = list(queryset[: max(1, top_n)])
+
+    for candidate in candidates:
+        candidate._include_metrics = include_metrics
 
     artifacts = []
     if include_artifacts:
@@ -317,14 +429,15 @@ def _results_payload(
     }
 
 
-@router.get("/design/{run_id}/results", response=DesignResponseOut)
+@router.get("/design/{run_id}/results", response=DesignResponseOut, exclude_none=True)
 def get_design_results(
     request,
     run_id: UUID,
     format: str = "json",
-    top_n: int = 25,
+    top_n: int = Query(default=25, ge=1, le=1000),
     include_rejected: bool = False,
     include_artifacts: str = "",
+    include_metrics: bool = True,
 ):
     """Ranked candidates with metric decomposition. ``?format=csv`` delegates to the
     same export the SPA and the old endpoint use — one code path (§8).
@@ -339,6 +452,10 @@ def get_design_results(
 
     kinds = [kind.strip() for kind in include_artifacts.split(",") if kind.strip()]
     results = _results_payload(
-        run, top_n=top_n, include_rejected=include_rejected, include_artifacts=kinds
+        run,
+        top_n=top_n,
+        include_rejected=include_rejected,
+        include_artifacts=kinds,
+        include_metrics=include_metrics,
     )
     return {**results, "resolved": _resolved(run)}

@@ -5,7 +5,7 @@ params — verified live that ``?species=``/``?experimentType=`` on
 ``https://www.ebi.ac.uk/gxa/json/experiments`` are silently ignored (the endpoint
 returns the *entire* cross-species catalog regardless), so species/type filtering
 happens client-side here, once, at sync time. The per-experiment files under
-``http://ftp.ebi.ac.uk/pub/databases/microarray/data/atlas/experiments/{accession}/``
+``https://ftp.ebi.ac.uk/pub/databases/microarray/data/atlas/experiments/{accession}/``
 are the real, stable, documented resource (docs/gxa/download's "FTP" section) — plain
 files, no auth, no rate limit encountered.
 
@@ -25,11 +25,15 @@ import xml.etree.ElementTree as ET
 
 import requests
 
-from apps.expression.providers.normalize import NormalizedComparison, NormalizedDeRow
+from apps.expression.providers.normalize import (
+    NormalizedComparison,
+    NormalizedDeRow,
+    parse_contrast_label,
+)
 
 logger = logging.getLogger(__name__)
 
-FTP_BASE = "http://ftp.ebi.ac.uk/pub/databases/microarray/data/atlas/experiments"
+FTP_BASE = "https://ftp.ebi.ac.uk/pub/databases/microarray/data/atlas/experiments"
 EXPERIMENTS_JSON = "https://www.ebi.ac.uk/gxa/json/experiments"
 TIMEOUT = 30
 
@@ -80,19 +84,28 @@ class ExpressionAtlasProvider:
         response.raise_for_status()
         root = ET.fromstring(response.content)
 
+        groups = {
+            group.get("id"): tuple(node.text for node in group.findall("assay") if node.text)
+            for group in root.iter("assay_group")
+        }
         comparisons = []
         for contrast in root.iter("contrast"):
             contrast_id = contrast.get("id")
             name_el = contrast.find("name")
             if contrast_id is None or name_el is None or not name_el.text:
                 continue
-            experimental, _, reference = name_el.text.partition(" vs ")
+            experimental, reference, context = parse_contrast_label(name_el.text)
             comparisons.append(
                 NormalizedComparison(
                     comparison_id=contrast_id,
                     label=name_el.text,
-                    experimental_condition=experimental.strip(" '"),
-                    reference_condition=reference.strip(" '"),
+                    experimental_condition=experimental,
+                    reference_condition=reference,
+                    comparison_context=context,
+                    test_assay_group=contrast.findtext("test_assay_group", ""),
+                    reference_assay_group=contrast.findtext("reference_assay_group", ""),
+                    test_assays=groups.get(contrast.findtext("test_assay_group"), ()),
+                    reference_assays=groups.get(contrast.findtext("reference_assay_group"), ()),
                 )
             )
         return comparisons

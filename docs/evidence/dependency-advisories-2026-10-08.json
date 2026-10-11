@@ -1,0 +1,108 @@
+{
+  "javascript": {
+    "after_counts": {
+      "critical": 0,
+      "high": 0,
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "total": 0
+    },
+    "before_counts": {
+      "critical": 0,
+      "high": 4,
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "total": 4
+    },
+    "findings": [
+      {
+        "advisories": [
+          "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+          "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+          "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p"
+        ],
+        "package": "brace-expansion",
+        "remediation": "compatible lockfile patch update",
+        "severity": "high"
+      },
+      {
+        "advisories": [
+          "https://github.com/advisories/GHSA-2883-xcg3-v3hh"
+        ],
+        "package": "js-yaml",
+        "remediation": "compatible lockfile patch update",
+        "severity": "high"
+      },
+      {
+        "advisories": [
+          "https://github.com/advisories/GHSA-68fv-2mgg-jv7q"
+        ],
+        "package": "source-map-js",
+        "remediation": "compatible lockfile patch update",
+        "severity": "high"
+      },
+      {
+        "advisories": [
+          "https://github.com/advisories/GHSA-4r6h-8v6p-xvw6",
+          "https://github.com/advisories/GHSA-5pgg-2g8v-p4x9"
+        ],
+        "package": "xlsx",
+        "remediation": "remove unused browser dependency; Excel remains parsed by backend openpyxl",
+        "severity": "high"
+      }
+    ],
+    "scope": "frontend package lock, production/development/optional dependency graph",
+    "verification": "clean isolated npm ci --ignore-scripts; TypeScript/ESLint/render/help/build and browser contracts executed; original node_modules untouched"
+  },
+  "limitations": "Advisory databases report known published findings at review time; this does not audit custom code or establish absence of vulnerabilities.",
+  "python": {
+    "after_vulnerability_count": 0,
+    "dependencies_checked": 52,
+    "findings": [
+      {
+        "advisories": [
+          {
+            "aliases": [
+              "GHSA-vxq7-64xx-v4gw",
+              "CVE-2026-97689"
+            ],
+            "fix_versions": [
+              "2.8.0"
+            ],
+            "id": "PYSEC-2026-4177"
+          },
+          {
+            "aliases": [
+              "CVE-2026-97688",
+              "GHSA-gh4c-6fx4-qh6g"
+            ],
+            "fix_versions": [
+              "2.8.0"
+            ],
+            "id": "PYSEC-2026-4176"
+          },
+          {
+            "aliases": [
+              "GHSA-8988-9cw3-xx77",
+              "CVE-2026-97687"
+            ],
+            "fix_versions": [
+              "2.8.0"
+            ],
+            "id": "PYSEC-2026-4175"
+          }
+        ],
+        "package": "urllib3",
+        "version": "2.7.0"
+      }
+    ],
+    "remediation": "urllib3 lock2.7.0 to2.8.0; original environment untouched",
+    "scope": "uv locked production requirements, Linux Python3.13 marker evaluation; no project/package installation during advisory lookup",
+    "skipped_dependencies": [],
+    "verification": "urllib3 2.8.0 imported from isolated /tmp overlay; six expression provider tests passed; root integrated environment verification separate"
+  },
+  "review_date": "2026-10-08",
+  "schema": "cernal-dependency-advisory-review-v1"
+}

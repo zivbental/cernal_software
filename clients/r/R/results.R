@@ -12,7 +12,7 @@
 #' @export
 cernal_results <- function(job) {
   candidates <- job$response$candidates
-  if (is.null(candidates)) {
+  if (is.null(job$response$job_id) || !identical(job$response$status, "COMPLETED") || is.null(candidates)) {
     stop("Call cernal_wait() before cernal_results().", call. = FALSE)
   }
   if (length(candidates) == 0) {
@@ -26,20 +26,25 @@ cernal_results <- function(job) {
     )
     c(
       list(
-        id = candidate$id,
-        engine_ref = candidate$engine_ref,
+        id = candidate$id %||% NA_character_,
+        engine_ref = candidate$engine_ref %||% NA_character_,
         rank = candidate$rank %||% NA_integer_,
         overall_score = candidate$overall_score %||% NA_real_,
-        gate_family = candidate$gate_family,
-        logic_type = candidate$logic_type,
+        gate_family = candidate$gate_family %||% NA_character_,
+        logic_type = candidate$logic_type %||% NA_character_,
         is_rejected = candidate$is_rejected,
-        rejection_reason = candidate$rejection_reason,
+        rejection_reason = candidate$rejection_reason %||% "",
         output = candidate$output %||% NA_character_
       ),
       metric_cols
     )
   })
 
+  columns <- unique(unlist(lapply(rows, names)))
+  rows <- lapply(rows, function(row) {
+    for (name in setdiff(columns, names(row))) row[[name]] <- NA_real_
+    row[columns]
+  })
   tibble::as_tibble(do.call(
     rbind.data.frame,
     lapply(rows, as.data.frame, stringsAsFactors = FALSE)
@@ -54,7 +59,9 @@ cernal_results <- function(job) {
 cernal_best <- function(job) {
   results <- cernal_results(job)
   if (nrow(results) == 0) return(NULL)
-  results[1, ]
+  results <- results[!results$is_rejected & !is.na(results$rank), , drop = FALSE]
+  if (nrow(results) == 0) return(NULL)
+  results[which.min(results$rank), , drop = FALSE]
 }
 
 #' Download an artifact
@@ -82,4 +89,12 @@ cernal_artifact <- function(job, kind, path) {
   )
   writeBin(httr2::resp_body_raw(artifact_resp), path)
   invisible(path)
+}
+
+#' Raw candidate JSON, retaining nested design, triggers, warnings and metrics
+#' @param job A resolved cernal_job.
+#' @export
+cernal_candidates <- function(job) {
+  if (is.null(job$response$job_id) || !identical(job$response$status, "COMPLETED") || is.null(job$response$candidates)) stop("Call cernal_wait() before reading candidates.", call. = FALSE)
+  job$response$candidates
 }
