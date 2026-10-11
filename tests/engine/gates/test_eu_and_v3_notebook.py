@@ -83,6 +83,9 @@ def test_both_reports_render_with_and_without_control_triggers(tmp_path, control
         "ONmin_pct"
         in next(tmp_path.glob("eu_and_v3_and_all_candidates_*.csv")).read_text().splitlines()[0]
     )
+    # no listed construct has an AUG before the second hairpin's stem_down
+    for candidate in namespace["candidates"].values():
+        assert not namespace["upstream_augs"](candidate["built"]), candidate["spacer_label"]
     csvs = list(tmp_path.glob("eu_and_v3_*all*.csv"))
     assert len(csvs) == 2
     assert all("n_controls" in path.read_text(encoding="utf-8").splitlines()[0] for path in csvs)

@@ -17,7 +17,7 @@ from pathlib import Path
 from _joint_state_parallel import both_triggers_extra  # the one A/B strand-order rule
 
 from engine.gates.toehold import _mean_unpaired  # same accessibility helper measure() uses
-from engine.sequences import hamming, is_valid_rna, reverse_complement, to_rna, windows
+from engine.sequences import find_augs, hamming, is_valid_rna, reverse_complement, to_rna, windows
 
 
 def _maybe_float(value):
@@ -255,6 +255,20 @@ def fuse(design_5p, design_3p, cut_before, keep_after, spacer):
         },
         None,
     )
+
+
+def upstream_augs(built):
+    """Start positions (0-based, in the fused RNA) of every AUG that begins before the second
+    hairpin's ``stem_down``.
+
+    The intended start codon of an AND construct is the payload's, after the second hairpin
+    (and its Kozak); an AUG anywhere upstream of that hairpin -- in the first hairpin, the spacer,
+    or the second hairpin's toehold, stem or loop -- is a competing start codon. An AUG that
+    begins at or after the start of the second ``stem_down`` is not counted. Uses
+    ``engine.sequences.find_augs`` (CLAUDE.md sec 1: one AUG finder).
+    """
+    limit = built["domains_3p"]["stem_down"][0]
+    return tuple(i for i in find_augs(built["fused"]) if i < limit)
 
 
 def measure(built, trigger_5p, trigger_3p, folder, own_kozak_rc_3p, own_prefix_rc_5p):

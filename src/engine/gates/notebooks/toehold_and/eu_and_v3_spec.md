@@ -54,7 +54,8 @@ Verification: `VERIFY_SIGMA`, `VERIFY_FLOOR_NT`. Report: `OFF_FLOOR_PCT`, `REPOR
 when the table's own triggers all overlap). Part 2: `AND_TOP_N`, spacer settings
 (`SPACER_VARIANTS`, `SPACER_MIN_LENGTH`/`MAX_LENGTH`, `SPACER_SEED`,
 `SPACER_CANDIDATE_POOL_SIZE`), the AND construct cuts (`CUT_5P_BEFORE`, `KEEP_3P_AFTER`),
-trigger-pair screen (`FAKE_MAX_SEQ_OVERLAP_NT`, `WOBBLE_MAX_FRACTION`),
+trigger-pair screen (`FAKE_MAX_SEQ_OVERLAP_NT`, `WOBBLE_MAX_FRACTION`), start-codon screen
+(`EXCLUDE_UPSTREAM_AUG`),
 `RESULTS_TO_LOAD_AND`, `EXPORT_ARTIFACT`, `ARTIFACT_DETAIL_N`.
 
 ## Definitions
@@ -104,6 +105,18 @@ listed candidates whose `ON_min` is below half of `ON_sum` (uneven response) and
 agreement between the two orders. `ratio = ON_min / max(OFF, OFF_FLOOR_PCT)` is information
 only. The tied group, the noise and the verification all refer to `ON_min - OFF`.
 `dG = G(+A+B) - min(G_alone + G_A + G_B, G_+A + G_B, G_+B + G_A)`.
+
+### Upstream AUG screen
+`EXCLUDE_UPSTREAM_AUG = True` drops every construct whose fused RNA has an AUG that begins
+before the start of the second hairpin's `stem_down` (`_switch_construct.upstream_augs`, built
+on `engine.sequences.find_augs`): in hairpin A, the spacer, or hairpin B's toehold, stem_up or
+loop. The intended start codon is the payload's, after hairpin B and its Kozak; an earlier AUG
+is a competing start codon. An AUG beginning at or after the start of `stem_down_B` is not
+counted. Spacer candidates containing `AUG` are removed from the pool first (so a spacer never
+causes the exclusion; an AUG made at a junction still does). The count is reported next to the
+other exclusions (self-pairs / too similar / upstream AUG / fuse failed). Part 1 (single
+switches) is not screened. The toggle is for comparison; with it off the old candidate set
+returns.
 
 ### Spacer
 `generate_spacer_candidates`: a fixed pool (`SPACER_CANDIDATE_POOL_SIZE`, seed `SPACER_SEED`)
@@ -216,6 +229,11 @@ the other states; percentages are not fully neutral to stem length.
 13. **An empty control pool is a normal outcome**, not an error and not a zero.
 
 ## Change log
+
+- 2026-10-11 (upstream AUG): AND constructs with an AUG before the second hairpin's
+  `stem_down` are excluded and spacer candidates containing AUG are dropped
+  (`EXCLUDE_UPSTREAM_AUG`); the exclusion count joins the others in the report. Tests:
+  `tests/engine/gates/test_toehold_and_helpers.py`, `test_eu_and_v3_notebook.py`.
 
 - 2026-10-11: last cell of the notebook draws the trigger positions of the first `REPORT_TOP_N` AND
   candidates on the transcript (`eu_and_v3_and_trigger_positions_<time>.png`, outside the report).

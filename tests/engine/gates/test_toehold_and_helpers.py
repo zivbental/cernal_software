@@ -169,3 +169,41 @@ def test_medians_of_an_empty_column_are_unavailable_not_zero_or_an_error(stats):
     assert stats.median_text([1.0, None, 3.0], unit="%") == "2.0%"
     assert stats.pct_text(None) == "n/a"
     assert stats.pct_text(0.0) == "0.0%"
+
+
+# --- AUG before the second hairpin's stem_down ----------------------------------------------
+
+
+@pytest.fixture
+def construct(monkeypatch):
+    monkeypatch.syspath_prepend(str(NOTEBOOK_DIR))
+    return _load("_switch_construct")
+
+
+def _built(fused: str, stem_down_b: tuple[int, int]) -> dict:
+    return {"fused": fused, "domains_3p": {"stem_down": stem_down_b}}
+
+
+def test_an_aug_before_the_second_stem_down_is_reported(construct):
+    fused = "CCCAUGCCC" + "CCCCCCCCCCCC" + "GGGGGGGGGGGGGGGGGG" + "AUGAAA"
+    assert construct.upstream_augs(_built(fused, (21, 30))) == (3,)
+
+
+def test_the_payload_start_codon_after_the_second_stem_down_is_not_reported(construct):
+    fused = "C" * 30 + "GCCACC" + "AUGGUG"
+    assert construct.upstream_augs(_built(fused, (20, 30))) == ()
+
+
+def test_an_aug_in_the_second_hairpins_toehold_or_stem_up_counts(construct):
+    fused = "C" * 10 + "AUG" + "C" * 30
+    assert construct.upstream_augs(_built(fused, (25, 37))) == (10,)
+
+
+def test_an_aug_that_starts_at_the_stem_down_start_is_not_upstream(construct):
+    fused = "C" * 20 + "AUG" + "C" * 20
+    assert construct.upstream_augs(_built(fused, (20, 32))) == ()
+
+
+def test_overlapping_and_repeated_augs_are_all_listed(construct):
+    fused = "AUGAUGC" + "C" * 20
+    assert construct.upstream_augs(_built(fused, (15, 25))) == (0, 3)
