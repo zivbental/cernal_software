@@ -28,12 +28,12 @@ export interface MetricSpec {
 
 export const METRICS: MetricSpec[] = [
   { name: "state_separation", label: "State separation", direction: "higher", weight: 3.0, validRange: [0, 10], unit: "log2 fold", description: "Log2 fold between the base and target expression state." },
-  { name: "predicted_leakage", label: "Predicted leakage", direction: "lower", weight: 2.5, validRange: [0, 1], unit: "fraction 0–1", description: "Proxy for OFF-state activation — the trap most worth filtering on." },
+  { name: "predicted_leakage", label: "Predicted leakage", direction: "lower", weight: 2.5, validRange: [0, 1], unit: "fraction 0–1", description: "Bacterial loop layout: AUG-only three-base mean marginal accessibility, not the wider initiation footprint or measured leakage." },
   { name: "trigger_accessibility", label: "Trigger accessibility", direction: "higher", weight: 2.0, validRange: [0, 1], unit: "fraction 0–1", description: "Fraction of the trigger region predicted free of self-structure." },
   { name: "gate_folding_energy", label: "Gate folding energy", direction: "lower", weight: 2.0, validRange: [-60, 0], unit: "kcal/mol", description: "Predicted MFE of the gate. More negative is more stable." },
-  { name: "dynamic_range", label: "Dynamic range", direction: "higher", weight: 2.0, validRange: [1, 500], unit: "linear fold", description: "Predicted ON/OFF fold change — linear, not log, unlike state separation above." },
+  { name: "dynamic_range", label: "Dynamic range", direction: "higher", weight: 2.0, validRange: [1, 500], unit: "accessibility ratio", description: "ON/OFF marginal accessibility ratio with a 0.001 denominator floor; not measured expression fold change." },
   { name: "orthogonality", label: "Orthogonality", direction: "higher", weight: 1.5, validRange: [0, 1], unit: "fraction 0–1", description: "Predicted independence from other gates in the same circuit." },
-  { name: "predicted_success_rate", label: "Predicted success rate", direction: "higher", weight: 1.0, validRange: [0, 1], unit: "fraction 0–1", description: "Model confidence the construct behaves as designed in vivo." },
+  { name: "predicted_success_rate", label: "Binding heuristic", direction: "higher", weight: 1.0, validRange: [0, 1], unit: "fraction 0–1", description: "Uncalibrated binding-energy sigmoid; not a cellular success probability." },
   { name: "circuit_complexity", label: "Circuit complexity", direction: "lower", weight: 1.0, validRange: [1, 10], unit: "component count", description: "Component count penalty. Simpler circuits are easier to build." },
   { name: "gc_content", label: "GC content", direction: "higher", weight: 0.5, validRange: [30, 70], unit: "percent 0–100", description: "Percent GC of the assembled construct. Extremes hurt synthesis." },
 ];

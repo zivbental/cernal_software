@@ -28,6 +28,7 @@ The end-user workflow help is rendered inside the signed-in React application at
 | [architecture.md](architecture.md) | **The authoritative reference.** Boundary rule, repository layout, domain model, run state machine, API shape, configuration, rules for agents |
 | [ROADMAP.md](ROADMAP.md) | Every future task, open scientific question and planned implementation. Status lives here |
 | [modalities.md](modalities.md) | The four design axes — input mode, host organism, gate chemistry, output payload — in detail |
+| [scientific-interpretation.md](scientific-interpretation.md) | Current metric definitions, calibration limits and research/application boundaries |
 | [engine.md](engine.md) | The scientific engine: contract, design principles, stages, records, tools, gates, scoring, layout, testing |
 | [domain-model.md](domain-model.md) | Field-level reference for the Django models |
 | [api.md](api.md) | Endpoint reference for the HTTP API |
@@ -61,7 +62,7 @@ The end-user workflow help is rendered inside the signed-in React application at
 | Path | What |
 |---|---|
 | `Design Maps/` | The original Obsidian vault — 21 canvases, the long-term north star. [architecture.md §17](architecture.md) indexes the ones worth consulting |
-| `README.md` (repo root) | Quickstart only |
+| `README.md` (repo root) | Current application scope, quickstart and evidence boundaries |
 | `.env.example` | Every environment variable, documented, with safe defaults |
 | `.gitlab-ci.yml` | The CI pipeline — backend lint/checks/tests and a frontend build. One of iGEM's three Project Software deliverables |
 | `LICENSE` · `NOTICE` | Apache 2.0 |
