@@ -44,7 +44,7 @@ These commands target Linux or Linux inside WSL2. Install Node and uv inside tha
 environment and keep its checkout and dependencies there. Native Windows engine/tests
 support does not imply application-worker support: the locked Django Q2 worker requires
 `fork`. Run the application server and worker inside Linux/WSL2.
-The separately reviewed [F1 Windows/WSL worker guide](https://github.com/zivbental/cernal_software/blob/027066db141189cad8eb79bc1344c1a90d01aac4/docs/windows-worker.md)
+The separately proposed [F1 Windows/WSL worker guide](https://github.com/zivbental/cernal_software/blob/027066db141189cad8eb79bc1344c1a90d01aac4/docs/windows-worker.md)
 provides operational instructions and queued-worker acceptance evidence.
 
 ```bash
