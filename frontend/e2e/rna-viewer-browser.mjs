@@ -22,6 +22,8 @@ import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import { chromium } from "playwright";
+import { isContainedAsset } from "./asset-containment.mjs";
+import "./asset-containment.test.mjs";
 
 const root = resolve(import.meta.dirname, "../../src/static/app");
 const fixture = JSON.parse(await readFile(new URL("./fixtures/rna-structure.json", import.meta.url), "utf8"));
@@ -168,7 +170,7 @@ const server = createServer(async (req, res) => {
     let asset;
     if (path.startsWith("/static/app/assets/")) {
       asset = resolve(root, path.replace(/^\/static\/app\//, ""));
-      if (!asset.startsWith(`${root}/assets/`)) { res.writeHead(404).end(); return; }
+      if (!isContainedAsset(root, asset)) { res.writeHead(404).end(); return; }
     } else if (path === "/" || path === "/dashboard" || /^\/runs\/[^/]+$/.test(path)) {
       asset = resolve(root, "index.html");
     } else {
