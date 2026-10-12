@@ -324,6 +324,7 @@ export function useCandidate(id: string | null) {
     queryKey: keys.candidate(id ?? ""),
     queryFn: () => api.get<CandidateDetail>(`/candidates/${id}`),
     enabled: Boolean(id),
+    refetchInterval: (query) => query.state.data?.sequence_screening?.status === "pending" ? 5000 : false,
   });
 }
 

@@ -20,7 +20,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { extname, resolve } from "node:path";
+import { extname, resolve, sep } from "node:path";
 import { chromium } from "playwright";
 
 const root = resolve(import.meta.dirname, "../../src/static/app");
@@ -168,7 +168,7 @@ const server = createServer(async (req, res) => {
     let asset;
     if (path.startsWith("/static/app/assets/")) {
       asset = resolve(root, path.replace(/^\/static\/app\//, ""));
-      if (!asset.startsWith(`${root}/assets/`)) { res.writeHead(404).end(); return; }
+      if (!asset.startsWith(`${root}${sep}assets${sep}`)) { res.writeHead(404).end(); return; }
     } else if (path === "/" || path === "/dashboard" || /^\/runs\/[^/]+$/.test(path)) {
       asset = resolve(root, "index.html");
     } else {
