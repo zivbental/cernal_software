@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 74 |
 | Public classes | 115 |
-| Public callables (excluding `__init__`) | 408 |
-| — `BUILT` | 395 |
+| Public callables (excluding `__init__`) | 414 |
+| — `BUILT` | 401 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -79,7 +79,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
 | gates | `engine.gates.notebooks.toehold_and._joint_state_parallel` |  | 7 | 0 | Shared helpers of the toehold notebooks (used by ``eu_and_v3.ipynb`` and its workers). |
 | gates | `engine.gates.notebooks.toehold_and._report_figures` |  | 3 | 0 | Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a base-pair probability heatmap as a PNG. |
-| gates | `engine.gates.notebooks.toehold_and._report_stats` |  | 8 | 0 | Statistics behind the ``eu_and_v3`` reports that must be testable on their own. |
+| gates | `engine.gates.notebooks.toehold_and._report_stats` |  | 14 | 0 | Statistics behind the ``eu_and_v3`` reports that must be testable on their own. |
 | gates | `engine.gates.notebooks.toehold_and._sampled_and_parallel` |  | 3 | 0 | Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by part 2 of ``eu_and_v3.ipynb``). |
 | gates | `engine.gates.notebooks.toehold_and._sampled_stem_parallel` |  | 4 | 0 | Expected longest open run of the stem, by sampling, in parallel (used by ``eu_and_v3.ipynb``). |
 | gates | `engine.gates.notebooks.toehold_and._switch_construct` |  | 5 | 0 | Shared AND-construct builder and single-switch loader/measurement. |
@@ -1660,6 +1660,12 @@ Statistics behind the ``eu_and_v3`` reports that must be testable on their own.
 | `BUILT` | `def median_or_none(values: Iterable[float \| None]) -> float \| None` | Median of the non-missing values, ``None`` when there are none. |
 | `BUILT` | `def median_text(values: Iterable[float \| None], *, unit: str = '', digits: int = 1) -> str` | The median as text with its unit, or ``n/a`` when no value is available. |
 | `BUILT` | `def pct_text(value: float \| None, *, digits: int = 1) -> str` | A percentage as text, ``n/a`` for a missing value. |
+| `BUILT` | `def spearman(x: list[float], y: list[float]) -> float \| None` | Spearman rank correlation of two equally long rank/value lists, ``None`` when it is undefined: fewer than two items, or no variation in either list. |
+| `BUILT` | `def noise_summary(changes: Iterable[float \| None]) -> tuple[float \| None, float \| None]` | ``(median, 95th percentile)`` of the absolute seed-to-seed changes, ``(None, None)`` when there is none (no candidate, or none with both runs measured). |
+| `BUILT` | `def num_text(value: float \| None, digits: int = 2, unit: str = '') -> str` | A number as text, ``n/a`` when it is unavailable. |
+| `BUILT` | `def file_sha256(path: str \| Path) -> str` | SHA-256 of a file, streamed. |
+| `BUILT` | `def describe_folding_model(provenance: dict) -> str` | One line from ``FoldEngine.provenance()``: library version, energy table, settings. |
+| `BUILT` | `def run_provenance(csv_path: str \| Path, folding_provenance: dict, repo_dir: str \| Path) -> dict` | What a reader needs to check a report: the code revision (and whether files were modified since that commit), the input file with its checksum, and the folding model. |
 
 ### `engine.gates.notebooks.toehold_and._sampled_and_parallel`
 

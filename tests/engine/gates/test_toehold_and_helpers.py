@@ -207,3 +207,131 @@ def test_an_aug_that_starts_at_the_stem_down_start_is_not_upstream(construct):
 def test_overlapping_and_repeated_augs_are_all_listed(construct):
     fused = "AUGAUGC" + "C" * 20
     assert construct.upstream_augs(_built(fused, (15, 25))) == (0, 3)
+
+
+# --- wobble-tolerant runs: valid sub-runs ---------------------------------------------------
+
+
+def test_a_wobble_heavy_prefix_does_not_hide_an_acceptable_suffix(joint):
+    a, b = "GAUAUAUUUAC", "GUGGGUGUGUU"
+    assert joint._longest_complementary_run_wobble(a, b, 0.5) == (10, 5)
+    assert joint.trigger_pair_too_similar(a, b, max_overlap_nt=8, wobble_max_fraction=0.5)
+    # the same pair is acceptable once the wobble share is capped lower, or the run limit is higher
+    assert not joint.trigger_pair_too_similar(a, b, max_overlap_nt=10, wobble_max_fraction=0.5)
+    run, _ = joint._longest_complementary_run_wobble(a, b, 0.2)
+    assert run < 10
+
+
+def _brute_force_run(a, b, cap, is_pair):
+    """Longest aligned antiparallel window whose positions all pair and wobble share <= cap."""
+    b_rev = b[::-1]
+    best = (0, 0)
+    for shift in range(-(len(a) - 1), len(b_rev)):
+        for start in range(len(a)):
+            for end in range(start + 1, len(a) + 1):
+                cells = [(i, i + shift) for i in range(start, end)]
+                if any(not 0 <= j < len(b_rev) for _, j in cells):
+                    continue
+                kinds = [is_pair(a[i], b_rev[j]) for i, j in cells]
+                if not all(kinds):
+                    continue
+                wobbles = sum(k == "wobble" for k in kinds)
+                if wobbles <= cap * len(cells) + 1e-9:
+                    best = max(best, (len(cells), -wobbles))
+    return best[0], -best[1]
+
+
+def test_wobble_run_matches_an_exhaustive_search(joint):
+    import random
+
+    def is_pair(x, y):
+        if (x, y) in {("A", "U"), ("U", "A"), ("G", "C"), ("C", "G")}:
+            return "wc"
+        if (x, y) in {("G", "U"), ("U", "G")}:
+            return "wobble"
+        return None
+
+    rng = random.Random(7)
+    for _ in range(120):
+        a = "".join(rng.choice("GAUC") for _ in range(rng.randint(4, 14)))
+        b = "".join(rng.choice("GAUC") for _ in range(rng.randint(4, 14)))
+        for cap in (0.0, 0.25, 0.5, 1.0):
+            assert joint._longest_complementary_run_wobble(a, b, cap) == _brute_force_run(
+                a, b, cap, is_pair
+            ), (a, b, cap)
+
+
+# --- zero, one and few candidates -----------------------------------------------------------
+
+
+def test_rank_correlation_is_unavailable_for_fewer_than_two_candidates(stats):
+    assert stats.spearman([], []) is None
+    assert stats.spearman([1], [1]) is None
+    assert stats.spearman([1, 2], [1, 2]) == pytest.approx(1.0)
+    assert stats.spearman([1, 2, 3], [3, 2, 1]) == pytest.approx(-1.0)
+    assert stats.spearman([1, 2, 3], [5, 5, 5]) is None  # no variation: undefined, not 0
+    with pytest.raises(ValueError):
+        stats.spearman([1, 2], [1])
+
+
+def test_noise_summary_is_unavailable_without_paired_runs(stats):
+    assert stats.noise_summary([]) == (None, None)
+    assert stats.noise_summary([None, None]) == (None, None)
+    median, p95 = stats.noise_summary([0.5])
+    assert (median, p95) == (0.5, 0.5)
+    median, p95 = stats.noise_summary([-1.0, 1.0, None, 2.0, 3.0])
+    assert median == pytest.approx(1.5) and p95 == pytest.approx(2.0)
+
+
+def test_num_text_marks_unavailable_numbers(stats):
+    assert stats.num_text(None) == "n/a"
+    assert stats.num_text(0.0) == "0.00"
+    assert stats.num_text(12.345, 1, "%") == "12.3%"
+
+
+# --- run provenance ---------------------------------------------------------------------------
+
+
+def test_run_provenance_names_the_input_the_code_and_the_folding_model(stats, tmp_path):
+    import hashlib
+
+    csv_path = tmp_path / "designs.csv"
+    csv_path.write_text("a,b\n1,2\n", encoding="utf-8")
+    folding = {
+        "viennarna_version": "2.7.2",
+        "configuration": {
+            "temperature_celsius": 37.0,
+            "dangles": 2,
+            "special_hairpins": True,
+            "no_lonely_pairs": False,
+            "no_gu": False,
+            "no_gu_closure": False,
+        },
+        "energy_parameters": {"name": "turner2004", "sha256": "ab" * 32},
+    }
+    info = stats.run_provenance(csv_path, folding, Path(__file__).parents[3])
+    assert hashlib.sha256(csv_path.read_bytes()).hexdigest() in info["input_file"]
+    assert "designs.csv" in info["input_file"]
+    assert "ViennaRNA 2.7.2" in info["folding_model"] and "37 °C" in info["folding_model"]
+    assert "no G-U off" in info["folding_model"] and "dangles 2" in info["folding_model"]
+    assert len(info["code_revision"].split()[0]) == 40  # a full git commit hash
+
+
+def test_run_provenance_outside_a_git_checkout_says_so(stats, tmp_path):
+    csv_path = tmp_path / "d.csv"
+    csv_path.write_text("x\n", encoding="utf-8")
+    folding = {
+        "viennarna_version": "2.7.2",
+        "configuration": {
+            "temperature_celsius": 25.0,
+            "dangles": 0,
+            "special_hairpins": False,
+            "no_lonely_pairs": True,
+            "no_gu": True,
+            "no_gu_closure": True,
+        },
+        "energy_parameters": {"name": "turner1999", "sha256": "cd" * 32},
+    }
+    info = stats.run_provenance(csv_path, folding, tmp_path)
+    assert info["code_revision"].startswith("unavailable")
+    assert "no G-U on" in info["folding_model"] and "no lonely pairs on" in info["folding_model"]

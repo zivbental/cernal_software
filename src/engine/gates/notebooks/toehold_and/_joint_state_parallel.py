@@ -102,48 +102,58 @@ def _is_complementary(x: str, y: str, *, allow_wobble: bool) -> tuple[bool, bool
 def _longest_complementary_run_wobble(
     a: str, b: str, wobble_max_fraction: float
 ) -> tuple[int, int]:
-    """Longest antiparallel-complementary run between ``a`` and ``b``, same DP shape as
-    :func:`_longest_complementary_run` (longest stretch of ``a`` whose bases pair with ``b``
-    read backwards, i.e. against ``reverse_complement(b)``) but tolerating G*U/U*G wobble
-    matches -- a trap
-    recorded in the old ``and_eu_report_spec.md`` (git history): a real, ViennaRNA-confirmed
-    12bp helix scored as only 4nt under exact-complement-only matching because four of its
-    positions were wobbles.
+    """Longest antiparallel-complementary run between ``a`` and ``b`` whose share of G*U/U*G
+    wobble pairs is at most ``wobble_max_fraction`` -- the wobble-tolerant counterpart of
+    :func:`_longest_complementary_run` (a trap recorded in the old ``and_eu_report_spec.md``,
+    git history: a real, ViennaRNA-confirmed 12bp helix scored as only 4nt under
+    exact-complement-only matching because four of its positions were wobbles).
 
-    Returns ``(run_length, n_wobble_positions_in_that_run)``.
+    Antiparallel: ``a[i]`` pairs with ``b`` read backwards, so every alignment is a diagonal of
+    ``a`` against ``b[::-1]`` and the pair test (Watson-Crick, or wobble) supplies the
+    complement. On each diagonal every maximal stretch of consecutive pairing positions is
+    examined for its longest **sub-run** that meets the cap: a wobble-heavy prefix or suffix
+    must not hide an acceptable stretch behind it (``GAUAUAUUUAC`` against ``GUGGGUGUGUU`` has a
+    10-position suffix with 5 wobble pairs, which meets a cap of 0.5, while the whole stretch
+    does not).
 
-    Every DP cell carries the full, uncapped ``(length, wobble_count)`` of the run
-    ending there, so a run can keep growing through a locally wobble-heavy stretch (the
-    fraction can still recover if later positions are plain Watson-Crick, since adding a
-    non-wobble match grows the denominator without the numerator). The cap is applied
-    when reading out the best answer: at every cell, a candidate only updates the global
-    best if ITS OWN ``wobble_count / length`` is within ``wobble_max_fraction`` --
-    so the reported run is always one that, taken as a whole, satisfies the cap, even
-    though the DP underneath explored runs that temporarily did not.
+    Returns ``(run_length, n_wobble_positions_in_that_run)``; among runs of the longest length the
+    one with the fewest wobble pairs (then the first found) is reported.
     """
-    # Antiparallel: a[i] pairs with b read backwards. The pair test below supplies the
-    # complement, so b is only reversed here; complementing it too would turn "A pairs
-    # with U" into a test of "A equals A" (A*12 against U*12 then scores 0).
     b_rev = b[::-1]
     n, m = len(a), len(b_rev)
-    prev = [(0, 0)] * (m + 1)
     best_len, best_wobble = 0, 0
-    for i in range(1, n + 1):
-        curr = [(0, 0)] * (m + 1)
-        ai = a[i - 1]
-        for j in range(1, m + 1):
-            bj = b_rev[j - 1]
-            match, wobble = _is_complementary(ai, bj, allow_wobble=True)
-            if match:
-                prev_len, prev_wobble = prev[j - 1]
-                length = prev_len + 1
-                n_wobble = prev_wobble + (1 if wobble else 0)
-                curr[j] = (length, n_wobble)
-                if n_wobble / length <= wobble_max_fraction and length > best_len:
-                    best_len, best_wobble = length, n_wobble
-            # else curr[j] stays (0, 0): a mismatch always breaks the run, same as the
-            # exact-match DP this generalises.
-        prev = curr
+
+    def best_subrun(flags: list[int]) -> tuple[int, int]:
+        prefix = [0]
+        for w in flags:
+            prefix.append(prefix[-1] + w)
+        for length in range(len(flags), 0, -1):
+            fewest = None
+            for start in range(len(flags) - length + 1):
+                wobbles = prefix[start + length] - prefix[start]
+                if wobbles <= wobble_max_fraction * length + 1e-9 and (
+                    fewest is None or wobbles < fewest
+                ):
+                    fewest = wobbles
+            if fewest is not None:
+                return length, fewest
+        return 0, 0
+
+    for shift in range(-(n - 1), m):  # a[i] is aligned with b_rev[i + shift]
+        first, last = max(0, -shift), min(n, m - shift)
+        flags: list[int] = []
+        for i in range(first, last + 1):  # one past the end closes the final stretch
+            pairs = False
+            if i < last:
+                pairs, wobble = _is_complementary(a[i], b_rev[i + shift], allow_wobble=True)
+            if pairs:
+                flags.append(1 if wobble else 0)
+                continue
+            if len(flags) >= max(best_len, 1):
+                length, wobbles = best_subrun(flags)
+                if length > best_len or (length == best_len and wobbles < best_wobble):
+                    best_len, best_wobble = length, wobbles
+            flags = []
     return best_len, best_wobble
 
 

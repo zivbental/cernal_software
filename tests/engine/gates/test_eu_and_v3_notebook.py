@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -65,6 +66,12 @@ def test_both_reports_render_with_and_without_control_triggers(tmp_path, control
     namespace = _run_notebook(tmp_path, {"N_CONTROLS": str(controls)})
     single, both = _reports(tmp_path)
     assert "@@" not in single and "@@" not in both  # every template field was filled
+    for report in (single, both):  # provenance: code revision, input checksum, folding model
+        assert "code_revision" in report and "folding_model" in report and "ViennaRNA" in report
+        assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() in report
+    assert "states not verified (design rank" in single  # the list, not only a count
+    assert "one mismatched trigger per design" not in single
+    assert "one pair of mismatched triggers" not in both
     assert namespace["scored"] and namespace["scored_and"]
     if controls == 0:
         # no control exists: the statistics are unavailable, not 0, and no row claims a control
@@ -89,3 +96,30 @@ def test_both_reports_render_with_and_without_control_triggers(tmp_path, control
     csvs = list(tmp_path.glob("eu_and_v3_*all*.csv"))
     assert len(csvs) == 2
     assert all("n_controls" in path.read_text(encoding="utf-8").splitlines()[0] for path in csvs)
+
+
+def test_every_pair_filtered_out_reports_no_eligible_candidates(tmp_path):
+    """All candidates excluded is a valid outcome: a clean report, no ranking, no crash."""
+    namespace = _run_notebook(tmp_path, {"FAKE_MAX_SEQ_OVERLAP_NT": "-1", "N_CONTROLS": "2"})
+    _, both = _reports(tmp_path)
+    assert namespace["scored_and"] == []
+    assert "No eligible AND candidates" in both
+    assert "@@" not in both
+    assert namespace["rank_agreement"] is None
+    assert namespace["noise_p95_and"] is None
+    assert not list(tmp_path.glob("eu_and_v3_and_trigger_positions_*.png"))
+    csv_path = next(tmp_path.glob("eu_and_v3_and_all_candidates_*.csv"))
+    assert len(csv_path.read_text(encoding="utf-8").splitlines()) == 1  # the header only
+    assert json.loads(next(tmp_path.glob("eu_and_v3_and_artifact_*/rows.json")).read_text()) == []
+
+
+def test_a_single_candidate_has_no_rank_correlation(tmp_path):
+    namespace = _run_notebook(tmp_path, {"AND_MAX_CANDIDATES": "1", "N_CONTROLS": "2"})
+    _, both = _reports(tmp_path)
+    assert len(namespace["scored_and"]) == 1
+    assert namespace["rank_agreement"] is None  # a correlation needs two candidates
+    assert namespace["scored_and"][0]["tied"]
+    assert "@@" not in both
+    assert "NaN" not in re.sub(r"base64,[A-Za-z0-9+/=]+", "", both)  # no NaN printed as a value
+    assert "Spearman rank correlation n/a" in both
+    assert list(tmp_path.glob("eu_and_v3_and_trigger_positions_*.png"))

@@ -60,7 +60,8 @@ when the table's own triggers all overlap). Part 2: `AND_TOP_N`, spacer settings
 `SPACER_CANDIDATE_POOL_SIZE`), the AND construct cuts (`CUT_5P_BEFORE`, `KEEP_3P_AFTER`),
 trigger-pair screen (`FAKE_MAX_SEQ_OVERLAP_NT`, `WOBBLE_MAX_FRACTION`), start-codon screen
 (`EXCLUDE_UPSTREAM_AUG`),
-`RESULTS_TO_LOAD_AND`, `EXPORT_ARTIFACT`, `ARTIFACT_DETAIL_N`.
+`AND_MAX_CANDIDATES` (None = all; a cap for quick trials), `RESULTS_TO_LOAD_AND`,
+`EXPORT_ARTIFACT`, `ARTIFACT_DETAIL_N`.
 
 ## Definitions
 
@@ -109,6 +110,15 @@ listed candidates whose `ON_min` is below half of `ON_sum` (uneven response) and
 agreement between the two orders. `ratio = ON_min / max(OFF, OFF_FLOOR_PCT)` is information
 only. The tied group, the noise and the verification all refer to `ON_min - OFF`.
 `dG = G(+A+B) - min(G_alone + G_A + G_B, G_+A + G_B, G_+B + G_A)`.
+
+### Trigger-pair screen
+`trigger_pair_too_similar(A, B)` rejects a pair when either (a) the longest antiparallel
+complementary run exceeds `FAKE_MAX_SEQ_OVERLAP_NT` or (b) the longest same-direction identical
+run does. The complementary run tolerates G·U wobble: on every alignment (diagonal of `A`
+against `B` reversed) each maximal stretch of pairing positions is searched for its longest
+**sub-run** whose wobble share is at most `WOBBLE_MAX_FRACTION`, so a wobble-heavy end cannot hide
+an acceptable stretch behind it (`GAUAUAUUUAC` / `GUGGGUGUGUU`: a 10-position run with 5 wobble
+pairs is found at a cap of 0.5). Tested against an exhaustive search.
 
 ### Upstream AUG screen
 `EXCLUDE_UPSTREAM_AUG = True` drops every construct whose fused RNA has an AUG that begins
@@ -186,6 +196,25 @@ listed candidates (PNG, outside the report).
 
 Part 2 names that would clash with part 1 end in `_and` (the two parts share one kernel).
 
+## Empty and small results
+
+All pairs excluded is a valid outcome: part 2 then writes the report with a "No eligible AND
+candidates" paragraph and the exclusion counts, a CSV with only its header, an empty `rows.json`
+and no trigger-position plot; the medians, the noise estimate and the rank correlation are
+`n/a` (`_report_stats.median_text`, `noise_summary`, `spearman`, `num_text`), never 0. A single
+candidate has no rank correlation (undefined) and forms its own tied group. `AND_MAX_CANDIDATES`
+makes such cases reproducible in a test.
+
+## Provenance in the reports
+
+Both reports list at the top of their parameter table: the git commit of the code that rendered
+the report (with "+ uncommitted changes" if tracked files differ), the input CSV name, SHA-256
+and size, and the folding model (ViennaRNA version, energy table and its SHA-256, temperature,
+dangles, special hairpins, no lonely pairs, no G·U, no G·U closure; sampling adds `uniq_ML = 1`
+only), plus the saved results files when sampling was not repeated
+(`_report_stats.run_provenance`). The commit is that of the renderer: with `RESULTS_TO_LOAD*` the
+sampled values were produced by whichever revision wrote those files.
+
 ## Outputs (`var/reports/`)
 
 `eu_and_v3_report_<t>.{html,pdf}`, `eu_and_v3_all_designs_<t>.csv`,
@@ -251,8 +280,22 @@ reaching it in the last run) leaves a small candidate pool, so `AND_TOP_N` bound
     what the screen removed, run with `EXCLUDE_UPSTREAM_AUG = False`.
 15. **Results saved before a definition change cannot be re-rendered.** `RESULTS_TO_LOAD_AND`
     refuses files without `open_frac_sampled`; sample again instead of defaulting the field.
+16. **A wobble-heavy end hides a valid sub-run.** Taking only the whole stretch that meets the
+    wobble cap missed `GAUAUAUUUAC` / `GUGGGUGUGUU` (returned 6, truth 10). Search sub-runs on
+    every diagonal.
+17. **Zero or one survivor of the screens.** Indexing `scored_and[0]`, taking a median of an empty
+    list or a rank correlation of one point fails; use the `_report_stats` helpers and test the
+    empty and singleton workflows.
 
 ## Change log
+
+- 2026-10-12 (second review of PR #68): the wobble filter finds valid sub-runs; zero or one
+  eligible AND candidates give a clean report and an unavailable correlation; the limitations
+  and column headings state the configured maximum of controls and the reports count the
+  actual numbers; the single report lists the designs and states that failed verification;
+  both reports print the code revision, input checksum and folding model. Tests:
+  `test_toehold_and_helpers.py` (wobble, empty, provenance), `test_eu_and_v3_notebook.py`
+  (all-filtered and singleton workflows, provenance and lists in the rendered report).
 
 - 2026-10-11 (upstream AUG): AND constructs with an AUG before the second hairpin's
   `stem_down` are excluded and spacer candidates containing AUG are dropped
