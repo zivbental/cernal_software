@@ -394,6 +394,13 @@ def disclosed_candidate_data(design: object, triggers: object) -> tuple[dict, di
                         "expires_at",
                     },
                 )
+                decision = audit.get("decision")
+                safe_design["sequence_release"][kind]["decision"] = (
+                    decision
+                    if isinstance(decision, str)
+                    and decision in {"PASS", "REVIEW", "HOLD_SYSTEM", "BLOCK", "ERROR"}
+                    else "INVALID"
+                )
     safe_design["sequence_release"]["release_allowed"] = False
     safe_design["sequence_release"]["reason"] = (
         "Sequence disclosure is withheld: no matching release approval for both switch and plasmid."

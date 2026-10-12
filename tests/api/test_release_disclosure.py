@@ -214,7 +214,7 @@ def test_partial_approval_still_withholds(auth_client, held_candidate):
 
 
 @pytest.mark.parametrize("audit_kind", ["switch", "plasmid"])
-@pytest.mark.parametrize("decision", [[], {}])
+@pytest.mark.parametrize("decision", [[], {}, [SEQUENCE], {"unexpected": SEQUENCE}])
 @pytest.mark.parametrize("endpoint", ["detail", "results", "structure", "download", "zip"])
 def test_malformed_decision_is_a_graceful_hold(
     auth_client, held_candidate, media_root, audit_kind, decision, endpoint

@@ -289,6 +289,7 @@ def _write_derived_artifacts(run, result: JobResult, written) -> int:
         written=written,
         content=build_candidates_csv(run),
         media_type="text/csv",
+        sequence_free=True,
     )
     _write_platform_artifact(
         run,
@@ -298,12 +299,22 @@ def _write_derived_artifacts(run, result: JobResult, written) -> int:
         content=json.dumps(build_run_manifest(run, result), indent=2, default=str, allow_nan=False)
         + "\n",
         media_type="application/json",
+        # With no generated candidates this contains original submitted inputs and
+        # provenance only, already accessible through the owned run configuration.
+        sequence_free=not result.candidates,
     )
     return 2
 
 
 def _write_platform_artifact(
-    run, *, kind: str, filename: str, content: str, media_type: str, written
+    run,
+    *,
+    kind: str,
+    filename: str,
+    content: str,
+    media_type: str,
+    written,
+    sequence_free: bool = False,
 ) -> Artifact:
     payload = content.encode("utf-8")
     artifact = Artifact(
@@ -312,7 +323,7 @@ def _write_platform_artifact(
         media_type=media_type,
         checksum_sha256=sha256_bytes(payload),
         size_bytes=len(payload),
-        sequence_free=kind == "summary_table",
+        sequence_free=sequence_free,
     )
     artifact.file.save(filename, ContentFile(payload), save=False)
     written.append((artifact.file.storage, artifact.file.name))

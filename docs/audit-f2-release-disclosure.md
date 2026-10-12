@@ -26,6 +26,8 @@ owner-visible disclosure inconsistency, not an authentication bypass.
   design table, hashed trigger snapshot and safety audits retain their checksums and
   remain downloadable. The platform summary table is sequence-free. Raw configuration
   manifests contain submitted input sequences and require approval of every candidate.
+  A newly written zero-candidate manifest has no generated switch/plasmid sequence;
+  its owned input/provenance-only bytes remain downloadable, including in complete ZIPs.
   CSV summaries and researcher-authored notes contain no generated design sequences.
   Here `sequence_free` means free of complete generated switch/plasmid sequences,
   not the absence of every common motif substring in diagnostic text. Restriction-site
