@@ -235,3 +235,10 @@ def bpp_heatmap_png(sequence: str, matrix, title: str, boundary=None, dpi: int =
     fig.savefig(buffer, format="png", facecolor="white")
     plt.close(fig)
     return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def construct_figure_svg() -> str:
+    """The schematic of the fused AND construct (``eu_and_v3_construct.svg``) as inline SVG."""
+    from pathlib import Path
+
+    return Path(__file__).with_name("eu_and_v3_construct.svg").read_text(encoding="utf-8")

@@ -109,7 +109,7 @@ def _model(config: FoldingConfig, window_size: int, max_bp_span: int, uniq_ml: i
         cv_fact=1.0,
         nc_fact=1.0,
         sfact=1.07,
-        salt=1.021,
+        salt=config.salt_molar,
         saltMLLower=6,
         saltMLUpper=24,
         saltDPXInit=99999,

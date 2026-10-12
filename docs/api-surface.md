@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 74 |
 | Public classes | 115 |
-| Public callables (excluding `__init__`) | 414 |
-| — `BUILT` | 401 |
+| Public callables (excluding `__init__`) | 415 |
+| — `BUILT` | 402 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -78,7 +78,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
 | gates | `engine.gates.notebooks.toehold_and._joint_state_parallel` |  | 7 | 0 | Shared helpers of the toehold notebooks (used by ``eu_and_v3.ipynb`` and its workers). |
-| gates | `engine.gates.notebooks.toehold_and._report_figures` |  | 3 | 0 | Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a base-pair probability heatmap as a PNG. |
+| gates | `engine.gates.notebooks.toehold_and._report_figures` |  | 4 | 0 | Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a base-pair probability heatmap as a PNG. |
 | gates | `engine.gates.notebooks.toehold_and._report_stats` |  | 14 | 0 | Statistics behind the ``eu_and_v3`` reports that must be testable on their own. |
 | gates | `engine.gates.notebooks.toehold_and._sampled_and_parallel` |  | 3 | 0 | Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by part 2 of ``eu_and_v3.ipynb``). |
 | gates | `engine.gates.notebooks.toehold_and._sampled_stem_parallel` |  | 4 | 0 | Expected longest open run of the stem, by sampling, in parallel (used by ``eu_and_v3.ipynb``). |
@@ -670,6 +670,7 @@ Immutable, run-wide ViennaRNA model; defaults reproduce the original model.
 | `no_gu` | `bool` | `False` |
 | `no_gu_closure` | `bool` | `False` |
 | `energy_parameters` | `str` | `'turner2004'` |
+| `salt_molar` | `float` | `1.021` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -1570,7 +1571,7 @@ Shared setup for the per-gate notebooks under this folder.
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def bootstrap() -> pathlib.Path` | Put ``<repo>/src`` on ``sys.path`` and say where it pointed. |
-| `BUILT` | `def fold_engine(real: bool = False, temperature: float = 37.0) -> object` | The folder to hand a gate. |
+| `BUILT` | `def fold_engine(real: bool = False, temperature: float = 37.0, salt_molar: float = 1.021) -> object` | The folder to hand a gate. |
 | `BUILT` | `def sample_trigger(*, trigger_id: str = 'trig-000001', gene_id: str = 'b0002', symbol: str = 'thrA', sequence: str \| None = None, length: int = 36, start_index: int = 120, seed: int = 2026) -> TriggerCandidate` | One made-up :class:`~engine.domain.TriggerCandidate` with plausible values. |
 | `BUILT` | `def sample_trigger_set(n_activators: int = 1, n_repressors: int = 0) -> TriggerSet` | A :class:`~engine.domain.TriggerSet` of made-up triggers. |
 | `BUILT` | `def sample_constraints(**overrides) -> Constraints` | A :class:`~engine.domain.Constraints` with library defaults; each keyword overrides one field (e.g. ``max_switch_length=160``). |
@@ -1643,6 +1644,7 @@ Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a bas
 | `BUILT` | `def domain_fill(domains: dict, palette: dict \| None = None, suffix: str = '') -> list[tuple[int, int, str, str]]` | ``(start, end, colour, label)`` per non-empty domain of a ``{name: (start, end)}`` dict. |
 | `BUILT` | `def structure_svg(points, sequence, structure, title, spans = (), domain_fill = (), visible_len = None, construct_len = None, spacing = 23.0, pad = 34.0, radius = 7.4, legend_ncol = 3)` | One folded structure as an inline SVG: every base a circle with its letter inside, the backbone through them and a rung on every base pair, filled by domain. |
 | `BUILT` | `def bpp_heatmap_png(sequence: str, matrix, title: str, boundary = None, dpi: int = 120) -> str` | Base-pair-probability heatmap as a base64 PNG; ``boundary``: a strand junction position (or several) marked with a dotted crosshair. |
+| `BUILT` | `def construct_figure_svg() -> str` | The schematic of the fused AND construct (``eu_and_v3_construct.svg``) as inline SVG. |
 
 ### `engine.gates.notebooks.toehold_and._report_stats`
 
@@ -1697,6 +1699,7 @@ One AND candidate: the fused switch, the two real triggers and both hairpins' st
 | `n_samples` | `int` |  |
 | `seed` | `int` |  |
 | `controls` | `tuple` | `()` |
+| `sample_controls` | `bool` | `False` |
 
 ### `engine.gates.notebooks.toehold_and._sampled_stem_parallel`
 
@@ -1726,6 +1729,7 @@ One design: the switch with its real trigger, and the switch alone.
 | `n_samples` | `int` |  |
 | `seed` | `int` |  |
 | `controls` | `tuple` | `()` |
+| `sample_controls` | `bool` | `False` |
 
 ### `engine.gates.notebooks.toehold_and._switch_construct`
 

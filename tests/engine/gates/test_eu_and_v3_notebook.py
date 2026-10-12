@@ -36,7 +36,7 @@ def _run_notebook(output_dir: Path, overrides: dict[str, str]) -> dict:
                     "OUTPUT_DIR": repr(str(output_dir)),
                     "MAKE_PDF": "False",
                     "N_DESIGNS": "8",
-                    "AND_TOP_N": "3",
+                    "AND_TOP_N": "5",
                     "N_SAMPLES": "300",
                     "MAX_WORKERS": "2",
                     "ARTIFACT_DETAIL_N": "4",
@@ -56,8 +56,8 @@ def _run_notebook(output_dir: Path, overrides: dict[str, str]) -> dict:
 
 
 def _reports(output_dir: Path) -> tuple[str, str]:
-    single = next(output_dir.glob("eu_and_v3_report_*.html")).read_text(encoding="utf-8")
-    both = next(output_dir.glob("eu_and_v3_and_report_*.html")).read_text(encoding="utf-8")
+    single = next(output_dir.rglob("eu_and_v3_report_*.html")).read_text(encoding="utf-8")
+    both = next(output_dir.rglob("eu_and_v3_and_report_*.html")).read_text(encoding="utf-8")
     return single, both
 
 
@@ -69,7 +69,17 @@ def test_both_reports_render_with_and_without_control_triggers(tmp_path, control
     for report in (single, both):  # provenance: code revision, input checksum, folding model
         assert "code_revision" in report and "folding_model" in report and "ViennaRNA" in report
         assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() in report
-    assert "states not verified (design rank" in single  # the list, not only a count
+    # the sampler check lives in Appendix A only: listed there, no colour anywhere
+    assert (
+        "Appendix A&ensp;Sampler check" in single and "States not verified (design rank" in single
+    )
+    assert "Appendix A&ensp;Expected number of open nucleotides and sampler check" in both
+    for report in (single, both):
+        text = re.sub(
+            r"base64,[A-Za-z0-9+/=]+", "", report
+        )  # random image bytes can contain any letters
+        assert "badk" not in text and "okk" not in text and "shaded" not in text
+        assert "states not verified" not in report.split("Appendix A")[0].lower()
     assert "one mismatched trigger per design" not in single
     assert "one pair of mismatched triggers" not in both
     assert namespace["scored"] and namespace["scored_and"]
@@ -77,7 +87,7 @@ def test_both_reports_render_with_and_without_control_triggers(tmp_path, control
         # no control exists: the statistics are unavailable, not 0, and no row claims a control
         assert all(r["n_controls"] == 0 and r["ctrl_pct"] is None for r in namespace["scored"])
         assert all(r["n_controls"] == 0 and r["ctrl_pct"] is None for r in namespace["scored_and"])
-        assert "median control" in single and "n/a" in single and "n/a" in both
+        assert "median Control" in single and "n/a" in single and "n/a" in both
     else:
         assert any(r["n_controls"] > 0 for r in namespace["scored"])
     # the AND ranking is the joint ON_min - OFF: its best candidate is in the tied group, and the
@@ -88,12 +98,12 @@ def test_both_reports_render_with_and_without_control_triggers(tmp_path, control
     assert all(r["diff_min_pp"] <= best["diff_min_pp"] for r in ranked if r["tied"])
     assert (
         "ONmin_pct"
-        in next(tmp_path.glob("eu_and_v3_and_all_candidates_*.csv")).read_text().splitlines()[0]
+        in next(tmp_path.rglob("eu_and_v3_and_all_candidates_*.csv")).read_text().splitlines()[0]
     )
     # no listed construct has an AUG before the second hairpin's stem_down
     for candidate in namespace["candidates"].values():
         assert not namespace["upstream_augs"](candidate["built"]), candidate["spacer_label"]
-    csvs = list(tmp_path.glob("eu_and_v3_*all*.csv"))
+    csvs = list(tmp_path.rglob("eu_and_v3_*all*.csv"))
     assert len(csvs) == 2
     assert all("n_controls" in path.read_text(encoding="utf-8").splitlines()[0] for path in csvs)
 
@@ -107,10 +117,10 @@ def test_every_pair_filtered_out_reports_no_eligible_candidates(tmp_path):
     assert "@@" not in both
     assert namespace["rank_agreement"] is None
     assert namespace["noise_p95_and"] is None
-    assert not list(tmp_path.glob("eu_and_v3_and_trigger_positions_*.png"))
-    csv_path = next(tmp_path.glob("eu_and_v3_and_all_candidates_*.csv"))
+    assert not list(tmp_path.rglob("eu_and_v3_and_trigger_positions_*.png"))
+    csv_path = next(tmp_path.rglob("eu_and_v3_and_all_candidates_*.csv"))
     assert len(csv_path.read_text(encoding="utf-8").splitlines()) == 1  # the header only
-    assert json.loads(next(tmp_path.glob("eu_and_v3_and_artifact_*/rows.json")).read_text()) == []
+    assert json.loads(next(tmp_path.rglob("eu_and_v3_and_artifact_*/rows.json")).read_text()) == []
 
 
 def test_a_single_candidate_has_no_rank_correlation(tmp_path):
@@ -122,4 +132,4 @@ def test_a_single_candidate_has_no_rank_correlation(tmp_path):
     assert "@@" not in both
     assert "NaN" not in re.sub(r"base64,[A-Za-z0-9+/=]+", "", both)  # no NaN printed as a value
     assert "Spearman rank correlation n/a" in both
-    assert list(tmp_path.glob("eu_and_v3_and_trigger_positions_*.png"))
+    assert list(tmp_path.rglob("eu_and_v3_and_trigger_positions_*.png"))

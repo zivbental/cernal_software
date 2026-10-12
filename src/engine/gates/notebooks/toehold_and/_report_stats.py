@@ -173,11 +173,16 @@ def file_sha256(path: str | Path) -> str:
 
 def describe_folding_model(provenance: dict) -> str:
     """One line from ``FoldEngine.provenance()``: library version, energy table, settings."""
+    if (
+        "description" in provenance
+    ):  # an engine that describes itself (the separate nupack_report notebook)
+        return provenance["description"]
     cfg, energy = provenance["configuration"], provenance["energy_parameters"]
     on_off = lambda flag: "on" if flag else "off"  # noqa: E731
     return (
         f"ViennaRNA {provenance['viennarna_version']}; {energy['name']} energy parameters "
-        f"(sha256 {energy['sha256'][:12]}); {cfg['temperature_celsius']:g} °C; dangles "
+        f"(sha256 {energy['sha256'][:12]}); {cfg['temperature_celsius']:g} °C; "
+        f"{cfg.get('salt_molar', 1.021):g} M monovalent salt; dangles "
         f"{cfg['dangles']}; special hairpins {on_off(cfg['special_hairpins'])}; no lonely pairs "
         f"{on_off(cfg['no_lonely_pairs'])}; no G-U {on_off(cfg['no_gu'])}; no G-U closure "
         f"{on_off(cfg['no_gu_closure'])}; sampling adds uniq_ML = 1 only"

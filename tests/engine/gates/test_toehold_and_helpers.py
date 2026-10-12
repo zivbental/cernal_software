@@ -335,3 +335,10 @@ def test_run_provenance_outside_a_git_checkout_says_so(stats, tmp_path):
     info = stats.run_provenance(csv_path, folding, tmp_path)
     assert info["code_revision"].startswith("unavailable")
     assert "no G-U on" in info["folding_model"] and "no lonely pairs on" in info["folding_model"]
+
+
+def test_a_self_described_engine_is_reported_as_it_describes_itself(stats):
+    assert (
+        stats.describe_folding_model({"description": "NUPACK 4.1.0.1; rna06; 37 C"})
+        == "NUPACK 4.1.0.1; rna06; 37 C"
+    )

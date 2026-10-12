@@ -13,9 +13,11 @@ the expected *number* of open nt exactly, E[k] = sum over stem_up nt i of
 (1 - sum over stem_down nt j of p_ij), and E[r] <= E[k] always. Each state therefore also returns
 E[k] sampled and from the matrix: the sampler is checked on E[k], and E[r] against that bound.
 
-``DesignJob.controls`` are mismatched triggers: their states are not sampled (the sampler is
-unreliable for them) but get the exact matrix E[k], an upper bound of their Open, from
-``matrix_open_nt``.
+``DesignJob.controls`` are mismatched triggers. By default their states are not sampled: ViennaRNA's
+sampler was found to disagree strongly with its own matrix on such states (the draws leave the stem
+open), so they get the exact matrix E[k], an upper bound of their Open, from ``matrix_open_nt``.
+With ``sample_controls`` they are sampled like the other states and carry the same matrix check;
+that is for engines whose sampler is sound on them (the separate ``nupack_report`` notebook).
 
 No draw is filtered: ViennaRNA's sampler returns wrong draws for some switch + trigger pairs, and
 the comparison with the matrix is what flags a bad state.
@@ -45,6 +47,7 @@ class DesignJob(NamedTuple):
     n_samples: int
     seed: int
     controls: tuple = ()  # mismatched triggers, not similar to ``trigger``; () = no controls
+    sample_controls: bool = False  # True: sample the controls too; False: exact matrix E[k] only
 
 
 def open_counts(
@@ -107,12 +110,17 @@ def _design_worker(job: DesignJob) -> dict:
         "on": stem_open_state(engine, f"{job.switch}&{job.trigger}", job),
         "alone": stem_open_state(engine, job.switch, job),
     }
-    # Controls use the exact matrix only: E[k] of the switch with a mismatched trigger is an upper
-    # bound of its Open, and the sampler is unreliable for such mismatched states.
-    out["controls"] = [
-        {"open_nt_matrix": matrix_open_nt(engine, f"{job.switch}&{trigger}", job)}
-        for trigger in job.controls
-    ]
+    if job.sample_controls:
+        out["controls"] = [
+            stem_open_state(engine, f"{job.switch}&{trigger}", job) for trigger in job.controls
+        ]
+    else:
+        # exact matrix only: E[k] with a mismatched trigger is an upper bound of its Open, and
+        # ViennaRNA's sampler is unreliable for such states
+        out["controls"] = [
+            {"open_nt_matrix": matrix_open_nt(engine, f"{job.switch}&{trigger}", job)}
+            for trigger in job.controls
+        ]
     return out
 
 

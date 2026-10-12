@@ -5,8 +5,8 @@
 > their section heading, not by index.
 
 One notebook builds two reports in one run: **part 1** the single-switch report
-(`eu_and_v3_report_<time>.{html,pdf}`), **part 2** the AND report
-(`eu_and_v3_and_report_<time>.{html,pdf}`) from the top `AND_TOP_N` designs of part 1, plus CSV
+(`eu_and_v3_report_<time>.pdf`), **part 2** the AND report
+(`eu_and_v3_and_report_<time>.pdf`) from the top `AND_TOP_N` designs of part 1, plus CSV
 exports and (optionally) the data for an interactive page. It replaces
 the earlier `and_eu_report.ipynb`, which ranked by exact partition-function quantities (removed;
 see git history).
@@ -34,7 +34,7 @@ see git history).
 ## Hard rules
 
 1. **Fold only through `FoldEngine`**, one instance built once (`fx.fold_engine(real=True,
-   temperature=TEMPERATURE_C)`) and published with `use_fold_engine(folder)` before any pool
+   temperature=TEMPERATURE_C, salt_molar=SALT_MOLAR)`) and published with `use_fold_engine(folder)` before any pool
    starts (the pools fork). No `import RNA` in notebook or helper code.
 2. **One process-pool call per batch**; fork context.
 3. **Raw values only; `None` for a measurement that failed**, never `0.0`. Percentages that
@@ -49,18 +49,22 @@ see git history).
 ## Parameters (one cell)
 
 Data: `CSV_PATH`, `COLUMNS` (maps this CSV's columns), `CARRY_METRICS`, `N_DESIGNS` (rows
-scored in part 1). Sampling: `TEMPERATURE_C`, `N_SAMPLES`, `SEED`, `MAX_WORKERS`,
+scored in part 1). Sampling: `TEMPERATURE_C`, `SALT_MOLAR` (0.1 mol/L monovalent salt, no magnesium; ViennaRNA's `salt` through
+`FoldingConfig.salt_molar`, NUPACK's `sodium`; the library default 1.021 / 1.0 M is the standard-state condition, not a cell), `N_SAMPLES`, `SEED`, `MAX_WORKERS`,
 `CHECK_SEED_OFFSET` (second, independent run with `SEED + offset` that only measures noise).
 Verification: `VERIFY_SIGMA`, `VERIFY_FLOOR_NT`. Report: `OFF_FLOOR_PCT`, `REPORT_TOP_N`,
-`RESULTS_TO_LOAD` (re-render part 1 from a saved results file), `OUTPUT_DIR` (None = `var/reports`),
-`MAKE_PDF` (False = HTML and CSV only, no browser). Controls: `N_CONTROLS`,
+`RESULTS_TO_LOAD` (re-render part 1 from a saved results file), `OUTPUT_DIR` (the base folder, None = `var/reports`; each run writes into its own subfolder),
+`MAKE_PDF` (False keeps the HTML source of each PDF instead, so no browser is needed; used by the
+tests). Controls: `N_CONTROLS`,
 `CONTROL_MAX_OVERLAP_NT`, `CONTROL_EXTRA_TRIGGERS` (extra sequences offered as controls, used
 when the table's own triggers all overlap). Part 2: `AND_TOP_N`, spacer settings
 (`SPACER_VARIANTS`, `SPACER_MIN_LENGTH`/`MAX_LENGTH`, `SPACER_SEED`,
 `SPACER_CANDIDATE_POOL_SIZE`), the AND construct cuts (`CUT_5P_BEFORE`, `KEEP_3P_AFTER`),
 trigger-pair screen (`FAKE_MAX_SEQ_OVERLAP_NT`, `WOBBLE_MAX_FRACTION`), start-codon screen
 (`EXCLUDE_UPSTREAM_AUG`),
-`AND_MAX_CANDIDATES` (None = all; a cap for quick trials), `RESULTS_TO_LOAD_AND`,
+`AND_MAX_CANDIDATES` (None = all; a cap for quick trials), `ENGINE_NAME` (the label shown in the
+reports; this notebook folds with ViennaRNA) and `CONTROLS_SAMPLED` (True = sampled, False = exact matrix bound,
+see "Controls"), `RESULTS_TO_LOAD_AND`,
 `EXPORT_ARTIFACT`, `ARTIFACT_DETAIL_N`.
 
 ## Definitions
@@ -80,11 +84,12 @@ needed: draws are already distributed as `P(s)`. Reported in nt and as `100 Open
 ### Single report
 `ON = 100 Open(switch + trigger) / L`.
 `OFF = max(100 Open(switch alone) / L, Control)` — the worst of the alone state and the
-controls. `Control = 100 max_j E[k]_matrix(switch + mismatched trigger_j) / L`, over
-`N_CONTROLS` mismatched triggers (real triggers of other designs sharing at most
-`CONTROL_MAX_OVERLAP_NT` nt of identity with the true trigger, or `CONTROL_EXTRA_TRIGGERS`).
-The matrix `E[k]` is an **upper bound** of Open, and it is used because the sampler is
-unreliable for mismatched states (it is not sampled). `ON - OFF` (percentage points) ranks
+controls. With `CONTROLS_SAMPLED = False` `Control = 100 max_j E[k]_matrix(switch + mismatched trigger_j) / L`,
+over `N_CONTROLS` mismatched triggers (real triggers of other designs sharing at most
+`CONTROL_MAX_OVERLAP_NT` nt of identity with the true trigger, or `CONTROL_EXTRA_TRIGGERS`): the exact
+matrix `E[k]` is an **upper bound** of Open (the fallback when a sampler is not trusted on mismatched states,
+see "Controls" below). With `CONTROLS_SAMPLED = True` (the default) `Control = 100 max_j Open_j / L` with `Open_j` the sampled Open, and each control
+state is checked against the matrix like the others. `ON - OFF` (percentage points) ranks
 the designs. Ratio `ON / max(OFF, OFF_FLOOR_PCT)` is information only (asterisk when
 floored). `dG = G(switch+trigger) - G(switch) - G(trigger alone)` (ensemble free energies,
 `FoldEngine.partition`), kcal/mol, concentration not included.
@@ -97,7 +102,8 @@ optional spacer between (see below). Four states per candidate: alone, +A, +B, +
 open run as a fraction of its **own** stem, the smaller of the two, weighted by `P(s)`: both
 hairpins open at once, each relative to its own length (`open_frac_sampled`). `OFF = 100
 max(Open_alone, Open_+A, Open_+B, Control)` with the same `Open = E[min(r_A / L_A, r_B / L_B)]`
-for the OFF states and `Control = max_j min(E[k_A] / L_A, E[k_B] / L_B)_matrix` (upper bound).
+for the OFF states and `Control = max_j Open_j` over the sampled control states in the +A+B strand order
+(two mismatched triggers each); with `CONTROLS_SAMPLED = False`, `Control = max_j min(E[k_A] / L_A, E[k_B] / L_B)_matrix` (an upper bound).
 ON and OFF use one rule, so `ON_min - OFF` compares like with like. The earlier form
 `100 E[min(r_A, r_B)] / min(L_A, L_B)` compared the runs in nucleotides: with stems of 21 and 12 nt,
 "A open for 12 of 21, B fully open" scored 100%, the same as both fully open. Per-hairpin
@@ -153,6 +159,13 @@ G·U wobble), and no construct with an AUG before the second hairpin's `stem_dow
 
 ## Sampling and verification
 
+**Controls (decision of 2026-10-12, revised).** Control states are sampled like every other state
+(`CONTROLS_SAMPLED = True`, the default for ViennaRNA and for NUPACK), and each one counts in the verified totals
+of Appendix A. Known caveat: ViennaRNA's sampler was seen to disagree with its matrix on mismatched-trigger
+states (trap 2), which would make the Control too high; Appendix A reports it per state and nothing is
+filtered. `CONTROLS_SAMPLED = False` takes each control from the exact matrix as an upper bound of its Open.
+Saved results with sampled controls are refused on load when `CONTROLS_SAMPLED` is True and they lack the fields.
+
 - **Strand order matters** for `sample_structures` (ViennaRNA's sampler is miscalibrated for
   some multi-strand complexes depending on which strand is written first).
   `FoldEngine.sample_structures(strands, n, seed, first_strand)` rotates the strands so that
@@ -171,8 +184,10 @@ G·U wobble), and no construct with an AUG before the second hairpin's `stem_dow
   that state's own draws), and `Open <= E[k]_matrix + tau` (sanity bound). The floor exists
   because a nearly closed state can have `sd = 0` from 2000 draws. A *measured* `sd = 0` is a
   real value and is used as is (tolerance = the floor); only a missing `sd` (None/NaN) falls
-  back to `L/2`, which would make the check nearly vacuous (`_report_stats.py`). Green/red only shades the
-  `E[k]` cells (Appendix A for AND); it never changes a value.
+  back to `L/2`, which would make the check nearly vacuous (`_report_stats.py`). The outcome is listed in
+  Appendix A of both reports (sampled and matrix `E[k]`, a verified / not verified column and the
+  list of failed states); there is no colour shading anywhere and the check never changes a value.
+  The ViennaRNA sampler is used as it is: nothing is dropped or corrected because a state failed.
 - The matrix gives `E[k]` exactly (`sum_i (1 - sum_j p_ij)`), not runs, joint events or
   `P(k >= m)`. For +A+B it bounds the sum `E[r_A + r_B] <= E[k_A] + E[k_B]`.
 - **Noise:** the second run (`SEED + CHECK_SEED_OFFSET`) gives the seed-to-seed change of
@@ -187,8 +202,8 @@ G·U wobble), and no construct with an AUG before the second hairpin's `stem_dow
 Setup → Parameters → **Part 1**: load designs and sample both states (twice) → Open, checks
 and ranking (controls, `dG`, noise, tied group) → correlation with the CSV rank (saved as a
 separate PNG only) → details per listed design (parts table, 2D structures of alone and
-+trigger, heat maps) → report (HTML with Details buttons; PDF from the print variant with a
-details appendix; CSV of all designs) → **Part 2**: pool → fuse candidates and sample the
++trigger, heat maps) → report (a PDF with a details appendix and Appendix A, the sampler
+check; CSV of all designs) → **Part 2**: pool → fuse candidates and sample the
 four states twice (+ control matrices) → ranking, tied group, `dG`, noise → details per listed
 candidate → report (landscape PDF; Appendix A with the `E[k]` columns and the verification) →
 export rows and detail panels for an interactive page → plot of the trigger positions of the
@@ -209,17 +224,21 @@ makes such cases reproducible in a test.
 
 Both reports list at the top of their parameter table: the git commit of the code that rendered
 the report (with "+ uncommitted changes" if tracked files differ), the input CSV name, SHA-256
-and size, and the folding model (ViennaRNA version, energy table and its SHA-256, temperature,
+and size, and the folding model (ViennaRNA version, energy table and its SHA-256, temperature, salt,
 dangles, special hairpins, no lonely pairs, no G·U, no G·U closure; sampling adds `uniq_ML = 1`
 only), plus the saved results files when sampling was not repeated
 (`_report_stats.run_provenance`). The commit is that of the renderer: with `RESULTS_TO_LOAD*` the
 sampled values were produced by whichever revision wrote those files.
 
-## Outputs (`var/reports/`)
+## Outputs (`var/reports/eu_and_v3_run_<start time>/`)
 
-`eu_and_v3_report_<t>.{html,pdf}`, `eu_and_v3_all_designs_<t>.csv`,
+Every run creates its own folder, named by its start time, so runs never mix or overwrite each
+other; everything below is written there (the file names carry their own time stamps as well).
+Point `RESULTS_TO_LOAD*` at the saved results files of an earlier run folder to re-render it.
+
+`eu_and_v3_report_<t>.pdf`, `eu_and_v3_all_designs_<t>.csv`,
 `eu_and_v3_correlation_<t>.png`, `eu_and_v3_results_<t>.json` (`results`, `check`);
-`eu_and_v3_and_report_<t>.{html,pdf}`, `eu_and_v3_and_all_candidates_<t>.csv`,
+`eu_and_v3_and_report_<t>.pdf`, `eu_and_v3_and_all_candidates_<t>.csv`,
 `eu_and_v3_and_results_<t>.json`; `eu_and_v3_and_trigger_positions_<t>.png`;
 `eu_and_v3_and_artifact_<t>/rows.json` and `d/s<n>.js` (detail panels, four candidates per
 file). `rows.json` fields: `on`/`diff` = joint `ON_min` and `ON_min - OFF`, `onSum`/`diffSum` the
@@ -227,17 +246,22 @@ sum-based ones, `off`, `offSource`, `ctrl`, `ratio`, `dG`, `tied`, `ok` (four st
 ranks `A`/`B`, the CSV ranks `csvA`/`csvB`, stem and trigger lengths, spacer. The interactive page
 itself (filters, sortable table, expandable panels) is built from these files by a template that
 is **not stored in the repository**; changing the meaning of a field here means updating that
-template by hand. Page counts: about 2 pages of details per design (single), 5 per candidate
+template by hand. Figure 1 of both PDFs is the schematic `eu_and_v3_construct.svg` (this folder; embedded inline by
+`_report_figures.construct_figure_svg`): hairpin A, spacer, hairpin B, Kozak and payload, in the OFF and the ON
+(+A+B) state. It carries labels only; every formula is in the report text, which cites the figure in its
+definitions. Page counts: about 2 pages of details per design (single), 5 per candidate
 (AND).
 
 ## Limitations (stated in the reports)
 
 Structure-based equilibrium prediction only (no kinetics, concentration, translation or
 start-codon accessibility, no experimental calibration); the +A+B ensemble assumes the
-complex formed; trigger accessibility/self-structure and cross-talk are not assessed; `dG`
-omits concentration; the sampler fails for some states (shown red, kept in medians); controls
-are one matrix upper bound per mismatched trigger; OFF mixes a sampled alone value with
-matrix bounds for the controls, so the control often sets OFF (stricter ranking); tie
+complex formed; the sampler check covers the per-nucleotide openness, not the longest runs, and
+a failed state stays in every ranking and median; trigger accessibility/self-structure and cross-talk are not assessed; `dG`
+omits concentration; the sampler fails for some states (listed in Appendix A, kept in medians); controls
+are sampled like the other states (`CONTROLS_SAMPLED = True`); ViennaRNA's sampler was seen to disagree strongly with the matrix
+on mismatched states, so a high Control may be a sampler artefact (Appendix A shows how many control states pass);
+salt is 0.1 M monovalent with no magnesium, and the model is not calibrated to a cell; tie
 threshold counts Monte-Carlo noise only; a design may have fewer than `N_CONTROLS` controls
 or none (no other design's trigger is dissimilar enough): the reports then show `n/a` for the
 control statistics, count the designs with full / fewer / no controls, and OFF falls back to
@@ -249,13 +273,19 @@ reaching it in the last run) leaves a small candidate pool, so `AND_TOP_N` bound
 
 1. **Sampler strand order.** Writing the strands in the wrong order gave stem-open draws with
    energy far above the ensemble's. Use the order rule above and verify against the matrix.
-2. **Sampled controls.** The sampler is unreliable for mismatched triggers regardless of
-   order; use the matrix upper bound.
+2. **Sampled controls.** ViennaRNA's sampler disagrees with the matrix on mismatched-trigger
+   states in either strand order (test of 2026-10-12: 60 control states of single switches,
+   median error 1.0 nt switch-first and 4.4 nt trigger-first, up to 15 nt; sampled Open median
+   5.2 nt against 0.33 nt from the matrix), whereas NUPACK's sampler matched its own exact
+   matrix (median 0.01 nt). Hence the matrix bound for the controls under ViennaRNA. A direct
+   test of the ViennaRNA draws (a bare `pbacktrack` call, no wrapper) shows 20-42% of the draws of a
+   mismatched-trigger complex with an energy more than 15 kcal/mol above the ensemble free energy
+   (1.5% for the switch alone); `uniq_ML = 0` returns no draws at all.
 3. **`uniq_ML=1` is required** for `pbacktrack` sampling (set inside `sample_structures`).
 4. **Raw LaTeX in HTML templates.** Templates are raw strings: write `\(` once. A doubled
    backslash shows the formula source in the PDF. Check the PDF text for `\(`.
-5. **Floor on tolerance.** Without `VERIFY_FLOOR_NT`, states with `sd = 0` turn red because
-   of draws that missed a rare opening.
+5. **Floor on tolerance.** Without `VERIFY_FLOOR_NT`, states with `sd = 0` are listed as not
+   verified because of draws that missed a rare opening.
 6. **Clipped tables.** A wide table loses its last columns in the PDF; fonts and padding of
    the tables were tuned per report; re-check the rendered page after adding columns.
 7. **Name clashes after the merge.** Part 2 reuses names from part 1; when adding code to
@@ -288,6 +318,28 @@ reaching it in the last run) leaves a small candidate pool, so `AND_TOP_N` bound
     empty and singleton workflows.
 
 ## Change log
+
+- 2026-10-12 (figure, salt, wording): Figure 1 (`eu_and_v3_construct.svg`) in both reports with references in
+  the definitions; the Control column header and legend no longer repeat the definition; `SALT_MOLAR = 0.1`
+  (new `FoldingConfig.salt_molar`, default 1.021 unchanged for the platform; NUPACK `sodium`); test fixture
+  pool `AND_TOP_N` 5 (the sampled controls changed the part 1 ranking and a pool of 3 left no valid pair).
+
+- 2026-10-12 (controls): `CONTROLS_SAMPLED` (default True; False = exact matrix bound) samples
+  the controls, as the other states, with the matrix check counted in Appendix A and `n_controls_verified` in the
+  CSVs; `ENGINE_NAME` labels the engine in the report wording. The separate `nupack_report` notebook
+  (generated by `build_nupack_report.py`, outside the repository) uses it with NUPACK.
+
+- 2026-10-12 (PDF only): the reports are written as PDF only, no interactive HTML (no Details
+  buttons); the HTML a PDF is rendered from is deleted afterwards (`MAKE_PDF = False` keeps it,
+  for tests and trials without a browser). Details links jump within the PDF.
+
+- 2026-10-12 (one folder per run): all outputs of a run go to `eu_and_v3_run_<time>/` under
+  `OUTPUT_DIR` (default `var/reports`); the notebook test searches the output folder recursively.
+
+- 2026-10-12 (verification in the appendix): the sampler check is reported only in Appendix A of
+  both reports (new in the single report, where the sampled and matrix `E[k]` columns left the
+  main table); no colour shading anywhere, no verification rows in the summary tables, section 3
+  points to the appendix. Nothing is filtered or corrected; the check changes no value.
 
 - 2026-10-12 (second review of PR #68): the wobble filter finds valid sub-runs; zero or one
   eligible AND candidates give a clean report and an unavailable correlation; the limitations

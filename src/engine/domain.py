@@ -892,6 +892,7 @@ class FoldingConfig:
     no_gu: bool = False
     no_gu_closure: bool = False
     energy_parameters: str = "turner2004"
+    salt_molar: float = 1.021  # mol/L monovalent; 1.021 = ViennaRNA reference, no correction
 
     def __post_init__(self) -> None:
         if (
@@ -906,6 +907,13 @@ class FoldingConfig:
         for name in ("special_hairpins", "no_lonely_pairs", "no_gu", "no_gu_closure"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"folding.{name} must be a boolean.")
+        if (
+            isinstance(self.salt_molar, bool)
+            or not isinstance(self.salt_molar, (int, float))
+            or not 0.01 <= self.salt_molar <= 6.0
+        ):
+            raise ValueError("folding.salt_molar must be a number from 0.01 to 6.0 (mol/L).")
+        object.__setattr__(self, "salt_molar", float(self.salt_molar))
         if self.energy_parameters not in ("turner2004", "turner1999", "andronescu2007"):
             raise ValueError(
                 "folding.energy_parameters must be turner2004, turner1999 or andronescu2007."

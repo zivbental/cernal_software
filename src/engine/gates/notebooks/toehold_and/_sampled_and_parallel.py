@@ -22,9 +22,11 @@ information-only sum E[r_A + r_B] (``run_a_sampled`` + ``run_b_sampled``) is div
 L_A + L_B in the notebook. ``open_sampled`` (E[min(r_A, r_B)], nt) stays for the sampler check.
 
 Four states per candidate: alone, +A, +B, +A+B, sampled. Each ``AndJob.controls`` pair (two
-mismatched triggers in the +A+B layout) gets the exact matrix E[k_A], E[k_B] only, with no
-sampling: the sampler is unreliable for mismatched states, and min(E[k_A] / L_A, E[k_B] / L_B)
-is an upper bound of the control's Open.
+mismatched triggers in the +A+B layout) gets, by default, the exact matrix E[k_A], E[k_B] only, with
+no sampling: ViennaRNA's sampler is unreliable for mismatched states, and min(E[k_A] / L_A,
+E[k_B] / L_B) is an upper bound of the control's Open. With ``sample_controls`` it is sampled the
+same way, in the +A+B strand order, and carries the matrix E[k_A], E[k_B] for the check (for engines
+whose sampler is sound on such states: the separate ``nupack_report`` notebook).
 
 The strand order of +A+B is ``_joint_state_parallel.both_triggers_extra`` (fused & tB & tA,
 nested). ViennaRNA's sampler is sensitive to which strand is written first, and the order that
@@ -61,6 +63,7 @@ class AndJob(NamedTuple):
     n_samples: int
     seed: int
     controls: tuple = ()  # pairs (trigger standing in for A, trigger standing in for B); () = none
+    sample_controls: bool = False  # True: sample the controls too; False: exact matrix E[k] only
 
 
 def state_strands(job: AndJob) -> dict[str, tuple[str, int | None]]:
@@ -133,20 +136,24 @@ def _and_worker(job: AndJob) -> dict:
     out = {"key": job.key}
     for state, (strands, first_strand) in state_strands(job).items():
         out[state] = and_state(engine, strands, first_strand, job)
-    # Controls (two mismatched triggers in the +A+B layout): exact matrix only. min(E[k_A] / L_A,
-    # E[k_B] / L_B) is an upper bound of E[min(r_A / L_A, r_B / L_B)]; the sampler is unreliable
-    # for mismatched states.
+    # Controls (two mismatched triggers in the +A+B layout). Default: exact matrix only, since
+    # min(E[k_A] / L_A, E[k_B] / L_B) is an upper bound of E[min(r_A / L_A, r_B / L_B)] and
+    # the sampler is unreliable for mismatched states. With sample_controls: sampled like every
+    # other state, in the +A+B strand order.
+    first_strand = state_strands(job)["+A+B"][1]
     out["controls"] = []
     for ctrl_a, ctrl_b in job.controls:
         strands = "&".join((job.fused, *both_triggers_extra(ctrl_a, ctrl_b)))
-        bpp = engine.base_pair_probabilities(strands)
-
-        out["controls"].append(
-            {
-                "k_a_matrix": _matrix_open_nt(bpp, job.stem_up_a, job.stem_down_a),
-                "k_b_matrix": _matrix_open_nt(bpp, job.stem_up_b, job.stem_down_b),
-            }
-        )
+        if job.sample_controls:
+            out["controls"].append(and_state(engine, strands, first_strand, job))
+        else:
+            bpp = engine.base_pair_probabilities(strands)
+            out["controls"].append(
+                {
+                    "k_a_matrix": _matrix_open_nt(bpp, job.stem_up_a, job.stem_down_a),
+                    "k_b_matrix": _matrix_open_nt(bpp, job.stem_up_b, job.stem_down_b),
+                }
+            )
     return out
 
 
