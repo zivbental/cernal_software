@@ -27,6 +27,9 @@ owner-visible disclosure inconsistency, not an authentication bypass.
   remain downloadable. The platform summary table is sequence-free. Raw configuration
   manifests contain submitted input sequences and require approval of every candidate.
   CSV summaries and researcher-authored notes contain no generated design sequences.
+  Here `sequence_free` means free of complete generated switch/plasmid sequences,
+  not the absence of every common motif substring in diagnostic text. Restriction-site
+  and homopolymer diagnostics can still name the relevant short motifs.
 - The UI shows withheld states for sequences, RNA drawings and downloads. Positive
   approval preserves sequence detail, geometry, FASTA, GenBank and SBOL downloads.
 
@@ -43,6 +46,14 @@ reports) are withheld rather than guessed safe. Historical safety audit JSON rem
 readable. There is no automatic approval or reclassification of old files. The
 repository does not currently provision a screening adapter, so normal new runs
 truthfully remain HOLD_SYSTEM.
+
+Release lifetime is a separate unresolved policy question. Reads use the saved,
+sequence-bound decision; they do not freshly revalidate screening, adapter validity,
+or review tokens on every download. A genuine historical PASS/authorized REVIEW can
+therefore remain usable after adapter or token expiry. Current evidence does not
+retain review-token expiry or approver identity. Expiry/revocation semantics and their
+regression tests must be defined before a real adapter is provisioned. This change
+does not invent an expiry-on-read policy or silently revoke a genuine saved approval.
 
 Baseline: `2baa75a7f0dc89f9aafac58dad50da5982f3f56a`. Copy the new
 `tests/api/test_release_disclosure.py` into an isolated baseline checkout and run:

@@ -213,6 +213,35 @@ def test_partial_approval_still_withholds(auth_client, held_candidate):
     assert SEQUENCE not in auth_client.get(f"/api/candidates/{held_candidate.id}").content.decode()
 
 
+@pytest.mark.parametrize("audit_kind", ["switch", "plasmid"])
+@pytest.mark.parametrize("decision", [[], {}])
+@pytest.mark.parametrize("endpoint", ["detail", "results", "structure", "download", "zip"])
+def test_malformed_decision_is_a_graceful_hold(
+    auth_client, held_candidate, media_root, audit_kind, decision, endpoint
+):
+    held_candidate.design = release_design()
+    held_candidate.design["sequence_release"][audit_kind]["decision"] = decision
+    held_candidate.save()
+    artifact = Artifact.objects.create(
+        run=held_candidate.run,
+        candidate=held_candidate,
+        kind="sequence_fasta",
+        file=ContentFile(SEQUENCE.encode(), name="held.fasta"),
+        media_type="text/plain",
+        checksum_sha256=hashlib.sha256(SEQUENCE.encode()).hexdigest(),
+    )
+    urls = {
+        "detail": f"/api/candidates/{held_candidate.id}",
+        "results": f"/api/design/{held_candidate.run_id}/results",
+        "structure": f"/api/candidates/{held_candidate.id}/structure",
+        "download": f"/api/artifacts/{artifact.id}/download",
+        "zip": f"/api/runs/{held_candidate.run_id}/artifacts/download?ids={artifact.id}",
+    }
+    response = auth_client.get(urls[endpoint])
+    assert response.status_code == (409 if endpoint in {"download", "zip"} else 200)
+    assert SEQUENCE not in response.content.decode()
+
+
 def test_real_hold_result_retains_audits_without_exporting_sequences(run, auth_client, media_root):
     from apps.analyses.services import execute_run
 
