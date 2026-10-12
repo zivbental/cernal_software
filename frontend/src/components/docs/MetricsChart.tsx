@@ -35,7 +35,7 @@ export const METRICS: MetricSpec[] = [
   { name: "orthogonality", label: "Orthogonality", direction: "higher", weight: 1.5, validRange: [0, 1], unit: "fraction 0–1", description: "Predicted independence from other gates in the same circuit." },
   { name: "predicted_success_rate", label: "Binding heuristic", direction: "higher", weight: 1.0, validRange: [0, 1], unit: "fraction 0–1", description: "Uncalibrated binding-energy sigmoid; not a cellular success probability." },
   { name: "circuit_complexity", label: "Circuit complexity", direction: "lower", weight: 1.0, validRange: [1, 10], unit: "component count", description: "Component count penalty. Simpler circuits are easier to build." },
-  { name: "gc_content", label: "GC content", direction: "higher", weight: 0.5, validRange: [30, 70], unit: "percent 0–100", description: "Percent GC of the assembled construct. Extremes hurt synthesis." },
+  { name: "gc_content", label: "GC content", direction: "higher", weight: 0.5, validRange: [30, 70], unit: "percent 0–100", description: "Percent GC of the regulatory-switch sequence, not the full assembled construct." },
 ];
 
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: { payload: MetricSpec }[] }) {

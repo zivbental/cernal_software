@@ -294,6 +294,7 @@ try {
     ["predicted_leakage", /AUG-only three-base mean marginal/],
     ["dynamic_range", /0\.001 denominator floor/],
     ["predicted_success_rate", /not a cellular success probability/],
+    ["gc_content", /Percent GC of the regulatory-switch sequence, not the full assembled construct/],
   ]) {
     if (!required.test(metricHelp.get(name) ?? ""))
       failures.push(`${name}: missing scientific interpretation limit`);
