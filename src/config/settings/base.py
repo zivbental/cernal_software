@@ -41,7 +41,9 @@ LOCAL_APPS = [
     "apps.web",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+# Django gives earlier apps precedence for management command overrides.
+# Our qcluster command supplies the native Windows support guidance.
+INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS + THIRD_PARTY_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

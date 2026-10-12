@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from django.core.management import get_commands
 from django.core.management.base import CommandError
 
 from apps.common.management.commands import qcluster
@@ -14,6 +15,7 @@ from apps.web.management.commands import devserver
 
 
 def test_native_windows_commands_explain_supported_workflow(monkeypatch):
+    assert get_commands()["qcluster"] == "apps.common"
     monkeypatch.setattr(qcluster.sys, "platform", "win32")
     monkeypatch.setattr(devserver, "IS_WINDOWS", True)
     launch = Mock()
