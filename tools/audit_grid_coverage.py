@@ -111,14 +111,14 @@ def main(argv: list[str] | None = None) -> int:
         f"    cells with the WHOLE grid: {complete} of {len(points)} "
         f"({complete / len(points):.1%})"
     )
-    print(f"\n  MISSING {missing:,} of {total:,} grid points  ({missing / total:.1%})")
+    print(f"\n  ABSENT {missing:,} of {total:,} grid points  ({missing / total:.1%})")
     if missing:
-        median_stems = st.median([len(value) for value in stems.values()])
-        print(
-            f"  at a median {median_stems:.0f} stems per cell that is roughly "
-            f"{missing * median_stems:,.0f} designs still to build"
-        )
-        print("  -> tools\\run_axes_complete.cmd builds exactly those and nothing else")
+        # ABSENT, not MISSING. A results table cannot tell a point that was never
+        # attempted from one `generate_designs` declines to build -- a closure patch can
+        # leave a domain the assembly rules reject, and the reading-frame repair can fail
+        # with no substitution available. Reported as a shortfall and never as a to-do.
+        print("  absent is not the same as undone: generate_designs declines some points,")
+        print("  and a table cannot tell the two apart. The breakdown below separates them.")
 
     print("\n  stems per cell (no quota, so this varies by design)")
     counts = [len(value) for value in stems.values()]
@@ -136,6 +136,44 @@ def main(argv: list[str] | None = None) -> int:
         bar = "#" * round(42 * count / width) if count else ""
         flag = "" if count else "   <- ABSENT"
         print(f"    {name:18s}{count:>8,}  {bar}{flag}")
+
+        # Which levels the absent points belong to. An axis level that is unbuildable for
+    # some trigger pairs goes missing WHOLLY for those cells, so its count is a clean
+    # multiple of the other axes' sizes; work left undone is scattered instead. Seeing the
+    # shape is what tells the two apart without rebuilding anything.
+    print("\n  the absent points, by axis level")
+    axes = (
+        ("closure", Gate.CLOSURES, 0),
+        ("upper3", Gate.UPPER3, 1),
+        ("lower3", Gate.LOWER3, 2),
+    )
+    whole = {
+        (closure, upper, lower)
+        for closure, _ in Gate.CLOSURES
+        for upper, _ in Gate.UPPER3
+        for lower, _ in Gate.LOWER3
+    }
+    absent_points = [
+        point
+        for value in points.values()
+        for point in whole - value
+    ]
+    for axis_name, levels, slot in axes:
+        print(f"    {axis_name}")
+        counts = Counter(point[slot] for point in absent_points)
+        for level, _ in levels:
+            count = counts.get(level, 0)
+            share = count / len(absent_points) if absent_points else 0.0
+            bar = "#" * round(34 * share) if count else ""
+            print(f"      {level:18s}{count:>8,}{share:>8.1%}  {bar}")
+        spread = max(counts.values(), default=0) - min(
+            (counts.get(level, 0) for level, _ in levels), default=0
+        )
+        if spread == 0:
+            print("      -> flat: this axis is never the reason a point is absent")
+        else:
+            worst = max(((counts.get(name, 0), name) for name, _ in levels))[1]
+            print(f"      -> concentrated in {worst}, which is where to look")
 
     if args.holes:
         print(f"\n  the {args.holes} least-covered cells")
