@@ -13,6 +13,9 @@
 
 stages: [check]
 
+# test_queued_worker_acceptance.py runs the real Linux queue in the backend suite.
+# GitHub's queued-worker workflow also checks native Windows's explicit WSL guidance.
+
 default:
   interruptible: true
 
