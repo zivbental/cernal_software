@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 68 |
 | Public classes | 113 |
-| Public callables (excluding `__init__`) | 376 |
-| — `BUILT` | 363 |
+| Public callables (excluding `__init__`) | 380 |
+| — `BUILT` | 367 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -113,12 +113,12 @@ layers above it, never the ones below.
 | stages | `engine.stages.triggers` |  | 1 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
-| top | `engine.client` |  | 11 | 0 | The Platform-facing engine interface. |
+| top | `engine.client` |  | 13 | 0 | The Platform-facing engine interface. |
 | top | `engine.contract` |  | 4 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Shared differential-expression parsing for upload, preview and engine execution. |
 | top | `engine.pipeline` |  | 3 | 0 | The real scientific pipeline. |
-| top | `engine.safety` |  | 12 | 0 | Offline-first, fail-closed release control for output sequences. |
+| top | `engine.safety` |  | 14 | 0 | Offline-first, fail-closed release control for output sequences. |
 | top | `engine.store` | S11, S13 | 5 | 0 | S11, S13 — provenance and pruning. |
 | top | `engine.transcriptome` |  | 5 | 0 | Pinned, offline reference sequences and identifier aliases for all four hosts. |
 
@@ -2335,7 +2335,7 @@ Writing engine output files.
 | --- | --- | --- |
 | `BUILT` | `def sha256_file(path: str \| Path) -> str` | Streaming SHA-256 of a file. Never loads the whole file into memory. |
 | `BUILT` | `def sha256_bytes(data: bytes) -> str` | SHA-256 of an in-memory payload, for content already held as bytes. |
-| `BUILT` | `def write_artifact(output_dir: str \| Path, name: str, content: str \| bytes, *, kind: str, media_type: str, candidate_ref: str \| None = None) -> ArtifactRef` | Write one artifact and return its reference. |
+| `BUILT` | `def write_artifact(output_dir: str \| Path, name: str, content: str \| bytes, *, kind: str, media_type: str, candidate_ref: str \| None = None, sequence_free: bool = False) -> ArtifactRef` | Write one artifact and return its reference. |
 
 ### `engine.client`
 
@@ -2349,6 +2349,8 @@ The Platform-facing engine interface.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
+| `BUILT` | `def candidate_release_allowed(design: object) -> bool` | Read saved sequence release evidence through the engine boundary. |
+| `BUILT` | `def candidate_disclosure(design: object, triggers: object) -> tuple[dict, dict]` | Return a release-aware API projection without changing the saved science. |
 | `BUILT` | `def load_engine(dotted_path: str) -> EngineClient` | Instantiate an engine client from a dotted path, e.g. ``engine.client.LocalEngine``. |
 | `BUILT` | `def label_for_custom_scoring(base_name: str, overrides: dict \| None) -> str` | The label the engine will actually score under (docs/public-api.md §9.1) — computable from the request alone, before the engine ever runs, so the Platform can echo it in a submission's ``resolved`` field without building a ``ScoringProfile… |
 | `BUILT` | `def lookup_reference_gene(organism: str, identifier: str) -> dict` | Resolve a public reference gene without exposing engine internals to the API. |
@@ -2520,6 +2522,7 @@ A file the engine produced, addressed relative to ``JobRequest.output_dir``.
 | `media_type` | `str` |  |
 | `checksum_sha256` | `str` |  |
 | `candidate_ref` | `str \| None` | `None` |
+| `sequence_free` | `bool` | `False` |
 
 #### `class CandidateResult`
 
@@ -2641,6 +2644,8 @@ Offline-first, fail-closed release control for output sequences.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
+| `BUILT` | `def stored_release_allowed(design: object) -> bool` | Require explicit, sequence-bound release evidence for both exported molecules. |
+| `BUILT` | `def disclosed_candidate_data(design: object, triggers: object) -> tuple[dict, dict]` | Project held candidate data onto known non-sequence fields, without mutation. |
 | `BUILT` | `def fail_closed_release(sequence_id: str, sequence: str, *, host_context: str) -> SafetyScreenResult` | Return auditable HOLD_SYSTEM evidence when no local screening stack is provisioned. |
 
 #### `class Decision(StrEnum)`

@@ -20,7 +20,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { extname, resolve } from "node:path";
+import { extname, resolve, sep } from "node:path";
 import { chromium } from "playwright";
 
 const root = resolve(import.meta.dirname, "../../src/static/app");
@@ -54,6 +54,7 @@ function makeCandidate(rank, { runId = runA, name = `hairpin-${rank}`, layout = 
     warnings: [], is_rejected: false, rejection_reason: "", output: rank === 2 ? "Custom" : "GFP",
     triggers: { features: [{ gene_id: "SYNTHETIC_INPUT", gene_symbol: "Fixture input" }] },
     design: {
+      sequence_release: { release_allowed: true },
       switch_sequence: layout?.sequence ?? fixture.hairpin.sequence,
       structure: layout?.structure ?? fixture.hairpin.structure,
       structure_kind: "intended_target", architecture: clone(fixture.architecture),
@@ -107,6 +108,7 @@ replace(26, { name: "wrong-base-index", layout: { ...fixture.hairpin,
   bases: fixture.hairpin.bases.map((base, index) => index ? base : { ...base, index: 2 }) } });
 replace(27, { name: "delayed-response", layout: fixture.alternate, design: { architecture: null } });
 replace(28, { name: "malformed-trigger-features", triggers: { features: [null, 42, "x", {}] } });
+replace(29, { name: "held-release", design: { sequence_release: { release_allowed: false }, switch_sequence: "", structure: "" }, layout: unavailable });
 replace(51, { name: "page-two-distinct", layout: fixture.alternate, design: { architecture: null } });
 replace(57, { name: "last-single", layout: fixture.single, design: { architecture: null } });
 const second = [
@@ -168,7 +170,7 @@ const server = createServer(async (req, res) => {
     let asset;
     if (path.startsWith("/static/app/assets/")) {
       asset = resolve(root, path.replace(/^\/static\/app\//, ""));
-      if (!asset.startsWith(`${root}/assets/`)) { res.writeHead(404).end(); return; }
+      if (!asset.startsWith(`${resolve(root, "assets")}${sep}`)) { res.writeHead(404).end(); return; }
     } else if (path === "/" || path === "/dashboard" || /^\/runs\/[^/]+$/.test(path)) {
       asset = resolve(root, "index.html");
     } else {
@@ -565,6 +567,16 @@ if (process.env.RNA_VIEWER_FIXTURE_ONLY === "1") {
       assert.match(await readout().innerText(), /G at position 1 · unpaired/);
       await page.getByRole("button", { name: "Rotate RNA right", exact: true }).click();
       await expectDiagram(fixture.single, main[3].engine_ref);
+    });
+
+    await check("held release never renders sequence or geometry", async () => {
+      await openRna(29);
+      await page.getByText("RNA structure withheld pending sequence release approval", { exact: true }).waitFor();
+      assert.equal(await canvas().count(), 0);
+      assert.equal(await svg().count(), 0);
+      assert.equal(await page.getByText(fixture.hairpin.sequence, { exact: true }).count(), 0);
+      await choose(1);
+      await expectDiagram(fixture.hairpin, main[0].engine_ref);
     });
 
     for (const [rank, name] of missingCases) {

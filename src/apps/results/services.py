@@ -25,9 +25,28 @@ from django.utils import timezone
 
 from apps.common.checksums import sha256_bytes
 from apps.results.models import Artifact, Candidate, CandidateMetric
+from engine.client import candidate_release_allowed
 from engine.contract import HIGHER_BETTER, LOWER_BETTER, SCHEMA_VERSION, SUCCEEDED, JobResult
 
 logger = logging.getLogger(__name__)
+
+
+def artifact_release_allowed(artifact) -> bool:
+    """Unknown and legacy sequence-bearing artifacts fail closed, including in ZIPs.
+
+    Only known writers declare sequence-free bytes. Existing safety audit records
+    remain readable; no data migration pretends legacy files have been screened.
+    """
+    if artifact.sequence_free or artifact.kind == "safety_audit":
+        return True
+    if artifact.kind == "run_manifest":
+        candidates = list(artifact.run.candidates.all())
+        return bool(candidates) and all(candidate_release_allowed(c.design) for c in candidates)
+    return bool(
+        artifact.candidate_id
+        and artifact.kind in {"sequence_fasta", "genbank", "sbol", "structure_plot"}
+        and candidate_release_allowed(artifact.candidate.design)
+    )
 
 
 class ResultImportError(Exception):
@@ -244,6 +263,7 @@ def _import_artifacts(
             media_type=ref.media_type,
             checksum_sha256=ref.checksum_sha256 or sha256_bytes(payload),
             size_bytes=len(payload),
+            sequence_free=ref.sequence_free,
         )
         artifact.file.save(ref.path, ContentFile(payload), save=False)
         written.append((artifact.file.storage, artifact.file.name))
@@ -292,6 +312,7 @@ def _write_platform_artifact(
         media_type=media_type,
         checksum_sha256=sha256_bytes(payload),
         size_bytes=len(payload),
+        sequence_free=kind == "summary_table",
     )
     artifact.file.save(filename, ContentFile(payload), save=False)
     written.append((artifact.file.storage, artifact.file.name))

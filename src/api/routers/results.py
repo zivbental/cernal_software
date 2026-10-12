@@ -31,8 +31,8 @@ from apps.results.models import (
     DecisionTag,
     filter_by_category,
 )
-from apps.results.services import build_candidates_csv
-from engine.client import layout_stored_structure
+from apps.results.services import artifact_release_allowed, build_candidates_csv
+from engine.client import candidate_release_allowed, layout_stored_structure
 
 router = Router()
 
@@ -102,6 +102,10 @@ def get_candidate_structure(request, candidate_id: UUID):
     """Draw the stored primary switch; this does not predict or recompute a fold."""
     candidate = get_owned(Candidate, candidate_id, request.user, select_related=("run",))
     design = candidate.design
+    if not candidate_release_allowed(design):
+        result = layout_stored_structure(None, None)
+        result["reason"] = "Sequence disclosure is withheld pending matching release approval."
+        return result
     if not isinstance(design, dict):
         return layout_stored_structure(design, design)
     return layout_stored_structure(
@@ -125,6 +129,8 @@ def download_artifact(request, artifact_id: UUID):
     world-readable to anyone who guessed the path (docs/architecture.md §7.2).
     """
     artifact = get_owned(Artifact, artifact_id, request.user, select_related=("run",))
+    if not artifact_release_allowed(artifact):
+        raise Conflict("Sequence-bearing artifact is withheld pending release approval.")
 
     if not artifact.file or not artifact.file.storage.exists(artifact.file.name):
         raise NotFound("That artifact is no longer stored.")
@@ -185,6 +191,13 @@ def download_artifacts_zip(
     artifacts = list(queryset)
     if not artifacts:
         raise NotFound("No matching artifacts were found for this run.")
+
+    withheld = [artifact for artifact in artifacts if not artifact_release_allowed(artifact)]
+    if withheld:
+        raise Conflict(
+            "This archive contains artifacts withheld pending release approval.",
+            detail={"withheld_artifact_ids": [str(artifact.id) for artifact in withheld]},
+        )
 
     missing = [
         artifact
