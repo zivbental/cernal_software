@@ -47,20 +47,27 @@ support does not imply application-worker support: the locked Django Q2 worker r
 The separately proposed [F1 Windows/WSL worker guide](https://github.com/zivbental/cernal_software/blob/027066db141189cad8eb79bc1344c1a90d01aac4/docs/windows-worker.md)
 provides operational instructions and queued-worker acceptance evidence.
 
+Audit integration order: this quickstart requires the standard clean-build fix in
+[PR 70](https://github.com/zivbental/cernal_software/pull/70); merge it before F5.
+[PR 76](https://github.com/zivbental/cernal_software/pull/76) supplies the Windows/WSL
+operational guide and worker acceptance checks. These are explicit integration
+dependencies, not claims that either change is already on the audit baseline.
+
 ```bash
 git clone https://github.com/zivbental/cernal_software.git
 cd cernal_software
 git rev-parse HEAD                 # record the exact revision being tested
 uv sync --locked --extra dev
-(cd frontend && npm ci && npm run build:fast && npm run build)
+(cd frontend && npm ci && npm run build)
 uv run python manage.py migrate    # fresh checkout: disposable var/cernal.db
 uv run python manage.py check
 uv run python manage.py createsuperuser
 ./do dev 8000                      # http://localhost:8000
 ```
 
-`build:fast` generates the route tree needed by the typecheck in `build`. Installing
-frontend dependencies explicitly avoids relying on an existing `node_modules` folder.
+The standard build generates the route tree before typechecking; no prior generated
+files or `build:fast` bootstrap are required after PR 70. Installing frontend
+dependencies explicitly avoids relying on an existing `node_modules` folder.
 An empty `.env` uses development defaults; [`.env.example`](.env.example) documents them.
 Use a fresh checkout for experiments: database, media, logs and generated artifacts live
 under gitignored `var/`. Do not point a smoke run at a production database.
@@ -74,6 +81,8 @@ available manifest alongside any reported computational result.
 
 For frontend hot reload, `./do frontend` starts Vite on :5173 and proxies `/api` to
 :8000. See [development](docs/development.md) for additional commands.
+`./do build-frontend` calls that same standard `npm run build`, so it also receives
+the PR 70 fix without a separate task-runner implementation.
 
 ### Verify the checkout
 

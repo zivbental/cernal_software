@@ -30,8 +30,10 @@ def test_readme_documents_the_configured_engine_and_installed_folding_backend():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     assert any(dependency.startswith("viennarna") for dependency in project["dependencies"])
     assert "active\nfolding backend" in readme
-    # A fresh build must install dependencies and generate the route tree before tsc.
-    assert "npm ci && npm run build:fast && npm run build" in readme
+    # Use the corrected standard build, with its dependency explicit during review.
+    assert "npm ci && npm run build)" in readme
+    assert "npm ci && npm run build:fast" not in readme
+    assert "pull/70" in readme
     assert "uv sync --locked --extra dev" in readme
 
 

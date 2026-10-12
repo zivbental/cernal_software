@@ -9,7 +9,8 @@ At baseline, README Current state and A note on results claim that removed
 ViennaRNA planned. `src/config/settings/base.py` and `.env.example` instead select
 `engine.client.LocalEngine`; `pyproject.toml` and `uv.lock` include ViennaRNA.
 The README now follows those sources and documents locked dependency installation
-and explicit fresh frontend installation/route generation before typechecking.
+and explicit fresh frontend installation with the standard build. PR 70 supplies
+the necessary route-generation-before-typecheck fix and must precede F5 integration.
 
 The in-app metric chart formerly described success as confidence of behavior in vivo
 and dynamic range as predicted expression fold change. The corrected chart and guide
@@ -35,6 +36,10 @@ GitHub pull request API responses on 2026-10-12:
 No code from either PR was imported into this documentation branch.
 Windows operational documentation is owned by the separate F1 worker; README scopes
 the application quickstart to Linux/WSL2 because locked Django Q2 requires `fork`.
+PR 76 owns that operational guide and worker checks. PR 70 owns the clean standard
+build. `./do build-frontend` already calls `npm run build`, so inspection found no
+additional helper change necessary. These dependencies are documented rather than
+copied into F5 or silently treated as present in baseline main.
 
 ## Dedicated iGEM software hosting remains unverified
 
@@ -69,6 +74,11 @@ On the Work PC, with locked dependencies in this isolated checkout:
   seven negative controls, and now assert metric interpretation limits.
 - Local native Windows execution required tool escalation for the installed Python
   runtime and Vite filesystem access. No permission, dependency or check was weakened.
+- Integration prerequisite PR 70, exact head `98433ffc2a7fc0f7e6e4b012a2a8f1c99f04117f`:
+  a separate fresh detached checkout had no `routeTree.gen.ts` or `node_modules`.
+  `npm ci` followed by `npm run test:clean-build` passed. That test runs the standard
+  `npm run build`, verifies route tree and SPA output, then proves a TypeScript
+  error is still rejected. No `build:fast` bootstrap was used in this verification.
 
 The PR records exact-head CI separately. Linux/WSL worker acceptance belongs to F1;
 this task did not launch a worker or claim a native Windows application smoke pass.
