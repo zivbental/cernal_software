@@ -34,6 +34,7 @@ def write_artifact(
     kind: str,
     media_type: str,
     candidate_ref: str | None = None,
+    sequence_free: bool = False,
 ) -> ArtifactRef:
     """Write one artifact and return its reference.
 
@@ -53,4 +54,5 @@ def write_artifact(
         media_type=media_type,
         checksum_sha256=sha256_bytes(payload),
         candidate_ref=candidate_ref,
+        sequence_free=sequence_free,
     )

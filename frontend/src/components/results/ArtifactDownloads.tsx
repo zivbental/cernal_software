@@ -119,13 +119,20 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
           desc={`${items.length} file${items.length === 1 ? "" : "s"} generated, ${formatBytes(totalSize)} total.`}
         />
         <a
-          href={artifactsZipUrl(runId)}
+          href={items.every((artifact) => artifact.download_available === true) ? artifactsZipUrl(runId) : undefined}
+          aria-disabled={!items.every((artifact) => artifact.download_available === true)}
           className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-gradient-deep px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-clinical transition hover:opacity-95"
         >
           <Archive className="h-4 w-4" />
           Download everything (.zip)
         </a>
       </div>
+
+      {items.some((artifact) => artifact.download_available !== true) && (
+        <p role="status" className="mb-4 text-sm text-muted-foreground">
+          Some artifacts are withheld pending sequence release approval. Select available files to download a partial archive.
+        </p>
+      )}
 
       {selected.size > 0 && (
         <div className="mb-4 flex items-center justify-between rounded-lg border border-mint/40 bg-mint/5 px-4 py-2.5">
@@ -182,7 +189,8 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
                   />
                 </button>
                 <a
-                  href={artifactsZipUrl(runId, { category })}
+                  href={files.every((artifact) => artifact.download_available === true) ? artifactsZipUrl(runId, { category }) : undefined}
+                  aria-disabled={!files.every((artifact) => artifact.download_available === true)}
                   title={`Download "${meta.label}" as a .zip`}
                   className="shrink-0 rounded-md border border-border p-2 text-muted-foreground transition hover:border-mint hover:text-mint"
                 >
@@ -200,6 +208,7 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
                       <button
                         type="button"
                         onClick={() => toggleSelected(artifact.id)}
+                        disabled={artifact.download_available !== true}
                         aria-label={`Select ${artifact.name}`}
                       >
                         <Check on={selected.has(artifact.id)} />
@@ -209,14 +218,15 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
                           {artifact.name}
                         </div>
                         <div className="truncate text-[11px] text-muted-foreground">
-                          {artifact.label}
+                          {artifact.label}{artifact.download_available !== true ? " — withheld pending release approval" : ""}
                         </div>
                       </div>
                       <div className="shrink-0 font-mono text-[11px] text-muted-foreground">
                         {formatBytes(artifact.size_bytes)}
                       </div>
                       <a
-                        href={artifact.download_url}
+                        href={artifact.download_available === true ? artifact.download_url : undefined}
+                        aria-disabled={artifact.download_available !== true}
                         title={`Download ${artifact.name}`}
                         className="shrink-0 text-muted-foreground transition hover:text-mint"
                       >

@@ -102,7 +102,7 @@ from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.inputs import parse_dge_table
-from engine.safety import fail_closed_release
+from engine.safety import fail_closed_release, stored_release_allowed
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
 from engine.scoring.profiles import HardFilter, ScoringProfile, resolve_profile
 from engine.stages.circuits import CircuitDesigner, ConfusionEvaluator
@@ -581,7 +581,11 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
 
     if not on_progress(*_pct("Writing report")):
         raise JobCancelled("Writing report")
-    artifacts = [store.snapshot("trigger_selection", trigger_candidates)]
+    artifacts = [
+        dataclasses.replace(
+            store.snapshot("trigger_selection", trigger_candidates), sequence_free=True
+        )
+    ]
     artifacts.extend(
         _write_artifacts(request.output_dir, candidates, plasmids, on_progress=on_progress)
     )
@@ -1695,6 +1699,7 @@ def _write_artifacts(
             "\n".join(rows) + "\n",
             kind="design_table",
             media_type="text/csv",
+            sequence_free=True,
         )
     ]
 
@@ -1712,6 +1717,10 @@ def _write_artifacts(
             plasmid.plasmid.sequence,
             host_context=candidate.design.get("host", "unconfigured"),
         )
+        candidate.design["sequence_release"] = {
+            "switch": switch_screen.release_record(),
+            "plasmid": plasmid_screen.release_record(),
+        }
         artifacts.extend(
             [
                 write_artifact(
@@ -1721,6 +1730,7 @@ def _write_artifacts(
                     kind="safety_audit",
                     media_type="application/json",
                     candidate_ref=candidate.ref,
+                    sequence_free=True,
                 ),
                 write_artifact(
                     output_dir,
@@ -1729,10 +1739,11 @@ def _write_artifacts(
                     kind="safety_audit",
                     media_type="application/json",
                     candidate_ref=candidate.ref,
+                    sequence_free=True,
                 ),
             ]
         )
-        if not (switch_screen.release_allowed and plasmid_screen.release_allowed):
+        if not stored_release_allowed(candidate.design):
             continue
         fasta = (
             f">{candidate.ref} {candidate.gate_family} {candidate.logic_type} "

@@ -44,6 +44,12 @@ export function RnaStructureView({ candidate }: { candidate: CandidateDetail }) 
   const title = getStructureProvenanceLabel(candidate.design.structure_kind);
   const buttonClass = "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-xs hover:bg-secondary disabled:opacity-40";
 
+  if (candidate.design.sequence_release?.release_allowed !== true) return <div role="status"
+    className="rounded-xl border border-dashed border-border p-6 text-sm">
+    <p className="font-medium">RNA structure withheld pending sequence release approval</p>
+    <p className="mt-2 text-muted-foreground">Computational scores and ranking remain available. A release hold is not a failed fold or biological validation.</p>
+  </div>;
+
   if (query.isPending) return <p role="status" className="py-12 text-center text-sm text-muted-foreground">Loading saved RNA structure…</p>;
   if (query.isError) return <div role="alert" className="rounded-lg border border-border p-5 text-sm">
     Could not load the RNA structure. Your other results are still available.

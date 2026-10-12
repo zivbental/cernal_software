@@ -170,6 +170,7 @@ class ArtifactRef:
     media_type: str
     checksum_sha256: str
     candidate_ref: str | None = None
+    sequence_free: bool = False
 
 
 @dataclass(frozen=True, slots=True)

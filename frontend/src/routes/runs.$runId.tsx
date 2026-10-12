@@ -334,7 +334,9 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
                       Switch sequence 5&rsquo; → 3&rsquo;
                     </div>
                     <div className="mt-1 break-all font-mono text-[11px] text-foreground">
-                      {detail.data.design.switch_sequence}
+                      {detail.data.design.sequence_release?.release_allowed === true
+                        ? detail.data.design.switch_sequence
+                        : "Sequence withheld pending release approval. Scores and computational eligibility do not authorize sequence release."}
                     </div>
                   </div>
                 </>
