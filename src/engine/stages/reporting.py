@@ -248,5 +248,10 @@ class ReportBuilder:
             parts.append("</table>")
         parts.append("</html>")
         return write_artifact(
-            output_dir, "report.html", "\n".join(parts), kind="report", media_type="text/html"
+            output_dir,
+            "report.html",
+            "\n".join(parts),
+            kind="report",
+            media_type="text/html",
+            sequence_free=True,
         )

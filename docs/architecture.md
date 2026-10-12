@@ -182,7 +182,7 @@ cernal/
 │   │
 │   ├── engine/                   ★ NO DJANGO. See §3, and engine.md
 │   │   ├── contract.py           JobRequest · JobResult · CandidateResult · …
-│   │   ├── client.py             EngineClient Protocol · MockEngine · LocalEngine
+│   │   ├── client.py             EngineClient Protocol · LocalEngine
 │   │   ├── domain.py             The scientific vocabulary
 │   │   ├── errors.py             EngineError hierarchy
 │   │   ├── artifacts.py          Checksummed artifact writing
@@ -444,12 +444,15 @@ class EngineClient(Protocol):
 
 | Implementation | Purpose |
 |---|---|
-| `MockEngine` | Deterministic fake science. **The default**, and what CI and frontend work use |
-| `LocalEngine` | The real pipeline, in-process. Raises `NotImplementedError` until Step 5 |
+| `LocalEngine` | Default and only supported engine; real ViennaRNA folding and scoped single-input production workflows |
 
-Selected by dotted path: `CERNAL_ENGINE = "engine.client.MockEngine"`. `load_engine` takes
+Selected by dotted path: `CERNAL_ENGINE = "engine.client.LocalEngine"`. `load_engine` takes
 the path **as an argument** rather than reading `settings` itself — `engine/` may not import
 Django, so the Platform passes the setting in.
+
+The old `MockEngine` has been removed. This corrects the historical scaffold description;
+no architecture or algorithm is changed. Scientific outputs remain uncalibrated proxies;
+see [scientific interpretation](scientific-interpretation.md).
 
 **`EngineCapabilities` is why the Platform can validate a submission** without importing
 `engine.gates.registry` (which [§3](#3-the-boundary-rule) forbids): the engine advertises
@@ -461,13 +464,13 @@ its gate families and scoring profiles, and `GET /api/version` surfaces them.
 
 ## 11. Testing
 
-`pytest` + `pytest-django`. **415 tests.** Not exhaustive coverage — targeted at the places
-where breakage would be expensive or silent.
+`pytest` + `pytest-django`. Run the current suite for its count; historical counts are
+not acceptance criteria. These checks verify software and computations, not biological efficacy.
 
 | Area | What |
 |---|---|
 | **Boundary** | `engine/` imports nothing from Django or the Platform |
-| Engine contract | `MockEngine` is deterministic for a fixed idempotency key; honours cancellation; fault injection produces a `failed` result |
+| Engine contract | LocalEngine capabilities, supported paths, cancellation and expected failures |
 | State machine | Every legal transition; every illegal transition raises; terminal states are terminal |
 | Idempotency | Submitting twice with the same key yields one run |
 | Authorization | Every endpoint rejects a non-owner with 404 (not 403 — do not leak existence) |
@@ -505,7 +508,7 @@ a comment and a safe default; it is the reference, and it is committed.
 | `DEBUG` | `True` | Always `False` in prod |
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1` | |
 | `DATABASE_URL` | `sqlite:///var/cernal.db` | Postgres is a URL change, nothing more |
-| `CERNAL_ENGINE` | `engine.client.MockEngine` | Dotted path to an `EngineClient` |
+| `CERNAL_ENGINE` | `engine.client.LocalEngine` | Dotted path to an `EngineClient` |
 | `MEDIA_ROOT` | `var/media` | |
 | `MAX_DATASET_MB` | `50` | |
 | `LOG_LEVEL` | `INFO` | |

@@ -127,13 +127,14 @@ determinism tests. See [engine.md §8](engine.md).
 
 ## Continuous integration
 
-`.gitlab-ci.yml` runs the same things you run locally — `ruff check`, `ruff format --check`,
-`manage.py check` and `pytest` for the backend, and `npm run check` plus `npm run build` for
-the frontend — on every push. It uses `MockEngine`, so it needs no scientific dependencies
-and no secrets.
+GitHub [CI](../.github/workflows/ci.yml) runs on pull requests and pushes to `main`;
+manual/scheduled acceptance lanes are separate. It installs the locked scientific
+dependencies and runs against LocalEngine. The backend includes lint, formatting,
+Django/migration/API-surface checks and pytest; frontend and client/browser lanes
+exercise their own contracts. A local lint/test pass does not prove every CI lane passed.
 
-**If `./do lint && ./do test` passes locally, CI passes.** That is deliberate: a pipeline
-that checks something different from the local command is a pipeline people learn to ignore.
+`.gitlab-ci.yml` is the corresponding GitLab configuration, not proof of dedicated
+iGEM software hosting or an executed pipeline. See [F5 evidence](evidence/audit-f5-documentation-2026-10-12.md).
 
 ## Conventions
 

@@ -33,6 +33,20 @@ from engine.errors import EngineError, JobCancelled
 ProgressFn = Callable[[int, str], bool]
 
 
+def candidate_release_allowed(design: object) -> bool:
+    """Read saved sequence release evidence through the engine boundary."""
+    from engine.safety import stored_release_allowed
+
+    return stored_release_allowed(design)
+
+
+def candidate_disclosure(design: object, triggers: object) -> tuple[dict, dict]:
+    """Return a release-aware API projection without changing the saved science."""
+    from engine.safety import disclosed_candidate_data
+
+    return disclosed_candidate_data(design, triggers)
+
+
 @runtime_checkable
 class EngineClient(Protocol):
     """What the Platform depends on. Implementations must be safe to call from a worker."""

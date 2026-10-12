@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import tarfile
 import tempfile
+from contextlib import closing
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from apps.common.checksums import sha256_file
@@ -32,7 +33,7 @@ def _referenced_files(database: Path) -> dict[str, str]:
     references = {}
     if not database.is_file():
         raise BackupError("The SQLite snapshot is missing.")
-    with sqlite3.connect(database) as snapshot:
+    with closing(sqlite3.connect(database)) as snapshot:
         if snapshot.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise BackupError("The SQLite snapshot failed its integrity check.")
         for model in (Dataset, Artifact):
@@ -60,7 +61,7 @@ def create_backup(connection, media_root, output, *, staging_root=None):
         temporary = Path(directory)
         database = temporary / "database.sqlite3"
         connection.ensure_connection()
-        with sqlite3.connect(database) as snapshot:
+        with closing(sqlite3.connect(database)) as snapshot:
             connection.connection.backup(snapshot)
         files = {"database.sqlite3": database}
         for name, digest in _referenced_files(database).items():

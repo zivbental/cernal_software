@@ -41,7 +41,14 @@ LOCAL_APPS = [
     "apps.web",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+# Django gives earlier apps precedence for management command overrides. Move only
+# common ahead of django_q for our qcluster guidance; preserve every other app's order.
+INSTALLED_APPS = (
+    DJANGO_APPS
+    + ["apps.common"]
+    + THIRD_PARTY_APPS
+    + [app for app in LOCAL_APPS if app != "apps.common"]
+)
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

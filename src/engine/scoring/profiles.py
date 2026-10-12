@@ -165,8 +165,9 @@ DEFAULT_V1 = ScoringProfile(
             weight=2.5,
             valid_range=(0.0, 1.0),
             description=(
-                "Mean marginal unpaired probability in the OFF-state "
-                "initiation region (uncalibrated proxy)."
+                "OFF-state mean marginal unpaired probability: AUG-only (three bases) "
+                "for loop layouts, toehold-plus-stem for trailing layouts. "
+                "Not a wider bacterial initiation footprint or calibrated leakage rate."
             ),
             unit="fraction 0-1",
         ),

@@ -4,6 +4,7 @@ import csv
 import hashlib
 import io
 import json
+import subprocess
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -102,3 +103,55 @@ def test_new_sync_retains_full_analysis_rows_beyond_preview_cap(tmp_path, monkey
     assert entry["provider_metadata"]["source_tested_rows"] == 3500
     assert entry["provider_metadata"]["data_completeness"] == "full_tested_rows"
     assert len(list(csv.DictReader((tmp_path / entry["csv_path"]).open()))) == 3500
+
+
+@pytest.mark.parametrize("autocrlf", ["true", "false", "input"])
+def test_clean_checkout_preserves_catalog_checksums(tmp_path, autocrlf):
+    """Exercise Git's actual checkout conversion, even on Linux CI."""
+    repo = Path(__file__).resolve().parents[1]
+    source = tmp_path / "source"
+    source.mkdir()
+
+    def git(*args, cwd=source):
+        return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True).stdout
+
+    git("init", "--quiet")
+    # Test the proposed rules, with authoritative committed CSV bytes. Reading
+    # the existing worktree would hide or perpetuate checkout conversion damage.
+    (source / ".gitattributes").write_bytes((repo / ".gitattributes").read_bytes())
+    catalog_path = CATALOG_DIR.relative_to(repo).as_posix()
+    manifest = json.loads((CATALOG_DIR / "manifest.json").read_text())
+    for entry in manifest.values():
+        relative = f"{catalog_path}/{entry['csv_path']}"
+        path = source / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(git("show", f"HEAD:{relative}", cwd=repo))
+    git("-c", "core.autocrlf=false", "add", ".")
+    git(
+        "-c",
+        "user.name=Checkout test",
+        "-c",
+        "user.email=checkout@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "--quiet",
+        "-m",
+        "test fixture",
+    )
+    checkout = tmp_path / "checkout"
+    git(
+        "clone",
+        "--quiet",
+        "--no-local",
+        "--config",
+        f"core.autocrlf={autocrlf}",
+        "--config",
+        "core.eol=crlf",
+        str(source),
+        str(checkout),
+    )
+    for entry in manifest.values():
+        content = (checkout / catalog_path / entry["csv_path"]).read_bytes()
+        assert hashlib.sha256(content).hexdigest() == entry["provider_metadata"]["csv_sha256"]
+    assert git("status", "--porcelain", cwd=checkout) == b""
