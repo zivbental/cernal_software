@@ -13,6 +13,9 @@
 
 stages: [check]
 
+# Linux backup integrity also runs in the full backend suite. GitHub's dedicated
+# backup-integrity workflow additionally covers Windows (no Windows GitLab runner).
+
 default:
   interruptible: true
 
