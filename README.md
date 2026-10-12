@@ -1,137 +1,150 @@
 # CERNAL
 
-Design platform for RNA logic circuits — trigger discovery, gate design, scoring and
-ranking from transcriptomic differential-expression data. Built for iGEM.
+Computational design platform for RNA logic candidates: trigger discovery, single-input
+toehold design, scoring and ranking from direct sequences, named reference genes or
+differential-expression tables. Built by the iGEM 2026 Tel Aviv University team.
 
-> **New here?** Start at [`docs/`](docs/README.md).
-> [`docs/architecture.md`](docs/architecture.md) is the authoritative reference for how
-> the system is built; [`docs/ROADMAP.md`](docs/ROADMAP.md) is what is left to do. This
-> README only covers getting the thing running.
+**The default is `CERNAL_ENGINE=engine.client.LocalEngine`.** It uses real ViennaRNA
+folding. The former `MockEngine` has been removed. Current results are computational
+predictions, not simulated demo values and not experimentally validated circuits.
 
-Signed-in users can choose a supported workflow at `/use-cases`, follow the practical
-guide at `/guide`, and troubleshoot at `/faq`. These authenticated React pages live in
-`frontend/src/routes/`; [the maintainer map](docs/user-help.md) ties their claims to source.
+Start with [the documentation index](docs/README.md), [architecture](docs/architecture.md)
+and [current limitations](docs/ROADMAP.md). Signed-in help lives at `/use-cases`, `/guide`
+and `/faq`; [the maintainer map](docs/user-help.md) connects those pages to source.
 
-## Requirements
+## Current application capabilities
 
-- Python **3.13** — not 3.14; scientific wheels lag new CPython releases by months
-- [`uv`](https://docs.astral.sh/uv/) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- **Node 22+** — only to build the frontend. On WSL, install it *inside* WSL via
-  [`nvm`](https://github.com/nvm-sh/nvm), not on `/mnt/c`
+`GET /api/version` is the installed build's capability contract. It exposes supported
+hosts, input modes, gate families, payloads, constraints and scoring metrics. Inspect it
+before assuming a registry entry or notebook is a supported application workflow.
 
-## Quickstart
+- Direct RNA/DNA, named reference genes, and DE tables for E. coli, yeast, Human and
+  C. acnes. DE uploads accept CSV, TSV, TXT and XLSX; raw-count inference is not provided.
+- Production submissions support **one input and one gate**, using supported
+  single-input toehold families; GFP and custom coding sequences are supported outputs.
+  Physical AND circuits, antisense and CRISPR workbenches are not production integrations.
+- Human references use pinned Ensembl release 116 mature cDNA/noncoding transcripts.
+  Human assembly uses CMV/hGH parts with an uploaded backbone or a bare expression cassette.
+- Runs retain configuration, metrics, rejection reasons and artifacts. Sequence release
+  is a separate fail-closed policy decision: an unconfigured screening adapter holds
+  sequence exports. Software availability does not establish specificity or efficacy.
 
-```bash
-./do install      # create the venv and install dependencies
-./do migrate      # build the database at var/cernal.db
-./do superuser    # create an admin login
-./do dev          # serve on http://localhost:8000
-```
+Read [scientific interpretation](docs/scientific-interpretation.md) before comparing
+metrics: bacterial leakage measures only AUG's three-base marginal accessibility;
+dynamic range is a floored accessibility ratio; success is an uncalibrated binding
+heuristic. No established transcriptome-wide off-target or wet-lab validation is claimed.
 
-`./do dev` starts the web server and background worker together, restarts a failed
-worker, and stops both when you exit. Local `manage.py runserver` uses the same
-supervision. `./do worker` remains available for a separately managed worker.
-The run screen reports when the worker is offline.
+## Installation and reproducible quickstart
 
-Run `./do help` for every available command.
-[`docs/development.md`](docs/development.md) covers day-to-day work.
+Use Python **3.13** (`>=3.13,<3.14`), [uv](https://docs.astral.sh/uv/), Node **22+**, npm,
+Git and Bash for `./do`. Locked Python dependencies include ViennaRNA: it is an active
+folding backend, not a planned optional integration.
 
-### Trigger/nucleation analysis utility
+These commands target Linux or Linux inside WSL2. Install Node and uv inside that
+environment and keep its checkout and dependencies there. Native Windows engine/tests
+support does not imply application-worker support: the locked Django Q2 worker requires
+`fork`. Run the application server and worker inside Linux/WSL2.
+The separately proposed [F1 Windows/WSL worker guide](https://github.com/zivbental/cernal_software/blob/027066db141189cad8eb79bc1344c1a90d01aac4/docs/windows-worker.md)
+provides operational instructions and queued-worker acceptance evidence.
 
-Reusable offline ranking for marginal trigger/nucleation accessibility lives in
-[`tools/trigger_nucleation_ranking.py`](tools/trigger_nucleation_ranking.py). The preserved
-default is lexicographic nucleation-first ranking; balanced geometric-mean ranking is an
-explicit separate sensitivity mode. See
-[`docs/trigger-nucleation-ranking.md`](docs/trigger-nucleation-ranking.md) for semantics,
-provenance and usage.
-
-### Building the frontend
-
-`./do dev` builds the React app once if it is missing. To rebuild it explicitly, or to
-work on it with hot reload:
-
-```bash
-./do build-frontend   # production build into src/static/app/
-./do frontend         # Vite dev server on :5173, proxying /api to :8000
-```
-
-### Verifying the build
+Audit integration order: this quickstart requires the standard clean-build fix in
+[PR 70](https://github.com/zivbental/cernal_software/pull/70); merge it before F5.
+[PR 76](https://github.com/zivbental/cernal_software/pull/76) supplies the Windows/WSL
+operational guide and worker acceptance checks. These are explicit integration
+dependencies, not claims that either change is already on the audit baseline.
 
 ```bash
-./do lint         # ruff, TypeScript, ESLint, and a server-render regression test
-./do test         # the full pytest suite
+git clone https://github.com/zivbental/cernal_software.git
+cd cernal_software
+git rev-parse HEAD                 # record the exact revision being tested
+uv sync --locked --extra dev
+(cd frontend && npm ci && npm run build)
+uv run python manage.py migrate    # fresh checkout: disposable var/cernal.db
+uv run python manage.py check
+uv run python manage.py createsuperuser
+./do dev 8000                      # http://localhost:8000
 ```
 
-GitHub CI runs for pull requests and pushes to `main`; it does not run for every
-feature-branch push. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+The standard build generates the route tree before typechecking; no prior generated
+files or `build:fast` bootstrap are required after PR 70. Installing frontend
+dependencies explicitly avoids relying on an existing `node_modules` folder.
+An empty `.env` uses development defaults; [`.env.example`](.env.example) documents them.
+Use a fresh checkout for experiments: database, media, logs and generated artifacts live
+under gitignored `var/`. Do not point a smoke run at a production database.
 
-## Current state
+`./do dev` supervises the web server and background worker; `./do worker` is for a
+separately managed worker. After logging in, choose a supported single-input workflow
+at `/use-cases`, start with a small run and inspect warnings and rejected candidates.
+Candidate counts can be zero and depend on input and constraints. A completed job is
+not proof of a functional construct. Keep the input, run configuration, revision and
+available manifest alongside any reported computational result.
 
-`CERNAL_ENGINE` defaults to `MockEngine`, which produces deterministic simulated results.
-`LocalEngine` implements scoped direct-transcript and E. coli/yeast DE paths, but several
-scientific stages remain partial. Capability availability is not evidence that a complete
-pipeline exists; consult current source, run warnings, and [`docs/ROADMAP.md`](docs/ROADMAP.md).
+For frontend hot reload, `./do frontend` starts Vite on :5173 and proxies `/api` to
+:8000. See [development](docs/development.md) for additional commands.
+`./do build-frontend` calls that same standard `npm run build`, so it also receives
+the PR 70 fix without a separate task-runner implementation.
 
-## Layout
+### Verify the checkout
 
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run python manage.py check
+uv run pytest -q
+(cd frontend && npm run check && npm run build)
 ```
-docs/     Design documentation — start with docs/README.md
-src/      Python source
-  config/   Django project (settings, urls, wsgi)
-  apps/     Django apps: accounts, common, projects, datasets, analyses, results, web
-  api/      The only HTTP surface (django-ninja)
-  engine/   Scientific engine — framework-free, never imports Django
-frontend/ React application (Lovable origin)
-tests/    Test suite
-var/      All mutable state: database, uploads, artifacts, logs (gitignored)
-deploy/   Deployment configuration
+
+These are computational/software checks, not biological validation. GitHub CI runs on
+pull requests and pushes to `main`; manual/scheduled acceptance lanes are separate.
+See [the workflow](.github/workflows/ci.yml) for the exact jobs.
+
+## Research workbenches and historical records
+
+Offline [trigger/nucleation ranking](docs/trigger-nucleation-ranking.md) preserves
+nucleation-first ranking and offers an explicit geometric-mean sensitivity mode.
+Notebook experiments under `src/engine/gates/notebooks/`, CRISPR workbenches, historical
+design maps and dated audits describe research or past states. Their results and
+metrics do not replace the current application's capability contract.
+
+As checked on **2026-10-12** against main `2baa75a7f0dc89f9aafac58dad50da5982f3f56a`:
+
+- [PR 68](https://github.com/zivbental/cernal_software/pull/68) is an **unmerged research
+  workbench** for eukaryotic single/AND stem-opening reports (`eu_and_v3`), not an
+  integrated application AND workflow.
+- [PR 69](https://github.com/zivbental/cernal_software/pull/69) is an **unmerged draft
+  frontend screening contract/UI**. It does not implement or invoke Common Mechanism
+  or establish full-construct screening or release authorization.
+
+GitHub source and [`.gitlab-ci.yml`](.gitlab-ci.yml) are present. Dedicated CERNAL
+iGEM GitLab software hosting has **not been verified**: the team's exact software
+project URL/namespace and a matching commit plus pipeline evidence are still needed.
+A wiki repository or a collaborator's GitLab project is not that evidence. See the
+[F5 verification record](docs/evidence/audit-f5-documentation-2026-10-12.md).
+
+## Layout and boundaries
+
+```text
+docs/       Engineering documentation and dated evidence
+src/config/ Django configuration
+src/apps/   Platform data, jobs, accounts and results
+src/api/    HTTP API (django-ninja)
+src/engine/ Framework-free scientific engine
+frontend/   React application
+tests/      Software and computational regression tests
+var/        Local mutable state (gitignored)
+deploy/     Deployment configuration
 ```
 
-## The one rule
+`src/engine/` must never import Django. Platform code imports only `engine.contract`
+and `engine.client` from the engine. [The boundary test](tests/test_boundary.py)
+enforces this rule.
 
-`src/engine/` must never import Django, and Platform code must never import the engine's
-internals — only `engine.contract` and `engine.client`. This is what keeps the engine
-extractable into its own service later. It is enforced by `tests/test_boundary.py`. See
-[`docs/architecture.md` §3](docs/architecture.md).
+## License, attribution and citation
 
-## License
-
-Apache License 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
-
-Copyright 2026 iGEM TAU 2026 Team, Tel Aviv University.
-
-One dependency is worth flagging: the scientific engine's planned RNA folding backend,
-**ViennaRNA**, is *not* under an OSI-approved license. CERNAL does not redistribute it —
-it is installed by the user — but any claim that a distributed bundle is wholly open
-source has to account for it. [`docs/attribution.md`](docs/attribution.md) explains the
-constraint.
-
-## Attribution
-
-CERNAL was built by the iGEM 2026 Tel Aviv University team. Third-party components,
-outside contributions and the disclosure of AI-assisted work required by iGEM's
-[AI policy](https://igem.org/legal?tab=ai-policy-teams) are recorded in
-[`docs/attribution.md`](docs/attribution.md).
-
-The React frontend originates from a [Lovable](https://lovable.dev) design; the original
-export is preserved in [`docs/design-reference/`](docs/design-reference/) and
-[ADR 0005](docs/decisions/0005-static-spa-not-tanstack-start.md) records what was
-stripped and rewritten by hand.
-
-## A note on results
-
-With the default `CERNAL_ENGINE=engine.client.MockEngine`, every number the product
-displays is **deterministic fake output**. The interface says so in its footer. Do not
-publish a MockEngine screenshot as a scientific result.
-
-## Citing
-
-See [`CITATION.cff`](CITATION.cff).
-
-The local engine supports all four organisms (E. coli, yeast, Human, C. acnes) with
-differential-expression tables, direct RNA/DNA sequences, and named reference genes.
-CSV, TSV, TXT, and XLSX uploads work through the engine. Human gene discovery uses
-pinned Ensembl release 116 mature cDNA/noncoding transcripts; gene symbols and stable
-IDs resolve offline. Human constructs use CMV/hGH parts and an uploaded mammalian
-backbone, or a bare expression cassette. Local development supervises the worker and
-keeps its heartbeat separate from SQLite result imports.
+Apache License 2.0: [LICENSE](LICENSE), [NOTICE](NOTICE). Copyright 2026 iGEM TAU 2026
+Team, Tel Aviv University. ViennaRNA has separate licensing constraints; consult
+[attribution](docs/attribution.md) before describing a distributed bundle's licensing.
+That document also records third-party contributions and AI-assisted work disclosures.
+The original Lovable frontend export is preserved in [design-reference](docs/design-reference/);
+[ADR 0005](docs/decisions/0005-static-spa-not-tanstack-start.md) records the rewrite.
+See [CITATION.cff](CITATION.cff) for citation metadata.

@@ -243,6 +243,16 @@ export function GuideContent() {
             warnings.
           </p>
           <p>
+            For bacterial toeholds, leakage is AUG-only mean marginal
+            accessibility over three bases, not the wider initiation footprint;
+            the target leaves AUG in an unpaired bulge. Dynamic range divides
+            ON accessibility by OFF accessibility with a 0.001 denominator
+            floor, not measured expression. The success sigmoid is not a
+            calibrated cellular probability. Ensemble defect has no calibrated
+            functional cutoff. These metrics do not establish transcriptome-wide
+            off-target or wet-lab validation.
+          </p>
+          <p>
             The results page currently does not render run-level warnings.
             Inspect them in <code>GET /api/runs/{"{run_id}"}</code> through the{" "}
             <HelpLink href="/api-docs">API Reference</HelpLink>, or download{" "}
