@@ -303,6 +303,7 @@ def stored_release_allowed(design: object) -> bool:
     return all(
         isinstance(release.get(kind), dict)
         and release[kind].get("release_allowed") is True
+        and isinstance(release[kind].get("decision"), str)
         and release[kind].get("decision") in {"PASS", "REVIEW"}
         and isinstance(digest, str)
         and len(digest) == 64

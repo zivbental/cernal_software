@@ -170,6 +170,7 @@ class ArtifactRef:
     media_type: str
     checksum_sha256: str
     candidate_ref: str | None = None
+    #: No complete generated switch/plasmid sequence; diagnostic motif substrings may occur.
     sequence_free: bool = False
 
 
