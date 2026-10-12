@@ -70,9 +70,8 @@ frontend:
     - cd frontend
     - npm ci
   script:
-    - npm run build:fast
+    - npm run test:clean-build
     - npm run check
-    - npm run build
     - npx playwright install --with-deps chromium
     - RNA_VIEWER_SCREENSHOT_DIR=test-results/rna-viewer npm run test:browser
   artifacts:
