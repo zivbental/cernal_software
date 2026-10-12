@@ -237,8 +237,10 @@ def bpp_heatmap_png(sequence: str, matrix, title: str, boundary=None, dpi: int =
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
-def construct_figure_svg() -> str:
-    """The schematic of the fused AND construct (``eu_and_v3_construct.svg``) as inline SVG."""
+def construct_figure_svg(single: bool = False) -> str:
+    """The schematic of the fused AND construct (``eu_and_v3_construct.svg``), or of one switch
+    (``eu_and_v3_single.svg``), as inline SVG."""
     from pathlib import Path
 
-    return Path(__file__).with_name("eu_and_v3_construct.svg").read_text(encoding="utf-8")
+    name = "eu_and_v3_single.svg" if single else "eu_and_v3_construct.svg"
+    return Path(__file__).with_name(name).read_text(encoding="utf-8")

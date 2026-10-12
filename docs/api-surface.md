@@ -1644,7 +1644,7 @@ Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a bas
 | `BUILT` | `def domain_fill(domains: dict, palette: dict \| None = None, suffix: str = '') -> list[tuple[int, int, str, str]]` | ``(start, end, colour, label)`` per non-empty domain of a ``{name: (start, end)}`` dict. |
 | `BUILT` | `def structure_svg(points, sequence, structure, title, spans = (), domain_fill = (), visible_len = None, construct_len = None, spacing = 23.0, pad = 34.0, radius = 7.4, legend_ncol = 3)` | One folded structure as an inline SVG: every base a circle with its letter inside, the backbone through them and a rung on every base pair, filled by domain. |
 | `BUILT` | `def bpp_heatmap_png(sequence: str, matrix, title: str, boundary = None, dpi: int = 120) -> str` | Base-pair-probability heatmap as a base64 PNG; ``boundary``: a strand junction position (or several) marked with a dotted crosshair. |
-| `BUILT` | `def construct_figure_svg() -> str` | The schematic of the fused AND construct (``eu_and_v3_construct.svg``) as inline SVG. |
+| `BUILT` | `def construct_figure_svg(single: bool = False) -> str` | The schematic of the fused AND construct (``eu_and_v3_construct.svg``), or of one switch (``eu_and_v3_single.svg``), as inline SVG. |
 
 ### `engine.gates.notebooks.toehold_and._report_stats`
 
