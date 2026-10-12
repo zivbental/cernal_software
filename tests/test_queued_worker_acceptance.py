@@ -26,6 +26,22 @@ def test_native_windows_commands_explain_supported_workflow(monkeypatch):
     launch.assert_not_called()
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Native Windows CLI regression")
+def test_native_windows_qcluster_cli_reports_wsl_instead_of_fork_traceback():
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "manage.py", "qcluster", "--run-once"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode != 0
+    assert "docs/windows-worker.md" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert "cannot find context" not in result.stderr
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="Real worker requires Linux/WSL2 fork")
 def test_real_queue_worker_completes_local_engine_run(tmp_path):
     root = Path(__file__).resolve().parents[1]
