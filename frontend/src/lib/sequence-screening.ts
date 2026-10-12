@@ -53,11 +53,19 @@ export async function assessScreening(
   if (completed && (!report.screened_at || !report.valid_until || !report.provenance)) {
     return screeningView("unavailable", "Completed screening evidence is missing time or provenance.");
   }
-  if (report.screened_at && Date.parse(report.screened_at) > now) {
+  const screenedAt = report.screened_at === null ? null : Date.parse(report.screened_at);
+  const validUntil = report.valid_until === null ? null : Date.parse(report.valid_until);
+  // Zod's datetime format check accepts some invalid offsets. NaN would bypass
+  // every time comparison below and could incorrectly preserve a clear verdict.
+  if ((screenedAt !== null && !Number.isFinite(screenedAt)) ||
+      (validUntil !== null && !Number.isFinite(validUntil)) || !Number.isFinite(now)) {
+    return screeningView("unavailable", "The screening timestamps cannot be verified.");
+  }
+  if (screenedAt !== null && screenedAt > now) {
     return screeningView("stale", "The screening timestamp is in the future.");
   }
-  if (report.valid_until && (Date.parse(report.valid_until) <= now ||
-      (report.screened_at && Date.parse(report.valid_until) <= Date.parse(report.screened_at)))) {
+  if (validUntil !== null && (validUntil <= now ||
+      (screenedAt !== null && validUntil <= screenedAt))) {
     return screeningView("stale", "The backend validity window has expired or is inconsistent.");
   }
   if (report.status === "clear" && report.findings.length) {

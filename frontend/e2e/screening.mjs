@@ -37,11 +37,19 @@ try {
   await check("expired", report("clear", { valid_until: "2026-10-12T12:00:00Z" }), "stale");
   await check("future timestamp", report("clear", { screened_at: "2099-02-01T00:00:00Z" }), "stale");
   await check("inverted time", report("clear", { valid_until: "2025-01-01T00:00:00Z" }), "stale");
+  for (const field of ["screened_at", "valid_until"]) {
+    for (const offset of ["+99:99", "+24:00", "+00:60"]) {
+      await check(`invalid ${field} offset ${offset}`, report("clear", {
+        [field]: `2026-01-01T00:00:00${offset}`,
+      }), "unavailable");
+    }
+  }
   for (const field of ["screened_at", "valid_until", "provenance"]) {
     await check(`missing ${field}`, report("clear", { [field]: null }), "unavailable");
   }
   await check("contradictory clear", report("clear", { findings: ["review_required"] }), "unavailable");
   await check("lowercase identity", report(), "clear", { ...subject, sequence: "acgu" });
+  await check("invalid comparison time", report(), "unavailable", subject, Number.NaN);
   for (const invalid of ["ACGT", "AC GU", "", "ACGN"]) {
     await check("unverifiable alphabet", report(), "unavailable", { ...subject, sequence: invalid });
   }

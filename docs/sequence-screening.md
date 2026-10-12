@@ -33,7 +33,9 @@ empty array of matches.
    versions, never placeholders. Other statuses may use null timestamps/provenance.
    Backend policy owns the validity window and invalidation when databases/policy change;
    the frontend must not invent a lifetime. Future, expired or inconsistent timestamps
-   are conservative stale results. Completed outcomes without provenance are unavailable.
+   are conservative stale results. Non-finite parsed timestamps (including invalid UTC
+   offsets accepted by the format validator) are unavailable before any comparisons.
+   Completed outcomes without provenance are unavailable.
 4. Supply `findings` as at most three approved codes: `review_required`, `restricted_match`,
    `incomplete_coverage`. Empty findings alone never means clear. Only explicitly completed,
    adequately covered screening may map to `clear`; a clear result with findings is rejected.
@@ -75,7 +77,7 @@ or external service is invoked. Both are included in existing check/browser CI s
 Fixtures live exclusively under `frontend/e2e`, outside the application bundle.
 
 Work PC verification on 2026-10-12: `npm run check` and `npm run build` passed;
-31 screening contracts, 15 screening browser checks, existing browser contracts and
+38 screening contracts, 17 screening browser checks, existing browser contracts and
 29 RNA-viewer browser checks passed. The RNA fixture asset-path guard now uses the
 platform separator so it can run on Windows as well as Linux. Screenshots are synthetic:
 [desktop clear](evidence/screening-clear-desktop.png),

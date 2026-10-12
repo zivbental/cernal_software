@@ -85,6 +85,10 @@ try {
   await scenario(report("clear", { subject: { ...report().subject, sha256: "0".repeat(64) } }), "Screening result is stale or mismatched");
   await scenario(report("clear", { valid_until: "2020-01-01T00:00:00Z" }), "Screening result is stale or mismatched");
   await scenario({}, "Screening unavailable");
+  for (const field of ["screened_at", "valid_until"]) {
+    await scenario(report("clear", { [field]: "2026-01-01T00:00:00+99:99" }), "Screening unavailable");
+    assert.doesNotMatch(await panel.innerText(), /No concerns detected by this screening/);
+  }
   await scenario(report("clear", { valid_until: new Date(Date.now() + 6000).toISOString() }), "No concerns detected by this screening");
   await panel.getByRole("status").filter({ hasText: "Screening result is stale or mismatched" }).waitFor({ timeout: 10000 });
   checks++;
