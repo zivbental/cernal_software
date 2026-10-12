@@ -270,6 +270,18 @@ class SafetyScreenResult:
             ],
         }
 
+    def release_record(self) -> dict:
+        """Stable decision metadata; full time-bound evidence stays in audit artifacts.
+
+        Keep the wall clock and its dependent audit digest out of reproducible
+        candidate records. This does not alter or replace the full audit manifest.
+        """
+        record = self.audit_manifest()
+        record.pop("result_sha256")
+        record["adapter"].pop("validated_at")
+        record["adapter"].pop("expires_at")
+        return record
+
 
 def stored_release_allowed(design: object) -> bool:
     """Require explicit, sequence-bound release evidence for both exported molecules.

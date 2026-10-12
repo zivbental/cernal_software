@@ -7,10 +7,12 @@ owner-visible disclosure inconsistency, not an authentication bypass.
 
 ## Enforcement
 
-- The pipeline saves the actual switch and plasmid audit manifests with each accepted
+- The pipeline saves stable switch and plasmid decision records with each accepted
   candidate. Both must explicitly permit release, have PASS or authorized REVIEW
   decisions, and match the saved switch/construct digests. HOLD, BLOCK, error, missing,
   contradictory, partial and mismatched evidence withhold disclosure.
+  Full timestamped evidence and its audit digest remain in the safety audit files;
+  candidate records omit those clock-dependent fields to preserve reproducibility.
 - The common candidate projection covers candidate detail and synchronous/asynchronous
   design results. Held designs expose known non-sequence metadata, metrics and audit
   status. Architecture, component sequences, payload catalog sequences and unknown

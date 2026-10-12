@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 68 |
 | Public classes | 113 |
-| Public callables (excluding `__init__`) | 380 |
-| — `BUILT` | 367 |
+| Public callables (excluding `__init__`) | 381 |
+| — `BUILT` | 368 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -118,7 +118,7 @@ layers above it, never the ones below.
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Shared differential-expression parsing for upload, preview and engine execution. |
 | top | `engine.pipeline` |  | 3 | 0 | The real scientific pipeline. |
-| top | `engine.safety` |  | 14 | 0 | Offline-first, fail-closed release control for output sequences. |
+| top | `engine.safety` |  | 15 | 0 | Offline-first, fail-closed release control for output sequences. |
 | top | `engine.store` | S11, S13 | 5 | 0 | S11, S13 — provenance and pruning. |
 | top | `engine.transcriptome` |  | 5 | 0 | Pinned, offline reference sequences and identifier aliases for all four hosts. |
 
@@ -2810,6 +2810,7 @@ Signs review-only release tokens bound to one exact screening result.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def audit_manifest(self) -> dict` |  |
+| `BUILT` | `def release_record(self) -> dict` | Stable decision metadata; full time-bound evidence stays in audit artifacts. |
 
 #### `class SafetyGate`
 

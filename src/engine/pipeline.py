@@ -1718,8 +1718,8 @@ def _write_artifacts(
             host_context=candidate.design.get("host", "unconfigured"),
         )
         candidate.design["sequence_release"] = {
-            "switch": switch_screen.audit_manifest(),
-            "plasmid": plasmid_screen.audit_manifest(),
+            "switch": switch_screen.release_record(),
+            "plasmid": plasmid_screen.release_record(),
         }
         artifacts.extend(
             [
