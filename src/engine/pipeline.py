@@ -564,6 +564,21 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         dataclasses.replace(c, rank=ranks.get(c.ref), overall_score=score) for c, score in scored
     ]
 
+    if not candidates and trigger_candidates:
+        # trigger_candidates was non-empty, so the loop above genuinely tried and
+        # failed — report why, rather than the old one-size-fits-all message. When
+        # trigger_candidates is already empty, _direct_trigger's own warning (above)
+        # already explains it; adding this too would double-report the same failure.
+        summary = _summarize_rejections(incompatible_counts, incompatible_examples, "trigger set")
+        summary += _summarize_rejections(invalid_counts, invalid_examples, "generated design")
+        if summary:
+            warnings.append("No candidate designs passed validation." + summary)
+        else:
+            warnings.append(
+                "No candidate designs passed validation for this trigger — see "
+                "docs/smoke-run.md §5 for why a validated design is not guaranteed."
+            )
+
     if not on_progress(*_pct("Writing report")):
         raise JobCancelled("Writing report")
     artifacts = [store.snapshot("trigger_selection", trigger_candidates)]
@@ -581,21 +596,6 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             profile_version=profile.version,
         )
     )
-
-    if not candidates and trigger_candidates:
-        # trigger_candidates was non-empty, so the loop above genuinely tried and
-        # failed — report why, rather than the old one-size-fits-all message. When
-        # trigger_candidates is already empty, _direct_trigger's own warning (above)
-        # already explains it; adding this too would double-report the same failure.
-        summary = _summarize_rejections(incompatible_counts, incompatible_examples, "trigger set")
-        summary += _summarize_rejections(invalid_counts, invalid_examples, "generated design")
-        if summary:
-            warnings.append("No candidate designs passed validation." + summary)
-        else:
-            warnings.append(
-                "No candidate designs passed validation for this trigger — see "
-                "docs/smoke-run.md §5 for why a validated design is not guaranteed."
-            )
 
     on_progress(100, "Writing report")
 
