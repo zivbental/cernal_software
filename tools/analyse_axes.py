@@ -1,7 +1,7 @@
 """Analyse the axis-characterisation run: within-cell correlation, bins, interactions, survival.
 
     uv run python tools/analyse_axes.py --out axes_c8
-    uv run python tools/analyse_axes.py --out axes_c8 --csv docs/assets/axes
+    uv run python tools/analyse_axes.py --out axes_c8 --into docs/assets/axes_c8
 
 Win-rate and lift, which is all the earlier analysis had, answer one question — "which level
 reaches its cell's best" — and are blind to three others. This answers all four, and says which

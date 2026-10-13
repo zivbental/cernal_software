@@ -116,3 +116,40 @@ def test_orientation_faces_an_off_term_opposite_its_on_term() -> None:
         assert math.copysign(1.0, on_sign) != math.copysign(1.0, off_sign), (
             f"{on_key} and {off_key} face the same way; one of them is oriented wrongly"
         )
+
+
+def test_sensitivity_sweep_reports_a_flip_and_a_hold() -> None:
+    """The sweep's verdict must distinguish a conclusion that holds from one that does not.
+
+    A stability line that said "holds" either way would make every threshold look safe, which is
+    the opposite of what a sensitivity test is for.
+    """
+    from tools.sensitivity_filters import describe_stability
+
+    holds = [
+        (7.2, [("open_3x3", -0.4, 50), ("pair1_CCC", 0.3, 50)]),
+        (5.0, [("open_3x3", -0.5, 30), ("pair1_CCC", 0.4, 30)]),
+    ]
+    assert "open_3x3 best over the whole range" in describe_stability(holds)
+    assert "whole ordering holds" in describe_stability(holds)
+
+    flipped = [
+        (7.2, [("open_3x3", -0.4, 50), ("pair1_CCC", 0.3, 50)]),
+        (5.0, [("pair1_CCC", -0.6, 30), ("open_3x3", 0.2, 30)]),
+    ]
+    verdict = describe_stability(flipped)
+    assert verdict.startswith("FLIPS"), verdict
+    assert "5.00" in verdict, verdict
+
+
+def test_the_ceiling_is_swept_against_the_column_the_engine_reads() -> None:
+    """Sweeping `open_11` would be a different, smaller span than the ceiling actually uses.
+
+    `measure_design` reads the ON ceiling against `dG_open_11` -- the ribosome's window -- and
+    before gate version 0.6.0 read it against `open_11`, the stem's arms. Sweeping the wrong one
+    would report a threshold nobody applied.
+    """
+    from tools.sensitivity_filters import CEILING_COLUMN
+
+    assert CEILING_COLUMN == "dG_open_11"
+    assert CEILING_COLUMN in set(Gate.MEASURED_KEYS)
