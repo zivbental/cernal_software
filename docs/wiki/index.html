@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="https://static.igem.wiki/common/icons/favicons/igem-2022.svg"/>
+    <link rel="license" href="https://creativecommons.org/licenses/by/4.0/"/>
+    <meta name="description" content="CERNAL reads a cell's RNA fingerprint and compiles it into a lock-and-key RNA logic circuit on a plasmid.">
+    <link href="static/bootstrap.min.css" rel="stylesheet">
+    <link href="static/style.css" rel="stylesheet">
+    <link href="static/cell-home.css" rel="stylesheet">
+    <script>document.documentElement.className = 'js';</script>
+    <title>CERNAL | TAU-Israel - iGEM 2026</title>
+</head>
+
+<body class="cj-home">
+<nav class="navbar navbar-expand-lg navbar-cernal fixed-top">
+  <div class="container">
+
+    <!-- TEAM NAME -->
+    <a class="navbar-brand" href="index.html">
+      <img src="https://static.igem.wiki/teams/6196/wiki/cernal-logo.avif" alt="CERNAL — TAU-Israel"
+        class="navbar-logo">
+    </a>
+
+    <!-- SMALL SCREEN MENU ICON -->
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
+      aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ms-auto">
+
+        <!-- HOME -->
+        <li class="nav-item">
+          <a class="nav-link" href="index.html">Home</a>
+        </li>
+
+        <!-- TEAM -->
+        <li class="nav-item">
+          <a class="nav-link" href="team">Team</a>
+        </li>
+
+        <!-- PROJECT -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navbar-project" role="button" data-bs-toggle="dropdown"
+            aria-expanded="false">
+            Project
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="navbar-project">
+            <li><a class="dropdown-item" href="description">Description</a></li>
+            <li><a class="dropdown-item" href="engineering">Engineering</a></li>
+            <li><a class="dropdown-item" href="results">Results</a></li>
+            <li><a class="dropdown-item" href="contribution">Contribution</a></li>
+          </ul>
+        </li>
+
+        <!-- WET LAB -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navbar-wet-lab" role="button" data-bs-toggle="dropdown"
+            aria-expanded="false">
+            Wet Lab
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="navbar-wet-lab">
+            <li><a class="dropdown-item" href="experiments">Experiments</a></li>
+            <li><a class="dropdown-item" href="notebook">Notebook</a></li>
+            
+            <li><a class="dropdown-item" href="safety-and-security">Safety and
+                Security</a></li>
+          </ul>
+        </li>
+
+        <!-- DRY LAB -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navbar-dry-lab" role="button" data-bs-toggle="dropdown"
+            aria-expanded="false">
+            Dry Lab
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="navbar-dry-lab">
+            <li><a class="dropdown-item" href="model">Model</a></li>
+            <li><a class="dropdown-item" href="software">Software</a></li>
+            
+          </ul>
+        </li>
+
+        <!-- ENGAGEMENT -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navbar-engagement" role="button" data-bs-toggle="dropdown"
+            aria-expanded="false">
+            Engagement
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="navbar-engagement">
+            <li><a class="dropdown-item" href="entrepreneurship">Entrepreneurship</a>
+            </li>
+            <li><a class="dropdown-item" href="human-practices">Human Practices</a></li>
+            
+          </ul>
+        </li>
+
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<main class="cj" id="cj">
+  <canvas class="cj-canvas" id="cjCanvas" aria-hidden="true"></canvas>
+  <div class="cj-depth" id="cjDepth" aria-hidden="true"><i></i><b id="cjDepthScale">1 cm</b> · <span id="cjDepthName">tissue</span></div>
+  <nav class="cj-rail" id="cjRail" aria-label="Scroll chapters"></nav>
+
+  <!-- 1 · ENTER THE CELL -->
+  <section class="cj-ch cj-ch--clear" id="ch-enter" data-ch data-title="Cell" data-scale="10 µm" data-name="a single cell">
+    <div class="cj-stick">
+      <header class="cj-hero" id="cjHero"><div class="cj-hero__plate">
+        <span class="cj-kicker">iGEM 2026 · TAU-Israel · the biological compiler</span>
+        <h1>Every cell speaks the same language: <em>RNA</em>.</h1>
+        <p>CERNAL reads what a cell is saying and compiles it into a genetic circuit that answers only to that cell.</p>
+      </div></header>
+      <div class="cj-scrollcue" id="cjCue">Scroll to enter the cell</div>
+      <div class="cj-steps">
+        <div class="cj-step cj-step--blue" data-a="0.32" data-b="0.97">
+          <span class="cj-kicker">01 · Zoom in</span>
+          <h2>A cell is a crowd of messages.</h2>
+          <p>Past the membrane there is no single thing to read — thousands of RNA messages are being written, copied and read at once.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · THE FINGERPRINT -->
+  <section class="cj-ch cj-ch--clear" id="ch-print" data-ch data-title="Fingerprint" data-scale="1 µm" data-name="cytoplasm">
+    <div class="cj-stick">
+      <div class="cj-printlabel" id="cjPrintLabel">Cell A</div>
+      <div class="cj-steps">
+        <div class="cj-step cj-step--teal" data-a="0.0" data-b="0.28">
+          <span class="cj-kicker">02 · The cytoplasm</span>
+          <h2>Every colour is a different gene.</h2>
+          <p>Each strand is an mRNA — a gene being read. How many copies of each the cell holds is not random.</p>
+        </div>
+        <div class="cj-step cj-step--teal" data-a="0.28" data-b="0.58">
+          <span class="cj-kicker">The fingerprint</span>
+          <h2>CERNAL finds the unique fingerprint of each cell.</h2>
+          <p>From a transcriptomic signature, line the messages up by abundance. The pattern that appears belongs to this cell type, and no other.</p>
+        </div>
+        <div class="cj-step cj-step--teal" data-a="0.58" data-b="0.97">
+          <span class="cj-kicker">Same genes, different print</span>
+          <h2>A target cell and its neighbour leave different prints, side by side.</h2>
+          <p>Lines that glow yellow are strong in Cell A only, and lines that glow red are strong in Cell B only. That difference is exactly what a circuit can be built to recognise.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · ONE mRNA -->
+  <section class="cj-ch cj-ch--clear" id="ch-focus" data-ch data-title="One RNA" data-scale="10 nm" data-name="one mRNA">
+    <div class="cj-stick">
+      <div class="cj-steps">
+        <div class="cj-step cj-step--violet" data-a="0.03" data-b="0.45">
+          <span class="cj-kicker">03 · Zoom to one message</span>
+          <h2>Pick the RNA that tells the cells apart.</h2>
+          <p>High in the target, quiet elsewhere. Everything else fades; this one transcript is where the circuit will listen.</p>
+        </div>
+        <div class="cj-step cj-step--red" data-a="0.58" data-b="1.01">
+          <span class="cj-kicker">Find a window nobody else has</span>
+          <h2>A short stretch becomes the <span class="cj-key">key</span>.</h2>
+          <p>CERNAL scores every window of the transcript — is it exposed enough to bind, unique, buildable? The winner is the trigger.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · LOCK & KEY -->
+  <section class="cj-ch cj-ch--pipe" id="ch-switch" data-ch data-title="Lock &amp; key" data-scale="2 nm" data-name="the switch">
+    <div class="cj-stick">
+      <div class="cj-lockkey" id="cjLockKey" aria-hidden="true">
+        <svg viewBox="0 0 640 300" role="img" aria-label="A key slides into a padlock and the padlock opens">
+          <g id="lkLock" transform="translate(400 150)">
+            <path id="lkShackle" d="M-46 -20 V-58 a46 46 0 0 1 92 0 V-20" fill="none" stroke="#1A1A1A" stroke-width="14" stroke-linecap="round"/>
+            <rect x="-86" y="-24" width="172" height="128" rx="16" fill="#3E5C7E" stroke="#1A1A1A" stroke-width="5"/>
+            <circle cx="0" cy="26" r="15" fill="#D3E8F5" stroke="#1A1A1A" stroke-width="4"/>
+            <rect x="-6" y="34" width="12" height="38" rx="4" fill="#D3E8F5" stroke="#1A1A1A" stroke-width="4"/>
+          </g>
+          <g id="lkKey" transform="translate(60 176)">
+            <circle cx="0" cy="0" r="40" fill="#C41E3A" stroke="#1A1A1A" stroke-width="5"/>
+            <circle cx="-8" cy="0" r="13" fill="#D3E8F5" stroke="#1A1A1A" stroke-width="4"/>
+            <rect x="38" y="-9" width="150" height="18" rx="4" fill="#C41E3A" stroke="#1A1A1A" stroke-width="5"/>
+            <rect x="130" y="9" width="14" height="26" fill="#C41E3A" stroke="#1A1A1A" stroke-width="5"/>
+            <rect x="160" y="9" width="14" height="18" fill="#C41E3A" stroke="#1A1A1A" stroke-width="5"/>
+          </g>
+        </svg>
+      </div>
+      <svg class="cj-svg" id="cjSwitch" preserveAspectRatio="xMidYMid slice" role="img"
+        aria-label="A toehold switch: a hairpin RNA hides its ribosome binding site. The trigger RNA binds the toehold, unzips the hairpin, and the ribosome reads the gene."></svg>
+      <div class="cj-steps">
+        <div class="cj-step cj-step--blue" data-a="0.02" data-b="0.27">
+          <span class="cj-kicker">04 · The metaphor</span>
+          <h2>A switch is a <span class="cj-lock">lock</span>. Only one <span class="cj-key">key</span> turns it.</h2>
+          <p>That is the whole idea. The lock sits on a gene and keeps it shut; the key is a piece of the cell's own RNA.</p>
+        </div>
+        <div class="cj-step cj-step--blue" data-a="0.30" data-b="0.50">
+          <span class="cj-kicker">The lock</span>
+          <h2>A hairpin that hides the start signal.</h2>
+          <p>The switch is an RNA folded back on itself. Its ribosome landing site (RBS) is buried in the loop, so the gene stays silent — even though the ribosome keeps trying.</p>
+        </div>
+        <div class="cj-step cj-step--red" data-a="0.50" data-b="0.76">
+          <span class="cj-kicker">The key</span>
+          <h2>The trigger finds the toehold and unzips the stem.</h2>
+          <p>The trigger from the last scene matches the short free <b>toehold</b>. It pairs in, base by base, and pulls the hairpin open. The lock is turned.</p>
+        </div>
+        <div class="cj-step cj-step--teal" data-a="0.78" data-b="1.02">
+          <span class="cj-kicker">The answer</span>
+          <h2>Ribosome in, protein out.</h2>
+          <p>With the RBS exposed the ribosome lands, finds AUG and reads the gene: a reporter, or a therapeutic payload — only in the cell that carries the key.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · AND gate -->
+  <section class="cj-ch cj-ch--paper" id="ch-and" data-ch data-title="AND gate" data-scale="2 nm" data-name="two locks, two keys">
+    <div class="cj-stick">
+      <svg class="cj-svg" id="cjAnd" preserveAspectRatio="xMidYMid slice" role="img"
+        aria-label="Two padlocks in a row guard one gene. The gene is expressed only when both keys are present."></svg>
+      <div class="cj-steps">
+        <div class="cj-step cj-step--gold is-on" id="cjAndStep" data-a="0.0" data-b="1.02">
+          <span class="cj-kicker">05 · Two locks in a row</span>
+          <h2>One key is a signal. Two keys are a fingerprint.</h2>
+          <p>Chain two locks and the gene opens only when <b>both</b> triggers are present: logic, written in RNA. Try it.</p>
+          <div class="cj-and-ctl">
+            <button class="cj-toggle" type="button" id="cjKeyA" aria-pressed="false">Key A</button>
+            <button class="cj-toggle" type="button" id="cjKeyB" aria-pressed="false">Key B</button>
+          </div>
+          <div class="cj-verdict" id="cjVerdict" aria-live="polite">A AND B: payload OFF</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · BUILD -->
+  <section class="cj-ch cj-ch--pipe" id="ch-build" data-ch data-title="Assemble" data-scale="1 kb" data-name="the plasmid">
+    <div class="cj-stick">
+      <div class="cj-build-grid" id="cjGrid">
+        <article class="cj-stn cj-step--blue" data-i="0" style="--acc:var(--acc-blue)">
+          <svg viewBox="0 0 200 110" aria-hidden="true"></svg>
+          <span class="cj-kicker">01 · Select</span><h3>Find the key</h3>
+          <p>Differential expression in, transcript windows out: exposed, unique, buildable.</p>
+        </article>
+        <article class="cj-stn" data-i="1" style="--acc:var(--acc-violet)">
+          <svg viewBox="0 0 200 110" aria-hidden="true"></svg>
+          <span class="cj-kicker">02 · Design</span><h3>Cut the lock</h3>
+          <p>Wrap each trigger in a toehold hairpin and fold it with real ViennaRNA thermodynamics.</p>
+        </article>
+        <article class="cj-stn" data-i="2" style="--acc:var(--acc-gold)">
+          <svg viewBox="0 0 200 110" aria-hidden="true"></svg>
+          <span class="cj-kicker">03 · Rank</span><h3>Pick the best</h3>
+          <p>Nine metrics under one versioned profile: separation, leakage, accessibility and more.</p>
+        </article>
+        <article class="cj-stn" data-i="3" style="--acc:var(--acc-teal)">
+          <svg viewBox="0 0 200 110" aria-hidden="true"></svg>
+          <span class="cj-kicker">04 · Assemble</span><h3>Build the circuit</h3>
+          <p>Promoter, switch, payload and terminator become an annotated plasmid you can export.</p>
+        </article>
+      </div>
+      <div class="cj-ring-wrap"><svg viewBox="0 0 540 260" id="cjRing" aria-label="A plasmid ring assembled from promoter, switch, payload and terminator"></svg></div>
+    </div>
+  </section>
+
+  <section class="cj-cta">
+    <div class="container">
+      <h2>Step inside the project.</h2>
+      <div class="cj-cta__links">
+        <a class="is-primary" href="description">Project description →</a>
+        <a href="model">The model</a>
+        <a href="software">The software</a>
+        <a href="engineering">Engineering</a>
+        <a href="results">Results</a>
+        <a href="team">Meet the team</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="pt-5 pb-5 footer py-5 mt-5">
+  <div class="container">
+    <div class="row mb-4">
+      <div class="col-lg-6 col-xs-12">
+        <h4 class="mb-3">CERNAL</h4>
+        <p>A compiler-like engine that turns a cell's own RNA signature into logic-gated genetic circuits.</p>
+      </div>
+      <div class="col-lg-3 col-xs-12">
+        
+        <h4 class="mt-lg-0 mt-sm-3">Page Links</h4>
+        <ul class="m-2 p-2">
+          <li><a href="contribution">Contribution</a></li>
+          <li><a href="engineering">Engineering</a></li>
+          <li><a href="human-practices">Human Practices</a></li>
+          <li><a href="model">Model</a></li>
+          <li><a href="software">Software</a></li>
+          <li><a href="entrepreneurship">Entrepreneurship</a></li>
+        </ul>
+      </div>
+      <div class="col-lg-3 col-xs-12">
+        <h4 class="mt-lg-0 mt-sm-4 mb-3">Contact Us</h4>
+        <p>Multi-disciplinary Center, Tel Aviv University</p>
+        <p class="mb-0">(##)-###-####</p>
+        <p>igem.tau.official@gmail.com</p>
+      </div>
+    </div>
+    <hr />
+    <!-- The following MUST be on every page: license information and link to the repository on gitlab.igem.org -->
+    <div class="row mt-4">
+      <div class="col">
+        <p class="mb-0"><small>© 2026 - Content on this site is licensed under a <a class="subfoot"
+              href="https://creativecommons.org/licenses/by/4.0/" rel="license">Creative Commons Attribution 4.0
+              International license</a>.</small></p>
+        <p><small>The repository used to create this website is available at <a
+              href="https://gitlab.igem.org/2026/tau-israel">gitlab.igem.org/2026/tau-israel</a>.</small>
+        </p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="static/bootstrap.bundle.min.js"></script>
+<script src="static/cell-home.js" defer></script>
+</body>
+</html>
