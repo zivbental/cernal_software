@@ -11,13 +11,13 @@ REM
 REM  Then, from any other window, as often as you like:
 REM
 REM     tools\axes_status.cmd
-REM     uv run python tools\analyse_levers.py --out axes_pfas
+REM     uv run python tools\analyse_levers.py --out axes_c8
 REM
 REM  The second one is the conditional analysis: did each design decision help, asked only where
 REM  the lever had work to do, and paired inside a (pair, geometry) cell. Safe to run while the
 REM  shards are working -- it only reads.
 REM
-REM  Each shard writes results\axes_pfas_<i>.csv, flushed and fsynced every 100 rows. Kill any
+REM  Each shard writes results\axes_c8_<i>.csv, flushed and fsynced every 100 rows. Kill any
 REM  window and run the same line again: --resume reads the keys already on disk and continues,
 REM  losing at most the rows since the last flush.
 REM

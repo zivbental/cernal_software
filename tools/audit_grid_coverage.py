@@ -33,8 +33,18 @@ import sys
 from collections import Counter, defaultdict
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+from characterise_axes import RUN as RUN_COLUMNS
 
 from engine.gates.toehold import ProkaryoticToeholdAndGate as Gate
+
+#: The settings whose value must not change inside one cell. Taken from `characterise_axes.RUN`
+#: so a new setting is audited the day it is added, minus the two that legitimately vary: the
+#: accessibility floor's VALUE differs per gene pair under the `mean` rule (the rule is what is
+#: comparable, and it is in the list), and `min_access` carries that per-pair value.
+VARIES_BY_PAIR = frozenset({"min_access"})
+PROVENANCE = tuple(name for name in RUN_COLUMNS if name not in VARIES_BY_PAIR)
 
 RESULTS = (
     pathlib.Path(__file__).resolve().parent.parent
@@ -66,6 +76,12 @@ def main(argv: list[str] | None = None) -> int:
 
     points: dict[tuple[str, ...], set[tuple[str, str, str]]] = defaultdict(set)
     stems: dict[tuple[str, ...], set[str]] = defaultdict(set)
+    #: Every provenance tuple seen, overall and per cell. A cell holding more than one was
+    #: built under two different settings, and every comparison in this project is paired
+    #: WITHIN a cell -- so such a cell cannot be compared with itself and nothing else says so.
+    provenance: Counter[tuple[str, ...]] = Counter()
+    per_column: dict[str, Counter[str]] = {name: Counter() for name in PROVENANCE}
+    cell_provenance: dict[tuple[str, ...], set[tuple[str, ...]]] = defaultdict(set)
     per_closure: Counter[str] = Counter()
     rows = measured = 0
     skipped: Counter[str] = Counter()
@@ -80,6 +96,11 @@ def main(argv: list[str] | None = None) -> int:
             for row in csv.DictReader(handle):
                 rows += 1
                 cell = cell_of(row)
+                stamp = tuple((row.get(name) or "") for name in PROVENANCE)
+                provenance[stamp] += 1
+                cell_provenance[cell].add(stamp)
+                for name, value in zip(PROVENANCE, stamp, strict=True):
+                    per_column[name][value] += 1
                 points[cell].add((row["closure"], row["upper3"], row["lower3"]))
                 stems[cell].add(row["stem_index"])
                 per_closure[row["closure"]] += 1
@@ -100,6 +121,43 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  read {len(found)} shard files, {rows:,} rows")
     print(f"  {measured:,} fully measured ({measured / rows:.1%}), {len(points)} cells\n")
 
+    # ---- provenance: was the whole table built the same way? ---------------------------
+    print("\n  PROVENANCE -- what each row says it was built with")
+    print("    `--resume` keys on the design's axis tuple, NOT on these settings, so a run")
+    print("    resumed after a setting changed appends rows the old ones cannot be compared")
+    print("    with. Every setting is on the row, so this is checkable rather than assumed.")
+    for name in PROVENANCE:
+        seen = per_column[name]
+        if len(seen) <= 1:
+            only = next(iter(seen), "")
+            print(f"    {name:18s} one value: {only or '(empty)'}")
+            continue
+        print(f"    {name:18s} {len(seen)} VALUES  <- the table is not uniform on this")
+        for value, count in seen.most_common():
+            print(f"      {value or '(empty)':24s}{count:>10,}  {count / rows:>7.1%}")
+
+    mixed = {cell: stamps for cell, stamps in cell_provenance.items() if len(stamps) > 1}
+    print(f"\n    distinct provenance tuples: {len(provenance)}")
+    print(
+        f"    cells built under ONE setting: {len(cell_provenance) - len(mixed):,} of "
+        f"{len(cell_provenance):,}"
+    )
+    if mixed:
+        share = len(mixed) / len(cell_provenance)
+        print(f"    MIXED CELLS: {len(mixed):,} ({share:.1%}) -- a paired comparison inside one of")
+        print("    these compares designs built differently. Analyse the largest uniform stratum")
+        print("    and report these as excluded, with the count.")
+        for cell in sorted(mixed)[:6]:
+            gene_a, gene_b, x_start, xstar_start, geom = cell
+            print(
+                f"      {gene_a}/{gene_b} x{x_start} xs{xstar_start} {geom:20s} "
+                f"{len(mixed[cell])} settings"
+            )
+        if len(mixed) > 6:
+            print(f"      ... and {len(mixed) - 6:,} more")
+    else:
+        print("    -> every cell is internally uniform: a within-cell comparison is sound")
+
     print("  grid points present per cell")
     print(
         f"    min {min(covered)}   median {st.median(covered):.0f}   "
@@ -108,8 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"    sd {st.pstdev(covered):.1f}")
     complete = sum(1 for value in covered if value == grid)
     print(
-        f"    cells with the WHOLE grid: {complete} of {len(points)} "
-        f"({complete / len(points):.1%})"
+        f"    cells with the WHOLE grid: {complete} of {len(points)} ({complete / len(points):.1%})"
     )
     print(f"\n  ABSENT {missing:,} of {total:,} grid points  ({missing / total:.1%})")
     if missing:
@@ -153,11 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         for upper, _ in Gate.UPPER3
         for lower, _ in Gate.LOWER3
     }
-    absent_points = [
-        point
-        for value in points.values()
-        for point in whole - value
-    ]
+    absent_points = [point for value in points.values() for point in whole - value]
     for axis_name, levels, slot in axes:
         print(f"    {axis_name}")
         counts = Counter(point[slot] for point in absent_points)

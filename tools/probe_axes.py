@@ -1,6 +1,6 @@
 """Three follow-up probes on the characterisation run, each answering one specific question.
 
-    uv run python tools/probe_axes.py --out axes_pfas
+    uv run python tools/probe_axes.py --out axes_c8
 
 **1. Do the arms agree with each other less than they agree with the stem energies?** If a stem
 energy predicts an arm better than another arm does, the arms are measuring something the stem
@@ -29,7 +29,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
 # ruff: noqa: E402 - the sibling tool must be importable from this directory.
-from analyse_axes import cells_of, derive, read_rows, sign_test_p, spearman
+from analyse_axes import CONTRASTS, cells_of, derive, read_rows, sign_test_p, spearman, value_of
+
+#: The contrast probes 2 and 3 are written around -- the main-stem openness ratio. Named once
+#: rather than inline, and asserted against `analyse_axes`' own declaration, so renaming a
+#: contrast fails here at import instead of leaving this file matching no rows in silence.
+A_M_CONTRAST = "sep_a_m"
+assert A_M_CONTRAST in {name for name, *_ in CONTRASTS}, A_M_CONTRAST
 
 
 def spread(label: str, rhos: list[float], width: int = 38) -> None:
@@ -47,7 +53,7 @@ def spread(label: str, rhos: list[float], width: int = 38) -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--out", default="axes_pfas")
+    parser.add_argument("--out", default="axes_c8")
     parser.add_argument("--shards", type=int, default=6)
     args = parser.parse_args(argv)
 
@@ -64,16 +70,18 @@ def main(argv=None) -> int:
     print(f"\n{'=' * 92}\n1. WITHIN-CELL AGREEMENT -- arm to arm, beside arm to stem energy")
     print("  Same measure throughout: Spearman inside each cell, then the median over cells.")
     print("  |rho| near 1 means the two carry the same ordering of designs.")
-    arms = ("f1_opening_sep", "a_m_ratio", "ied_gain")
+    arms = tuple(name for name, *_ in CONTRASTS)
     print("\n  arm to arm")
     for i, a in enumerate(arms):
         for b in arms[i + 1 :]:
             rhos = []
             for group in cells.values():
-                usable = [r for r in group if r.get(a) is not None and r.get(b) is not None]
+                usable = [
+                    r for r in group if value_of(r, a) is not None and value_of(r, b) is not None
+                ]
                 if len(usable) < 5:
                     continue
-                rho = spearman([r[a] for r in usable], [r[b] for r in usable])
+                rho = spearman([value_of(r, a) for r in usable], [value_of(r, b) for r in usable])
                 if rho is not None:
                     rhos.append(rho)
             spread(f"{a} vs {b}", rhos)
@@ -82,10 +90,12 @@ def main(argv=None) -> int:
         for axis in ("a_site_energy", "lock_energy", "lock_minus_a_site"):
             rhos = []
             for group in cells.values():
-                usable = [r for r in group if r.get(arm) is not None and r.get(axis) is not None]
+                usable = [
+                    r for r in group if value_of(r, arm) is not None and r.get(axis) is not None
+                ]
                 if len(usable) < 5:
                     continue
-                rho = spearman([r[axis] for r in usable], [r[arm] for r in usable])
+                rho = spearman([r[axis] for r in usable], [value_of(r, arm) for r in usable])
                 if rho is not None:
                     rhos.append(rho)
             spread(f"{arm} vs {axis}", rhos)
@@ -96,7 +106,9 @@ def main(argv=None) -> int:
     print("  the raw interaction could be the energy wearing a label. Strata are quartiles of")
     print("  a_site_energy over the fully measured designs; the interaction is recomputed in each.")
     measured = [
-        r for r in full if r.get("a_site_energy") is not None and r.get("a_m_ratio") is not None
+        r
+        for r in full
+        if r.get("a_site_energy") is not None and value_of(r, A_M_CONTRAST) is not None
     ]
     if len(measured) < 400:
         print("  too few fully measured designs yet")
@@ -117,14 +129,14 @@ def main(argv=None) -> int:
             print(f"\n  stratum {s}: a_site {lo:.1f} to {hi:.1f} kcal/mol, {len(here):,} designs")
             # Within-stratum z against the stratum's own mean, so the energy is controlled for.
             by_combo: dict[tuple[str, str], list[float]] = collections.defaultdict(list)
-            vals = [r["a_m_ratio"] for r in here]
+            vals = [value_of(r, A_M_CONTRAST) for r in here]
             mean, sd = st.fmean(vals), (st.stdev(vals) if len(vals) > 1 else 0.0)
             if sd == 0:
                 print("    no variance in this stratum")
                 continue
             for r in here:
                 by_combo[(str(r.get("closure")), str(r.get("scheme")))].append(
-                    (r["a_m_ratio"] - mean) / sd
+                    (value_of(r, A_M_CONTRAST) - mean) / sd
                 )
             schemes = sorted({k[1] for k in by_combo})
             print(f"    {'closure':16s}" + "".join(f"{s2[:13]:>17s}" for s2 in schemes))

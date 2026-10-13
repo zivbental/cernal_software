@@ -1,6 +1,6 @@
 """The closure axis, and the lever combination, scored on PERFORMANCE rather than on survival.
 
-    uv run python tools/analyse_closure.py --out axes_pfas_v2
+    uv run python tools/analyse_closure.py --out axes_c8
 
 **Why this exists: survival was the wrong thing to report.** I reported the closure axis as a
 survival rate -- what fraction of designs pass the ``open_11 <= 4.0`` ceiling. Survival is not a
@@ -100,7 +100,7 @@ def report(label: str, pairs: list[tuple[dict, dict]], note: str = "") -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default="axes_pfas_v2")
+    parser.add_argument("--out", default="axes_c8")
     parser.add_argument("--shards", type=int, default=6)
     args = parser.parse_args(argv)
 

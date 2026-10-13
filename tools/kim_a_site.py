@@ -71,6 +71,12 @@ def longest_shared(needle: str, haystack: str) -> tuple[int, int, int]:
     return best
 
 
+#: Which characterisation run supplies "our own designs" below. Declared rather than written
+#: into the path, because it was hardcoded to `axes_pfas` -- a superseded table with a
+#: different schema, ON ceiling and pair count -- and nothing said so at the point of use.
+OUR_RUN = "axes_c8"
+
+
 def main() -> int:
     folder = FoldEngine()
     # Each construct has its OWN primary trigger. They share the 5' 22 nt and differ at the 3'
@@ -135,7 +141,7 @@ def main() -> int:
     path = NB / "results"
     values = []
     for i in range(6):
-        f = path / f"axes_pfas_{i}.csv"
+        f = path / f"{OUR_RUN}_{i}.csv"
         if not f.exists():
             continue
         with f.open(encoding="utf-8", newline="") as handle:

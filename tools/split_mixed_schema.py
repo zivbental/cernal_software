@@ -1,6 +1,6 @@
 """Split a sweep output that holds rows from two different column sets under one header.
 
-    uv run python tools/split_mixed_schema.py --out axes_pfas
+    uv run python tools/split_mixed_schema.py --out axes_c8
 
 **What happened, and it was avoidable.** `characterise_axes.py` appends to
 `results/<out>_<shard>.csv` and writes the header only when the file does not yet exist, which is
@@ -60,7 +60,7 @@ def current_fields() -> tuple[str, ...]:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default="axes_pfas")
+    parser.add_argument("--out", default="axes_c8")
     parser.add_argument("--shards", type=int, default=6)
     parser.add_argument(
         "--apply", action="store_true", help="write the split files; without it, only report"

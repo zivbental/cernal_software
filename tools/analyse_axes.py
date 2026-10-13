@@ -1,7 +1,7 @@
 """Analyse the axis-characterisation run: within-cell correlation, bins, interactions, survival.
 
-    uv run python tools/analyse_axes.py --out axes_pfas
-    uv run python tools/analyse_axes.py --out axes_pfas --csv docs/assets/axes
+    uv run python tools/analyse_axes.py --out axes_c8
+    uv run python tools/analyse_axes.py --out axes_c8 --csv docs/assets/axes
 
 Win-rate and lift, which is all the earlier analysis had, answer one question — "which level
 reaches its cell's best" — and are blind to three others. This answers all four, and says which
@@ -43,17 +43,81 @@ import csv
 import math
 import statistics as st
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS = ROOT / "src/engine/gates/notebooks/toehold_and/results"
 
-#: Objectives, all oriented so LOWER is better, as every arm key in this project is.
-#: `open_11` is here as the ON state's own cost, not as an arm: it is what the ceiling tests.
-OBJECTIVES = ("f1_opening_sep", "a_m_ratio", "ied_gain", "open_11")
+#: The ON/OFF CONTRASTS, and the two terms each one is built from.
+#:
+#: **Why the terms are reported beside the contrast.** A contrast moves for two different
+#: reasons -- the ON state opening better, or the worst OFF state collapsing -- and they are
+#: different design stories: one is a gate that turns on, the other is a gate that leaks less.
+#: The contrast alone cannot tell them apart. `sep_a_m` is the clearest case: it is a RATIO, so a
+#: tiny denominator inflates it without the ON state improving at all.
+#:
+#: Each entry is (contrast, ON term, worst-OFF term, how the worst OFF is picked, label).
+#: `pick` is `min` for a COST (the leakiest OFF state is the one that opens cheapest) and `max`
+#: for an ACCESSIBILITY (the worst OFF state is the most open one) -- the same rule, and the same
+#: reason, as `measure_design`'s own `worst_max` helper.
+CONTRASTS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("sep_open", "open_11", "open_off_worst", "min", "main-stem opening, kcal/mol"),
+    ("sep_a_m", "A_M_11", "A_M_off_worst", "max", "main-stem openness, ratio"),
+    ("sep_ied", "ied_rbs_linker_11", "ied_off_all", "min", "ensemble defect, RBS to linker"),
+    ("sep_dg_open", "dG_open_11", "dG_open_off_worst", "min", "W_rank opening, kcal/mol"),
+)
 
-#: How each objective is built from the row. Kept here rather than assumed so a reader can see
-#: that `a_m_ratio` is a RATIO of two measured openings and inherits a collapsing denominator.
+#: Objectives, every one oriented so LOWER IS BETTER, which is what the sign of every rho and
+#: z-score in this report is read against.
+#:
+#: Orientation is declared per column and never inferred, because these columns do not agree:
+#: `open_*` and `dG_open_*` are COSTS (lower is better in the ON state, higher in an OFF state),
+#: `A_M_*` is an unpaired FRACTION (higher is better in the ON state, lower in an OFF state), and
+#: `ied_rbs_linker_*` is a defect where higher means more paired (lower is better in the ON state,
+#: higher in an OFF state). So a contrast built from them changes sign meaning between families,
+#: and an OFF term is not oriented the same way as the ON term it is subtracted from.
+#:
+#: `-1.0` means the measured column is negated to face lower-is-better. The measured column itself
+#: is never overwritten: `value_of` reads it and applies the sign.
+ORIENTATION: dict[str, float] = {
+    # the contrasts, all already built lower-is-better by `derive`
+    "sep_open": 1.0,
+    "sep_a_m": 1.0,
+    "sep_ied": 1.0,
+    "sep_dg_open": 1.0,
+    # ON terms -- the ON state should open, so an opening cost and a defect face as measured
+    "open_11": 1.0,
+    "dG_open_11": 1.0,
+    "ied_rbs_linker_11": 1.0,
+    "A_M_11": -1.0,
+    # worst-OFF terms -- an OFF state should stay shut, so every sign is the ON term's inverse
+    "open_off_worst": -1.0,
+    "dG_open_off_worst": -1.0,
+    "ied_off_all": -1.0,
+    "A_M_off_worst": 1.0,
+    # the state-10 leak: trigger A alone reaching x* and the main stem. Measured on EVERY design,
+    # before the ON ceiling decides, so these two are the only outcomes here that can be analysed
+    # over the whole population rather than over survivors.
+    "xstar_engA_10": 1.0,
+    "mainpre_engA_10": 1.0,
+    # mechanism terms: trigger A's toehold accessibility and the cost of opening the main hairpin
+    # in state 11. `access_a` is a probability, so higher is better.
+    "barrier": 1.0,
+    "access_a": -1.0,
+    # the engine's OWN ied contrasts, carried as measured for comparison with `sep_ied` above.
+    # They differ in which states count as OFF: `ied_gain` references state 00 alone and
+    # `ied_gain_worst` the worst of 01 and 10, while `sep_ied` takes the worst of all three.
+    "ied_gain": -1.0,
+    "ied_gain_worst": -1.0,
+}
+
+OBJECTIVES = tuple(ORIENTATION)
+
+#: Which objectives get a two-way interaction table. All of them squares the report for little
+#: gain; these are the contrasts, which is where a combination either pays or does not.
+INTERACTION_OBJECTIVES = tuple(name for name, *_ in CONTRASTS)
+
 CATEGORICAL = ("closure", "upper3", "lower3", "scheme", "geom")
 #: Axes that vary BETWEEN designs of one cell -- the design decisions.
 CONTINUOUS = (
@@ -92,45 +156,74 @@ def read_rows(out: str, shards: int = 6) -> list[dict]:
     return rows
 
 
-def derive(rows: list[dict]) -> None:
-    """Attach the three arms, each from the four tubes, so nothing is read from a stored score.
+def worst_off(row: dict, prefix: str, pick: str) -> tuple[float | None, str | None]:
+    """The worst OFF state's value for one measurement family, and WHICH state it was.
 
-    `f1_opening_sep` is the OFF-minus-ON opening contrast, `a_m_ratio` the ON/worst-OFF ratio of
-    main-stem openness, `ied_gain` the state-11 against worst-OFF difference. All are oriented so
-    LOWER is better, matching every ARMS key. A row missing a tube gets `None`, never 0.0 -- on
-    every lower-is-better quantity here zero reads as perfect.
+    Which OFF state binds the contrast is a result, not bookkeeping. The architecture's central
+    claim is that **10 is the hard state** -- trigger A alone must not open the gate, and that is
+    the whole difference between a two-input AND and a one-input switch. So "is 10 the binding OFF
+    state, and under which lever settings does it stop being?" is answerable by counting, and the
+    answer is carried on the row as ``binding_off_<family>``.
+
+    ``None`` -- never 0.0 -- when any of the three states is missing: on a lower-is-better
+    quantity a zero reads as perfect and clears every threshold.
+    """
+    states = ("00", "01", "10")
+    values = [row.get(f"{prefix}_{state}") for state in states]
+    if any(value is None for value in values):
+        return None, None
+    chooser = min if pick == "min" else max
+    best = chooser(values)
+    return best, states[values.index(best)]
+
+
+def derive(rows: list[dict]) -> None:
+    """Attach each ON/OFF contrast and the worst-OFF term it is built from.
+
+    Built from the four tubes rather than read from a stored score, so nothing here depends on a
+    ranking written by an earlier run. What it must NOT do is overwrite a measurement the engine
+    already made: ``ied_gain`` and ``ied_gain_worst`` are columns ``measure_design`` computes, and
+    an earlier version of this function replaced ``ied_gain`` with a ``dG_open`` contrast -- a
+    different measurement family, in different units, under the engine's name. ``analyse_levers``
+    and ``analyse_closure`` read the same column straight from the CSV, so the one name meant two
+    quantities depending on which tool you ran. The contrasts are therefore named ``sep_*`` and
+    the measured columns are left exactly as the engine wrote them.
     """
     for row in rows:
-        on = row.get("open_11")
-        offs = [row.get(f"open_{s}") for s in ("00", "01", "10")]
-        if on is None or any(v is None for v in offs):
-            for name in OBJECTIVES:
-                row.setdefault(name, None)
-            row["f1_opening_sep"] = None
-            row["a_m_ratio"] = None
-            row["ied_gain"] = None
-            continue
-        worst_off = min(offs)  # the OFF state that opens most easily is the leak that matters
-        # Opening SEP: how much cheaper the ON state opens than the leakiest OFF state. Negative
-        # is a working gate, so lower is better and no sign flip is needed.
-        row["f1_opening_sep"] = on - worst_off
-        a_on, a_off = row.get("A_M_11"), None
-        a_offs = [row.get(f"A_M_{s}") for s in ("00", "01", "10")]
-        if a_on is not None and all(v is not None for v in a_offs):
-            a_off = max(a_offs)
-            # A ratio, so it inherits a collapsing denominator: a tiny worst-OFF makes it enormous
-            # without the ON state being better. Negated so lower is better, like the others.
-            row["a_m_ratio"] = -(a_on / a_off) if a_off else None
-        else:
-            row["a_m_ratio"] = None
-        ied_on, ied_offs = (
-            row.get("dG_open_11"),
-            [row.get(f"dG_open_{s}") for s in ("00", "01", "10")],
-        )
-        if ied_on is not None and all(v is not None for v in ied_offs):
-            row["ied_gain"] = -(min(ied_offs) - ied_on)
-        else:
-            row["ied_gain"] = None
+        for contrast, on_key, off_key, pick, _label in CONTRASTS:
+            off_value, binding = worst_off(row, on_key.rsplit("_11", 1)[0], pick)
+            on_value = row.get(on_key)
+            row[off_key] = off_value
+            row[f"binding_off_{contrast}"] = binding
+            if on_value is None or off_value is None:
+                row[contrast] = None
+                continue
+            if contrast == "sep_a_m":
+                # A ratio, so it inherits a collapsing denominator: a tiny worst-OFF makes it
+                # enormous without the ON state being better, which is why `A_M_11` and
+                # `A_M_off_worst` are reported beside it. Negated so lower is better.
+                row[contrast] = -(on_value / off_value) if off_value else None
+            elif contrast == "sep_ied":
+                # `ied` is a defect where higher means more paired, so the gain is the worst OFF
+                # state minus the ON state. Negated so lower is better, like the others.
+                row[contrast] = -(off_value - on_value)
+            else:
+                # An opening COST: how much cheaper the ON state opens than the leakiest OFF
+                # state. Negative is a working gate, so lower is better and no flip is needed.
+                row[contrast] = on_value - off_value
+
+
+def value_of(row: dict, objective: str) -> float | None:
+    """One objective, oriented so LOWER IS BETTER, or ``None`` if it was not measured.
+
+    The orientation lives in ``ORIENTATION`` and is applied here, once, so no caller has to know
+    whether a given column is a cost, a fraction or a defect -- and so the measured column on the
+    row keeps the sign the engine gave it.
+    """
+    value = row.get(objective)
+    if value is None or isinstance(value, str):
+        return None
+    return ORIENTATION.get(objective, 1.0) * value
 
 
 def cells_of(rows: list[dict]) -> dict:
@@ -188,7 +281,7 @@ def sign_test_p(positive: int, negative: int) -> float | None:
 
 def zscores(group: list[dict], column: str) -> dict[int, float]:
     """Within-cell z-score by row id, so cells of different difficulty can be pooled afterwards."""
-    values = [(id(r), r.get(column)) for r in group if r.get(column) is not None]
+    values = [(id(r), value_of(r, column)) for r in group if value_of(r, column) is not None]
     if len(values) < 2:
         return {}
     nums = [v for _i, v in values]
@@ -250,7 +343,7 @@ def write_tidy(path: Path, header: tuple[str, ...], records: list[tuple]) -> Non
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--out", default="axes_pfas", help="which run to read")
+    parser.add_argument("--out", default="axes_c8", help="which run to read")
     parser.add_argument("--shards", type=int, default=6)
     parser.add_argument("--bins", type=int, default=5, help="quantiles for the shape check")
     parser.add_argument(
@@ -278,6 +371,8 @@ def main(argv=None) -> int:
     cells = cells_of(rows)
     print(f"  {len(cells):,} cells (trigger pair x geometry)")
     survival_table: list[tuple] = []
+    #: (contrast, axis, level, state, n, share). Axis and level are empty on the overall rows.
+    binding_table: list[tuple] = []
     correlation_table: list[tuple] = []
     shape_table: list[tuple] = []
     interaction_table: list[tuple] = []
@@ -304,6 +399,47 @@ def main(argv=None) -> int:
             print(f"    {level:20s}{len(here):>9,}{kept:>10,}{100.0 * kept / len(here):>7.1f}%")
             survival_table.append((axis, level, len(here), kept, kept / len(here)))
 
+    # ---- 0b. which OFF state binds each contrast ----------------------------------------
+    print(f"\n{'=' * 100}\nBINDING OFF STATE -- which of 00/01/10 each contrast is taken against")
+    print("  State 10 -- trigger A alone -- is the state that separates a two-input AND from a")
+    print("  one-input switch: A on its own must not open the gate. So which OFF state actually")
+    print("  binds the contrast is a result. A contrast bound by 00 is being set by the resting")
+    print("  structure and says nothing about AND behaviour; one bound by 10 is the real test.")
+    print("  Reported per contrast, then per level of each categorical axis, because a lever that")
+    print("  moves WHICH state binds has changed the mechanism and not just the margin.")
+    for contrast, _on, _off, _pick, label in CONTRASTS:
+        column = f"binding_off_{contrast}"
+        present = [r for r in rows if r.get(column)]
+        if not present:
+            continue
+        counts = Counter(str(r[column]) for r in present)
+        print(f"\n  {contrast}   ({label})   n={len(present):,}")
+        for state in ("00", "01", "10"):
+            n = counts.get(state, 0)
+            share = 100.0 * n / len(present)
+            print(f"    state {state}{n:>12,}{share:>7.1f}%")
+            binding_table.append((contrast, "", "", state, n, share / 100.0))
+        for axis in CATEGORICAL:
+            levels = sorted({str(r.get(axis)) for r in present if r.get(axis) is not None})
+            if len(levels) < 2:
+                continue
+            for level in levels:
+                here = [r for r in present if str(r.get(axis)) == level]
+                if not here:
+                    continue
+                per = Counter(str(r[column]) for r in here)
+                for state in ("00", "01", "10"):
+                    binding_table.append(
+                        (
+                            contrast,
+                            axis,
+                            level,
+                            state,
+                            per.get(state, 0),
+                            per.get(state, 0) / len(here),
+                        )
+                    )
+
     # ---- 1. continuous axes: within-cell Spearman ---------------------------------------
     print(f"\n{'=' * 100}\nCONTINUOUS AXES -- Spearman rho WITHIN each cell")
     print("  rho > 0 means a larger axis value goes with a LARGER (worse) objective, since every")
@@ -314,11 +450,13 @@ def main(argv=None) -> int:
             rhos = []
             for group in cells.values():
                 usable = [
-                    r for r in group if r.get(axis) is not None and r.get(objective) is not None
+                    r
+                    for r in group
+                    if r.get(axis) is not None and value_of(r, objective) is not None
                 ]
                 if len(usable) < 5:
                     continue
-                rho = spearman([r[axis] for r in usable], [r[objective] for r in usable])
+                rho = spearman([r[axis] for r in usable], [value_of(r, objective) for r in usable])
                 if rho is not None:
                     rhos.append(rho)
             report_spread(axis, rhos)
@@ -345,13 +483,15 @@ def main(argv=None) -> int:
     print("  correlation reads as ~0 and a win count reads as noise.")
     for axis in CONTINUOUS:
         print(f"\n  {axis}")
-        header = f"    {'objective':18s}" + "".join(f"{f'Q{i + 1}':>10s}" for i in range(args.bins))
+        header = f"    {'objective':22s}" + "".join(f"{f'Q{i + 1}':>10s}" for i in range(args.bins))
         print(header + f"{'n/bin':>9s}")
         for objective in OBJECTIVES:
             buckets: list[list[float]] = [[] for _ in range(args.bins)]
             for group in cells.values():
                 usable = [
-                    r for r in group if r.get(axis) is not None and r.get(objective) is not None
+                    r
+                    for r in group
+                    if r.get(axis) is not None and value_of(r, objective) is not None
                 ]
                 if len(usable) < args.bins * 2:
                     continue
@@ -365,7 +505,7 @@ def main(argv=None) -> int:
                 continue
             cells_text = "".join(f"{st.fmean(b):>+10.3f}" if b else f"{'--':>10s}" for b in buckets)
             per = int(st.fmean([len(b) for b in buckets])) if any(buckets) else 0
-            print(f"    {objective:18s}{cells_text}{per:>9,}")
+            print(f"    {objective:22s}{cells_text}{per:>9,}")
             for q, bucket in enumerate(buckets, start=1):
                 if bucket:
                     shape_table.append((axis, objective, q, st.fmean(bucket), len(bucket)))
@@ -377,17 +517,19 @@ def main(argv=None) -> int:
     print("  cell instead: the pair's value against that cell's BEST and MEDIAN objective.")
     for axis in PAIR_LEVEL:
         print(f"\n  {axis}")
-        print(f"    {'objective':18s}{'cells':>8s}{'rho(best)':>11s}{'rho(med)':>10s}{'p':>9s}")
+        print(f"    {'objective':22s}{'cells':>8s}{'rho(best)':>11s}{'rho(med)':>10s}{'p':>9s}")
         for objective in OBJECTIVES:
             points = []
             for group in cells.values():
-                values = [r[objective] for r in group if r.get(objective) is not None]
+                values = [
+                    value_of(r, objective) for r in group if value_of(r, objective) is not None
+                ]
                 axis_values = {r.get(axis) for r in group if r.get(axis) is not None}
                 if not values or len(axis_values) != 1:
                     continue
                 points.append((axis_values.pop(), min(values), st.median(values)))
             if len(points) < 5:
-                print(f"    {objective:18s}{len(points):>9,}  too few cells")
+                print(f"    {objective:22s}{len(points):>9,}  too few cells")
                 continue
             xs = [p[0] for p in points]
             rho_best = spearman(xs, [p[1] for p in points])
@@ -399,7 +541,7 @@ def main(argv=None) -> int:
                 z = rho_best * math.sqrt(len(points) - 1)
                 p_text = f"{math.erfc(abs(z) / math.sqrt(2)):.2g}"
             print(
-                f"    {objective:18s}{len(points):>9,}"
+                f"    {objective:22s}{len(points):>9,}"
                 f"{(f'{rho_best:+.3f}' if rho_best is not None else '--'):>11s}"
                 f"{(f'{rho_med:+.3f}' if rho_med is not None else '--'):>13s}{p_text:>10s}"
             )
@@ -411,7 +553,7 @@ def main(argv=None) -> int:
     print("  show one. Read the n: a box with a handful of designs is not a finding.")
     for i, first in enumerate(CATEGORICAL):
         for second in CATEGORICAL[i + 1 :]:
-            for objective in ("f1_opening_sep", "a_m_ratio"):
+            for objective in INTERACTION_OBJECTIVES:
                 table: dict[tuple[str, str], list[float]] = {}
                 for group in cells.values():
                     z = zscores(group, objective)
@@ -463,6 +605,11 @@ def main(argv=None) -> int:
             correlation_table,
         )
         write_tidy(
+            into / "binding_off.csv",
+            ("contrast", "axis", "level", "state", "n", "share"),
+            binding_table,
+        )
+        write_tidy(
             into / "shape.csv",
             ("axis", "objective", "quintile", "mean_z", "n"),
             shape_table,
@@ -488,6 +635,7 @@ def main(argv=None) -> int:
         print(
             f"    correlation.csv   {len(correlation_table):>6,} rows -- rho per (objective, axis)"
         )
+        print(f"    binding_off.csv   {len(binding_table):>6,} rows -- which OFF state binds each")
         print(f"    shape.csv         {len(shape_table):>6,} rows -- the non-monotonic check")
         print(f"    pair_level.csv    {len(pair_level_table):>6,} rows -- between-cell, pair props")
         print(f"    interaction.csv   {len(interaction_table):>6,} rows -- the two-way tables")

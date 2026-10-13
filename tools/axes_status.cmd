@@ -16,7 +16,10 @@ REM ============================================================================
 setlocal
 cd /d "%~dp0.."
 
-set OUT=axes_pfas
+REM Must match OUT in run_axes.cmd and run_axes_complete.cmd. It did not: this defaulted to
+REM axes_pfas while both runners wrote axes_c8, so every status check during the axes_c8 run
+REM reported on the PREVIOUS run's table -- a different schema, ceiling and pair count.
+set OUT=axes_c8
 if /i "%1"=="control" set OUT=axes_mcherry
 if /i "%1"=="smoke" set OUT=axes_smoke
 

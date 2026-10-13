@@ -2,13 +2,13 @@
 
 Run one shard per core, six windows, changing only the shard number::
 
-    uv run python tools/characterise_axes.py --out axes_pfas --shard 0/6 --resume
-    uv run python tools/characterise_axes.py --out axes_pfas --shard 1/6 --resume
+    uv run python tools/characterise_axes.py --out axes_c8 --shard 0/6 --resume
+    uv run python tools/characterise_axes.py --out axes_c8 --shard 1/6 --resume
     ...
 
 and check on it from anywhere, without touching a running shard::
 
-    uv run python tools/characterise_axes.py --out axes_pfas --shard 0/6 --status
+    uv run python tools/characterise_axes.py --out axes_c8 --shard 0/6 --status
 
 This is a **characterisation** run, not a selection run. It does not pick six constructs; it
 writes one row per design so that "which decision matters, and in combination with what" can be
@@ -154,7 +154,7 @@ RUN = (
     "overlap_low",
     "overlap_high",
     "on_ceiling",
-        "pair_order",
+    "pair_order",
     # What produced the row. A scoring change keeps the columns identical and alters what
     # one of them means, which the header guard below cannot see -- so the version has to
     # be on the row itself.
@@ -261,7 +261,7 @@ def status(out: str, shards: int) -> int:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--out", default="axes_pfas", help="writes results/<out>_<shard>.csv")
+    parser.add_argument("--out", default="axes_c8", help="writes results/<out>_<shard>.csv")
     parser.add_argument(
         "--shard",
         default="0/1",
@@ -572,7 +572,7 @@ def main(argv=None) -> int:
             )
             return 2
     handle = out_path.open("a", encoding="utf-8", newline="")
-        # A scoring change leaves the columns identical and changes what a row MEANS, so
+    # A scoring change leaves the columns identical and changes what a row MEANS, so
     # the header guard above cannot catch it. Compare the stored version instead.
     if args.resume and existing_version and existing_version != first.version:
         raise SystemExit(
@@ -603,7 +603,7 @@ def main(argv=None) -> int:
         "on_ceiling": args.on_ceiling,
         "pair_order": args.pair_order,
         # `None` stays empty, never 0.0: a floor that was not applied is not a floor of zero.
-                "gate_version": first.version,
+        "gate_version": first.version,
         "min_access": "" if args.min_access is None else args.min_access,
         # Which rule set the floor, so a row says how its pair was selected. The value
         # itself differs per gene pair under `mean`, and is printed at startup.

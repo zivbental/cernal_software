@@ -55,7 +55,7 @@ for %%i in (0 1 2 3 4 5) do start "complete %OUT% %%i" /high /min cmd /c "uv run
 
 echo   Six windows started, minimised, at high priority.
 echo     logs      tools\logs\%OUT%_complete_*.log
-echo     status    tools\axes_status.cmd
+echo     status    tools\axes_status.cmd            ^(reads %OUT%^)
 echo     coverage  uv run python tools\audit_grid_coverage.py --out %OUT%
 echo     analysis  uv run python tools\analyse_levers.py --out %OUT%
 echo.

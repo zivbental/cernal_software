@@ -70,6 +70,12 @@ def footprint_start(primary: str, switch: str) -> tuple[int, int]:
     return best
 
 
+#: Which characterisation run supplies "our own designs" below. Declared rather than written
+#: into the path, because it was hardcoded to `axes_pfas` -- a superseded table with a
+#: different schema, ON ceiling and pair count -- and nothing said so at the point of use.
+OUR_RUN = "axes_c8"
+
+
 def main() -> int:
     folder = FoldEngine()
     print(
@@ -117,7 +123,7 @@ def main() -> int:
     # The same margin on our own designs, from the run, so the two are on one scale.
     ours = []
     for i in range(6):
-        path = NB / "results" / f"axes_pfas_{i}.csv"
+        path = NB / "results" / f"{OUR_RUN}_{i}.csv"
         if not path.exists():
             continue
         with path.open(encoding="utf-8", newline="") as handle:

@@ -2,7 +2,7 @@
 
 Run it on the night run's output, while it is still running or after:
 
-    uv run python tools/analyse_levers.py --out axes_pfas
+    uv run python tools/analyse_levers.py --out axes_c8
 
 **The question this answers, and why the obvious version of it is wrong.** "Does ``wobble_GU``
 beat ``trigger_derived``?" compared across all designs gave 17.7% against 16.4%, which reads as
@@ -174,7 +174,7 @@ def compare(
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default="axes_pfas", help="the run's output prefix")
+    parser.add_argument("--out", default="axes_c8", help="the run's output prefix")
     parser.add_argument("--shards", type=int, default=6)
     args = parser.parse_args(argv)
 
