@@ -2,6 +2,19 @@
 
 This notebook is CERNAL's contest-ready, evidence-first record of meaningful software development. It complements the roadmap (future work), ADRs (decisions), tests, CI, and pull requests; it does not replace them.
 
+## 2026-10-12 — Audit F5: current documentation and scientific interpretation
+
+- **Change:** Replaced obsolete mock-engine/planned-folding claims with LocalEngine
+  defaults, locked installation and current application scope. Corrected guide/chart/API
+  metric descriptions without changing numeric science or scoring. Marked the old wiki
+  source draft historical and separated unmerged PR 68/69 from current capabilities.
+- **Evidence:** [F5 before/after and hosting record](evidence/audit-f5-documentation-2026-10-12.md).
+  New documentation regressions fail twice on audit baseline and pass after correction;
+  269 focused Python tests, lint/format and frontend check/build passed locally.
+- **Limits:** Dedicated iGEM GitLab software URL/commit/pipeline evidence remains missing.
+  Software checks do not establish wet-lab validation. Independent review and merge are
+  pending; the F5 draft PR records its exact commit and CI evidence.
+
 ## Scope and record rules
 
 - **Current-record cutoff:** **2026-09-22**. The generated historical index below was built from `origin/main` at [`b8e20f5d6148`](https://github.com/zivbental/cernal_software/commit/b8e20f5d6148720a2de60e05d94b792eaacff71d) on that cutoff date.

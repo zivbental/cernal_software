@@ -14,6 +14,7 @@ from apps.accounts.models import ApiKey
 from apps.analyses.models import AnalysisRun
 from apps.datasets.models import Dataset
 from apps.results.models import Annotation, Artifact, Candidate
+from engine.client import candidate_disclosure
 
 # --- Auth -------------------------------------------------------------------------
 
@@ -359,6 +360,14 @@ class CandidateDetailOut(CandidateOut):
     metrics: list[MetricOut] | None = None
 
     @staticmethod
+    def resolve_design(obj) -> dict:
+        return candidate_disclosure(obj.design, obj.triggers)[0]
+
+    @staticmethod
+    def resolve_triggers(obj) -> dict:
+        return candidate_disclosure(obj.design, obj.triggers)[1]
+
+    @staticmethod
     def resolve_metrics(obj) -> list:
         if not getattr(obj, "_include_metrics", True):
             return None
@@ -396,6 +405,13 @@ class ArtifactOut(ModelSchema):
     name: str
     category: str
     label: str
+    download_available: bool
+
+    @staticmethod
+    def resolve_download_available(obj) -> bool:
+        from apps.results.services import artifact_release_allowed
+
+        return artifact_release_allowed(obj)
 
     class Meta:
         model = Artifact

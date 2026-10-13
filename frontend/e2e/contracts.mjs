@@ -66,6 +66,11 @@ await page.route('**/api/**', async route=>{
      // Make query completion observable in the rendered rows, even when page counts match.
      summary:`Candidate ${offset+i+1} · ${output} · ${sort}${url.searchParams.get('include_rejected')==='true'?' · including rejected':''}`,
    }))};
+ } else if(path==='/api/runs/mock-run/artifacts') {
+   body=[
+     {id:'safe-report',name:'report.html',kind:'report',category:'reports',label:'Computational report',size_bytes:100,download_available:true,download_url:'/api/artifacts/safe-report/download'},
+     {id:'held-fasta',name:'held.fasta',kind:'sequence_fasta',category:'sequences',label:'Held switch',size_bytes:100,download_available:false,download_url:'/api/artifacts/held-fasta/download'},
+   ];
  } else if(path.endsWith('/annotations')) {
    if(route.request().method()==='POST') notes.push({id:'review-note',author:'browser-test',created_at:'2026-10-08T00:00:00Z',...route.request().postDataJSON()});
    body=route.request().method()==='POST'?notes.at(-1):notes;
@@ -168,6 +173,17 @@ try {
  await page.getByText('UNIQUE_RUN_WARNING: exports held').waitFor();
  await page.getByText('Candidate warnings (1)').click();
  await page.getByText('UNIQUE_CANDIDATE_WARNING').waitFor();
+ await page.getByText('Sequence withheld pending release approval.',{exact:false}).waitFor();
+ assert.equal(await page.getByText('ACGU',{exact:true}).count(),0);
+ await page.getByText('Some artifacts are withheld pending sequence release approval.',{exact:false}).waitFor();
+ assert.equal(await page.getByText('Download everything (.zip)',{exact:true}).getAttribute('href'),null);
+ await page.getByRole('button',{name:/Gate & switch sequences/}).click();
+ assert.equal(await page.getByRole('button',{name:'Select held.fasta'}).isDisabled(),true);
+ assert.equal(await page.getByTitle('Download held.fasta',{exact:true}).getAttribute('href'),null);
+ await page.getByRole('button',{name:/Reports 1 file/}).click();
+ assert.equal(await page.getByTitle('Download report.html',{exact:true}).getAttribute('href'),'/api/artifacts/safe-report/download');
+ await page.getByRole('button',{name:'Select report.html'}).click();
+ assert.match(await page.getByText('Download selected (.zip)',{exact:true}).getAttribute('href'),/ids=safe-report/);
  await page.getByText('Binding heuristic',{exact:false}).first().waitFor();
  await page.getByText('Unmeasured',{exact:true}).waitFor();
  await page.getByRole('textbox',{name:'Review note',exact:true}).fill('Retain this research candidate');

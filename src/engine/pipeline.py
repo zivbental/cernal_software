@@ -102,7 +102,7 @@ from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.inputs import parse_dge_table
-from engine.safety import fail_closed_release
+from engine.safety import fail_closed_release, stored_release_allowed
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
 from engine.scoring.profiles import HardFilter, ScoringProfile, resolve_profile
 from engine.stages.circuits import CircuitDesigner, ConfusionEvaluator
@@ -564,24 +564,6 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         dataclasses.replace(c, rank=ranks.get(c.ref), overall_score=score) for c, score in scored
     ]
 
-    if not on_progress(*_pct("Writing report")):
-        raise JobCancelled("Writing report")
-    artifacts = [store.snapshot("trigger_selection", trigger_candidates)]
-    artifacts.extend(
-        _write_artifacts(request.output_dir, candidates, plasmids, on_progress=on_progress)
-    )
-    from engine.stages.reporting import ReportBuilder, StructureRenderer
-
-    artifacts.append(
-        ReportBuilder(StructureRenderer()).build_result(
-            candidates,
-            warnings,
-            request.output_dir,
-            engine_version="local-0.12.0-scientific-qa-folding-model",
-            profile_version=profile.version,
-        )
-    )
-
     if not candidates and trigger_candidates:
         # trigger_candidates was non-empty, so the loop above genuinely tried and
         # failed — report why, rather than the old one-size-fits-all message. When
@@ -596,6 +578,28 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                 "No candidate designs passed validation for this trigger — see "
                 "docs/smoke-run.md §5 for why a validated design is not guaranteed."
             )
+
+    if not on_progress(*_pct("Writing report")):
+        raise JobCancelled("Writing report")
+    artifacts = [
+        dataclasses.replace(
+            store.snapshot("trigger_selection", trigger_candidates), sequence_free=True
+        )
+    ]
+    artifacts.extend(
+        _write_artifacts(request.output_dir, candidates, plasmids, on_progress=on_progress)
+    )
+    from engine.stages.reporting import ReportBuilder, StructureRenderer
+
+    artifacts.append(
+        ReportBuilder(StructureRenderer()).build_result(
+            candidates,
+            warnings,
+            request.output_dir,
+            engine_version="local-0.12.0-scientific-qa-folding-model",
+            profile_version=profile.version,
+        )
+    )
 
     on_progress(100, "Writing report")
 
@@ -1695,6 +1699,7 @@ def _write_artifacts(
             "\n".join(rows) + "\n",
             kind="design_table",
             media_type="text/csv",
+            sequence_free=True,
         )
     ]
 
@@ -1712,6 +1717,10 @@ def _write_artifacts(
             plasmid.plasmid.sequence,
             host_context=candidate.design.get("host", "unconfigured"),
         )
+        candidate.design["sequence_release"] = {
+            "switch": switch_screen.release_record(),
+            "plasmid": plasmid_screen.release_record(),
+        }
         artifacts.extend(
             [
                 write_artifact(
@@ -1721,6 +1730,7 @@ def _write_artifacts(
                     kind="safety_audit",
                     media_type="application/json",
                     candidate_ref=candidate.ref,
+                    sequence_free=True,
                 ),
                 write_artifact(
                     output_dir,
@@ -1729,10 +1739,11 @@ def _write_artifacts(
                     kind="safety_audit",
                     media_type="application/json",
                     candidate_ref=candidate.ref,
+                    sequence_free=True,
                 ),
             ]
         )
-        if not (switch_screen.release_allowed and plasmid_screen.release_allowed):
+        if not stored_release_allowed(candidate.design):
             continue
         fasta = (
             f">{candidate.ref} {candidate.gate_family} {candidate.logic_type} "

@@ -39,6 +39,16 @@ def forbid_scientific_computation(monkeypatch):
         monkeypatch.setattr(folding.RNA, name, forbidden)
 
 
+@pytest.fixture(autouse=True)
+def approved_layout_boundary(monkeypatch):
+    """Exercise every geometry failure after approval; release policy has its own suite.
+
+    test_release_disclosure exercises the real policy, including real HOLD results,
+    missing/contradictory evidence, positive approval and ownership on both paths.
+    """
+    monkeypatch.setattr("api.routers.results.candidate_release_allowed", lambda design: True)
+
+
 def test_structure_is_authenticated_read_only_geometry(auth_client, stored_candidate):
     candidate_before = Candidate.objects.values().get(pk=stored_candidate.pk)
     run_before = type(stored_candidate.run).objects.values().get(pk=stored_candidate.run_id)

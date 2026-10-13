@@ -853,7 +853,7 @@ def test_human_construction_bumps_engine_version():
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(
-    direct_request, always_continue, monkeypatch
+    direct_request, always_continue, screening_released
 ):
     """The positive half of the release gate.
 
@@ -863,20 +863,6 @@ def test_a_released_run_exports_fasta_genbank_and_sbol_together(
     to prove the SBOL export is wired in rather than dead, and that it travels with
     FASTA and GenBank rather than on some separate path of its own.
     """
-    import dataclasses
-
-    import engine.pipeline as pipeline_module
-
-    real = pipeline_module.fail_closed_release
-
-    def allow(reference, sequence, *, host_context):
-        # Flip only release_allowed on the real result, so the audit manifest and the
-        # recomputed result_sha256 stay exactly what the gate produced.
-        return dataclasses.replace(
-            real(reference, sequence, host_context=host_context), release_allowed=True
-        )
-
-    monkeypatch.setattr(pipeline_module, "fail_closed_release", allow)
     result = LocalEngine().run(direct_request(), always_continue)
 
     kinds = {a.kind for a in result.artifacts}
