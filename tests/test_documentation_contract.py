@@ -52,5 +52,10 @@ def test_documented_application_scope_matches_capabilities():
     assert capabilities.input_modes == ["direct", "de", "gene"]
     assert set(capabilities.supported_hosts) == {"ecoli", "yeast", "human", "c_acnes"}
     assert capabilities.limits["max_circuit_gates"] == 1
-    assert capabilities.limits["max_triggers"] == 1
-    assert all("and" not in name for name in capabilities.family_hosts)
+    assert capabilities.limits["max_triggers"] == 1  # the single-input default
+    # One two-input gate is integrated (docs/and-gate.md); no other AND chemistry is advertised.
+    assert [name for name in capabilities.family_hosts if "and" in name] == [
+        "eukaryotic_toehold_and"
+    ]
+    assert capabilities.family_inputs["eukaryotic_toehold_and"] == 2
+    assert capabilities.limits["max_gate_inputs"] == 2

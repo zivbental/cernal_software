@@ -212,6 +212,47 @@ def test_sequences_of_an_and_candidate_are_released_only_through_the_screening_g
     assert provenance["folding_model"]["configuration"]["salt_molar"] == 0.1
 
 
+def test_one_gene_can_supply_both_inputs_as_two_windows_of_its_transcript(
+    auth_client, csv_upload, media_root, django_capture_on_commit_callbacks
+):
+    run_id = _submit_and_run(
+        auth_client,
+        csv_upload,
+        django_capture_on_commit_callbacks,
+        params=_params(and_inputs={"gene_a": "SELE", "gene_b": "SELE"}),
+    )
+
+    assert auth_client.get(f"/api/runs/{run_id}").json()["status"] == RunStatus.COMPLETED
+    listing = auth_client.get(f"/api/runs/{run_id}/candidates").json()
+    assert listing["count"] > 0
+    detail = auth_client.get(f"/api/candidates/{listing['items'][0]['id']}").json()
+    assert {f["gene_symbol"] for f in detail["triggers"]["features"]} == {"SELE"}
+    first, second = sorted(detail["design"]["trigger_start_indexes"])
+    assert second - first >= 36  # two windows that cannot overlap: they cannot both be bound
+
+
+def test_yeast_runs_end_to_end(
+    auth_client, csv_upload, media_root, django_capture_on_commit_callbacks
+):
+    """The second advertised host: two real yeast genes (PHM6 and LDM1), not just a capability."""
+    table = "gene_id,gene_symbol,log2fc,padj\nYDR281C,PHM6,3.0,0.001\nYER085C,LDM1,2.6,0.001\n"
+    run_id = _submit_and_run(
+        auth_client,
+        csv_upload,
+        django_capture_on_commit_callbacks,
+        table=table,
+        organism="yeast",
+        params=_params(and_inputs={"gene_a": "YDR281C", "gene_b": "YER085C"}),
+    )
+
+    assert auth_client.get(f"/api/runs/{run_id}").json()["status"] == RunStatus.COMPLETED
+    listing = auth_client.get(f"/api/runs/{run_id}/candidates").json()
+    assert listing["count"] > 0
+    detail = auth_client.get(f"/api/candidates/{listing['items'][0]['id']}").json()
+    assert detail["design"]["host"] == "yeast"
+    assert set(detail["design"]["and_gate"]["states"]) == {"alone", "+A", "+B", "+A+B"}
+
+
 # --- Rejected candidates and failed inputs stay visible -----------------------------------------
 
 
