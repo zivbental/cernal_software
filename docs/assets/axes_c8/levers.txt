@@ -1,0 +1,121 @@
+
+  301,440 designs, 219,808 fully measured (72.9%), 420 (pair, geometry) cells
+
+  the state-10 leak, over ALL designs (measured before the ceiling decides):
+      xstar_engA_10                  n=301440  median  +0.9988  mean  +0.7651  sd  0.3937  min  +0.0000  max  +1.0000
+      below 0.5: 70498/301440 = 23.4%
+      mainpre_engA_10                n=301440  median  +0.9761  mean  +0.7035  sd  0.3998  min  +0.0000  max  +1.0000
+      below 0.5: 86906/301440 = 28.8%
+
+============================================================================================
+  lower3:  wobble_GU  against  trigger_derived
+  conditioned on lower3_strong_before != 2 -- where the lever had work to do
+============================================================================================
+  106,486 matched pairs of designs. 62,838 where the lever had work, 43,648 where it was a no-op, 0 with the condition unrecorded.
+  -> an UNCONDITIONAL comparison would average in those 43,648 no-ops, which are the control by construction and can only dilute the answer.
+
+  separation (log2, ON vs worst OFF)  (positive = the lever helped)
+      paired difference, per design  n=62838  median  +0.0000  mean  +0.2796  sd  0.7462  min  -5.2623  max  +5.8778
+      cells: 158 won, 5 lost, 66 tied, of 229
+
+  x* taken by A alone (the leak)  (positive = the lever helped)
+      paired difference, per design  n=62838  median  +0.0000  mean  +0.0497  sd  0.1485  min  -0.2466  max  +0.9847
+      cells: 171 won, 0 lost, 58 tied, of 229
+
+  main stem reached by A alone  (positive = the lever helped)
+      paired difference, per design  n=62838  median  +0.0004  mean  +0.0911  sd  0.2020  min  -0.5637  max  +0.9858
+      cells: 162 won, 9 lost, 58 tied, of 229
+
+  A_M ratio  (positive = the lever helped)
+      paired difference, per design  n=62838  median  +0.0000  mean  -0.2193  sd  7.1949  min -409.2695  max +610.5021
+      cells: 165 won, 6 lost, 58 tied, of 229
+
+  IED gain, RBS loop to linker  (positive = the lever helped)
+      paired difference, per design  n=62838  median  +0.0000  mean  -0.0083  sd  0.0312  min  -0.2313  max  +0.1176
+      cells: 63 won, 108 lost, 58 tied, of 229
+
+  A_M in the ON state  (positive = the lever helped)
+      paired difference, per design  n=62838  median  -0.0002  mean  -0.0325  sd  0.0980  min  -0.6387  max  +0.3684
+      cells: 52 won, 119 lost, 58 tied, of 229
+
+============================================================================================
+  upper3:  WWW_UAU  against  trigger_derived
+  conditioned on upper3_changed is True -- where the lever had work to do
+============================================================================================
+  71,192 matched pairs of designs. 71,192 where the lever had work, 0 where it was a no-op, 0 with the condition unrecorded.
+
+  separation (log2, ON vs worst OFF)  (positive = the lever helped)
+      paired difference, per design  n=71192  median  +0.0000  mean  +0.3808  sd  0.9503  min  -6.2306  max  +6.6736
+      cells: 276 won, 6 lost, 32 tied, of 314
+
+  x* taken by A alone (the leak)  (positive = the lever helped)
+      paired difference, per design  n=71192  median  +0.0001  mean  +0.0669  sd  0.1802  min  -0.8369  max  +0.9914
+      cells: 308 won, 4 lost, 2 tied, of 314
+
+  main stem reached by A alone  (positive = the lever helped)
+      paired difference, per design  n=71192  median  +0.0069  mean  +0.1262  sd  0.2370  min  -0.8379  max  +0.9920
+      cells: 308 won, 4 lost, 2 tied, of 314
+
+  A_M ratio  (positive = the lever helped)
+      paired difference, per design  n=71192  median  +0.0000  mean  -0.7800  sd 13.2615  min -699.8116  max +82.6888
+      cells: 301 won, 11 lost, 2 tied, of 314
+
+  IED gain, RBS loop to linker  (positive = the lever helped)
+      paired difference, per design  n=71192  median  -0.0037  mean  -0.0048  sd  0.0468  min  -0.2305  max  +0.2242
+      cells: 136 won, 176 lost, 2 tied, of 314
+
+  A_M in the ON state  (positive = the lever helped)
+      paired difference, per design  n=71192  median  -0.0274  mean  -0.0488  sd  0.1403  min  -0.6799  max  +0.5704
+      cells: 104 won, 208 lost, 2 tied, of 314
+
+============================================================================================
+  upper3:  WWW_AUA  against  trigger_derived
+  conditioned on upper3_changed is True -- where the lever had work to do
+============================================================================================
+  48,684 matched pairs of designs. 48,172 where the lever had work, 512 where it was a no-op, 0 with the condition unrecorded.
+  -> an UNCONDITIONAL comparison would average in those 512 no-ops, which are the control by construction and can only dilute the answer.
+
+  separation (log2, ON vs worst OFF)  (positive = the lever helped)
+      paired difference, per design  n=48172  median  +0.0000  mean  +0.3867  sd  0.9452  min  -6.0988  max  +7.4000
+      cells: 198 won, 3 lost, 15 tied, of 216
+
+  x* taken by A alone (the leak)  (positive = the lever helped)
+      paired difference, per design  n=48172  median  +0.0001  mean  +0.0660  sd  0.1757  min  -0.7021  max  +0.9923
+      cells: 216 won, 0 lost, 0 tied, of 216
+
+  main stem reached by A alone  (positive = the lever helped)
+      paired difference, per design  n=48172  median  +0.0080  mean  +0.1258  sd  0.2306  min  -0.8221  max  +0.9929
+      cells: 212 won, 4 lost, 0 tied, of 216
+
+  A_M ratio  (positive = the lever helped)
+      paired difference, per design  n=48172  median  +0.0000  mean  -0.7836  sd 11.6127  min -498.4057  max +61.9750
+      cells: 211 won, 5 lost, 0 tied, of 216
+
+  IED gain, RBS loop to linker  (positive = the lever helped)
+      paired difference, per design  n=48172  median  -0.0095  mean  -0.0133  sd  0.0511  min  -0.2186  max  +0.2012
+      cells: 74 won, 142 lost, 0 tied, of 216
+
+  A_M in the ON state  (positive = the lever helped)
+      paired difference, per design  n=48172  median  -0.0430  mean  -0.0659  sd  0.1369  min  -0.6152  max  +0.4152
+      cells: 78 won, 138 lost, 0 tied, of 216
+
+============================================================================================
+  closure, per level, inside cells -- no conditioning, because every level writes
+============================================================================================
+  closure                 n  gating    rate   median separation
+  closed_CAU          7,672   2,066   26.9%               0.002
+  closed_CGU         10,114   2,560   25.3%               0.001
+  closed_UAU         10,432   2,542   24.4%               0.001
+  pair2_CCU          14,035   2,977   21.2%               0.000
+  d2_gc3_CGC         14,288   2,995   21.0%               0.000
+  d2_gc0_AAU         13,214   2,738   20.7%               0.000
+  d2_gc1_AGU         14,552   3,000   20.6%               0.000
+  pair1_CCC          14,723   2,851   19.4%               0.000
+  d0_gc1_ACA         14,870   2,840   19.1%               0.000
+  d1_gc1_AAC         15,014   2,513   16.7%               0.000
+  d1_gc2_AGC         15,103   2,294   15.2%               0.000
+  d0_gc2_ACC         15,026   2,354   15.7%               0.000
+  d0_gc0_AUA         15,027   2,750   18.3%               0.000
+  d1_gc0_AAA         15,005   2,726   18.2%               0.000
+  d0_gc3_GCC         15,123   2,007   13.3%               0.000
+  open_3x3           15,610   1,489    9.5%               0.000

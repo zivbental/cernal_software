@@ -1,0 +1,129 @@
+  301,440 rows, 219,808 measured in full, 420 cells
+
+============================================================================================
+1. WITHIN-CELL AGREEMENT -- arm to arm, beside arm to stem energy
+  Same measure throughout: Spearman inside each cell, then the median over cells.
+  |rho| near 1 means the two carry the same ordering of designs.
+
+  arm to arm
+  sep_open vs sep_a_m                   n   389  median  +0.799  +389/-0  p  1.6e-117
+  sep_open vs sep_ied                   n   389  median  +0.628  +379/-10  p   3.2e-98
+  sep_open vs sep_dg_open               n   389  median  +0.915  +389/-0  p  1.6e-117
+  sep_a_m vs sep_ied                    n   389  median  +0.899  +386/-3  p  1.6e-110
+  sep_a_m vs sep_dg_open                n   389  median  +0.801  +389/-0  p  1.6e-117
+  sep_ied vs sep_dg_open                n   389  median  +0.619  +381/-8  p    2e-101
+
+  arm to stem energy
+  sep_open vs a_site_energy             n   388  median  -0.649  +5/-383  p  2.3e-106
+  sep_open vs lock_energy               n   388  median  +0.625  +383/-5  p  2.3e-106
+  sep_open vs lock_minus_a_site         n   388  median  +0.668  +383/-5  p  2.3e-106
+  sep_a_m vs a_site_energy              n   388  median  -0.760  +4/-384  p    3e-108
+  sep_a_m vs lock_energy                n   388  median  +0.724  +384/-4  p    3e-108
+  sep_a_m vs lock_minus_a_site          n   388  median  +0.785  +384/-4  p    3e-108
+  sep_ied vs a_site_energy              n   388  median  -0.620  +15/-373  p   1.3e-90
+  sep_ied vs lock_energy                n   388  median  +0.593  +372/-16  p   3.1e-89
+  sep_ied vs lock_minus_a_site          n   388  median  +0.633  +373/-15  p   1.3e-90
+  sep_dg_open vs a_site_energy          n   388  median  -0.653  +5/-383  p  2.3e-106
+  sep_dg_open vs lock_energy            n   388  median  +0.628  +384/-4  p    3e-108
+  sep_dg_open vs lock_minus_a_site      n   388  median  +0.677  +383/-5  p  2.3e-106
+
+============================================================================================
+2. closure x scheme, INSIDE narrow a_site_energy strata
+  B-anchored and mixed have different a_site_energy distributions by construction, so
+  the raw interaction could be the energy wearing a label. Strata are quartiles of
+  a_site_energy over the fully measured designs; the interaction is recomputed in each.
+
+  stratum 0: a_site -41.3 to -28.9 kcal/mol, 55,539 designs
+    closure                B-anchored            mixed
+    closed_CAU           -0.97( 110)     -0.26(1820)
+    closed_CGU           -0.64( 167)     -0.25(2450)
+    closed_UAU           -0.59( 161)     -0.18(2502)
+    d0_gc0_AUA           +0.04( 211)     +0.05(3560)
+    d0_gc1_ACA           +0.03( 210)     +0.04(3527)
+    d0_gc2_ACC           +0.06( 212)     +0.06(3548)
+    d0_gc3_GCC           +0.06( 218)     +0.06(3584)
+    d1_gc0_AAA           +0.05( 212)     +0.05(3558)
+    d1_gc1_AAC           +0.05( 212)     +0.06(3547)
+    d1_gc2_AGC           +0.06( 217)     +0.06(3593)
+    d2_gc0_AAU           -0.01( 191)     +0.03(3145)
+    d2_gc1_AGU           -0.06( 230)     +0.02(3490)
+    d2_gc3_CGC           -0.05( 200)     +0.01(3429)
+    open_3x3             +0.07( 226)     +0.07(3693)
+    pair1_CCC            -0.04( 218)     +0.04(3519)
+    pair2_CCU            -0.18( 222)     -0.02(3357)
+
+  stratum 1: a_site -28.8 to -24.0 kcal/mol, 55,038 designs
+    closure                B-anchored            mixed
+    closed_CAU           -0.98( 197)     -0.50(1752)
+    closed_CGU           -0.79( 250)     -0.40(2371)
+    closed_UAU           -0.16( 251)     -0.21(2419)
+    d0_gc0_AUA           +0.06( 344)     +0.07(3390)
+    d0_gc1_ACA           +0.04( 335)     +0.05(3360)
+    d0_gc2_ACC           +0.07( 349)     +0.07(3386)
+    d0_gc3_GCC           +0.07( 344)     +0.08(3377)
+    d1_gc0_AAA           +0.06( 346)     +0.07(3395)
+    d1_gc1_AAC           +0.07( 352)     +0.07(3395)
+    d1_gc2_AGC           +0.07( 354)     +0.07(3395)
+    d2_gc0_AAU           +0.04( 315)     +0.04(3035)
+    d2_gc1_AGU           +0.03( 347)     +0.04(3308)
+    d2_gc3_CGC           +0.01( 346)     +0.04(3287)
+    open_3x3             +0.08( 362)     +0.08(3471)
+    pair1_CCC            +0.04( 344)     +0.06(3346)
+    pair2_CCU            -0.00( 326)     +0.03(3189)
+
+  stratum 2: a_site -23.9 to -17.9 kcal/mol, 54,585 designs
+    closure                B-anchored            mixed
+    closed_CAU           -0.76( 449)     -0.69(1647)
+    closed_CGU           -0.65( 565)     -0.67(2039)
+    closed_UAU           -0.46( 561)     -0.53(2119)
+    d0_gc0_AUA           +0.11( 796)     +0.11(2913)
+    d0_gc1_ACA           +0.08( 784)     +0.08(2885)
+    d0_gc2_ACC           +0.13( 801)     +0.13(2878)
+    d0_gc3_GCC           +0.13( 802)     +0.13(2930)
+    d1_gc0_AAA           +0.12( 797)     +0.12(2901)
+    d1_gc1_AAC           +0.12( 797)     +0.12(2872)
+    d1_gc2_AGC           +0.13( 805)     +0.12(2878)
+    d2_gc0_AAU           +0.08( 700)     +0.06(2597)
+    d2_gc1_AGU           +0.07( 781)     +0.06(2801)
+    d2_gc3_CGC           +0.06( 786)     +0.05(2762)
+    open_3x3             +0.14( 821)     +0.12(2986)
+    pair1_CCC            +0.10( 782)     +0.10(2826)
+    pair2_CCU            +0.04( 762)     +0.04(2762)
+
+  stratum 3: a_site -17.8 to 7.6 kcal/mol, 54,646 designs
+    closure                B-anchored            mixed
+    closed_CAU           -0.97( 733)     -0.99( 964)
+    closed_CGU           -1.22(1010)     -0.98(1262)
+    closed_UAU           -1.04(1073)     -0.98(1346)
+    d0_gc0_AUA           +0.15(1906)     +0.16(1907)
+    d0_gc1_ACA           +0.09(1867)     +0.12(1902)
+    d0_gc2_ACC           +0.17(1937)     +0.18(1915)
+    d0_gc3_GCC           +0.18(1958)     +0.19(1910)
+    d1_gc0_AAA           +0.16(1903)     +0.17(1893)
+    d1_gc1_AAC           +0.17(1931)     +0.18(1908)
+    d1_gc2_AGC           +0.17(1952)     +0.18(1909)
+    d2_gc0_AAU           +0.09(1571)     +0.10(1660)
+    d2_gc1_AGU           +0.09(1770)     +0.10(1825)
+    d2_gc3_CGC           +0.06(1728)     +0.07(1750)
+    open_3x3             +0.12(2041)     +0.17(2010)
+    pair1_CCC            +0.13(1832)     +0.14(1856)
+    pair2_CCU            +0.06(1662)     +0.07(1755)
+
+============================================================================================
+3. IS 0% SURVIVAL A SHARD OR A TRIGGER PAIR?
+  210 trigger pairs with rows so far
+    pairs where NO design opens:           15  (7.1%)
+    pairs where >95% of designs open:      75  (35.7%)
+    median pair survival 0.880  mean 0.729  sd 0.327
+
+  distribution of per-pair survival -- a U shape means the pair decides, not the design
+      0- 10%      22  #############
+     10- 20%       3  #
+     20- 30%      11  ######
+     30- 40%       5  ###
+     40- 50%       5  ###
+     50- 60%       7  ####
+     60- 70%      13  #######
+     70- 80%      19  ###########
+     80- 90%      27  ################
+     90-100%      98  ############################################################
