@@ -284,8 +284,23 @@ def validate_job_configuration(
         raise ValueError("scientific_provenance is engine-generated metadata, not a parameter.")
     if input_mode not in ("direct", "de", "gene"):
         raise ValueError("input_mode must be direct, de, or gene.")
-    folding = FoldingConfig.from_mapping(params.get("folding", {}))
-    for block in ("constraints", "payload", "backbone", "scoring", "statistics", "target_gene"):
+    from engine.pipeline import _folding_params, _is_and_run
+
+    try:
+        is_and = _is_and_run(gate_families or ["toehold"])
+    except EngineError:
+        is_and = False  # an unknown family name is reported, by name, further down
+    folding = FoldingConfig.from_mapping(_folding_params(params, is_and=is_and))
+    for block in (
+        "constraints",
+        "payload",
+        "backbone",
+        "scoring",
+        "statistics",
+        "target_gene",
+        "and_inputs",
+        "and_gate",
+    ):
         if block in params and not isinstance(params[block], dict):
             raise ValueError(f"params.{block} must be an object.")
     # Presentation only: retained in the snapshot for the UI, never a search budget.
@@ -338,12 +353,32 @@ def validate_job_configuration(
                 "constraints": {**(params.get("constraints") or {}), "standard": "none"},
             }
         constraints = _build_constraints(effective)
-        if constraints.max_circuit_gates > 1 or constraints.max_triggers > 1:
-            raise ValueError(
-                "Unsupported physical circuit: production supports one input and one gate."
-            )
-        resolve_profile(scoring_profile, params.get("scoring"))
         families = gate_families or ["toehold"]
+        # Families this build cannot run are named by the loop below; the arity rules apply to
+        # the ones it can.
+        runnable = [
+            name
+            for name in families
+            if name not in _UNBUILDABLE_FAMILIES and get_family(name).available
+        ]
+        arities = {get_family(name).max_inputs for name in runnable} or {1}
+        if len(arities) > 1:
+            raise ValueError(
+                "A two-input AND run cannot be combined with single-input gate families; "
+                "submit them as separate runs."
+            )
+        arity = arities.pop()
+        if arity == 1:
+            if constraints.max_circuit_gates > 1 or constraints.max_triggers > 1:
+                raise ValueError(
+                    "Unsupported physical circuit: production supports one input and one gate."
+                )
+            for block in ("and_inputs", "and_gate"):
+                if block in params:
+                    raise ValueError(f"params.{block} applies only to a two-input AND gate.")
+        else:
+            and_settings = _validate_and_run(params, constraints, input_mode, arity)
+        resolve_profile(scoring_profile, params.get("scoring"))
         for name in families:
             family = get_family(name)
             if (
@@ -395,8 +430,50 @@ def validate_job_configuration(
         "constraints": dataclasses.asdict(constraints),
         "folding": dataclasses.asdict(folding),
         "budget": {"max_designs": max_designs},
+        **(
+            {
+                "and_inputs": {key: value.strip() for key, value in params["and_inputs"].items()},
+                "and_gate": and_settings.to_dict(),
+            }
+            if is_and
+            else {}
+        ),
     }
     return copy.deepcopy(normalized)
+
+
+def _validate_and_run(params: dict, constraints, input_mode: str, arity: int):
+    """The submission rules of a two-input AND run (raises ``ValueError`` naming the field).
+
+    One gate with ``arity`` inputs: ``max_circuit_gates`` stays 1 and ``max_triggers`` must say
+    how many inputs the gate takes. The two input genes are picked from a differential-expression
+    table, so no other input mode can name them. Returns the validated ``AndGateSettings``.
+    """
+    from engine.domain import AndGateSettings
+    from engine.pipeline import _and_gene_pair
+
+    if constraints.max_circuit_gates > 1:
+        raise ValueError(
+            "Unsupported physical circuit: an AND gate is one gate with two inputs; "
+            "constraints.max_circuit_gates must be 1."
+        )
+    if constraints.max_triggers != arity:
+        raise ValueError(
+            f"A two-input AND gate takes exactly {arity} inputs: set constraints.max_triggers "
+            f"to {arity} (it is {constraints.max_triggers})."
+        )
+    if input_mode != "de":
+        raise ValueError(
+            "The two-input AND gate needs a differential-expression table (input_mode 'de') "
+            "and the two input genes; a pasted sequence or a single gene cannot name two inputs."
+        )
+    try:
+        genes = _and_gene_pair(params)
+    except EngineError as exc:
+        raise ValueError(str(exc)) from exc
+    if genes is None:
+        raise ValueError("Name the two input genes: params.and_inputs.gene_a and gene_b.")
+    return AndGateSettings.from_mapping(params.get("and_gate"))
 
 
 def _installed_capabilities(engine_version: str) -> EngineCapabilities:
@@ -420,6 +497,16 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
             for f in describe_families()
             if f.available and f.name not in _UNBUILDABLE_FAMILIES
         },
+        family_inputs={
+            f.name: get_family(f.name).max_inputs
+            for f in describe_families()
+            if f.available and f.name not in _UNBUILDABLE_FAMILIES
+        },
+        family_input_modes={
+            f.name: (["direct", "de", "gene"] if get_family(f.name).max_inputs == 1 else ["de"])
+            for f in describe_families()
+            if f.available and f.name not in _UNBUILDABLE_FAMILIES
+        },
         supported_outputs=[outcome.value for outcome in PAYLOAD_HOSTS],
         output_hosts={
             outcome.value: [host.value for host in hosts]
@@ -434,7 +521,10 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
             "max_designs_default": 20,
             "max_designs_limit": 1000,
             "max_circuit_gates": 1,
+            # Inputs of one physical gate: 1 for a single-input switch, 2 for a two-input AND
+            # (``family_inputs`` says which family takes which).
             "max_triggers": 1,
+            "max_gate_inputs": 2,
         },
         constraints=dataclasses.asdict(Constraints()),
         scoring_profiles=available_profiles(),

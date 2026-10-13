@@ -38,13 +38,13 @@ so that convention is the only rule there is.
 | | Count |
 | --- | ---: |
 | Modules | 75 |
-| Public classes | 115 |
-| Public callables (excluding `__init__`) | 428 |
-| — `BUILT` | 415 |
+| Public classes | 116 |
+| Public callables (excluding `__init__`) | 435 |
+| — `BUILT` | 422 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
-| `__init__` constructors | 21 |
+| `__init__` constructors | 22 |
 
 ## Index
 
@@ -53,7 +53,7 @@ layers above it, never the ones below.
 
 | Layer | Module | S | Not `STUB` | `STUB` | Purpose |
 | --- | --- | --- | ---: | ---: | --- |
-| domain | `engine.domain` |  | 32 | 0 | The engine's scientific vocabulary. |
+| domain | `engine.domain` |  | 34 | 0 | The engine's scientific vocabulary. |
 | sequences | `engine.sequences` | S6 | 12 | 0 | S6 — sequence facts. Pure functions, no state, no dependencies. |
 | scoring | `engine.scoring` |  | 0 | 0 |  |
 | scoring | `engine.scoring.crispr` |  | 5 | 0 | The document's inner J and outer Phi, separate from DEFAULT_V1 ranking. |
@@ -71,11 +71,11 @@ layers above it, never the ones below.
 | gate_tools | `engine.gates.tools.rnaviz.models` |  | 2 | 0 | Drawable nucleotide and base-pair types adapted from cernal-rnaviz. |
 | gates | `engine.gates` |  | 0 | 0 |  |
 | gates | `engine.gates.antisense` |  | 5 | 0 | Antisense NOT gate. |
-| gates | `engine.gates.base` |  | 10 | 0 | The GateFamily interface. |
+| gates | `engine.gates.base` |  | 11 | 0 | The GateFamily interface. |
 | gates | `engine.gates.crispr` |  | 8 | 0 | Research implementation of the endogenous iSBH-sgRNA construction. |
 | gates | `engine.gates.euk_antisense` |  | 5 | 0 | Eukaryotic antisense NOT gate. |
 | gates | `engine.gates.registry` |  | 4 | 0 | Gate family lookup. |
-| gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
+| gates | `engine.gates.toehold` |  | 24 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
 | gates | `engine.gates.notebooks.toehold_and._joint_state_parallel` |  | 3 | 0 | Shared helpers of the toehold notebooks (used by ``eu_and_v3.ipynb`` and its workers). |
@@ -426,6 +426,37 @@ The researcher's limits, carried into every stage that has to respect them.
 | `max_base_expression` | `float \| None` | `None` |
 | `trigger_gc_range` | `tuple[float, float]` | `(30.0, 70.0)` |
 | `direction_balance` | `bool` | `True` |
+
+#### `class AndGateSettings`
+
+`@dataclass(frozen=True, slots=True)`
+
+Every tunable of the two-input eukaryotic AND gate, with the notebook's defaults.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `n_samples` | `int` | `2000` |
+| `screen_samples` | `int` | `300` |
+| `n_controls` | `int` | `5` |
+| `controls_sampled` | `bool` | `False` |
+| `windows_per_gene` | `int` | `3` |
+| `singles_per_trigger` | `int` | `3` |
+| `spacer_variants` | `tuple[str, ...]` | `('no_spacer', 'spacer')` |
+| `spacer_min_length` | `int` | `15` |
+| `spacer_max_length` | `int` | `20` |
+| `spacer_pool_size` | `int` | `150` |
+| `max_overlap_nt` | `int` | `8` |
+| `wobble_max_fraction` | `float` | `0.5` |
+| `verify_sigma` | `float` | `4.0` |
+| `verify_floor_nt` | `float` | `0.02` |
+| `off_floor_pct` | `float` | `1.0` |
+| `noise_check` | `bool` | `True` |
+| `noise_seed_offset` | `int` | `1000` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `@classmethod def from_mapping(cls, raw: dict \| None) -> 'AndGateSettings'` | Validate a JSON-sourced mapping. ``None``/empty gives the defaults. |
+| `BUILT` | `def to_dict(self) -> dict` | The settings as plain JSON types, for ``scientific_provenance``. |
 
 #### `class Compatibility`
 
@@ -1370,6 +1401,7 @@ Base class for every switch chemistry.
 | `ABSTRACT` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Measure a design. Returns **raw** values keyed by metric name. |
 | `ABSTRACT` | `def emit_sequence(self, design: GateDesign) -> str` | The synthesis-ready sequence for this design. |
 | `BUILT` | `def emit_artifacts(self, design: GateDesign, output_dir: str) -> list[ArtifactRef]` | Family-specific files. Optional — the default produces none. |
+| `BUILT` | `def diagnostics(self, design: GateDesign) -> dict` | Measurements beyond the nine scored metrics, for the stored result. Optional. |
 | `BUILT` | `def describe(self, design: GateDesign) -> str` | One-line human summary. Overridable, with a reasonable default. |
 
 ### `engine.gates.crispr`
@@ -1586,15 +1618,26 @@ Single-input toehold family for eukaryotic translation.
 
 #### `class EukaryoticToeholdAndGate(ToeholdAndGate)`
 
-Two-input AND toehold family for eukaryotic translation.
+Two-input AND toehold for eukaryotic translation: two toehold hairpins in series.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'eukaryotic_toehold_and'` |
 | `design_prefix` |  | `'eukaryotic_toehold_and'` |
+| `version` |  | `'0.2.0-sampled-stem-opening'` |
 | `label` |  | `'Eukaryotic AND Toehold'` |
-| `description` |  | `'Eukaryotic two-input translational AND'` |
+| `description` |  | `'Eukaryotic two-input translational AND: two toehold hairpins in series'` |
 | `supported_hosts` | `ClassVar[frozenset[Host]]` | `frozenset({Host.YEAST, Host.HUMAN})` |
+| `available` |  | `True` |
+| `CONTROL_WINDOW` | `ClassVar[int]` | `60` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer, *, payload: str \| None = None, settings: AndGateSettings \| None = None, control_pool: tuple[str, ...] = (), gene_pair: tuple[str, str] \| None = None, seed: int = 0) -> None` |  |
+| `BUILT` | `def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility` | The inherited arity, direction, host and length checks, plus one string screen: two triggers that are near-identical or complementary to each other would cross-talk, so the pair is rejected here, before any fold (the reason is shown to the… |
+| `BUILT` | `def generate_designs(self, trigger_set: TriggerSet, constraints: Constraints) -> Iterator[GateDesign]` | Fused AND designs for one pair of triggers, best first. |
+| `BUILT` | `def evaluate_design(self, design: GateDesign) -> dict[str, float \| None]` | Measure one fused AND design. |
+| `BUILT` | `def diagnostics(self, design: GateDesign) -> dict` | Everything :meth:`evaluate_design` measured beyond the scored metrics: each state's Open and sampler check, the controls, ``dG``, warnings and (when requested) the seed-to-seed noise. ``{}`` for a design that was not evaluated. |
 
 ### `engine.gates.notebooks._fixtures`
 
@@ -2649,6 +2692,8 @@ What this engine build can do.
 | `available_backbones` | `list[BackboneInfo]` | `field(default_factory=list)` |
 | `supported_hosts` | `list[str]` | `field(default_factory=list)` |
 | `family_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
+| `family_inputs` | `dict[str, int]` | `field(default_factory=dict)` |
+| `family_input_modes` | `dict[str, list[str]]` | `field(default_factory=dict)` |
 | `supported_outputs` | `list[str]` | `field(default_factory=list)` |
 | `output_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
 | `backbone_hosts` | `dict[str, list[str]]` | `field(default_factory=dict)` |
@@ -2794,6 +2839,7 @@ The real scientific pipeline.
 | `ProgressFn` |  | `Callable[[int, str], bool]` |
 | `STAGE_WEIGHTS` | `dict[str, int]` | `{'Validating inputs': 2, 'Selecting genes': 5, 'Scoring triggers': 25, 'Designing switc…` |
 | `MAX_TRIGGER_LENGTH` |  | `10000` |
+| `AND_DEFAULT_SALT_MOLAR` |  | `0.1` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |

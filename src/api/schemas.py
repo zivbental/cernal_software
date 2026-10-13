@@ -490,6 +490,23 @@ class DesignIn(Schema):
     # --- search constraints: engine.domain.Constraints, field for field ---
     constraints: dict = Field(default_factory=dict)
 
+    # --- two-input AND gate (family "eukaryotic_toehold_and") ---
+    and_inputs: dict = Field(
+        default_factory=dict,
+        description=(
+            '{"gene_a": ..., "gene_b": ...}: the two input genes, both from the submitted '
+            "differential-expression table (the same gene twice is allowed: two windows of "
+            "one transcript). Required for a two-input AND gate, rejected otherwise."
+        ),
+    )
+    and_gate: dict = Field(
+        default_factory=dict,
+        description=(
+            "Optional AND-gate settings (n_samples, n_controls, noise_check, ...). Unknown "
+            "fields and invalid values are rejected."
+        ),
+    )
+
     # --- one thermodynamic model shared by design and transcript folding ---
     folding: dict = Field(
         default_factory=dict,
@@ -548,6 +565,8 @@ class DesignResolvedOut(Schema):
     budget: dict = Field(default_factory=dict)
     payload: dict = Field(default_factory=dict)
     backbone: dict = Field(default_factory=dict)
+    and_inputs: dict = Field(default_factory=dict)
+    and_gate: dict = Field(default_factory=dict)
 
 
 class DesignAcceptedOut(Schema):
@@ -640,6 +659,8 @@ class VersionOut(Schema):
     reviewer_login_enabled: bool = False
     supported_hosts: list[str] = Field(default_factory=list)
     family_hosts: dict[str, list[str]] = Field(default_factory=dict)
+    family_inputs: dict[str, int] = Field(default_factory=dict)
+    family_input_modes: dict[str, list[str]] = Field(default_factory=dict)
     supported_outputs: list[str] = Field(default_factory=list)
     output_hosts: dict[str, list[str]] = Field(default_factory=dict)
     backbone_hosts: dict[str, list[str]] = Field(default_factory=dict)

@@ -22,6 +22,7 @@ Reference: design map 12, and the pipeline map's Switches Design stage.
 """
 
 import math
+import random
 import re
 from bisect import bisect_right
 from collections.abc import Iterator
@@ -31,6 +32,7 @@ from typing import ClassVar
 
 from engine import sequences as sq
 from engine.domain import (
+    AndGateSettings,
     Compatibility,
     Constraints,
     GateDesign,
@@ -50,6 +52,19 @@ from engine.gates.tools.binding import (
 )
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
+from engine.gates.tools.stem_opening import (
+    and_state,
+    and_state_strands,
+    both_triggers_extra,
+    fuse,
+    generate_spacer_candidates,
+    longest_identity_run,
+    matrix_open_nt,
+    pick_optimized_spacer,
+    single_state,
+    state_ok_and,
+    trigger_pair_too_similar,
+)
 from engine.gates.tools.translation import TranslationScorer
 
 
@@ -2017,13 +2032,560 @@ class EukaryoticToeholdGate(ToeholdGate):
 
 
 class EukaryoticToeholdAndGate(ToeholdAndGate):
-    """Two-input AND toehold family for eukaryotic translation."""
+    """Two-input AND toehold for eukaryotic translation: two toehold hairpins in series.
+
+    **Mechanism.** The 5' hairpin (A) is the first switch up to its own Kozak; the 3' hairpin (B) is
+    the second switch after its own prefix, with the Kozak, the start codon and the payload at its
+    end. A spacer may sit between them. Payload translation is intended only when **both** triggers
+    are present, each opening its own hairpin. Two triggers may come from the same gene (two
+    windows of one transcript); nothing here deduplicates them.
+
+    **Where the single switches come from.** Not from a CSV: each trigger's hairpins are built by
+    the inherited ``ToeholdGate`` sweep, restricted to the ``"trailing"`` Kozak layout (prefix,
+    toehold, stem up, loop, stem down, Kozak, AUG) -- the layout of the NucSyn designs ``eu_and_v3``
+    fuses, with the same 8 nt prefix, 18 nt stem and ``GCCACC`` Kozak. The best
+    ``settings.singles_per_trigger`` variants of each trigger (by sampled ``ON - OFF`` of the single
+    switch, a screen at ``settings.screen_samples`` draws) are fused in both orders and with each
+    spacer variant, best first.
+
+    **What it measures** (``evaluate_design``; definitions in
+    ``notebooks/toehold_and/eu_and_v3_spec.md``, code in ``tools/stem_opening.py``). For each of the
+    four states (alone, +A, +B, +A+B) and each mismatched-trigger control, ``settings.n_samples``
+    structures are drawn from the Boltzmann ensemble, and
+
+        Open = E[ min(r_A / L_A, r_B / L_B) ]
+
+    where ``r`` is the longest run of ``stem_up`` nucleotides not paired to their own ``stem_down``
+    and each hairpin is normalised by its own stem length. ``ON = 100 Open(+A+B)``;
+    ``OFF = 100 max(Open(alone), Open(+A), Open(+B), Control)``.
+
+    **Metric meanings** (CLAUDE.md sec 6: ``predicted_leakage`` is a different event per
+    chemistry). Here ``predicted_leakage`` is ``OFF / 100``: the worst joint stem opening over the
+    states that should stay shut -- a structural proxy for OFF-state translation, **not** a measured
+    expression leak. ``dynamic_range`` is ``ON / max(OFF, off_floor_pct)`` (linear) and
+    ``state_separation`` its log2. Everything else that the run learned about a candidate -- each
+    state's Open, the sampler checks, the controls, dG -- is returned by :meth:`diagnostics`.
+
+    ``orthogonality`` is not emitted for the same reason as the single-input family: there is no
+    other gate in the circuit to be independent of. Cross-talk *between this gate's own inputs* is
+    measured, and it is what sets OFF; it is reported under ``diagnostics``, not under a metric
+    name the profile defines differently.
+    """
 
     name = "eukaryotic_toehold_and"
     design_prefix = "eukaryotic_toehold_and"
+    # Re-declared, not inherited: ToeholdAndGate carries ``version = "0.1.0-stub"``, and
+    # ``available`` is inherited as True from ToeholdGate over stub bodies (CLAUDE.md sec 9).
+    version = "0.2.0-sampled-stem-opening"
     label = "Eukaryotic AND Toehold"
-    description = "Eukaryotic two-input translational AND"
+    description = "Eukaryotic two-input translational AND: two toehold hairpins in series"
     supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.YEAST, Host.HUMAN})
+    available = True
+
+    #: Length of the control-trigger windows kept in the pool (>= every trigger length).
+    CONTROL_WINDOW: ClassVar[int] = 60
+
+    def __init__(
+        self,
+        host: Host,
+        folder: FoldEngine,
+        translation: TranslationScorer,
+        codons: CodonOptimizer,
+        *,
+        payload: str | None = None,
+        settings: AndGateSettings | None = None,
+        control_pool: tuple[str, ...] = (),
+        gene_pair: tuple[str, str] | None = None,
+        seed: int = 0,
+    ) -> None:
+        # Only the trailing layout builds a hairpin whose Kozak can be dropped and re-attached
+        # after the second hairpin; the "loop" layout carries the Kozak inside the loop.
+        super().__init__(
+            host, folder, translation, codons, kozak_layouts=("trailing",), payload=payload
+        )
+        self.settings = settings or AndGateSettings()
+        self.seed = seed
+        # The two input genes the researcher chose (equal when both inputs are windows of one
+        # gene). ``None`` accepts any pair of triggers, which is what a direct caller gets.
+        self.gene_pair = gene_pair
+        pool = []
+        for window in control_pool:
+            rna = sq.to_rna(window)
+            if not sq.is_valid_rna(rna) or len(rna) < self.CONTROL_WINDOW:
+                raise ValueError(
+                    f"control_pool windows must be RNA of at least {self.CONTROL_WINDOW} nt."
+                )
+            pool.append(rna[: self.CONTROL_WINDOW])
+        self.control_pool = tuple(pool)
+        # A spacer containing an AUG would be a competing start codon of its own making.
+        self._spacer_pool = [
+            spacer
+            for spacer in generate_spacer_candidates(
+                self.settings.spacer_pool_size,
+                self.settings.spacer_min_length,
+                self.settings.spacer_max_length,
+                seed=seed,
+            )
+            if not sq.find_augs(spacer)
+        ]
+        self._singles: dict[str, list[dict]] = {}
+        self._diagnostics: dict[str, dict] = {}
+
+    # ------------------------------------------------------------------------------------------
+    def is_compatible(self, trigger_set: TriggerSet, constraints: Constraints) -> Compatibility:
+        """The inherited arity, direction, host and length checks, plus one string screen: two
+        triggers that are near-identical or complementary to each other would cross-talk, so the
+        pair is rejected here, before any fold (the reason is shown to the researcher)."""
+        result = super().is_compatible(trigger_set, constraints)
+        if not result.ok:
+            return result
+        first, second = trigger_set.activators
+        if self.gene_pair is not None and sorted((first.gene_id, second.gene_id)) != sorted(
+            self.gene_pair
+        ):
+            return Compatibility.no(
+                f"Triggers {first.trigger_id} ({first.gene_id}) and {second.trigger_id} "
+                f"({second.gene_id}) are not one window of each chosen input gene "
+                f"{self.gene_pair[0]} and {self.gene_pair[1]}."
+            )
+        if trigger_pair_too_similar(
+            first.sequence,
+            second.sequence,
+            max_overlap_nt=self.settings.max_overlap_nt,
+            wobble_max_fraction=self.settings.wobble_max_fraction,
+        ):
+            return Compatibility.no(
+                f"Triggers {first.trigger_id} and {second.trigger_id} share an identical or "
+                f"complementary run longer than {self.settings.max_overlap_nt} nt, so they would "
+                "cross-talk."
+            )
+        return Compatibility.yes()
+
+    # ------------------------------------------------------------------------------------------
+    def _records(self, trigger, constraints: Constraints) -> list[dict]:
+        """Every single-switch variant of one trigger, shaped for :func:`fuse` (a ``switch``, its
+        ``domains`` as ``name -> (start, end)``, and the ``trigger``)."""
+        records = []
+        single = TriggerSet(activators=(trigger,))
+        for design in ToeholdGate.generate_designs(self, single, constraints):
+            arch = design.architecture
+            leader = arch["leader_len"]
+            toehold_end = leader + arch["toehold_length"]
+            stem = arch["stem_pre_bulge_len"] + 3 + arch["stem_post_bulge_len"]
+            stem_up = (toehold_end, toehold_end + stem)
+            loop = (stem_up[1], stem_up[1] + arch["loop_len"])
+            stem_down = (loop[1], loop[1] + stem)
+            aug = arch["aug_index"]
+            if design.sequence[aug : aug + 3] != sq.START_CODON:
+                raise ValueError(f"{design.design_id}: aug_index does not point at an AUG.")
+            records.append(
+                {
+                    "switch": design.sequence,
+                    "dot_bracket": design.dot_bracket,
+                    "domains": {
+                        "prefix": (0, leader),
+                        "toehold": (leader, toehold_end),
+                        "stem_up": stem_up,
+                        "loop": loop,
+                        "stem_down": stem_down,
+                        # linker + Kozak + start codon: dropped from the 5' half, kept by the 3'.
+                        "kozak": (stem_down[1], aug + 3),
+                    },
+                    "trigger": trigger.sequence,
+                    "line_no": f"{trigger.trigger_id} {design.design_id}",
+                    "tag": (
+                        f"{arch['toehold_length']}-{arch['loop_len']}-{arch['kozak_linker_len']}"
+                    ),
+                    "architecture": arch,
+                }
+            )
+        return records
+
+    def _ranked_singles(self, trigger, constraints: Constraints) -> list[dict]:
+        """The single-switch variants of ``trigger``, best first by sampled ``ON - OFF`` (alone
+        versus with its trigger, ``screen_samples`` draws). A variant whose screen could not be
+        measured sorts last and is kept: a screen that cannot decide must not delete a design."""
+        cached = self._singles.get(trigger.trigger_id)
+        if cached is not None:
+            return cached
+        ranked = []
+        for record in self._records(trigger, constraints):
+            stem_up, stem_down = record["domains"]["stem_up"], record["domains"]["stem_down"]
+            length = stem_up[1] - stem_up[0]
+            states = {}
+            for state, strands in (
+                ("alone", record["switch"]),
+                ("on", f"{record['switch']}&{trigger.sequence}"),
+            ):
+                states[state] = single_state(
+                    self.folder,
+                    strands,
+                    stem_up=stem_up,
+                    stem_down=stem_down,
+                    n_samples=self.settings.screen_samples,
+                    seed=self.seed,
+                )
+            run_on, run_off = states["on"]["run_nt_sampled"], states["alone"]["run_nt_sampled"]
+            score = None if run_on is None or run_off is None else 100 * (run_on - run_off) / length
+            ranked.append({**record, "screen_score": score})
+        ranked.sort(key=lambda r: (r["screen_score"] is None, -(r["screen_score"] or 0.0)))
+        self._singles[trigger.trigger_id] = ranked
+        return ranked
+
+    def generate_designs(
+        self, trigger_set: TriggerSet, constraints: Constraints
+    ) -> Iterator[GateDesign]:
+        """Fused AND designs for one pair of triggers, best first.
+
+        For each strand order (A at the 5' end, then B at the 5' end), each of the
+        ``singles_per_trigger`` best variants of each trigger, and each spacer variant, the two
+        halves are fused (:func:`fuse`, which asserts that every relocated domain still holds its
+        original sequence). The designs are sorted by the sum of their halves' single-switch screen
+        scores, so a caller that keeps only the first few (the run's ``budget.max_designs``) keeps
+        the most promising. No design is judged here: a fused construct with a second AUG, a
+        forbidden motif or a stem that does not fold is rejected, with its reason, by
+        ``SwitchValidator`` -- not silently dropped.
+        """
+        first, second = trigger_set.activators
+        keep = self.settings.singles_per_trigger
+        built_designs: list[tuple[float, int, GateDesign]] = []
+        for order in ((first, second), (second, first)):
+            five, three = order
+            for rec_a in self._ranked_singles(five, constraints)[:keep]:
+                for rec_b in self._ranked_singles(three, constraints)[:keep]:
+                    for variant in self.settings.spacer_variants:
+                        if variant == "spacer":
+                            spacer, worst_run = pick_optimized_spacer(
+                                rec_a, rec_b, self._spacer_pool
+                            )
+                        else:
+                            spacer, worst_run = "", None
+                        built, problem = fuse(rec_a, rec_b, "kozak", "prefix", spacer)
+                        if problem:
+                            raise ValueError(f"AND fusion of generated switches failed: {problem}")
+                        built_designs.append(
+                            (
+                                (rec_a["screen_score"] or 0.0) + (rec_b["screen_score"] or 0.0),
+                                len(built_designs),
+                                self._fused_design(
+                                    TriggerSet(activators=order),
+                                    rec_a,
+                                    rec_b,
+                                    variant,
+                                    spacer,
+                                    worst_run,
+                                    built,
+                                ),
+                            )
+                        )
+        built_designs.sort(key=lambda item: (-item[0], item[1]))
+        for _score, _index, design in built_designs:
+            yield design
+
+    def _fused_design(self, trigger_set, rec_a, rec_b, variant, spacer, worst_run, built):
+        fused = built["fused"]
+        cut_5p = rec_a["domains"]["kozak"][0]
+        keep_3p = rec_b["domains"]["prefix"][1]
+        dot_bracket = (
+            rec_a["dot_bracket"][:cut_5p] + "." * len(spacer) + rec_b["dot_bracket"][keep_3p:]
+        )
+        if len(dot_bracket) != len(fused):
+            raise ValueError("fused dot-bracket and sequence differ in length.")
+        d5, d3 = built["domains_5p"], built["domains_3p"]
+        arch_b = rec_b["architecture"]
+        first, second = trigger_set.activators
+        architecture = {
+            # What the plasmid builder and validator read, relocated into the fused frame.
+            "aug_index": d3["kozak"][1] - 3,
+            "payload_head_length": arch_b["payload_head_length"],
+            "linker_len": arch_b["linker_len"],
+            "track": arch_b["track"],
+            "kozak_layout": "trailing",
+            "toehold_length": rec_a["architecture"]["toehold_length"],
+            "trigger_footprint_length": rec_a["architecture"]["trigger_footprint_length"],
+            "trigger_orientation": "transcript_forward",
+            "kozak_rc_in_toehold": bool(
+                rec_a["architecture"]["kozak_rc_in_toehold"] or arch_b["kozak_rc_in_toehold"]
+            ),
+            "and": {
+                "triggers_5p_to_3p": [first.trigger_id, second.trigger_id],
+                "hairpin_a": {
+                    "variant": rec_a["tag"],
+                    "domains": {k: list(v) for k, v in d5.items()},
+                    "footprint": list(built["footprint_5p"]),
+                    "screen_score_pct": rec_a["screen_score"],
+                },
+                "hairpin_b": {
+                    "variant": rec_b["tag"],
+                    "domains": {k: list(v) for k, v in d3.items()},
+                    "footprint": list(built["footprint_3p"]),
+                    "screen_score_pct": rec_b["screen_score"],
+                },
+                "spacer": {
+                    "variant": variant,
+                    "sequence": spacer,
+                    "length_nt": len(spacer),
+                    "worst_complementary_run_nt": worst_run,
+                    "span": list(built["spacer_span"]),
+                },
+            },
+        }
+        return GateDesign(
+            design_id=(
+                f"{self.design_prefix}-{first.trigger_id}-{second.trigger_id}-{variant}"
+                f"-{rec_a['tag']}-{rec_b['tag']}"
+            ),
+            gate_kind=self.kind,
+            host=self.host,
+            trigger_set=trigger_set,
+            sequence=fused,
+            dot_bracket=dot_bracket,
+            architecture=architecture,
+        )
+
+    # ------------------------------------------------------------------------------------------
+    def _control_pairs(self, first, second) -> list[tuple[str, str]]:
+        """Up to ``n_controls`` pairs of mismatched triggers for one candidate: windows of other
+        transcripts of the host, each sharing at most ``max_overlap_nt`` nt of identity with
+        both real triggers. Deterministic in the run's seed and the pair, never padded."""
+        rng = random.Random(f"{self.seed}:{first.trigger_id}:{second.trigger_id}")
+        pool = list(self.control_pool)
+        rng.shuffle(pool)
+        limit = self.settings.max_overlap_nt
+        chosen: list[tuple[str, str]] = []
+        pending: str | None = None
+        for window in pool:
+            if len(chosen) == self.settings.n_controls:
+                break
+            if any(longest_identity_run(window, real.sequence) > limit for real in (first, second)):
+                continue
+            if pending is None:
+                pending = window
+            else:
+                chosen.append((pending[: len(first.sequence)], window[: len(second.sequence)]))
+                pending = None
+        return chosen
+
+    def _measure(self, design: GateDesign, seed: int, *, verify: bool) -> dict:
+        """Sample the four states and the controls of one candidate and reduce them to ON/OFF."""
+        settings = self.settings
+        first, second = design.trigger_set.activators
+        and_spans = design.architecture["and"]
+        d5, d3 = and_spans["hairpin_a"]["domains"], and_spans["hairpin_b"]["domains"]
+        spans = {
+            "stem_up_a": tuple(d5["stem_up"]),
+            "stem_down_a": tuple(d5["stem_down"]),
+            "stem_up_b": tuple(d3["stem_up"]),
+            "stem_down_b": tuple(d3["stem_down"]),
+        }
+        l_a = spans["stem_up_a"][1] - spans["stem_up_a"][0]
+        l_b = spans["stem_up_b"][1] - spans["stem_up_b"][0]
+        switch = design.architecture.get("evaluation_sequence", design.sequence)
+
+        states = {
+            name: and_state(
+                self.folder, strands, order, **spans, n_samples=settings.n_samples, seed=seed
+            )
+            for name, (strands, order) in and_state_strands(
+                switch, first.sequence, second.sequence
+            ).items()
+        }
+
+        controls = []
+        control_order = and_state_strands(switch, first.sequence, second.sequence)["+A+B"][1]
+        for control_a, control_b in self._control_pairs(first, second):
+            strands = "&".join((switch, *both_triggers_extra(control_a, control_b)))
+            if settings.controls_sampled:
+                state = and_state(
+                    self.folder,
+                    strands,
+                    control_order,
+                    **spans,
+                    n_samples=settings.n_samples,
+                    seed=seed,
+                )
+                value = state["open_frac_sampled"]
+            else:
+                bpp = self.folder.base_pair_probabilities(strands)
+                state = {
+                    "k_a_matrix": matrix_open_nt(bpp, spans["stem_up_a"], spans["stem_down_a"]),
+                    "k_b_matrix": matrix_open_nt(bpp, spans["stem_up_b"], spans["stem_down_b"]),
+                }
+                value = min(state["k_a_matrix"] / l_a, state["k_b_matrix"] / l_b)
+            controls.append({"state": state, "open_fraction": value})
+
+        terms = {name: states[name]["open_frac_sampled"] for name in ("alone", "+A", "+B")}
+        control_values = [c["open_fraction"] for c in controls]
+        if control_values:
+            terms["control"] = None if None in control_values else max(control_values)
+        on = states["+A+B"]["open_frac_sampled"]
+        measurable = on is not None and all(v is not None for v in terms.values())
+        off = max(terms.values()) if measurable else None
+        off_source = max(terms, key=lambda name: terms[name]) if measurable else None
+
+        result = {
+            "on": on,
+            "off": off,
+            "off_source": off_source,
+            "terms": terms,
+            "states": states,
+            "controls": controls,
+            "l_a": l_a,
+            "l_b": l_b,
+        }
+        if verify:
+            result["verified"] = {
+                name: state_ok_and(
+                    state,
+                    name,
+                    l_a,
+                    l_b,
+                    sigma=settings.verify_sigma,
+                    floor_nt=settings.verify_floor_nt,
+                )
+                for name, state in states.items()
+            }
+            if settings.controls_sampled:
+                result["controls_verified"] = [
+                    state_ok_and(
+                        c["state"],
+                        "+A+B",
+                        l_a,
+                        l_b,
+                        sigma=settings.verify_sigma,
+                        floor_nt=settings.verify_floor_nt,
+                    )
+                    for c in controls
+                ]
+        return result
+
+    def evaluate_design(self, design: GateDesign) -> dict[str, float | None]:
+        """Measure one fused AND design.
+
+        Returns **raw** values for the profile's metric names only (the meaning of each is in
+        the class docstring); the rest of what was measured is kept for :meth:`diagnostics`.
+        A value that could not be computed is ``None`` -- never a sentinel. Deterministic: the same
+        design, settings and seed give the same numbers.
+        """
+        settings = self.settings
+        first, second = design.trigger_set.activators
+        switch = design.architecture.get("evaluation_sequence", design.sequence)
+        main = self._measure(design, self.seed, verify=True)
+        on, off = main["on"], main["off"]
+
+        diag: dict = {
+            "definition": (
+                "ON = 100 E[min(r_A/L_A, r_B/L_B)] of the +A+B state; OFF = 100 x the largest "
+                "of the same quantity over alone, +A, +B and the mismatched-trigger controls "
+                "(r = longest run of stem-up nucleotides not paired to the hairpin's own "
+                "stem-down)."
+            ),
+            "n_samples": settings.n_samples,
+            "seed": self.seed,
+            "on_pct": None if on is None else 100 * on,
+            "off_pct": None if off is None else 100 * off,
+            "off_source": main["off_source"],
+            "off_terms_pct": {
+                name: None if value is None else 100 * value
+                for name, value in main["terms"].items()
+            },
+            "on_minus_off_pp": None if on is None or off is None else 100 * (on - off),
+            "stem_lengths_nt": {"hairpin_a": main["l_a"], "hairpin_b": main["l_b"]},
+            "states": {},
+            "controls": {
+                "mode": "sampled" if settings.controls_sampled else "exact_matrix_upper_bound",
+                "requested": settings.n_controls,
+                "found": len(main["controls"]),
+                "max_open_pct": (
+                    None
+                    if not main["controls"]
+                    or any(c["open_fraction"] is None for c in main["controls"])
+                    else 100 * max(c["open_fraction"] for c in main["controls"])
+                ),
+            },
+            "warnings": [],
+        }
+        for name, state in main["states"].items():
+            diag["states"][name] = {
+                "open_pct": None
+                if state["open_frac_sampled"] is None
+                else 100 * state["open_frac_sampled"],
+                "mean_open_nt_a": state["k_a_sampled"],
+                "mean_open_nt_b": state["k_b_sampled"],
+                "mean_open_nt_a_matrix": state["k_a_matrix"],
+                "mean_open_nt_b_matrix": state["k_b_matrix"],
+                "draws": state["n_drawn"],
+                "verified": main["verified"][name],
+            }
+            if not main["verified"][name]:
+                diag["warnings"].append(
+                    f"Sampler check failed for state {name}: the sampled number of open "
+                    "nucleotides disagrees with the exact base-pair probabilities, so this "
+                    "candidate's ON and OFF may be unreliable. The value is kept, not corrected."
+                )
+        if settings.controls_sampled and not all(main.get("controls_verified", [])):
+            diag["warnings"].append(
+                "Sampler check failed for at least one control state; the Control term of OFF may "
+                "be too high."
+            )
+        if len(main["controls"]) < settings.n_controls:
+            diag["warnings"].append(
+                f"Only {len(main['controls'])} of {settings.n_controls} mismatched-trigger "
+                "controls were available; OFF rests on the states and controls that exist."
+            )
+        if on is None or off is None:
+            diag["warnings"].append(
+                "ON or OFF could not be measured (no structures were drawn for a required state)."
+            )
+
+        if settings.noise_check:
+            again = self._measure(design, self.seed + settings.noise_seed_offset, verify=False)
+            diff = (
+                None
+                if on is None or off is None or again["on"] is None or again["off"] is None
+                else (100 * ((on - off) - (again["on"] - again["off"])))
+            )
+            diag["noise"] = {
+                "second_seed": self.seed + settings.noise_seed_offset,
+                "second_on_minus_off_pp": (
+                    None
+                    if again["on"] is None or again["off"] is None
+                    else 100 * (again["on"] - again["off"])
+                ),
+                "seed_to_seed_change_pp": diff,
+            }
+
+        g = self.folder.partition
+        strands = and_state_strands(switch, first.sequence, second.sequence)
+        g_alone, g_a, g_b = g(switch), g(first.sequence), g(second.sequence)
+        g_pa, g_pb, g_ab = g(strands["+A"][0]), g(strands["+B"][0]), g(strands["+A+B"][0])
+        diag["delta_g_kcal_per_mol"] = g_ab - min(g_alone + g_a + g_b, g_pa + g_b, g_pb + g_a)
+
+        self._diagnostics[design.design_id] = diag
+
+        floor = settings.off_floor_pct
+        on_pct, off_pct = diag["on_pct"], diag["off_pct"]
+        measured = on_pct is not None and off_pct is not None
+        return {
+            "gate_folding_energy": self.folder.mfe(switch).energy,
+            "predicted_leakage": None if off is None else off,
+            "dynamic_range": None if not measured else on_pct / max(off_pct, floor),
+            "state_separation": (
+                None if not measured else math.log2(max(on_pct, floor) / max(off_pct, floor))
+            ),
+            "trigger_accessibility": min(first.accessibility, second.accessibility),
+            "gc_content": sq.gc_content(design.sequence),
+            "predicted_success_rate": weakest_binding_confidence(
+                switch, [first.sequence, second.sequence], self.folder
+            ),
+            "circuit_complexity": self.component_count(2),
+        }
+
+    def diagnostics(self, design: GateDesign) -> dict:
+        """Everything :meth:`evaluate_design` measured beyond the scored metrics: each state's
+        Open and sampler check, the controls, ``dG``, warnings and (when requested) the
+        seed-to-seed noise. ``{}`` for a design that was not evaluated."""
+        return dict(self._diagnostics.get(design.design_id, {}))
 
 
 #: A short, non-repeating unit — no base repeats, so no length of filler ever introduces

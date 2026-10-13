@@ -22,6 +22,8 @@ from ninja import Query, Router, Status
 from api.auth import get_owned
 from api.errors import Conflict, ValidationFailed
 from api.params import (
+    AND_GATE_KEYS,
+    AND_INPUT_KEYS,
     BACKBONE_KEYS,
     BUDGET_KEYS,
     CONSTRAINT_KEYS,
@@ -107,11 +109,14 @@ def _resolve_gate_families(body: DesignIn, capabilities) -> list[str]:
             )
         return list(body.gate_families)
 
+    # A two-input family only ever runs when it is named: it needs two input genes, so it is
+    # never part of "every available family".
     families = [
         name
         for name in available
         if name not in set(body.exclude_gate_families)
         and body.organism in capabilities.family_hosts.get(name, [])
+        and capabilities.family_inputs.get(name, 1) == 1
     ]
     if not families:
         raise ValidationFailed("No gate family remains after applying exclude_gate_families.")
@@ -215,6 +220,8 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         check_known_keys(body.budget, BUDGET_KEYS, "budget field")
         check_known_keys(body.payload, PAYLOAD_KEYS, "payload field")
         check_known_keys(body.backbone, BACKBONE_KEYS, "backbone field")
+        check_known_keys(body.and_inputs, AND_INPUT_KEYS, "and_inputs field")
+        check_known_keys(body.and_gate, AND_GATE_KEYS, "and_gate field")
 
     params = {
         "constraints": body.constraints,
@@ -227,6 +234,10 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
     }
     if body.budget:
         params["budget"] = body.budget
+    if body.and_inputs:
+        params["and_inputs"] = body.and_inputs
+    if body.and_gate:
+        params["and_gate"] = body.and_gate
     if input_mode == InputMode.GENE:
         params["target_gene"] = {"gene_id": body.gene_id}
     try:
@@ -268,6 +279,14 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                     "budget": params.get("budget", {}),
                     "payload": params.get("payload", {}),
                     "backbone": params.get("backbone", {}),
+                    **(
+                        {
+                            "and_inputs": params["and_inputs"],
+                            "and_gate": params["and_gate"],
+                        }
+                        if "and_inputs" in params
+                        else {}
+                    ),
                 },
                 "estimate": estimate,
                 # The shared engine validator enforces the supported design-count budget.

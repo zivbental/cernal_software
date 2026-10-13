@@ -32,6 +32,28 @@ SCORING_KEYS = {"base", "weights", "hard_filters", "tie_breakers"}
 BUDGET_KEYS = {"max_designs", "max_runtime_seconds", "on_exceed"}
 PAYLOAD_KEYS = {"outputs", "custom_sequence"}
 BACKBONE_KEYS = {"catalog_key", "custom_genbank", "insertion_index"}
+#: The two input genes of a two-input AND gate, picked from the differential-expression table.
+AND_INPUT_KEYS = {"gene_a", "gene_b"}
+#: Mirrors ``engine.domain.AndGateSettings``' fields (the engine validates their values).
+AND_GATE_KEYS = {
+    "n_samples",
+    "screen_samples",
+    "n_controls",
+    "controls_sampled",
+    "windows_per_gene",
+    "singles_per_trigger",
+    "spacer_variants",
+    "spacer_min_length",
+    "spacer_max_length",
+    "spacer_pool_size",
+    "max_overlap_nt",
+    "wobble_max_fraction",
+    "verify_sigma",
+    "verify_floor_nt",
+    "off_floor_pct",
+    "noise_check",
+    "noise_seed_offset",
+}
 
 
 class UnknownParameter(ApiError):
