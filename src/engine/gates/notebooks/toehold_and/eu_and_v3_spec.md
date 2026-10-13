@@ -1,6 +1,6 @@
 # Spec — `eu_and_v3.ipynb` (single-switch and AND reports from sampled stem opening)
 
-> Current as of 2026-10-11. The code is the source of truth: if this file and the notebook or
+> Current as of 2026-10-12. The code is the source of truth: if this file and the notebook or
 > the helper modules disagree, the code wins and this file is wrong. Cells are referred to by
 > their section heading, not by index.
 
@@ -246,10 +246,11 @@ sum-based ones, `off`, `offSource`, `ctrl`, `ratio`, `dG`, `tied`, `ok` (four st
 ranks `A`/`B`, the CSV ranks `csvA`/`csvB`, stem and trigger lengths, spacer. The interactive page
 itself (filters, sortable table, expandable panels) is built from these files by a template that
 is **not stored in the repository**; changing the meaning of a field here means updating that
-template by hand. Figure 1 of both PDFs is the schematic `eu_and_v3_construct.svg` (this folder; embedded inline by
+template by hand. Figure 1 of the AND PDF is the schematic `eu_and_v3_construct.svg` (this folder; embedded inline by
 `_report_figures.construct_figure_svg`): hairpin A, spacer, hairpin B, Kozak and payload, in the OFF and the ON
-(+A+B) state. It carries labels only; every formula is in the report text, which cites the figure in its
-definitions. Page counts: about 2 pages of details per design (single), 5 per candidate
+(+A+B) state. Figure 1 of the single-switch PDF is `eu_and_v3_single.svg` (`construct_figure_svg(single=True)`): one
+switch, hairpin closed (OFF) and trigger bound (ON). Both carry labels only; every formula is in the report text,
+which cites the figure in its definitions. Page counts: about 2 pages of details per design (single), 5 per candidate
 (AND).
 
 ## Limitations (stated in the reports)
@@ -318,6 +319,10 @@ reaching it in the last run) leaves a small candidate pool, so `AND_TOP_N` bound
     empty and singleton workflows.
 
 ## Change log
+
+- 2026-10-12 (single-switch figure): the single report's Figure 1 is now `eu_and_v3_single.svg`, one switch in the OFF
+  and the ON state, instead of the fused AND construct (`construct_figure_svg(single=True)`); the figure width
+  in both PDFs is capped at 135 mm. No definition, value or ranking changes.
 
 - 2026-10-12 (figure, salt, wording): Figure 1 (`eu_and_v3_construct.svg`) in both reports with references in
   the definitions; the Control column header and legend no longer repeat the definition; `SALT_MOLAR = 0.1`
