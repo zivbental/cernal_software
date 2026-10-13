@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two-Input AND Gate — Results</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --surface-2: #f4f3f0;
+    --rule: #dcdad4;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #77756e;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --pole-cool: #2a78d6;
+    --pole-warm: #e34948;
+    --mid: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --surface-2: #232322;
+      --rule: #3a3a37;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #9b9a90;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --pole-cool: #3987e5;
+      --pole-warm: #e66767;
+      --mid: #383835;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --surface-2: #232322;
+    --rule: #3a3a37;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #9b9a90;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --pole-cool: #3987e5;
+    --pole-warm: #e66767;
+    --mid: #383835;
+  }
+  body {
+    background: var(--surface-1);
+    color: var(--text-primary);
+    font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0 auto;
+    max-width: 50rem;
+    padding: 2rem 16px 5rem;
+  }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .25rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.35rem; margin: 3rem 0 .5rem; letter-spacing: -.01em;
+       border-top: 1px solid var(--rule); padding-top: 1.75rem; }
+  h3 { font-size: 1.05rem; margin: 2rem 0 .4rem; }
+  p, li { color: var(--text-secondary); }
+  strong { color: var(--text-primary); font-weight: 600; }
+  .lede { font-size: 1.05rem; color: var(--text-secondary); }
+  code { font: .88em ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+         background: var(--surface-2); padding: .1em .35em; border-radius: 4px;
+         /* long file paths are one unbreakable token; without this they push the page wide */
+         overflow-wrap: anywhere; }
+  table { border-collapse: collapse; width: 100%; margin: 1.25rem 0; font-size: .9rem; }
+  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--rule); }
+  th { color: var(--text-muted); font-weight: 600; font-size: .8rem;
+       text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  figure { margin: 2rem 0; }
+  figcaption { font-size: .85rem; color: var(--text-muted); margin-top: .6rem; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .tick { fill: var(--text-muted); font-size: 11px; }
+  .lbl { fill: var(--text-secondary); font-size: 12px; }
+  .val { fill: var(--text-primary); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .grp { fill: var(--text-muted); font-size: 10.5px; letter-spacing: .05em;
+         text-transform: uppercase; }
+  .axis { stroke: var(--rule); stroke-width: 1; }
+  .note { background: var(--surface-2); border-left: 3px solid var(--series-2);
+          padding: .85rem 1rem; margin: 1.5rem 0; font-size: .92rem; border-radius: 0 4px 4px 0; }
+  .meta { color: var(--text-muted); font-size: .85rem; }
+
+  /* Narrow screens: scroll the wide things rather than shrink them. An SVG scaled to
+     390px turns 11px tick labels into 6px, which is worse than a scrollbar. */
+  @media (max-width: 640px) {
+    body { padding-left: 16px; padding-right: 16px; }
+    table { display: block; overflow-x: auto; }
+    figure { overflow-x: auto; overflow-y: hidden; }
+    svg { min-width: 580px; overflow: hidden; }
+  }
+</style>
+</head>
+<body>
+
+<h1>The two-input AND gate: what 301,440 designs say</h1>
+<p class="meta">CERNAL model page · Results and Discussion · characterisation run <code>axes_c8</code></p>
+
+<p class="lede">A one-input toehold switch reports one gene. A transcriptomic signature is a
+combination of genes, so the circuit needs logic. This section reports what we measured when we
+enumerated and folded the two-input AND gate across its whole design grid, and what those
+measurements say about whether the architecture works the way it was designed to.</p>
+
+<h2>Results</h2>
+
+<h3>R1 · The dataset, and the questions it can and cannot answer</h3>
+
+<p>The run enumerated <strong>301,440 designs</strong> over 210 trigger pairs drawn from three
+PFAS-responsive <em>E. coli</em> gene pairs (<code>ggt</code>–<code>fadB</code>,
+<code>ggt</code>–<code>astC</code>, <code>ggt</code>–<code>aldA</code>), in two switch geometries
+— 420 cells, where a cell is one trigger pair in one geometry. <strong>219,808 designs (72.9%)
+were measured in all four tube states</strong>; the remaining 27.1% were stopped by the ON-state
+ceiling and carry their rejection reason rather than being dropped.</p>
+
+<p>Every comparison below is <strong>paired inside a cell</strong>. A cell fixes both trigger
+windows and the geometry, so within one cell the only thing that differs is the design decision.
+This matters quantitatively, not just in principle: between-pair variation is far larger than
+any lever's effect, and pooling across cells measures the trigger pairs instead of the design.</p>
+
+<p>The design grid is 16 start-codon closures × 3 upper-stem settings × 2 lower-stem settings =
+96 points per cell. <strong>276 of 420 cells (65.7%) hold the complete grid</strong>; 4,736 of
+40,320 points (11.7%) are absent, and the absence is not spread evenly — <strong>82.4% of it is
+one upper-stem level, <code>WWW_AUA</code></strong>, which <code>generate_designs</code> declines
+for some trigger windows. Closure and lower-stem levels are exactly balanced (18,840 and 150,720
+rows per level), so no closure or lower-stem comparison is affected. The least-covered cells hold
+32 of 96 points, i.e. a single upper-stem level.</p>
+
+<p>Provenance is uniform: all 420 cells were built under one setting
+(<code>stem_order=front_tops</code>, 6 stems per pair, overlap 4–18 nt, <code>pair_order=spread</code>),
+so a within-cell comparison is sound. The ON ceiling actually applied was
+<strong>8.0 kcal/mol</strong> read against <code>dG_open_11</code>.</p>
+
+<div class="note"><strong>What the filter boundary allows.</strong> <code>dG_open_11</code> and the
+two state-10 leak terms are measured on <em>every</em> design, before the ceiling decides, so
+results about them hold over all 301,440 designs with no survivorship conditioning. The three OFF
+tubes are only folded once a design passes the ceiling, so every <em>contrast</em> — and every
+worst-OFF term — exists only on the 219,808 survivors. Those results are conditional on survival,
+and since survival differs by a factor of two between closure levels, that conditioning is not a
+technicality. The two kinds of claim are kept apart throughout.</div>
+
+<h3>R2 · State 10 is the state the gate is judged on</h3>
+
+<p>The architecture's premise is that trigger A alone must not open the gate: state 10 is what
+separates a two-input AND from a one-input switch. We can now say how often that premise is the
+binding constraint rather than an assumption. For each design we recorded which of the three OFF
+states the ON/OFF contrast was actually taken against.</p>
+
+<figure>
+<svg viewBox="0 0 700 250" role="img" aria-labelledby="f1t">
+  <title id="f1t">Share of designs whose ON/OFF contrast is bound by state 10</title>
+  <line class="axis" x1="190" y1="30" x2="190" y2="196"/>
+  <line class="axis" x1="190" y1="196" x2="650" y2="196"/>
+  <text class="tick" x="190" y="212" text-anchor="middle">0%</text>
+  <text class="tick" x="305" y="212" text-anchor="middle">25%</text>
+  <text class="tick" x="420" y="212" text-anchor="middle">50%</text>
+  <text class="tick" x="535" y="212" text-anchor="middle">75%</text>
+  <text class="tick" x="650" y="212" text-anchor="middle">100%</text>
+
+  <text class="lbl" x="180" y="48" text-anchor="end">sep_open</text>
+  <path d="M190,38 H646 Q650,38 650,42 V50 Q650,54 646,54 H190 Z" fill="var(--series-1)"/>
+  <text class="val" x="638" y="50" text-anchor="end" fill="#fcfcfb">99.2%</text>
+
+  <text class="lbl" x="180" y="88" text-anchor="end">sep_dg_open</text>
+  <path d="M190,78 H646 Q650,78 650,82 V90 Q650,94 646,94 H190 Z" fill="var(--series-1)"/>
+  <text class="val" x="638" y="90" text-anchor="end" fill="#fcfcfb">99.3%</text>
+
+  <text class="lbl" x="180" y="128" text-anchor="end">sep_a_m</text>
+  <path d="M190,118 H625 Q629,118 629,122 V130 Q629,134 625,134 H190 Z" fill="var(--series-1)"/>
+  <text class="val" x="617" y="130" text-anchor="end" fill="#fcfcfb">93.3%</text>
+
+  <text class="lbl" x="180" y="168" text-anchor="end">sep_ied</text>
+  <path d="M190,158 H565 Q569,158 569,162 V170 Q569,174 565,174 H190 Z" fill="var(--series-1)"/>
+  <text class="val" x="557" y="170" text-anchor="end" fill="#fcfcfb">80.3%</text>
+
+  <text class="grp" x="190" y="20">share of designs whose contrast is bound by state 10 · n = 219,808</text>
+</svg>
+<figcaption>State 10 — trigger A present, trigger B absent — is the OFF state the contrast is taken
+against in 80–99% of designs, depending on which contrast. The remainder is split between states
+00 and 01 (table below).</figcaption>
+</figure>
+
+<table>
+  <thead><tr><th>Contrast</th><th class="num">bound by 00</th><th class="num">bound by 01</th><th class="num">bound by 10</th></tr></thead>
+  <tbody>
+    <tr><td><code>sep_open</code> — main-stem opening</td><td class="num">0.1%</td><td class="num">0.7%</td><td class="num">99.2%</td></tr>
+    <tr><td><code>sep_dg_open</code> — ribosome-window opening</td><td class="num">0.1%</td><td class="num">0.6%</td><td class="num">99.3%</td></tr>
+    <tr><td><code>sep_a_m</code> — main-stem openness ratio</td><td class="num">2.0%</td><td class="num">4.7%</td><td class="num">93.3%</td></tr>
+    <tr><td><code>sep_ied</code> — ensemble defect, RBS to linker</td><td class="num">7.8%</td><td class="num">11.9%</td><td class="num">80.3%</td></tr>
+  </tbody>
+</table>
+
+<p>So the quality of a two-input gate is, to a very good approximation, a question about one tube.
+This is also what makes the state-10 leak worth measuring directly, which we do on every design:
+<code>xstar_engA_10</code> is the probability that trigger A, on its own, occupies the nucleation
+site it should not be able to reach until trigger B has released it.</p>
+
+<p>Over all 301,440 designs its <strong>median is 0.9988</strong> and only <strong>23.4% of
+designs keep it below 0.5</strong>. The companion term <code>mainpre_engA_10</code> — trigger A
+alone reaching the main stem — has median 0.9761, with 28.8% below 0.5. <strong>The leak is the
+normal case, not the exception.</strong> Consistently, the median <code>hairpin_worst_10</code>
+across measured designs is 1.8 × 10⁻⁶: in half of them the hairpins essentially do not hold once
+trigger A is present.</p>
+
+<h3>R3 · The design levers act on the leak, and not on the ON state</h3>
+
+<p>Each ON/OFF contrast is built from two measured terms — an ON-state value and the worst of the
+three OFF states. Reporting only the contrast cannot distinguish a gate that turns on better from
+a gate that leaks less, and for a ratio it cannot distinguish either from a collapsing
+denominator. Reported separately, the two sides behave completely differently.</p>
+
+<figure>
+<svg viewBox="0 0 700 430" role="img" aria-labelledby="f2t">
+  <title id="f2t">Within-cell correlation between the secondary-stem energy and each measured term</title>
+  <line class="axis" x1="564" y1="30" x2="564" y2="378" stroke-dasharray="0"/>
+  <text class="tick" x="564" y="398" text-anchor="middle">0</text>
+  <text class="tick" x="276" y="398" text-anchor="middle">−0.6</text>
+  <text class="tick" x="420" y="398" text-anchor="middle">−0.3</text>
+  <text class="tick" x="612" y="398" text-anchor="middle">+0.1</text>
+  <line class="axis" x1="190" y1="378" x2="660" y2="378"/>
+
+  <text class="grp" x="30" y="20">Spearman ρ, within cell · weaker trigger-A grip on the secondary arm →</text>
+
+  <text class="grp" x="30" y="46">state-10 leak — measured on every design</text>
+  <text class="lbl" x="166" y="64" text-anchor="end">xstar_engA_10</text>
+  <path d="M564,54 H231.5 Q227.5,54 227.5,58 V62 Q227.5,66 231.5,66 H564 Z" fill="var(--pole-cool)"/>
+  <text class="val" x="221" y="64" text-anchor="end">−0.701</text>
+  <text class="lbl" x="166" y="88" text-anchor="end">mainpre_engA_10</text>
+  <path d="M564,78 H342.4 Q338.4,78 338.4,82 V86 Q338.4,90 342.4,90 H564 Z" fill="var(--pole-cool)"/>
+  <text class="val" x="332" y="88" text-anchor="end">−0.470</text>
+
+  <text class="grp" x="30" y="116">worst OFF state — survivors only</text>
+  <text class="lbl" x="166" y="134" text-anchor="end">A_M_off_worst</text>
+  <path d="M564,124 H385.1 Q381.1,124 381.1,128 V132 Q381.1,136 385.1,136 H564 Z" fill="var(--pole-cool)"/>
+  <text class="val" x="375" y="134" text-anchor="end">−0.381</text>
+  <text class="lbl" x="166" y="158" text-anchor="end">open_off_worst</text>
+  <path d="M564,148 H396.6 Q392.6,148 392.6,152 V156 Q392.6,160 396.6,160 H564 Z" fill="var(--pole-cool)"/>
+  <text class="val" x="386" y="158" text-anchor="end">−0.357</text>
+  <text class="lbl" x="166" y="182" text-anchor="end">dG_open_off_worst</text>
+  <path d="M564,172 H401.9 Q397.9,172 397.9,176 V180 Q397.9,184 401.9,184 H564 Z" fill="var(--pole-cool)"/>
+  <text class="val" x="391" y="182" text-anchor="end">−0.346</text>
+  <text class="lbl" x="166" y="206" text-anchor="end">ied_off_all</text>
+  <path d="M564,196 H410.1 Q406.1,196 406.1,200 V204 Q406.1,208 410.1,208 H564 Z" fill="var(--pole-cool)"/>
+  <text class="val" x="400" y="206" text-anchor="end">−0.329</text>
+
+  <text class="grp" x="30" y="234">ON state — survivors only</text>
+  <text class="lbl" x="166" y="252" text-anchor="end">ied_rbs_linker_11</text>
+  <rect x="564" y="242" width="22.6" height="12" fill="var(--pole-warm)"/>
+  <text class="val" x="594" y="252">+0.047</text>
+  <text class="lbl" x="166" y="276" text-anchor="end">A_M_11</text>
+  <rect x="564" y="266" width="20.6" height="12" fill="var(--pole-warm)"/>
+  <text class="val" x="592" y="276">+0.043</text>
+  <text class="lbl" x="166" y="300" text-anchor="end">open_11</text>
+  <rect x="564" y="290" width="14.4" height="12" fill="var(--pole-warm)"/>
+  <text class="val" x="586" y="300">+0.030</text>
+  <text class="lbl" x="166" y="324" text-anchor="end">dG_open_11</text>
+  <rect x="564" y="314" width="11.0" height="12" fill="var(--pole-warm)"/>
+  <text class="val" x="583" y="324">+0.023</text>
+
+  <text class="grp" x="30" y="352">refolding barrier</text>
+  <text class="lbl" x="166" y="370" text-anchor="end">barrier</text>
+  <rect x="553.9" y="360" width="10.1" height="12" fill="var(--pole-cool)"/>
+  <text class="val" x="546" y="370" text-anchor="end">−0.021</text>
+</svg>
+<figcaption>Spearman ρ between <code>a_site_energy</code> — how tightly trigger A binds the
+secondary arm — and each measured term, computed inside each cell and reported as the median over
+cells (n = 388–420 cells; every row shown has p &lt; 1 × 10⁻²⁰ on a sign test over cells).
+All terms are oriented so that lower is better, so a <span style="color:var(--pole-cool)">cool</span>
+bar means a weaker grip improves the term and a <span style="color:var(--pole-warm)">warm</span>
+bar means it worsens it. The ON-state terms sit at |ρ| ≤ 0.05; the leak terms reach 0.70.</figcaption>
+</figure>
+
+<p>The reading is unambiguous. The secondary stem's energies move the <strong>leak</strong>, by a
+large margin; they move the <strong>worst OFF state</strong> moderately; and they <strong>do not
+move the ON state at all</strong> — every ON-state term sits at |ρ| ≤ 0.05 while the leak reaches
+0.70. The refolding barrier out of the ON state is likewise flat (ρ −0.021, and only 291 of 388
+cells agree on even that sign).</p>
+
+<p>So what earlier single-number reports read as "this design decision gates better" is, when
+decomposed, <strong>"this design decision leaks less"</strong>. The ON state never improved.</p>
+
+<h3>R4 · The secondary stem: lock it hard, let trigger A grip it weakly</h3>
+
+<p>Two stem energies describe the secondary hairpin: <code>lock_energy</code>, the stability of its
+own stem, and <code>a_site_energy</code>, how tightly trigger A binds the arm it must eventually
+invade. Within cells, they pull in opposite directions and their difference predicts better than
+either alone:</p>
+
+<table>
+  <thead><tr><th>Axis</th><th class="num">sep_open</th><th class="num">sep_a_m</th><th class="num">sep_ied</th><th class="num">cells agreeing</th></tr></thead>
+  <tbody>
+    <tr><td><code>a_site_energy</code></td><td class="num">−0.649</td><td class="num">−0.760</td><td class="num">−0.620</td><td class="num">383–384 of 388</td></tr>
+    <tr><td><code>lock_energy</code></td><td class="num">+0.625</td><td class="num">+0.724</td><td class="num">+0.593</td><td class="num">372–384 of 388</td></tr>
+    <tr><td><code>lock_minus_a_site</code></td><td class="num">+0.668</td><td class="num">+0.785</td><td class="num">+0.633</td><td class="num">373–384 of 388</td></tr>
+    <tr><td><code>ddg_pref</code></td><td class="num">+0.403</td><td class="num">+0.453</td><td class="num">+0.333</td><td class="num">352–375 of 388</td></tr>
+  </tbody>
+</table>
+
+<p>In mechanistic terms: <strong>a more stable secondary stem is better, and a weaker trigger-A
+grip on that stem is better.</strong> <code>lock_minus_a_site</code> is exactly that combination
+and is the strongest single predictor in the study, reaching ρ 0.785 against the openness ratio
+with 384 of 388 cells agreeing in sign. It had never been ranked on before this run.</p>
+
+<h3>R5 · The levers work on a minority of designs, and they trade leak against ON state</h3>
+
+<p>Asking "does <code>wobble_GU</code> beat the natural sequence?" across all designs is the wrong
+question: on 43,648 of 106,486 matched pairs the natural bottom three pairs already have the
+target composition, so the lever writes nothing and those designs <em>are</em> the control.
+Conditioned on the lever having had work to do, and paired inside cells:</p>
+
+<table>
+  <thead><tr><th>Lever</th><th class="num">leak <code>xstar_engA_10</code></th><th class="num">separation</th><th class="num">ON state <code>A_M_11</code></th><th class="num">IED gain</th></tr></thead>
+  <tbody>
+    <tr><td><code>lower3 = wobble_GU</code></td><td class="num">171 / 0</td><td class="num">158 / 5</td><td class="num">52 / 119</td><td class="num">63 / 108</td></tr>
+    <tr><td><code>upper3 = WWW_UAU</code></td><td class="num">308 / 4</td><td class="num">276 / 6</td><td class="num">104 / 208</td><td class="num">136 / 176</td></tr>
+    <tr><td><code>upper3 = WWW_AUA</code></td><td class="num">216 / 0</td><td class="num">198 / 3</td><td class="num">78 / 138</td><td class="num">74 / 142</td></tr>
+  </tbody>
+</table>
+
+<p class="meta">Cells won / cells lost, out of 216–314 cells with matched pairs.</p>
+
+<p>Every lever reduces the state-10 leak almost universally — <code>wobble_GU</code> wins 171
+cells and loses none — and improves separation. Every lever also <strong>costs ON-state
+openness in roughly two-thirds of cells</strong>. That trade is the same one R3 describes, seen
+from the lever side rather than the energy side.</p>
+
+<p>Two further features matter for how these numbers should be read. First, the median paired
+difference is <code>+0.0000</code> for almost every lever and outcome while the mean is clearly
+positive: <strong>the levers do nothing to most designs and a great deal to a minority.</strong>
+Second, the effects are <strong>threshold-shaped, not gradients</strong>. Binning
+<code>a_site_energy</code> into within-cell quintiles and taking the mean within-cell z-score:</p>
+
+<table>
+  <thead><tr><th>Quintile of <code>a_site_energy</code></th><th class="num">Q1</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Q4</th><th class="num">Q5</th></tr></thead>
+  <tbody>
+    <tr><td><code>sep_open</code></td><td class="num">+0.419</td><td class="num">+0.378</td><td class="num">+0.281</td><td class="num">−0.052</td><td class="num">−1.032</td></tr>
+    <tr><td><code>xstar_engA_10</code></td><td class="num">+0.578</td><td class="num">+0.496</td><td class="num">+0.334</td><td class="num">−0.127</td><td class="num">−1.287</td></tr>
+    <tr><td><code>lock_energy</code> → <code>sep_open</code></td><td class="num">−1.092</td><td class="num">+0.020</td><td class="num">+0.272</td><td class="num">+0.392</td><td class="num">+0.413</td></tr>
+  </tbody>
+</table>
+
+<p>Four-fifths of the range is nearly flat and then the last quintile falls off a cliff — and for
+<code>lock_energy</code> the mirror image, with the whole effect in Q1. A correlation coefficient
+averages that into a moderate number and a win-count reads it as noise; only the binned form shows
+that what matters is clearing a threshold, not improving gradually.</p>
+
+<h3>R6 · Closure: survival and gating run in opposite directions</h3>
+
+<p>All sixteen start-codon closures were swept, including the ten systematic
+(depth × G+C) levels that had never reached a scored population before. Survival through the ON
+ceiling and the rate at which survivors actually gate are <strong>anti-correlated</strong>.</p>
+
+<figure>
+<svg viewBox="0 0 700 340" role="img" aria-labelledby="f3t">
+  <title id="f3t">Survival through the ON ceiling against gating rate, per closure</title>
+  <line class="axis" x1="190" y1="300" x2="650" y2="300"/>
+  <line class="axis" x1="190" y1="40" x2="190" y2="300"/>
+  <text class="tick" x="190" y="318" text-anchor="middle">40%</text>
+  <text class="tick" x="337" y="318" text-anchor="middle">55%</text>
+  <text class="tick" x="484" y="318" text-anchor="middle">70%</text>
+  <text class="tick" x="630" y="318" text-anchor="middle">85%</text>
+  <text class="lbl" x="420" y="336" text-anchor="middle">survival through the ON ceiling →</text>
+  <text class="tick" x="182" y="304" text-anchor="end">8%</text>
+  <text class="tick" x="182" y="174" text-anchor="end">18%</text>
+  <text class="tick" x="182" y="44" text-anchor="end">28%</text>
+  <text class="lbl" x="30" y="170" transform="rotate(-90 30 170)" text-anchor="middle">gating rate among survivors →</text>
+
+  <circle cx="216" cy="54" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="344" cy="75" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="360" cy="87" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="547" cy="128" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="560" cy="131" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="504" cy="135" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="574" cy="136" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="582" cy="152" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="590" cy="156" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="599" cy="166" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="597" cy="167" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="598" cy="187" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="599" cy="200" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="603" cy="206" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="604" cy="231" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+  <circle cx="629" cy="281" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+
+  <text class="val" x="226" y="50">closed_CAU · 40.7% survive, 26.9% gate</text>
+  <text class="val" x="370" y="91">closed_UAU</text>
+  <text class="val" x="596" y="235" text-anchor="end">d0_gc3_GCC</text>
+  <text class="val" x="621" y="285" text-anchor="end">open_3x3 · 82.9% survive, 9.5% gate</text>
+</svg>
+<figcaption>Each point is one of the sixteen start-codon closures. The strongly closed
+closures survive the ON ceiling least often and gate most often among the designs that do;
+the open closure is the reverse. Reporting closure on survival alone therefore points the wrong
+way.</figcaption>
+</figure>
+
+<p><code>closed_CAU</code> survives at 40.7% and gates 26.9% of its survivors;
+<code>open_3x3</code> survives at 82.9% and gates 9.5%. A closure that keeps more designs
+alive is simply one whose ON state opens more easily — which is not the same thing as a working
+gate, and on this axis is close to its opposite.</p>
+
+<h3>R7 · Combinations, and one interaction that dissolves under scrutiny</h3>
+
+<p>The largest apparent interaction is <strong>closure × secondary-stem scheme</strong>. In the
+raw two-way table, B-anchored designs amplify the closure effect roughly fourfold: B-anchored with
+<code>closed_CAU</code> reaches a mean within-cell z of −1.37 against −0.32 for the mixed scheme,
+while for <code>open_3x3</code> the two schemes barely differ (+0.30 against +0.39).</p>
+
+<p>But the two schemes build the arms differently and therefore have different
+<code>a_site_energy</code> distributions by construction, so the interaction could be the energy
+wearing a label. Recomputing it inside quartiles of <code>a_site_energy</code>:</p>
+
+<table>
+  <thead><tr><th><code>a_site_energy</code> stratum</th><th class="num">B-anchored</th><th class="num">mixed</th><th class="num">gap</th></tr></thead>
+  <tbody>
+    <tr><td>−41.3 to −28.9 kcal/mol</td><td class="num">−0.97</td><td class="num">−0.26</td><td class="num">0.71</td></tr>
+    <tr><td>−28.8 to −24.0</td><td class="num">−0.98</td><td class="num">−0.50</td><td class="num">0.48</td></tr>
+    <tr><td>−23.9 to −17.9</td><td class="num">−0.76</td><td class="num">−0.69</td><td class="num">0.07</td></tr>
+    <tr><td>−17.8 to +7.6</td><td class="num">−0.97</td><td class="num">−0.99</td><td class="num">−0.02</td></tr>
+  </tbody>
+</table>
+
+<p class="meta">Mean within-cell z of <code>sep_open</code> for <code>closed_CAU</code>, by scheme,
+inside each stratum. B-anchored n = 110–733 per cell; mixed n = 964–1,820.</p>
+
+<p><strong>The interaction largely dissolves.</strong> With the energy held nearly fixed the two
+schemes converge, and in the weakest-grip stratum they are identical. What remains is a residual
+at the strongest grip, on a few hundred designs. The honest conclusion is that "scheme" is mostly
+<code>a_site_energy</code> under another name — which is also why <code>scheme</code> survives
+every sensitivity test below: it is standing in for the study's strongest axis.</p>
+
+<p>One genuine interaction does survive, and it is a disagreement between contrasts. For
+<code>sep_a_m</code> the best box is <code>closed_UAU</code> with the <em>natural</em> upper stem
+(−1.13), while for <code>sep_open</code> the same closure prefers the <code>WWW_AUA</code>
+override (−0.56 against −0.28). The two contrasts order the upper-stem lever oppositely
+<em>conditional on a strong closure</em>, so there is no single best upper-stem setting
+independent of which objective is being optimised.</p>
+
+<h3>R8 · How much of this survives moving the thresholds</h3>
+
+<p>Every result above is computed on designs that passed the ON ceiling, so each is a statement
+about a population that ceiling shaped. Because <code>dG_open_11</code> is recorded on every
+design before the ceiling decides, a <em>stricter</em> ceiling can be re-applied exactly after the
+fact. (A looser one cannot: the OFF tubes were never folded for a rejected design, so no contrast
+exists there at any price short of another run.)</p>
+
+<table>
+  <thead><tr><th class="num">ceiling (kcal/mol)</th><th class="num">8.00</th><th class="num">7.06</th><th class="num">6.11</th><th class="num">5.17</th><th class="num">4.22</th><th class="num">3.28</th></tr></thead>
+  <tbody>
+    <tr><td>designs kept</td><td class="num">189,522</td><td class="num">159,083</td><td class="num">123,812</td><td class="num">87,344</td><td class="num">52,349</td><td class="num">21,980</td></tr>
+    <tr><td>cells with data</td><td class="num">363</td><td class="num">333</td><td class="num">289</td><td class="num">244</td><td class="num">186</td><td class="num">108</td></tr>
+  </tbody>
+</table>
+
+<p>Across that whole range, from 8.00 down to 3.28 kcal/mol — a sixfold reduction in surviving
+designs — the following hold with the ordering beneath the winner unchanged:</p>
+
+<ul>
+  <li><strong><code>scheme = B-anchored</code></strong> is best for all four contrasts at every
+  ceiling, and best in <strong>28 of 28</strong> contrast × post-hoc-floor combinations.</li>
+  <li><strong><code>lower3 = wobble_GU</code></strong> is best for <code>sep_open</code>,
+  <code>sep_ied</code> and <code>sep_dg_open</code> at every ceiling.</li>
+  <li><strong><code>upper3 = WWW_UAU</code></strong> likewise for those three contrasts, and
+  <code>trigger_derived</code> for <code>sep_a_m</code>.</li>
+</ul>
+
+<p>The closure winner is less stable: it flips between the three strongly-closed levels — for
+<code>sep_open</code>, <code>closed_CAU</code> gives way to <code>closed_CGU</code> at a 3.28
+ceiling; for <code>sep_a_m</code>, <code>closed_UAU</code> to <code>closed_CGU</code> at 7.06.
+The <em>family</em> (a strongly closed start codon) is robust; the particular closure within it is
+not, and should not be presented as a settled choice.</p>
+
+<p>Applying the selection-stage floors to this population changes between three and five of the
+twenty conclusions each. The flips concentrate in <code>sep_ied</code> and in
+<code>geom</code>, and under the two leak floors <code>sep_ied</code> reverses its upper- and
+lower-stem winners — which is consistent with R3: conditioning on low leak removes exactly the
+variation those levers were acting on.</p>
+
+<h3>R9 · The trigger pair decides more than the design does</h3>
+
+<p>Of 210 trigger pairs, <strong>15 (7.1%) have no design that opens at all</strong> and
+<strong>75 (35.7%) have more than 95% of their designs open</strong>; median per-pair survival is
+0.880 with a standard deviation of 0.327. The distribution is strongly U-shaped — 22 pairs in the
+0–10% band, 98 in the 90–100% band — which is the signature of a property of the pair rather than
+of the design built on it.</p>
+
+<p>Between cells, the pair's own local accessibility <code>l_local_min</code> correlates with the
+cell's best achievable refolding barrier (ρ −0.251, p = 7.7 × 10⁻⁷) and with its ON-state openness
+(ρ −0.191 on <code>A_M_11</code>, p = 1.7 × 10⁻⁴), but not with any contrast. Trigger-pair quality
+sets what is achievable; the design levers then move the leak within that envelope.</p>
+
+<h3>R10 · Three measurement gaps, stated rather than worked around</h3>
+
+<p><strong>Trigger-A toehold accessibility was not measured.</strong> <code>access_a</code> has
+zero values across all 301,440 designs. This is not an engine defect:
+<code>measure_design</code> computes it only when handed the source transcript and both trigger
+sites, and correctly returns <code>None</code> otherwise rather than a zero that would read as a
+perfect score. The characterisation runner does not pass them. One of the three mechanism metrics
+the model set out to test therefore has no data in this run.</p>
+
+<p><strong>Geometry cannot be compared from the within-cell tables.</strong>
+<code>geom</code> is part of the cell key, so every cell contains exactly one geometry and a
+within-cell z-score cannot compare the two. The <code>× geom</code> tables, and the geometry flips
+under every sensitivity test, are artefacts of that: the Kim-style extended secondary arm
+(<code>arm20/inv17/capAUA</code>) against the naive 18-nt arm is <strong>not answered</strong> by
+this analysis. It needs the between-cell treatment that <code>len_x</code> and
+<code>l_local_min</code> already get.</p>
+
+<p><strong>Two provenance columns are empty.</strong> <code>gate_version</code>,
+<code>min_access_rule</code> and <code>min_len_x</code> carry no value on any row. The empty
+version column matters more than it looks: the ON ceiling's span changed definition at engine
+version 0.6.0, and results from either side of that change are not comparable at the same numeric
+setting. With the column blank, the resume guard that exists to catch exactly this could not fire.
+Relatedly, the ceiling sweep finds 189,522 usable <code>dG_open_11</code> values among 219,808
+fully-measured designs — <strong>30,286 measured designs (13.8%) lack the value the ceiling is
+read against</strong>, which is the signature a mixed-version table would leave. This should be
+resolved before any of the numbers above are published as final.</p>
+
+<h2>Discussion and Conclusions</h2>
+
+<h3>D1 · What the architecture is actually doing</h3>
+
+<p>The design intent was a gate held shut by two independent locks: a main hairpin sequestering the
+RBS and start codon, and a secondary hairpin holding the domain trigger A needs, so that neither
+input alone produces output. The measurements support the <em>premise</em> and complicate the
+<em>mechanism</em>.</p>
+
+<p>The premise holds: state 10 is the binding constraint in 80–99% of designs, so the gate really
+is judged on whether trigger A alone can open it. But at the population level trigger A alone
+<em>can</em> — the median probability that it occupies the nucleation site unaided is 0.9988, and
+only 23.4% of designs hold it below one half. The secondary hairpin, as currently designed, is not
+a lock that trigger A cannot pick; it is a lock trigger A usually picks, and the design problem is
+finding the minority of configurations where it does not.</p>
+
+<p>That reframing is the most useful thing in this run. It converts the question from "how do we
+improve the gate" into "which configurations are in the 23%", which is a different and more
+tractable search.</p>
+
+<h3>D2 · The design rule, and the premise it undermines</h3>
+
+<p>The rule the data supports is clear and slightly uncomfortable: <strong>make the secondary stem
+as stable as possible against itself, and let trigger A grip it as weakly as possible.</strong>
+<code>lock_minus_a_site</code> captures both and is the strongest predictor in the study.</p>
+
+<p>The discomfort is this. The architecture's rationale for trigger A binding the secondary arm is
+that A needs the help: the secondary hairpin holds the domain A nucleates on, so A's affinity for
+that arm is part of how the gate turns on in state 11. The decomposition says that affinity buys
+<strong>no measurable ON-state opening</strong> — every ON-state term is flat against it, |ρ| ≤
+0.05 — while it is the single largest driver of the state-10 leak, at ρ 0.70. On the evidence
+available, trigger A's grip on the secondary arm is a cost with no detectable benefit.</p>
+
+<p>We state that carefully, because it is a negative result about a measurement rather than about
+the chemistry. The ON state may well depend on A's grip in ways our ON-state metrics do not
+capture — all four of them are equilibrium ensemble properties of the fully-assembled three-strand
+tube, and none is kinetic. A term that controls the <em>rate</em> of opening in state 11 would not
+necessarily show up in any of them. What we can say is that across 301,440 designs, no equilibrium
+ON-state observable we measure responds to it.</p>
+
+<h3>D3 · A metric's reference state is a design decision, not a detail</h3>
+
+<p>The IED gain illustrates a general hazard. Three defensible definitions of "the OFF state" give
+three different answers from the same folded data:</p>
+
+<table>
+  <thead><tr><th>Definition</th><th class="num">ρ with <code>a_site_energy</code></th></tr></thead>
+  <tbody>
+    <tr><td>referenced to state 00 only (the engine's <code>ied_gain</code>)</td><td class="num">−0.075</td></tr>
+    <tr><td>referenced to the worst of 01 and 10 (<code>ied_gain_worst</code>)</td><td class="num">+0.651</td></tr>
+    <tr><td>referenced to the worst of 00, 01 and 10 (<code>sep_ied</code>)</td><td class="num">+0.620</td></tr>
+  </tbody>
+</table>
+
+<p class="meta">Signs as measured on the raw columns. The three differ only in which states count
+as OFF.</p>
+
+<p>The 00-referenced version is <strong>nearly uninformative and points the other way</strong>; the
+worst-OFF versions are strong and agree with each other. The reason is R2: state 10 binds the
+contrast, so a metric that references state 00 is measuring the resting structure and says almost
+nothing about AND behaviour. Including state 00 in the worst-of makes little difference precisely
+because it so rarely binds.</p>
+
+<p>The practical consequence is that <code>ied_gain</code> should not be used as a selection
+metric for this architecture, and the engine's asymmetry — <code>ied_off_worst</code> excludes
+state 00 while the <code>A_M</code>, <code>aug</code> and <code>meanW</code> worst-OFF terms
+include it — should be resolved deliberately rather than left as an undocumented difference. On
+this evidence the worst-of-all-three convention is the right one for every family.</p>
+
+<h3>D4 · What this study cannot validate</h3>
+
+<p>No measured two-input performance exists for any construct we can score, and this needs saying
+plainly rather than in a footnote.</p>
+
+<p>Green et al. (2014) and the VISTA library are <strong>single-input</strong> toehold switches —
+370 constructs with measured ON/OFF between them. There is no second trigger, so AND-ness does not
+exist there and our contrasts can only be evaluated as their two-state analogues. A fair analogue
+is not the same function. Kim et al. (2019) <em>is</em> two-input and is the closest published
+relative of this architecture, but reports qualitative behaviour rather than ON/OFF ratios, so it
+supports a discrimination test and not a correlation.</p>
+
+<p>Everything in R3–R9 is therefore <strong>internal consistency</strong>: relationships among our
+own computed quantities on our own designs. That is a legitimate and necessary thing to establish
+— a model whose metrics contradict each other cannot be right — but it is not evidence that the
+metrics predict function. The study's strongest claims are the ones that do not need calibration:
+that state 10 binds the contrast, that the leak is widespread, that the ON state does not respond
+to the stem energies. These are statements about what the folding model says, and they would have
+to be wrong in the model before they could be wrong in the cell.</p>
+
+<h3>D5 · Limitations</h3>
+
+<ul>
+  <li><strong>The OFF side is conditional on survival.</strong> Every contrast exists only for
+  designs that passed the ON ceiling, and survival varies twofold across closure levels. A lever
+  that looks good on a contrast may be one whose bad designs were removed before the OFF states
+  were folded. Only the ON-state and leak terms escape this.</li>
+  <li><strong>One third of cells hold an incomplete grid</strong>, almost entirely because one
+  upper-stem level is unbuildable for some trigger windows. Closure and lower-stem conclusions are
+  unaffected; upper-stem conclusions rest on fewer matched pairs than the totals suggest.</li>
+  <li><strong>The four contrasts are not independent.</strong> Within cells, <code>sep_open</code>
+  and <code>sep_dg_open</code> agree at ρ 0.915 and <code>sep_a_m</code> and <code>sep_ied</code>
+  at ρ 0.899. They should be read as two views, not four.</li>
+  <li><strong>Three gene pairs, one organism, one stressor.</strong> 210 trigger pairs from three
+  PFAS-responsive pairs in <em>E. coli</em>. R9 shows the pair matters more than the design, which
+  makes the narrowness of the pair sample the single largest threat to generality.</li>
+  <li><strong>Equilibrium only.</strong> Every observable is an ensemble property. The architecture
+  is a branch-migration mechanism with an intended order of events (00 → 01 → 11), and nothing
+  here measures a rate.</li>
+  <li><strong>Unresolved provenance.</strong> See R10: 13.8% of measured designs lack
+  <code>dG_open_11</code>, and the version column that would explain it is empty.</li>
+</ul>
+
+<h3>D6 · Conclusions</h3>
+
+<ol>
+  <li><strong>State 10 is the gate.</strong> It binds the ON/OFF contrast in 80–99% of designs.
+  Any metric, filter or report for this architecture that does not reference state 10 is measuring
+  something else.</li>
+  <li><strong>The current design leaks by default.</strong> Median unaided occupancy of the
+  nucleation site by trigger A is 0.9988; 23.4% of designs hold it below one half. Design
+  selection is a search for that minority.</li>
+  <li><strong>Lock hard, grip weakly.</strong> <code>lock_minus_a_site</code> is the strongest
+  predictor available (ρ up to 0.785, 384/388 cells). A strongly closed start codon plus the
+  <code>wobble_GU</code> lower stem plus a B-anchored secondary stem is the configuration that
+  survives every threshold we can vary.</li>
+  <li><strong>The levers buy leak reduction and cost ON-state openness.</strong> They are not
+  free, and they act on a minority of designs in a threshold-like way, so a design pool should be
+  enumerated rather than nudged.</li>
+  <li><strong>Report closure on gating, never on survival.</strong> The two run opposite on this
+  axis (40.7%/26.9% against 82.9%/9.5%).</li>
+  <li><strong>Pick the trigger pair first.</strong> 7.1% of pairs admit no working design and
+  35.7% admit almost any. Pair selection dominates design selection.</li>
+</ol>
+
+<h3>D7 · What we would change next, in order</h3>
+
+<ol>
+  <li>Pass the transcript and both trigger sites into the characterisation runner so
+  <code>access_a</code> is measured at all.</li>
+  <li>Resolve the 13.8% of measured designs with no <code>dG_open_11</code>, and write
+  <code>gate_version</code> on every row so the guard can do its job.</li>
+  <li>Move <code>geom</code> to the between-cell treatment and settle the Kim-versus-naive
+  secondary arm question, which this run does not answer.</li>
+  <li>Adopt the worst-of-all-three OFF convention across every family, and retire
+  <code>ied_gain</code> as a selection metric.</li>
+  <li>Add one kinetic observable in state 11, since the ON-state result in D2 is a statement about
+  equilibrium metrics only.</li>
+  <li>Widen the trigger-pair sample before generalising any lever conclusion.</li>
+</ol>
+
+<h2 style="font-size:1.1rem">Reproducing this</h2>
+<p class="meta">All numbers on this page come from
+<code>src/engine/gates/notebooks/toehold_and/results/axes_c8_{0..5}.csv</code> (301,440 rows) via:
+<code>tools/audit_grid_coverage.py</code>, <code>tools/analyse_axes.py</code>,
+<code>tools/analyse_levers.py</code>, <code>tools/analyse_closure.py</code>,
+<code>tools/probe_axes.py</code> and <code>tools/sensitivity_filters.py</code>, each with
+<code>--out axes_c8</code>. The tidy tables they write are committed under
+<code>docs/assets/axes_c8/</code>; every figure and table above is derived from those files.</p>
+
+</body>
+</html>
