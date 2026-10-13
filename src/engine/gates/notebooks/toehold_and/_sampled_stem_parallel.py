@@ -34,6 +34,10 @@ from typing import NamedTuple
 
 from _joint_state_parallel import _engine
 
+from engine.gates.tools.stem_opening import matrix_open_nt as _matrix_open_nt
+from engine.gates.tools.stem_opening import open_counts as open_counts
+from engine.gates.tools.stem_opening import single_state
+
 
 class DesignJob(NamedTuple):
     """One design: the switch with its real trigger, and the switch alone."""
@@ -50,57 +54,22 @@ class DesignJob(NamedTuple):
     sample_controls: bool = False  # True: sample the controls too; False: exact matrix E[k] only
 
 
-def open_counts(
-    structure: str, stem_up: tuple[int, int], stem_down: tuple[int, int]
-) -> tuple[int, int]:
-    """``(k, r)`` of a dot-bracket (``&`` removed): the number of open ``stem_up`` nt, and the
-    longest stretch of consecutive open ones. Open = not paired to a ``stem_down`` nt."""
-    stack: list[int] = []
-    partner: dict[int, int] = {}
-    for i, char in enumerate(structure):
-        if char == "(":
-            stack.append(i)
-        elif char == ")":
-            j = stack.pop()
-            partner[i], partner[j] = j, i
-    open_count = longest = run = 0
-    for i in range(*stem_up):
-        if stem_down[0] <= partner.get(i, -1) < stem_down[1]:
-            run = 0
-        else:
-            open_count += 1
-            run += 1
-            longest = max(longest, run)
-    return open_count, longest
-
-
 def stem_open_state(engine, strands: str, job: DesignJob) -> dict:
-    """E[r] and E[k] of one state, sampled, plus E[k] from the exact matrix.
-
-    Means divide by the number of draws actually returned (ViennaRNA can return fewer than
-    ``job.n_samples``); they are ``None`` when there were none -- never 0.
-    """
-    drawn = engine.sample_structures(strands, job.n_samples, seed=job.seed)
-    counts = [open_counts(structure, job.stem_up, job.stem_down) for structure in drawn]
-    bpp = engine.base_pair_probabilities(strands)
-    closed = sum(bpp[i][j] for i in range(*job.stem_up) for j in range(*job.stem_down))
-    n = len(counts)
-    mean_k = sum(k for k, _ in counts) / n if n else None
-    sd_k = (sum((k - mean_k) ** 2 for k, _ in counts) / n) ** 0.5 if n else None
-    return {
-        "open_nt_sd": sd_k,
-        "run_nt_sampled": sum(r for _, r in counts) / len(counts) if counts else None,
-        "open_nt_sampled": sum(k for k, _ in counts) / len(counts) if counts else None,
-        "open_nt_matrix": (job.stem_up[1] - job.stem_up[0]) - closed,
-        "n_drawn": len(drawn),
-    }
+    """E[r] and E[k] of one state, sampled, plus E[k] from the exact matrix (the engine tool's
+    :func:`single_state`, with this job's stem spans, sample count and seed)."""
+    return single_state(
+        engine,
+        strands,
+        stem_up=job.stem_up,
+        stem_down=job.stem_down,
+        n_samples=job.n_samples,
+        seed=job.seed,
+    )
 
 
 def matrix_open_nt(engine, strands: str, job: DesignJob) -> float:
     """Exact E[k] of one state from the base-pair-probability matrix (no sampling)."""
-    bpp = engine.base_pair_probabilities(strands)
-    closed = sum(bpp[i][j] for i in range(*job.stem_up) for j in range(*job.stem_down))
-    return (job.stem_up[1] - job.stem_up[0]) - closed
+    return _matrix_open_nt(engine.base_pair_probabilities(strands), job.stem_up, job.stem_down)
 
 
 def _design_worker(job: DesignJob) -> dict:

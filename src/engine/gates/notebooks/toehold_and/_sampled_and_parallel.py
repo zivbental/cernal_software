@@ -45,7 +45,11 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import NamedTuple
 
 from _joint_state_parallel import _engine, both_triggers_extra
-from _sampled_stem_parallel import open_counts
+from _sampled_stem_parallel import open_counts  # noqa: F401  (re-exported for the notebook)
+
+from engine.gates.tools.stem_opening import and_state as _and_state
+from engine.gates.tools.stem_opening import and_state_strands
+from engine.gates.tools.stem_opening import matrix_open_nt as _matrix_open_nt
 
 
 class AndJob(NamedTuple):
@@ -68,67 +72,23 @@ class AndJob(NamedTuple):
 
 def state_strands(job: AndJob) -> dict[str, tuple[str, int | None]]:
     """``{state: (strands, first_strand)}`` for the four states of a candidate."""
-    both = "&".join((job.fused, *both_triggers_extra(job.trigger_a, job.trigger_b)))
-    states = {
-        "alone": (job.fused, None),
-        "+A": (f"{job.fused}&{job.trigger_a}", 1),  # trigger A first: A is the 5' hairpin
-        "+B": (f"{job.fused}&{job.trigger_b}", 0),  # fused first: B is the 3' hairpin
-        "+A+B": (both, 2),  # fused & tB & tA written as tA, fused, tB
-    }
-    return states
+    return and_state_strands(job.fused, job.trigger_a, job.trigger_b)
 
 
 def and_state(engine, strands: str, first_strand: int | None, job: AndJob) -> dict:
-    """Open and E[k] of one state, sampled, plus each hairpin's E[k] from the exact matrix."""
-    drawn = engine.sample_structures(
-        strands, job.n_samples, seed=job.seed, first_strand=first_strand
+    """Open and E[k] of one state, sampled, plus each hairpin's E[k] from the exact matrix (the
+    engine tool's :func:`and_state` with this job's stem spans, sample count and seed)."""
+    return _and_state(
+        engine,
+        strands,
+        first_strand,
+        stem_up_a=job.stem_up_a,
+        stem_down_a=job.stem_down_a,
+        stem_up_b=job.stem_up_b,
+        stem_down_b=job.stem_down_b,
+        n_samples=job.n_samples,
+        seed=job.seed,
     )
-    sq = {"k_a": 0, "k_b": 0}
-    sums = {"run_min": 0, "run_frac_min": 0.0, "k_min": 0, "k_a": 0, "k_b": 0, "r_a": 0, "r_b": 0}
-    l_a = job.stem_up_a[1] - job.stem_up_a[0]
-    l_b = job.stem_up_b[1] - job.stem_up_b[0]
-    for structure in drawn:
-        k_a, r_a = open_counts(structure, job.stem_up_a, job.stem_down_a)
-        k_b, r_b = open_counts(structure, job.stem_up_b, job.stem_down_b)
-        sums["run_min"] += min(r_a, r_b)
-        sums["run_frac_min"] += min(r_a / l_a, r_b / l_b)
-        sums["k_min"] += min(k_a, k_b)
-        sums["k_a"] += k_a
-        sq["k_a"] += k_a * k_a
-        sq["k_b"] += k_b * k_b
-        sums["k_b"] += k_b
-        sums["r_a"] += r_a
-        sums["r_b"] += r_b
-    n = len(drawn)
-    bpp = engine.base_pair_probabilities(strands)
-
-    def matrix_open(stem_up, stem_down):
-        closed = sum(bpp[i][j] for i in range(*stem_up) for j in range(*stem_down))
-        return (stem_up[1] - stem_up[0]) - closed
-
-    def sd(key):
-        return max(sq[key] / n - (sums[key] / n) ** 2, 0.0) ** 0.5 if n else None
-
-    return {
-        "k_a_sd": sd("k_a"),
-        "k_b_sd": sd("k_b"),
-        "open_sampled": sums["run_min"] / n if n else None,
-        "open_frac_sampled": sums["run_frac_min"] / n if n else None,
-        "k_min_sampled": sums["k_min"] / n if n else None,
-        "k_a_sampled": sums["k_a"] / n if n else None,
-        "k_b_sampled": sums["k_b"] / n if n else None,
-        "run_a_sampled": sums["r_a"] / n if n else None,
-        "run_b_sampled": sums["r_b"] / n if n else None,
-        "k_a_matrix": matrix_open(job.stem_up_a, job.stem_down_a),
-        "k_b_matrix": matrix_open(job.stem_up_b, job.stem_down_b),
-        "n_drawn": n,
-    }
-
-
-def _matrix_open_nt(bpp, stem_up: tuple[int, int], stem_down: tuple[int, int]) -> float:
-    """Exact E[k] of one hairpin from the base-pair-probability matrix."""
-    closed = sum(bpp[i][j] for i in range(*stem_up) for j in range(*stem_down))
-    return (stem_up[1] - stem_up[0]) - closed
 
 
 def _and_worker(job: AndJob) -> dict:

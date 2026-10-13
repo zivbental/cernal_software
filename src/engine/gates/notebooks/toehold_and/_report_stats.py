@@ -21,69 +21,24 @@ import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 
-
-def sd_or_default(sd: float | None, default: float) -> float:
-    """``sd`` when it was measured (including a valid 0.0), ``default`` when it is missing."""
-    if sd is None or (isinstance(sd, float) and math.isnan(sd)):
-        return default
-    return sd
-
-
-def verification_tolerance(
-    sd: float | None, n_drawn: int, *, default_sd: float, sigma: float, floor_nt: float
-) -> float:
-    """tau = sigma * sd / sqrt(N) + floor; ``default_sd`` (<= L/2) only if ``sd`` is missing."""
-    return sigma * sd_or_default(sd, default_sd) / math.sqrt(n_drawn) + floor_nt
-
-
-def state_ok(state: dict, stem_len: int, *, sigma: float, floor_nt: float) -> bool:
-    """Single-switch state verified: sampled mean k and sampled Open agree with the exact matrix."""
-    run, k, m = state["run_nt_sampled"], state["open_nt_sampled"], state["open_nt_matrix"]
-    if run is None or k is None:
-        return False
-    tol = verification_tolerance(
-        state.get("open_nt_sd"),
-        state["n_drawn"],
-        default_sd=stem_len / 2.0,
-        sigma=sigma,
-        floor_nt=floor_nt,
-    )
-    return abs(k - m) <= tol and run <= m + tol
-
-
-def open_value(state: dict, name: str) -> float | None:
-    """Open of an AND state in nt, as the sampler check needs it: E[r_A] + E[r_B] for +A+B (bounded
-    by E[k_A] + E[k_B]), E[min(r_A, r_B)] for the others. The ranking uses ``open_frac_sampled``."""
-    if state["open_sampled"] is None:
-        return None
-    if name == "+A+B":
-        return state["run_a_sampled"] + state["run_b_sampled"]
-    return state["open_sampled"]
-
-
-def state_ok_and(
-    state: dict, name: str, l_a: int, l_b: int, *, sigma: float, floor_nt: float
-) -> bool:
-    """AND state verified: each hairpin's sampled E[k] agrees with its matrix value within its
-    own tolerance, and the sampled Open does not exceed the matrix bound."""
-    if state["open_sampled"] is None or state["k_a_sampled"] is None:
-        return False
-    n = state["n_drawn"]
-    tol_a = verification_tolerance(
-        state.get("k_a_sd"), n, default_sd=l_a / 2.0, sigma=sigma, floor_nt=floor_nt
-    )
-    tol_b = verification_tolerance(
-        state.get("k_b_sd"), n, default_sd=l_b / 2.0, sigma=sigma, floor_nt=floor_nt
-    )
-    if name == "+A+B":  # r_A + r_B <= k_A + k_B, and the matrix gives E[k_A] + E[k_B] exactly
-        bound = state["k_a_matrix"] + state["k_b_matrix"] + tol_a + tol_b
-    else:  # min(r_A, r_B) <= min(k_A, k_B) <= min(E[k_A], E[k_B]) in expectation
-        bound = min(state["k_a_matrix"], state["k_b_matrix"]) + max(tol_a, tol_b)
-    return (
-        abs(state["k_a_sampled"] - state["k_a_matrix"]) <= tol_a
-        and abs(state["k_b_sampled"] - state["k_b_matrix"]) <= tol_b
-        and open_value(state, name) <= bound
-    )
+from engine.gates.tools.stem_opening import (
+    open_value as open_value,
+)
+from engine.gates.tools.stem_opening import (
+    percentile_95,
+)
+from engine.gates.tools.stem_opening import (
+    sd_or_default as sd_or_default,
+)
+from engine.gates.tools.stem_opening import (
+    state_ok as state_ok,
+)
+from engine.gates.tools.stem_opening import (
+    state_ok_and as state_ok_and,
+)
+from engine.gates.tools.stem_opening import (
+    verification_tolerance as verification_tolerance,
+)
 
 
 def median_or_none(values: Iterable[float | None]) -> float | None:
@@ -137,10 +92,10 @@ def _average_ranks(values: list[float]) -> list[float]:
 def noise_summary(changes: Iterable[float | None]) -> tuple[float | None, float | None]:
     """``(median, 95th percentile)`` of the absolute seed-to-seed changes, ``(None, None)`` when
     there is none (no candidate, or none with both runs measured)."""
-    values = sorted(abs(c) for c in changes if c is not None)
+    values = [abs(c) for c in changes if c is not None]
     if not values:
         return None, None
-    return statistics.median(values), values[int(0.95 * (len(values) - 1))]
+    return statistics.median(values), percentile_95(values)
 
 
 def num_text(value: float | None, digits: int = 2, unit: str = "") -> str:
