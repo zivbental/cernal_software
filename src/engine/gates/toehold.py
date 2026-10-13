@@ -2366,6 +2366,21 @@ class EukaryoticToeholdAndGate(ToeholdAndGate):
                 pending = None
         return chosen
 
+    def _evaluated_sequence(self, design: GateDesign) -> str:
+        """The molecule every state is folded as: the fused switch through the start codon, plus
+        the first ``PAYLOAD_HEAD_LENGTH`` nucleotides of the payload that follow it.
+
+        The pipeline hands over the switch with the *whole* payload CDS appended
+        (``architecture["evaluation_sequence"]``). Folding all of it costs ~2 s per partition
+        function for a 720 nt reporter, ~90 s a candidate here (85 of them), and the part of the
+        payload far from the start codon is not what blocks a scanning ribosome. The head is the
+        convention ``ToeholdGate.PAYLOAD_HEAD_LENGTH`` documents and the notebook folded; whether
+        the rest of the payload changes the ranking is untested (recorded under ``diagnostics``).
+        """
+        full = design.architecture.get("evaluation_sequence", design.sequence)
+        end = design.architecture["aug_index"] + 3 + self.PAYLOAD_HEAD_LENGTH
+        return full[:end]
+
     def _measure(self, design: GateDesign, seed: int, *, verify: bool) -> dict:
         """Sample the four states and the controls of one candidate and reduce them to ON/OFF."""
         settings = self.settings
@@ -2380,7 +2395,7 @@ class EukaryoticToeholdAndGate(ToeholdAndGate):
         }
         l_a = spans["stem_up_a"][1] - spans["stem_up_a"][0]
         l_b = spans["stem_up_b"][1] - spans["stem_up_b"][0]
-        switch = design.architecture.get("evaluation_sequence", design.sequence)
+        switch = self._evaluated_sequence(design)
 
         states = {
             name: and_state(
@@ -2469,7 +2484,7 @@ class EukaryoticToeholdAndGate(ToeholdAndGate):
         """
         settings = self.settings
         first, second = design.trigger_set.activators
-        switch = design.architecture.get("evaluation_sequence", design.sequence)
+        switch = self._evaluated_sequence(design)
         main = self._measure(design, self.seed, verify=True)
         on, off = main["on"], main["off"]
 
@@ -2482,6 +2497,8 @@ class EukaryoticToeholdAndGate(ToeholdAndGate):
             ),
             "n_samples": settings.n_samples,
             "seed": self.seed,
+            "evaluated_nt": len(switch),
+            "payload_head_nt": self.PAYLOAD_HEAD_LENGTH,
             "on_pct": None if on is None else 100 * on,
             "off_pct": None if off is None else 100 * off,
             "off_source": main["off_source"],

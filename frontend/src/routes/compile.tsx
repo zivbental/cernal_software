@@ -55,6 +55,9 @@ function CompilePage() {
   const [idempotencyKey] = useState(newIdempotencyKey);
   const patch = (p: Partial<CompileConfig>) => setConfig((c) => {
     const next = { ...c, ...p };
+    // The two AND genes were picked from one dataset's rows; another dataset invalidates them.
+    if (p.datasetId !== undefined && p.datasetId !== c.datasetId && p.andGenes === undefined)
+      next.andGenes = { a: "", b: "" };
     if (p.organism && version.data) {
       const allowed = version.data.supported_outputs.filter((output) =>
         (version.data!.output_hosts?.[output] ?? version.data!.supported_hosts).includes(p.organism!));
@@ -71,6 +74,9 @@ function CompilePage() {
   const supportedOutputs = useMemo(() => (version.data?.supported_outputs ?? []).filter((output) =>
     (version.data?.output_hosts?.[output] ?? version.data?.supported_hosts ?? []).includes(config.organism)), [version.data, config.organism]);
 
+  /** How many trigger inputs the selected mechanism takes (1 unless `/api/version` says more). */
+  const gateInputs = version.data?.family_inputs?.[config.mechanism] ?? 1;
+
   const blocker = useMemo(() => {
     if (config.maxDesigns.trim() === "" || !Number.isSafeInteger(Number(config.maxDesigns)) || Number(config.maxDesigns) < 1 || Number(config.maxDesigns) > 1000)
       return "Evaluation budget must be a whole number from 1 to 1,000.";
@@ -84,6 +90,8 @@ function CompilePage() {
       return "One or more selected outputs have no supported payload. Choose an output supported for the selected organism.";
     if (config.maxCircuitGates > (version.data.limits?.max_circuit_gates ?? 1))
       return "Physical multi-gate compilation is unavailable. Choose one gate per circuit.";
+    if (!(version.data.family_input_modes?.[config.mechanism] ?? version.data.input_modes).includes(config.inputMode))
+      return "This mechanism cannot be driven by the selected input mode. Use a differential-expression dataset.";
     if (!["none", "custom"].includes(config.backbone) && !backbones.some((backbone) => backbone.key === config.backbone))
       return "Choose a backbone supported for this organism, a custom GenBank vector, or a cassette without a backbone.";
     if (config.inputMode === "de") {
@@ -91,6 +99,8 @@ function CompilePage() {
       const chosen = datasets.data?.find((d) => d.id === config.datasetId);
       if (chosen && chosen.validation_status !== "VALID")
         return "That dataset did not pass validation.";
+      if (gateInputs > 1 && (!config.andGenes.a || !config.andGenes.b))
+        return "Pick both input genes for the AND gate from your dataset.";
     } else if (config.inputMode === "gene") {
       if (!config.targetGene || config.targetGene.organism !== config.organism)
         return "Resolve a gene ID or symbol to its reference transcript.";
@@ -111,7 +121,7 @@ function CompilePage() {
     if (config.backbone === "custom" && (config.customBackboneInsertion.trim() === "" || !Number.isSafeInteger(Number(config.customBackboneInsertion)) || Number(config.customBackboneInsertion) < 0))
       return "Choose a nonnegative integer insertion boundary for your custom vector.";
     return null;
-  }, [config, datasets.data, families, version.data, backbones, supportedOutputs]);
+  }, [config, datasets.data, families, version.data, backbones, supportedOutputs, gateInputs]);
 
   const failed = upload.error ?? useExample.error;
   const uploadError =
@@ -147,7 +157,11 @@ function CompilePage() {
       // recorded rejection_reason, so a researcher can see why their own slider
       // rejected a design.
       // engine.domain.Constraints, unlike `scoring` above — see RunParams.
-      constraints: { max_circuit_gates: config.maxCircuitGates },
+      constraints: {
+        max_circuit_gates: config.maxCircuitGates,
+        // One gate with N inputs: the engine requires max_triggers to say how many.
+        ...(gateInputs > 1 ? { max_triggers: gateInputs } : {}),
+      },
       scoring: {
         hard_filters: [
           {
@@ -168,6 +182,10 @@ function CompilePage() {
       params.backbone = { custom_genbank: config.customBackboneGenbank, insertion_index: Number(config.customBackboneInsertion) };
     } else if (config.backbone !== "none") {
       params.backbone = { catalog_key: config.backbone };
+    }
+
+    if (gateInputs > 1) {
+      params.and_inputs = { gene_a: config.andGenes.a, gene_b: config.andGenes.b };
     }
 
     if (config.targetGene) {
@@ -231,9 +249,10 @@ function CompilePage() {
             try { const dataset = await useExample.mutateAsync(key);
             patch({ datasetId: dataset.id }); } catch { /* shown by uploadError */ }
           }}
+          twoInputGate={gateInputs > 1}
         />
 
-        <StepLogic config={config} patch={patch} families={families.map((family) => ({ ...family, available: family.available && (version.data?.family_hosts[family.name] ?? []).includes(config.organism) }))} />
+        <StepLogic config={config} patch={patch} familyInputs={version.data?.family_inputs} families={families.map((family) => ({ ...family, available: family.available && (version.data?.family_hosts[family.name] ?? []).includes(config.organism) }))} />
 
         <StepPayload config={config} patch={patch} supportedOutputs={supportedOutputs} />
 

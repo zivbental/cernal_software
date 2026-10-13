@@ -8,6 +8,8 @@ from ninja import Router, Status
 from api.auth import get_owned, owned_queryset
 from api.errors import Conflict, ValidationFailed
 from api.params import (
+    AND_GATE_KEYS,
+    AND_INPUT_KEYS,
     BACKBONE_KEYS,
     CONSTRAINT_KEYS,
     SCORING_KEYS,
@@ -77,6 +79,14 @@ def create_run(request, payload: RunIn):
     check_known_keys(constraints, set(capabilities.constraints) or CONSTRAINT_KEYS, "constraint")
     check_known_keys(scoring, SCORING_KEYS, "scoring field")
     check_known_keys(backbone, BACKBONE_KEYS, "backbone field")
+    # Typed projections like the three above: a typo in the AND blocks is a 422 here, not a
+    # run that fails later or a setting that is silently never read (CLAUDE.md sec 2).
+    for block, allowed, name in (
+        ("and_inputs", AND_INPUT_KEYS, "and_inputs field"),
+        ("and_gate", AND_GATE_KEYS, "and_gate field"),
+    ):
+        if block in payload.params:
+            check_known_keys(payload.params[block], allowed, name)
     capabilities = load_engine(settings.CERNAL_ENGINE).capabilities()
     check_scoring_block(scoring, capabilities)
     check_backbone_block(backbone, capabilities)

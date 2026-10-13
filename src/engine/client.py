@@ -353,15 +353,21 @@ def validate_job_configuration(
                 "constraints": {**(params.get("constraints") or {}), "standard": "none"},
             }
         constraints = _build_constraints(effective)
+        resolve_profile(scoring_profile, params.get("scoring"))
         families = gate_families or ["toehold"]
-        # Families this build cannot run are named by the loop below; the arity rules apply to
-        # the ones it can.
-        runnable = [
-            name
-            for name in families
-            if name not in _UNBUILDABLE_FAMILIES and get_family(name).available
-        ]
-        arities = {get_family(name).max_inputs for name in runnable} or {1}
+        for name in families:
+            family = get_family(name)
+            if (
+                name in _UNBUILDABLE_FAMILIES
+                or not family.available
+                or host not in family.supported_hosts
+            ):
+                raise ValueError(
+                    f"Gate family {name!r} is not production supported for {host.value}."
+                )
+        # Every family is runnable here (the loop above refused the rest by name), so the arity
+        # rules can read the inputs each takes: one input and one gate, or one two-input gate.
+        arities = {get_family(name).max_inputs for name in families}
         if len(arities) > 1:
             raise ValueError(
                 "A two-input AND run cannot be combined with single-input gate families; "
@@ -378,17 +384,6 @@ def validate_job_configuration(
                     raise ValueError(f"params.{block} applies only to a two-input AND gate.")
         else:
             and_settings = _validate_and_run(params, constraints, input_mode, arity)
-        resolve_profile(scoring_profile, params.get("scoring"))
-        for name in families:
-            family = get_family(name)
-            if (
-                name in _UNBUILDABLE_FAMILIES
-                or not family.available
-                or host not in family.supported_hosts
-            ):
-                raise ValueError(
-                    f"Gate family {name!r} is not production supported for {host.value}."
-                )
         outputs, warnings = _resolve_outputs(params, host)
         if warnings or not outputs:
             raise ValueError("; ".join(warnings) or "No supported output requested.")
