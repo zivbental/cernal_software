@@ -101,10 +101,13 @@ ORIENTATION: dict[str, float] = {
     # over the whole population rather than over survivors.
     "xstar_engA_10": 1.0,
     "mainpre_engA_10": 1.0,
-    # mechanism terms: trigger A's toehold accessibility and the cost of opening the main hairpin
-    # in state 11. `access_a` is a probability, so higher is better.
+    # mechanism terms: the refolding barrier out of the ON state, and trigger A's toehold
+    # accessibility. `access_a` is `open_penalty` -- p_open expressed as an ENERGY, not as a
+    # probability -- so it is a cost like `open_*` and faces the same way they do. It read -1.0
+    # here, which would have inverted it; the column is empty on every row of this run, so no
+    # published number moved, and the next run to fill it would have been scored backwards.
     "barrier": 1.0,
-    "access_a": -1.0,
+    "access_a": 1.0,
     # the engine's OWN ied contrasts, carried as measured for comparison with `sep_ied` above.
     # They differ in which states count as OFF: `ied_gain` references state 00 alone and
     # `ied_gain_worst` the worst of 01 and 10, while `sep_ied` takes the worst of all three.

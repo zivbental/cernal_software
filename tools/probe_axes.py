@@ -1,4 +1,4 @@
-"""Three follow-up probes on the characterisation run, each answering one specific question.
+"""Follow-up probes on the characterisation run, each answering one specific question.
 
     uv run python tools/probe_axes.py --out axes_c8
 
@@ -12,6 +12,10 @@ disguise?** B-anchored and mixed build the arms differently, so they have differ
 `a_site_energy` strata: if it survives with the energy held nearly fixed, the scheme carries
 something of its own; if it vanishes, the scheme was a label for the energy.
 
+**6. Does each trigger's own window composition set its own stem energy?** The §R9 hypothesis,
+tested per trigger rather than on the pair's minimum, with GC content as the candidate mediator.
+Needs the reference for the GC half and nothing else; no folding.
+
 **3. Why are whole shards at 0% survival?** Checked rather than asserted — the suspicion is that
 this is a property of the trigger PAIR and was mislabelled as a property of the shard, because at
 the time it was read each shard had processed one or two pairs.
@@ -21,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import math
 import statistics as st
 import sys
 from pathlib import Path
@@ -49,6 +54,178 @@ def spread(label: str, rhos: list[float], width: int = 38) -> None:
         f"  {label:{width}s}n {len(rhos):>5}  median {st.median(rhos):>+7.3f}  "
         f"+{pos}/-{neg}  p {(f'{p:.2g}' if p is not None else '--'):>9s}"
     )
+
+
+def probe_per_trigger(rows: list[dict]) -> None:
+    """Probe 6: does each trigger's own window composition set its own stem energy?
+
+    §R9 measured accessibility as ``l_local_min`` -- the pair's worse window -- and found it
+    tracks the best achievable ON-state openness while predicting no contrast at all, then
+    proposed GC content as the mediator: a window that is strongly self-paired inside its own
+    transcript is GC-rich, and copying that sequence into the switch builds a more stable
+    hairpin. Testing that needs each trigger separately, because the minimum throws away which
+    of the two it came from and the two halves can differ sharply in composition.
+
+    Nothing here folds. ``l_local_a``/``l_local_b`` and the three stem energies are already on
+    every row, and GC comes from re-slicing the two footprints out of the reference with the
+    pair record's own ``window_a``/``window_b`` arithmetic, taking the constants from the gate
+    classes rather than restating them.
+    """
+    print(f"\n{'=' * 92}\n6. PER-TRIGGER ACCESSIBILITY: DOES A TRIGGER'S OWN WINDOW")
+    print("   SET ITS OWN STEM ENERGY?")
+    try:
+        sys.path.insert(0, str(ROOT / "src"))
+        from characterise_axes import GENE_PAIRS, build_gates
+
+        from engine import sequences as sq
+        from engine.domain import Host
+        from engine.gates.tools.folding import FoldEngine
+        from engine.transcriptome import load_transcriptome
+    except Exception as error:  # pragma: no cover - a missing reference, not a result
+        print(f"  skipped: the reference is not reachable here ({type(error).__name__}: {error})")
+        print("  Every other probe in this file runs without it; only the GC half needs a slice.")
+        return
+
+    book = load_transcriptome(Host.ECOLI)
+    transcripts = {}
+    for a_sym, a_id, b_sym, b_id in GENE_PAIRS:
+        transcripts[a_sym] = sq.to_rna(book[a_id])
+        transcripts[b_sym] = sq.to_rna(book[b_id])
+
+    # The geometry constants, read off the gate classes the run used. `arm_len` is the MAIN
+    # hairpin's arm in both, and `invasion_len` is the secondary one -- which is the only
+    # difference between the two geometries and therefore the only thing that moves window_a.
+    gates = build_gates(FoldEngine(cache_size=1))
+    geometry = {
+        name: (gate.ARM_LEN, gate.SECONDARY_INVASION_LEN, gate.TOEHOLD_B_LEN)
+        for name, gate in gates.items()
+    }
+
+    #: One record per (trigger pair, geometry): the stem energies summarised by their median
+    #: over that cell's stems. Per-stem rows would count a pair once per usable stem, and the
+    #: number of usable stems is a property of the pair -- so the p would be inflated by
+    #: exactly the thing being measured.
+    cells: dict[tuple, dict] = {}
+    for row in rows:
+        geom = row.get("geom")
+        gene_a, gene_b = row.get("gene_a"), row.get("gene_b")
+        if geom not in geometry or gene_a not in transcripts or gene_b not in transcripts:
+            continue
+        for name in ("x_start", "xstar_start", "len_x", "l_local_a", "l_local_b"):
+            if not isinstance(row.get(name), float):
+                break
+        else:
+            key = (gene_a, gene_b, int(row["x_start"]), int(row["xstar_start"]), geom)
+            cell = cells.setdefault(
+                key,
+                {
+                    "l_local_a": row["l_local_a"],
+                    "l_local_b": row["l_local_b"],
+                    "len_x": int(row["len_x"]),
+                    "a_site_energy": [],
+                    "b_site_energy": [],
+                    "lock_energy": [],
+                },
+            )
+            for name in ("a_site_energy", "b_site_energy", "lock_energy"):
+                value = row.get(name)
+                if isinstance(value, float):
+                    cell[name].append(value)
+
+    unreachable = 0
+    records = []
+    for (gene_a, gene_b, x_start, xstar_start, geom), cell in cells.items():
+        arm_len, invasion_len, toehold_b_len = geometry[geom]
+        len_k2 = invasion_len - cell["len_x"]
+        a0, a1 = x_start - arm_len, x_start + cell["len_x"] + len_k2
+        b0, b1 = xstar_start - len_k2, xstar_start + cell["len_x"] + toehold_b_len
+        src_a, src_b = transcripts[gene_a], transcripts[gene_b]
+        if a0 < 0 or b0 < 0 or a1 > len(src_a) or b1 > len(src_b):
+            unreachable += 1
+            continue
+        if not all(cell[name] for name in ("a_site_energy", "b_site_energy", "lock_energy")):
+            continue
+        records.append(
+            {
+                "l_local_a": cell["l_local_a"],
+                "l_local_b": cell["l_local_b"],
+                "gc_a": sq.gc_content(src_a[a0:a1]),
+                "gc_b": sq.gc_content(src_b[b0:b1]),
+                "a_site_energy": st.median(cell["a_site_energy"]),
+                "b_site_energy": st.median(cell["b_site_energy"]),
+                "lock_energy": st.median(cell["lock_energy"]),
+            }
+        )
+
+    print(f"  {len(records):,} (trigger pair x geometry) cells; stem energies are cell medians.")
+    if unreachable:
+        print(f"  {unreachable} cells dropped: a footprint falls outside its transcript.")
+    if len(records) < 11:
+        print("  too few cells to read a between-cell correlation.")
+        return
+    print("  l_local_* is openness, 0-1, HIGHER = more accessible. The stem energies are")
+    print("  kcal/mol, LOWER = tighter binding. The §R9 hypothesis predicts a POSITIVE rho:")
+    print("  a less accessible (GC-rich) window copied into the switch binds more tightly.")
+
+    def link(label: str, xkey: str, ykey: str, population: list[dict]) -> float | None:
+        xs = [r[xkey] for r in population]
+        ys = [r[ykey] for r in population]
+        rho = spearman(xs, ys)
+        # The same large-sample approximation `analyse_axes` uses for a between-cell rho, and
+        # labelled the same way: there is no sign test to fall back on at this level.
+        p_text = "--"
+        if rho is not None and len(population) > 10:
+            z = rho * math.sqrt(len(population) - 1)
+            p_text = f"{math.erfc(abs(z) / math.sqrt(2)):.2g}"
+        shown = f"{rho:+.3f}" if rho is not None else "--"
+        print(f"    {label:52s}n {len(population):>5}  rho {shown:>7s}  p {p_text:>9s}")
+        return rho
+
+    print("\n  Each stem energy against ITS OWN trigger's accessibility, and against the other's.")
+    print("  If the link is trigger-specific, the own-trigger row is the stronger of the two.")
+    for energy, own, other in (
+        ("a_site_energy", "l_local_a", "l_local_b"),
+        ("b_site_energy", "l_local_b", "l_local_a"),
+    ):
+        link(f"{own} -> {energy}   (own trigger)", own, energy, records)
+        link(f"{other} -> {energy}   (the other trigger)", other, energy, records)
+    print("\n  The secondary stem belongs to neither trigger alone: its arm carries x*, which is")
+    print("  simultaneously A's nucleation site and B's invasion target, so the expectation is")
+    print("  that neither accessibility alone accounts for lock_energy.")
+    link("l_local_a -> lock_energy", "l_local_a", "lock_energy", records)
+    link("l_local_b -> lock_energy", "l_local_b", "lock_energy", records)
+
+    print("\n  Is GC the mediator? First, does it track accessibility and the energy at all:")
+    link("gc_a -> l_local_a", "gc_a", "l_local_a", records)
+    link("gc_b -> l_local_b", "gc_b", "l_local_b", records)
+    link("gc_a -> a_site_energy", "gc_a", "a_site_energy", records)
+    link("gc_b -> b_site_energy", "gc_b", "b_site_energy", records)
+
+    print("\n  Then the mediation test: the same own-trigger link with that trigger's own GC held")
+    print("  nearly fixed, inside quintiles of GC. If the link is GC propagating from the")
+    print("  transcript into the switch it should collapse here; if it survives, accessibility")
+    print("  carries something GC does not.")
+    for energy, own, gc in (
+        ("a_site_energy", "l_local_a", "gc_a"),
+        ("b_site_energy", "l_local_b", "gc_b"),
+    ):
+        ordered = sorted(records, key=lambda r: r[gc])
+        size = len(ordered) // 5
+        rhos = []
+        for index in range(5):
+            stratum = ordered[index * size : (index + 1) * size if index < 4 else len(ordered)]
+            rho = spearman([r[own] for r in stratum], [r[energy] for r in stratum])
+            if rho is not None:
+                rhos.append(rho)
+        if not rhos:
+            print(f"    {own} -> {energy:22s} no stratum supports it")
+            continue
+        pooled = spearman([r[own] for r in records], [r[energy] for r in records])
+        print(
+            f"    {own} -> {energy:20s} pooled {pooled:+.3f}   "
+            f"median within GC quintile {st.median(rhos):+.3f}   "
+            f"range {min(rhos):+.3f} to {max(rhos):+.3f}"
+        )
 
 
 def main(argv=None) -> int:
@@ -313,6 +490,8 @@ def main(argv=None) -> int:
             continue
         n, pairs, share = got
         print(f"    {name:20s}{n:>12,}{pairs:>8,}{share:>14.1%}{1 - share:>14.1%}")
+
+    probe_per_trigger(rows)
 
     print(
         "\n  Read it beside probe 3: that one asks whether a pair admits ANY working design, this"

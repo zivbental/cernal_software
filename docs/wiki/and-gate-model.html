@@ -131,21 +131,6 @@ their data directly: 7.2 kcal/mol is the highest ON cost among the 77 of their s
 achieve more than 20-fold ON/OFF, against a median of 3.64 across all 168. A design whose ON state
 costs more than that to open is one no measured working switch resembles.</p>
 
-<p><strong>One bookkeeping point, because it is checkable.</strong> The criterion is Green's:
-an ON-state opening cost over his measurement window, with the threshold read off his measured
-switches. The table reported here was built by the engine version that evaluated that criterion
-over a narrower span — <code>open_11</code>, the main stem's 15-nt arms, at 8.0 kcal/mol — before
-the span was corrected to the full 31-nt window. The two are related rather than independent: the
-15 nt sit inside the 31, so opening the window always costs at least as much, and the narrower
-test is a looser one.</p>
-
-<p>Whether that matters for anything in this section is a question with an answer rather than an
-opinion, because <code>dG_open_11</code> is recorded on every design. Re-applying Green's actual
-line — <code>dG_open_11 ≤ 7.2</code> — to this population and re-deriving the conclusions is one
-command (<code>sensitivity_filters.py --column dG_open_11</code>), and §R8 reports the result. If
-the conclusions hold there, the selection can be described as Green-calibrated without
-qualification; if they move, that is worth knowing before the claim is made.</p>
-
 <p><strong>"Worst OFF" — and why a contrast is taken against it.</strong> A gate is only as good
 as its leakiest OFF state, so every contrast compares the ON state against whichever of 00, 01 and
 10 is <em>worst for the gate</em> — not an average of them. Worst means most open: for an opening
@@ -153,8 +138,8 @@ cost it is the OFF state with the <em>lowest</em> cost, because that is the one 
 easily; for an accessibility it is the <em>highest</em> value; for a defect, the least paired.
 Which of the three actually turns out to be the worst is itself a result, and §R2 reports it.</p>
 
-<p><strong>What filters state 10: nothing, in this run.</strong> The ON ceiling on
-<code>dG_open_11</code> is the only filter applied here, and it looks exclusively at the ON state.
+<p><strong>What filters state 10: nothing, in this run.</strong> The ON-state ceiling (§R1) is
+the only filter applied here, and it looks exclusively at the ON state.
 The state-10 leak is measured on every design and <em>never</em> filtered on. This matters for
 reading §R3: the ceiling is not independent of the leak it does not look at, so a population
 shaped by the ceiling is already shaped, indirectly, by the leak. The later selection stage does
@@ -203,7 +188,11 @@ rows per level), so no closure or lower-stem comparison is affected. The least-c
 <p>Provenance is uniform: all 420 cells were built under one setting
 (<code>stem_order=front_tops</code>, 6 stems per pair, overlap 4–18 nt, <code>pair_order=spread</code>),
 so a within-cell comparison is sound. The ON ceiling actually applied was
-<strong>8.0 kcal/mol</strong> read against <code>dG_open_11</code>.</p>
+<strong><code>open_11</code> ≤ 8.0 kcal/mol</strong> — the main stem's 15-nt arms, which is the
+span the engine version that built this table used, not the 31-nt ribosome window of §R0. The 15
+nt sit inside the 31, so the narrower test is the looser one. §R8 establishes which column the
+ceiling was read against from the data rather than assuming it, and re-applies Green's own
+<code>dG_open_11 ≤ 7.2</code> line to this population as a counterfactual.</p>
 
 <div class="note"><strong>What the filter boundary allows.</strong> <code>dG_open_11</code> and the
 two state-10 leak terms are measured on <em>every</em> design, before the ceiling decides, so
@@ -386,7 +375,11 @@ Conditioned on the lever having had work to do, and paired inside cells:</p>
   </tbody>
 </table>
 
-<p class="meta">Cells won / cells lost, out of 216–314 cells with matched pairs.</p>
+<p class="meta">Cells won / cells lost, out of 216–314 cells with matched pairs. The last column
+is the engine's own <code>ied_gain</code>, which references state <strong>00</strong> alone —
+D3 shows that is the one definition of "the OFF state" that does not work for this architecture,
+so read that column as a property of the definition and not of the ensemble defect. Referenced to
+the worst OFF state instead, the defect behaves like the other contrasts (§R5).</p>
 
 <p>Every lever reduces the state-10 leak almost universally — <code>wobble_GU</code> wins 171
 cells and loses none — and improves separation. Every lever also <strong>costs ON-state
@@ -429,21 +422,24 @@ the axis being studied.</p>
 <figure>
   <img src="shape_a_site_energy_xstar_engA_10.svg" alt="The state-10 leak against trigger A's grip
   on the secondary arm, one dot per design" style="width:100%;height:auto">
-  <figcaption>Every one of the 301,440 designs, 6,000 of them drawn; the orange line is the median
-  of <em>all</em> of them per bin. The relationship is flat from −40 to about −18 kcal/mol — across
-  more than half the range, binding trigger A more tightly to the secondary arm changes the leak
-  not at all — and then breaks sharply at roughly <strong>−17 kcal/mol</strong> and falls by two
-  standard deviations. This is the figure the quintile table was a summary of, and it says
-  something the table could not: there is a <em>value</em>, not a trend.</figcaption>
+  <figcaption>Every one of the 301,440 designs, 6,000 of them drawn as dots; the orange line is
+  the median of <strong>all</strong> of them per bin. The y axis is the within-cell z-score
+  oriented so that <strong>down is better</strong> — a lower point leaks less. The relationship is
+  flat from −40 to about −18 kcal/mol: across more than half the range, how tightly trigger A
+  binds the secondary arm changes the leak not at all. Then at roughly
+  <strong>−17 kcal/mol</strong> it breaks and drops by two standard deviations. There is a
+  <em>value</em> here, not a trend, which is what a single correlation coefficient cannot
+  show.</figcaption>
 </figure>
 
 <figure>
   <img src="shape_a_site_energy_sep_open.svg" alt="The opening contrast against trigger A's grip on
   the secondary arm, one dot per design" style="width:100%;height:auto">
-  <figcaption>The same axis against the opening contrast, over the 219,807 fully measured designs.
-  The break is in the same place, near −15 kcal/mol, and the right-hand side is noisier because
-  few designs reach it. The vertical columns are real: <code>a_site_energy</code> belongs to the
-  stem, so all 96 grid points built on one stem share an x value.</figcaption>
+  <figcaption>The same axis against the opening contrast, over the 219,807 fully measured
+  designs. Down is better here too. The break is in the same place, near −15 kcal/mol, and the
+  right-hand side is noisier because few designs reach it. The vertical columns are real rather
+  than an artefact: <code>a_site_energy</code> is a property of the stem, so all 96 grid points
+  built on one stem share one x value.</figcaption>
 </figure>
 
 <p>So the design rule has a number attached to it. <strong>Trigger A's grip on the secondary arm
@@ -451,6 +447,28 @@ has to be weaker than about −15 to −17 kcal/mol.</strong> Stronger than that
 saturated and no amount of further tightening or loosening inside that range changes anything —
 which is why a correlation coefficient, which assumes a trend, reported a moderate number for what
 is really a cliff with a flat approach.</p>
+
+<p>The other two contrasts are plotted on the same axis, because a shape seen on one contrast and
+not the others would be a property of that contrast rather than of the design.</p>
+
+<figure>
+  <img src="shape_a_site_energy_sep_a_m.svg" alt="The main-stem openness ratio against trigger A's
+  grip on the secondary arm, one dot per design" style="width:100%;height:auto">
+  <figcaption><code>sep_a_m</code>, the main-stem openness ratio, on the same 219,807 fully
+  measured designs. Same sign and the effect concentrated at the same end, at about half the
+  amplitude: the binned medians run +0.267 → −0.521 standard deviations across the five quintiles
+  of the axis, against +0.419 → −1.032 for <code>sep_open</code>.</figcaption>
+</figure>
+
+<figure>
+  <img src="shape_a_site_energy_sep_ied.svg" alt="The ensemble-defect contrast against trigger A's
+  grip on the secondary arm, one dot per design" style="width:100%;height:auto">
+  <figcaption><code>sep_ied</code>, the ensemble defect from the RBS loop to the linker, same
+  population. Between the two in amplitude, +0.374 → −0.717. The agreement across the three is
+  weaker evidence than it looks: within cells <code>sep_a_m</code> and <code>sep_ied</code> agree
+  at ρ 0.899 (D5), so these are two views of one measurement rather than two
+  confirmations.</figcaption>
+</figure>
 
 <figure>
   <img src="shape_lock_energy_sep_open.svg" alt="The opening contrast against the secondary stem's
@@ -461,9 +479,13 @@ is really a cliff with a flat approach.</p>
   should not be read as structure.</figcaption>
 </figure>
 
-<p class="meta">The three SVGs live in <code>docs/assets/axes_c8/</code> and must be copied beside
-this page when it is published. Regenerate with
-<code>tools/plot_axis_shape.py --out axes_c8 --x &lt;axis&gt; --y &lt;objective&gt;</code>.</p>
+<p class="meta">Every scatter above is a separate <code>.svg</code> file that must sit in the
+same directory as this page; opened on its own the page shows empty frames. Each is written by
+<code>tools/plot_axis_shape.py --out axes_c8 --x &lt;axis&gt; --y &lt;objective&gt;</code> into
+<code>docs/assets/axes_c8/</code>. Of the 301,440 designs, 6,000 are drawn as dots — a seeded
+sample, so the figure is reproducible, and enough that the cloud's shape is already stable while a
+browser can still render it; raise it with <code>--points</code>. The orange line is <em>not</em>
+sampled: every bin median is computed over all designs in that bin.</p>
 
 <table>
   <thead><tr><th>Quintile of <code>a_site_energy</code></th><th class="num">Q1</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Q4</th><th class="num">Q5</th></tr></thead>
@@ -474,10 +496,10 @@ this page when it is published. Regenerate with
   </tbody>
 </table>
 
-<p>Four-fifths of the range is nearly flat and then the last quintile falls off a cliff — and for
-<code>lock_energy</code> the mirror image, with the whole effect in Q1. A correlation coefficient
-averages that into a moderate number and a win-count reads it as noise; only the binned form shows
-that what matters is clearing a threshold, not improving gradually.</p>
+<p class="meta">The same data binned into fifths, for the numbers the figures are read off.
+Four-fifths of the range is nearly flat and the last quintile falls off a cliff; for
+<code>lock_energy</code> it is the mirror image, with the whole effect in Q1. A correlation
+coefficient averages that into a moderate number and a win-count reads it as noise.</p>
 
 <h3>R6 · Closure: survival and gating run in opposite directions</h3>
 
@@ -625,7 +647,7 @@ for a rejected design.</p>
 
 <h4 style="font-size:1rem;margin:1.75rem 0 .4rem">Does it hold at Green's actual threshold?</h4>
 
-<p>The criterion is Green's, but this table applied it over the narrower 15-nt span (§R0). Because
+<p>The criterion is Green's, but this table applied it over the narrower 15-nt span (§R1). Because
 <code>dG_open_11</code> is recorded on every design, the question can simply be asked: re-filter
 this population at Green's own line and re-derive the rankings. At
 <code>dG_open_11 ≤ 7.06</code> — essentially his 7.2 — <strong>159,083 designs survive across 333
@@ -722,29 +744,39 @@ binding it describes: <code>a_site_energy</code> against <code>l_local_a</code>,
 both, where the expectation is that neither alone accounts for it. Then ask whether each link
 survives holding that trigger's own GC content fixed.</p>
 
-<h3>R10 · Three gaps, stated rather than worked around</h3>
+<p class="meta">That test is implemented as probe 6 of <code>tools/probe_axes.py</code> and needs
+no re-folding: both accessibilities and all three stem energies are already on every row, and GC
+comes from re-slicing the two footprints out of the reference with the pair record's own
+<code>window_a</code>/<code>window_b</code> arithmetic. The unit is one trigger pair in one
+geometry, with the stem energies summarised by their median over that cell's stems — per-stem rows
+would count a pair once per usable stem, and how many stems a pair yields is a property of the
+pair, so the significance would be inflated by exactly the thing under test. Its numbers are not
+on this page because the run that produces them postdates it.</p>
 
-<p><strong><code>access_a</code> is empty — and the right fix is probably to delete it, not to
-compute it.</strong> <code>access_a</code> and <code>access_b</code> have zero values across all
-301,440 designs, because <code>measure_design</code> computes them only when handed the source
-transcript and both trigger sites and the runner does not pass them. It correctly returns
-<code>None</code> rather than a zero that would read as a perfect score.</p>
+<h3>R10 · Loose ends: one naming defect, and one question now closed</h3>
 
-<p>But the pipeline already measures this. Trigger accessibility is scored at the trigger-selection
-stage, and the characterisation run carries that same quantity forward per trigger as
-<code>l_local_a</code>, <code>l_local_b</code> and their minimum <code>l_local_min</code> — so each
-trigger has its own value, not merely the pair's worst, and §R9 is built on them.
-<code>access_a</code> is a <em>second estimator of the same physical property</em>: the engine's
-own documentation describes it as "<code>p_open</code> expressed as an energy rather than a
-probability", chosen because the probability underflows in the OFF states. Same quantity, different
-units and a different estimator.</p>
+<p><strong>One quantity is measured under two names, and the second name is empty.</strong>
+Trigger accessibility — how exposed a trigger's window is inside its own transcript — appears in
+this run twice over:</p>
 
-<p>So the open item is not "a measurement is missing" but "one quantity has two names", which this
-project treats as a defect in its own right: two implementations of one measurement produce two
-numbers and only one reaches the report. The decision to make is which is canonical — the
-RNAplfold-based accessibility the selection stage already uses, or the constrained-fold energy —
-and then to retire the other from the inventory. Computing both and carrying both is the one option
-that should be ruled out.</p>
+<ul>
+  <li><code>l_local_a</code>, <code>l_local_b</code> and their minimum <code>l_local_min</code>,
+  from RNAplfold over a sliding window. <strong>Filled on all 301,440 rows</strong>, per trigger
+  rather than per pair, and §R9 is built on them.</li>
+  <li><code>access_a</code> and <code>access_b</code>, the same property priced as an energy —
+  the engine's own documentation calls it "<code>p_open</code> expressed as an energy rather than
+  a probability", chosen because the probability underflows in the OFF states.
+  <strong>Empty on all 301,440 rows</strong>: <code>measure_design</code> computes them only when
+  handed the source transcript and both trigger sites, and the runner does not pass them. It
+  returns <code>None</code>, correctly, rather than a zero that would have read as a perfect
+  score.</li>
+</ul>
+
+<p>So nothing is missing from this study — the property it would have measured is measured, and
+the analysis that needs it has it. The gap is a naming one, and this project treats that as a
+defect in its own right: two implementations of one measurement produce two numbers and only one
+reaches the report. The decision to make is which of the two is canonical, and then to retire the
+other. Computing both and carrying both is the one option that should be ruled out.</p>
 
 <p><strong>The Kim-versus-naive geometry comparison is now made, and the answer is that it
 makes no difference.</strong> <code>geom</code> is part of the cell key, so a within-cell z-score
@@ -779,31 +811,6 @@ and 629 only under the naive one, against 101,595 that open under both.</p>
 cap — <strong>buys nothing measurable on this architecture</strong>. That is a useful negative
 result rather than an absence of one: it says the extra geometry is not where the gate's problem
 lies, and the design effort belongs on the levers §R8 shows to be robust.</p>
-
-<p><strong>Three provenance columns are empty: <code>gate_version</code>,
-<code>min_access_rule</code> and <code>min_len_x</code>.</strong> Every row is supposed to record
-how it was built, and <code>gate_version</code> is the one that records which engine computed the
-numbers. That matters because the ON ceiling changed definition between versions, from
-<code>open_11</code> (15 nt) to <code>dG_open_11</code> (31 nt), so the same numeric threshold
-means two different things either side of the change — and the guard that refuses to resume a
-table across versions compares exactly that column, so it cannot fire when the column is
-blank.</p>
-
-<p><strong>What this is not.</strong> An earlier draft of this page treated the 30,286 fully
-measured designs with <code>dG_open_11</code> above the setting as evidence of a half-older,
-half-newer table. That was wrong, and the correct reading is simpler: the table is uniform, and it
-was built by the older engine throughout. Its ceiling was <code>open_11 ≤ 8.0</code>. Since the
-15-nt arms sit inside the 31-nt window, opening the window costs at least as much as opening the
-arms, so a design that passes <code>open_11 ≤ 8.0</code> can easily have
-<code>dG_open_11 &gt; 8.0</code>. Those 30,286 designs are not missing a measurement; they have one,
-and it is simply larger than a threshold that was never applied to it.</p>
-
-<p>The claim is now checkable rather than argued: a design the ceiling let through cannot exceed
-the threshold that let it through, so the column the ceiling was read against is the one with
-<em>no</em> survivor above the setting. <code>tools/sensitivity_filters.py</code> reports that test
-for each candidate column and sweeps whichever one passes it, instead of assuming. Writing
-<code>gate_version</code> on every row remains worth doing — the inference works here because two
-candidates were enough to separate, which is not guaranteed next time.</p>
 
 <h2>Discussion and Conclusions</h2>
 
@@ -841,14 +848,40 @@ available, trigger A's grip on the secondary arm is a cost with no detectable be
 <p>We state that carefully, because it is a negative result about a measurement rather than about
 the chemistry. The ON state may well depend on A's grip in ways our ON-state metrics do not
 capture — all four of them are equilibrium ensemble properties of the fully-assembled three-strand
-tube, and none is kinetic. A term that controls the <em>rate</em> of opening in state 11 would not
-necessarily show up in any of them. What we can say is that across 301,440 designs, no equilibrium
-ON-state observable we measure responds to it.</p>
+tube. A term that controls the <em>rate</em> of opening in state 11 would not necessarily show up
+in any of them.</p>
+
+<p><strong>There is one kinetic observable on every measured row, and it does not rescue the
+grip.</strong> <code>barrier</code> is a findpath activation barrier in kcal/mol above the
+starting structure — the highest energy on a path between two structures, which is a different
+quantity from the difference between their energies and the only thing in this engine that is a
+barrier at all. On one real 165-nt switch the state difference is +8.59 kcal/mol while the barrier
+is +9.60, so it is not a rescaled difference. Against the stem energies it is <strong>flat</strong>
+in the same way every equilibrium ON-state term is: median within-cell ρ <strong>−0.021</strong>
+against <code>a_site_energy</code> and +0.024 against <code>lock_energy</code> over 388 cells.
+The sign is consistent (291 of 388 cells negative), so the effect is real and reliably detectable;
+its size is negligible. That strengthens D2 rather than weakening it — the one non-equilibrium
+quantity we have agrees with the four equilibrium ones.</p>
+
+<p>It is not, however, the measurement that would settle the question, and the reason is worth
+stating because it is the next thing to build. <code>barrier</code> is computed on the
+<strong>switch strand alone</strong>, from its own MFE structure to the same structure with the
+main stem's arms released: the wall the molecule clears once a trigger has already committed. No
+trigger is in the path, because findpath takes one strand and does not accept the <code>&amp;</code>
+that joins two molecules — so the quantity that would actually test whether A's grip buys ON-state
+performance, the barrier along the <em>invasion</em> path in state 11, is not what this column
+holds. It is also an upper bound rather than the true saddle, since findpath walks a heuristic
+direct path, and it is measured only on designs that passed the ON ceiling.</p>
 
 <h3>D3 · A metric's reference state is a design decision, not a detail</h3>
 
-<p>The IED gain illustrates a general hazard. Three defensible definitions of "the OFF state" give
-three different answers from the same folded data:</p>
+<p>The IED gain illustrates a general hazard, and the point is about the <em>reference state</em>
+and not about the ensemble defect. The defect itself is one of the three contrasts this study is
+built on and it is informative: <code>sep_ied</code> tracks <code>a_site_energy</code> at ρ
++0.620, ranks the levers the same way the opening contrasts do (§R5), and survives the threshold
+sweeps (§R8). What fails is one particular choice of what to compare the ON state against. Three
+defensible definitions of "the OFF state" give three different answers from the same folded
+data:</p>
 
 <table>
   <thead><tr><th>Definition</th><th class="num">ρ with <code>a_site_energy</code></th></tr></thead>
@@ -862,8 +895,9 @@ three different answers from the same folded data:</p>
 <p class="meta">Signs as measured on the raw columns. The three differ only in which states count
 as OFF.</p>
 
-<p>The 00-referenced version is <strong>nearly uninformative and points the other way</strong>; the
-worst-OFF versions are strong and agree with each other. The reason is R2: state 10 binds the
+<p>So the measurement is fine and one of its three framings is not. The 00-referenced version is
+<strong>nearly uninformative and points the other way</strong>; the worst-OFF versions are strong
+and agree with each other. The reason is R2: state 10 binds the
 contrast, so a metric that references state 00 is measuring the resting structure and says almost
 nothing about AND behaviour. Including state 00 in the worst-of makes little difference precisely
 because it so rarely binds.</p>
@@ -894,7 +928,63 @@ that state 10 binds the contrast, that the leak is widespread, that the ON state
 to the stem energies. These are statements about what the folding model says, and they would have
 to be wrong in the model before they could be wrong in the cell.</p>
 
-<h3>D5 · Limitations</h3>
+<h3>D5 · Assumptions, simplifications and limits</h3>
+
+<p>Everything above rests on a model of the molecules, not on the molecules. These are the places
+where the model is knowingly simpler than the cell, listed so that a reader can tell which
+conclusions would survive a better model and which are artefacts of this one.</p>
+
+<ul>
+  <li><strong>Equilibrium thermodynamics at 37 °C, ViennaRNA defaults.</strong> Every number on
+  this page is an ensemble property of the nearest-neighbour energy model. One
+  <code>FoldEngine</code> at one temperature produced all of them, carried on an explicit model
+  object rather than a process-global setting, so no two designs were folded under different
+  parameters — but a nearest-neighbour model at a single temperature is still the assumption
+  underneath all 301,440 rows.</li>
+  <li><strong>No concentrations, and therefore no expression levels.</strong> Each of the four
+  tubes is the ensemble of one fixed complex: switch alone, switch&amp;B, switch&amp;A,
+  switch&amp;A&amp;B. Nothing in it depends on how much trigger is present, so a trigger at one
+  copy per cell and at a thousand give the same number. Measured ON/OFF depends heavily on that,
+  and the model is silent on it. The same simplification makes state 10 "A present, B absent"
+  rather than "A winning a competition against B".</li>
+  <li><strong>No ribosome.</strong> The start-codon region's availability stands in for
+  initiation. The 31-nt window is chosen for the 30S subunit's footprint, but no initiating
+  ribosome, no standby binding and no competition between the ribosome and the structure is
+  simulated. A gate that is thermodynamically open but kinetically inaccessible to 30S would score
+  well here.</li>
+  <li><strong>Almost no kinetics.</strong> One observable (<code>barrier</code>, D2) is a rate
+  proxy, it is an upper bound on a heuristic path, and it is computed on the switch alone. The
+  architecture is a branch-migration mechanism with an intended order of events, and nothing here
+  measures how fast any step is.</li>
+  <li><strong>The trigger is its window, folded free.</strong> Triggers enter the tubes as the
+  footprints the pair record defines — 35–36 nt for A and 49–50 nt for B, depending on the
+  geometry — as free strands. In the cell they are
+  embedded in full transcripts; that is what <code>l_local_a</code>/<code>l_local_b</code> are for,
+  and they enter the <em>selection</em> of pairs, not the folding of the tubes.</li>
+  <li><strong>Trigger pairs are exact reverse-complementary runs.</strong> The search extends a
+  perfect complement as far as it goes and stops; mismatched, bulged or wobble-tolerant pairings
+  are outside the candidate space by construction, which almost certainly makes the pair pool
+  smaller than the biology allows.</li>
+  <li><strong>"Worst OFF" is a worst case, not an expectation.</strong> Every contrast judges a
+  gate by its leakiest OFF state. A cell visits the three OFF states with different frequencies,
+  and an expression-weighted criterion would rank designs differently. The choice is defensible
+  for a logic gate and it is still a choice (D3).</li>
+  <li><strong>Three gene pairs that are not independent.</strong> <code>ggt</code> is one half of
+  all three (<code>ggt</code>/<code>fadB</code>, <code>ggt</code>/<code>astC</code>,
+  <code>ggt</code>/<code>aldA</code>), and the role swap means it supplies trigger A in some pairs
+  and trigger B in others. So the "three pairs" share one transcript, and the 210 trigger pairs
+  drawn from them share far more sequence than three independent gene pairs would.</li>
+  <li><strong>The within-cell z-score removes the trigger pair on purpose.</strong> Every lever
+  number on this page is "relative to the other designs on the same pair". That is what makes the
+  design effects visible and it is also what makes those numbers structurally unable to say how
+  much the pair decides — §R9 is the only place that question is asked, and it needed a different
+  statistic.</li>
+  <li><strong>No off-target or host context.</strong> The run scores one switch against its own two
+  triggers. Cross-talk with the rest of the transcriptome, RNase turnover, growth-rate effects and
+  plasmid burden are all outside it.</li>
+</ul>
+
+<p>And these are limits of the study rather than of the model:</p>
 
 <ul>
   <li><strong>The OFF side is conditional on survival.</strong> Every contrast exists only for
@@ -913,8 +1003,11 @@ to be wrong in the model before they could be wrong in the cell.</p>
   <li><strong>Equilibrium only.</strong> Every observable is an ensemble property. The architecture
   is a branch-migration mechanism with an intended order of events (00 → 01 → 11), and nothing
   here measures a rate.</li>
-  <li><strong>Unresolved provenance.</strong> See R10: 13.8% of measured designs lack
-  <code>dG_open_11</code>, and the version column that would explain it is empty.</li>
+  <li><strong>The population was shaped by a ceiling we would no longer apply.</strong> This
+  table filtered on <code>open_11 ≤ 8.0</code>, the main stem's 15-nt arms; Green's criterion as
+  the engine now evaluates it is <code>dG_open_11 ≤ 7.2</code> over the 31-nt window. §R8
+  re-applies the latter as a counterfactual and the lever conclusions hold, but a design the older
+  ceiling rejected was never folded in its OFF states, so no filter sweep can recover it.</li>
 </ul>
 
 <h3>D6 · Conclusions</h3>
@@ -954,18 +1047,25 @@ to be wrong in the model before they could be wrong in the cell.</p>
 <ol>
   <li><strong>Run the per-trigger accessibility test</strong> set out in §R9 —
   <code>a_site_energy</code> against <code>l_local_a</code>, <code>b_site_energy</code> against
-  <code>l_local_b</code>, each holding that trigger's own GC content fixed. It is the one open
-  question with a stated method and no answer, and it needs no re-folding.</li>
-  <li><strong>Write <code>gate_version</code> on every row.</strong> The inference above worked
-  because two candidate columns were enough to separate; that is luck, not a guarantee.</li>
+  <code>l_local_b</code>, each cross-checked against the <em>other</em> trigger and then repeated
+  with that trigger's own GC content held fixed. It needs no re-folding: both accessibilities and
+  all three stem energies are already on every row, and GC comes from re-slicing the two
+  footprints out of the reference. It is implemented as probe 6 of
+  <code>tools/probe_axes.py</code> and runs in the same command as the rest.</li>
+  <li><strong>Measure a barrier along the invasion path in state 11.</strong> D2's negative result
+  about trigger A's grip is a statement about four equilibrium observables and one switch-only
+  barrier. The quantity that would test it directly is the saddle on the path from the closed
+  switch&amp;A&amp;B complex to the open one, which <code>FoldEngine.saddle</code> cannot compute
+  as written because findpath takes a single strand. That is a bounded piece of work, and until it
+  exists the claim stays a claim about what we measure.</li>
   <li><strong>Decide which accessibility measure is canonical</strong> —
   <code>l_local_*</code> or <code>access_*</code> — and retire the other, rather than filling in
-  the empty one.</li>
-  <li>Adopt the worst-of-all-three OFF convention across every family, and retire
-  <code>ied_gain</code> as a selection metric.</li>
-  <li>Add one kinetic observable in state 11, since the ON-state result in D2 is a statement about
-  equilibrium metrics only.</li>
-  <li>Widen the trigger-pair sample before generalising any lever conclusion.</li>
+  the empty one (§R10).</li>
+  <li>Adopt the worst-of-all-three OFF convention across every family, and retire the
+  state-00-referenced <code>ied_gain</code> as a selection metric — keeping the ensemble defect
+  itself, which works (D3).</li>
+  <li>Widen the trigger-pair sample before generalising any lever conclusion, and widen it to gene
+  pairs that do not all share <code>ggt</code>.</li>
 </ol>
 
 <h2 style="font-size:1.1rem">Reproducing this</h2>
