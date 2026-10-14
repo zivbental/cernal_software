@@ -426,13 +426,44 @@ and we would be measuring the pairs rather than the grip. Cutting inside the cla
 group to contain a fair mix of easy and hard pairs, so the only thing that separates the groups is
 the axis being studied.</p>
 
-<div class="note"><strong>Figure to be inserted here: one dot per design.</strong> The binned
-table below is a summary, and a summary of a shape has to be taken on trust. The scatter that
-settles it — every design as a dot, <code>a_site_energy</code> raw on x, the within-cell z-score on
-y, with the median of all designs per bin drawn over it — is produced by
-<code>tools/plot_axis_shape.py</code> from the table on disk and will be embedded here. Note that
-<code>a_site_energy</code> is a property of the stem, so all 96 grid points of one stem share an x
-value and the dots fall in columns.</div>
+<figure>
+  <img src="shape_a_site_energy_xstar_engA_10.svg" alt="The state-10 leak against trigger A's grip
+  on the secondary arm, one dot per design" style="width:100%;height:auto">
+  <figcaption>Every one of the 301,440 designs, 6,000 of them drawn; the orange line is the median
+  of <em>all</em> of them per bin. The relationship is flat from −40 to about −18 kcal/mol — across
+  more than half the range, binding trigger A more tightly to the secondary arm changes the leak
+  not at all — and then breaks sharply at roughly <strong>−17 kcal/mol</strong> and falls by two
+  standard deviations. This is the figure the quintile table was a summary of, and it says
+  something the table could not: there is a <em>value</em>, not a trend.</figcaption>
+</figure>
+
+<figure>
+  <img src="shape_a_site_energy_sep_open.svg" alt="The opening contrast against trigger A's grip on
+  the secondary arm, one dot per design" style="width:100%;height:auto">
+  <figcaption>The same axis against the opening contrast, over the 219,807 fully measured designs.
+  The break is in the same place, near −15 kcal/mol, and the right-hand side is noisier because
+  few designs reach it. The vertical columns are real: <code>a_site_energy</code> belongs to the
+  stem, so all 96 grid points built on one stem share an x value.</figcaption>
+</figure>
+
+<p>So the design rule has a number attached to it. <strong>Trigger A's grip on the secondary arm
+has to be weaker than about −15 to −17 kcal/mol.</strong> Stronger than that, the leak is
+saturated and no amount of further tightening or loosening inside that range changes anything —
+which is why a correlation coefficient, which assumes a trend, reported a moderate number for what
+is really a cliff with a flat approach.</p>
+
+<figure>
+  <img src="shape_lock_energy_sep_open.svg" alt="The opening contrast against the secondary stem's
+  own stability, one dot per design" style="width:100%;height:auto">
+  <figcaption><code>lock_energy</code> is the mirror, with a knee near −20 kcal/mol: below it the
+  contrast improves as the stem is stabilised, above it the median sits flat. The far left is
+  jagged because few designs reach a lock that stable, so the first two or three bins are thin and
+  should not be read as structure.</figcaption>
+</figure>
+
+<p class="meta">The three SVGs live in <code>docs/assets/axes_c8/</code> and must be copied beside
+this page when it is published. Regenerate with
+<code>tools/plot_axis_shape.py --out axes_c8 --x &lt;axis&gt; --y &lt;objective&gt;</code>.</p>
 
 <table>
   <thead><tr><th>Quintile of <code>a_site_energy</code></th><th class="num">Q1</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Q4</th><th class="num">Q5</th></tr></thead>
@@ -558,127 +589,138 @@ the choice has to follow from deciding what the gate is for.</p>
 
 <h3>R8 · How much of this survives moving the thresholds</h3>
 
-<div class="note"><strong>The numbers in this section are being regenerated.</strong> The
-sweep was run against <code>dG_open_11</code>, on the assumption that this was the column the
-ceiling had been applied to. It was not — this table was filtered on <code>open_11</code> (§R0),
-and because the 15-nt span sits inside the 31-nt one, 30,286 surviving designs have
-<code>dG_open_11</code> above 8.0 and were silently excluded from every row of the table below.
-The tool now infers the applied column from the survivors instead of assuming it, and this section
-will be replaced with the corrected sweep. The <em>stability</em> conclusions below are expected to
-survive — they are statements about which level wins as the population is narrowed, and the
-narrowing was still monotone — but the design counts are wrong and the framing "tightening the
-ceiling that was applied" was not true of this run.</div>
-
 <p>Every result above is computed on designs that passed the ON ceiling, so each is a statement
-about a population that ceiling shaped. Because <code>dG_open_11</code> is recorded on every
-design before the ceiling decides, a <em>stricter</em> ceiling can be re-applied exactly after the
-fact. (A looser one cannot: the OFF tubes were never folded for a rejected design, so no contrast
-exists there at any price short of another run.)</p>
+about a population that ceiling shaped. The ceiling this table applied was
+<code>open_11 ≤ 8.0</code> — confirmed from the data rather than assumed, since no surviving
+design exceeds it on that column while 30,286 do on <code>dG_open_11</code>. A <em>stricter</em>
+ceiling can be re-applied exactly; a looser one cannot, because the OFF tubes were never folded
+for a rejected design.</p>
 
 <table>
-  <thead><tr><th class="num">ceiling (kcal/mol)</th><th class="num">8.00</th><th class="num">7.06</th><th class="num">6.11</th><th class="num">5.17</th><th class="num">4.22</th><th class="num">3.28</th></tr></thead>
+  <thead><tr><th class="num">ceiling on <code>open_11</code></th><th class="num">8.00</th><th class="num">6.92</th><th class="num">5.84</th><th class="num">4.76</th><th class="num">3.68</th><th class="num">2.60</th></tr></thead>
   <tbody>
-    <tr><td>designs kept</td><td class="num">189,522</td><td class="num">159,083</td><td class="num">123,812</td><td class="num">87,344</td><td class="num">52,349</td><td class="num">21,980</td></tr>
-    <tr><td>cells with data</td><td class="num">363</td><td class="num">333</td><td class="num">289</td><td class="num">244</td><td class="num">186</td><td class="num">108</td></tr>
+    <tr><td>designs kept</td><td class="num">219,808</td><td class="num">188,921</td><td class="num">148,737</td><td class="num">108,170</td><td class="num">67,172</td><td class="num">30,151</td></tr>
+    <tr><td>share of the table</td><td class="num">72.9%</td><td class="num">62.7%</td><td class="num">49.3%</td><td class="num">35.9%</td><td class="num">22.3%</td><td class="num">10.0%</td></tr>
+    <tr><td>cells with data</td><td class="num">390</td><td class="num">355</td><td class="num">318</td><td class="num">272</td><td class="num">216</td><td class="num">122</td></tr>
   </tbody>
 </table>
 
-<p>Across that whole range, from 8.00 down to 3.28 kcal/mol — a sixfold reduction in surviving
-designs — the following hold with the ordering beneath the winner unchanged:</p>
+<p>Across that range — a sevenfold reduction in surviving designs, from 72.9% of the table down to
+10.0% — the following hold with the ordering beneath the winner unchanged:</p>
 
 <ul>
-  <li><strong><code>scheme = B-anchored</code></strong> is best for all four contrasts at every
-  ceiling, and best in <strong>28 of 28</strong> contrast × post-hoc-floor combinations.</li>
-  <li><strong><code>lower3 = wobble_GU</code></strong> is best for <code>sep_open</code>,
-  <code>sep_ied</code> and <code>sep_dg_open</code> at every ceiling.</li>
-  <li><strong><code>upper3 = WWW_UAU</code></strong> likewise for those three contrasts, and
+  <li><strong><code>scheme = B-anchored</code></strong> is best for <strong>all four contrasts at
+  every ceiling</strong>, with the full ordering intact. It is the single most robust result in
+  the study.</li>
+  <li><strong><code>lower3 = wobble_GU</code></strong> for <code>sep_open</code>,
+  <code>sep_ied</code> and <code>sep_dg_open</code> at every ceiling;
+  <code>trigger_derived</code> for <code>sep_a_m</code> at every ceiling.</li>
+  <li><strong><code>upper3 = WWW_UAU</code></strong> likewise for those three, and
   <code>trigger_derived</code> for <code>sep_a_m</code>.</li>
+  <li><strong>Closure</strong> holds its winner for three of the four contrasts across the whole
+  range (<code>closed_CAU</code> for the two opening contrasts, <code>closed_UAU</code> for
+  <code>sep_a_m</code>); only <code>sep_ied</code> flips, at a 3.68 ceiling. The strongly-closed
+  <em>family</em> is robust throughout.</li>
 </ul>
 
-<p>The closure winner is less stable: it flips between the three strongly-closed levels — for
-<code>sep_open</code>, <code>closed_CAU</code> gives way to <code>closed_CGU</code> at a 3.28
-ceiling; for <code>sep_a_m</code>, <code>closed_UAU</code> to <code>closed_CGU</code> at 7.06.
-The <em>family</em> (a strongly closed start codon) is robust; the particular closure within it is
-not, and should not be presented as a settled choice.</p>
+<h4 style="font-size:1rem;margin:1.75rem 0 .4rem">Does it hold at Green's actual threshold?</h4>
 
-<p>Applying the selection-stage floors to this population changes between three and five of the
-twenty conclusions each. The flips concentrate in <code>sep_ied</code> and in
-<code>geom</code>, and under the two leak floors <code>sep_ied</code> reverses its upper- and
-lower-stem winners — which is consistent with R3: conditioning on low leak removes exactly the
-variation those levers were acting on.</p>
+<p>The criterion is Green's, but this table applied it over the narrower 15-nt span (§R0). Because
+<code>dG_open_11</code> is recorded on every design, the question can simply be asked: re-filter
+this population at Green's own line and re-derive the rankings. At
+<code>dG_open_11 ≤ 7.06</code> — essentially his 7.2 — <strong>159,083 designs survive across 333
+cells</strong>, and:</p>
 
-<h3>R9 · The trigger pair decides more than the design does — and it is nearly binary</h3>
+<ul>
+  <li><code>scheme = B-anchored</code> is still best for all four contrasts across the whole swept
+  range, ordering intact;</li>
+  <li><code>lower3</code> and <code>upper3</code> keep the same winners as above, also with their
+  orderings intact;</li>
+  <li>closure flips more readily between the strongly-closed levels, as it does under the applied
+  ceiling.</li>
+</ul>
+
+<p><strong>So the conclusions do not depend on which span the ceiling was read over.</strong> The
+selection can be described as calibrated against Green's measured switches without qualification:
+the claim has been tested on this population rather than inherited from the metric's provenance.
+What the narrower span changed is which designs were measured, not which design decisions win.</p>
+
+<p>Applying the selection-stage floors instead changes between three and five of the twenty
+conclusions each, concentrated in <code>sep_ied</code> and in <code>geom</code>. Under the two
+leak floors <code>sep_ied</code> reverses its upper- and lower-stem winners, which is consistent
+with §R3: conditioning on low leak removes exactly the variation those levers act on.</p>
+
+<h3>R9 · The pair decides whether the gate can open; the design decides whether it leaks</h3>
 
 <p>Of 210 trigger pairs, <strong>15 (7.1%) have no design that opens at all</strong> and
 <strong>75 (35.7%) have more than 95% of their designs open</strong>; median per-pair survival is
-0.880 with a standard deviation of 0.327.</p>
+0.880. The distribution is strongly U-shaped — 22 pairs in the 0–10% band, 98 in the 90–100% band,
+few in between. A smooth spread would mean every pair is partially workable and the levers decide
+how far you get. A U means a pair is mostly either <em>usable</em> or <em>dead</em>, and which one
+it is was settled before any design decision was made. Pair screening is a pass/fail gate, not a
+ranking.</p>
 
-<p>The useful part is not the average but the <strong>shape</strong>. The distribution is strongly
-U-shaped — 22 pairs in the 0–10% band, 98 in the 90–100% band, and few in between. A smooth spread
-would mean every pair is partially workable and the design levers decide how far you get. A U
-means the opposite: a pair is mostly either <em>usable</em> or <em>dead</em>, and which one it is
-was settled before any design decision was made. Pair screening is therefore closer to a pass/fail
-gate than to a ranking, and effort spent on levers inside a dead pair is wasted.</p>
+<p><strong>But "the pair dominates" turns out to be true of one thing and false of another</strong>,
+and the distinction is the most useful result in this section. Every other statistic on this page
+is a within-cell z-score, which subtracts the pair on purpose and therefore cannot measure it.
+Splitting the raw variance instead — how much lies <em>between</em> trigger pairs against how much
+lies <em>within</em> one pair, across its designs — gives this:</p>
 
-<p>The second result is what the pair's own accessibility does and does not predict. Between cells,
-<code>l_local_min</code> — the less accessible of the two trigger windows in its own transcript —
-correlates with the cell's best achievable <strong>ON-state openness</strong> (ρ −0.191 on
-<code>A_M_11</code>, p = 1.7 × 10⁻⁴; −0.188 on <code>dG_open_11</code>) but with <strong>no
-contrast at all</strong> (|ρ| ≤ 0.14, and |ρ| ≤ 0.09 on three of the four).</p>
+<table>
+  <thead><tr><th>Quantity</th><th class="num">designs</th><th class="num">between pairs</th><th class="num">within a pair</th></tr></thead>
+  <tbody>
+    <tr><td><code>open_11</code> — ON-state opening cost</td><td class="num">301,440</td><td class="num"><strong>67.1%</strong></td><td class="num">32.9%</td></tr>
+    <tr><td><code>dG_open_11</code> — the same over the ribosome window</td><td class="num">219,808</td><td class="num"><strong>63.5%</strong></td><td class="num">36.5%</td></tr>
+    <tr><td><code>mainpre_engA_10</code> — state-10 leak</td><td class="num">301,440</td><td class="num">10.1%</td><td class="num"><strong>89.9%</strong></td></tr>
+    <tr><td><code>xstar_engA_10</code> — state-10 leak</td><td class="num">301,440</td><td class="num">7.3%</td><td class="num"><strong>92.7%</strong></td></tr>
+    <tr><td><code>sep_ied</code></td><td class="num">219,808</td><td class="num">14.4%</td><td class="num"><strong>85.6%</strong></td></tr>
+    <tr><td><code>sep_dg_open</code></td><td class="num">219,808</td><td class="num">12.2%</td><td class="num"><strong>87.8%</strong></td></tr>
+    <tr><td><code>sep_open</code></td><td class="num">219,808</td><td class="num">11.5%</td><td class="num"><strong>88.5%</strong></td></tr>
+    <tr><td><code>sep_a_m</code></td><td class="num">219,808</td><td class="num">2.1%</td><td class="num"><strong>97.9%</strong></td></tr>
+  </tbody>
+</table>
+
+<p class="meta">Both geometries pooled, since geometry is a design decision. The leak rows and
+<code>open_11</code> are over all 301,440 designs, before the ceiling decides — no survivorship
+conditioning at all.</p>
+
+<p>The split is clean and it runs along the same seam as §R3. <strong>Two thirds of the variance in
+the ON-state opening cost is between trigger pairs</strong> — whether a gate built on this pair can
+turn on is mostly decided by the pair, and the designer has roughly a third of it to play with.
+<strong>For the leak and every contrast, 86% to 98% of the variance is within a pair</strong> — the
+pair barely constrains how well the gate discriminates, and that is almost entirely the designer's
+to win or lose.</p>
+
+<p>This also corrects the natural reading of the U-shaped survival curve. The pair decides whether
+there is anything to work with; it does not decide how good the result will be. The two questions
+need separate screens, and the second one is where the design levers earn their keep.</p>
+
+<p>Consistently, the pair's own local accessibility <code>l_local_min</code> correlates with the
+cell's best achievable ON-state openness (ρ −0.191 on <code>A_M_11</code>, p = 1.7 × 10⁻⁴; −0.188
+on <code>dG_open_11</code>) and with <strong>no contrast at all</strong> (|ρ| ≤ 0.14). Accessibility
+predicts whether a gate can <em>turn on</em> and says nothing about whether it will
+<em>discriminate</em> — the same division, reached by a different route.</p>
 
 <p><strong>Why accessibility should touch the ON state at all</strong> is worth stating as a
 hypothesis, because it is not obvious and we have not tested it. The switch is not an independent
-molecule: its stems are built as reverse complements of the trigger segments. A trigger window
-that is strongly self-paired inside its own transcript is a window whose sequence has a high
-intrinsic tendency to pair — typically GC-rich, or carrying self-complementary runs. Copy that
-sequence into the switch and it makes a <em>more stable hairpin</em>, which is harder to open in
-the ON state. On that account the correlation is sequence composition propagating from the trigger
-into the switch, exactly as you would expect, and GC content is the obvious mediator.</p>
+molecule: its stems are built as reverse complements of the trigger segments. A trigger window that
+is strongly self-paired inside its own transcript is one whose sequence has a high intrinsic
+tendency to pair — typically GC-rich, or carrying self-complementary runs. Copy that sequence into
+the switch and it makes a <em>more stable hairpin</em>, which is harder to open in the ON state.
+On that account the correlation is sequence composition propagating from the trigger into the
+switch, and GC content is the obvious mediator.</p>
 
 <p><strong>The test has to be per trigger, not on the pair's minimum.</strong> Using
 <code>l_local_min</code> throws away which of the two triggers it came from, and the two can differ
-sharply in composition — the more accessible trigger may be far richer or poorer in GC than the one
-that sets the minimum, so a correlation built on the minimum mixes two different sequences into one
-number.</p>
-
-<p>Matching each trigger to "its" hairpin does not work either, because <strong>the secondary
-hairpin is not one trigger's</strong>. Its arm carries <code>x*</code>, which is simultaneously the
-site trigger A must nucleate on and the segment trigger B invades — both triggers' sequences are
-present in that one structure, which is exactly why the architecture needs two separate energies to
-describe it. The right unit is therefore the measured term rather than the hairpin, since each term
-already names whose binding it describes:</p>
-
-<ul>
-  <li><code>a_site_energy</code> — trigger A's binding to the secondary arm — against
-  <code>l_local_a</code>;</li>
-  <li><code>b_site_energy</code> — trigger B's binding — against <code>l_local_b</code>;</li>
-  <li><code>lock_energy</code> — the secondary stem's own stability, which both triggers'
-  sequences contribute to — against both, where the expectation is precisely that neither alone
-  accounts for it.</li>
-</ul>
-
-<p>Then ask whether each link survives holding that trigger's own GC content fixed. If it vanishes,
-accessibility was a proxy for composition; if it survives, something else carries it. Until then
-this is a plausible mechanism and not a measured one — and the correlation is modest (|ρ| ≈ 0.19),
-so it is a tendency rather than a rule.</p>
-
-<p>Either way the operational split holds: accessibility predicts whether a gate built on that
-pair can <em>turn on</em>, and says nothing about whether it will <em>discriminate</em>.</p>
-
-<p><strong>How much the pair decides is a separate measurement, and it is pending.</strong>
-Everything above establishes that the pair matters; none of it says by how much, and the
-within-cell statistic used throughout this page cannot say, because it subtracts the pair before
-the comparison begins. The direct test is a variance decomposition: for each objective, what
-fraction of its total spread lies <em>between</em> trigger pairs and what fraction lies
-<em>within</em> one pair across its designs. A between-pair share near 100% would mean the levers
-only reorder designs inside a verdict the pair already reached; near 0% would mean the levers
-decide. It needs no re-folding — <code>tools/probe_axes.py</code> probe 5 computes it from the
-table on disk, for the contrasts over survivors and for the leak terms over all 301,440 designs —
-and the result will be reported here Those are separate questions and they need
-separate screens: accessibility is the right filter for the first and is simply silent on the
-second. Taken with §R3 — where the design levers move the leak and not the ON state — the division
-of labour is clean: <strong>the trigger pair sets whether the gate can open; the design levers set
-whether it leaks.</strong></p>
+sharply in composition. Matching each trigger to "its" hairpin does not work either, because the
+secondary hairpin is not one trigger's: its arm carries <code>x*</code>, which is simultaneously
+the site trigger A must nucleate on and the segment trigger B invades, so both triggers' sequences
+are present in that one structure — which is exactly why the architecture needs two separate
+energies to describe it. The right unit is the measured term, since each already names whose
+binding it describes: <code>a_site_energy</code> against <code>l_local_a</code>,
+<code>b_site_energy</code> against <code>l_local_b</code>, and <code>lock_energy</code> against
+both, where the expectation is that neither alone accounts for it. Then ask whether each link
+survives holding that trigger's own GC content fixed.</p>
 
 <h3>R10 · Three gaps, stated rather than worked around</h3>
 
@@ -704,18 +746,39 @@ RNAplfold-based accessibility the selection stage already uses, or the constrain
 and then to retire the other from the inventory. Computing both and carrying both is the one option
 that should be ruled out.</p>
 
-<p><strong>The Kim-versus-naive geometry comparison was not made, but it is available.</strong>
-<code>geom</code> is part of the cell key, so every cell holds exactly one geometry and a
-within-cell z-score can never compare the two: every <code>× geom</code> table in this analysis,
-and every geometry flip under the sensitivity sweeps, is an artefact of that. <strong>This is a
-limitation of the statistic, not of the data.</strong> One trigger pair contributes two cells —
-one per geometry — built on the same two windows, and every design in one has a counterpart in the
-other sharing its whole axis tuple (same stem, closure, upper stem, lower stem). Those matched
-designs differ in geometry alone, which is exactly what a paired comparison needs. The comparison
-is now implemented as a paired test over trigger pairs
-(<code>tools/probe_axes.py</code>, probe 4); the result will be reported here once it has been run
-on the full table. Nothing in this page currently answers whether Kim's extended secondary arm
-beats the naive 18-nt one.</p>
+<p><strong>The Kim-versus-naive geometry comparison is now made, and the answer is that it
+makes no difference.</strong> <code>geom</code> is part of the cell key, so a within-cell z-score
+can never compare the two geometries — every <code>× geom</code> table in this analysis, and every
+geometry flip under the sensitivity sweeps, is an artefact of that. But the comparison was always
+available one level up: each trigger pair contributes two cells, one per geometry, built on the
+same two windows, and every design in one has a counterpart in the other sharing its whole axis
+tuple. Matching those gives <strong>140,256 matched design pairs</strong> differing in geometry
+alone, across 195 trigger pairs.</p>
+
+<table>
+  <thead><tr><th>Contrast</th><th class="num">pairs to Kim</th><th class="num">to naive</th><th class="num">tied</th><th class="num">p</th></tr></thead>
+  <tbody>
+    <tr><td><code>sep_open</code></td><td class="num">53</td><td class="num">70</td><td class="num">72</td><td class="num">0.15</td></tr>
+    <tr><td><code>sep_a_m</code></td><td class="num">106</td><td class="num">89</td><td class="num">0</td><td class="num">0.25</td></tr>
+    <tr><td><code>sep_ied</code></td><td class="num">108</td><td class="num">87</td><td class="num">0</td><td class="num">0.15</td></tr>
+    <tr><td><code>sep_dg_open</code></td><td class="num">57</td><td class="num">67</td><td class="num">71</td><td class="num">0.42</td></tr>
+  </tbody>
+</table>
+
+<p class="meta">Sign test over trigger pairs, each pair won by the geometry with the better median
+over its matched designs. 101,595 matched designs are behind these medians.</p>
+
+<p><strong>Nothing reaches significance, the median paired difference is exactly 0.000 on all four,
+and the four disagree with each other</strong> — the two opening contrasts lean to the naive arm,
+the other two to Kim's. That pattern is what noise looks like. On the opening contrasts, 72 of 195
+pairs are <em>exactly tied</em>: for a third of trigger pairs the geometry changes the result not
+at all. Survival is the same story — of 140,256 matched pairs, 997 open only under Kim's geometry
+and 629 only under the naive one, against 101,595 that open under both.</p>
+
+<p>So Kim's extended secondary arm — 20 nt against 18, invasion 17 against 18, an <code>AUA</code>
+cap — <strong>buys nothing measurable on this architecture</strong>. That is a useful negative
+result rather than an absence of one: it says the extra geometry is not where the gate's problem
+lies, and the design effort belongs on the levers §R8 shows to be robust.</p>
 
 <p><strong>Three provenance columns are empty: <code>gate_version</code>,
 <code>min_access_rule</code> and <code>min_len_x</code>.</strong> Every row is supposed to record
@@ -872,19 +935,27 @@ to be wrong in the model before they could be wrong in the cell.</p>
   enumerated rather than nudged.</li>
   <li><strong>Report closure on gating, never on survival.</strong> The two run opposite on this
   axis (40.7%/26.9% against 82.9%/9.5%).</li>
-  <li><strong>Pick the trigger pair first.</strong> 7.1% of pairs admit no working design and
-  35.7% admit almost any. Pair selection dominates design selection.</li>
+  <li><strong>Screen the pair for whether it can open; design for whether it leaks.</strong>
+  7.1% of pairs admit no working design and 35.7% admit almost any, and two thirds of the variance
+  in the ON-state opening cost is between pairs. But only 2–14% of the variance in the leak and in
+  every contrast is — 86–98% of it is within a pair. The pair decides whether there is anything to
+  work with; the levers decide how well it discriminates. Two screens, not one.</li>
+  <li><strong>Trigger A's grip on the secondary arm has a threshold, not a trend.</strong> Weaker
+  than about −15 to −17 kcal/mol the leak collapses; stronger than that it is saturated and further
+  tightening changes nothing. Design to clear the line, not to maximise the term.</li>
+  <li><strong>Kim's extended secondary arm buys nothing measurable here.</strong> Over 140,256
+  matched design pairs it wins no contrast at significance, the median paired difference is 0.000
+  on all four, and a third of trigger pairs are exactly tied. The extra geometry is not where the
+  problem is.</li>
 </ol>
 
 <h3>D7 · What we would change next, in order</h3>
 
 <ol>
-  <li><strong>Re-run the sensitivity sweep</strong> now that the tool infers which column the
-  ceiling was applied to. §R8's design counts were computed against the wrong column and need
-  replacing; no re-folding is required.</li>
-  <li><strong>Run the geometry probe.</strong> The paired Kim-versus-naive test now exists
-  (<code>tools/probe_axes.py</code>, probe 4) and needs no new folding either. It answers an open
-  design question from the table already on disk.</li>
+  <li><strong>Run the per-trigger accessibility test</strong> set out in §R9 —
+  <code>a_site_energy</code> against <code>l_local_a</code>, <code>b_site_energy</code> against
+  <code>l_local_b</code>, each holding that trigger's own GC content fixed. It is the one open
+  question with a stated method and no answer, and it needs no re-folding.</li>
   <li><strong>Write <code>gate_version</code> on every row.</strong> The inference above worked
   because two candidate columns were enough to separate; that is luck, not a guarantee.</li>
   <li><strong>Decide which accessibility measure is canonical</strong> —
