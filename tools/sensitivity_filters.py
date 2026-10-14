@@ -170,6 +170,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--into", default="", help="directory for the tidy tables, as analyse_axes names it"
     )
+    parser.add_argument(
+        "--column",
+        default="",
+        choices=("", *CEILING_COLUMNS),
+        help=(
+            "sweep this column instead of the one inferred from the survivors. Use it to ask "
+            "'would the conclusions hold at a threshold this run did not apply' -- for example "
+            "--column dG_open_11, which is the span Green's figures are measured over, on a "
+            "table that was actually filtered on open_11"
+        ),
+    )
     args = parser.parse_args(argv)
 
     rows = read_rows(args.out, args.shards)
@@ -191,6 +202,13 @@ def main(argv: list[str] | None = None) -> int:
     run_ceiling = max(ceilings_on_row) if ceilings_on_row else None
 
     column, evidence = applied_ceiling_column(measured, run_ceiling)
+    if args.column:
+        if args.column != column:
+            print(f"\n  NOTE: --column {args.column} overrides the inferred {column}. This is a")
+            print("  COUNTERFACTUAL sweep: it asks what this population would look like under a")
+            print("  threshold the run never applied, which is a fair question and a different one")
+            print("  from tightening the filter that shaped it.")
+        column = args.column
     print("\n  which column the ceiling was read against, inferred from the survivors:")
     for name in CEILING_COLUMNS:
         absent, over = evidence[name]
