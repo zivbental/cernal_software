@@ -426,59 +426,13 @@ and we would be measuring the pairs rather than the grip. Cutting inside the cla
 group to contain a fair mix of easy and hard pairs, so the only thing that separates the groups is
 the axis being studied.</p>
 
-<figure>
-<svg viewBox="0 0 700 330" role="img" aria-labelledby="f4t">
-  <title id="f4t">Mean within-cell z-score by quintile of trigger-A grip on the secondary arm</title>
-  <line class="axis" x1="190" y1="280" x2="650" y2="280"/>
-  <line class="axis" x1="190" y1="40" x2="190" y2="280"/>
-  <line x1="190" y1="120" x2="650" y2="120" stroke="var(--rule)" stroke-dasharray="3 3"/>
-  <text class="tick" x="182" y="66" text-anchor="end">+0.5</text>
-  <text class="tick" x="182" y="124" text-anchor="end">0</text>
-  <text class="tick" x="182" y="181" text-anchor="end">−0.5</text>
-  <text class="tick" x="182" y="238" text-anchor="end">−1.0</text>
-  <text class="lbl" x="200" y="300" text-anchor="middle">Q1</text>
-  <text class="lbl" x="300" y="300" text-anchor="middle">Q2</text>
-  <text class="lbl" x="400" y="300" text-anchor="middle">Q3</text>
-  <text class="lbl" x="500" y="300" text-anchor="middle">Q4</text>
-  <text class="lbl" x="600" y="300" text-anchor="middle">Q5</text>
-  <text class="tick" x="200" y="318" text-anchor="middle">tightest grip</text>
-  <text class="tick" x="600" y="318" text-anchor="middle">weakest grip</text>
-  <text class="grp" x="30" y="22">mean within-cell z-score · lower is better, so a line falling to the right is a lever that helps</text>
-
-  <polyline fill="none" stroke="var(--series-1)" stroke-width="2"
-    points="200,53.9 300,63.3 400,81.8 500,134.5 600,267.1"/>
-  <polyline fill="none" stroke="var(--series-2)" stroke-width="2"
-    points="200,72.1 300,76.8 400,87.9 500,126.0 600,238.0"/>
-  <polyline fill="none" stroke="var(--series-3)" stroke-width="2"
-    points="200,89.5 300,94.3 400,104.0 500,133.0 600,179.6"/>
-
-  <g fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2">
-    <circle cx="200" cy="53.9" r="5"/><circle cx="300" cy="63.3" r="5"/>
-    <circle cx="400" cy="81.8" r="5"/><circle cx="500" cy="134.5" r="5"/>
-    <circle cx="600" cy="267.1" r="5"/>
-  </g>
-  <g fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2">
-    <circle cx="200" cy="72.1" r="5"/><circle cx="300" cy="76.8" r="5"/>
-    <circle cx="400" cy="87.9" r="5"/><circle cx="500" cy="126.0" r="5"/>
-    <circle cx="600" cy="238.0" r="5"/>
-  </g>
-  <g fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2">
-    <circle cx="200" cy="89.5" r="5"/><circle cx="300" cy="94.3" r="5"/>
-    <circle cx="400" cy="104.0" r="5"/><circle cx="500" cy="133.0" r="5"/>
-    <circle cx="600" cy="179.6" r="5"/>
-  </g>
-
-  <text class="val" x="612" y="271">xstar_engA_10</text>
-  <text class="val" x="612" y="242">sep_open</text>
-  <text class="val" x="612" y="184">sep_a_m</text>
-</svg>
-<figcaption>Each line is one objective, averaged over all 420 cells. The designs in every cell are
-split into five equal groups by how tightly trigger A grips the secondary arm, Q1 tightest. Four
-fifths of the range is nearly flat and the effect appears almost entirely in the last group — a
-threshold, not a gradient. A correlation coefficient averages this into one moderate number and a
-win-count reads it as noise; only the binned shape shows it. <code>lock_energy</code> produces the
-mirror image, with the whole effect in Q1.</figcaption>
-</figure>
+<div class="note"><strong>Figure to be inserted here: one dot per design.</strong> The binned
+table below is a summary, and a summary of a shape has to be taken on trust. The scatter that
+settles it — every design as a dot, <code>a_site_energy</code> raw on x, the within-cell z-score on
+y, with the median of all designs per bin drawn over it — is produced by
+<code>tools/plot_axis_shape.py</code> from the table on disk and will be embedded here. Note that
+<code>a_site_energy</code> is a property of the stem, so all 96 grid points of one stem share an x
+value and the dots fall in columns.</div>
 
 <table>
   <thead><tr><th>Quintile of <code>a_site_energy</code></th><th class="num">Q1</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Q4</th><th class="num">Q5</th></tr></thead>
@@ -685,10 +639,25 @@ into the switch, exactly as you would expect, and GC content is the obvious medi
 <code>l_local_min</code> throws away which of the two triggers it came from, and the two can differ
 sharply in composition — the more accessible trigger may be far richer or poorer in GC than the one
 that sets the minimum, so a correlation built on the minimum mixes two different sequences into one
-number. Each trigger should instead be matched to the part of the switch <em>it</em> gives rise to:
-<code>l_local_a</code> against the main hairpin, which is built from trigger A's footprint, and
-<code>l_local_b</code> against the secondary hairpin and its lock, which is built from trigger B's.
-Then ask whether each link survives holding that trigger's own GC content fixed. If it vanishes,
+number.</p>
+
+<p>Matching each trigger to "its" hairpin does not work either, because <strong>the secondary
+hairpin is not one trigger's</strong>. Its arm carries <code>x*</code>, which is simultaneously the
+site trigger A must nucleate on and the segment trigger B invades — both triggers' sequences are
+present in that one structure, which is exactly why the architecture needs two separate energies to
+describe it. The right unit is therefore the measured term rather than the hairpin, since each term
+already names whose binding it describes:</p>
+
+<ul>
+  <li><code>a_site_energy</code> — trigger A's binding to the secondary arm — against
+  <code>l_local_a</code>;</li>
+  <li><code>b_site_energy</code> — trigger B's binding — against <code>l_local_b</code>;</li>
+  <li><code>lock_energy</code> — the secondary stem's own stability, which both triggers'
+  sequences contribute to — against both, where the expectation is precisely that neither alone
+  accounts for it.</li>
+</ul>
+
+<p>Then ask whether each link survives holding that trigger's own GC content fixed. If it vanishes,
 accessibility was a proxy for composition; if it survives, something else carries it. Until then
 this is a plausible mechanism and not a measured one — and the correlation is modest (|ρ| ≈ 0.19),
 so it is a tendency rather than a rule.</p>
