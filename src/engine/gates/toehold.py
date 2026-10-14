@@ -93,9 +93,9 @@ def _reading_faults(main_z: str, main_pre: str) -> tuple[str, ...]:
 #:
 #:                   00      10 (A)   01 (B)   11 (A+B)
 #:     lock          shut    shut     OPEN     OPEN       sw_x <-> sw_xs
-#:     sec           shut    shut     OPEN     OPEN       k2_star <-> secondary_z
-#:     k1            shut    shut     shut     OPEN       k1_star <-> main_z
-#:     main_pre      shut    shut     shut     OPEN       main_pre_star <-> main_pre
+#:     sec           shut    shut     OPEN     --         k2_star <-> secondary_z
+#:     k1            shut    shut     shut     --         k1_star <-> main_z
+#:     main_pre      shut    shut     shut     --         main_pre_star <-> main_pre
 #:
 #: ``lock`` and ``sec`` are the SECONDARY hairpin's two duplexes; ``k1`` and ``main_pre``
 #: are the MAIN hairpin's. The names do not say so and the grouping is the opposite of what
@@ -104,26 +104,43 @@ def _reading_faults(main_z: str, main_pre: str) -> tuple[str, ...]:
 #: One threshold, 0.5, serves both directions, so "shut" and "open" are the same claim with
 #: the comparison flipped rather than two separately tuned numbers.
 #:
+#: **Three cells of state 11 are deliberately blank, and the blanks are the point.** The
+#: requirements this table implements mark them as depending on a lever rather than on the
+#: design being right, and a quantity that depends on a lever cannot also be the test of it:
+#:
+#: * ``sec`` — ``k2*`` in state 11 depends on ``b_site`` and ``secondary_z`` on the length of
+#:   ``a_site``, both derived from the scheme;
+#: * ``k1`` — depends on the closure and on ``upper3``, which are two of the three levers the
+#:   whole sweep exists to vary;
+#: * ``main_pre`` — Green may have designed a refolding here on purpose, so an openness test
+#:   would score his intent as a fault.
+#:
+#: Filling them symmetrically is the error this comment exists to prevent: it was done once,
+#: and ``hairpin_k1_11`` alone then rejected 89 of the 121 designs the table cost.
+#: ``lock`` in 11 stays, because both of its halves are definite — ``sw_x`` is taken by
+#: trigger B and ``x*`` by trigger A — and it rejects nothing.
+#:
 #: Measured per cell on 219,808 designs folded in all four tubes, the share satisfying it:
-#: lock 77.6 / 20.9 / 99.4 / 100.0, sec 73.8 / 31.9 / 97.4 / 99.9, k1 98.3 / 37.8 / 98.6 /
-#: 74.5, main_pre 99.4 / 24.7 / 99.8 / 92.1 (in the column order above). Every cell that
-#: does real work is in **state 10**, which is where this chemistry leaks; the rest are
-#: assertions that happen to hold, kept because a truth table with holes in it is not one.
-_HAIRPIN_SHUT: dict[str, tuple[bool, bool, bool, bool]] = {
-    # duplex: (00, 10, 01, 11)
+#: lock 77.6 / 20.9 / 99.4 / 100.0, sec 73.8 / 31.9 / 97.4, k1 98.3 / 37.8 / 98.6, main_pre
+#: 99.4 / 24.7 / 99.8. Every cell that does real work is in **state 10**, which is where this
+#: chemistry leaks; the rest are assertions that happen to hold, kept because a stated claim
+#: that is always true is still worth stating.
+_HAIRPIN_SHUT: dict[str, tuple[bool | None, bool | None, bool | None, bool | None]] = {
+    # duplex: (00, 10, 01, 11); None = depends on a lever, so not a test
     "lock": (True, True, False, False),
-    "sec": (True, True, False, False),
-    "k1": (True, True, True, False),
-    "main_pre": (True, True, True, False),
+    "sec": (True, True, False, None),
+    "k1": (True, True, True, None),
+    "main_pre": (True, True, True, None),
 }
 
 #: ``_HAIRPIN_SHUT`` as ``THRESHOLDS`` entries. ``>`` where the duplex must be formed and
-#: ``<`` where it must be gone, against the one threshold.
+#: ``<`` where it must be gone, against the one threshold. ``None`` cells yield no entry.
 _HAIRPIN_FORMED = 0.5
 _HAIRPIN_TABLE: tuple[tuple[str, str, float], ...] = tuple(
     (f"hairpin_{duplex}_{state}", ">" if shut else "<", _HAIRPIN_FORMED)
     for duplex, shuts in _HAIRPIN_SHUT.items()
     for state, shut in zip(("00", "10", "01", "11"), shuts, strict=True)
+    if shut is not None
 )
 
 
@@ -1795,8 +1812,24 @@ class ToeholdAndGate(ToeholdGate):
         # fold into the structure we drew") asked only of the four duplexes that ARE drawn.
         # Dropping τ9 alone left 1,851 designs passing the other eleven; the table costs 121
         # of those, and 89 of the 121 fall on a single cell (`hairpin_k1_11` must be open).
-        ("separation", ">", 1.5),  # τ10 — state 11 is the most open, by more than noise
-        ("ddG_AND", "<", -1.0),  # τ11 — and the two triggers act cooperatively
+        # τ10 REMOVED, on layering rather than on the measurement. `separation` is a quality
+        # statement — how far the ON state is from the nearest leak — and `engine.scoring`
+        # already carries `state_separation` with its own hard filter. A second, stricter
+        # floor here is a filter in the wrong layer, and the kind that makes one family's
+        # candidate pool incomparable with another's. Still measured, still reported.
+        #
+        # τ11 REMOVED, and NOT for the reason it is easy to reach for. `ddG_AND` is a double
+        # difference of OPENING energies over one span in all four tubes --
+        # `(dG_open_11 - dG_open_01) - (dG_open_10 - dG_open_00)` -- so the finding that
+        # trigger A binds a different site with and without B applies to `coop`
+        # (`dG_bind_A_given_B - dG_bind_B`), a different column, and does not transfer here.
+        #
+        # Two reasons that do apply. It is not a per-domain, per-state structural claim, and
+        # the requirements table that now defines this set is made of those. And being a
+        # difference of differences, its error compounds to roughly twice a single fold's,
+        # while the -1.0 cut sits BELOW that error with a measured median of -0.9681 -- a
+        # coin flip dressed as a gate, and the third-largest rejecter in the set at 1,081
+        # designs no other gate turned away.
         *_HAIRPIN_TABLE,
     )
 

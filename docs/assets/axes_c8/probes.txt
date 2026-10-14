@@ -127,3 +127,74 @@
      70- 80%      19  ###########
      80- 90%      27  ################
      90-100%      98  ############################################################
+
+============================================================================================
+4. KIM'S GEOMETRY AGAINST THE NAIVE ONE, PAIRED BY DESIGN
+  `geom` is part of the CELL key, so a within-cell z-score can never compare the two
+  geometries -- every cell holds exactly one. That is a property of the cell key and
+  not of the data: one trigger pair contributes TWO cells, one per geometry, built on
+  the same two windows. So the comparison is available, it just has to be made one
+  level up: match each design in the naive cell to the design in the Kim cell that
+  shares its whole axis tuple -- same stem, closure, upper3 and lower3 -- and compare
+  the matched values. Only `geom` then differs, which is what a paired test needs.
+
+  The pair is the unit: a trigger pair is won by the geometry with the better median
+  over its matched designs, and the sign test is over pairs, never over designs.
+
+  comparing arm20/inv17/capAUA  against  arm18/inv18/capnone  (positive = Kim is better)
+  140,256 matched design pairs, from 161,184 axis tuples
+
+  survival, over all matched pairs: both open 101,595  Kim only 997  naive only 629
+
+  sep_open   (main-stem opening, kcal/mol)
+    pairs: 53 to Kim, 70 to naive, 72 tied, of 195   p 0.15
+      median paired difference          n   195  median  +0.000  +53/-70  p      0.15
+    (101,595 matched designs behind those pair medians)
+
+  sep_a_m   (main-stem openness, ratio)
+    pairs: 106 to Kim, 89 to naive, 0 tied, of 195   p 0.25
+      median paired difference          n   195  median  +0.000  +106/-89  p      0.25
+    (101,595 matched designs behind those pair medians)
+
+  sep_ied   (ensemble defect, RBS to linker)
+    pairs: 108 to Kim, 87 to naive, 0 tied, of 195   p 0.15
+      median paired difference          n   195  median  +0.000  +108/-87  p      0.15
+    (101,595 matched designs behind those pair medians)
+
+  sep_dg_open   (W_rank opening, kcal/mol)
+    pairs: 57 to Kim, 67 to naive, 71 tied, of 195   p 0.42
+      median paired difference          n   195  median  +0.000  +57/-67  p      0.42
+    (101,595 matched designs behind those pair medians)
+
+============================================================================================
+5. HOW MUCH OF THE OUTCOME IS THE TRIGGER PAIR, AND HOW MUCH THE DESIGN?
+  Every other number in this file is a within-cell z-score, which SUBTRACTS the trigger
+  pair on purpose so that a design decision becomes visible. That makes those numbers
+  structurally unable to answer how much the pair itself decides -- the quantity was
+  removed before the comparison started. So this probe uses the RAW oriented values and
+  splits their variance in two: the part that lies BETWEEN trigger pairs, and the part
+  that lies WITHIN one pair, across the designs built on it.
+
+  between-pair share near 100% means the pair decides and the levers only shuffle
+  designs inside a verdict already made; near 0% means the levers decide. Both
+  geometries are pooled, because geometry is a design decision and not a property of
+  the pair.
+
+  objective                  designs   pairs   between-pair   within-pair
+
+  over designs measured in full (every contrast needs the three OFF tubes):
+    sep_open                 219,808     195         11.5%         88.5%
+    sep_a_m                  219,808     195          2.1%         97.9%
+    sep_ied                  219,808     195         14.4%         85.6%
+    sep_dg_open              219,808     195         12.2%         87.8%
+
+  over ALL designs, before the ceiling decides -- no survivorship conditioning:
+    xstar_engA_10            301,440     210          7.3%         92.7%
+    mainpre_engA_10          301,440     210         10.1%         89.9%
+    dG_open_11               219,808     195         63.5%         36.5%
+    open_11                  301,440     210         67.1%         32.9%
+
+  Read it beside probe 3: that one asks whether a pair admits ANY working design, this
+  one asks, among the designs that exist, how much of the spread the pair already set.
+  A pair can dominate twice over -- by refusing to yield a design at all, and by fixing
+  most of the quality of the ones it does yield -- and the two are separate measurements.
