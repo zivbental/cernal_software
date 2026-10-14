@@ -1,0 +1,120 @@
+
+  301,440 rows, 219,808 measured in full (72.9%)
+
+  which column the ceiling was read against, inferred from the survivors:
+    dG_open_11            0 measured designs missing it,   30,286 above the setting   ruled out
+    open_11               0 measured designs missing it,        0 above the setting   consistent
+    -> sweeping open_11
+    NOTE: this table predates the span change, so its 8 is a cost over
+    the stem's 15-nt arms, NOT the 31-nt ribosome window. It is not comparable with
+    a run at the same number under the newer definition.
+
+====================================================================================================
+ON CEILING -- swept DOWNWARD from the 8 this run used
+  Read against open_11, which every surviving row carries, so a stricter ceiling is
+  re-applied exactly. A LOOSER one is unanswerable: the OFF tubes were never folded
+  for a design the ceiling stopped, so no contrast exists there to analyse.
+
+      ceiling      kept   share   cells
+         8.00   219,808  72.9%     390
+         6.92   188,921  62.7%     355
+         5.84   148,737  49.3%     318
+         4.76   108,170  35.9%     272
+         3.68    67,172  22.3%     216
+         2.60    30,151  10.0%     122
+
+====================================================================================================
+CONCLUSION STABILITY -- does the best level hold as the ceiling tightens?
+  Levels ranked by mean within-cell z-score, the statistic analyse_axes reports.
+  Lower is better, so the best level is the most negative.
+
+  sep_open   (main-stem opening, kcal/mol)
+    closure    closed_CAU best over the whole range 2.60 to 8.00, though the order beneath it moves
+    upper3     WWW_UAU best over the whole range 2.60 to 8.00, and the whole ordering holds
+    lower3     wobble_GU best over the whole range 2.60 to 8.00, and the whole ordering holds
+    scheme     B-anchored best over the whole range 2.60 to 8.00, and the whole ordering holds
+    geom       arm20/inv17/capAUA best over the whole range 2.60 to 8.00, and the whole ordering holds
+
+  sep_a_m   (main-stem openness, ratio)
+    closure    closed_UAU best over the whole range 2.60 to 8.00, though the order beneath it moves
+    upper3     trigger_derived best over the whole range 2.60 to 8.00, and the whole ordering holds
+    lower3     trigger_derived best over the whole range 2.60 to 8.00, and the whole ordering holds
+    scheme     B-anchored best over the whole range 2.60 to 8.00, and the whole ordering holds
+    geom       FLIPS: arm20/inv17/capAUA best until 6.92, then arm18/inv18/capnone
+
+  sep_ied   (ensemble defect, RBS to linker)
+    closure    FLIPS: closed_UAU best until 3.68, then closed_CAU
+    upper3     WWW_UAU best over the whole range 2.60 to 8.00, though the order beneath it moves
+    lower3     wobble_GU best over the whole range 2.60 to 8.00, and the whole ordering holds
+    scheme     B-anchored best over the whole range 2.60 to 8.00, and the whole ordering holds
+    geom       FLIPS: arm20/inv17/capAUA best until 6.92, then arm18/inv18/capnone
+
+  sep_dg_open   (W_rank opening, kcal/mol)
+    closure    closed_CAU best over the whole range 2.60 to 8.00, though the order beneath it moves
+    upper3     WWW_UAU best over the whole range 2.60 to 8.00, and the whole ordering holds
+    lower3     wobble_GU best over the whole range 2.60 to 8.00, and the whole ordering holds
+    scheme     B-anchored best over the whole range 2.60 to 8.00, and the whole ordering holds
+    geom       FLIPS: arm20/inv17/capAUA best until 5.84, then arm18/inv18/capnone
+
+====================================================================================================
+POST-HOC FLOORS -- thresholds that did NOT shape this table
+  These are selection-time cutoffs asked of the characterisation run. Applying one
+  only narrows an already-measured population, so the quartiles below are exact.
+  Each row: how many of the fully measured designs a cutoff at that quartile keeps.
+  Read the flip count as a noise check too. A level that was only marginally ahead was
+  never a conclusion, and subsetting reshuffles it; if nearly every comparison flips
+  under a floor that keeps half the designs, the ranking was inside the noise.
+
+    metric                reject       Q1       Q2       Q3  keeps at Q2
+    aug_11                   low    0.399    0.547    0.755       50.0%
+      the start codon must be reachable in the ON state
+      at its median cutoff, 3 conclusion(s) change:
+        sep_open/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+        sep_ied/closure: closed_UAU -> closed_CAU
+        sep_ied/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+    A_M_11                   low    0.397    0.492    0.576       50.0%
+      the main stem must open in the ON state
+      at its median cutoff, 4 conclusion(s) change:
+        sep_open/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+        sep_a_m/lower3: trigger_derived -> wobble_GU
+        sep_a_m/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+        sep_ied/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+    access_a              only 0 measured values -- not swept
+    barrier                 high   23.250   26.500   30.100       50.0%
+      the refolding barrier out of the ON state
+      at its median cutoff, 4 conclusion(s) change:
+        sep_a_m/upper3: trigger_derived -> WWW_UAU
+        sep_a_m/lower3: trigger_derived -> wobble_GU
+        sep_a_m/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+        sep_ied/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+    xstar_engA_10           high    0.738    0.999    1.000       50.0%
+      trigger A alone must not take x*
+      at its median cutoff, 5 conclusion(s) change:
+        sep_a_m/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+        sep_ied/closure: closed_UAU -> d0_gc1_ACA
+        sep_ied/upper3: WWW_UAU -> trigger_derived
+        sep_ied/lower3: wobble_GU -> trigger_derived
+        ... and 1 more
+    mainpre_engA_10         high    0.493    0.981    0.998       50.0%
+      trigger A alone must not reach the main stem
+      at its median cutoff, 4 conclusion(s) change:
+        sep_a_m/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+        sep_ied/closure: closed_UAU -> open_3x3
+        sep_ied/upper3: WWW_UAU -> trigger_derived
+        sep_ied/lower3: wobble_GU -> trigger_derived
+    hairpin_worst_10         low    0.000    0.000    0.057       50.0%
+      both hairpins must hold with A alone
+      at its median cutoff, 6 conclusion(s) change:
+        sep_open/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+        sep_a_m/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+        sep_ied/closure: closed_UAU -> d0_gc1_ACA
+        sep_ied/upper3: WWW_UAU -> trigger_derived
+        ... and 2 more
+    hairpin_worst_00         low    0.360    0.665    0.801       50.0%
+      both hairpins must hold at rest
+      at its median cutoff, 2 conclusion(s) change:
+        sep_ied/lower3: wobble_GU -> trigger_derived
+        sep_ied/geom: arm20/inv17/capAUA -> arm18/inv18/capnone
+
+  wrote docs\assets\axes_c8\sensitivity.csv  (600 rows)
+  wrote docs\assets\axes_c8\sensitivity_floors.csv  (140 rows)
