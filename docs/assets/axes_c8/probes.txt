@@ -194,6 +194,40 @@
     dG_open_11               219,808     195         63.5%         36.5%
     open_11                  301,440     210         67.1%         32.9%
 
+============================================================================================
+6. PER-TRIGGER ACCESSIBILITY: DOES A TRIGGER'S OWN WINDOW
+   SET ITS OWN STEM ENERGY?
+  420 (trigger pair x geometry) cells; stem energies are cell medians.
+  l_local_* is openness, 0-1, HIGHER = more accessible. The stem energies are
+  kcal/mol, LOWER = tighter binding. The §R9 hypothesis predicts a POSITIVE rho:
+  a less accessible (GC-rich) window copied into the switch binds more tightly.
+
+  Each stem energy against ITS OWN trigger's accessibility, and against the other's.
+  If the link is trigger-specific, the own-trigger row is the stronger of the two.
+    l_local_a -> a_site_energy   (own trigger)          n   420  rho  +0.283  p   6.9e-09
+    l_local_b -> a_site_energy   (the other trigger)    n   420  rho  +0.135  p    0.0056
+    l_local_b -> b_site_energy   (own trigger)          n   420  rho  +0.304  p   4.8e-10
+    l_local_a -> b_site_energy   (the other trigger)    n   420  rho  -0.020  p      0.69
+
+  The secondary stem belongs to neither trigger alone: its arm carries x*, which is
+  simultaneously A's nucleation site and B's invasion target, so the expectation is
+  that neither accessibility alone accounts for lock_energy.
+    l_local_a -> lock_energy                            n   420  rho  +0.036  p      0.46
+    l_local_b -> lock_energy                            n   420  rho  +0.320  p   6.1e-11
+
+  Is GC the mediator? First, does it track accessibility and the energy at all:
+    gc_a -> l_local_a                                   n   420  rho  -0.549  p   2.9e-29
+    gc_b -> l_local_b                                   n   420  rho  -0.465  p   1.8e-21
+    gc_a -> a_site_energy                               n   420  rho  -0.571  p   1.6e-31
+    gc_b -> b_site_energy                               n   420  rho  -0.355  p   3.8e-13
+
+  Then the mediation test: the same own-trigger link with that trigger's own GC held
+  nearly fixed, inside quintiles of GC. If the link is GC propagating from the
+  transcript into the switch it should collapse here; if it survives, accessibility
+  carries something GC does not.
+    l_local_a -> a_site_energy        pooled +0.283   median within GC quintile +0.041   range -0.153 to +0.213
+    l_local_b -> b_site_energy        pooled +0.304   median within GC quintile +0.080   range +0.038 to +0.442
+
   Read it beside probe 3: that one asks whether a pair admits ANY working design, this
   one asks, among the designs that exist, how much of the spread the pair already set.
   A pair can dominate twice over -- by refusing to yield a design at all, and by fixing

@@ -744,14 +744,84 @@ binding it describes: <code>a_site_energy</code> against <code>l_local_a</code>,
 both, where the expectation is that neither alone accounts for it. Then ask whether each link
 survives holding that trigger's own GC content fixed.</p>
 
-<p class="meta">That test is implemented as probe 6 of <code>tools/probe_axes.py</code> and needs
-no re-folding: both accessibilities and all three stem energies are already on every row, and GC
-comes from re-slicing the two footprints out of the reference with the pair record's own
-<code>window_a</code>/<code>window_b</code> arithmetic. The unit is one trigger pair in one
-geometry, with the stem energies summarised by their median over that cell's stems — per-stem rows
-would count a pair once per usable stem, and how many stems a pair yields is a property of the
-pair, so the significance would be inflated by exactly the thing under test. Its numbers are not
-on this page because the run that produces them postdates it.</p>
+<p><strong>The test, run.</strong> It needed no re-folding — both accessibilities and all three
+stem energies are already on every row, and GC comes from re-slicing the two footprints out of the
+reference. The unit is one trigger pair in one geometry, with the stem energies taken as the median
+over that cell's stems; per-stem rows would count a pair once per usable stem, and how many stems a
+pair yields is a property of the pair, so the significance would have been inflated by exactly the
+thing under test.</p>
+
+<table>
+  <thead><tr><th>Link</th><th class="num">ρ</th><th class="num">p</th></tr></thead>
+  <tbody>
+    <tr><td><code>l_local_a</code> → <code>a_site_energy</code> &nbsp;<em>own trigger</em></td><td class="num">+0.283</td><td class="num">6.9 × 10⁻⁹</td></tr>
+    <tr><td><code>l_local_b</code> → <code>a_site_energy</code> &nbsp;<em>the other one</em></td><td class="num">+0.135</td><td class="num">0.0056</td></tr>
+    <tr><td><code>l_local_b</code> → <code>b_site_energy</code> &nbsp;<em>own trigger</em></td><td class="num">+0.304</td><td class="num">4.8 × 10⁻¹⁰</td></tr>
+    <tr><td><code>l_local_a</code> → <code>b_site_energy</code> &nbsp;<em>the other one</em></td><td class="num">−0.020</td><td class="num">0.69</td></tr>
+    <tr><td><code>l_local_b</code> → <code>lock_energy</code></td><td class="num">+0.320</td><td class="num">6.1 × 10⁻¹¹</td></tr>
+    <tr><td><code>l_local_a</code> → <code>lock_energy</code></td><td class="num">+0.036</td><td class="num">0.46</td></tr>
+  </tbody>
+</table>
+
+<p class="meta">420 cells. A <em>positive</em> ρ is the direction the hypothesis predicts: openness
+is 0–1 with higher meaning more accessible, the energies are kcal/mol with lower meaning tighter,
+so "a less accessible window binds more tightly" reads as positive. Both accessibilities and all
+three energies are pre-filter columns, so nothing here is conditioned on survival. One caveat on
+the p values: each trigger pair contributes two cells, one per geometry, with near-identical
+windows, so the effective sample is nearer 210 than 420 and every p above is roughly twice as
+optimistic as it looks. Every result survives that correction except
+<code>l_local_b</code> → <code>a_site_energy</code>, which becomes borderline (p ≈ 0.05).</p>
+
+<p><strong>The hypothesis holds, and it holds per trigger.</strong> Each stem energy is predicted
+by its own trigger's accessibility, and in both cases the own-trigger link is the stronger of the
+two. For trigger B it is the only one: <code>b_site_energy</code> is flat against
+<code>l_local_a</code> (ρ −0.020, p 0.69). So <code>l_local_min</code> really was throwing
+information away, and the per-trigger form was the right test.</p>
+
+<p><strong>The asymmetry is the architecture, not noise.</strong> <code>a_site_energy</code> carries
+some of trigger <em>B</em>'s accessibility (+0.135) while <code>b_site_energy</code> carries none of
+A's. That is what the shared <code>x*</code> predicts: <code>a_site_energy</code> describes trigger
+A binding the <em>secondary arm</em>, and that arm is built from <code>x*</code>, which is read out
+of gene B. A term for A's binding inherits B's composition, because the thing A binds is B's
+sequence.</p>
+
+<p><strong>And the expectation about <code>lock_energy</code> was wrong, informatively.</strong> We
+expected neither accessibility alone to account for the secondary stem's own stability, since both
+triggers' sequences are present in that structure. Measured, it is trigger B's alone — ρ +0.320
+against <code>l_local_b</code>, +0.036 and not significant against <code>l_local_a</code>. Same
+reason: the stem is the <code>x*</code> side, so its composition comes from gene B. The secondary
+hairpin is mixed in <em>function</em> and single-sided in <em>sequence</em>, and only the second of
+those shows up in an energy.</p>
+
+<p><strong>Is GC the mediator? Almost entirely for A, mostly for B.</strong> GC tracks both halves
+strongly and in the predicted directions — <code>gc_a</code> → <code>l_local_a</code> ρ −0.549
+(GC-rich is less accessible) and <code>gc_a</code> → <code>a_site_energy</code> ρ −0.571 (GC-rich
+binds tighter); for B, −0.465 and −0.355. Holding each trigger's own GC nearly fixed, inside
+quintiles of it:</p>
+
+<table>
+  <thead><tr><th>Link</th><th class="num">pooled ρ</th><th class="num">median within GC quintile</th><th class="num">range over the five</th></tr></thead>
+  <tbody>
+    <tr><td><code>l_local_a</code> → <code>a_site_energy</code></td><td class="num">+0.283</td><td class="num">+0.041</td><td class="num">−0.153 to +0.213</td></tr>
+    <tr><td><code>l_local_b</code> → <code>b_site_energy</code></td><td class="num">+0.304</td><td class="num">+0.080</td><td class="num">+0.038 to +0.442</td></tr>
+  </tbody>
+</table>
+
+<p>For trigger A the link <strong>collapses</strong>: six-sevenths of it is GC propagating from the
+transcript into the switch, and what is left changes sign between strata, which is what no effect
+looks like. For trigger B about three-quarters is GC, but the residual is <strong>positive in all
+five strata</strong> (+0.038 to +0.442), so something past composition survives on that side.</p>
+
+<p>The precise statement matters here. Accessibility and GC are <em>not</em> interchangeable in
+general — they share under a third of their rank variance — but <strong>the part of accessibility
+that predicts a stem energy is almost all its GC part.</strong> The §R9 hypothesis is confirmed and
+then largely explained away: the mechanism is sequence composition propagating from the transcript
+into the switch, not accessibility as such. Which also makes the pair-level link this section opened
+with — <code>l_local_min</code> against the cell's best <code>A_M_11</code>, ρ −0.191 — likely a
+composition effect at one remove rather than an accessibility effect. That is the same test on a
+different outcome and we have not run it.</p>
+
+<p class="meta">Reproduce with <code>uv run python tools\probe_axes.py --out axes_c8</code>, probe 6.</p>
 
 <h3>R10 · Loose ends: one naming defect, and one question now closed</h3>
 
@@ -1036,6 +1106,13 @@ conclusions would survive a better model and which are artefacts of this one.</p
   <li><strong>Trigger A's grip on the secondary arm has a threshold, not a trend.</strong> Weaker
   than about −15 to −17 kcal/mol the leak collapses; stronger than that it is saturated and further
   tightening changes nothing. Design to clear the line, not to maximise the term.</li>
+  <li><strong>The secondary stem's energies are trigger B's sequence, and mostly its GC.</strong>
+  Each stem energy is predicted by its own trigger's accessibility (ρ +0.283 and +0.304) and
+  <code>lock_energy</code> by trigger B's alone (+0.320 against B, +0.036 and not significant
+  against A) — because the arm is built from <code>x*</code>, which is read out of gene B. Holding
+  each trigger's GC fixed collapses the A-side link to +0.041, so what looks like an accessibility
+  effect is composition propagating from the transcript into the switch. Accessibility and GC are
+  not two independent screens on a trigger window.</li>
   <li><strong>Kim's extended secondary arm buys nothing measurable here.</strong> Over 140,256
   matched design pairs it wins no contrast at significance, the median paired difference is 0.000
   on all four, and a third of trigger pairs are exactly tied. The extra geometry is not where the
@@ -1045,13 +1122,12 @@ conclusions would survive a better model and which are artefacts of this one.</p
 <h3>D7 · What we would change next, in order</h3>
 
 <ol>
-  <li><strong>Run the per-trigger accessibility test</strong> set out in §R9 —
-  <code>a_site_energy</code> against <code>l_local_a</code>, <code>b_site_energy</code> against
-  <code>l_local_b</code>, each cross-checked against the <em>other</em> trigger and then repeated
-  with that trigger's own GC content held fixed. It needs no re-folding: both accessibilities and
-  all three stem energies are already on every row, and GC comes from re-slicing the two
-  footprints out of the reference. It is implemented as probe 6 of
-  <code>tools/probe_axes.py</code> and runs in the same command as the rest.</li>
+  <li><strong>Stop screening trigger windows on accessibility and GC as if they were two
+  screens.</strong> §R9 shows the part of accessibility that predicts a stem energy is almost all
+  its GC part — entirely so on the A side. Decide which of the two the selection stage uses, and
+  then re-run the same mediation test on the <em>outcome</em> rather than on the stem energy:
+  <code>l_local_min</code> against the cell's best <code>A_M_11</code> with GC held fixed, which
+  is the one link in §R9 we have not taken apart.</li>
   <li><strong>Measure a barrier along the invasion path in state 11.</strong> D2's negative result
   about trigger A's grip is a statement about four equilibrium observables and one switch-only
   barrier. The quantity that would test it directly is the saddle on the path from the closed
