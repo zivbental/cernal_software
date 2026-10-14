@@ -176,6 +176,88 @@ def main(argv=None) -> int:
     for i, n in enumerate(buckets):
         bar = "#" * max(1, int(60 * n / max(buckets))) if n else ""
         print(f"    {i * 10:>3}-{i * 10 + 10:>3}%  {n:>6,}  {bar}")
+
+    # ---- 4. Kim's extended secondary arm against the naive one -------------------------
+    print(f"\n{'=' * 92}\n4. KIM'S GEOMETRY AGAINST THE NAIVE ONE, PAIRED BY DESIGN")
+    print("  `geom` is part of the CELL key, so a within-cell z-score can never compare the two")
+    print("  geometries -- every cell holds exactly one. That is a property of the cell key and")
+    print("  not of the data: one trigger pair contributes TWO cells, one per geometry, built on")
+    print("  the same two windows. So the comparison is available, it just has to be made one")
+    print("  level up: match each design in the naive cell to the design in the Kim cell that")
+    print("  shares its whole axis tuple -- same stem, closure, upper3 and lower3 -- and compare")
+    print("  the matched values. Only `geom` then differs, which is what a paired test needs.")
+    print("\n  The pair is the unit: a trigger pair is won by the geometry with the better median")
+    print("  over its matched designs, and the sign test is over pairs, never over designs.")
+
+    #: A design's identity with the GEOMETRY removed, so its counterpart in the other
+    #: geometry of the same trigger pair is the row with the same key.
+    def without_geom(row: dict) -> tuple:
+        return (
+            row.get("gene_a"),
+            row.get("gene_b"),
+            row.get("x_start"),
+            row.get("xstar_start"),
+            row.get("len_x"),
+            row.get("stem_index"),
+            row.get("closure"),
+            row.get("upper3"),
+            row.get("lower3"),
+        )
+
+    def trigger_pair(row: dict) -> tuple:
+        return (row.get("gene_a"), row.get("gene_b"), row.get("x_start"), row.get("xstar_start"))
+
+    geoms = sorted({str(r.get("geom")) for r in rows if r.get("geom")})
+    if len(geoms) != 2:
+        print(f"\n  needs exactly two geometries, found {len(geoms)}: {geoms}")
+        return 0
+    naive, kim = geoms[0], geoms[1]
+    print(f"\n  comparing {kim}  against  {naive}  (positive = Kim is better)")
+
+    by_key: dict[tuple, dict[str, dict]] = collections.defaultdict(dict)
+    for row in rows:
+        by_key[without_geom(row)][str(row.get("geom"))] = row
+
+    matched = [v for v in by_key.values() if naive in v and kim in v]
+    print(f"  {len(matched):,} matched design pairs, from {len(by_key):,} axis tuples")
+    if not matched:
+        print("  no design has a counterpart in the other geometry -- nothing to compare")
+        return 0
+
+    # Survival first, because it is the one outcome every matched pair carries.
+    kim_only = sum(1 for v in matched if not v[kim].get("skipped") and v[naive].get("skipped"))
+    naive_only = sum(1 for v in matched if not v[naive].get("skipped") and v[kim].get("skipped"))
+    both = sum(1 for v in matched if not v[kim].get("skipped") and not v[naive].get("skipped"))
+    print(
+        f"\n  survival, over all matched pairs: both open {both:,}  "
+        f"Kim only {kim_only:,}  naive only {naive_only:,}"
+    )
+
+    for contrast, _on, _off, _pick, label in CONTRASTS:
+        per_pair: dict[tuple, list[float]] = collections.defaultdict(list)
+        for v in matched:
+            a, b = value_of(v[kim], contrast), value_of(v[naive], contrast)
+            if a is None or b is None:
+                continue
+            # Lower is better, so naive MINUS Kim is positive when Kim wins.
+            per_pair[trigger_pair(v[kim])].append(b - a)
+        medians = [st.median(d) for d in per_pair.values() if d]
+        if len(medians) < 5:
+            print(f"\n  {contrast:14s} only {len(medians)} trigger pairs have matched values")
+            continue
+        won = sum(1 for m in medians if m > 0)
+        lost = sum(1 for m in medians if m < 0)
+        n_designs = sum(len(d) for d in per_pair.values())
+        print(f"\n  {contrast}   ({label})")
+        print(
+            f"    pairs: {won} to Kim, {lost} to naive, {len(medians) - won - lost} tied, "
+            f"of {len(medians)}   p {sign_test_p(won, lost):.2g}"
+        )
+        spread(
+            "    median paired difference",
+            [m for m in medians if m == m],
+        )
+        print(f"    ({n_designs:,} matched designs behind those pair medians)")
     return 0
 
 
