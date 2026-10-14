@@ -129,8 +129,17 @@ Green et al. (2014) report their switch performance over, which is what makes th
 comparable to measured constructs rather than internal to our model. The threshold was taken from
 their data directly: 7.2 kcal/mol is the highest ON cost among the 77 of their switches that
 achieve more than 20-fold ON/OFF, against a median of 3.64 across all 168. A design whose ON state
-costs more than that to open is one no measured working switch resembles. <strong>The run reported
-here was built at 8.0</strong>, a little looser than that line; §R8 sweeps it downward.</p>
+costs more than that to open is one no measured working switch resembles.</p>
+
+<div class="note"><strong>That calibration describes the current engine, not the run reported
+here.</strong> This table was built by the previous version, whose ceiling read a different and
+smaller span: <code>open_11</code>, the main stem's 15-nt arms, at 8.0 kcal/mol. The two are not
+interchangeable — opening the 31-nt window includes opening the 15-nt arms inside it, so
+<code>dG_open_11</code> is always the larger number, and a design that passed at
+<code>open_11 ≤ 8.0</code> routinely has <code>dG_open_11</code> well above 8.0. So the designs in
+this study were <em>not</em> selected against Green's calibrated line; they were selected against a
+stem-local cost that happens to use the same number. The filter is inferred from the data rather
+than from the version column, which is empty — see §R10.</div>
 
 <p><strong>"Worst OFF" — and why a contrast is taken against it.</strong> A gate is only as good
 as its leakiest OFF state, so every contrast compares the ON state against whichever of 00, 01 and
@@ -385,14 +394,32 @@ positive: <strong>the levers do nothing to most designs and a great deal to a mi
 Second, the effects are <strong>threshold-shaped, not gradients</strong>, which a correlation
 coefficient cannot show.</p>
 
-<p>The method, since it is doing real work here: inside each cell, the designs are sorted by
-<code>a_site_energy</code> and cut into five equal groups — Q1 is the fifth with the most negative
-value (trigger A grips the secondary arm most tightly), Q5 the fifth with the weakest grip. Each
-design's objective is converted to a z-score <em>within its own cell</em>, so cells of very
-different difficulty can be averaged together without the easy ones dominating. Then the mean
-z-score is taken per quintile across all cells. Cutting inside the cell matters: an absolute
-energy cut would put whole easy cells in one bin and whole hard cells in another, and the result
-would be a comparison of cells rather than of the axis.</p>
+<p><strong>The method, in plain terms.</strong> Think of each <em>cell</em> as a school class:
+all the designs in it are built on the same two trigger sequences, so they sat the same exam.
+Classes differ enormously in difficulty — in some trigger pairs nothing works at all, in others
+almost everything does (§R9) — so a raw score from one class cannot be compared with a raw score
+from another.</p>
+
+<ol>
+  <li><strong>Sort within the class.</strong> Inside each cell, order the designs by how tightly
+  trigger A grips the secondary arm, and split them into five equal groups. Q1 is the fifth with
+  the tightest grip, Q5 the fifth with the weakest. Each class contributes a fifth of its designs
+  to each group.</li>
+  <li><strong>Grade on the class curve.</strong> Replace each design's raw result with "how far
+  from its own class average, in units of that class's own spread". A value of −1 means one spread
+  better than that class's typical design; 0 means exactly typical. This is what makes a result
+  from an easy class comparable with one from a hard class, and it is all a z-score is.</li>
+  <li><strong>Average each group across all classes.</strong> That gives the five numbers in the
+  table.</li>
+</ol>
+
+<p>Splitting <em>inside</em> each class is the part that matters. If instead we cut on the raw
+energy across everything — say "everything below −30 kcal/mol goes in group 1" — then a trigger
+pair whose designs all happen to sit below −30 would land in group 1 entirely, and an easy pair
+might land entirely in group 5. The groups would then differ by <em>which pairs are in them</em>,
+and we would be measuring the pairs rather than the grip. Cutting inside the class forces every
+group to contain a fair mix of easy and hard pairs, so the only thing that separates the groups is
+the axis being studied.</p>
 
 <table>
   <thead><tr><th>Quintile of <code>a_site_energy</code></th><th class="num">Q1</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Q4</th><th class="num">Q5</th></tr></thead>
@@ -518,6 +545,17 @@ the choice has to follow from deciding what the gate is for.</p>
 
 <h3>R8 · How much of this survives moving the thresholds</h3>
 
+<div class="note"><strong>The numbers in this section are being regenerated.</strong> The
+sweep was run against <code>dG_open_11</code>, on the assumption that this was the column the
+ceiling had been applied to. It was not — this table was filtered on <code>open_11</code> (§R0),
+and because the 15-nt span sits inside the 31-nt one, 30,286 surviving designs have
+<code>dG_open_11</code> above 8.0 and were silently excluded from every row of the table below.
+The tool now infers the applied column from the survivors instead of assuming it, and this section
+will be replaced with the corrected sweep. The <em>stability</em> conclusions below are expected to
+survive — they are statements about which level wins as the population is narrowed, and the
+narrowing was still monotone — but the design counts are wrong and the framing "tightening the
+ceiling that was applied" was not true of this run.</div>
+
 <p>Every result above is computed on designs that passed the ON ceiling, so each is a statement
 about a population that ceiling shaped. Because <code>dG_open_11</code> is recorded on every
 design before the ceiling decides, a <em>stricter</em> ceiling can be re-applied exactly after the
@@ -575,8 +613,24 @@ correlates with the cell's best achievable <strong>ON-state openness</strong> (�
 <code>A_M_11</code>, p = 1.7 × 10⁻⁴; −0.188 on <code>dG_open_11</code>) but with <strong>no
 contrast at all</strong> (|ρ| ≤ 0.14, and |ρ| ≤ 0.09 on three of the four).</p>
 
-<p>So accessibility predicts whether a gate built on that pair can <em>turn on</em>, and says
-nothing about whether it will <em>discriminate</em>. Those are separate questions and they need
+<p><strong>Why accessibility should touch the ON state at all</strong> is worth stating as a
+hypothesis, because it is not obvious and we have not tested it. The switch is not an independent
+molecule: its stems are built as reverse complements of the trigger segments. A trigger window
+that is strongly self-paired inside its own transcript is a window whose sequence has a high
+intrinsic tendency to pair — typically GC-rich, or carrying self-complementary runs. Copy that
+sequence into the switch and it makes a <em>more stable hairpin</em>, which is harder to open in
+the ON state. On that account the correlation is sequence composition propagating from the trigger
+into the switch, exactly as you would expect, and GC content is the obvious mediator.</p>
+
+<p>The test is cheap and has not been run: correlate <code>l_local_min</code> with the GC content
+of the trigger windows and with the switch's own stem stability, then ask whether the
+accessibility–ON-state correlation survives holding those fixed. If it vanishes, accessibility was
+a proxy for composition; if it survives, something else is carrying it. Until then this is a
+plausible mechanism and not a measured one — and the correlation is modest (|ρ| ≈ 0.19), so it is
+a tendency rather than a rule.</p>
+
+<p>Either way the operational split holds: accessibility predicts whether a gate built on that
+pair can <em>turn on</em>, and says nothing about whether it will <em>discriminate</em>. Those are separate questions and they need
 separate screens: accessibility is the right filter for the first and is simply silent on the
 second. Taken with §R3 — where the design levers move the leak and not the ON state — the division
 of labour is clean: <strong>the trigger pair sets whether the gate can open; the design levers set
@@ -584,20 +638,27 @@ whether it leaks.</strong></p>
 
 <h3>R10 · Three gaps, stated rather than worked around</h3>
 
-<p><strong>The transcript-context accessibility of each trigger was not measured.</strong>
-<code>access_a</code> and <code>access_b</code> have zero values across all 301,440 designs. This
-is not an engine defect: <code>measure_design</code> computes them only when it is handed the
-source transcript and both trigger sites, and correctly returns <code>None</code> otherwise rather
-than a zero that would read as a perfect score. The characterisation runner does not pass them.</p>
+<p><strong><code>access_a</code> is empty — and the right fix is probably to delete it, not to
+compute it.</strong> <code>access_a</code> and <code>access_b</code> have zero values across all
+301,440 designs, because <code>measure_design</code> computes them only when handed the source
+transcript and both trigger sites and the runner does not pass them. It correctly returns
+<code>None</code> rather than a zero that would read as a perfect score.</p>
 
-<p>The gap is narrower than "trigger accessibility is missing", though. Per-trigger accessibility
-<em>is</em> recorded, from RNAplfold, in <code>l_local_a</code>, <code>l_local_b</code> and their
-minimum <code>l_local_min</code> — so each trigger has its own value, not merely the pair's worst,
-and §R9 is built on them. What is absent is a different quantity: the energy cost of opening the
-trigger's site <strong>in the context of its whole transcript</strong>, which is what
-<code>access_a</code> measures and what prices in long-range structure that a local window cannot
-see. Given §R9 — that the pair decides most of the outcome — that is the measurement most worth
-adding, and it is a change to the runner's call, not to the engine.</p>
+<p>But the pipeline already measures this. Trigger accessibility is scored at the trigger-selection
+stage, and the characterisation run carries that same quantity forward per trigger as
+<code>l_local_a</code>, <code>l_local_b</code> and their minimum <code>l_local_min</code> — so each
+trigger has its own value, not merely the pair's worst, and §R9 is built on them.
+<code>access_a</code> is a <em>second estimator of the same physical property</em>: the engine's
+own documentation describes it as "<code>p_open</code> expressed as an energy rather than a
+probability", chosen because the probability underflows in the OFF states. Same quantity, different
+units and a different estimator.</p>
+
+<p>So the open item is not "a measurement is missing" but "one quantity has two names", which this
+project treats as a defect in its own right: two implementations of one measurement produce two
+numbers and only one reaches the report. The decision to make is which is canonical — the
+RNAplfold-based accessibility the selection stage already uses, or the constrained-fold energy —
+and then to retire the other from the inventory. Computing both and carrying both is the one option
+that should be ruled out.</p>
 
 <p><strong>The Kim-versus-naive geometry comparison was not made, but it is available.</strong>
 <code>geom</code> is part of the cell key, so every cell holds exactly one geometry and a
@@ -612,26 +673,30 @@ is now implemented as a paired test over trigger pairs
 on the full table. Nothing in this page currently answers whether Kim's extended secondary arm
 beats the naive 18-nt one.</p>
 
-<p><strong>Three provenance columns are empty, and one of them matters.</strong>
-<code>gate_version</code>, <code>min_access_rule</code> and <code>min_len_x</code> carry no value
-on any row. Every row is supposed to record how it was built, and <code>gate_version</code> is the
-one that records <em>which engine computed the numbers</em>. That matters because the ON ceiling
-changed definition at engine version 0.6.0: before it, the ceiling was read against
-<code>open_11</code>, the stem's 15-nt arms; after it, against <code>dG_open_11</code>, the 31-nt
-ribosome window. The same numeric threshold means two different things either side of that change,
-and the guard that exists to refuse resuming a table across versions cannot fire when the column
-it compares is blank.</p>
+<p><strong>Three provenance columns are empty: <code>gate_version</code>,
+<code>min_access_rule</code> and <code>min_len_x</code>.</strong> Every row is supposed to record
+how it was built, and <code>gate_version</code> is the one that records which engine computed the
+numbers. That matters because the ON ceiling changed definition between versions, from
+<code>open_11</code> (15 nt) to <code>dG_open_11</code> (31 nt), so the same numeric threshold
+means two different things either side of the change — and the guard that refuses to resume a
+table across versions compares exactly that column, so it cannot fire when the column is
+blank.</p>
 
-<p>There is a concrete symptom rather than only a theoretical risk. The ceiling sweep finds
-<strong>189,522 usable <code>dG_open_11</code> values among 219,808 fully measured designs — 30,286
-(13.8%) have no value at all</strong> for the column the ceiling is supposedly read against. A
-design that was measured must have passed the ceiling, so it must have had the value; unless it
-was measured by an engine that read the ceiling against <code>open_11</code> and never computed
-<code>dG_open_11</code> — which is precisely the pre-0.6.0 behaviour. The missing values are
-therefore consistent with part of the table being older than the rest, and the blank version column
-is why that cannot be confirmed or ruled out from the data. Until it is, every number on this page
-carries that caveat. Counting the empty values per shard, and checking whether they cluster at the
-start of each file, would settle it without re-folding anything.</p>
+<p><strong>What this is not.</strong> An earlier draft of this page treated the 30,286 fully
+measured designs with <code>dG_open_11</code> above the setting as evidence of a half-older,
+half-newer table. That was wrong, and the correct reading is simpler: the table is uniform, and it
+was built by the older engine throughout. Its ceiling was <code>open_11 ≤ 8.0</code>. Since the
+15-nt arms sit inside the 31-nt window, opening the window costs at least as much as opening the
+arms, so a design that passes <code>open_11 ≤ 8.0</code> can easily have
+<code>dG_open_11 &gt; 8.0</code>. Those 30,286 designs are not missing a measurement; they have one,
+and it is simply larger than a threshold that was never applied to it.</p>
+
+<p>The claim is now checkable rather than argued: a design the ceiling let through cannot exceed
+the threshold that let it through, so the column the ceiling was read against is the one with
+<em>no</em> survivor above the setting. <code>tools/sensitivity_filters.py</code> reports that test
+for each candidate column and sweeps whichever one passes it, instead of assuming. Writing
+<code>gate_version</code> on every row remains worth doing — the inference works here because two
+candidates were enough to separate, which is not guaranteed next time.</p>
 
 <h2>Discussion and Conclusions</h2>
 
@@ -770,15 +835,17 @@ to be wrong in the model before they could be wrong in the cell.</p>
 <h3>D7 · What we would change next, in order</h3>
 
 <ol>
+  <li><strong>Re-run the sensitivity sweep</strong> now that the tool infers which column the
+  ceiling was applied to. §R8's design counts were computed against the wrong column and need
+  replacing; no re-folding is required.</li>
   <li><strong>Run the geometry probe.</strong> The paired Kim-versus-naive test now exists
-  (<code>tools/probe_axes.py</code>, probe 4) and needs no new folding — it reads the table
-  already on disk. It is first because it answers an open design question for free.</li>
-  <li><strong>Resolve the 13.8% of measured designs with no <code>dG_open_11</code></strong>, and
-  write <code>gate_version</code> on every row so the guard can do its job. Until this is settled
-  every number here carries a caveat.</li>
-  <li><strong>Pass the transcript and both trigger sites into the runner</strong> so
-  <code>access_a</code> is measured. Given §R9 — the pair decides most of the outcome — a
-  transcript-context accessibility is the single most valuable measurement still missing.</li>
+  (<code>tools/probe_axes.py</code>, probe 4) and needs no new folding either. It answers an open
+  design question from the table already on disk.</li>
+  <li><strong>Write <code>gate_version</code> on every row.</strong> The inference above worked
+  because two candidate columns were enough to separate; that is luck, not a guarantee.</li>
+  <li><strong>Decide which accessibility measure is canonical</strong> —
+  <code>l_local_*</code> or <code>access_*</code> — and retire the other, rather than filling in
+  the empty one.</li>
   <li>Adopt the worst-of-all-three OFF convention across every family, and retire
   <code>ied_gain</code> as a selection metric.</li>
   <li>Add one kinetic observable in state 11, since the ON-state result in D2 is a statement about

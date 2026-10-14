@@ -55,12 +55,49 @@ from analyse_axes import (
     zscores,
 )
 
-#: The column the ON ceiling is read against. Named here, once, because it CHANGED: before gate
-#: version 0.6.0 the ceiling was read against `open_11`, the stem's arms, and afterwards against
-#: `dG_open_11`, the ribosome's window -- a different and larger span. Rows from either side of
-#: that change are not comparable at the same numeric setting, which is what the `gate_version`
-#: column in `audit_grid_coverage`'s provenance block is for.
-CEILING_COLUMN = "dG_open_11"
+#: The columns the ON ceiling has ever been read against, newest first. It CHANGED at gate
+#: version 0.6.0: before it the ceiling was read against `open_11`, the main stem's 15-nt arms,
+#: and afterwards against `dG_open_11`, the 31-nt ribosome window. The same numeric setting means
+#: two different things either side of that change.
+#:
+#: **Which one a table used is inferred from the table, not assumed.** `gate_version` has been
+#: empty on a real run, so the declaration cannot be trusted to be there -- but the filter leaves
+#: a signature that cannot lie: every design the ceiling let through must satisfy it. So the
+#: column the ceiling was read against is the one where NO surviving design exceeds the setting.
+#: Guessing wrong is not a cosmetic error: `open_11` spans 15 nt inside `dG_open_11`'s 31, so
+#: opening the larger window always costs at least as much, and a design that passed at
+#: `open_11 <= 8` routinely has `dG_open_11 > 8`. Read the wrong column and those designs look
+#: like missing data.
+CEILING_COLUMNS = ("dG_open_11", "open_11")
+CEILING_COLUMN = CEILING_COLUMNS[0]
+
+
+def applied_ceiling_column(measured: list[dict], ceiling: float | None) -> tuple[str, dict]:
+    """Which column the ceiling was actually read against, and the evidence for each candidate.
+
+    A surviving design cannot exceed the threshold that let it survive, so the candidate with no
+    survivors above the setting is the one that was applied. Returns the column and, per
+    candidate, how many measured designs are missing it and how many exceed the setting.
+    """
+    evidence: dict[str, tuple[int, int]] = {}
+    for column in CEILING_COLUMNS:
+        absent = sum(1 for r in measured if not isinstance(r.get(column), float))
+        over = (
+            0
+            if ceiling is None
+            else sum(
+                1 for r in measured if isinstance(r.get(column), float) and r[column] > ceiling
+            )
+        )
+        evidence[column] = (absent, over)
+    for column in CEILING_COLUMNS:
+        absent, over = evidence[column]
+        if absent == 0 and over == 0:
+            return column, evidence
+    # Nothing is clean; fall back to whichever has fewest designs contradicting it.
+    best = min(CEILING_COLUMNS, key=lambda c: evidence[c][0] + evidence[c][1])
+    return best, evidence
+
 
 #: Post-hoc floors: a metric, whether a LOW value is the rejection, and what the floor means.
 #: Every one of these is a measurement on the row, so applying it discards rows and nothing more.
@@ -153,9 +190,31 @@ def main(argv: list[str] | None = None) -> int:
         print("  Sweeping a mixed table measures the mixture. Run audit_grid_coverage first.")
     run_ceiling = max(ceilings_on_row) if ceilings_on_row else None
 
-    values = [row[CEILING_COLUMN] for row in rows if isinstance(row.get(CEILING_COLUMN), float)]
+    column, evidence = applied_ceiling_column(measured, run_ceiling)
+    print("\n  which column the ceiling was read against, inferred from the survivors:")
+    for name in CEILING_COLUMNS:
+        absent, over = evidence[name]
+        verdict = "consistent" if absent == 0 and over == 0 else "ruled out"
+        print(
+            f"    {name:14s} {absent:>8,} measured designs missing it, "
+            f"{over:>8,} above the setting   {verdict}"
+        )
+    clean = [c for c in CEILING_COLUMNS if evidence[c] == (0, 0)]
+    if not clean:
+        print("    NO candidate is clean: every one has survivors above the recorded on_ceiling,")
+        print("    so the recorded setting is probably not the one that was applied. Sweeping the")
+        print("    least contradicted column, and the range below should be read as indicative.")
+    print(f"    -> sweeping {column}")
+    if column != CEILING_COLUMNS[0] and clean:
+        print(
+            f"    NOTE: this table predates the span change, so its {run_ceiling:g} is a cost over"
+        )
+        print("    the stem's 15-nt arms, NOT the 31-nt ribosome window. It is not comparable with")
+        print("    a run at the same number under the newer definition.")
+
+    values = [row[column] for row in rows if isinstance(row.get(column), float)]
     if not values:
-        print(f"  no {CEILING_COLUMN} on any row -- nothing to sweep")
+        print(f"  no {column} on any row -- nothing to sweep")
         return 1
     top = run_ceiling if run_ceiling is not None else max(values)
     bottom = args.floor if args.floor is not None else st.quantiles(values, n=10)[0]
@@ -167,16 +226,14 @@ def main(argv: list[str] | None = None) -> int:
     settings = [top - i * step for i in range(args.steps)]
 
     print(f"\n{'=' * 100}\nON CEILING -- swept DOWNWARD from the {top:g} this run used")
-    print(f"  Read against {CEILING_COLUMN}, which every row carries, so a stricter ceiling is")
+    print(f"  Read against {column}, which every surviving row carries, so a stricter ceiling is")
     print("  re-applied exactly. A LOOSER one is unanswerable: the OFF tubes were never folded")
     print("  for a design the ceiling stopped, so no contrast exists there to analyse.")
     print(f"\n    {'ceiling':>9s}{'kept':>10s}{'share':>8s}{'cells':>8s}")
     per_setting: dict[float, list[dict]] = {}
     for setting in settings:
         kept = [
-            row
-            for row in measured
-            if isinstance(row.get(CEILING_COLUMN), float) and row[CEILING_COLUMN] <= setting
+            row for row in measured if isinstance(row.get(column), float) and row[column] <= setting
         ]
         per_setting[setting] = kept
         cells = len(cells_of(kept)) if kept else 0
