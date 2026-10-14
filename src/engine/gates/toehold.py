@@ -24,7 +24,7 @@ Reference: design map 12, and the pipeline map's Switches Design stage.
 import math
 import re
 from bisect import bisect_right
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from itertools import combinations, product
 from typing import ClassVar
@@ -52,6 +52,79 @@ from engine.gates.tools.binding import (
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine, mean_unpaired, unpaired_defect
 from engine.gates.tools.translation import TranslationScorer
+
+
+def _reading_faults(main_z: str, main_pre: str) -> tuple[str, ...]:
+    """What is wrong with how a ribosome would read ``main_z · AUG · main_pre``.
+
+    One definition, called from three places: the spacer repair, the ``main_pre`` repair,
+    and ``assembly_violations``. Keeping it in one function is what stops the repair and the
+    rejection disagreeing about what a fault is — a design the repair believed it had fixed
+    and the check still rejects, or worse, the other way round.
+
+    The span is the whole region an initiating subunit reads, both sides of the start codon.
+    It deliberately does not extend 5' of ``main_z``: an ``AUG`` upstream of the
+    Shine-Dalgarno core starts nothing, and those are counted elsewhere rather than repaired.
+
+    Returns the faults found, empty when there are none:
+
+    * ``out_of_frame_aug`` — a second start codon the subunit could use, reading a frame that
+      is not the reporter's. An **in-frame** extra start is not a fault: it yields the same
+      protein short of a residue or two.
+    * ``in_frame_stop`` — a stop in the three codons after the start, which truncates the
+      product before it begins.
+    """
+    region = f"{main_z}AUG{main_pre}"
+    aug_at = len(main_z)
+    faults = []
+    if any(i != aug_at and (i - aug_at) % 3 for i in sq.find_augs(region)):
+        faults.append("out_of_frame_aug")
+    if sq.find_stops(region[aug_at:]):
+        faults.append("in_frame_stop")
+    return tuple(faults)
+
+
+#: Which of the four intended duplexes is meant to be formed, per tube.
+#:
+#: One instrument for every cell -- ``_duplex_formed``, the fraction of a duplex's intended
+#: pairs that actually form -- so no state is measured a different way from another. Before
+#: this, state 00 was asked about by ``A_S`` and ``A_M``, state 10 by ``A_M`` plus two
+#: partner-aware terms, state 01 by ``A_M`` and ``A_S``, and state 11 by ``A_M`` alone.
+#:
+#:                   00      10 (A)   01 (B)   11 (A+B)
+#:     lock          shut    shut     OPEN     OPEN       sw_x <-> sw_xs
+#:     sec           shut    shut     OPEN     OPEN       k2_star <-> secondary_z
+#:     k1            shut    shut     shut     OPEN       k1_star <-> main_z
+#:     main_pre      shut    shut     shut     OPEN       main_pre_star <-> main_pre
+#:
+#: ``lock`` and ``sec`` are the SECONDARY hairpin's two duplexes; ``k1`` and ``main_pre``
+#: are the MAIN hairpin's. The names do not say so and the grouping is the opposite of what
+#: they suggest, which is worth stating once here rather than rediscovering.
+#:
+#: One threshold, 0.5, serves both directions, so "shut" and "open" are the same claim with
+#: the comparison flipped rather than two separately tuned numbers.
+#:
+#: Measured per cell on 219,808 designs folded in all four tubes, the share satisfying it:
+#: lock 77.6 / 20.9 / 99.4 / 100.0, sec 73.8 / 31.9 / 97.4 / 99.9, k1 98.3 / 37.8 / 98.6 /
+#: 74.5, main_pre 99.4 / 24.7 / 99.8 / 92.1 (in the column order above). Every cell that
+#: does real work is in **state 10**, which is where this chemistry leaks; the rest are
+#: assertions that happen to hold, kept because a truth table with holes in it is not one.
+_HAIRPIN_SHUT: dict[str, tuple[bool, bool, bool, bool]] = {
+    # duplex: (00, 10, 01, 11)
+    "lock": (True, True, False, False),
+    "sec": (True, True, False, False),
+    "k1": (True, True, True, False),
+    "main_pre": (True, True, True, False),
+}
+
+#: ``_HAIRPIN_SHUT`` as ``THRESHOLDS`` entries. ``>`` where the duplex must be formed and
+#: ``<`` where it must be gone, against the one threshold.
+_HAIRPIN_FORMED = 0.5
+_HAIRPIN_TABLE: tuple[tuple[str, str, float], ...] = tuple(
+    (f"hairpin_{duplex}_{state}", ">" if shut else "<", _HAIRPIN_FORMED)
+    for duplex, shuts in _HAIRPIN_SHUT.items()
+    for state, shut in zip(("00", "10", "01", "11"), shuts, strict=True)
+)
 
 
 class ToeholdGate(GateFamily):
@@ -886,7 +959,19 @@ class ToeholdAndGate(ToeholdGate):
     #: quota -- the count follows the data (measured: 7 of 9 squares occupied, median, so about
     #: 10 stems). That changes WHICH designs exist for a pair, so results are not comparable
     #: across the label. `mainpre_engA_{state}` is additive and free.
-    version = "0.6.0"
+    #: 0.7.0: the feasible set, and the second half of the start-codon repair. Three changes,
+    #: batched into one label on purpose — each would have invalidated the stored grid for
+    #: resume, and paying that once is the difference between one re-run and three.
+    #: (a) `d_off < 0.1` is gone, replaced by `_HAIRPIN_TABLE`: it admitted 0.0% of 219,808
+    #: measured designs because the minimum achievable is 0.1194, the whole-molecule span
+    #: being dominated by a linker that is structured by design. (b) `A_r2_star_00` moves
+    #: 0.5 -> 0.4, off the population median of 0.4864. (c) `_repair_main_pre` extends the
+    #: out-of-frame-AUG and in-frame-stop repair across the start codon into `main_pre`,
+    #: where 12.6% of trigger-A windows carry a competing start and 7.3% an out-of-frame
+    #: one — so SEQUENCES change for those designs, not only their verdicts.
+    #: `swx_engB_{state}`, `k2star_engB_{state}`, `r2star_engB_{state}` and
+    #: `A_sec_z_{state}` are additive and free.
+    version = "0.7.0"
     kind = GateKind.TOEHOLD_AND
     label = "AND Toehold"
     description = "Two-input translational AND"
@@ -1398,6 +1483,11 @@ class ToeholdAndGate(ToeholdGate):
 
         rbs_loop = self.RBS_FLANK + self.RBS_PROKARYOTIC
         main_z = self._repair_main_z(k1, rbs_loop)
+        # The switch's copy of `main_pre`, repaired on the same rule. `main_pre_star` below
+        # stays built from the TRIGGER's `main_pre`, so trigger A's grip on the ascending arm
+        # is untouched and only the 3' copy moves -- exactly as `main_z` moves against a
+        # `k1_star` that keeps trigger A's `k1`.
+        main_pre_z = self._repair_main_pre(main_pre, main_z)
         pieces = [
             # Main's host-dispatched leader, and this branch's trim, because the two sides of
             # this conflict were each right about a different line. `_leader_sequence()` picks the
@@ -1419,7 +1509,7 @@ class ToeholdAndGate(ToeholdGate):
             ("rbs_loop", rbs_loop),
             ("main_z", main_z),
             ("aug", "AUG"),
-            ("main_pre", main_pre),
+            ("main_pre", main_pre_z),
             ("linker", self.LINKER_SEQUENCE),
         ]
 
@@ -1483,26 +1573,72 @@ class ToeholdAndGate(ToeholdGate):
         """
         if "AUG" not in rbs_loop + k1:
             return k1
+        return self._repair_copy(k1, lambda candidate: "AUG" in rbs_loop + candidate)
 
-        options: list[list[str]] = []
-        for base in k1:
-            partner = sq.reverse_complement(base)
-            options.append([b for b in "ACGU" if can_pair(b, partner)])
+    def _repair_copy(self, original: str, is_faulty: Callable[[str], bool]) -> str:
+        """The smallest wobble-preserving rewrite of a switch-side copy that clears a fault.
 
-        k1_star = sq.reverse_complement(k1)
+        Factored out of ``_repair_main_z`` so that ``main_z`` and ``main_pre`` are repaired by
+        one routine rather than two that drift apart. Both are the switch's own copy of a
+        trigger-A domain, both must keep pairing with a partner derived from the **original**
+        trigger sequence, and both carry a hazard in the ribosome's reading of the construct.
+
+        Every position may move to any base that still pairs with the partner the original
+        would have had — **wobbles included**, which is what makes the repair cheap: a base
+        of A or C has exactly one alternative through a G:U wobble, while G and U have none,
+        so the search is at most ``2**len(original)`` and the stem stays closed at every
+        position with one pair merely becoming a wobble.
+
+        Fewest substitutions win; ties go to the strongest remaining duplex. Returns
+        ``original`` unchanged when no repair exists, leaving ``assembly_violations`` to
+        reject the design rather than hiding a silently different one.
+        """
+        options = [
+            [b for b in "ACGU" if can_pair(b, sq.reverse_complement(base))] for base in original
+        ]
+        partner = sq.reverse_complement(original)
         repairs: list[tuple[int, float, str]] = []
         for combination in product(*options):
             candidate = "".join(combination)
-            if "AUG" in rbs_loop + candidate:
+            if is_faulty(candidate):
                 continue
-            energy = fixed_alignment_energy(candidate, k1_star, self.folder)
+            energy = fixed_alignment_energy(candidate, partner, self.folder)
             if energy is None:
                 continue
-            changed = sum(1 for a, b in zip(candidate, k1, strict=True) if a != b)
+            changed = sum(1 for a, b in zip(candidate, original, strict=True) if a != b)
             repairs.append((changed, energy, candidate))
-        if not repairs:
-            return k1
-        return min(repairs)[2]
+        return min(repairs)[2] if repairs else original
+
+    def _repair_main_pre(self, main_pre: str, main_z: str) -> str:
+        """Choose the switch's copy of ``main_pre``: the three codons after the start.
+
+        The counterpart of ``_repair_main_z`` on the other side of the start codon, and the
+        half that was missing. ``_repair_main_z`` cleans the 6-nt spacer, where a competing
+        start codon would sit **1 to 3 nt** from the Shine-Dalgarno core — too close for an
+        anchored 30S to use. The positions an anchored subunit can actually reach run past
+        the planned start into ``main_pre``, and nothing screened them.
+
+        Measured over all 3,417 candidate trigger-A windows on the three gene pairs, with no
+        sampling: the spacer repair fires on 228 of them (6.67%) and fails on 22, while
+        **431 windows (12.6%) carry a competing start codon in ``main_pre``, and 250 (7.3%)
+        carry one that is out of frame.** Those rates are the background rate of AUG in
+        arbitrary sequence, which is the point — ``main_pre`` is nine nucleotides of
+        endogenous transcript that no screen had ever looked at.
+
+        Two faults are cleared together, because one substitution can create the other:
+
+        * an **out-of-frame AUG** anywhere in ``main_z · AUG · main_pre``. An in-frame one is
+          left alone: it only truncates the product by a residue or two;
+        * an **in-frame stop** in the coding region, which truncates it before it begins.
+
+        ``main_pre_star`` keeps pairing with trigger A because it is built from the trigger's
+        own ``main_pre``, not from this copy — the same asymmetry ``main_z`` has with ``k1*``.
+        """
+        if not _reading_faults(main_z, main_pre):
+            return main_pre
+        return self._repair_copy(
+            main_pre, lambda candidate: bool(_reading_faults(main_z, candidate))
+        )
 
     def _off_structure(self, sequence: str, domains: dict[str, tuple[int, int]]) -> str:
         """The structure the OFF state is drawn as, for ``ensemble_defect`` to score against.
@@ -1550,6 +1686,18 @@ class ToeholdAndGate(ToeholdGate):
         loop_start = switch.domains["rbs_loop"][0]
         if "AUG" in switch.sequence[loop_start:aug_start]:
             faults.append("upstream_aug")
+        # The reading window on BOTH sides of the start codon, which is what the two repairs
+        # clear. This is the backstop for the case they cannot: `_repair_copy` returns the
+        # original when no wobble-preserving rewrite removes the fault, and a design that
+        # reaches here with a second start codon in a frame that is not the reporter's must
+        # be rejected rather than reported. Same function the repairs decide on, so the two
+        # cannot disagree about what counts as a fault.
+        faults.extend(
+            _reading_faults(
+                switch.sequence[switch.domains["main_z"][0] : switch.domains["main_z"][1]],
+                switch.sequence[switch.domains["main_pre"][0] : switch.domains["main_pre"][1]],
+            )
+        )
         if len(coding) % 3:
             faults.append("frame_shift")
         # **The motif screen belongs here, on the molecule we actually synthesise.** It used
@@ -1628,10 +1776,28 @@ class ToeholdAndGate(ToeholdGate):
         # between 0.18 and 0.47. They separate the states by a route that is not the designed
         # one, and a floor on `engA_11` would have discarded the best designs in the run.
         ("A_M_11", ">", 0.5),  # τ7  — trigger A opens the main hairpin, but only with B
-        ("A_r2_star_00", ">", 0.5),  # τ8  — the toehold is available to begin with
-        ("d_off", "<", 0.1),  # τ9  — the OFF state is the structure we drew
+        # τ8 MOVED from 0.5 to 0.4, and the move is where the distribution has a cliff
+        # rather than a preference. Measured on 219,808 designs folded in all four tubes:
+        # `> 0.5` rejects 57.2% of them and `> 0.4` rejects 17.6%, because the median is
+        # **0.4864** -- the old cut sat on the middle of the population, where a tenth of a
+        # kcal/mol of model error decides the verdict. 0.4 still asserts the toehold is
+        # substantially open; it stops asserting it about the coin-flip band.
+        ("A_r2_star_00", ">", 0.4),  # τ8  — the toehold is available to begin with
+        # τ9 REMOVED. `d_off < 0.1` admitted **0.0%** of 219,808 measured designs: the
+        # minimum over the whole set is 0.1194, so the cut lay below the floor of the
+        # achievable distribution and nothing could ever pass it. The fault is the span,
+        # not the number. `d_off` is the ensemble defect of the WHOLE switch, which
+        # includes the linker and the cap/r2* stretch -- regions that carry internal
+        # structure by design, as `_intended_duplexes` sets out. The defect was therefore
+        # dominated by exactly the parts no gate makes a claim about.
+        #
+        # What replaces it is the hairpin table below: the same question ("did the molecule
+        # fold into the structure we drew") asked only of the four duplexes that ARE drawn.
+        # Dropping τ9 alone left 1,851 designs passing the other eleven; the table costs 121
+        # of those, and 89 of the 121 fall on a single cell (`hairpin_k1_11` must be open).
         ("separation", ">", 1.5),  # τ10 — state 11 is the most open, by more than noise
         ("ddG_AND", "<", -1.0),  # τ11 — and the two triggers act cooperatively
+        *_HAIRPIN_TABLE,
     )
 
     def gate_violations(
@@ -1845,6 +2011,16 @@ class ToeholdAndGate(ToeholdGate):
             switch.domains["rbs_loop"][0] + len(self.RBS_FLANK),
             switch.domains["rbs_loop"][1],
         )
+        # The three regions trigger B is supposed to take, and the one it is supposed to
+        # release. `xstar_engB` already answers the partner question for x*; these extend the
+        # same question to the rest of the secondary hairpin, because the requirements table
+        # states every OFF-state claim as "paired with WHAT" and three of its cells had no
+        # column. None of them costs a fold: the matrix for this tube is already built.
+        own_arm_spans = {
+            "swx": switch.domains["sw_x"],
+            "k2star": switch.domains["k2_star"],
+            "r2star": switch.domains["r2_star"],
+        }
         duplexes = _intended_duplexes(switch.domains)
         for state, strands in tubes.items():
             # Pooled, not the bare matrix: state 11 has three strands and therefore two
@@ -1913,6 +2089,19 @@ class ToeholdAndGate(ToeholdGate):
             #
             # `other` is the residual, not a drop: every remaining partner is still counted, so
             # the sum closes and a partner nobody named cannot go missing.
+            # Trigger B's grip on each region it has to take, and the accessibility of the
+            # one it has to release. `sw_x` is the lock's ascending arm and it is trigger B
+            # that pairs with it: the shared run is reverse-complementary, so trigger B
+            # carries x* while the switch carries both x (`sw_x`) and x* (`sw_xs`). Verified
+            # on 2,000 consecutive cross-gene pairs -- trigger B's overlap slice equals
+            # `sw_xs`'s sequence in 2,000 of 2,000, which is why it pairs with `sw_x` and
+            # cannot pair with `sw_xs`. That asymmetry is the whole reason x* comes free in
+            # state 01 while the arm it was locked to is taken.
+            for name, span in own_arm_spans.items():
+                observables[f"{name}_engB_{state}"] = _mean_paired_to(matrix, span, b_blocks[state])
+            # Secondary_z on its own. `A_S_full` pools it with x*, which cannot answer
+            # "is secondary_z free" because x* dominates the span whenever A is present.
+            observables[f"A_sec_z_{state}"] = _mean_unpaired(matrix, *secondary_z)
             observables[f"xstar_linker_{state}"] = _mean_paired_to(matrix, xstar, linker)
             observables[f"xstar_sec_z_{state}"] = _mean_paired_to(matrix, xstar, secondary_z)
             observables[f"xstar_engB_{state}"] = _mean_paired_to(matrix, xstar, b_blocks[state])
@@ -2696,6 +2885,17 @@ class ToeholdAndGate(ToeholdGate):
         *(f"xstar_linker_{state}" for state in ("00", "01", "10", "11")),
         *(f"xstar_sec_z_{state}" for state in ("00", "01", "10", "11")),
         *(f"xstar_other_{state}" for state in ("00", "01", "10", "11")),
+        # Trigger B's grip on each region it has to take, and the accessibility of the one it
+        # has to release. `swx_engB` is what `hairpin_lock` cannot say: the lock's ascending
+        # arm can be unpaired from x* either because trigger B took it or because it simply
+        # frayed, and only this distinguishes them. `k2star_engB` is scheme-dependent and is
+        # therefore measured but deliberately NOT gated.
+        *(
+            f"{name}_engB_{state}"
+            for name in ("swx", "k2star", "r2star")
+            for state in ("00", "01", "10", "11")
+        ),
+        *(f"A_sec_z_{state}" for state in ("00", "01", "10", "11")),
         # How much of each intended duplex forms, per state.
         *(
             f"hairpin_{name}_{state}"

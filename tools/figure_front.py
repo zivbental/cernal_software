@@ -89,7 +89,6 @@ def _text(x, y, s, cls, anchor="start") -> str:
 
 def front() -> str:
     by_name = {b[5]: b for b in BUILDS}
-    kept = [b for b in BUILDS if b[3]]
 
     out = [
         _text(8, 28, "What &#8220;non-dominated&#8221; throws away, and what it keeps", "mt-title"),
@@ -107,7 +106,7 @@ def front() -> str:
     out.append(_text(8, top + 18, "the arm, 13 nt", "mt-row"))
     out.append(_text(left - 14, top + 18, "A would put", "mt-side", "end"))
     out.append(_text(left - 14, top + cell + 18, "B needs", "mt-side", "end"))
-    for index, (base_a, base_b) in enumerate(zip(ARM_EXT, ARM_WANTED)):
+    for index, (base_a, base_b) in enumerate(zip(ARM_EXT, ARM_WANTED, strict=True)):
         x = left + index * cell
         clash = index in CONFLICTS
         for row, base in ((0, base_a), (1, base_b)):
