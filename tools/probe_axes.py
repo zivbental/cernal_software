@@ -258,6 +258,70 @@ def main(argv=None) -> int:
             [m for m in medians if m == m],
         )
         print(f"    ({n_designs:,} matched designs behind those pair medians)")
+    # ---- 5. how much is the pair, and how much is the design? --------------------------
+    print(f"\n{'=' * 92}\n5. HOW MUCH OF THE OUTCOME IS THE TRIGGER PAIR, AND HOW MUCH THE DESIGN?")
+    print("  Every other number in this file is a within-cell z-score, which SUBTRACTS the trigger")
+    print("  pair on purpose so that a design decision becomes visible. That makes those numbers")
+    print("  structurally unable to answer how much the pair itself decides -- the quantity was")
+    print("  removed before the comparison started. So this probe uses the RAW oriented values and")
+    print("  splits their variance in two: the part that lies BETWEEN trigger pairs, and the part")
+    print("  that lies WITHIN one pair, across the designs built on it.")
+    print("\n  between-pair share near 100% means the pair decides and the levers only shuffle")
+    print("  designs inside a verdict already made; near 0% means the levers decide. Both")
+    print("  geometries are pooled, because geometry is a design decision and not a property of")
+    print("  the pair.")
+
+    def pair_of(row: dict) -> tuple:
+        return (row.get("gene_a"), row.get("gene_b"), row.get("x_start"), row.get("xstar_start"))
+
+    def decompose(population: list[dict], objective: str) -> tuple[int, int, float] | None:
+        """Share of the variance lying between trigger pairs. ``None`` when too little data."""
+        by_pair: dict[tuple, list[float]] = collections.defaultdict(list)
+        for row in population:
+            value = value_of(row, objective)
+            if value is not None:
+                by_pair[pair_of(row)].append(value)
+        by_pair = {k: v for k, v in by_pair.items() if len(v) >= 2}
+        values = [v for group in by_pair.values() for v in group]
+        if len(by_pair) < 5 or len(values) < 50:
+            return None
+        grand = st.fmean(values)
+        total = sum((v - grand) ** 2 for v in values)
+        if total <= 0:
+            return None
+        between = sum(len(g) * (st.fmean(g) - grand) ** 2 for g in by_pair.values())
+        return len(values), len(by_pair), between / total
+
+    print(
+        f"\n  {'objective':22s}{'designs':>12s}{'pairs':>8s}"
+        f"{'between-pair':>15s}{'within-pair':>14s}"
+    )
+    print("\n  over designs measured in full (every contrast needs the three OFF tubes):")
+    for contrast, _on, _off, _pick, _label in CONTRASTS:
+        got = decompose(full, contrast)
+        if got is None:
+            print(f"    {contrast:22s} too little data")
+            continue
+        n, pairs, share = got
+        print(f"    {contrast:20s}{n:>12,}{pairs:>8,}{share:>14.1%}{1 - share:>14.1%}")
+
+    print("\n  over ALL designs, before the ceiling decides -- no survivorship conditioning:")
+    for name in ("xstar_engA_10", "mainpre_engA_10", "dG_open_11", "open_11"):
+        got = decompose(rows, name)
+        if got is None:
+            print(f"    {name:22s} too little data")
+            continue
+        n, pairs, share = got
+        print(f"    {name:20s}{n:>12,}{pairs:>8,}{share:>14.1%}{1 - share:>14.1%}")
+
+    print(
+        "\n  Read it beside probe 3: that one asks whether a pair admits ANY working design, this"
+    )
+    print("  one asks, among the designs that exist, how much of the spread the pair already set.")
+    print("  A pair can dominate twice over -- by refusing to yield a design at all, and by fixing")
+    print(
+        "  most of the quality of the ones it does yield -- and the two are separate measurements."
+    )
     return 0
 
 

@@ -663,7 +663,18 @@ this is a plausible mechanism and not a measured one — and the correlation is 
 so it is a tendency rather than a rule.</p>
 
 <p>Either way the operational split holds: accessibility predicts whether a gate built on that
-pair can <em>turn on</em>, and says nothing about whether it will <em>discriminate</em>. Those are separate questions and they need
+pair can <em>turn on</em>, and says nothing about whether it will <em>discriminate</em>.</p>
+
+<p><strong>How much the pair decides is a separate measurement, and it is pending.</strong>
+Everything above establishes that the pair matters; none of it says by how much, and the
+within-cell statistic used throughout this page cannot say, because it subtracts the pair before
+the comparison begins. The direct test is a variance decomposition: for each objective, what
+fraction of its total spread lies <em>between</em> trigger pairs and what fraction lies
+<em>within</em> one pair across its designs. A between-pair share near 100% would mean the levers
+only reorder designs inside a verdict the pair already reached; near 0% would mean the levers
+decide. It needs no re-folding — <code>tools/probe_axes.py</code> probe 5 computes it from the
+table on disk, for the contrasts over survivors and for the leak terms over all 301,440 designs —
+and the result will be reported here Those are separate questions and they need
 separate screens: accessibility is the right filter for the first and is simply silent on the
 second. Taken with §R3 — where the design levers move the leak and not the ON state — the division
 of labour is clean: <strong>the trigger pair sets whether the gate can open; the design levers set
