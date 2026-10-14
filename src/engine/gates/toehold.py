@@ -2783,7 +2783,7 @@ class ToeholdAndGate(ToeholdGate):
         # discriminates between CHEMISTRIES, not between designs within one).
         out["component_count"] = float(len(design.trigger_set.activators) + 2)
 
-                # ---- the ON tube, first, because its ceiling is what makes the sweep affordable
+        # ---- the ON tube, first, because its ceiling is what makes the sweep affordable
         on_strands = f"{switch.sequence}&{trigger_a}&{trigger_b}"
         # Two spans of the same complex, so the second costs one more constrained
         # partition function rather than a second fold.
@@ -2816,9 +2816,7 @@ class ToeholdAndGate(ToeholdGate):
             leak_matrix, switch.domains["main_pre_star"], a_block
         )
 
-        if on_ceiling is not None and (
-            out["dG_open_11"] is None or out["dG_open_11"] > on_ceiling
-        ):
+        if on_ceiling is not None and (out["dG_open_11"] is None or out["dG_open_11"] > on_ceiling):
             # A reason, with the leak terms measured beside it. A design that fails is a
             # measurement, not an absence -- which is the contract the characterisation run
             # is built on.

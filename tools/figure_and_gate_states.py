@@ -180,7 +180,7 @@ def _gene(active: bool) -> str:
     else:
         mark = (
             f'<path class="st-cross" d="M {GENE_X + 14:.0f} {top + 7:.0f} '
-            f'L {GENE_X + 33:.0f} {top + 26:.0f} M {GENE_X + 14:.0f} {top + 26:.0f} '
+            f"L {GENE_X + 33:.0f} {top + 26:.0f} M {GENE_X + 14:.0f} {top + 26:.0f} "
             f'L {GENE_X + 33:.0f} {top + 7:.0f}" />'
         )
     label = "Output translated" if active else "No output"
@@ -231,8 +231,7 @@ def _closed_pair() -> tuple[str, str]:
         blocks=((6, STEM_TOP, LOOP_FROM), (9, LOOP_TO, STEM_BOTTOM)),
     )
     backbone = (
-        f'<path class="st-bb" d="M 24 {BASE_Y} {h1_path}{h2_path}'
-        f'L {GENE_X - 10} {BASE_Y}" />'
+        f'<path class="st-bb" d="M 24 {BASE_Y} {h1_path}{h2_path}L {GENE_X - 10} {BASE_Y}" />'
     )
     return backbone, f"{h1_rungs}\n    {h2_rungs}"
 

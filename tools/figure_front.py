@@ -92,11 +92,14 @@ def front() -> str:
     kept = [b for b in BUILDS if b[3]]
 
     out = [
-        _text(8, 28, "What &#8220;non-dominated&#8221; throws away, and what it keeps",
-              "mt-title"),
-        _text(8, 48, "One real ggt &#215; fadB pair with three disagreeing positions, "
-                     "so all 27 builds fit on one plot. The median has 10 to 11.",
-              "mt-caption"),
+        _text(8, 28, "What &#8220;non-dominated&#8221; throws away, and what it keeps", "mt-title"),
+        _text(
+            8,
+            48,
+            "One real ggt &#215; fadB pair with three disagreeing positions, "
+            "so all 27 builds fit on one plot. The median has 10 to 11.",
+            "mt-caption",
+        ),
     ]
 
     # --- band 1: the three positions and the three choices at each --------------------
@@ -113,14 +116,25 @@ def front() -> str:
                 f'x="{x}" y="{top + row * cell}" width="{cell - 2}" '
                 f'height="{cell - 2}" rx="2" />'
             )
-            out.append(_text(x + cell / 2 - 1, top + row * cell + 18, base,
-                             "mt-base", "middle"))
+            out.append(_text(x + cell / 2 - 1, top + row * cell + 18, base, "mt-base", "middle"))
         if clash:
-            out.append(_text(x + cell / 2 - 1, top + 2 * cell + 20,
-                             "A&#8901;B&#8901;M", "mt-clash-mark", "middle"))
-    out.append(_text(8, top + 2 * cell + 20,
-                     "3 choices &#215; 3 positions = 27 builds, every one of them "
-                     "enumerated", "mt-note"))
+            out.append(
+                _text(
+                    x + cell / 2 - 1,
+                    top + 2 * cell + 20,
+                    "A&#8901;B&#8901;M",
+                    "mt-clash-mark",
+                    "middle",
+                )
+            )
+    out.append(
+        _text(
+            8,
+            top + 2 * cell + 20,
+            "3 choices &#215; 3 positions = 27 builds, every one of them enumerated",
+            "mt-note",
+        )
+    )
 
     # --- band 2: the plot --------------------------------------------------------------
     plot_x, plot_y, plot_w, plot_h = 230, 196, 470, 330
@@ -147,8 +161,13 @@ def front() -> str:
         f'x2="{plot_x + plot_w}" y2="{plot_y + plot_h}" />',
         f'<line class="mt-axis-line" x1="{plot_x}" y1="{plot_y}" '
         f'x2="{plot_x}" y2="{plot_y + plot_h}" />',
-        _text(plot_x + plot_w / 2, plot_y + plot_h + 30,
-              "the lock, kcal/mol &#8212; stronger to the left", "mt-axis", "middle"),
+        _text(
+            plot_x + plot_w / 2,
+            plot_y + plot_h + 30,
+            "the lock, kcal/mol &#8212; stronger to the left",
+            "mt-axis",
+            "middle",
+        ),
         _text(plot_x - 14, plot_y + 10, "A&#8217;s grip", "mt-axis", "end"),
         _text(plot_x - 14, plot_y + 26, "stronger", "mt-axis", "end"),
     ]
@@ -156,35 +175,44 @@ def front() -> str:
     for lock, grip, _b_site, ok, on_front, name in BUILDS:
         x, y = px(lock), py(grip)
         if not ok:
-            out.append(f'<path class="mt-rejected" d="M {x - 4.5:.1f} {y - 4.5:.1f} '
-                       f'l 9 9 M {x + 4.5:.1f} {y - 4.5:.1f} l -9 9" />')
+            out.append(
+                f'<path class="mt-rejected" d="M {x - 4.5:.1f} {y - 4.5:.1f} '
+                f'l 9 9 M {x + 4.5:.1f} {y - 4.5:.1f} l -9 9" />'
+            )
             continue
-        cls = "mt-third-axis" if name == THIRD_AXIS else (
-            "mt-front" if on_front else "mt-dominated")
+        cls = (
+            "mt-third-axis" if name == THIRD_AXIS else ("mt-front" if on_front else "mt-dominated")
+        )
         out.append(f'<circle class="{cls}" cx="{x:.1f}" cy="{y:.1f}" r="6.5" />')
 
     for name, dx, dy, anchor in (
-        (SHOWN, 11, 4, "start"), (SHOWN_BY, -11, 4, "end"),
-        (THIRD_AXIS, 12, 4, "start"), (THIRD_AXIS_BY, -11, 4, "end"),
-        ("BBB", -11, 4, "end"), ("AAA", 11, 4, "start"),
+        (SHOWN, 11, 4, "start"),
+        (SHOWN_BY, -11, 4, "end"),
+        (THIRD_AXIS, 12, 4, "start"),
+        (THIRD_AXIS_BY, -11, 4, "end"),
+        ("BBB", -11, 4, "end"),
+        ("AAA", 11, 4, "start"),
     ):
         b = by_name[name]
         out.append(_text(px(b[0]) + dx, py(b[1]) + dy, name, "mt-point-name", anchor))
 
     # --- band 3: the legend, down the left, level with the plot -----------------------
-    for offset, (mark, line) in enumerate((
-        ("rejected", "11 rejected by the two rules"),
-        ("dominated", "11 kept, then dominated"),
-        ("front", "4 non-dominated here"),
-        ("third", "1 more, on the axis not drawn"),
-    )):
+    for offset, (mark, line) in enumerate(
+        (
+            ("rejected", "11 rejected by the two rules"),
+            ("dominated", "11 kept, then dominated"),
+            ("front", "4 non-dominated here"),
+            ("third", "1 more, on the axis not drawn"),
+        )
+    ):
         y = plot_y + 24 + offset * 34
         if mark == "rejected":
-            out.append(f'<path class="mt-rejected" d="M 11.5 {y - 4.5:.1f} l 9 9 '
-                       f'M 20.5 {y - 4.5:.1f} l -9 9" />')
+            out.append(
+                f'<path class="mt-rejected" d="M 11.5 {y - 4.5:.1f} l 9 9 '
+                f'M 20.5 {y - 4.5:.1f} l -9 9" />'
+            )
         else:
-            cls = {"dominated": "mt-dominated", "front": "mt-front",
-                   "third": "mt-third-axis"}[mark]
+            cls = {"dominated": "mt-dominated", "front": "mt-front", "third": "mt-third-axis"}[mark]
             out.append(f'<circle class="{cls}" cx="16" cy="{y:.1f}" r="6.5" />')
         out.append(_text(32, y + 5, line, "mt-legend"))
 
@@ -204,33 +232,37 @@ def front() -> str:
         y += 18
 
     base = plot_y + plot_h + 56
-    for offset, line in enumerate((
-        f"{THIRD_AXIS} is why the third axis is not optional. On the two axes drawn it "
-        f"loses to {THIRD_AXIS_BY}:",
-        "same grip on trigger A, and a lock 3.2 kcal/mol stronger. It survives because "
-        "its grip on trigger B is 3.7 stronger,",
-        "and no surviving build beats it on all three. At full scale that is not a "
-        "curiosity: projecting every built stem onto",
-        "these two axes alone would discard 38.9% of the front.",
-        "",
-        "Only one of the five is a global strategy, the all-B build. The other four give "
-        "up the lock at some positions, or serve",
-        "trigger A at others, and neither global strategy can express them. The all-A "
-        "build (AAA) does not survive the rules.",
-    )):
+    for offset, line in enumerate(
+        (
+            f"{THIRD_AXIS} is why the third axis is not optional. On the two axes drawn it "
+            f"loses to {THIRD_AXIS_BY}:",
+            "same grip on trigger A, and a lock 3.2 kcal/mol stronger. It survives because "
+            "its grip on trigger B is 3.7 stronger,",
+            "and no surviving build beats it on all three. At full scale that is not a "
+            "curiosity: projecting every built stem onto",
+            "these two axes alone would discard 38.9% of the front.",
+            "",
+            "Only one of the five is a global strategy, the all-B build. The other four give "
+            "up the lock at some positions, or serve",
+            "trigger A at others, and neither global strategy can express them. The all-A "
+            "build (AAA) does not survive the rules.",
+        )
+    ):
         out.append(_text(8, base + offset * 20, line, "mt-note"))
 
-    return _svg(out, base + 136,
-                "All 27 builds of a three-conflict stem plotted on the lock against "
-                "trigger A's grip, showing which are rejected, which are dominated, "
-                "which form the front, and one build kept only by the third axis.")
+    return _svg(
+        out,
+        base + 136,
+        "All 27 builds of a three-conflict stem plotted on the lock against "
+        "trigger A's grip, showing which are rejected, which are dominated, "
+        "which form the front, and one build kept only by the third axis.",
+    )
 
 
 def _svg(parts: list[str], height: int, aria: str) -> str:
     body = "\n    ".join(p for p in parts if p)
     return (
-        f'<svg viewBox="0 0 {WIDTH} {height}" role="img" aria-label="{aria}">\n'
-        f"    {body}\n</svg>"
+        f'<svg viewBox="0 0 {WIDTH} {height}" role="img" aria-label="{aria}">\n    {body}\n</svg>'
     )
 
 
