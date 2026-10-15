@@ -206,6 +206,28 @@ def triggers() -> str:
     a_svg, _ = strip(trigger_a, row_a, a_x0, "Trigger A &#8212; 36 nt, from gene A")
     out += [b_svg, s_svg, a_svg]
 
+    # The transcript each trigger is cut out of. Without it the figure reads as though
+    # the triggers ARE the genes, when in fact each is a window of a few dozen
+    # nucleotides chosen out of a messenger RNA a thousand or more long -- and choosing
+    # it is most of what sections 4.1 and 4.2 are about.
+    def transcript(y, x_from, x_to, label):
+        return "\n    ".join(
+            (
+                f'<path class="mt-transcript" d="M 8 {y} L {WIDTH - 8} {y}" />',
+                f'<path class="mt-transcript-cut" d="M {x_from:.1f} {y} L {x_to:.1f} {y}" />',
+                f'<path class="mt-lead" d="M {x_from:.1f} {y} L {x_from:.1f} '
+                f'{y + (14 if y < 100 else -14)}" />',
+                f'<path class="mt-lead" d="M {x_to:.1f} {y} L {x_to:.1f} '
+                f'{y + (14 if y < 100 else -14)}" />',
+                _text(8, y - 8, label, "mt-note"),
+            )
+        )
+
+    b_end = switch_x0 + sum(width for _, width, _ in blocks)
+    a_end = a_x0 + sum(width for _, width, _ in trigger_a)
+    out.insert(2, transcript(40, switch_x0, b_end, "gene B&#8217;s transcript, ~2,000 nt"))
+    out.append(transcript(336, a_x0, a_end, "gene A&#8217;s transcript, ~1,700 nt"))
+
     # tie lines: each trigger domain to the switch domain it pairs with.
     def centre(items, x0, name, nth=0):
         x, seen = x0, 0
