@@ -135,6 +135,56 @@ def _hairpin(
     return path, rungs
 
 
+def _along(x: float, y_from: float, y_to: float, label: str, side: str) -> str:
+    """A domain name written along a vertical arm, reading bottom-to-top.
+
+    The two hairpins stand 34 units apart, which is the architecture's a = 0 and not a
+    drawing choice, so a horizontal label on an inner arm has nowhere to go. Rotated text
+    runs along the arm instead, where a 108-unit stem gives room for any domain name.
+    `side` is "left" or "right" of the arm.
+    """
+    cy = (y_from + y_to) / 2
+    cx = x - 7 if side == "left" else x + 11
+    return (
+        f'<text class="st-domain" x="{cx:.1f}" y="{cy:.1f}" text-anchor="middle" '
+        f'transform="rotate(-90 {cx:.1f} {cy:.1f})">{label}</text>'
+    )
+
+
+def _domain_labels() -> str:
+    """Every domain of the shut molecule, named where it sits.
+
+    Read 5' to 3': the leader and the free toehold on the baseline, then the inhibitory
+    hairpin's ascending arm (x then k2*), its loop, its descending arm (z then x*), then
+    the main hairpin's ascending arm (main_pre* then k1*) across the start-codon loop, its
+    own loop, its descending arm (main_z then main_pre), and the linker out to the gene.
+    """
+    h1_descend = H1_X + LOOP_R * 2
+    h2_descend = H2_X + LOOP_R * 2
+    mid_loop = (LOOP_FROM + LOOP_TO) / 2
+    return "\n    ".join(
+        (
+            # the baseline, 5' to 3'
+            f'<text class="st-domain" x="34" y="{BASE_Y + 16}">cap</text>',
+            f'<text class="st-domain" x="112" y="{BASE_Y + 16}" text-anchor="middle">r2*</text>',
+            f'<text class="st-domain" x="{GENE_X - 86}" y="{BASE_Y + 16}">linker</text>',
+            # the inhibitory hairpin
+            _along(H1_X, STEM_TOP, STEM_TOP + PITCH * 9, "k2*", "left"),
+            _along(H1_X, STEM_TOP + PITCH * 9, STEM_BOTTOM, "x", "left"),
+            _along(h1_descend, STEM_TOP, STEM_TOP + PITCH * 9, "z", "right"),
+            _along(h1_descend, STEM_TOP + PITCH * 9, STEM_BOTTOM, "x*", "right"),
+            # the main hairpin. Its ascending arm faces the inhibitory one across a gap of
+            # 34 units, so both of its labels sit on the far side of that arm.
+            _along(H2_X, STEM_TOP, LOOP_FROM, "k1*", "left"),
+            _along(H2_X, LOOP_TO, STEM_BOTTOM, "main_pre*", "left"),
+            _along(h2_descend, STEM_TOP, LOOP_FROM, "main_z", "right"),
+            _along(h2_descend, LOOP_TO, STEM_BOTTOM, "main_pre", "right"),
+            f'<text class="st-domain" x="{H2_X - 16:.1f}" y="{mid_loop + 4:.1f}" '
+            f'text-anchor="end">bulge*</text>',
+        )
+    )
+
+
 def _pill(cx: float, cy: float, label: str, kind: str) -> str:
     """A labelled element centred on (cx, cy). `kind` is "rbs", "aug" or "loop"."""
     return (
@@ -245,9 +295,8 @@ def _shut_decorations() -> str:
     {_pill(H2_X + LOOP_R + 9, APEX_Y - LOOP_R + 2, "RBS", "rbs")}
     {_pill(H2_X + LOOP_R + 9, (LOOP_FROM + LOOP_TO) / 2, "AUG", "aug")}
     {_bulge(H2_X, (LOOP_FROM + LOOP_TO) / 2)}
-    {_symbol(112, "r2*")}
-    {_symbol(descend, "x*")}
-    {_symbol(H2_X - 6, "a = 0")}"""
+    {_symbol(H2_X - 6, "a = 0")}
+    {_domain_labels()}"""
 
 
 # --- The four panels -----------------------------------------------------------------
@@ -307,6 +356,17 @@ def panel_01() -> str:
     {_pill(h2_x + LOOP_R + 9, (LOOP_FROM + LOOP_TO) / 2, "AUG", "aug")}
     {_bulge(h2_x, (LOOP_FROM + LOOP_TO) / 2)}
     {_symbol(346, "x* free")}
+    <text class="st-domain" x="34" y="{BASE_Y + 16}">cap</text>
+    <text class="st-domain" x="112" y="{BASE_Y + 16}" text-anchor="middle">r2*</text>
+    <text class="st-domain" x="228" y="{BASE_Y + 16}" text-anchor="middle">x &#183; k2*</text>
+    <text class="st-domain" x="330" y="{BASE_Y + 16}" text-anchor="middle">z &#183; x*</text>
+    <text class="st-domain" x="{GENE_X - 86}" y="{BASE_Y + 16}">linker</text>
+    {_along(h2_x, STEM_TOP, LOOP_FROM, "k1*", "left")}
+    {_along(h2_x, LOOP_TO, STEM_BOTTOM, "main_pre*", "left")}
+    {_along(h2_x + LOOP_R * 2, STEM_TOP, LOOP_FROM, "main_z", "right")}
+    {_along(h2_x + LOOP_R * 2, LOOP_TO, STEM_BOTTOM, "main_pre", "right")}
+    <text class="st-domain" x="{h2_x - 16}" y="{(LOOP_FROM + LOOP_TO) / 2 + 4}"
+      text-anchor="end">bulge*</text>
     {_trigger(30, 266, "Trigger B", "b")}
     {_five_prime()}
     {_gene(active=False)}
@@ -322,6 +382,14 @@ def panel_11() -> str:
     <path class="st-open" d="M 470 {BASE_Y} L 664 {BASE_Y}" />
     {_pill(494, BASE_Y, "RBS", "rbs")}
     {_pill(548, BASE_Y, "AUG", "aug")}
+    <text class="st-domain" x="34" y="{BASE_Y + 16}">cap</text>
+    <text class="st-domain" x="112" y="{BASE_Y + 16}" text-anchor="middle">r2*</text>
+    <text class="st-domain" x="228" y="{BASE_Y + 16}" text-anchor="middle">x &#183; k2*</text>
+    <text class="st-domain" x="330" y="{BASE_Y + 16}" text-anchor="middle">z &#183; x*</text>
+    <text class="st-domain" x="414" y="{BASE_Y + 16}"
+      text-anchor="middle">main_pre* &#183; k1*</text>
+    <text class="st-domain" x="574" y="{BASE_Y + 16}" text-anchor="middle">main_z</text>
+    <text class="st-domain" x="{GENE_X - 86}" y="{BASE_Y + 16}">linker</text>
     <ellipse class="st-ribo" cx="612" cy="{BASE_Y}" rx="44" ry="22" />
     <text class="st-name" x="612" y="{BASE_Y - 36}" text-anchor="middle">30S ribosome</text>
     {_trigger(30, 266, "Trigger B", "b")}
