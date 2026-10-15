@@ -48,6 +48,7 @@ from engine.domain import Host  # noqa: E402
 from engine.gates.toehold import (  # noqa: E402
     KimSecondaryArmToeholdAndGate,
     ProkaryoticToeholdAndGate,
+    _CrossGenePair,
 )
 from engine.gates.tools.folding import FoldEngine  # noqa: E402
 from engine.transcriptome import load_transcriptome  # noqa: E402
@@ -58,6 +59,10 @@ GENE_PAIRS = (
     ("ggt", "b3447", "aldA", "b1415"),
 )
 GEOMETRIES = (("naive", ProkaryoticToeholdAndGate), ("kim", KimSecondaryArmToeholdAndGate))
+
+#: The grid labels a geometry by its parameters; this runner labels it by name. Both are
+#: written out, so a later join needs no translation table of its own.
+GEOM_LABEL = {"naive": "arm18/inv18/capnone", "kim": "arm20/inv17/capAUA"}
 CEILING = 20_000  # dekacal/mol; findpath returns this when it gives up
 STEMS_PER_PAIR = 1
 
@@ -109,9 +114,43 @@ def barrier(strands: str, start: str, end: str) -> tuple[float | None, float]:
     return raw / 100.0 - compound.eval_structure(start), elapsed
 
 
+def cells_from_grid(path: pathlib.Path) -> list[tuple]:
+    """The distinct cells the characterisation grid actually contains.
+
+    **The reason this exists.** Walking `find_cross_gene_pairs` from the start measures
+    whichever pairs come first, and the grid holds 210 pairs taken at an even stride down
+    an accessibility ranking. Those are nearly disjoint sets: of the first 112 cells
+    measured that way, exactly ONE had a counterpart in the grid. A barrier with no
+    equilibrium row beside it cannot answer the question this measurement exists for, so
+    the cells are read from the grid rather than rediscovered.
+    """
+    csv.field_size_limit(min(sys.maxsize, 2**31 - 1))
+    reverse = {v: k for k, v in GEOM_LABEL.items()}
+    seen: dict[tuple, None] = {}
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.reader(handle)
+        header = next(reader)
+        index = [
+            header.index(n) for n in ("geom", "gene_a", "gene_b", "x_start", "xstar_start", "len_x")
+        ]
+        for row in reader:
+            geom = reverse.get(row[index[0]])
+            if geom is None:
+                continue
+            coords = tuple(int(float(row[i])) for i in index[3:])
+            seen.setdefault((geom, row[index[1]], row[index[2]], *coords), None)
+    return list(seen)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Barrier to trigger A landing on x*.")
     parser.add_argument("--out", required=True, type=pathlib.Path)
+    parser.add_argument(
+        "--cells-from",
+        type=pathlib.Path,
+        default=REPO / "docs/assets/axes_c8/rows.csv",
+        help="the grid whose cells to measure, so every barrier has an equilibrium row",
+    )
     parser.add_argument("--shard", default="0/1", help="i/n, as ONE argument")
     parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args(argv)
@@ -126,6 +165,7 @@ def main(argv=None) -> int:
     fields = [
         "key",
         "geom",
+        "geom_label",
         "gene_a",
         "gene_b",
         "x_start",
@@ -148,82 +188,84 @@ def main(argv=None) -> int:
     seen = written = 0
     began = time.time()
 
-    for geom_name, cls in GEOMETRIES:
-        gate = cls(Host.ECOLI, folder, None, None)
+    cells = cells_from_grid(args.cells_from)
+    print(f"  {len(cells):,} cells in {args.cells_from.name}", flush=True)
+    gates = {name: cls(Host.ECOLI, folder, None, None) for name, cls in GEOMETRIES}
+    transcripts = {sym: sq.to_rna(book[gid]) for sym, gid, _, _ in GENE_PAIRS}
+    transcripts |= {sym: sq.to_rna(book[gid]) for _, _, sym, gid in GENE_PAIRS}
+
+    for geom_name, sym_a, sym_b, x_start, xstar_start, len_x in cells:
+        seen += 1
+        if seen % total != index:
+            continue
+        key = f"{geom_name}:{sym_a}:{sym_b}:{x_start}:{xstar_start}:{len_x}:0"
+        if key in done:
+            continue
+        gate = gates[geom_name]
         foot_a, foot_b = gate.role_footprints()
-        for sym_a, id_a, sym_b, id_b in GENE_PAIRS:
-            ta, tb = sq.to_rna(book[id_a]), sq.to_rna(book[id_b])
-            for pair in gate.find_cross_gene_pairs(sym_a, ta, sym_b, tb):
-                if pair.gene_a != sym_a:
-                    continue
-                a0, a1 = pair.window_a()
-                b0, b1 = pair.window_b()
-                wa, wb = ta[a0:a1], tb[b0:b1]
-                if len(wa) != foot_a or len(wb) != foot_b:
-                    continue
-                stems = list(gate.secondary_stems(wa, wb, pair.len_x))
-                if not stems:
-                    continue
-                for stem_index in range(min(STEMS_PER_PAIR, len(stems))):
-                    seen += 1
-                    if seen % total != index:
-                        continue
-                    # Every coordinate that distinguishes a pair, because x_start alone
-                    # does not: it names many pairs with different partners and lengths.
-                    key = (
-                        f"{geom_name}:{sym_a}:{sym_b}:{pair.x_start}:"
-                        f"{pair.xstar_start}:{pair.len_x}:{stem_index}"
-                    )
-                    if key in done:
-                        continue
-                    built = gate.assemble(wa, wb, pair.len_x, stems[stem_index])
-                    switch, off = built.sequence, built.dot_bracket
-                    a_at = len(switch)
-                    target_switch, a_positions = landing_target(
-                        off,
-                        built.domains["sw_x"],
-                        built.domains["sw_xs"],
-                        a_at + gate.ARM_LEN,
-                        pair.len_x,
-                    )
-                    row = {
-                        "key": key,
-                        "geom": geom_name,
-                        "gene_a": sym_a,
-                        "gene_b": sym_b,
-                        "x_start": pair.x_start,
-                        "xstar_start": pair.xstar_start,
-                        "len_x": pair.len_x,
-                        "stem_index": stem_index,
-                        "switch_len": len(switch),
-                    }
-                    # State 10 ONLY. The 11 tube is not a matched comparison: there B
-                    # binds FIRST and that is what frees x*, so A's landing barrier would
-                    # have to start from a B-bound state, not from OFF. Measuring it from
-                    # OFF put trigger B in the tube unpaired at both ends of the path, so
-                    # it never participated and both tubes returned the identical number.
-                    # Recorded rather than shipped wrong.
-                    for tag, strands, tail_len in (("10", f"{switch}&{wa}", len(wa)),):
-                        start = off + "." * tail_len
-                        end = list(target_switch + "." * tail_len)
-                        for position in a_positions:
-                            end[position] = ")"
-                        value, secs = barrier(strands, start, "".join(end))
-                        row[f"b_{tag}"] = "" if value is None else f"{value:.3f}"
-                        row[f"s_{tag}"] = f"{secs:.3f}"
-                    writer.writerow(row)
-                    handle.flush()
-                    written += 1
-                    rate = (time.time() - began) / written
-                    print(
-                        f"  {written:>6,}  b_10 {row['b_10'] or '-':>9}  "
-                        f"{rate:5.2f} s/design  {key}",
-                        flush=True,
-                    )
-                    if args.limit and written >= args.limit:
-                        handle.close()
-                        print(f"\n  limit reached: {written:,} designs, {rate:.2f} s each")
-                        return 0
+        ta, tb = transcripts[sym_a], transcripts[sym_b]
+        # Rebuilt from the coordinates the grid stored rather than rediscovered, so the
+        # design measured here is the design that row describes.
+        pair = _CrossGenePair(
+            gene_a=sym_a,
+            gene_b=sym_b,
+            x_start=x_start,
+            xstar_start=xstar_start,
+            len_x=len_x,
+            arm_len=gate.ARM_LEN,
+            invasion_len=gate.SECONDARY_INVASION_LEN,
+            toehold_b_len=gate.TOEHOLD_B_LEN,
+        )
+        a0, a1 = pair.window_a()
+        b0, b1 = pair.window_b()
+        wa, wb = ta[a0:a1], tb[b0:b1]
+        if len(wa) != foot_a or len(wb) != foot_b:
+            continue
+        stems = list(gate.secondary_stems(wa, wb, len_x))
+        if not stems:
+            continue
+        built = gate.assemble(wa, wb, len_x, stems[0])
+        switch, off = built.sequence, built.dot_bracket
+        target_switch, a_positions = landing_target(
+            off,
+            built.domains["sw_x"],
+            built.domains["sw_xs"],
+            len(switch) + gate.ARM_LEN,
+            len_x,
+        )
+        row = {
+            "key": key,
+            "geom": geom_name,
+            "geom_label": GEOM_LABEL[geom_name],
+            "gene_a": sym_a,
+            "gene_b": sym_b,
+            "x_start": x_start,
+            "xstar_start": xstar_start,
+            "len_x": len_x,
+            "stem_index": 0,
+            "switch_len": len(switch),
+        }
+        start_structure = off + "." * len(wa)
+        end_structure = list(target_switch + "." * len(wa))
+        for position in a_positions:
+            end_structure[position] = ")"
+        value, secs = barrier(f"{switch}&{wa}", start_structure, "".join(end_structure))
+        row["b_10"] = "" if value is None else f"{value:.3f}"
+        row["s_10"] = f"{secs:.3f}"
+        writer.writerow(row)
+        handle.flush()
+        written += 1
+        rate = (time.time() - began) / written
+        print(
+            f"  {written:>5,}/{len(cells) // total:<5,}  b_10 {row['b_10'] or '-':>8}  "
+            f"{rate:5.1f} s/design  {key}",
+            flush=True,
+        )
+        if args.limit and written >= args.limit:
+            handle.close()
+            print(f"\n  limit reached: {written:,} designs, {rate:.1f} s each")
+            return 0
+
     handle.close()
     print(f"\n  done: {written:,} designs")
     return 0

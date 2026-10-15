@@ -41,10 +41,20 @@ def main() -> int:
         f"\n  {len(rows):,} designs measured, {len(values):,} with a path found "
         f"({len(rows) - len(values):,} gave up at the ceiling)"
     )
+    # `s_10` times the findpath call ONLY, which is milliseconds. The wall-clock cost of a
+    # design is dominated by rebuilding it -- `secondary_stems` enumerates 3^n assignments
+    # per trigger pair -- so a rate derived from this column would be out by four orders of
+    # magnitude. The honest rate is rows against elapsed time, read off the files.
     if secs:
+        print(f"  findpath itself: mean {st.mean(secs) * 1000:.1f} ms per design")
+    spans = [path.stat().st_mtime for path in files]
+    oldest = min(path.stat().st_ctime for path in files)
+    elapsed = max(spans) - oldest
+    if elapsed > 60 and rows:
+        per_hour = len(rows) / (elapsed / 3600)
         print(
-            f"  {st.mean(secs):.2f} s per design per shard "
-            f"-> about {3600 * 6 / st.mean(secs):,.0f} designs an hour across six"
+            f"  overall: {len(rows):,} designs in {elapsed / 3600:.1f} h "
+            f"-> about {per_hour:,.0f} an hour across all shards"
         )
     if len(values) >= 8:
         ordered = sorted(values)
