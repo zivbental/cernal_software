@@ -40,8 +40,8 @@ STEPS: tuple[tuple[str, str, str, str], ...] = (
     ("2", "Pair two genes", "Keep the pairs whose windows are complementary.", "pair"),
     (
         "3",
-        "Build the front hairpin",
-        "Most positions already pair; the rest force a choice.",
+        "Build the secondary hairpin",
+        "Several positions already pair by chance; the rest force a choice.",
         "choice",
     ),
     (
@@ -134,8 +134,10 @@ def _choice(cy: float) -> list[str]:
         x, w, [(cy + 18, "pair"), (cy + 7, "clash"), (cy - 4, "pair"), (cy - 15, "clash")]
     )
     out += [
-        _text(ART_X + 96, cy - 4, "most positions already pair", "fl-note"),
-        _text(ART_X + 96, cy + 14, "the rest are a three-way choice", "fl-note"),
+        _text(ART_X + 96, cy - 22, "Several positions already pair", "fl-note"),
+        _text(ART_X + 96, cy - 4, "the rest are a three-way choice", "fl-note"),
+        _text(ART_X + 96, cy + 14, "matching one of the two triggers and the stem,", "fl-note"),
+        _text(ART_X + 96, cy + 32, "or matching both and bulging the hairpin", "fl-note"),
     ]
     return out
 
@@ -149,11 +151,11 @@ def _switch(cy: float) -> list[str]:
     out += [
         _line(ART_X, cy + 22, first, cy + 22, "fl-gene"),
         _line(second + w, cy + 22, ART_X + 180, cy + 22, "fl-gene"),
-        f'<circle class="fl-aug" cx="{second + w / 2:.1f}" cy="{cy + 5:.1f}" r="6.5" />',
-        _line(second + w / 2, cy + 5, ART_X + 186, cy + 5, "fl-lead"),
+        f'<circle class="fl-aug" cx="{second + w - 2:.1f}" cy="{cy + 5:.1f}" r="6.5" />',
+        _line(second + w - 2, cy + 5, ART_X + 186, cy + 5, "fl-lead"),
         _text(ART_X + 192, cy + 9, "start codon, buried", "fl-note"),
-        _text(first + w / 2, cy + 42, "front", "fl-note", "middle"),
-        _text(second + w / 2, cy + 42, "back", "fl-note", "middle"),
+        _text(first + w / 2, cy + 42, "secondary", "fl-note", "middle"),
+        _text(second + w / 2, cy + 42, "main", "fl-note", "middle"),
     ]
     return out
 
@@ -163,7 +165,7 @@ def _levers(cy: float) -> list[str]:
     x, w = ART_X + 24, 46
     out = [_stem(x, cy - 32, cy + 24, w)]
     out += _rungs(x, w, [(cy + 18, "lever"), (cy + 2, "lever"), (cy - 14, "lever")])
-    for y, name in ((cy + 22, "foot"), (cy + 6, "middle"), (cy - 10, "top")):
+    for y, name in ((cy + 22, "bottom"), (cy + 6, "middle"), (cy - 10, "top")):
         out.append(_text(x + w + 8, y, name, "fl-note"))
     funnel = ART_X + 206
     for i, width in enumerate((174, 96, 42, 13)):
@@ -194,7 +196,7 @@ def _tubes(cy: float) -> list[str]:
         else:
             out.append(_stem(mid - 10, cy - 26, cy - 2, 20, "fl-stem fl-stem--small"))
         out.append(_text(mid, cy + 14, label, "fl-state", "middle"))
-    out.append(_text(ART_X, cy + 42, "left digit is the first trigger", "fl-note"))
+    out.append(_text(ART_X, cy + 42, "left digit is the main trigger", "fl-note"))
     return out
 
 
