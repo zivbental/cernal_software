@@ -119,7 +119,9 @@ def contrasts(rows: list[dict], gap: float, tolerance: float, wanted: int) -> li
         by_cell.setdefault(row["cell"], []).append(row)
 
     # Within a cell first: the transcripts and both windows are then fixed, so the pair
-    # differs by construction alone and nothing about the biology is confounded.
+    # differs by construction alone and nothing about the biology is confounded. This
+    # is the comparison worth having and it is almost never available -- the barrier
+    # does not vary inside a trigger pair, which is the finding in 7.6.
     for group in by_cell.values():
         group.sort(key=lambda r: r["barrier"])
         for low in group:
@@ -127,10 +129,27 @@ def contrasts(rows: list[dict], gap: float, tolerance: float, wanted: int) -> li
                 if high["barrier"] - low["barrier"] < gap:
                     break
                 if abs(high["on_cost"] - low["on_cost"]) <= tolerance:
-                    found.append((low, high, "same cell"))
+                    found.append((low, high, "same trigger pair"))
                     break
             if len(found) >= wanted:
                 return found[:wanted]
+
+    # Then across pairs, which is where a large barrier difference lives. The two
+    # transcripts differ along with the barrier, so this is a confounded comparison and
+    # is labelled as one. Matching on ON-state cost removes the confound the model can
+    # see; it says nothing about the ones it cannot.
+    ladder = sorted(leaky, key=lambda r: r["barrier"])
+    for low in ladder:
+        for high in reversed(ladder):
+            if high["barrier"] - low["barrier"] < gap:
+                break
+            if low["cell"] == high["cell"]:
+                continue
+            if abs(high["on_cost"] - low["on_cost"]) <= tolerance:
+                found.append((low, high, "DIFFERENT trigger pairs"))
+                break
+        if len(found) >= wanted:
+            break
     return found[:wanted]
 
 
@@ -155,15 +174,19 @@ def main(argv=None) -> int:
         f"\n  {len(pairs)} contrast(s): barrier at least {args.gap} apart, ON-state cost "
         f"within {args.on_tolerance} kcal/mol, equilibrium leak above {LEAKY} for both\n"
     )
-    header = f"  {'':3}{'genes':14}{'geom':7}{'levers':24}{'leak':>7}{'ON cost':>9}{'barrier':>9}"
+    header = (
+        f"  {'':3}{'genes':12}{'geometry':7}{'closure':14}{'upper3':17}{'lower3':17}"
+        f"{'leak':>8}{'ON':>7}{'barrier':>9}"
+    )
     for index, (low, high, how) in enumerate(pairs, 1):
         print(f"  contrast {index} -- {how}, {low['genes']}")
         print(header)
         for tag, row in (("lo", low), ("hi", high)):
-            levers = f"{row['closure']}/{row['upper3']}/{row['lower3']}"
+            geom = "kim" if "inv17" in row["geom"] else "naive"
             print(
-                f"  {tag:3}{row['genes']:14}{row['geom']:7}{levers:24}"
-                f"{row['leak']:7.4f}{row['on_cost']:9.2f}{row['barrier']:9.2f}"
+                f"  {tag:3}{row['genes']:12}{geom:7}{row['closure']:14}"
+                f"{row['upper3']:17}{row['lower3']:17}"
+                f"{row['leak']:8.4f}{row['on_cost']:7.2f}{row['barrier']:9.2f}"
             )
         print(
             f"      the equilibrium separates them by {abs(high['leak'] - low['leak']):.4f}; "
