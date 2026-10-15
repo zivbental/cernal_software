@@ -161,7 +161,6 @@ def _domain_labels() -> str:
     """
     h1_descend = H1_X + LOOP_R * 2
     h2_descend = H2_X + LOOP_R * 2
-    mid_loop = (LOOP_FROM + LOOP_TO) / 2
     return "\n    ".join(
         (
             # the baseline, 5' to 3'
@@ -170,8 +169,8 @@ def _domain_labels() -> str:
             f'<text class="st-domain" x="{GENE_X - 86}" y="{BASE_Y + 16}">linker</text>',
             # the inhibitory hairpin
             _along(H1_X, STEM_TOP, STEM_TOP + PITCH * 9, "k2*", "left"),
-            _along(H1_X, STEM_TOP + PITCH * 9, STEM_BOTTOM, "x", "left"),
-            _along(h1_descend, STEM_TOP, STEM_TOP + PITCH * 9, "z", "right"),
+            _along(H1_X, STEM_TOP + PITCH * 9, STEM_BOTTOM, "sw_x", "left"),
+            _along(h1_descend, STEM_TOP, STEM_TOP + PITCH * 9, "Sec_z", "right"),
             _along(h1_descend, STEM_TOP + PITCH * 9, STEM_BOTTOM, "x*", "right"),
             # the main hairpin. Its ascending arm faces the inhibitory one across a gap of
             # 34 units, so both of its labels sit on the far side of that arm.
@@ -179,8 +178,6 @@ def _domain_labels() -> str:
             _along(H2_X, LOOP_TO, STEM_BOTTOM, "main_pre*", "left"),
             _along(h2_descend, STEM_TOP, LOOP_FROM, "main_z", "right"),
             _along(h2_descend, LOOP_TO, STEM_BOTTOM, "main_pre", "right"),
-            f'<text class="st-domain" x="{H2_X - 16:.1f}" y="{mid_loop + 4:.1f}" '
-            f'text-anchor="end">bulge*</text>',
         )
     )
 
@@ -289,13 +286,21 @@ def _closed_pair() -> tuple[str, str]:
 def _shut_decorations() -> str:
     """The pills, the two highlights and the symbols shared by panels 00 and 10."""
     descend = H1_X + LOOP_R * 2
+    # What each trigger covers, read off the domain order rather than drawn by eye.
+    # Trigger B runs r2* through k2*: the free stretch on the baseline and then the whole
+    # ascending arm of the inhibitory hairpin. Trigger A runs x* through k1*: the LOWER
+    # half of that hairpin's descending arm -- Sec_z above it belongs to neither -- and
+    # then the whole ascending arm of the main hairpin.
+    xstar_from = STEM_TOP + PITCH * 9
     return f"""<path class="st-toehold" d="M 28 {BASE_Y} L 196 {BASE_Y}" />
-    <path class="st-site" d="M {descend} {STEM_TOP} L {descend} {STEM_BOTTOM}" />
+    <path class="st-toehold" d="M {H1_X} {STEM_BOTTOM} L {H1_X} {STEM_TOP}" />
+    <path class="st-site" d="M {descend} {xstar_from} L {descend} {STEM_BOTTOM}" />
+    <path class="st-site" d="M {H2_X} {STEM_BOTTOM} L {H2_X} {STEM_TOP}" />
     {_pill(H1_X + LOOP_R, APEX_Y - LOOP_R + 2, "15 nt", "loop")}
     {_pill(H2_X + LOOP_R + 9, APEX_Y - LOOP_R + 2, "RBS", "rbs")}
     {_pill(H2_X + LOOP_R + 9, (LOOP_FROM + LOOP_TO) / 2, "AUG", "aug")}
     {_bulge(H2_X, (LOOP_FROM + LOOP_TO) / 2)}
-    {_symbol(H2_X - 6, "a = 0")}
+    {_symbol(H2_X - 6, "no gap")}
     {_domain_labels()}"""
 
 
@@ -358,16 +363,14 @@ def panel_01() -> str:
     {_symbol(346, "x* free")}
     <text class="st-domain" x="34" y="{BASE_Y + 16}">cap</text>
     <text class="st-domain" x="112" y="{BASE_Y + 16}" text-anchor="middle">r2*</text>
-    <text class="st-domain" x="228" y="{BASE_Y + 16}" text-anchor="middle">x &#183; k2*</text>
-    <text class="st-domain" x="330" y="{BASE_Y + 16}" text-anchor="middle">z &#183; x*</text>
+    <text class="st-domain" x="228" y="{BASE_Y + 16}" text-anchor="middle">sw_x &#183; k2*</text>
+    <text class="st-domain" x="330" y="{BASE_Y + 16}" text-anchor="middle">Sec_z &#183; x*</text>
     <text class="st-domain" x="{GENE_X - 86}" y="{BASE_Y + 16}">linker</text>
     {_along(h2_x, STEM_TOP, LOOP_FROM, "k1*", "left")}
     {_along(h2_x, LOOP_TO, STEM_BOTTOM, "main_pre*", "left")}
     {_along(h2_x + LOOP_R * 2, STEM_TOP, LOOP_FROM, "main_z", "right")}
     {_along(h2_x + LOOP_R * 2, LOOP_TO, STEM_BOTTOM, "main_pre", "right")}
-    <text class="st-domain" x="{h2_x - 16}" y="{(LOOP_FROM + LOOP_TO) / 2 + 4}"
-      text-anchor="end">bulge*</text>
-    {_trigger(30, 266, "Trigger B", "b")}
+    {_trigger(28, 296, "Trigger B", "b")}
     {_five_prime()}
     {_gene(active=False)}
     """
@@ -384,16 +387,16 @@ def panel_11() -> str:
     {_pill(548, BASE_Y, "AUG", "aug")}
     <text class="st-domain" x="34" y="{BASE_Y + 16}">cap</text>
     <text class="st-domain" x="112" y="{BASE_Y + 16}" text-anchor="middle">r2*</text>
-    <text class="st-domain" x="228" y="{BASE_Y + 16}" text-anchor="middle">x &#183; k2*</text>
-    <text class="st-domain" x="330" y="{BASE_Y + 16}" text-anchor="middle">z &#183; x*</text>
+    <text class="st-domain" x="228" y="{BASE_Y + 16}" text-anchor="middle">sw_x &#183; k2*</text>
+    <text class="st-domain" x="330" y="{BASE_Y + 16}" text-anchor="middle">Sec_z &#183; x*</text>
     <text class="st-domain" x="414" y="{BASE_Y + 16}"
       text-anchor="middle">main_pre* &#183; k1*</text>
     <text class="st-domain" x="574" y="{BASE_Y + 16}" text-anchor="middle">main_z</text>
     <text class="st-domain" x="{GENE_X - 86}" y="{BASE_Y + 16}">linker</text>
     <ellipse class="st-ribo" cx="612" cy="{BASE_Y}" rx="44" ry="22" />
     <text class="st-name" x="612" y="{BASE_Y - 36}" text-anchor="middle">30S ribosome</text>
-    {_trigger(30, 266, "Trigger B", "b")}
-    {_trigger(318, 456, "Trigger A", "a")}
+    {_trigger(28, 296, "Trigger B", "b")}
+    {_trigger(340, 470, "Trigger A", "a")}
     {_five_prime()}
     {_gene(active=True)}
     """
