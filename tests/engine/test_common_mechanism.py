@@ -412,3 +412,22 @@ def test_active_deployment_rotation_and_revocation_hold(adapter, submission, mon
     assert not stored_release_allowed(design)
     monkeypatch.delenv("CERNAL_COMMEC_MANIFEST")
     assert not stored_release_allowed(design)
+
+
+def test_operator_config_loads_and_invokes_complete_mock_pipeline(adapter, submission, tmp_path):
+    config = {
+        "manifest": asdict(adapter.manifest),
+        "executable": str(adapter.executable),
+        "database": str(adapter.database),
+        "files": adapter.files,
+        "software_files": adapter.software_files,
+        "revisions": adapter.revisions,
+        "timeout_seconds": 10,
+        "threads": 1,
+    }
+    path = tmp_path / "deployment.json"
+    path.write_text(json.dumps(config, default=lambda d: d.isoformat()))
+    result = configured_final_screens((submission,), str(path))[0]
+    assert result.decision == Decision.PASS
+    assert result.screening_status == "screened"
+    assert result.sequence_sha256 == submission.sequence_sha256
