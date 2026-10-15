@@ -518,8 +518,8 @@ def funnel() -> str:
         ("carried into the sweep", 210, "a declared budget, spread across the ranking", "pairs"),
         ("in both geometries", 420, "neither stem layout has been retired", "cells"),
         ("with its own stems", 3555, "about 9 per cell; the data sizes this", "stems"),
-        ("over the lever grid", 341280, "16 closures, 3 upper3, 2 lower3", "designs"),
-        ("folded in four tubes", 147129, "the rest stop at the ON-state ceiling", "designs"),
+        ("over the lever grid", 301440, "16 closures, 3 upper3, 2 lower3", "designs"),
+        ("folded in four states", 219808, "the rest stop at the ON-state ceiling", "designs"),
     )
     left, top, row_h, bar_max = 290, 96, 46, 440
     peak = math.log10(max(n for _, n, _, _ in stages))
@@ -558,7 +558,7 @@ def funnel() -> str:
         out,
         base + 44,
         "A logarithmic funnel from 53,530 candidate trigger pairs down to the "
-        "147,129 designs folded in all four tubes, with the reason for each cut.",
+        "219,808 designs folded in all four states, with the reason for each cut.",
     )
 
 
