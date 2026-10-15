@@ -12,7 +12,7 @@ against a measurement rather than an assumption about which way the number moved
 Run::
 
     uv run python tools/barrier_compare.py \\
-        --old docs/assets/barrier --new docs/assets/barrier_fixed
+        --old docs/assets/barrier_superseded --new docs/assets/barrier
 """
 
 from __future__ import annotations
