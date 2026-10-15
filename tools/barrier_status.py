@@ -8,9 +8,32 @@ a progress count alone cannot say whether the numbers mean anything yet.
 import csv
 import pathlib
 import statistics as st
+import sys
 import time
 
 HERE = pathlib.Path(__file__).resolve().parent.parent / "docs/assets/barrier"
+ROOT_GRID = pathlib.Path(__file__).resolve().parent.parent / "docs/assets/axes_c8/rows.csv"
+
+
+def expected_per_shard(grid: pathlib.Path, shards: int = 6) -> int | None:
+    """How many cells one shard is responsible for, so 'finished' is distinguishable.
+
+    Without this the status tool calls a shard STALLED the moment it finishes, because
+    a finished shard stops writing -- which is exactly what a stalled one does.
+    """
+    if not grid.exists():
+        return None
+    csv.field_size_limit(min(sys.maxsize, 2**31 - 1))
+    seen = set()
+    with grid.open(newline="", encoding="utf-8") as handle:
+        reader = csv.reader(handle)
+        header = next(reader)
+        index = [
+            header.index(n) for n in ("geom", "gene_a", "gene_b", "x_start", "xstar_start", "len_x")
+        ]
+        for row in reader:
+            seen.add(tuple(row[i] for i in index))
+    return -(-len(seen) // shards)
 
 
 def main() -> int:
@@ -20,8 +43,11 @@ def main() -> int:
         print("  start them with:  tools\run_barrier.cmd 0   (then 1..5)")
         return 0
 
+    target = expected_per_shard(ROOT_GRID)
     now = time.time()
     rows: list[dict] = []
+    if target:
+        print(f"\n  {target} cells per shard, {target * 6} in all")
     print(f"\n  {'shard':>7}{'rows':>9}{'last written':>16}{'size':>10}")
     for path in files:
         with path.open(newline="", encoding="utf-8") as fh:
@@ -29,7 +55,12 @@ def main() -> int:
         rows.extend(mine)
         idle = now - path.stat().st_mtime
         state = f"{idle:,.0f}s ago" if idle < 3600 else f"{idle / 3600:.1f}h ago"
-        flag = "  <- STALLED?" if idle > 600 else ""
+        if target and len(mine) >= target:
+            flag = "  <- done"
+        elif idle > 600:
+            flag = "  <- STALLED or stopped; rerun its window, it resumes"
+        else:
+            flag = ""
         print(
             f"  {path.stem.split('_')[-1]:>7}{len(mine):>9,}{state:>16}"
             f"{path.stat().st_size / 1024:>9.0f}K{flag}"
