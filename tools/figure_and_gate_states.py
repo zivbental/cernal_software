@@ -182,6 +182,18 @@ def _domain_labels() -> str:
     )
 
 
+def _legend() -> str:
+    """Which colour is which trigger, once, at the top right of the first panel."""
+    x, y = 646, 46
+    rows = (("st-toehold", "Trigger B binds here"), ("st-site", "Trigger A binds here"))
+    out = []
+    for i, (cls, label) in enumerate(rows):
+        cy = y + i * 20
+        out.append(f'<path class="{cls}" d="M {x} {cy} L {x + 26} {cy}" />')
+        out.append(f'<text class="st-domain" x="{x + 34}" y="{cy + 4}">{label}</text>')
+    return "\n    ".join(out)
+
+
 def _pill(cx: float, cy: float, label: str, kind: str) -> str:
     """A labelled element centred on (cx, cy). `kind` is "rbs", "aug" or "loop"."""
     return (
@@ -286,20 +298,30 @@ def _closed_pair() -> tuple[str, str]:
 def _shut_decorations() -> str:
     """The pills, the two highlights and the symbols shared by panels 00 and 10."""
     descend = H1_X + LOOP_R * 2
-    # What each trigger covers, read off the domain order rather than drawn by eye.
-    # Trigger B runs r2* through k2*: the free stretch on the baseline and then the whole
-    # ascending arm of the inhibitory hairpin. Trigger A runs x* through k1*: the LOWER
-    # half of that hairpin's descending arm -- Sec_z above it belongs to neither -- and
-    # then the whole ascending arm of the main hairpin.
+    # Each trigger's footprint drawn as ONE continuous stroke, following the backbone
+    # through the turn rather than stopping at it. A highlight that breaks where the
+    # strand bends reads as two separate sites, which is the opposite of what a trigger
+    # footprint is.
+    #
+    # Trigger B covers r2* through k2*: along the baseline, round into the inhibitory
+    # hairpin and up its whole ascending arm. It starts at 56 and not at the 5' end,
+    # because the GGG cap in front of r2* is a transcription leader and no part of it
+    # pairs with trigger B.
+    #
+    # Trigger A covers x* through k1*: the lower half of the inhibitory hairpin's
+    # descending arm -- Sec_z above it belongs to neither trigger -- down to the baseline,
+    # across the gap that is not a gap, and up the whole ascending arm of the main one.
     xstar_from = STEM_TOP + PITCH * 9
-    return f"""<path class="st-toehold" d="M 28 {BASE_Y} L 196 {BASE_Y}" />
-    <path class="st-toehold" d="M {H1_X} {STEM_BOTTOM} L {H1_X} {STEM_TOP}" />
-    <path class="st-site" d="M {descend} {xstar_from} L {descend} {STEM_BOTTOM}" />
-    <path class="st-site" d="M {H2_X} {STEM_BOTTOM} L {H2_X} {STEM_TOP}" />
-    {_pill(H1_X + LOOP_R, APEX_Y - LOOP_R + 2, "15 nt", "loop")}
-    {_pill(H2_X + LOOP_R + 9, APEX_Y - LOOP_R + 2, "RBS", "rbs")}
-    {_pill(H2_X + LOOP_R + 9, (LOOP_FROM + LOOP_TO) / 2, "AUG", "aug")}
-    {_bulge(H2_X, (LOOP_FROM + LOOP_TO) / 2)}
+    turn = BASE_Y - 22
+    b_path = f"M 56 {BASE_Y} L 210 {BASE_Y} Q {H1_X} {BASE_Y} {H1_X} {turn} L {H1_X} {STEM_TOP}"
+    a_path = (
+        f"M {descend} {xstar_from} L {descend} {turn} "
+        f"Q {descend} {BASE_Y} {descend + 12} {BASE_Y} "
+        f"L {H2_X - 12} {BASE_Y} "
+        f"Q {H2_X} {BASE_Y} {H2_X} {turn} L {H2_X} {STEM_TOP}"
+    )
+    return f"""<path class="st-toehold" d="{b_path}" />
+    <path class="st-site" d="{a_path}" />
     {_symbol(H2_X - 6, "no gap")}
     {_domain_labels()}"""
 
@@ -316,6 +338,7 @@ def panel_00() -> str:
     <text class="st-name" x="300" y="{NAME_Y}" text-anchor="end">inhibitory hairpin</text>
     <text class="st-name" x="322" y="{NAME_Y}">main hairpin</text>
     {_shut_decorations()}
+    {_legend()}
     {_five_prime()}
     {_gene(active=False)}
     """
