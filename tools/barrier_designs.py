@@ -95,6 +95,43 @@ def barrier(strands: str, start: str, end: str) -> tuple[float | None, float]:
     return raw / 100.0 - compound.eval_structure(start), elapsed
 
 
+def choose_best_lock(grid: pathlib.Path) -> list[dict]:
+    """One design per cell: the unlevered stem the design rule actually prefers.
+
+    `lock_minus_a_site` -- a stable inhibitory stem that trigger A grips weakly -- is the
+    strongest single predictor in the study, so the stem that maximises it is the one a
+    run would build on. Taking the Pareto front's first entry instead samples an
+    arbitrary stem, and the two are far apart: the measure spreads a median of about
+    40 kcal/mol WITHIN one cell.
+
+    Levers are held at their no-op settings (`open_3x3`, `trigger_derived` twice), so the
+    only thing that varies between cells is the trigger pair and the stem chosen for it.
+    That isolates the question this run asks.
+    """
+    csv.field_size_limit(min(sys.maxsize, 2**31 - 1))
+    best: dict[tuple, tuple[float, dict]] = {}
+    with grid.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if row["skipped"] or not row["xstar_engA_10"] or not row["lock_minus_a_site"]:
+                continue
+            if row["closure"] != "open_3x3":
+                continue
+            if row["upper3"] != "trigger_derived" or row["lower3"] != "trigger_derived":
+                continue
+            key = (
+                row["geom"],
+                row["gene_a"],
+                row["gene_b"],
+                int(float(row["x_start"])),
+                int(float(row["xstar_start"])),
+                int(float(row["len_x"])),
+            )
+            score = float(row["lock_minus_a_site"])
+            if key not in best or score > best[key][0]:
+                best[key] = (score, row)
+    return [row for _score, row in best.values()]
+
+
 def choose(grid: pathlib.Path, per_cell: int) -> list[dict]:
     """Designs spread over the axes that could move the barrier, not the first N.
 
@@ -133,6 +170,13 @@ def main(argv=None) -> int:
     parser.add_argument("--out", required=True, type=pathlib.Path)
     parser.add_argument("--grid", type=pathlib.Path, default=REPO / "docs/assets/axes_c8/rows.csv")
     parser.add_argument("--per-cell", type=int, default=8)
+    parser.add_argument(
+        "--select",
+        choices=("spread", "best-lock"),
+        default="spread",
+        help="spread: --per-cell designs across each cell's leak range. "
+        "best-lock: one per cell, the unlevered stem with the highest lock_minus_a_site",
+    )
     parser.add_argument("--shard", default="0/1", help="i/n, as ONE argument")
     args = parser.parse_args(argv)
     index, total = (int(p) for p in args.shard.split("/"))
@@ -150,7 +194,11 @@ def main(argv=None) -> int:
         writer.writeheader()
         handle.flush()
 
-    designs = choose(args.grid, args.per_cell)
+    designs = (
+        choose_best_lock(args.grid)
+        if args.select == "best-lock"
+        else choose(args.grid, args.per_cell)
+    )
     mine = [d for i, d in enumerate(designs) if i % total == index]
     print(f"  {len(designs):,} designs selected, {len(mine):,} in this shard", flush=True)
 
