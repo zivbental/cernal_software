@@ -385,27 +385,55 @@ def conflicts() -> str:
         f'x2="{plot_x}" y2="{plot_y + plot_h}" />',
         _text(
             plot_x + plot_w / 2,
-            plot_y + plot_h + 34,
+            plot_y + plot_h + 40,
             "the lock, kcal/mol &#8212; stronger to the left",
             "mt-axis",
             "middle",
         ),
-        _text(plot_x - 14, plot_y + 10, "A&#8217;s grip", "mt-axis", "end"),
-        _text(plot_x - 14, plot_y + 26, "stronger", "mt-axis", "end"),
+        _text(plot_x - 52, plot_y + 4, "A&#8217;s grip", "mt-axis", "end"),
+        _text(plot_x - 52, plot_y + 20, "kcal/mol,", "mt-axis", "end"),
+        _text(plot_x - 52, plot_y + 36, "stronger up", "mt-axis", "end"),
     ]
+
+    # Numeric ticks on both axes, every 4 kcal/mol across the range the data occupies.
+    # Without them the plot shows a shape and no quantity, which is what the review
+    # found: a reader can see a trade without being able to say how big it is.
+    def _ticks(lo: float, hi: float, step: int = 4) -> list[int]:
+        first = int(math.ceil(lo / step) * step)
+        return list(range(first, int(math.floor(hi / step) * step) + 1, step))
+
+    for value in _ticks(lo_l, hi_l):
+        px = plot_x + plot_w * (value - lo_l) / (hi_l - lo_l)
+        out.append(
+            f'<line class="mt-axis-line" x1="{px:.1f}" y1="{plot_y + plot_h}" '
+            f'x2="{px:.1f}" y2="{plot_y + plot_h + 5}" />'
+        )
+        out.append(_text(px, plot_y + plot_h + 20, f"{value}", "mt-tickmark", "middle"))
+    for value in _ticks(lo_s, hi_s):
+        py = plot_y + plot_h * (value - lo_s) / (hi_s - lo_s)
+        out.append(
+            f'<line class="mt-axis-line" x1="{plot_x - 5}" y1="{py:.1f}" '
+            f'x2="{plot_x}" y2="{py:.1f}" />'
+        )
+        out.append(_text(plot_x - 9, py + 4, f"{value}", "mt-tickmark", "end"))
     for lock, site, _b, on_front in POINTS:
         px = plot_x + plot_w * (lock - lo_l) / (hi_l - lo_l)
         py = plot_y + plot_h * (site - lo_s) / (hi_s - lo_s)
         cls = "mt-front" if on_front else "mt-dominated"
         out.append(f'<circle class="{cls}" cx="{px:.1f}" cy="{py:.1f}" r="6" />')
-    out.append(_text(plot_x + plot_w + 16, plot_y + 40, f"{ENUMERATED} assignments", "mt-legend"))
-    out.append(_text(plot_x + plot_w + 16, plot_y + 60, f"{SURVIVED} pass the rules", "mt-legend"))
-    out.append(_text(plot_x + plot_w + 16, plot_y + 80, f"{ON_FRONT} non-dominated", "mt-legend"))
-    out.append(
-        _text(
-            plot_x + plot_w + 16, plot_y + 100, f"{MIXED_ON_FRONT} of those are mixed", "mt-legend"
-        )
-    )
+    legend_x = plot_x + plot_w + 16
+    out.append(_text(legend_x, plot_y + 20, f"{ENUMERATED} assignments", "mt-legend"))
+    out.append(_text(legend_x, plot_y + 38, f"{SURVIVED} pass the rules", "mt-legend"))
+    # What the two kinds of dot mean. The distinction carries the whole figure and the
+    # plot never said it.
+    out.append(f'<circle class="mt-front" cx="{legend_x + 6}" cy="{plot_y + 60}" r="6" />')
+    out.append(_text(legend_x + 18, plot_y + 64, f"{ON_FRONT} non-dominated,", "mt-legend"))
+    out.append(_text(legend_x + 18, plot_y + 80, "kept", "mt-legend"))
+    out.append(f'<circle class="mt-dominated" cx="{legend_x + 6}" cy="{plot_y + 102}" r="6" />')
+    out.append(_text(legend_x + 18, plot_y + 106, "beaten on every", "mt-legend"))
+    out.append(_text(legend_x + 18, plot_y + 122, "claim, discarded", "mt-legend"))
+    out.append(_text(legend_x, plot_y + 148, f"{MIXED_ON_FRONT} of the kept", "mt-legend"))
+    out.append(_text(legend_x, plot_y + 164, "builds are mixed", "mt-legend"))
     out.append(
         _text(
             8,
