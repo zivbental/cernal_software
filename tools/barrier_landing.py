@@ -63,7 +63,10 @@ GEOMETRIES = (("naive", ProkaryoticToeholdAndGate), ("kim", KimSecondaryArmToeho
 #: The grid labels a geometry by its parameters; this runner labels it by name. Both are
 #: written out, so a later join needs no translation table of its own.
 GEOM_LABEL = {"naive": "arm18/inv18/capnone", "kim": "arm20/inv17/capAUA"}
-CEILING = 20_000  # dekacal/mol; findpath returns this when it gives up
+#: findpath's search width. The breadth of the direct-path search, not a
+#: ceiling: a wider search can find a better path but never changes what is
+#: measured. Measured at 10, 100 and 20,000 with identical results here.
+FINDPATH_WIDTH = 10
 STEMS_PER_PAIR = 1
 
 
@@ -105,13 +108,29 @@ def landing_target(
 
 
 def barrier(strands: str, start: str, end: str) -> tuple[float | None, float]:
+    """The highest energy the refolding path reaches, above the state it started in.
+
+    Taken from the path rather than from ``path_findpath_saddle``. That call takes a
+    search **width** as its third argument, not a ceiling, and on these molecules it
+    returns the energy of the end structure rather than the maximum along the way --
+    measured on rebuilt designs at widths 10, 100 and 20,000, which all agree with each
+    other and disagree with the path. Using it made the stored quantity ``E(end) -
+    E(start)``, a difference between two states with no path in it, and that is why
+    some of those values were negative.
+
+    The energies are re-evaluated from the structures the path visits: the first
+    element's energy field is not filled in by the bindings, so reading ``step.en``
+    gives a sentinel for it. A barrier computed this way is never negative, and a path
+    from a structure to itself is exactly zero.
+    """
     compound = RNA.fold_compound(strands)
     began = time.time()
-    raw = compound.path_findpath_saddle(start, end, CEILING)
+    path = compound.path_findpath(start, end, FINDPATH_WIDTH)
     elapsed = time.time() - began
-    if raw is None or raw >= CEILING:
+    if not path:
         return None, elapsed
-    return raw / 100.0 - compound.eval_structure(start), elapsed
+    visited = [compound.eval_structure(step.s) for step in path]
+    return max(visited) - compound.eval_structure(start), elapsed
 
 
 def cells_from_grid(path: pathlib.Path) -> list[tuple]:
