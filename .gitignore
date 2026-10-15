@@ -101,3 +101,4 @@ src/engine/gates/notebooks/toehold_and/results/axes_*_odd_*.csv
 
 # the overnight barrier shards: results, not source
 docs/assets/barrier/landing_*.csv
+docs/assets/barrier/designs_*.csv

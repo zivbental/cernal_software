@@ -56,11 +56,15 @@ def read_barriers(folder: pathlib.Path) -> dict[tuple, float]:
                 if not row.get("b_10"):
                     continue
                 label = row.get("geom_label") or GEOM.get(row["geom"], row["geom"])
+                # xstar_start is part of the identity: four cells share everything
+                # else with another cell and silently overwrote each other without it,
+                # which is why this read 416 of 420.
                 key = (
                     label,
                     row["gene_a"],
                     row["gene_b"],
                     int(float(row["x_start"])),
+                    int(float(row["xstar_start"])),
                     int(float(row["len_x"])),
                 )
                 out[key] = float(row["b_10"])
@@ -74,7 +78,9 @@ def read_leaks(path: pathlib.Path, wanted: set[tuple]) -> dict[tuple, list[float
         reader = csv.reader(handle)
         header = next(reader)
         leak_at = header.index("xstar_engA_10")
-        index = [header.index(n) for n in ("geom", "gene_a", "gene_b", "x_start", "len_x")]
+        index = [
+            header.index(n) for n in ("geom", "gene_a", "gene_b", "x_start", "xstar_start", "len_x")
+        ]
         for row in reader:
             key = (
                 row[index[0]],
@@ -82,6 +88,7 @@ def read_leaks(path: pathlib.Path, wanted: set[tuple]) -> dict[tuple, list[float
                 row[index[2]],
                 int(float(row[index[3]])),
                 int(float(row[index[4]])),
+                int(float(row[index[5]])),
             )
             if key in wanted and row[leak_at]:
                 out[key].append(float(row[leak_at]))
