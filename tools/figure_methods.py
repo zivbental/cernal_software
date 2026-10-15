@@ -563,7 +563,7 @@ def tubes() -> str:
         _text(
             8,
             48,
-            "Folded at equilibrium with the triggers in excess. The left digit is trigger A.",
+            "Folded at equilibrium, one complex per tube. The left digit is trigger A.",
             "mt-caption",
         ),
     ]
