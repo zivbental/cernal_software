@@ -37,10 +37,10 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 68 |
-| Public classes | 113 |
-| Public callables (excluding `__init__`) | 381 |
-| — `BUILT` | 368 |
+| Modules | 69 |
+| Public classes | 114 |
+| Public callables (excluding `__init__`) | 390 |
+| — `BUILT` | 377 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -114,11 +114,12 @@ layers above it, never the ones below.
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
 | top | `engine.client` |  | 13 | 0 | The Platform-facing engine interface. |
+| top | `engine.common_mechanism` |  | 8 | 0 | Bounded local IBBIS Common Mechanism v2.1.0 adapter, JSON format 0.6. |
 | top | `engine.contract` |  | 4 | 0 | The Platform ⇄ Engine contract. |
 | top | `engine.errors` |  | 0 | 0 | Engine error hierarchy. |
 | top | `engine.inputs` |  | 1 | 0 | Shared differential-expression parsing for upload, preview and engine execution. |
 | top | `engine.pipeline` |  | 3 | 0 | The real scientific pipeline. |
-| top | `engine.safety` |  | 15 | 0 | Offline-first, fail-closed release control for output sequences. |
+| top | `engine.safety` |  | 16 | 0 | Offline-first, fail-closed release control for output sequences. |
 | top | `engine.store` | S11, S13 | 5 | 0 | S11, S13 — provenance and pruning. |
 | top | `engine.transcriptome` |  | 5 | 0 | Pinned, offline reference sequences and identifier aliases for all four hosts. |
 
@@ -2383,6 +2384,53 @@ Runs the real scientific pipeline in-process.
 | `BUILT` | `def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult` | Delegate to the real pipeline. |
 | `BUILT` | `def capabilities(self) -> EngineCapabilities` | The families and profiles actually installed in this build. |
 
+### `engine.common_mechanism`
+
+`src/engine/common_mechanism.py`
+
+Bounded local IBBIS Common Mechanism v2.1.0 adapter, JSON format 0.6.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `TOOL_VERSION` |  | `'2.1.0'` |
+| `JSON_VERSION` |  | `'0.6'` |
+| `POLICY_VERSION` |  | `'commec-exact-pass-v1'` |
+| `DATABASES` |  | `frozenset({'biorisk', 'best_match', 'low_concern', 'control_lists'})` |
+| `MAX_BATCH` |  | `64` |
+| `MAX_BATCH_BASES` |  | `1000000` |
+| `MAX_OUTPUT_BYTES` |  | `16 * 1024 * 1024` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def read_json(path: Path) -> dict` |  |
+| `BUILT` | `def inventory_digest(files: dict[str, str]) -> str` |  |
+| `BUILT` | `def load_adapter(path: str) -> CommonMechanismAdapter` | Read an operator-only manifest selected by the worker environment. |
+| `BUILT` | `def screen_final_batch(submissions: tuple[SequenceSubmission, ...], adapter: CommonMechanismAdapter, *, on_batch = None)` | Policy evaluation binds each result to the original RNA/DNA bytes, not CLI IDs. |
+| `BUILT` | `def configured_final_screens(submissions: tuple[SequenceSubmission, ...], path: str, *, on_batch = None)` | Configuration failures produce auditable holds, never fallback clean screens. |
+
+#### `class CommonMechanismAdapter`
+
+`@dataclass(frozen=True, slots=True)`
+
+Trusted operator configuration; never accepts job/user executable arguments.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `manifest` | `LocalScreeningManifest` |  |
+| `executable` | `Path` |  |
+| `database` | `Path` |  |
+| `files` | `dict[str, str]` |  |
+| `revisions` | `dict[str, str]` |  |
+| `software_files` | `dict[str, str]` |  |
+| `timeout_seconds` | `int` | `300` |
+| `threads` | `int` | `4` |
+
+| Status | Method | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def screen(self, submission: SequenceSubmission) -> ScreeningEvidence` |  |
+| `BUILT` | `def screen_many(self, submissions: tuple[SequenceSubmission, ...], *, on_batch = None) -> tuple[ScreeningEvidence, ...]` | Hold all results until the same inventory is verified around the entire run. |
+| `BUILT` | `def parse_result(self, data: dict, submissions: tuple[SequenceSubmission, ...])` | Strictly validate the pinned native schema; never infer success from no hits. |
+
 ### `engine.contract`
 
 `src/engine/contract.py`
@@ -2644,7 +2692,7 @@ Offline-first, fail-closed release control for output sequences.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def stored_release_allowed(design: object) -> bool` | Require explicit, sequence-bound release evidence for both exported molecules. |
+| `BUILT` | `def stored_release_allowed(design: object, *, now: datetime \| None = None) -> bool` | Revalidate persisted release evidence at every disclosure boundary. |
 | `BUILT` | `def disclosed_candidate_data(design: object, triggers: object) -> tuple[dict, dict]` | Project held candidate data onto known non-sequence fields, without mutation. |
 | `BUILT` | `def fail_closed_release(sequence_id: str, sequence: str, *, host_context: str) -> SafetyScreenResult` | Return auditable HOLD_SYSTEM evidence when no local screening stack is provisioned. |
 
@@ -2666,6 +2714,7 @@ Offline-first, fail-closed release control for output sequences.
 | `STALE` |  | `'STALE'` |
 | `FAILED` |  | `'FAILED'` |
 | `TIMEOUT` |  | `'TIMEOUT'` |
+| `INCONCLUSIVE` |  | `'INCONCLUSIVE'` |
 
 #### `class FindingKind(StrEnum)`
 
@@ -2673,6 +2722,7 @@ Offline-first, fail-closed release control for output sequences.
 | --- | --- | --- |
 | `AMR` |  | `'AMR'` |
 | `OTHER_HAZARD` |  | `'OTHER_HAZARD'` |
+| `SCREENING_FLAG` |  | `'SCREENING_FLAG'` |
 
 #### `class DeclaredSelectableMarker`
 
@@ -2724,6 +2774,8 @@ Immutable identity and validation window for a local screening deployment.
 | `database_sha256` | `str` |  |
 | `validated_at` | `datetime` |  |
 | `expires_at` | `datetime` |  |
+| `policy_version` | `str` | `'safety-v2'` |
+| `software_sha256` | `str` | `''` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -2805,12 +2857,15 @@ Signs review-only release tokens bound to one exact screening result.
 | `unexpected_marker_findings` | `tuple[Finding, ...]` |  |
 | `reasons` | `tuple[str, ...]` |  |
 | `release_allowed` | `bool` | `False` |
+| `approval_expires_at` | `datetime \| None` | `None` |
+| `adapter_status` | `AdapterStatus` | `AdapterStatus.COMPLETE` |
 | `result_sha256` | `str` | `field(init=False)` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
+| `BUILT` | `@property def screening_status(self) -> str` |  |
 | `BUILT` | `def audit_manifest(self) -> dict` |  |
-| `BUILT` | `def release_record(self) -> dict` | Stable decision metadata; full time-bound evidence stays in audit artifacts. |
+| `BUILT` | `def release_record(self) -> dict` | Retain expiry for download-time checks of provisioned screening evidence. |
 
 #### `class SafetyGate`
 
