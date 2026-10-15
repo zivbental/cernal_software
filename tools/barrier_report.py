@@ -97,6 +97,12 @@ def report(label: str, pairs: list[tuple[float, float]]) -> None:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--grid", type=pathlib.Path, default=GRID)
+    parser.add_argument(
+        "--barriers",
+        type=pathlib.Path,
+        default=BARRIERS,
+        help="folder of barrier CSVs; point it at barrier_fixed for the corrected run",
+    )
     args = parser.parse_args(argv)
 
     csv.field_size_limit(min(sys.maxsize, 2**31 - 1))
@@ -107,7 +113,7 @@ def main(argv=None) -> int:
         ("designs_*.csv", "across the lever grid"),
     ):
         found: dict[tuple, float] = {}
-        for path in sorted(BARRIERS.glob(pattern)):
+        for path in sorted(args.barriers.glob(pattern)):
             with path.open(newline="", encoding="utf-8") as handle:
                 for row in csv.DictReader(handle):
                     if not row.get("b_10"):
