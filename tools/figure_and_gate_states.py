@@ -322,6 +322,10 @@ def _shut_decorations() -> str:
     )
     return f"""<path class="st-toehold" d="{b_path}" />
     <path class="st-site" d="{a_path}" />
+    {_pill(H1_X + LOOP_R, APEX_Y - LOOP_R + 2, "15 nt", "loop")}
+    {_pill(H2_X + LOOP_R + 9, APEX_Y - LOOP_R + 2, "RBS", "rbs")}
+    {_pill(H2_X + LOOP_R + 9, (LOOP_FROM + LOOP_TO) / 2, "AUG", "aug")}
+    {_bulge(H2_X, (LOOP_FROM + LOOP_TO) / 2)}
     {_symbol(H2_X - 6, "no gap")}
     {_domain_labels()}"""
 
@@ -378,8 +382,10 @@ def panel_01() -> str:
     {h2_rungs}
     <text class="st-name" x="200" y="{NAME_Y}" text-anchor="middle">inhibitory hairpin opened</text>
     <text class="st-name" x="444" y="{NAME_Y}" text-anchor="middle">main hairpin</text>
-    <path class="st-toehold" d="M 28 {BASE_Y} L 196 {BASE_Y}" />
     <path class="st-open" d="M 296 {BASE_Y} L {open_to} {BASE_Y}" />
+    <path class="st-toehold" d="M 56 {BASE_Y} L 296 {BASE_Y}" />
+    <path class="st-site" d="M 330 {BASE_Y} L {open_to} {BASE_Y}
+      Q {h2_x} {BASE_Y} {h2_x} {BASE_Y - 22} L {h2_x} {STEM_TOP}" />
     {_pill(h2_x + LOOP_R + 9, APEX_Y - LOOP_R + 2, "RBS", "rbs")}
     {_pill(h2_x + LOOP_R + 9, (LOOP_FROM + LOOP_TO) / 2, "AUG", "aug")}
     {_bulge(h2_x, (LOOP_FROM + LOOP_TO) / 2)}
@@ -404,8 +410,9 @@ def panel_11() -> str:
     return f"""
     <path class="st-bb" d="M 24 {BASE_Y} L {GENE_X - 10} {BASE_Y}" />
     <text class="st-name" x="300" y="{NAME_Y}" text-anchor="middle">both hairpins opened</text>
-    <path class="st-toehold" d="M 28 {BASE_Y} L 196 {BASE_Y}" />
     <path class="st-open" d="M 470 {BASE_Y} L 664 {BASE_Y}" />
+    <path class="st-toehold" d="M 56 {BASE_Y} L 296 {BASE_Y}" />
+    <path class="st-site" d="M 330 {BASE_Y} L 466 {BASE_Y}" />
     {_pill(494, BASE_Y, "RBS", "rbs")}
     {_pill(548, BASE_Y, "AUG", "aug")}
     <text class="st-domain" x="34" y="{BASE_Y + 16}">cap</text>
