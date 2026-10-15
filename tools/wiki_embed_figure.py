@@ -1,17 +1,22 @@
 """Put a regenerated figure back into the wiki page it is inlined in.
 
-Run::
+Run either way::
 
-    uv run python tools/wiki_embed_figure.py figure_and_gate_states states
+    uv run python tools/wiki_embed_figure.py --generator figure_and_gate_states \\
+        --select ag-fig--states
+    uv run python tools/figure_methods.py --out-dir build
+    uv run python tools/wiki_embed_figure.py --svg build/methods-triggers.svg \\
+        --select "which domain of each trigger"
 
 Figures are inlined in the page rather than linked, so every regeneration has to be
 carried across by hand, and doing that by hand is how a page ends up showing a figure
-whose generator moved on. This runs the generator and swaps the one ``<svg>`` block
-inside the named ``<figure>``, leaving the figcaption and everything around it alone.
+whose generator has moved on. This swaps the one ``<svg>`` block inside the chosen
+``<figure>`` and leaves the figcaption and everything around it alone.
 
-The figure is found by the modifier on its ``<figure>`` class -- ``ag-fig--states``
-for ``states`` -- and the swap is refused unless exactly one matches, so a renamed or
-duplicated figure stops the run instead of silently rewriting the wrong one.
+``--select`` is any text that appears in exactly one figure block -- a class modifier
+where that is unique, a phrase from the figcaption where it is not. The swap is refused
+unless exactly one figure matches, so a renamed, moved or duplicated figure stops the
+run rather than silently rewriting the wrong one.
 """
 
 from __future__ import annotations
@@ -27,37 +32,50 @@ PAGE = pathlib.Path(r"C:\dev\tau-israel\wiki\pages\and-gate-model.html")
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
 
-def embed(generator: str, modifier: str, page: pathlib.Path) -> str:
+def _generate(generator: str) -> str:
     with tempfile.TemporaryDirectory() as hold:
-        out = pathlib.Path(hold) / f"{modifier}.svg"
+        out = pathlib.Path(hold) / "figure.svg"
         subprocess.run(
             [sys.executable, str(REPO / "tools" / f"{generator}.py"), "--out", str(out)],
             cwd=REPO,
             check=True,
         )
-        svg = out.read_text(encoding="utf-8").strip()
+        return out.read_text(encoding="utf-8").strip()
 
+
+def embed(svg: str, select: str, page: pathlib.Path) -> str:
     text = page.read_text(encoding="utf-8")
-    opens = [m.start() for m in re.finditer(rf'<figure class="[^"]*ag-fig--{modifier}\b', text)]
-    if len(opens) != 1:
-        raise SystemExit(f"  expected one ag-fig--{modifier} figure, found {len(opens)}")
-    start, stop = opens[0], text.index("</figure>", opens[0])
-    block = text[start:stop]
+    blocks = [
+        (m.start(), text.index("</figure>", m.start())) for m in re.finditer(r"<figure\b", text)
+    ]
+    hits = [(a, b) for a, b in blocks if select in text[a:b]]
+    if len(hits) != 1:
+        raise SystemExit(f"  expected one figure containing {select!r}, found {len(hits)}")
 
-    svg_at = block.index("<svg")
-    svg_end = block.index("</svg>") + len("</svg>")
-    rebuilt = block[:svg_at] + svg + block[svg_end:]
+    start, stop = hits[0]
+    block = text[start:stop]
+    opened = block.index("<svg")
+    closed = block.index("</svg>") + len("</svg>")
+    rebuilt = block[:opened] + svg + block[closed:]
     page.write_text(text[:start] + rebuilt + text[stop:], encoding="utf-8")
-    return f"  {modifier}: {len(svg):,} characters of SVG, page {len(text):,} characters"
+    return f"  {select!r}: {len(svg):,} characters of SVG, page {len(text):,} characters"
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Re-embed a generated figure.")
-    parser.add_argument("generator", help="module under tools/, without the .py")
-    parser.add_argument("modifier", help="the ag-fig-- modifier on the target figure")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--generator", help="module under tools/, without the .py")
+    source.add_argument("--svg", type=pathlib.Path, help="an already-generated SVG")
+    parser.add_argument("--select", required=True, help="text unique to the target figure")
     parser.add_argument("--page", default=PAGE, type=pathlib.Path)
     args = parser.parse_args(argv)
-    print(embed(args.generator, args.modifier, args.page))
+
+    svg = (
+        _generate(args.generator)
+        if args.generator
+        else args.svg.read_text(encoding="utf-8").strip()
+    )
+    print(embed(svg, args.select, args.page))
     return 0
 
 

@@ -409,6 +409,7 @@ def panel_10() -> str:
     <path class="st-trig st-trig--a" d="M 470 {TRIG_Y} L 600 {TRIG_Y}" />
     <text class="st-trig-text st-trig-text--a" x="535" y="{TRIG_Y + 22}"
       text-anchor="middle">Trigger A</text>
+    {_window_of_a_gene(470, 600, "a")}
     <path class="st-cross-big" d="M 622 {TRIG_Y - 10} L 642 {TRIG_Y + 10}
       M 622 {TRIG_Y + 10} L 642 {TRIG_Y - 10}" />
     {_five_prime()}
