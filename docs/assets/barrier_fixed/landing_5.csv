@@ -1,0 +1,8 @@
+key,geom,geom_label,gene_a,gene_b,x_start,xstar_start,len_x,stem_index,switch_len,b_10,s_10
+naive:ggt:fadB:32:1370:4:0,naive,arm18/inv18/capnone,ggt,fadB,32,1370,4,0,161,5.100,0.000
+naive:fadB:ggt:1981:1440:9:0,naive,arm18/inv18/capnone,fadB,ggt,1981,1440,9,0,161,25.200,0.001
+naive:fadB:ggt:2159:772:4:0,naive,arm18/inv18/capnone,fadB,ggt,2159,772,4,0,161,14.100,0.000
+naive:ggt:fadB:801:408:4:0,naive,arm18/inv18/capnone,ggt,fadB,801,408,4,0,161,9.800,0.000
+naive:astC:ggt:186:1530:4:0,naive,arm18/inv18/capnone,astC,ggt,186,1530,4,0,161,10.100,0.000
+naive:astC:ggt:863:1262:4:0,naive,arm18/inv18/capnone,astC,ggt,863,1262,4,0,161,8.300,0.000
+naive:astC:ggt:628:1462:4:0,naive,arm18/inv18/capnone,astC,ggt,628,1462,4,0,161,8.000,0.000
