@@ -1,0 +1,9 @@
+key,geom_label,gene_a,gene_b,x_start,xstar_start,len_x,stem_index,closure,upper3,lower3,switch_len,leak,b_10,s_10
+kim:fadB:ggt:1981:1440:9:2:open_3x3:trigger_derived:trigger_derived,arm20/inv17/capAUA,fadB,ggt,1981,1440,9,2,open_3x3,trigger_derived,trigger_derived,165,0.999807737807624,25.200,0.001
+kim:fadB:ggt:33:165:4:5:open_3x3:trigger_derived:trigger_derived,arm20/inv17/capAUA,fadB,ggt,33,165,4,5,open_3x3,trigger_derived,trigger_derived,165,0.9998648652201628,9.000,0.000
+kim:ggt:fadB:801:408:4:5:open_3x3:trigger_derived:trigger_derived,arm20/inv17/capAUA,ggt,fadB,801,408,4,5,open_3x3,trigger_derived,trigger_derived,165,0.9998630247061728,9.800,0.000
+kim:ggt:astC:338:586:4:5:open_3x3:trigger_derived:trigger_derived,arm20/inv17/capAUA,ggt,astC,338,586,4,5,open_3x3,trigger_derived,trigger_derived,165,0.9999669310482859,8.900,0.000
+kim:ggt:astC:1696:649:6:6:open_3x3:trigger_derived:trigger_derived,arm20/inv17/capAUA,ggt,astC,1696,649,6,6,open_3x3,trigger_derived,trigger_derived,165,0.9997653451669811,18.000,0.001
+kim:ggt:astC:1268:693:4:5:open_3x3:trigger_derived:trigger_derived,arm20/inv17/capAUA,ggt,astC,1268,693,4,5,open_3x3,trigger_derived,trigger_derived,165,0.999850223476988,13.000,0.000
+kim:ggt:aldA:1536:865:4:6:open_3x3:trigger_derived:trigger_derived,arm20/inv17/capAUA,ggt,aldA,1536,865,4,6,open_3x3,trigger_derived,trigger_derived,165,0.9993370892081096,8.000,0.000
+kim:ggt:aldA:297:834:5:5:open_3x3:trigger_derived:trigger_derived,arm20/inv17/capAUA,ggt,aldA,297,834,5,5,open_3x3,trigger_derived,trigger_derived,165,0.9986533860137395,5.200,0.001

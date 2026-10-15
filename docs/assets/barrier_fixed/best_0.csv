@@ -1,0 +1,6 @@
+key,geom_label,gene_a,gene_b,x_start,xstar_start,len_x,stem_index,closure,upper3,lower3,switch_len,leak,b_10,s_10
+naive:ggt:fadB:1516:2032:4:5:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,ggt,fadB,1516,2032,4,5,open_3x3,trigger_derived,trigger_derived,161,0.9997936976510713,13.000,0.000
+naive:ggt:fadB:1526:1464:4:2:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,ggt,fadB,1526,1464,4,2,open_3x3,trigger_derived,trigger_derived,161,0.9990348716867707,7.300,0.000
+naive:ggt:fadB:1342:1498:5:6:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,ggt,fadB,1342,1498,5,6,open_3x3,trigger_derived,trigger_derived,161,0.9998942494760495,14.200,0.000
+naive:ggt:astC:366:90:5:5:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,ggt,astC,366,90,5,5,open_3x3,trigger_derived,trigger_derived,161,0.9998619396468055,11.900,0.000
+naive:ggt:astC:546:517:5:1:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,ggt,astC,546,517,5,1,open_3x3,trigger_derived,trigger_derived,161,0.9989414186951254,11.800,0.000
