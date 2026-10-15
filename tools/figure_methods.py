@@ -704,8 +704,8 @@ def windows() -> str:
             "Green&#8217;s published ON costs are measured over. 7.2 kcal/mol is the highest "
             "cost among his switches above 20-fold ON/OFF.",
             "The narrow span is recorded for every design and decides nothing. The two are "
-            "not interchangeable: measured on 147,244",
-            "designs they differ by a median of 0.83 and by up to 7.45 kcal/mol, so every "
+            "not interchangeable: measured on all 219,808",
+            "designs they differ by a median of 0.83 and by up to 7.90 kcal/mol, so every "
             "number says which span it belongs to.",
         )
     ):

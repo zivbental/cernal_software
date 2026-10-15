@@ -43,7 +43,8 @@ QUANTITIES: tuple[tuple[str, str], ...] = (
     # Each is its own quantity and gets its own line.
     ("designs built", r"(?:built|holds|sweep holds) ([\d,]{7,})(?: designs| versions)?"),
     ("budget before the grid cuts", r"([\d,]{7,}) designs, about 202 core-hours"),
-    ("span-comparison sample", r"measured on ([\d,]{6,}) designs"),
+    ("span-comparison sample", r"measured on all ([\d,]{6,}) designs"),
+    ("designs in both barrier readings", r"across ([\d,]{4,}) designs there is no design"),
     ("designs folded in four states", r"([\d,]{6,}) (?:were folded|folded) in (?:all )?four"),
     ("designs folded, trailing form", r"folded ([\d,]{6,})\b"),
     ("candidate trigger pairs", r"([\d,]{6,}) candidate (?:trigger )?pairs"),
