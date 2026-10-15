@@ -62,7 +62,7 @@ from engine.gates.toehold import ProkaryoticToeholdAndGate as Gate
 #     336   that trigger's name
 
 WIDTH = 900
-PANEL_H = 362
+PANEL_H = 418
 BASE_Y = 258
 APEX_Y = 118  # a loop's lowest point; its interior runs up to APEX_Y - LOOP_R
 LOOP_R = 26
@@ -268,6 +268,24 @@ def _trigger(x_from: float, x_to: float, name: str, cls: str) -> str:
         f'<text class="st-end" x="{x_to + 7:.1f}" y="{TRIG_Y + 4:.1f}">5&#8242;</text>\n    '
         f'<text class="st-trig-text st-trig-text--{cls}" x="{(x_from + x_to) / 2:.1f}" '
         f'y="{TRIG_Y + 22:.1f}" text-anchor="middle">{name}</text>'
+        # The transcript this trigger is a WINDOW of. Without it the drawing says
+        # the trigger is the gene, when it is a few dozen nucleotides out of one or
+        # two thousand -- and that the window has to be found rather than designed
+        # is most of what the Methods are about.
+        + _window_of_a_gene(x_from, x_to, cls)
+    )
+
+
+def _window_of_a_gene(x_from: float, x_to: float, cls: str) -> str:
+    """The whole transcript under a bound trigger, with the window marked on it."""
+    # Both triggers are present in state 11, so the two bands cannot share a line.
+    y = TRIG_Y + (40 if cls == "b" else 62)
+    return (
+        f'\n    <path class="st-transcript" d="M 24 {y:.0f} L {GENE_X - 10} {y:.0f}" />'
+        f'\n    <path class="st-transcript-cut" d="M {x_from:.1f} {y:.0f} L {x_to:.1f} {y:.0f}" />'
+        f'\n    <path class="st-lead" d="M {x_from:.1f} {TRIG_Y + 8:.0f} L {x_from:.1f} {y:.0f}" />'
+        f'\n    <path class="st-lead" d="M {x_to:.1f} {TRIG_Y + 8:.0f} L {x_to:.1f} {y:.0f}" />'
+        f'\n    <text class="st-domain" x="{GENE_X - 2:.0f}" y="{y + 4:.0f}">its whole gene</text>'
     )
 
 

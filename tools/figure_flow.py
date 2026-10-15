@@ -112,45 +112,90 @@ def art(kind: str, y: float) -> str:
             f'<path class="fl-share" d="M {x + ART_W * 0.20 + 23:.1f} {y - 7} '
             f'L {x + ART_W * 0.52 + 23:.1f} {y + 3}" />'
         )
-        out.append(_text(x, y + 32, "two genes, one shared run", "fl-note"))
+        out.append(_text(x + 150, y - 2, "revcomp, &#8805; 4 nt", "fl-note"))
+        out.append(_text(x, y + 32, "the two runs are each other's complement", "fl-note"))
         return "\n    ".join(out)
     if kind == "choice":
-        out = []
-        for i in range(6):
-            cx = x + 18 + i * 30
-            clash = i in (1, 3, 4)
-            out.append(
-                f'<rect class="fl-base{" fl-base--clash" if clash else ""}" '
-                f'x="{cx}" y="{y - 26}" width="22" height="20" rx="2" />'
-            )
-            out.append(
-                f'<rect class="fl-base{" fl-base--clash" if clash else ""}" '
-                f'x="{cx}" y="{y - 2}" width="22" height="20" rx="2" />'
-            )
-            if clash:
-                out.append(_text(cx + 11, y + 32, "?", "fl-mark", "middle"))
-        out.append(_text(x, y + 48, "three disagree; each is a choice", "fl-note"))
-        return "\n    ".join(out)
-    if kind == "switch":
+        # A STANDING stem, because that is what it is: two arms facing each other, not a
+        # sequence read left to right. Some positions already pair -- the run copied from
+        # trigger A's own complement, and others that happen to match -- and the figure
+        # has to show that those are the majority before it shows the dilemma.
+        left, right = x + 86, x + 150
+        pattern = ("pair", "pair", "clash", "pair", "clash", "pair")
         out = [
-            _hairpin(x + 10, y, 70, 46, True, "fl-stem"),
-            _hairpin(x + 80, y, 70, 46, True, "fl-stem"),
-            f'<path class="fl-gene" d="M {x} {y} L {x + 10} {y}" />',
-            f'<path class="fl-gene" d="M {x + 150} {y} L {x + ART_W} {y}" />',
-            f'<circle class="fl-aug" cx="{x + 115}" cy="{y - 20}" r="7" />',
-            _text(x + 155, y - 24, "AUG", "fl-note"),
-            _text(x, y + 20, "no gap between the two hairpins", "fl-note"),
+            f'<path class="fl-stem" d="M {left} {y - 86} '
+            f"A 32 32 0 1 1 {right} {y - 86} "
+            f'M {left} {y - 86} L {left} {y + 6} M {right} {y - 86} L {right} {y + 6}" />'
+        ]
+        for i, kindp in enumerate(pattern):
+            ry = y - 76 + i * 14
+            if kindp == "pair":
+                out.append(f'<path class="fl-rung" d="M {left} {ry} L {right} {ry}" />')
+            else:
+                out.append(
+                    f'<path class="fl-rung fl-rung--clash" d="M {left} {ry} '
+                    f'L {left + 16} {ry} M {right - 16} {ry} L {right} {ry}" />'
+                )
+                out.append(_text((left + right) / 2, ry + 4, "?", "fl-mark", "middle"))
+        out.append(_text(x, y - 92, "the two arms, facing", "fl-note"))
+        out.append(_text(x + 176, y - 62, "most positions pair:", "fl-note"))
+        out.append(_text(x + 176, y - 48, "the run from trigger A,", "fl-note"))
+        out.append(_text(x + 176, y - 34, "plus chance matches", "fl-note"))
+        out.append(_text(x + 176, y - 10, "where they disagree,", "fl-note"))
+        out.append(_text(x + 176, y + 4, "three ways: match A,", "fl-note"))
+        out.append(_text(x + 176, y + 18, "match B, or stay shut", "fl-note"))
+        out.append(_text(x + 176, y + 32, "&mdash; any two, never all", "fl-note"))
+        return "\n    ".join(out)
+
+    if kind == "switch":
+        # The same shape as Figure 3.1's state 00, without its notations: two hairpins
+        # standing side by side on one backbone with nothing between them, the start
+        # codon inside the second. A reader who has seen 3.1 should recognise this.
+        out = []
+        for hx in (x + 30, x + 118):
+            out.append(
+                f'<path class="fl-stem" d="M {hx} {y} L {hx} {y - 52} '
+                f"A 22 22 0 1 1 {hx + 44} {y - 52} "
+                f'L {hx + 44} {y}" />'
+            )
+            for k in range(4):
+                ry = y - 10 - k * 11
+                out.append(f'<path class="fl-rung" d="M {hx} {ry} L {hx + 44} {ry}" />')
+        out += [
+            f'<path class="fl-gene" d="M {x} {y} L {x + 30} {y}" />',
+            f'<path class="fl-gene" d="M {x + 162} {y} L {x + ART_W} {y}" />',
+            f'<circle class="fl-aug" cx="{x + 140}" cy="{y - 32}" r="7" />',
+            _text(x + 152, y - 56, "AUG", "fl-note"),
+            _text(x + 230, y - 30, "the ribosome&#8217;s", "fl-note"),
+            _text(x + 230, y - 16, "signals, buried", "fl-note"),
+            _text(x, y + 20, "nothing between the two hairpins", "fl-note"),
         ]
         return "\n    ".join(out)
+
     if kind == "funnel":
+        # The funnel alone says how much is cut and nothing about what varies, which is
+        # the half a reader needs here. The switch beside it marks the three parts a
+        # lever rewrites, so "three levers" is a place on the molecule and not a word.
         out = []
-        for i, frac in enumerate((1.0, 0.62, 0.30, 0.09)):
+        for i, frac in enumerate((1.0, 0.58, 0.26, 0.07)):
             out.append(
-                f'<rect class="fl-funnel" x="{x}" y="{y - 30 + i * 17}" '
-                f'width="{ART_W * frac:.1f}" height="13" rx="2" />'
+                f'<rect class="fl-funnel" x="{x}" y="{y - 34 + i * 15}" '
+                f'width="{150 * frac:.1f}" height="11" rx="2" />'
             )
-        out.append(_text(x, y + 32, "most are cut before any folding", "fl-note"))
+        out.append(_text(x, y + 22, "most are cut before folding", "fl-note"))
+        hx = x + 190
+        out.append(
+            f'<path class="fl-stem" d="M {hx} {y} L {hx} {y - 52} '
+            f"A 22 22 0 1 1 {hx + 44} {y - 52} "
+            f'L {hx + 44} {y}" />'
+        )
+        for k, lever in enumerate(("top", "bulge", "foot")):
+            ry = y - 14 - k * 16
+            out.append(f'<path class="fl-rung fl-rung--lever" d="M {hx} {ry} L {hx + 44} {ry}" />')
+            out.append(_text(hx + 54, ry + 4, lever, "fl-note"))
+        out.append(_text(x + 180, y + 22, "what a lever rewrites", "fl-note"))
         return "\n    ".join(out)
+
     # tubes
     out = []
     for i, (label, open_) in enumerate((("00", False), ("10", False), ("01", False), ("11", True))):
