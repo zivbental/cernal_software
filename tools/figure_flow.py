@@ -1,265 +1,305 @@
-"""The method as a flow, with a small drawing beside every step.
+"""The method as six steps, each with a small drawing of what it does.
 
 Run::
 
     uv run python tools/figure_flow.py --out methods-flow.svg
 
-Six steps from two genes to a ranked design, each a row: a number, a title, one line of
-plain text, and a **small drawing of what that step does to the molecule**. The drawing
-is the point. A reader who meets "the inhibitory hairpin's ascending arm is built from
-three-way choices" has to hold a structure in their head to follow it; a reader who sees
-two short strands disagreeing at four positions does not.
+This figure belongs with the summary at the top of the page rather than inside Methods:
+it is the picture a reader needs *before* the sections, and by the time they reach them
+they are past needing it.
 
-**The drawings are schematic and say so.** They are not to scale and carry no sequence --
-each is the smallest picture that distinguishes this step from the one above it. The real
-geometry is in Figures 3.1 and 3.2, which this figure deliberately does not duplicate.
+**Every drawing is confined to a declared box, and that is checked rather than
+eyeballed.** ``art()`` returns its elements, ``_extent`` reads every path, circle, rect
+and label back out of them, and ``main`` refuses to write a file where anything escapes
+its row. A drawing that does not fit is a drawing to simplify, not a box to enlarge.
 
-Layout rule carried over from the other figures: declared bands, nothing inside a drawing
-longer than a symbol or two words, and a programmatic width check rather than judging
-overflow in a browser.
+Two things that check has to get right, because both have hidden a real overflow:
+an SVG arc's ``0 1 1`` flags are not coordinates, so the stems here are cubics; and a
+label's width is nowhere in the markup, so it is estimated rather than counted as zero.
+
+**What the drawings are for.** Each is the smallest picture that tells its step apart
+from the one above it: no sequence, nothing to scale, no notation to carry. Figures 3.1
+and 3.2 hold the real geometry and this one does not compete with them.
 """
 
 from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 
 WIDTH = 900
-ROW_H = 96
-ART_X = 560  # where each row's drawing starts
-ART_W = 320
+MARGIN = 10
+ROW_H = 118
+ROW_GAP = 8
+ART_X = 470
+ART_W = WIDTH - ART_X - MARGIN - 4
 
-#: (section, title, one line, which drawing). The line is what a reader who stops here
-#: should come away with, so it states the outcome and not the mechanism.
 STEPS: tuple[tuple[str, str, str, str], ...] = (
+    ("1", "Scan each gene", "A window could begin at any base.", "windows"),
+    ("2", "Pair two genes", "Keep the pairs whose windows are complementary.", "pair"),
     (
-        "4.1",
-        "Find candidate windows",
-        "Scan each gene for stretches a trigger could be cut from.",
-        "windows",
-    ),
-    (
-        "4.2",
-        "Pair them across two genes",
-        "Keep pairs whose two windows share a run of sequence.",
-        "pair",
-    ),
-    (
-        "4.3",
-        "Build the inhibitory hairpin",
-        "At each disagreeing position, serve A, serve B, or hold the stem shut.",
+        "3",
+        "Build the front hairpin",
+        "Most positions already pair; the rest force a choice.",
         "choice",
     ),
     (
-        "4.4",
+        "4",
         "Assemble the switch",
-        "Two hairpins, nothing between them, the start codon buried in the second.",
+        "Two hairpins touching, the start codon inside the second.",
         "switch",
     ),
-    (
-        "4.5",
-        "Vary the design and cut the space",
-        "Three levers per design; most candidates are rejected before folding.",
-        "funnel",
-    ),
-    (
-        "4.6",
-        "Fold all four input states",
-        "Only both-triggers should open. The other three are the test.",
-        "tubes",
-    ),
+    ("5", "Vary, then cut", "Three parts can be rewritten. Most candidates are cut.", "levers"),
+    ("6", "Fold four states", "Only both triggers together should open it.", "tubes"),
 )
 
 
-def _text(x, y, s, cls, anchor="start") -> str:
+def _text(x: float, y: float, s: str, cls: str, anchor: str = "start") -> str:
     extra = f' text-anchor="{anchor}"' if anchor != "start" else ""
     return f'<text class="{cls}" x="{x:.1f}" y="{y:.1f}"{extra}>{s}</text>'
 
 
-def _hairpin(x: float, y: float, w: float, h: float, shut: bool, cls: str) -> str:
-    """A tiny hairpin: a loop over two arms, or a flat line when it has opened."""
-    if not shut:
-        return f'<path class="{cls}" d="M {x:.1f} {y:.1f} L {x + w:.1f} {y:.1f}" />'
-    half = w / 2
+def _bar(x: float, y: float, w: float, h: float, cls: str) -> str:
     return (
-        f'<path class="{cls}" d="M {x:.1f} {y:.1f} L {x:.1f} {y - h + half:.1f} '
-        f"A {half} {half} 0 1 1 {x + w:.1f} {y - h + half:.1f} "
-        f'L {x + w:.1f} {y:.1f}" />'
+        f'<rect class="{cls}" x="{x:.1f}" y="{y:.1f}" '
+        f'width="{w:.1f}" height="{h:.1f}" rx="{h / 2:.1f}" />'
     )
 
 
-def art(kind: str, y: float) -> str:
-    """One row's drawing, baseline at y."""
-    x = ART_X
-    if kind == "windows":
-        out = [f'<path class="fl-gene" d="M {x} {y} L {x + ART_W} {y}" />']
-        for at in (0.18, 0.46, 0.78):
-            out.append(
-                f'<rect class="fl-window" x="{x + ART_W * at:.1f}" y="{y - 7}" '
-                f'width="34" height="14" rx="2" />'
-            )
-        out.append(_text(x, y + 20, "one gene, three candidate windows", "fl-note"))
-        return "\n    ".join(out)
-    if kind == "pair":
-        out = []
-        for row, at in ((y - 14, 0.20), (y + 10, 0.52)):
-            out.append(f'<path class="fl-gene" d="M {x} {row} L {x + ART_W} {row}" />')
-            out.append(
-                f'<rect class="fl-window" x="{x + ART_W * at:.1f}" y="{row - 7}" '
-                f'width="46" height="14" rx="2" />'
-            )
-        out.append(
-            f'<path class="fl-share" d="M {x + ART_W * 0.20 + 23:.1f} {y - 7} '
-            f'L {x + ART_W * 0.52 + 23:.1f} {y + 3}" />'
-        )
-        out.append(_text(x + 150, y - 2, "revcomp, &#8805; 4 nt", "fl-note"))
-        out.append(_text(x, y + 32, "the two runs are each other's complement", "fl-note"))
-        return "\n    ".join(out)
-    if kind == "choice":
-        # A STANDING stem, because that is what it is: two arms facing each other, not a
-        # sequence read left to right. Some positions already pair -- the run copied from
-        # trigger A's own complement, and others that happen to match -- and the figure
-        # has to show that those are the majority before it shows the dilemma.
-        left, right = x + 86, x + 150
-        pattern = ("pair", "pair", "clash", "pair", "clash", "pair")
-        out = [
-            f'<path class="fl-stem" d="M {left} {y - 86} '
-            f"A 32 32 0 1 1 {right} {y - 86} "
-            f'M {left} {y - 86} L {left} {y + 6} M {right} {y - 86} L {right} {y + 6}" />'
-        ]
-        for i, kindp in enumerate(pattern):
-            ry = y - 76 + i * 14
-            if kindp == "pair":
-                out.append(f'<path class="fl-rung" d="M {left} {ry} L {right} {ry}" />')
-            else:
-                out.append(
-                    f'<path class="fl-rung fl-rung--clash" d="M {left} {ry} '
-                    f'L {left + 16} {ry} M {right - 16} {ry} L {right} {ry}" />'
-                )
-                out.append(_text((left + right) / 2, ry + 4, "?", "fl-mark", "middle"))
-        out.append(_text(x, y - 92, "the two arms, facing", "fl-note"))
-        out.append(_text(x + 176, y - 62, "most positions pair:", "fl-note"))
-        out.append(_text(x + 176, y - 48, "the run from trigger A,", "fl-note"))
-        out.append(_text(x + 176, y - 34, "plus chance matches", "fl-note"))
-        out.append(_text(x + 176, y - 10, "where they disagree,", "fl-note"))
-        out.append(_text(x + 176, y + 4, "three ways: match A,", "fl-note"))
-        out.append(_text(x + 176, y + 18, "match B, or stay shut", "fl-note"))
-        out.append(_text(x + 176, y + 32, "&mdash; any two, never all", "fl-note"))
-        return "\n    ".join(out)
+def _line(x1: float, y1: float, x2: float, y2: float, cls: str) -> str:
+    return f'<path class="{cls}" d="M {x1:.1f} {y1:.1f} L {x2:.1f} {y2:.1f}" />'
 
-    if kind == "switch":
-        # The same shape as Figure 3.1's state 00, without its notations: two hairpins
-        # standing side by side on one backbone with nothing between them, the start
-        # codon inside the second. A reader who has seen 3.1 should recognise this.
-        out = []
-        for hx in (x + 30, x + 118):
-            out.append(
-                f'<path class="fl-stem" d="M {hx} {y} L {hx} {y - 52} '
-                f"A 22 22 0 1 1 {hx + 44} {y - 52} "
-                f'L {hx + 44} {y}" />'
-            )
-            for k in range(4):
-                ry = y - 10 - k * 11
-                out.append(f'<path class="fl-rung" d="M {hx} {ry} L {hx + 44} {ry}" />')
-        out += [
-            f'<path class="fl-gene" d="M {x} {y} L {x + 30} {y}" />',
-            f'<path class="fl-gene" d="M {x + 162} {y} L {x + ART_W} {y}" />',
-            f'<circle class="fl-aug" cx="{x + 140}" cy="{y - 32}" r="7" />',
-            _text(x + 152, y - 56, "AUG", "fl-note"),
-            _text(x + 230, y - 30, "the ribosome&#8217;s", "fl-note"),
-            _text(x + 230, y - 16, "signals, buried", "fl-note"),
-            _text(x, y + 20, "nothing between the two hairpins", "fl-note"),
-        ]
-        return "\n    ".join(out)
 
-    if kind == "funnel":
-        # The funnel alone says how much is cut and nothing about what varies, which is
-        # the half a reader needs here. The switch beside it marks the three parts a
-        # lever rewrites, so "three levers" is a place on the molecule and not a word.
-        out = []
-        for i, frac in enumerate((1.0, 0.58, 0.26, 0.07)):
-            out.append(
-                f'<rect class="fl-funnel" x="{x}" y="{y - 34 + i * 15}" '
-                f'width="{150 * frac:.1f}" height="11" rx="2" />'
-            )
-        out.append(_text(x, y + 22, "most are cut before folding", "fl-note"))
-        hx = x + 190
-        out.append(
-            f'<path class="fl-stem" d="M {hx} {y} L {hx} {y - 52} '
-            f"A 22 22 0 1 1 {hx + 44} {y - 52} "
-            f'L {hx + 44} {y}" />'
-        )
-        for k, lever in enumerate(("top", "bulge", "foot")):
-            ry = y - 14 - k * 16
-            out.append(f'<path class="fl-rung fl-rung--lever" d="M {hx} {ry} L {hx + 44} {ry}" />')
-            out.append(_text(hx + 54, ry + 4, lever, "fl-note"))
-        out.append(_text(x + 180, y + 22, "what a lever rewrites", "fl-note"))
-        return "\n    ".join(out)
+def _stem(x: float, top: float, bottom: float, w: float, cls: str = "fl-stem") -> str:
+    """A hairpin standing on its arms: two uprights closed by a loop over the top.
 
-    # tubes
+    The loop is a cubic rather than an SVG arc. An arc carries three flag digits in the
+    middle of its coordinates, and any bounds check that reads a path back as x,y pairs
+    is silently thrown off by them -- which is how a stem taller than its row got into
+    the first version of this figure unseen.
+    """
+    r = w / 2
+    return (
+        f'<path class="{cls}" d="M {x:.1f} {bottom:.1f} L {x:.1f} {top + r:.1f} '
+        f"C {x:.1f} {top - 0.35 * r:.1f} {x + w:.1f} {top - 0.35 * r:.1f} "
+        f"{x + w:.1f} {top + r:.1f} "
+        f'L {x + w:.1f} {bottom:.1f}" />'
+    )
+
+
+def _rungs(x: float, w: float, levels: list[tuple[float, str]]) -> list[str]:
+    """The base pairs inside a stem: a full rung pairs, a broken one does not."""
     out = []
-    for i, (label, open_) in enumerate((("00", False), ("10", False), ("01", False), ("11", True))):
-        cx = x + i * 78
+    for y, kind in levels:
+        if kind == "clash":
+            out.append(
+                f'<path class="fl-rung fl-rung--clash" d="M {x:.1f} {y:.1f} '
+                f"L {x + 11:.1f} {y:.1f} M {x + w - 11:.1f} {y:.1f} "
+                f'L {x + w:.1f} {y:.1f}" />'
+            )
+        else:
+            out.append(
+                f'<path class="fl-rung{" fl-rung--lever" if kind == "lever" else ""}" '
+                f'd="M {x:.1f} {y:.1f} L {x + w:.1f} {y:.1f}" />'
+            )
+    return out
+
+
+def _windows(cy: float) -> list[str]:
+    """One gene, and the many windows that could be cut out of it."""
+    out = [_bar(ART_X, cy - 36, ART_W, 12, "fl-genebar")]
+    for i in range(6):
+        out.append(_bar(ART_X + i * 52, cy - 6 + (i % 3) * 9, 120, 7, "fl-win"))
+    out.append(_text(ART_X, cy + 42, "one could begin at every base", "fl-note"))
+    return out
+
+
+def _pair(cy: float) -> list[str]:
+    """Two genes, and the one window in each that matches the other."""
+    out = []
+    for y, at in ((cy - 40, 44), (cy + 2, 214)):
+        out.append(_bar(ART_X, y, ART_W, 11, "fl-genebar"))
+        out.append(_bar(ART_X + at, y - 2, 74, 15, "fl-win fl-win--hit"))
+    out.append(_line(ART_X + 81, cy - 25, ART_X + 251, cy + 9, "fl-link"))
+    out.append(_text(ART_X, cy + 40, "complementary, 4 nt or more", "fl-note"))
+    return out
+
+
+def _choice(cy: float) -> list[str]:
+    """A stem where only some of the positions are settled by the two triggers."""
+    x, w = ART_X + 18, 46
+    out = [_stem(x, cy - 34, cy + 24, w)]
+    out += _rungs(
+        x, w, [(cy + 18, "pair"), (cy + 7, "clash"), (cy - 4, "pair"), (cy - 15, "clash")]
+    )
+    out += [
+        _text(ART_X + 96, cy - 4, "most positions already pair", "fl-note"),
+        _text(ART_X + 96, cy + 14, "the rest are a three-way choice", "fl-note"),
+    ]
+    return out
+
+
+def _switch(cy: float) -> list[str]:
+    """The two hairpins, touching, with the start codon buried in the second."""
+    first, second, w = ART_X + 40, ART_X + 84, 44
+    out = [_stem(first, cy - 30, cy + 22, w), _stem(second, cy - 30, cy + 22, w)]
+    out += _rungs(first, w, [(cy + 16, "pair"), (cy + 5, "pair"), (cy - 6, "pair")])
+    out += _rungs(second, w, [(cy + 16, "pair"), (cy - 6, "pair")])
+    out += [
+        _line(ART_X, cy + 22, first, cy + 22, "fl-gene"),
+        _line(second + w, cy + 22, ART_X + 180, cy + 22, "fl-gene"),
+        f'<circle class="fl-aug" cx="{second + w / 2:.1f}" cy="{cy + 5:.1f}" r="6.5" />',
+        _line(second + w / 2, cy + 5, ART_X + 186, cy + 5, "fl-lead"),
+        _text(ART_X + 192, cy + 9, "start codon, buried", "fl-note"),
+        _text(first + w / 2, cy + 42, "front", "fl-note", "middle"),
+        _text(second + w / 2, cy + 42, "back", "fl-note", "middle"),
+    ]
+    return out
+
+
+def _levers(cy: float) -> list[str]:
+    """The three parts a design may rewrite, and how little survives the screen."""
+    x, w = ART_X + 24, 46
+    out = [_stem(x, cy - 32, cy + 24, w)]
+    out += _rungs(x, w, [(cy + 18, "lever"), (cy + 2, "lever"), (cy - 14, "lever")])
+    for y, name in ((cy + 22, "foot"), (cy + 6, "middle"), (cy - 10, "top")):
+        out.append(_text(x + w + 8, y, name, "fl-note"))
+    funnel = ART_X + 206
+    for i, width in enumerate((174, 96, 42, 13)):
         out.append(
-            f'<rect class="fl-tube{" fl-tube--on" if open_ else ""}" x="{cx}" '
-            f'y="{y - 30}" width="62" height="34" rx="4" />'
+            f'<rect class="fl-funnel" x="{funnel:.1f}" y="{cy - 28 + i * 14:.1f}" '
+            f'width="{width}" height="10" rx="2" />'
         )
-        out.append(_text(cx + 31, y - 8, label, "fl-state", "middle"))
-    out.append(_text(x, y + 20, "only 11 should translate", "fl-note"))
-    return "\n    ".join(out)
+    out.append(_text(funnel, cy + 42, "most are cut before folding", "fl-note"))
+    return out
 
 
-def flow() -> str:
+def _tubes(cy: float) -> list[str]:
+    """The four tubes, with what each one should look like when it settles."""
+    out = []
+    for i, (label, opens) in enumerate((("00", False), ("10", False), ("01", False), ("11", True))):
+        bx = ART_X + i * 104
+        out.append(
+            f'<rect class="fl-tube{" fl-tube--on" if opens else ""}" x="{bx}" '
+            f'y="{cy - 40:.1f}" width="78" height="62" rx="6" />'
+        )
+        mid = bx + 39
+        if opens:
+            out.append(
+                f'<path class="fl-open" d="M {mid - 22:.1f} {cy - 10:.1f} '
+                f"C {mid - 10:.1f} {cy - 24:.1f} {mid + 10:.1f} {cy + 2:.1f} "
+                f'{mid + 22:.1f} {cy - 12:.1f}" />'
+            )
+        else:
+            out.append(_stem(mid - 10, cy - 26, cy - 2, 20, "fl-stem fl-stem--small"))
+        out.append(_text(mid, cy + 14, label, "fl-state", "middle"))
+    out.append(_text(ART_X, cy + 42, "left digit is the first trigger", "fl-note"))
+    return out
+
+
+_ART = {
+    "windows": _windows,
+    "pair": _pair,
+    "choice": _choice,
+    "switch": _switch,
+    "levers": _levers,
+    "tubes": _tubes,
+}
+
+
+def _extent(elements: list[str]) -> tuple[float, float, float, float]:
+    """The box the drawn elements actually occupy: paths, circles and labels included."""
+    xs: list[float] = []
+    ys: list[float] = []
+    for element in elements:
+        for m in re.finditer(r'\sd="([^"]+)"', element):
+            numbers = [float(t) for t in re.findall(r"-?\d+\.?\d*", m.group(1))]
+            xs += numbers[0::2]
+            ys += numbers[1::2]
+        for m in re.finditer(r'\sx="(-?[\d.]+)"\s+y="(-?[\d.]+)"', element):
+            px, py = float(m.group(1)), float(m.group(2))
+            width = re.search(r'width="([\d.]+)"', element)
+            if width:
+                height = re.search(r'height="([\d.]+)"', element)
+                xs += [px, px + float(width.group(1))]
+                ys += [py, py + (float(height.group(1)) if height else 0.0)]
+                continue
+            # A label. Its width is nowhere in the markup, so estimate it: a label that
+            # runs off the panel is exactly what this check exists to catch, and
+            # counting text as a zero-width point lets every one of them through.
+            body = re.search(r">([^<]*)<", element)
+            span = len(re.sub(r"&[a-z]+;|&#\d+;", "x", body.group(1) if body else "")) * 6.2
+            anchor = re.search(r'text-anchor="(\w+)"', element)
+            shift = {"middle": span / 2, "end": span}.get(
+                anchor.group(1) if anchor else "start", 0.0
+            )
+            xs += [px - shift, px - shift + span]
+            ys += [py - 10, py + 4]
+        for m in re.finditer(r'cx="(-?[\d.]+)" cy="(-?[\d.]+)" r="([\d.]+)"', element):
+            cx, cy, r = (float(m.group(i)) for i in (1, 2, 3))
+            xs += [cx - r, cx + r]
+            ys += [cy - r, cy + r]
+    return min(xs), max(xs), min(ys), max(ys)
+
+
+def flow() -> tuple[str, list[str]]:
     top = 86
     out = [
-        _text(8, 28, "The method, one step at a time", "fl-title"),
+        _text(MARGIN + 4, 30, "From two genes to a ranked design", "fl-title"),
         _text(
-            8,
-            50,
-            "Each row is a section below. The drawing is schematic: it says "
-            "what the step changes, not what the molecule measures.",
+            MARGIN + 4,
+            52,
+            "Six steps. Each drawing says what that step changes, not what the molecule measures.",
             "fl-caption",
         ),
     ]
-    for index, (section, title, line, kind) in enumerate(STEPS):
-        y = top + index * ROW_H
-        base = y + 54
-        out.append(
-            f'<rect class="fl-row" x="8" y="{y}" width="{WIDTH - 16}" '
-            f'height="{ROW_H - 10}" rx="4" />'
-        )
-        out.append(f'<circle class="fl-num" cx="42" cy="{y + 36}" r="16" />')
-        out.append(_text(42, y + 41, section, "fl-num-text", "middle"))
-        out.append(_text(74, y + 30, title, "fl-step"))
-        out.append(_text(74, y + 52, line, "fl-line"))
-        out.append(art(kind, base))
-        if index < len(STEPS) - 1:
-            out.append(f'<path class="fl-arrow" d="M 42 {y + ROW_H - 10} L 42 {y + ROW_H}" />')
-    base = top + len(STEPS) * ROW_H
-    out.append(
-        _text(
-            8,
-            base + 14,
-            "What comes out is a ranked list of designs, each "
-            "with the measurements behind its rank.",
-            "fl-note",
-        )
-    )
+    problems: list[str] = []
+    for index, (number, title, line, kind) in enumerate(STEPS):
+        y = top + index * (ROW_H + ROW_GAP)
+        cy = y + ROW_H / 2
+        out += [
+            f'<rect class="fl-row" x="{MARGIN}" y="{y}" '
+            f'width="{WIDTH - 2 * MARGIN}" height="{ROW_H}" rx="6" />',
+            f'<circle class="fl-num" cx="{MARGIN + 36}" cy="{cy:.1f}" r="17" />',
+            _text(MARGIN + 36, cy + 5, number, "fl-num-text", "middle"),
+            _text(MARGIN + 70, cy - 6, title, "fl-step"),
+            _text(MARGIN + 70, cy + 17, line, "fl-line"),
+        ]
+        drawing = _ART[kind](cy)
+        x0, x1, y0, y1 = _extent(drawing)
+        if y0 < y + 4 or y1 > y + ROW_H - 4:
+            problems.append(
+                f"step {number}: y {y0:.0f}..{y1:.0f} against row {y + 4:.0f}..{y + ROW_H - 4:.0f}"
+            )
+        if x0 < ART_X - 2 or x1 > WIDTH - MARGIN - 4:
+            problems.append(
+                f"step {number}: x {x0:.0f}..{x1:.0f} against panel {ART_X}..{WIDTH - MARGIN - 4}"
+            )
+        out += drawing
+    height = top + len(STEPS) * (ROW_H + ROW_GAP) + 4
     body = "\n    ".join(out)
-    return (
-        f'<svg viewBox="0 0 {WIDTH} {base + 34}" role="img" aria-label="Six steps from '
-        f"two genes to a ranked design, each with a small schematic drawing of what that "
-        f'step does.">\n    {body}\n</svg>'
+    svg = (
+        f'<svg viewBox="0 0 {WIDTH} {height}" role="img" aria-label="Six steps from two '
+        f"genes to a ranked design: scan each gene for windows, pair two genes on "
+        f"complementary windows, build the front hairpin, assemble the switch, vary and "
+        f'cut, and fold all four trigger states.">\n    {body}\n</svg>'
     )
+    return svg, problems
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Draw the method flow.")
     parser.add_argument("--out", default="methods-flow.svg", type=pathlib.Path)
     args = parser.parse_args(argv)
-    svg = flow()
+    svg, problems = flow()
+    if problems:
+        print("  REFUSING to write; a drawing escapes its row:")
+        for problem in problems:
+            print(f"    {problem}")
+        return 1
     args.out.write_text(svg, encoding="utf-8")
-    print(f"  {args.out.name}: {len(svg):,} characters")
+    print(f"  {args.out.name}: {len(svg):,} characters, every drawing inside its row")
     return 0
 
 

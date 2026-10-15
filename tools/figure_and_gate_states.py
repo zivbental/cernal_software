@@ -276,16 +276,47 @@ def _trigger(x_from: float, x_to: float, name: str, cls: str) -> str:
     )
 
 
+# Lobe depths for the folded strand, in order and deliberately irregular. A regular
+# sine reads as a decoration; an uneven run reads as a molecule that happens to fold.
+_FOLD_DEPTHS = (7.5, -10.5, 6.0, -8.0, 9.5, -6.5, 8.5, -9.0, 6.5, -10.0, 7.0, -7.5)
+
+
+def _folded_run(x1: float, x2: float, y: float) -> str:
+    """A stretch of transcript, drawn as a strand that folds rather than a ruler."""
+    span = x2 - x1
+    if span < 20:
+        return ""
+    lobes = max(2, round(span / 46))
+    width = span / lobes
+    steps = [f"M {x1:.1f} {y:.1f}"]
+    for i in range(lobes):
+        x = x1 + i * width
+        depth = _FOLD_DEPTHS[i % len(_FOLD_DEPTHS)]
+        steps.append(
+            f"C {x + width * 0.28:.1f} {y + depth:.1f} "
+            f"{x + width * 0.72:.1f} {y + depth:.1f} {x + width:.1f} {y:.1f}"
+        )
+    return f'\n    <path class="st-transcript" d="{" ".join(steps)}" />'
+
+
 def _window_of_a_gene(x_from: float, x_to: float, cls: str) -> str:
-    """The whole transcript under a bound trigger, with the window marked on it."""
-    # Both triggers are present in state 11, so the two bands cannot share a line.
+    """The transcript a bound trigger is a window of, with that window marked on it."""
+    # Both triggers are present in state 11, so the two strands cannot share a line.
     y = TRIG_Y + (40 if cls == "b" else 62)
+    middle = (x_from + x_to) / 2
+    half = 13.0
     return (
-        f'\n    <path class="st-transcript" d="M 24 {y:.0f} L {GENE_X - 10} {y:.0f}" />'
-        f'\n    <path class="st-transcript-cut" d="M {x_from:.1f} {y:.0f} L {x_to:.1f} {y:.0f}" />'
-        f'\n    <path class="st-lead" d="M {x_from:.1f} {TRIG_Y + 8:.0f} L {x_from:.1f} {y:.0f}" />'
-        f'\n    <path class="st-lead" d="M {x_to:.1f} {TRIG_Y + 8:.0f} L {x_to:.1f} {y:.0f}" />'
-        f'\n    <text class="st-domain" x="{GENE_X - 2:.0f}" y="{y + 4:.0f}">its whole gene</text>'
+        _folded_run(24, middle - half, y)
+        + f'\n    <path class="st-transcript-cut" d="M {middle - half:.1f} {y:.0f} '
+        f'L {middle + half:.1f} {y:.0f}" />'
+        + _folded_run(middle + half, GENE_X - 10, y)
+        # The window is drawn far shorter than the trigger above it, and the leaders
+        # converge rather than drop straight down, because the ratio between the two is
+        # the whole point: a few dozen nucleotides out of one or two thousand.
+        + f'\n    <path class="st-lead" d="M {x_from:.1f} {TRIG_Y + 8:.0f} '
+        f'L {middle - half:.1f} {y - 5:.0f}" />'
+        + f'\n    <path class="st-lead" d="M {x_to:.1f} {TRIG_Y + 8:.0f} '
+        f'L {middle + half:.1f} {y - 5:.0f}" />'
     )
 
 
