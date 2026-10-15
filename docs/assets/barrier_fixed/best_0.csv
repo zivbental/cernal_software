@@ -70,3 +70,9 @@ naive:ggt:aldA:113:1255:4:5:open_3x3:trigger_derived:trigger_derived,arm18/inv18
 naive:fadB:ggt:141:1058:4:5:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,fadB,ggt,141,1058,4,5,open_3x3,trigger_derived,trigger_derived,161,0.9998551072332229,11.400,0.000
 naive:fadB:ggt:629:1443:4:2:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,fadB,ggt,629,1443,4,2,open_3x3,trigger_derived,trigger_derived,161,0.9998565288449542,11.400,0.000
 naive:ggt:fadB:380:376:4:5:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,ggt,fadB,380,376,4,5,open_3x3,trigger_derived,trigger_derived,161,0.9996420585371651,11.300,0.000
+naive:astC:ggt:502:667:5:5:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,astC,ggt,502,667,5,5,open_3x3,trigger_derived,trigger_derived,161,0.9997057672776611,10.200,0.000
+naive:astC:ggt:907:422:6:6:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,astC,ggt,907,422,6,6,open_3x3,trigger_derived,trigger_derived,161,0.9997190559418586,11.700,0.001
+naive:aldA:ggt:814:1668:4:5:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,aldA,ggt,814,1668,4,5,open_3x3,trigger_derived,trigger_derived,161,0.9996651127569914,8.800,0.000
+naive:ggt:aldA:1136:1076:4:6:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,ggt,aldA,1136,1076,4,6,open_3x3,trigger_derived,trigger_derived,161,0.9999821005791034,9.400,0.000
+naive:ggt:aldA:784:432:4:5:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,ggt,aldA,784,432,4,5,open_3x3,trigger_derived,trigger_derived,161,0.9997491664428001,7.700,0.000
+naive:ggt:aldA:1344:731:7:5:open_3x3:trigger_derived:trigger_derived,arm18/inv18/capnone,ggt,aldA,1344,731,7,5,open_3x3,trigger_derived,trigger_derived,161,0.9997369207544446,20.700,0.001

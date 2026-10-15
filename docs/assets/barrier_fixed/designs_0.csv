@@ -1,0 +1,2 @@
+key,geom_label,gene_a,gene_b,x_start,xstar_start,len_x,stem_index,closure,upper3,lower3,switch_len,leak,b_10,s_10
+naive:ggt:fadB:925:1213:4:1:closed_CAU:WWW_UAU:trigger_derived,arm18/inv18/capnone,ggt,fadB,925,1213,4,1,closed_CAU,WWW_UAU,trigger_derived,161,8.093045984928898e-05,9.500,0.008

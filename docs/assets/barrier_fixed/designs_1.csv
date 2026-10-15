@@ -1,0 +1,2 @@
+key,geom_label,gene_a,gene_b,x_start,xstar_start,len_x,stem_index,closure,upper3,lower3,switch_len,leak,b_10,s_10
+naive:ggt:fadB:925:1213:4:1:pair1_CCC:WWW_AUA:wobble_GU,arm18/inv18/capnone,ggt,fadB,925,1213,4,1,pair1_CCC,WWW_AUA,wobble_GU,161,0.08883410026705509,9.500,0.009
