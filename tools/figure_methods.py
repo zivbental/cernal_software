@@ -544,7 +544,7 @@ def tubes() -> str:
         (
             "10",
             "the switch + trigger A",
-            "nothing should change: A has no exposed site",
+            "nothing should change: A's site is meant to be hidden",
             "where the leak lives",
             "leak",
         ),
