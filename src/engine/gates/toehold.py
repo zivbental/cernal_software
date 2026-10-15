@@ -988,7 +988,17 @@ class ToeholdAndGate(ToeholdGate):
     #: one — so SEQUENCES change for those designs, not only their verdicts.
     #: `swx_engB_{state}`, `k2star_engB_{state}`, `r2star_engB_{state}` and
     #: `A_sec_z_{state}` are additive and free.
-    version = "0.7.0"
+    #: 0.8.0: one reference state for every worst-OFF term. `ied_off_worst` and `ied_gain`
+    #: took the worst of 01 and 10, and state 00 alone, against the `max(00, 01, 10)` every
+    #: other worst-OFF term uses — three answers to "which state is the OFF state", twenty
+    #: lines apart. The correction is re-derivable from stored columns rather than needing a
+    #: re-fold, and measured on the 219,808 designs of `axes_c8` it is **not** small: the old
+    #: `ied_gain` referenced state 00 while state 10 is the worst on 80.3% of designs, so
+    #: 92.2% of rows move, by a median of -0.0924, and the within-cell ranking changes on
+    #: 97.7% of cells (median rank correlation old against new 0.22, as low as -0.92). Any
+    #: conclusion that rested on `ied_gain` has to be re-derived; nothing that rested on the
+    #: other three terms moves at all.
+    version = "0.8.0"
     kind = GateKind.TOEHOLD_AND
     label = "AND Toehold"
     description = "Two-input translational AND"
@@ -2194,22 +2204,35 @@ class ToeholdAndGate(ToeholdGate):
         observables["aug_gain"] = gain("aug")
         observables["meanW_off"] = worst_max("meanW")
         observables["meanW_gain"] = gain("meanW")
-        # `ied` is lower-better, so its gain is the OFF state MINUS the ON state, and its worst
-        # OFF state is the least-paired one.
-        ied_off_values = [observables.get(f"ied_rbs_linker_{s}") for s in ("01", "10")]
-        ied_present = [v for v in ied_off_values if v is not None]
-        observables["ied_off_worst"] = min(ied_present) if len(ied_present) == 2 else None
+
+        # `ied` is lower-better, so its worst OFF state is the LEAST paired one and its gain is
+        # that state minus the ON state. `min` for the same reason `worst_max` takes `max`.
+        #
+        # **All three OFF states, like every other worst-OFF term.** This block used to hold
+        # three different answers to "which state is the OFF state": `worst_max` over
+        # 00/01/10, `ied_off_worst` over 01/10 with state 00 dropped, and `ied_gain` over
+        # state 00 alone. They are twenty lines apart and nothing connected them. The
+        # consequence is not cosmetic -- measured, the same folded data gives the
+        # ensemble-defect contrast a rank correlation of -0.075, +0.651 or +0.620 depending
+        # on which of the three is used, so the reference state was deciding the sign of a
+        # published conclusion.
+        def worst_min(prefix: str) -> float | None:
+            values = [observables.get(f"{prefix}_{s}") for s in ("00", "01", "10")]
+            present = [v for v in values if v is not None]
+            return min(present) if len(present) == len(values) else None
+
+        observables["ied_off_worst"] = worst_min("ied_rbs_linker")
         observables["ied_gain"] = (
-            None
-            if observables.get("ied_rbs_linker_00") is None
-            or observables.get("ied_rbs_linker_11") is None
-            else observables["ied_rbs_linker_00"] - observables["ied_rbs_linker_11"]
-        )
-        observables["ied_gain_worst"] = (
             None
             if observables["ied_off_worst"] is None or observables.get("ied_rbs_linker_11") is None
             else observables["ied_off_worst"] - observables["ied_rbs_linker_11"]
         )
+        # Now the same quantity as `ied_gain`, and deliberately not deleted here. The two names
+        # existed because `ied_gain` used state 00 and this one used the worst of 01 and 10;
+        # with both over all three OFF states they are one measurement. Four readers take this
+        # name -- `tools/analyse_axes.py`, `tools/analyse_closure.py`, a test, and the stored
+        # grid's own column -- so retiring it is its own change, not a rider on this one.
+        observables["ied_gain_worst"] = observables["ied_gain"]
         # One extra fold, and a tiny one: the MFE of the isolated 57-nt subsequence. +0.334 on
         # G168 by rank and +0.693 by Pearson on G13. A 57-nt fold is milliseconds against about
         # a second for a whole design, so it is affordable where `dG_arm_{state}` and

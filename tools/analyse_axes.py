@@ -109,8 +109,12 @@ ORIENTATION: dict[str, float] = {
     "barrier": 1.0,
     "access_a": 1.0,
     # the engine's OWN ied contrasts, carried as measured for comparison with `sep_ied` above.
-    # They differ in which states count as OFF: `ied_gain` references state 00 alone and
-    # `ied_gain_worst` the worst of 01 and 10, while `sep_ied` takes the worst of all three.
+    # All three now reference the worst of 00, 01 and 10, so `ied_gain` and `ied_gain_worst`
+    # are one quantity under two names and both should agree with `sep_ied` on any row the
+    # engine produced after that was fixed. A row from an older run will not: there
+    # `ied_gain` was state 00 alone and `ied_gain_worst` the worst of 01 and 10, which is why
+    # the same folded data gave this contrast -0.075, +0.651 or +0.620 depending on which was
+    # read. Comparing the three columns on a row is the cheapest way to tell the runs apart.
     "ied_gain": -1.0,
     "ied_gain_worst": -1.0,
 }
