@@ -35,23 +35,52 @@ ROW_GAP = 8
 ART_X = 470
 ART_W = WIDTH - ART_X - MARGIN - 4
 
-STEPS: tuple[tuple[str, str, str, str], ...] = (
-    ("1", "Scan each gene", "A window could begin at any base.", "windows"),
-    ("2", "Pair two genes", "Keep the pairs whose windows are complementary.", "pair"),
+#: Title, the one line that says what the step does, the count it leaves behind, and
+#: which drawing goes beside it. The counts are what make this a funnel rather than six
+#: labelled boxes, and they are the numbers of section 4.5.
+STEPS: tuple[tuple[str, str, str, str, str], ...] = (
+    (
+        "1",
+        "Scan each gene",
+        "A window could begin at any base.",
+        "4 genes, every window a candidate",
+        "windows",
+    ),
+    (
+        "2",
+        "Pair two genes",
+        "Keep the pairs whose windows are complementary.",
+        "53,530 candidate pairs \u2192 210 carried",
+        "pair",
+    ),
     (
         "3",
         "Build the secondary hairpin",
-        "Several positions already pair by chance; the rest force a choice.",
+        "Some positions already pair; the rest force a choice.",
+        "median 82 on the front, about 9 sampled",
         "choice",
     ),
     (
         "4",
         "Assemble the switch",
         "Two hairpins touching, the start codon inside the second.",
+        "one switch, 161 or 165 nt",
         "switch",
     ),
-    ("5", "Vary, then cut", "Three parts can be rewritten. Most candidates are cut.", "levers"),
-    ("6", "Fold four states", "Only both triggers together should open it.", "tubes"),
+    (
+        "5",
+        "Vary, then cut",
+        "Three parts can be rewritten. Most candidates are cut.",
+        "301,440 built \u2192 219,808 folded in four states",
+        "levers",
+    ),
+    (
+        "6",
+        "Fold four states",
+        "Only both triggers together should open it.",
+        "4,762 pass every gate of the feasible set",
+        "tubes",
+    ),
 )
 
 
@@ -257,7 +286,7 @@ def flow() -> tuple[str, list[str]]:
         ),
     ]
     problems: list[str] = []
-    for index, (number, title, line, kind) in enumerate(STEPS):
+    for index, (number, title, line, count, kind) in enumerate(STEPS):
         y = top + index * (ROW_H + ROW_GAP)
         cy = y + ROW_H / 2
         out += [
@@ -265,9 +294,23 @@ def flow() -> tuple[str, list[str]]:
             f'width="{WIDTH - 2 * MARGIN}" height="{ROW_H}" rx="6" />',
             f'<circle class="fl-num" cx="{MARGIN + 36}" cy="{cy:.1f}" r="17" />',
             _text(MARGIN + 36, cy + 5, number, "fl-num-text", "middle"),
-            _text(MARGIN + 70, cy - 6, title, "fl-step"),
-            _text(MARGIN + 70, cy + 17, line, "fl-line"),
+            _text(MARGIN + 70, cy - 14, title, "fl-step"),
+            _text(MARGIN + 70, cy + 8, line, "fl-line"),
+            _text(MARGIN + 70, cy + 30, count, "fl-count"),
         ]
+        # The row's own text gets the same treatment as the drawing. It was left out
+        # when this check was written, and it is the other half of the figure that can
+        # run into something: the column is only as wide as the gap between the number
+        # and the drawing panel.
+        text_box = (MARGIN + 70, ART_X - 12)
+        for label, size in ((title, 15), (line, 13), (count, 11)):
+            span = len(re.sub(r"&[a-z]+;|&#\d+;", "x", label)) * size * 0.48
+            if MARGIN + 70 + span > text_box[1]:
+                problems.append(
+                    f"step {number}: text runs to {MARGIN + 70 + span:.0f}, past the "
+                    f"drawing panel at {text_box[1]} -- {label[:42]}..."
+                )
+
         drawing = _ART[kind](cy)
         x0, x1, y0, y1 = _extent(drawing)
         if y0 < y + 4 or y1 > y + ROW_H - 4:
