@@ -1,11 +1,13 @@
 """Real ViennaRNA regression tests for the run-wide, immutable folding model."""
 
 import dataclasses
+import gc
 import hashlib
 import json
 import math
 import subprocess
 import sys
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -21,6 +23,22 @@ from engine.stages.triggers import TriggerScorer
 
 SEQUENCE = "GGGCGAAAGCCCAUAUAUGGGCUUUCCC"
 LOCAL_SEQUENCE = "ACGU" * 60
+
+
+@pytest.mark.parametrize("size", [0, 1])
+def test_constrained_probability_cache_is_bounded_and_releases_engine(size):
+    folder = FoldEngine(cache_size=size)
+    folder.constrained_probability("GGGAAACCC", ((0, 8),))
+    folder.constrained_probability("GGGAAACCC", ((1, 7),))
+    info = folder._constrained_probability_cached.cache_info()
+    assert info.maxsize == size
+    assert info.currsize <= size
+    reference = weakref.ref(folder)
+    del folder
+    gc.collect()
+    assert reference() is None
+
+
 SRC = str(Path(__file__).resolve().parents[2] / "src")
 
 # The reference never imports CERNAL's adapter. Each subprocess starts with clean
