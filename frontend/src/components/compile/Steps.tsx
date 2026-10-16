@@ -15,6 +15,7 @@ import { Check, SliderRow } from "@/components/compile/Bits";
 import { ExpressionPreview } from "@/components/compile/ExpressionPreview";
 import { PublicDatasetPicker } from "@/components/compile/PublicDatasetPicker";
 import { parseSequence } from "@/components/compile/sequence";
+import { AndInputs, type AndGenes } from "@/components/compile/AndInputs";
 import { GenePicker } from "@/components/compile/GenePicker";
 
 /* ---------- shared config ---------- */
@@ -34,6 +35,8 @@ export interface CompileConfig {
   /** The resolved reference gene, frozen with its sequence by the submission API. */
   targetGene: { organism: Organism; geneId: string; geneSymbol: string } | null;
   mechanism: string;
+  /** The two input genes of a two-input AND gate (empty strings until chosen). */
+  andGenes: AndGenes;
   /** Downstream outputs, all equivalent. Each selected one gets its own plasmids. */
   outputs: string[];
   customPayload: string;
@@ -78,6 +81,7 @@ export const DEFAULT_CONFIG: CompileConfig = {
   triggerSequence: "",
   targetGene: null,
   mechanism: "toehold",
+  andGenes: { a: "", b: "" },
   outputs: ["gfp"],
   customPayload: "",
   optimizePayloadCodons: false,
@@ -172,6 +176,7 @@ export function StepInputs({
   examples,
   loadingExample,
   onUseExample,
+  twoInputGate = false,
 }: {
   config: CompileConfig;
   patch: Patch;
@@ -182,6 +187,8 @@ export function StepInputs({
   examples: ExampleDataset[];
   loadingExample: boolean;
   onUseExample: (key: string) => void;
+  /** The selected mechanism takes two inputs, so only a differential-expression table can name them. */
+  twoInputGate?: boolean;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const selected = datasets.find((d) => d.id === config.datasetId) ?? null;
@@ -208,8 +215,8 @@ export function StepInputs({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => patch(o.key === "human"
-                  ? { organism: o.key, datasetId: null, targetGene: null, backbone: "none", mechanism: "eukaryotic_toehold" }
-                  : { organism: o.key, datasetId: null, targetGene: null, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
+                  ? { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: "none", mechanism: "eukaryotic_toehold" }
+                  : { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
                 className={`group relative flex items-center gap-2 rounded-md px-5 py-2.5 text-sm transition ${
                   credit
                     ? selected
@@ -326,7 +333,9 @@ export function StepInputs({
           <button
             type="button"
             onClick={() => patch({ inputMode: "direct" })}
-            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition ${
+            disabled={twoInputGate}
+            title={twoInputGate ? "The two-input AND gate takes its two genes from a differential-expression table." : undefined}
+            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition ${twoInputGate ? "cursor-not-allowed opacity-50 " : ""}${
               config.inputMode === "direct"
                 ? "bg-card font-medium text-foreground shadow-clinical"
                 : "text-muted-foreground hover:text-foreground"
@@ -338,7 +347,9 @@ export function StepInputs({
           <button
             type="button"
             onClick={() => patch({ inputMode: "gene" })}
-            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition ${
+            disabled={twoInputGate}
+            title={twoInputGate ? "The two-input AND gate takes its two genes from a differential-expression table." : undefined}
+            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition ${twoInputGate ? "cursor-not-allowed opacity-50 " : ""}${
               config.inputMode === "gene"
                 ? "bg-card font-medium text-foreground shadow-clinical"
                 : "text-muted-foreground hover:text-foreground"
@@ -355,6 +366,8 @@ export function StepInputs({
             "Skip discovery — provide the exact mRNA sequence you want to act as the trigger."}
           {config.inputMode === "gene" &&
             "Already know which transcript you want the circuit to respond to? Resolve its reference transcript here; its identity and sequence are frozen at submission."}
+          {twoInputGate &&
+            " The two-input AND gate takes its two genes from a differential-expression table, so the other modes are unavailable for it."}
         </p>
       </div>
 
@@ -624,11 +637,15 @@ export function StepLogic({
   config,
   patch,
   families,
+  familyInputs = {},
 }: {
   config: CompileConfig;
   patch: Patch;
   families: GateFamily[];
+  /** Trigger inputs per family (`/api/version` `family_inputs`); a family absent here takes one. */
+  familyInputs?: Record<string, number>;
 }) {
+  const selectedInputs = familyInputs[config.mechanism] ?? 1;
   return (
     <Panel>
       <SectionHeading
@@ -649,7 +666,13 @@ export function StepLogic({
                 key={family.name}
                 type="button"
                 disabled={!family.available}
-                onClick={() => patch({ mechanism: family.name })}
+                onClick={() =>
+                  patch({
+                    mechanism: family.name,
+                    // A two-input gate names its genes in a DE table; no other mode can.
+                    ...((familyInputs[family.name] ?? 1) > 1 ? { inputMode: "de" as const } : {}),
+                  })
+                }
                 title={family.available ? undefined : "Not implemented yet"}
                 className={`flex items-start gap-3 rounded-xl border p-4 text-left transition ${
                   active
@@ -665,7 +688,14 @@ export function StepLogic({
                   {active && <div className="h-1.5 w-1.5 rounded-full bg-mint" />}
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-foreground">{family.label}</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {family.label}
+                    {(familyInputs[family.name] ?? 1) > 1 && (
+                      <span className="ml-2 rounded bg-mint/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-mint">
+                        {familyInputs[family.name]} inputs
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">{family.description}</div>
                   {!family.available && (
                     <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -678,6 +708,14 @@ export function StepLogic({
           })}
         </div>
       </div>
+
+      {selectedInputs > 1 && (
+        <AndInputs
+          datasetId={config.datasetId}
+          value={config.andGenes}
+          onChange={(andGenes) => patch({ andGenes })}
+        />
+      )}
 
       <AdvancedOptions>
         <div className="grid gap-4 md:grid-cols-2">

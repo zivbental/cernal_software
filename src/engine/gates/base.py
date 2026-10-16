@@ -134,6 +134,16 @@ class GateFamily(ABC):
         """Family-specific files. Optional — the default produces none."""
         return []
 
+    def diagnostics(self, design: GateDesign) -> dict:
+        """Measurements beyond the nine scored metrics, for the stored result. Optional.
+
+        ``evaluate_design`` may return only the profile's metric names, so a family whose
+        evaluation also produces state-by-state values, sampler checks or warnings returns them
+        here, after ``evaluate_design(design)`` has run. JSON-serialisable, never normalised or
+        weighted, and a value that could not be measured is ``None``. ``{}`` by default.
+        """
+        return {}
+
     def describe(self, design: GateDesign) -> str:
         """One-line human summary. Overridable, with a reasonable default.
 
