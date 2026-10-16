@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 75 |
 | Public classes | 116 |
-| Public callables (excluding `__init__`) | 435 |
-| — `BUILT` | 422 |
+| Public callables (excluding `__init__`) | 438 |
+| — `BUILT` | 425 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -80,7 +80,7 @@ layers above it, never the ones below.
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
 | gates | `engine.gates.notebooks.toehold_and._joint_state_parallel` |  | 3 | 0 | Shared helpers of the toehold notebooks (used by ``eu_and_v3.ipynb`` and its workers). |
 | gates | `engine.gates.notebooks.toehold_and._report_figures` |  | 4 | 0 | Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a base-pair probability heatmap as a PNG. |
-| gates | `engine.gates.notebooks.toehold_and._report_stats` |  | 9 | 0 | Statistics behind the ``eu_and_v3`` reports that must be testable on their own. |
+| gates | `engine.gates.notebooks.toehold_and._report_stats` |  | 12 | 0 | Statistics behind the ``eu_and_v3`` reports that must be testable on their own. |
 | gates | `engine.gates.notebooks.toehold_and._sampled_and_parallel` |  | 3 | 0 | Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by part 2 of ``eu_and_v3.ipynb``). |
 | gates | `engine.gates.notebooks.toehold_and._sampled_stem_parallel` |  | 3 | 0 | Expected longest open run of the stem, by sampling, in parallel (used by ``eu_and_v3.ipynb``). |
 | gates | `engine.gates.notebooks.toehold_and._switch_construct` |  | 3 | 0 | Shared AND-construct builder and single-switch loader/measurement. |
@@ -1734,6 +1734,9 @@ Statistics behind the ``eu_and_v3`` reports that must be testable on their own.
 | `BUILT` | `def noise_summary(changes: Iterable[float \| None]) -> tuple[float \| None, float \| None]` | ``(median, 95th percentile)`` of the absolute seed-to-seed changes, ``(None, None)`` when there is none (no candidate, or none with both runs measured). |
 | `BUILT` | `def num_text(value: float \| None, digits: int = 2, unit: str = '') -> str` | A number as text, ``n/a`` when it is unavailable. |
 | `BUILT` | `def file_sha256(path: str \| Path) -> str` | SHA-256 of a file, streamed. |
+| `BUILT` | `def result_digest(value: dict) -> str` | Stable digest of detached JSON data, including sampling inputs and result identity. |
+| `BUILT` | `def save_results(path: Path, identity: dict, provenance: dict, payload: dict) -> None` | Persist original provenance with a versioned, integrity-checked result envelope. |
+| `BUILT` | `def load_results(path: str \| Path, identity: dict) -> tuple[dict, dict]` | Reject legacy, altered or mismatched results rather than relabeling their numbers. |
 | `BUILT` | `def describe_folding_model(provenance: dict) -> str` | One line from ``FoldEngine.provenance()``: library version, energy table, settings. |
 | `BUILT` | `def run_provenance(csv_path: str \| Path, folding_provenance: dict, repo_dir: str \| Path) -> dict` | What a reader needs to check a report: the code revision (and whether files were modified since that commit), the input file with its checksum, and the folding model. |
 
