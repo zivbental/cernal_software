@@ -19,3 +19,6 @@ source and supporting documentation artifact, with original checksums and preser
 [The full baseline manifest](../evidence/baseline-file-manifest.json) accounts for all tracked
 files. Datasets, notebooks, figures, test fixtures and vendor evidence are not deleted or rewritten
 by this documentation reorganization.
+
+The [post-merge main snapshots](post-merge-main-2026-10-16/INDEX.md) preserve all five
+files reconciled across documentation conflicts, including the PR82 research roadmap.

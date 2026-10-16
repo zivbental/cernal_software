@@ -44,3 +44,9 @@ Dated artifacts are retained unchanged; their claims remain scoped to their orig
 Historical instructions and superseded designs are indexed in the [archive](../archive/README.md).
 Missing external datasets/results are identified as missing; their presence is never inferred
 from a narrative. The pending barrier and IBBIS limitations are detailed in [status](../status.md).
+
+Current merge/capability status after PRs 68/69/81/82 is in [status](../status.md).
+The earlier checks and branch audit below are dated records, not current open-work lists.
+
+[Post-merge documentation checks](post-merge-documentation-checks-2026-10-16.json) record
+source consistency, archive preservation and the documentation-only validation scope.

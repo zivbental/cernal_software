@@ -1,6 +1,6 @@
 # Production trigger selection
 
-Source baseline: `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+Source baseline: `66a6d265577810e8943709f3e5bb21bffdab212c` (16 October 2026).
 See [status](status.md) for release evidence and pending work.
 
 A trigger is a specific 5′→3′ target-RNA interval, not a whole gene or a synonym for its
@@ -16,7 +16,8 @@ in an unseen full transcript. Exact triggers still undergo configured motif scre
 
 Longer direct inputs and resolved gene transcripts are scanned. DE-selected genes use
 the same [`TriggerScorer`](../src/engine/stages/triggers.py). Current gate-aware scanning
-accepts exact 30, 33 and 36 nt footprints, mapping to 12, 15 and 18 nt toeholds. Other
+accepts exact 30, 33, 36 and 50 nt footprints, mapping to 12, 15, 18 and 32 nt toeholds.
+The 50-nt option is explicit; default single-input windows remain unchanged. Other
 scanned lengths fail validation rather than silently changing the mechanism.
 
 ## Evidence and shortlist

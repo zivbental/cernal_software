@@ -1,6 +1,6 @@
 # Construct assembly, provenance and export
 
-Source baseline: `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+Source baseline: `66a6d265577810e8943709f3e5bb21bffdab212c` (16 October 2026).
 See [status](status.md) for release evidence and pending work.
 
 The application builds a sequence-level expression cassette or inserts it into a supplied
@@ -10,8 +10,9 @@ executable cloning protocol, or a biologically functional design.
 ## Physical scope
 
 [`PlasmidBuilder.build`](../src/engine/stages/plasmids.py) accepts one identity expression
-with one activating toehold and matching input identity. It rejects unsupported physical
-Boolean topology, other gate mechanisms and repressors. Concatenating switches cannot
+with one activating toehold and matching input identity, or the supported one-gate
+eukaryotic AND with matching two-input identity. It rejects other physical Boolean
+topologies and unsupported mechanisms/repressors. Concatenating switches cannot
 implement AND/OR/NOT, even when a logical expression can be enumerated elsewhere.
 
 The compiled order is promoter → switch → payload → terminator. The switch supplies its

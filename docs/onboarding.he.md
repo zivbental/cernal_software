@@ -1,6 +1,6 @@
 # CERNAL — מדריך התחלה לחברי הצוות
 
-בסיס התיעוד: main, גרסה `c1bb92cc085a6bad272298b81bda28c22b1d57f5`, ‏16 באוקטובר 2026.
+בסיס התיעוד: main, גרסה `66a6d265577810e8943709f3e5bb21bffdab212c`, ‏16 באוקטובר 2026.
 למצב העדכני ולמגבלות ראו [status](status.md); להתקנת היישום המלא ראו
 [development](development.md) ו-[WSL2](windows-worker.md). ב-Windows מקומי אפשר
 לעבוד על המנוע; תור העבודה של היישום דורש Linux/WSL2.

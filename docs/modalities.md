@@ -1,6 +1,6 @@
 # Supported inputs, hosts, mechanisms and outputs
 
-Source baseline: `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+Source baseline: `66a6d265577810e8943709f3e5bb21bffdab212c` (16 October 2026).
 See [status](status.md) for release evidence and pending work.
 
 These choices describe actual application routes, not the full research search space.
@@ -33,12 +33,13 @@ Generic means family name `toehold`; track-specific names are `prokaryotic_toeho
 and `eukaryotic_toehold`. Reference availability does not establish complete alias or
 isoform coverage, expression context, or experimental function in that host.
 
-AND, antisense, eukaryotic antisense and CRISPR are not available production construct
-routes at this baseline. Their source classes/workbenches are research surfaces. Selecting
-several genes does not implement physical AND/OR/NOT. Production configuration validation
-rejects `max_circuit_gates > 1` or `max_triggers > 1`, including direct LocalEngine calls.
-A lower-level pipeline warning about independent constructs remains in source, but it
-is not a supported submission fallback around that validation.
+`eukaryotic_toehold_and` is available for Human/yeast DE input, with two selected
+up-regulated genes (the same canonical gene may supply both windows), one gate and
+no mixed families. It requires `max_triggers=2` and `max_circuit_gates=1`; direct and
+single-reference-gene modes do not support this family. See [AND guide](and-gate.md).
+Generic/prokaryotic research AND, antisense and CRISPR are unavailable application
+routes. Single-input defaults remain one trigger and one gate; there is no general
+physical multi-gate compiler.
 
 ## Outputs and assembly
 

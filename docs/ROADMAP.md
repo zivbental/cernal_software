@@ -11,8 +11,9 @@ outcomes, not an assertion that old backlog entries remain unimplemented.
   context and concentration assumptions. [Off-target scope](off-target-analysis.md).
 - Review reference mapping and public-data contrasts with the scientific/data owners.
   [Dataset governance](catalog-governance.md).
-- Integrate multi-input/AND functionality only after its application contract, supported hosts,
-  correctness tests and scientific limitations agree. Open PRs are pinned in [status](status.md).
+- The eukaryotic Human/yeast DE AND route is merged. Other AND chemistries and general
+  multi-gate compilation still need application contracts, tests and scientific validation.
+  [Status](status.md) distinguishes accepted scope from remaining work.
 - Corrected barrier work needs complete reproducible row-level evidence at its published head;
   endpoint-energy differences must not be interpreted as path barriers.
 

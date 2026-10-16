@@ -1,10 +1,11 @@
 # Scientific engine: implemented application path
 
-Source baseline: `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+Source baseline: `66a6d265577810e8943709f3e5bb21bffdab212c` (16 October 2026).
 See [status](status.md) for release evidence and pending work.
 
 CERNAL's `LocalEngine` compiles supplied sequences or differential-expression results
-into computationally ranked, single-input activating toehold constructs. It does not
+into computationally ranked single-input toeholds or one eukaryotic two-input AND
+for Human/yeast DE runs. It does not
 establish cellular efficacy, disease discrimination or biological safety. Read
 [scientific interpretation](scientific-interpretation.md) before interpreting scores.
 
@@ -33,7 +34,7 @@ class declarations.
 | Resolve input | Direct sequence, bundled reference gene, or parsed DE results | `inputs.py`, `transcriptome.py` |
 | Select genes | DE filters and deterministic budgeted shortlist, with missing-evidence warnings | `stages/genes.py` |
 | Select triggers | Short direct input stays one trigger; longer input uses gate-aware scanning | `stages/triggers.py` |
-| Design/validate | Compatible single-input toehold generation, motifs, structural and sequence checks | `gates/toehold.py`, `stages/switches.py` |
+| Design/validate | Compatible single-input toeholds or supported eukaryotic AND; motifs, structural and sequence checks | `gates/toehold.py`, `stages/switches.py` |
 | Assemble/evaluate | Each retained gate is paired with every requested output; evaluation includes switch–payload context | `stages/plasmids.py`, `pipeline.py` |
 | Score/export | Raw metrics, hard filters, deterministic ranks, release-aware artifacts | `scoring/`, `safety.py`, `artifacts.py`, `pipeline.py` |
 
@@ -45,18 +46,18 @@ outputs are alternatives, not simultaneous multi-output logic.
 
 All four hosts (`ecoli`, `yeast`, `human`, `c_acnes`) have bundled references and direct,
 `gene` and `de` input routes. Available application families are `toehold`,
-`prokaryotic_toehold` and `eukaryotic_toehold`, subject to host compatibility.
+`prokaryotic_toehold`, `eukaryotic_toehold` and `eukaryotic_toehold_and`, subject to
+host and input-mode compatibility. [AND guide](and-gate.md) specifies the two-input route.
 `LocalEngine.capabilities()` combines registry declarations with pipeline restrictions;
 a class's `available` flag alone is insufficient.
 
-The application excludes AND and antisense families through `_UNBUILDABLE_FAMILIES`;
-CRISPR's application family is unavailable. Research implementations and workbenches
-must be evaluated separately. Boolean expression enumeration exists, but the production
-pipeline returns independent single-input activation constructs and the builder rejects
-unsupported physical Boolean topologies. Configuration validation rejects more than one
-input or gate (`max_triggers > 1` or `max_circuit_gates > 1`). There is no production NOT compiler for a
-DOWN-regulated signature, no observed confusion-matrix workflow, and no integrated
-transcriptome-wide RNA off-target scan.
+Generic/prokaryotic research AND and antisense remain excluded through
+`_UNBUILDABLE_FAMILIES`; CRISPR's application family is unavailable. The supported
+exception is one eukaryotic AND in DE mode: Human/yeast, two selected up-regulated
+gene inputs, `max_triggers=2`, `max_circuit_gates=1`, without mixed families. Aliases
+resolve canonically while preserving two-window multiplicity. Single-input defaults
+remain unchanged. This is not a general physical AND/OR/NOT compiler, observed
+confusion-matrix workflow or transcriptome-wide off-target screen.
 
 ## Shared scientific tools
 

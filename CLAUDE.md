@@ -6,7 +6,7 @@ internals. The default engine is `engine.client.LocalEngine`, with real folding 
 input/gene/trigger/switch/circuit/assembly paths. Some components remain incomplete;
 inspect source before assuming any callable is a stub. Current capabilities and dated
 verification are in `docs/status.md` and `docs/evidence/README.md`; unresolved work is
-in `docs/ROADMAP.md`. Documentation baseline: main c1bb92cc, 16 October 2026.
+in `docs/ROADMAP.md`. Documentation baseline: main 66a6d265, 16 October 2026.
 
 > **The one-line rule: inspect and extend the existing implementation before creating a parallel one.**
 > If you are about to write `class X:` or create a new module, first look for an existing

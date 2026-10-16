@@ -18,6 +18,11 @@ construct will work experimentally. This guide describes the main baseline pinne
 | Change the software | [Contributing](../CONTRIBUTING.md) → [architecture](architecture.md) → [testing](testing.md) → [ADRs](decisions/) |
 | Assess readiness | [Status](status.md) → [limitations/roadmap](ROADMAP.md) → [release decisions](release-decisions.md) → [attribution](attribution.md) |
 
+## Merged workflows
+
+- [Eukaryotic two-input AND](and-gate.md): Human/yeast DE workflow, evidence and limitations
+- [Screening-status UI](sequence-screening.md): optional evidence contract, not an operational adapter
+
 ## Scientific references
 
 - [NucSyn design inputs and attribution](nucsyn.md): upstream credit, research CSV contract, reproducibility and runtime boundary
@@ -28,7 +33,7 @@ construct will work experimentally. This guide describes the main baseline pinne
 - [Catalog governance](catalog-governance.md), [public datasets](public-datasets.md) and [collaborations](collaborations.md)
 - [Integration](integration.md): scientific components versus the production execution path
 - [CRISPR workbench (Hebrew)](crispr-workbench.he.md) and [implementation reference (Hebrew)](crispr-implementation.he.md): research tools, not production capabilities
-- [Notebook directory](../src/engine/gates/notebooks/README.md): offline experiments; [status](status.md) distinguishes pending research branches
+- [Notebook directory](../src/engine/gates/notebooks/README.md): offline experiments; [status](status.md) distinguishes merged application support from research branches
 
 ## Where truth lives
 

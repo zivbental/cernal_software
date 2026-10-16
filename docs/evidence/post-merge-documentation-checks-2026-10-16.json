@@ -1,0 +1,16 @@
+{
+  "main": "66a6d265577810e8943709f3e5bb21bffdab212c",
+  "organization_source": "bbd491a",
+  "nucsyn_source": "a1a375104599c28cc108b7db8b15a3b45b55d794",
+  "checks": [
+    "five conflicted main documents archived byte-for-byte",
+    "no runtime or scientific data file changes",
+    "engine version, trigger footprints and metadata filtering checked against source",
+    "historical NucSyn notebook pinned; replacement notebook exists"
+  ],
+  "limits": [
+    "no heavy tests, new runtime CI or deployment",
+    "external NucSyn release claims retained from prior dated review; no runtime or redistribution changes",
+    "IBBIS benchmarks remain separate ongoing work"
+  ]
+}

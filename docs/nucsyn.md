@@ -1,6 +1,6 @@
 # NucSyn: external design platform and research provenance
 
-Reviewed 16 October 2026 against CERNAL main
+Historical consumer reviewed 16 October 2026 against CERNAL main
 [`c1bb92cc085a6bad272298b81bda28c22b1d57f5`](https://github.com/zivbental/cernal_software/commit/c1bb92cc085a6bad272298b81bda28c22b1d57f5)
 and the public NucSyn Platform v0.1.2 release. This page documents an existing
 research-data interface and credits its upstream source; it does not activate a backend.
@@ -23,10 +23,10 @@ The README points to `docs/QUICKSTART.md` inside the distribution. We have not i
 or executed that distribution in this review, and do not claim a verified v0.1.2 CLI/API
 or that its output schema is identical to historical runner exports.
 
-## What CERNAL actually uses
+## Historical consumer and current application boundary
 
 The source of this connection is the
-[eukaryotic AND notebook](../src/engine/gates/notebooks/toehold_and/toehold_and_eu.ipynb),
+[historical eukaryotic AND notebook](https://github.com/zivbental/cernal_software/blob/c1bb92cc085a6bad272298b81bda28c22b1d57f5/src/engine/gates/notebooks/toehold_and/toehold_and_eu.ipynb),
 particularly **Fusing two ranked single-input designs into an AND candidate**.
 It contains a local CSV-consuming research workflow, not a call to the NucSyn executable
 or a network service. Its configured CSV locations are machine-specific and are not a
@@ -38,14 +38,28 @@ The production route is different: [`LocalEngine`](../src/engine/client.py),
 [`ToeholdGate.generate_designs`](../src/engine/gates/toehold.py) construct and evaluate
 candidates using CERNAL code and shared ViennaRNA adapters. No NucSyn runtime dependency
 or adapter was found in that audited main path. The production capabilities are described
-in [status](status.md) and [engine methods](engine.md). AND functionality on a research
-branch must not be advertised as a merged application capability.
+in [status](status.md) and [engine methods](engine.md). The eukaryotic AND application is now merged, but it generates its own candidates;
+that does not activate a NucSyn runtime adapter.
 
 The notebook's older prose about unimplemented gate methods is historical; inspect
 current source and capability guards. A NucSyn release, a notebook, and a selectable
 application workflow are three separate kinds of evidence.
 
-## Research input contract
+## Current-main reconciliation
+
+Main `66a6d265577810e8943709f3e5bb21bffdab212c` includes PRs 68/69/81/82. The old notebook linked above
+was removed by PR68; its consumer contract and scientific discussion below are retained
+as historical provenance, not instructions for a file that still exists on main.
+The current [eu_and_v3 notebook](../src/engine/gates/notebooks/toehold_and/eu_and_v3.ipynb)
+and [specification](../src/engine/gates/notebooks/toehold_and/eu_and_v3_spec.md) own the
+current CSV/replay workflow. It validates input/model/sampling identity and preserves
+saved provenance. Do not assume the historical fields or ranking below describe that
+replacement. The [application AND route](and-gate.md) uses CERNAL-generated switches,
+its own scoring and controls; notebook and application results need not match.
+NucSyn attribution, upstream citation and license boundaries below remain applicable.
+No container redistribution or runtime integration is introduced here.
+
+## Historical research input contract
 
 The notebook expects two ranked exports, one per target, conventionally named
 `results_ranked.csv`. Its recorded example uses topology

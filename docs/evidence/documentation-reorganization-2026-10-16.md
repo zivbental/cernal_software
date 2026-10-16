@@ -1,5 +1,7 @@
 # Documentation reorganization verification — 16 October 2026
 
+> Historical snapshot: PRs 68/69/81/82 have since merged. See [current status](../status.md) for accepted scope and CI receipts; original findings below are preserved.
+
 Baseline main: `c1bb92cc085a6bad272298b81bda28c22b1d57f5`.
 Documentation branch: `docs/igem-final-organization-2026-10-16`.
 

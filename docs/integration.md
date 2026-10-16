@@ -1,6 +1,6 @@
 # Integrating scientific engine contributions
 
-Source baseline: `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+Source baseline: `66a6d265577810e8943709f3e5bb21bffdab212c` (16 October 2026).
 See [status](status.md) for release evidence and pending work.
 
 Integrate against the current executable path, not a historical “fill every stub” list.

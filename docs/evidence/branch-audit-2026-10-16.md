@@ -1,5 +1,7 @@
 # Pending-feature audit
 
+> Historical snapshot: PRs 68/69/81/82 have since merged. See [current status](../status.md) for accepted scope and CI receipts; original findings below are preserved.
+
 Snapshot: 2026-10-16 04:50 UTC. Read-only GitHub connector inspection. Baseline main: c1bb92cc085a6bad272298b81bda28c22b1d57f5. No tests were run by this audit and no remote state changed.
 
 ## Executive findings

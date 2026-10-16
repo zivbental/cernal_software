@@ -1,7 +1,7 @@
 # Interpreting current application metrics
 
 These definitions describe the LocalEngine application path at audit baseline
-`c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026). They do not transfer notebook-specific
+`66a6d265577810e8943709f3e5bb21bffdab212c` (16 October 2026). They do not transfer notebook-specific
 observables or pending research branches into the application's scoring contract.
 The metrics are computational proxies. No established transcriptome-wide off-target
 or wet-lab validation, or calibrated cellular success probability, is claimed.
@@ -73,7 +73,7 @@ experimental data and calibration; no such result is fabricated by this correcti
 
 ## Evaluation context and unavailable evidence
 
-The application evaluates each retained gate separately with every requested output in
+For single-input runs, the application evaluates each retained gate separately with every requested output in
 switch–payload transcript context (`evaluation_sequence`). It does not infer complete
 vector transcription, protein maturation, localization or cellular concentrations from
 this folding input. The switch's GC metric remains the regulatory switch sequence's
@@ -87,7 +87,10 @@ policy, so a zero must never substitute for missing evidence. The profile consta
 `DEFAULT_V1` currently identifies version `v3-computational-proxies`.
 
 No production transcriptome-wide off-target analysis is integrated. Physical output is
-limited to independent single-input activating constructs; logical enumeration and
-research chemistry implementations do not establish compiled multi-input behavior.
+limited to single-input activating constructs or the specifically supported one-gate
+eukaryotic AND in Human/yeast DE mode. Logical enumeration and other research chemistry
+implementations do not establish a general multi-input compiler. The AND route uses
+structural proxies, a truncated payload context and distinct controls from notebook runs;
+see [AND limitations](and-gate.md#limits-and-open-questions).
 See [engine scope](engine.md), [trigger selection](triggers.md) and
 [construct assembly](plasmids.md).

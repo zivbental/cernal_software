@@ -1,6 +1,6 @@
 # HTTP API reference
 
-Source baseline: `main` at `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+Source baseline: `main` at `66a6d265577810e8943709f3e5bb21bffdab212c` (16 October 2026).
 See [status and remaining work](status.md) for verification and release limits.
 
 The running service publishes `/api/openapi.json` and interactive `/api/docs`.
@@ -116,7 +116,7 @@ owned-dataset action; it does not query remote scientific services during a run.
 ### Configuration and result controls
 
 `/design` accepts `constraints`, `folding`, `scoring`, `budget`, `payload`, `backbone`,
-`gate_families`/`exclude_gate_families`, `seed`, `idempotency_key`, `notes`, `strict`,
+`gate_families`/`exclude_gate_families`, `and_inputs`, `and_gate`, `seed`, `idempotency_key`, `notes`, `strict`,
 and result-selection fields. `strict` defaults true and rejects unknown keys in the
 validated configuration blocks. `strict=false` is not a way to bypass typed engine
 validation, family availability, folding validation or release restrictions.
@@ -232,6 +232,7 @@ design folding and local transcript accessibility calculations within the run.
 | `no_lonely_pairs` | Boolean | Enable ViennaRNA's no-lonely-pairs model option |
 | `no_gu` | Boolean | Disallow GU base pairs |
 | `no_gu_closure` | Boolean | Disallow GU pairs closing loops |
+| `salt_molar` | Finite 0.01–6.0 mol/L | Monovalent salt; ordinary reference default 1.021 M, AND default 0.1 M |
 | `energy_parameters` | `turner2004`, `turner1999`, `andronescu2007` | Built-in ViennaRNA RNA energy parameter set |
 
 Only dangle models `0` and `2` are supported: ViennaRNA partition-function calculations
@@ -289,3 +290,18 @@ The [original HTTP notes](archive/operator-design/api.md) preserve detailed exam
 and historical evolution. They include obsolete endpoint counts, mock/stub claims,
 optimistic runtime estimates and client-publication commands. The active reference,
 source and running OpenAPI take precedence.
+
+## Merged AND and screening-status scope
+
+The [eukaryotic AND guide](and-gate.md) specifies Human/yeast DE requests with
+`and_inputs`, optional `and_gate`, two trigger inputs and exactly one gate. `/runs`
+places these in `params`; `/design` exposes them directly. `/api/version` publishes
+family input counts/modes and `limits.max_gate_inputs`. The ordinary single-input
+default remains unchanged. `folding.salt_molar` is finite and lies in 0.01–6.0 mol/L;
+the ordinary reference default is 1.021 M, while AND defaults are documented in its guide.
+
+Engine-only `closure_set`, `stem_order` and `stems_per_pair` are not public constraints.
+`constraints.closure_set` is rejected with 422, including `strict=false` requests.
+The merged [screening-status UI contract](sequence-screening.md) remains optional:
+the main backend does not supply operational Common Mechanism evidence, so the UI
+shows Not screened. UI evidence never overrides artifact availability or release policy.

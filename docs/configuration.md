@@ -1,6 +1,6 @@
 # Configuration reference
 
-Source baseline: `main` at `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+Source baseline: `main` at `66a6d265577810e8943709f3e5bb21bffdab212c` (16 October 2026).
 See [status and remaining work](status.md) for verification and release limits.
 
 Settings load the root `.env` through django-environ; explicit process environment

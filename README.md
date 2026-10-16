@@ -2,7 +2,7 @@
 
 Computational design platform for RNA logic candidates, built by the iGEM 2026 Tel Aviv
 University team. Start with an RNA target sequence, a named reference gene, or a differential-expression
-table; inspect ranked single-input toehold candidates, model limitations and traceable artifacts.
+table; inspect ranked toehold candidates, model limitations and traceable artifacts.
 
 **The default is `CERNAL_ENGINE=engine.client.LocalEngine`.** ViennaRNA is an active
 folding backend. Generated candidates are computational predictions; generation does not establish
@@ -19,20 +19,21 @@ experimental validation. Specific comparisons with measured structure data are r
 
 ## What this revision supports
 
-Documentation baseline: main [`c1bb92cc085a6bad272298b81bda28c22b1d57f5`](https://github.com/zivbental/cernal_software/commit/c1bb92cc085a6bad272298b81bda28c22b1d57f5), checked 16 October 2026.
+Documentation baseline: main [`66a6d265577810e8943709f3e5bb21bffdab212c`](https://github.com/zivbental/cernal_software/commit/66a6d265577810e8943709f3e5bb21bffdab212c), checked 16 October 2026.
 `GET /api/version` is the running build's capability contract. A notebook or registry entry
 is not sufficient evidence that a workflow is available in the application.
 
 - RNA target, named-gene and DE input for E. coli, yeast, Human and C. acnes.
   Direct input also accepts the DNA alphabet and normalizes T to U for RNA computation;
   this is not a separate DNA-circuit design workflow.
-- One input and one gate per production submission; supported single-input toehold families,
+- Single-input toeholds and one two-input eukaryotic AND gate for Human/yeast DE runs;
   GFP and custom coding-sequence outputs. DE tables accept CSV, TSV, TXT and XLSX; raw-count inference is absent.
 - Configuration, warnings, rejection reasons, scores and artifact provenance retained with runs.
 - Sequence release is a separate fail-closed decision: an unconfigured screening adapter holds exports.
 
-Selectable AND work, stem-opening research and the IBBIS adapter are **branch-only** at
-this baseline. [Status](docs/status.md) pins their commits and explains integration boundaries.
+The eukaryotic AND application, replay-safe stem-opening reports and screening-status UI
+are merged. The operational IBBIS adapter remains **branch-only**; the UI does not invoke
+Common Mechanism. [Status](docs/status.md) records merge receipts and scope.
 There is no established transcriptome-wide off-target validation, calibrated efficacy claim,
 general wet-lab validation of generated circuits, or integrated ordering service.
 Bacterial leakage is AUG-only marginal accessibility; dynamic range is a floored accessibility

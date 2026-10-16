@@ -1,6 +1,6 @@
 # Tutorial: one local design, from request to review
 
-Source baseline: `main` at `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+Source baseline: `main` at `66a6d265577810e8943709f3e5bb21bffdab212c` (16 October 2026).
 See [status and remaining work](status.md) for verification and release limits.
 
 ## Before starting
@@ -101,3 +101,14 @@ For DE input upload a validated table and use its `dataset_id`, or use `dge_csv`
 Keep input/reference provenance, normalized settings, seed, tool versions and manifest
 when comparing runs. Revoke the tutorial key when finished, and remove only disposable
 local data after review.
+
+## Optional eukaryotic AND workflow
+
+The direct-input example above stays single-input. For Human or yeast, use a DE
+dataset, select Eukaryotic AND Toehold in the wizard, and choose two up-regulated
+inputs. Follow the [AND tutorial and API example](and-gate.md#using-it-in-the-application)
+for `and_inputs`, `max_triggers=2` and one gate. Canonical aliases such as SELE and
+ENSG00000007908 still request two windows when they identify the same gene.
+Inspect the AND evidence panel and its limitations. The screening-status panel is
+merged UI groundwork; Not screened is expected without backend evidence and does
+not authorize downloads. Artifact release remains a separate decision.

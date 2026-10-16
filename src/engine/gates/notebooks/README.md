@@ -1,21 +1,21 @@
 # Gate research notebooks
 
 These are **offline research/manual workbenches**, not the production capability list.
-The application baseline is main `c1bb92cc085a6bad272298b81bda28c22b1d57f5`.
+The application baseline is main `66a6d265577810e8943709f3e5bb21bffdab212c`.
 See [current status](../../../../docs/status.md), [engine methods](../../../../docs/engine.md)
 and [scientific interpretation](../../../../docs/scientific-interpretation.md).
 
 | Directory | Scope |
 |---|---|
 | [toehold](toehold/) | Single-input walkthroughs and eukaryotic examples |
-| [toehold_and](toehold_and/) | AND experiments, comparison reports and design studies; not selectable on main |
+| [toehold_and](toehold_and/) | AND experiments and reports; the separate eukaryotic AND application is selectable on main |
 | [antisense](antisense/) | Antisense research; its class exists but production capability validation excludes it |
 | [crispr](crispr/) | CRISPR notebook; see the separate [workbench guide](../../../../docs/crispr-workbench.he.md) |
 
 The earlier claim that every gate method raises `NotImplementedError("Step 5")` is obsolete.
 Inspect the notebook's own inputs, execution cells and saved outputs before relying on it.
 Saved outputs can predate current code; rerunning is a separate computation, not proof of
-biological efficacy. Pending AND branches are pinned in [status](../../../../docs/status.md).
+biological efficacy. Merged scope and remaining research work are recorded in [status](../../../../docs/status.md).
 
 ## NucSyn design exports
 

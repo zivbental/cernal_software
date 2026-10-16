@@ -8,7 +8,9 @@ It is a computational design: **no AND construct has been experimentally validat
 Science and definitions: [`notebooks/toehold_and/eu_and_v3_spec.md`](../src/engine/gates/notebooks/toehold_and/eu_and_v3_spec.md).
 The code that measures it is one shared module,
 [`engine/gates/tools/stem_opening.py`](../src/engine/gates/tools/stem_opening.py), used by this gate
-and by the `eu_and_v3` notebook, so the two cannot report different numbers.
+and by the `eu_and_v3` notebook, so their measurement definitions share code.
+Inputs, controls, scoring and payload context still affect results; this does not
+promise numerical equivalence between application and notebook runs.
 
 ## What is supported
 
