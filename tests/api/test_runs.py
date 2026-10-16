@@ -152,6 +152,7 @@ def test_every_constraint_the_api_rejects_is_an_explicit_decision():
         # among cross-family search constraints would be read as biology. Exposing either
         # means deciding where a generation budget belongs first.
         "stem_order",
+        "closure_set",  # Family-specific sampling axis, deliberately withheld.
         "stems_per_pair",
         "max_base_expression",
         "max_genes",
@@ -354,3 +355,10 @@ def test_cancelling_a_finished_run_says_so(auth_client, completed_run):
 
     assert body["outcome"] == "already_terminal"
     assert body["status"] == RunStatus.COMPLETED
+
+
+def test_closure_set_is_withheld_from_public_api(auth_client, dataset):
+    response = _submit(auth_client, dataset_id=dataset.id,
+                       params={"constraints": {"closure_set": ["open_3x3"]}})
+    assert response.status_code == 422
+    assert "closure_set" in response.content.decode()

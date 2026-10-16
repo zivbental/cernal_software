@@ -139,8 +139,8 @@ def main(argv=None) -> int:
             runs[label] = found
 
     if not runs:
-        print(f"\n  no barrier files in {BARRIERS}")
-        return 0
+        print(f"\n  Results unavailable: no usable barrier rows in {args.barriers}")
+        return 2
 
     need = {k for f in runs.values() for k in f if k[0] != "direct"}
     leaks: dict[tuple, float] = {}
