@@ -854,7 +854,7 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
 def test_human_construction_bumps_engine_version():
     # Explicit folding models are the next engine revision after human construction.
-    assert LocalEngine.ENGINE_VERSION.startswith("local-0.12.0")
+    assert LocalEngine.ENGINE_VERSION.startswith("local-0.13.0")
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(

@@ -569,7 +569,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.12.0-scientific-qa-folding-model"
+    ENGINE_VERSION = "local-0.13.0-scientific-qa-trigger-footprints"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

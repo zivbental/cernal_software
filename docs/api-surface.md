@@ -3635,7 +3635,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.12.0-scientific-qa-folding-model'` |
+| `ENGINE_VERSION` |  | `'local-0.13.0-scientific-qa-trigger-footprints'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
