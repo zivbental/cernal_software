@@ -4,12 +4,13 @@ CERNAL compiles a transcriptomic signature into an RNA logic circuit on a plasmi
 Python engine lives under `src/engine/`; a Django platform wraps it and never touches its
 internals. The default engine is `engine.client.LocalEngine`, with real folding and implemented
 input/gene/trigger/switch/circuit/assembly paths. Some components remain incomplete;
-inspect source before assuming any callable is a stub. Current limits and dated
-verification are in `docs/ROADMAP.md` and `docs/REMEDIATION_STATUS.md`.
+inspect source before assuming any callable is a stub. Current capabilities and dated
+verification are in `docs/status.md` and `docs/evidence/README.md`; unresolved work is
+in `docs/ROADMAP.md`. Documentation baseline: main c1bb92cc, 16 October 2026.
 
-> **The one-line rule: your job is almost always to FILL A STUB, not to create a file.**
-> If you are about to write `class X:` or create a new module, stop and find the stub that
-> already has X's name and signature. Adding a parallel implementation is how this project
+> **The one-line rule: inspect and extend the existing implementation before creating a parallel one.**
+> If you are about to write `class X:` or create a new module, first look for an existing
+> class or interface with that responsibility. Do not assume current stages are stubs. Adding a parallel implementation is how this project
 > fails, because two implementations of one measurement produce two numbers and only one
 > reaches the report.
 
@@ -157,8 +158,8 @@ comparable, and nothing detects it. Same for every other tool whose configuratio
 decides what its numbers mean.
 
 **Only two modules may `import RNA`:** `src/engine/gates/tools/folding.py` (design-side
-MFE and ensemble, cached) and `src/engine/stages/folding.py` (windowed RNAplfold). Today
-only the first actually does. Never call `RNA.fold`/`RNA.cofold` directly from anywhere
+MFE and ensemble, cached) and `src/engine/stages/folding.py` (windowed RNAplfold).
+Both currently use ViennaRNA. Never call `RNA.fold`/`RNA.cofold` directly from anywhere
 else, never add a second folding library, and never mutate `RNA.cvar.temperature` — it is
 process-global and unsafe; model parameters travel on an explicit `RNA.md()`.
 
@@ -193,10 +194,11 @@ mutable `RunContext` that accumulates stage state.
 
 Four destinations for what was one script is normal here — a switch chemistry's
 generator+validation code splits three ways. Generation → `gates/toehold.py`;
-validation → `stages/switches.py`; visualisation → `stages/reporting.py`. (docs/engine.md §5: no possessive or personal names in this
-repo's naming — a pipeline step, not the person who ports it, identifies the row below.)
+validation → `stages/switches.py`; visualisation → `stages/reporting.py`. Use pipeline responsibilities, not personal names, for module names.
+The generated [API surface](docs/api-surface.md) supplies current signatures; this map
+identifies owners, not a list of unimplemented tasks.
 
-| Pipeline area | File | Class | Signature to implement |
+| Pipeline area | File | Class | Existing interfaces and scope |
 |---|---|---|---|
 | Input QC (S15) | `src/engine/stages/quality.py` | `InputQualityCheck` | `check(self, counts: CountMatrix, metadata: SampleMetadata) -> QcReport` |
 | Gene Selection (stage 1) | `src/engine/stages/genes.py` | `GeneSelector` | `select(self, counts: CountMatrix, dge: DgeTable) -> list[SelectedGene]` |
@@ -206,8 +208,8 @@ repo's naming — a pipeline step, not the person who ports it, identifies the r
 | Circuit Design (stage 4) | `src/engine/stages/circuits.py` | `CircuitDesigner`, `ConfusionEvaluator` | `design` and `enumerate_expressions` are **built** (conjunctions up to `Constraints.max_circuit_gates`); `evaluate(expression, counts, threshold) -> ConfusionMatrix` is still a stub, blocked on there being no count matrix in this product |
 | Plasmid Construction (stage 5) | `src/engine/stages/plasmids.py` | `PlasmidBuilder` | `build(circuit, outcome) -> PlasmidDesign`; `payload_segment(outcome) -> Segment` |
 | Compiler's Output (stage 6, S14) | `src/engine/stages/reporting.py` | `StructureRenderer`, `ReportBuilder` | `render_structure(design, output_dir)`; `render_circuit(circuit, output_dir)`; `build(circuits, plasmids, output_dir) -> list[ArtifactRef]` |
-| Antisense / CRISPR gates (unassigned) | `src/engine/gates/antisense.py`, `crispr.py` | `AntisenseNotGate`, `CrisprGate` | both `available = False` today; flipping it is a deliberate declaration |
-| Folding tool (S2, S4 — shared) | `src/engine/gates/tools/folding.py` | `FoldEngine` | `partition`, `ensemble_defect`, `base_pair_probabilities`, `suboptimal`, `versions`; `structure_match()`. **Highest fan-in in the repo — build first** |
+| Antisense / CRISPR gates (unassigned) | `src/engine/gates/antisense.py`, `crispr.py` | `AntisenseNotGate`, `CrisprGate` | antisense class `available = True` but excluded by production capabilities; CRISPR application class `available = False`. Research workbenches do not bypass application validation |
+| Folding tool (S2, S4 — shared) | `src/engine/gates/tools/folding.py` | `FoldEngine` | `partition`, `ensemble_defect`, `base_pair_probabilities`, `suboptimal`, `versions`; `structure_match()`. **Shared implementation; do not duplicate** |
 
 DE parsing already lives in `src/engine/inputs.py`; reference resolution lives in
 `src/engine/transcriptome.py`. Use those implementations. Raw count/metadata input,
@@ -227,7 +229,7 @@ Install once: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`.
 
 | Task | Command |
 |---|---|
-| Install / sync | `uv sync --extra dev` |
+| Install / sync | `uv sync --locked --extra dev` |
 | **Engine tests — the fast loop** | `uv run pytest tests/engine -q` |
 | Full suite | `uv run pytest -q` |
 | Lint | `uv run ruff check .` and `uv run ruff format --check .` |
@@ -253,7 +255,7 @@ requires Linux/WSL2 because the locked Django Q2 worker requires fork; follow
 Only Offer and Ziv merge to `main`. Everyone else: **never push to `main`.**
 
 1. `git switch -c <your-name>/<what-you-are-doing>` from an up-to-date `main`.
-2. Fill the stub. Run `uv run pytest tests/engine -q` and `uv run ruff check .`.
+2. Extend the existing implementation with regression coverage. Run `uv run pytest tests/engine -q` and `uv run ruff check .`.
 3. Commit small and often, in English, describing *why*.
 4. Push the branch and open a Pull Request. In the description answer one question:
    **which shared function did you call instead of writing your own?**

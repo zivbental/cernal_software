@@ -1,0 +1,72 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> build
+> vite build && tsc --noEmit
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 2541 modules transformed.
+rendering chunks...
+computing gzip size...
+../src/static/app/index.html                                     0.89 kB │ gzip:   0.48 kB
+../src/static/app/assets/cernal-logo-animated-Dvkm_Ntf.svg      10.54 kB │ gzip:   2.60 kB
+../src/static/app/assets/index-YLTMCle4.css                     92.99 kB │ gzip:  15.59 kB
+../src/static/app/assets/index-CcqADXHQ.js                       0.12 kB │ gzip:   0.13 kB
+../src/static/app/assets/circle-check-BXxSY-ey.js                0.18 kB │ gzip:   0.17 kB
+../src/static/app/assets/rotate-cw-DUkbngDE.js                   0.20 kB │ gzip:   0.19 kB
+../src/static/app/assets/download-2YtVq-e0.js                    0.24 kB │ gzip:   0.19 kB
+../src/static/app/assets/Loading-ByYGY3rI.js                     0.25 kB │ gzip:   0.21 kB
+../src/static/app/assets/copy-DuQ3UYHB.js                        0.31 kB │ gzip:   0.25 kB
+../src/static/app/assets/HelpNav-C0yg6LX7.js                     0.42 kB │ gzip:   0.25 kB
+../src/static/app/assets/sparkles-D9GxId8p.js                    0.50 kB │ gzip:   0.28 kB
+../src/static/app/assets/key-round-BT50XV4w.js                   0.56 kB │ gzip:   0.35 kB
+../src/static/app/assets/RunStatusBadge-CzSv4tkV.js              0.76 kB │ gzip:   0.46 kB
+../src/static/app/assets/Bits-Br3YYE_d.js                        1.84 kB │ gzip:   0.91 kB
+../src/static/app/assets/CodeBlock-DdgWT1YE.js                   2.64 kB │ gzip:   1.31 kB
+../src/static/app/assets/Primitives-DyqAvAft.js                  2.88 kB │ gzip:   1.18 kB
+../src/static/app/assets/dashboard-C3aRnCQr.js                   3.12 kB │ gzip:   1.35 kB
+../src/static/app/assets/about-BaJ5U9wR.js                       3.30 kB │ gzip:   1.61 kB
+../src/static/app/assets/register-CLf49rjp.js                    4.23 kB │ gzip:   1.60 kB
+../src/static/app/assets/login-CI-aJBEP.js                       4.91 kB │ gzip:   1.77 kB
+../src/static/app/assets/use-cases-CCwlSQ1P.js                   4.96 kB │ gzip:   2.29 kB
+../src/static/app/assets/RequireAuth-C3XAQnPN.js                 6.35 kB │ gzip:   2.30 kB
+../src/static/app/assets/settings-D-RZGOT8.js                   10.01 kB │ gzip:   3.24 kB
+../src/static/app/assets/faq-B28qrxr4.js                        10.26 kB │ gzip:   4.05 kB
+../src/static/app/assets/guide-Ptss3M1K.js                      11.23 kB │ gzip:   4.43 kB
+../src/static/app/assets/queries-Bm5UdMlN.js                    18.65 kB │ gzip:   6.32 kB
+../src/static/app/assets/runs._runId-5p93XQcp.js                53.30 kB │ gzip:  16.27 kB
+../src/static/app/assets/api-docs-5Ad5sWUK.js                   59.36 kB │ gzip:  16.93 kB
+../src/static/app/assets/compile-DeWe-D4J.js                    63.33 kB │ gzip:  17.96 kB
+../src/static/app/assets/index-Ev00UodM.js                     303.86 kB │ gzip:  97.76 kB
+../src/static/app/assets/generateCategoricalChart-Dv_2blVO.js  382.22 kB │ gzip: 105.77 kB
+✓ built in 4.18s
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> check
+> tsc --noEmit && eslint . && node e2e/render-logic.mjs && node e2e/help-content.mjs && node e2e/rna-structure.mjs
+
+  1 activator, no repressor     ok  (2680 chars)
+  2 activators, no repressor    ok  (3985 chars)
+  3 activators, no repressor    ok  (4756 chars)
+  1 activator, 1 repressor      ok  (4417 chars)
+  2 activators, 1 repressor     ok  (5723 chars)
+  3 activators, 2 repressors    ok  (7281 chars)
+  no genes at all               ok  (164 chars)
+help content ok (3 rendered pages; 37 links; 7 negative controls)
+  loop layout keeps the nonzero leader and four exact paired stretches: ok
+  trailing layout separates hairpin loop, spacer, Kozak, AUG and payload: ok
+  trailing layout permits zero spacer and no payload without empty regions: ok
+  loop layout labels the payload tail only after the descending stem: ok
+  eukaryotic loop uses its own leader and validates its Kozak motif: ok
+  only exact supported family names receive labels: ok
+  missing or malformed metadata returns a readable notice and no regions: ok
+  malformed persisted sequences never throw before the structure response arrives: ok
+  numeric metadata rejects coercion, nonfinite, fractional and out-of-bounds values: ok
+  unsupported or contradictory initiation layouts never guess: ok
+  AUG and named initiation motifs must match at their declared coordinates: ok
+  boundaries never clip, normalize or shift onto a nearby motif: ok
+  regions are in bounds, nonoverlapping and use one color per legend label: ok
+  inputs remain unchanged after mapping: ok
+  provenance never promotes stored structures to predicted OFF or ON folds: ok
+  multicomponent candidates explicitly show only the primary stored switch: ok
+RNA structure adapter: 16 contracts passed.

@@ -1,6 +1,6 @@
 # CERNAL technical figures
 
-This directory contains publication-ready, deterministic SVG diagrams for the CERNAL software wiki.
+**Historical wiki figures.** These deterministic SVGs describe the older wiki snapshot, including removed mock-engine paths. They are preserved as provenance, not current architecture diagrams. Start with [current architecture](../architecture.md) and [status](../status.md). Do not republish them as current without revising both source and rendered claims.
 
 ## Figure system
 

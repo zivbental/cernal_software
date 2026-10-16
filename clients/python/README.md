@@ -1,11 +1,13 @@
 # cernal (Python client)
 
-A thin, idiomatic wrapper over five HTTP calls (docs/public-api.md §11) — not a
-generated mirror of all 32 endpoints. Anyone needing more talks to the documented,
+Source client; no registry publication is claimed. See the [current integration guide](../../docs/public-api.md), [API reference](../../docs/api.md), and [pinned status](../../docs/status.md). Results are computational; sequence exports can be withheld independently of successful completion.
+
+
+A thin wrapper over the design workflow, not a generated mirror of every endpoint. Anyone needing more talks to the documented,
 self-describing REST API directly (`/api/docs`, `/api/openapi.json`).
 
 ```bash
-uv pip install ./clients/python            # or: cernal[pandas]
+uv pip install "./clients/python[pandas]"  # omit [pandas] for dictionary-only results
 ```
 
 ```python
@@ -43,13 +45,17 @@ job = c.design(
 )
 print(job.estimate)  # from the 202, before waiting
 best = job.wait().best()  # highest-ranked candidate, as a dict
-job.artifact("fasta").save("best.fa")
+# Download only an available, release-authorized artifact; see below.
 ```
 
-Cost a whole sweep before running any of it:
+Inspect uncalibrated estimates before a sweep (not timing guarantees):
 
 ```python
-c = Client(api_key=..., dry_run=True)
+c = Client(
+    api_key=os.environ["CERNAL_API_KEY"],
+    base_url=os.environ["CERNAL_BASE_URL"],
+    dry_run=True,
+)
 for organism in ("ecoli", "yeast"):
     print(c.design(trigger_sequence=seq, organism=organism).estimate)
 ```
@@ -86,3 +92,11 @@ and return no result when all candidates are rejected or unranked.
 Raw candidate JSON retains nested design, triggers, warnings and metrics. Flattened
 tables are a separate convenience contract and are not compared to raw JSON column
 sets. R exposes `cernal_candidates(job)` and MATLAB `job.rawCandidates()`.
+
+## Artifact availability
+
+Completed computation does not guarantee an artifact of a requested kind exists or is
+released. Inspect the results artifact metadata and `download_available` before calling
+`job.artifact(kind).save(path)`. Missing kinds raise `KeyError`; held downloads can return
+409. Follow the [release-aware tutorial](../../docs/tutorial.md), never bypass the API
+by reading server files.

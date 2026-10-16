@@ -1,5 +1,7 @@
 # Trigger-selection development logbook
 
+**Historical scientific evidence.** The cutoff and branch below govern all implementation and review-status statements. See [current status](status.md) and [evidence interpretation](evidence/README.md) before applying these observations to the present application.
+
 **Document status:** reconstructed development notebook for iGEM review
 
 **Notebook cutoff:** 2026-09-20 (dates and times are Israel local time, UTC+03:00, when preserved by Git)

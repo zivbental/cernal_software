@@ -20,7 +20,7 @@ sequence with its own prefix (`sequence + sequence[:longest_site - 1]`) and re-r
 the wrapped site correctly, with no new dependency. `Bio.Restriction`'s enzyme
 database was never adopted: it would have been a second, independently-maintained
 definition of "which sites are forbidden" beside `MotifScreener`'s `RFC10_SITES` table,
-which is exactly the duplication [CLAUDE.md](../CLAUDE.md) §1 warns against.
+which is exactly the duplication [CLAUDE.md](../../CLAUDE.md) §1 warns against.
 
 **The assembly itself does not need a library either.** CERNAL's own `Plasmid` and
 `Segment` (`engine/domain.py`) already concatenate parts and compute total length in

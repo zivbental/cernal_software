@@ -1,7 +1,10 @@
 # Operating CERNAL on one Linux VM
 
+Source baseline: `main` at `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+See [status and remaining work](status.md) for verification and release limits.
+
 Status: executable service templates and locally tested recovery code; **not a
-production deployment certification**. Use the combined QA remediation branch. These
+production deployment certification**. The implementation is merged in the pinned main baseline. These
 instructions assume Python 3.13, uv, Node 22, Caddy, systemd, a local persistent disk,
 and a dedicated `cernal` service account. The operator chooses and provisions the VM,
 DNS, TLS, backup destination and alert receiver. No cloud credentials are included.
@@ -105,9 +108,9 @@ set an operator retention policy and remove it only after recovery is no longer 
 
 ## Backup and restore
 
-The `backup_instance` and `restore_instance` commands are part of the storage PR in
-the same remediation stack. They target SQLite and local media. Test them on the
-combined branch before relying on them operationally.
+The merged `backup_instance` and `restore_instance` commands target SQLite and local
+media. Complete a restore drill on the deployment environment before relying on them
+operationally. Their presence does not certify your backup schedule or destination.
 
 1. Start a maintenance window, stop new writes, and stop all three CERNAL services.
    Keeping a web process online for uploads/reviews violates the media consistency

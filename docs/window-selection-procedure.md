@@ -1,5 +1,8 @@
 # Trigger and nucleation window-selection procedure
 
+Source baseline: `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+See [status](status.md) for release evidence and pending work.
+
 **Scope:** reusable offline/research analysis implemented by
 [`tools/trigger_nucleation_ranking.py`](../tools/trigger_nucleation_ranking.py).
 
@@ -80,9 +83,13 @@ repository wrapper uses:
 | maximum reported unpaired interval, `u` | 20 nt | `min(n, 20)` |
 | temperature, `T` | 37 °C | 37 °C |
 
-The wrapper fails closed if ViennaRNA's process-global temperature is not 37 °C. Record
-the effective, possibly clamped values from `profiler.provenance(sequence)`, not only the
-nominal defaults.
+The wrapper uses an explicit immutable `FoldingConfig`; 37 °C is the default, not a
+requirement that ViennaRNA's process-global temperature be 37 °C. Supported run-level
+model choices include temperature, dangling ends and named energy parameters. Record
+the effective, possibly clamped values and `folding_model` from
+`profiler.provenance(sequence)`, not only the nominal defaults. Both production folding
+adapters receive the same configuration; research callers must preserve the supplied
+profiler's actual configuration.
 
 RNAplfold's `u` and this analysis's nucleation length are different parameters. The
 ranking utility uses only length-1 marginal values from the profile and can average any

@@ -1,178 +1,81 @@
-# Development guide
+# Development and installation
 
-Architecture lives in [`architecture.md`](architecture.md) and future work in
-[`ROADMAP.md`](ROADMAP.md). This document covers running the project day to day.
+Source baseline: `main` at `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+See [status and remaining work](status.md) for verification and release limits.
 
-## First-time setup (WSL)
+## Requirements and checkout
 
-Two environment issues matter here, both explained in
-[architecture.md §15](architecture.md).
+Use Python 3.13 and uv ([pyproject](../pyproject.toml), [lock](../uv.lock)). The complete
+web/worker application requires Linux or [WSL2](windows-worker.md); native Windows
+engine tests do not prove queue support. Node 22 is the CI frontend baseline.
+Keep clones outside OneDrive/Dropbox/Google Drive; use the Linux filesystem in WSL.
 
-**1. Use Python 3.13, not 3.14.** Scientific wheels — ViennaRNA especially — lag new
-CPython releases by months. The project pins 3.13 in `pyproject.toml` and
-`.python-version`; `uv` honours both automatically.
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"     # add to ~/.bashrc
-uv python install 3.13
-```
-
-**2. Keep the repository on the Linux filesystem.** Under `/home/...`, never under
-`/mnt/c/`. Performance and file-watching both degrade badly across the WSL boundary.
-
-Then:
+Install uv from [its official instructions](https://docs.astral.sh/uv/getting-started/installation/)
+and review installer commands under your local policy. From a fresh checkout:
 
 ```bash
-./do install
-./do migrate
-./do superuser
-./do dev          # http://localhost:8000
-```
-
-`.env` is optional — every setting has a working development default. Copy
-`.env.example` to `.env` when you need to change one.
-
-## Everyday commands
-
-| Command | What it does |
-|---|---|
-| `./do dev` | Development server on :8000 |
-| `./do worker` | Background task worker — **required for analysis runs** (Step 3+) |
-| `./do test` | Run the test suite; extra args pass through to pytest |
-| `./do lint` | Check formatting and lint rules |
-| `./do format` | Auto-fix formatting and lint rules |
-| `./do migrate` | Apply migrations |
-| `./do makemigrations` | Generate migrations after model changes |
-| `./do make-admin <user>` | Promote an existing account to administrator |
-| `./do pending` | List accounts waiting for approval |
-| `./do approve <user>` | Approve a pending account |
-| `./do manage <cmd>` | Any `manage.py` command, e.g. `./do manage shell` |
-| `./do check` | Django system checks |
-| `./do reset-db` | Wipe `var/` and rebuild — destructive, asks first |
-
-There is no `Makefile`: `make` is not installed on a default WSL Ubuntu image, and a
-plain shell script avoids adding a dependency to run the project at all.
-
-## Running the full stack
-
-Analysis runs execute in a background worker. Start the full local stack with:
-
-```bash
+git clone https://github.com/zivbental/cernal_software.git
+cd cernal_software
+uv sync --locked --extra dev
+uv run python manage.py migrate
+uv run python manage.py check
+npm --prefix frontend ci
+npm --prefix frontend run build
+uv run python manage.py createsuperuser
 ./do dev
 ```
 
-The development supervisor starts the worker automatically, reuses an existing live
-worker, and restarts it after exit or heartbeat loss. Exiting the supervisor stops the
-web process and any worker it started. Local `manage.py runserver` uses the same
-supervisor. Only one supervisor runs against the local database at a time.
-`./do worker` is still available for a separately managed worker. Production uses its
-own process manager; the development supervisor is disabled with production settings.
-The polling API reports worker availability and the run screen explains an offline
-worker while retaining queued submissions. Django Q admin lists queued and failed tasks.
+Run commands at the repository root unless stated otherwise. `migrate` and account creation change this local installation. `./do dev` serves
+http://localhost:8000 and supervises the development worker. Do not start an extra
+worker alongside it. Ctrl+C stops its managed processes. `manage.py runserver` also
+uses this supervisor in development. Production instead uses [systemd](operations.md).
 
-## Frontend
+The frontend build is required on a clean checkout: `./do dev` attempts `build:fast`
+if no built index exists, but does not install Node dependencies. An existing built
+frontend permits backend-only work without Node. For hot reload, keep `./do dev`
+running and start `./do frontend` in another terminal, then visit localhost:5173.
+Vite proxies API/admin/media requests to Django.
 
-The React app lives in `frontend/` and is built into `src/static/app/`, which Django
-serves same-origin (ADR 0003, ADR 0005).
+An empty `.env` works for local development. See [configuration](configuration.md)
+for defaults and production requirements. Local reviewer login is enabled by default;
+use only disposable data. Registered accounts otherwise require staff approval.
 
-```bash
-./do install-frontend    # once
-./do build-frontend      # production build, served by ./do dev
-./do frontend            # Vite dev server on :5173 with hot reload
-```
-
-For day-to-day frontend work run two terminals: `./do dev` and
-`./do frontend`, then use **http://localhost:5173**. Vite proxies `/api`, `/media` and
-`/admin` to Django, so the browser still sees one origin and session cookies behave
-exactly as they will in production.
-
-`./do dev` alone serves the last build at :8000 — enough for backend work, and it does
-not need Node.
-
-### Browser smoke test
-
-`./do smoke` drives the real app through login, the wizard and the results screen, and
-fails on any console or page error. It needs Chromium's system libraries, which are a
-one-time root install:
+## Daily workflow
 
 ```bash
-sudo npx playwright install-deps chromium
-# or: sudo apt install libnspr4 libnss3 libasound2t64
+git switch -c your-name/short-description
+uv run pytest tests/engine -q
+uv run ruff check .
+uv run ruff format --check .
+uv run python manage.py check
 ```
 
-Then, with `./do dev` and `./do worker` running:
+Read [CLAUDE.md](../CLAUDE.md) first. Reuse existing shared tools, keep platform imports
+within the engine boundary, and make service-layer lifecycle changes rather than
+writing state directly. [Testing](testing.md) describes wider gates and their scope.
+Open a reviewed PR; do not push directly to main. Hebrew contributor guidance is in
+[onboarding](onboarding.he.md).
 
-```bash
-./do smoke                       # screenshots into frontend/e2e/shots/
-RUN_ID=<completed-run-id> ./do smoke
-```
+The [do wrapper](../do) provides `test`, `lint`, `format`, `migrate`, `makemigrations`,
+`worker`, `manage`, `superuser`, `pending`, `approve`, `make-admin`, `key`, `keys`,
+`build-frontend`, `frontend` and `smoke`. Read `./do help` for argument forms.
+`format` edits files; `reset-db` deletes selected local database/media/log paths after
+confirmation and is not a complete reset of all runtime state. Never use it on data
+you need. Approval, administrator promotion and API-key creation are privileged actions.
 
-## Testing
+## First run and troubleshooting
 
-```bash
-./do test                          # everything
-./do test tests/engine             # one directory
-./do test -k boundary              # one pattern
-./do test -x -vv                   # stop at first failure, verbose
-```
+Follow [the tutorial](tutorial.md) after installation. For a disposable demo,
+`uv run python manage.py seed_demo` executes the configured engine/import path and
+creates a known-password demo account; do not run it on a real-user deployment.
 
-`tests/test_boundary.py` enforces the engine boundary
-([architecture.md §3](architecture.md)). If it fails, do not add an exception to it — the
-failure means Platform code has leaked into `src/engine/`, and that is the one thing this
-architecture is protecting.
+- uv missing: add `$HOME/.local/bin` to PATH and reopen the shell.
+- Occupied port: choose `./do dev 8001`; stop only a process you own and identify.
+- QUEUED at 0%: inspect worker availability and terminal logs; see [operations](operations.md).
+- `database is locked`: check long transactions and competing processes; SQLite has
+  WAL and a busy timeout, but sustained contention requires a reviewed topology change.
+- API write 403: fetch `/api/auth/csrf` and send its cookie value as `X-CSRFToken`.
+- Migration conflict: inspect both histories and coordinate a merge migration; do not
+  delete or rewrite migrations already applied to shared databases.
 
-Testing *scientific* code is a different problem — golden tests, property tests,
-determinism tests. See [engine.md §8](engine.md).
-
-## Continuous integration
-
-GitHub [CI](../.github/workflows/ci.yml) runs on pull requests and pushes to `main`;
-manual/scheduled acceptance lanes are separate. It installs the locked scientific
-dependencies and runs against LocalEngine. The backend includes lint, formatting,
-Django/migration/API-surface checks and pytest; frontend and client/browser lanes
-exercise their own contracts. A local lint/test pass does not prove every CI lane passed.
-
-`.gitlab-ci.yml` is the corresponding GitLab configuration, not proof of dedicated
-iGEM software hosting or an executed pipeline. See [F5 evidence](evidence/audit-f5-documentation-2026-10-12.md).
-
-## Conventions
-
-Full list at [architecture.md §14](architecture.md). The ones that come up most:
-
-- Business logic lives in `services.py`, not in views, tasks, models or admin.
-- Run state transitions happen only in `apps/analyses/services.py`.
-- Tasks take primitive arguments (a UUID string) and re-fetch; never model instances.
-- Every object endpoint checks ownership. No exceptions.
-- All runtime state goes under `var/`. `rm -rf var/ && ./do migrate` must give a clean
-  system.
-- Adding a service (Redis, Postgres, Docker, S3) requires an ADR in `docs/decisions/`
-  first.
-- Future work is recorded in [`ROADMAP.md`](ROADMAP.md), not in a new planning document.
-
-## Troubleshooting
-
-**`uv: command not found`** — `export PATH="$HOME/.local/bin:$PATH"`, and add it to
-`~/.bashrc`.
-
-**`That port is already in use`** — `pkill -f "manage.py runserver"`, or
-`./do dev 8001`.
-
-**`database is locked`** — something holds a write transaction. WAL and a 10s busy
-timeout are configured (`apps/common/db.py`); if this recurs under normal use it is the
-signal to move to Postgres (ADR 0002).
-
-**Submitted runs never leave `QUEUED`** — check the worker status on the run screen.
-`./do dev` supervises the local worker; production needs its configured worker service.
-
-**`403` on every API write** — the request is missing the `X-CSRFToken` header. Call
-`GET /api/auth/csrf` first, then send the `csrftoken` cookie's value in that header. See
-[api.md](api.md).
-
-**Migrations conflict after a rebase** — never edit an applied migration. Roll back,
-delete the conflicting file, regenerate.
-
-Worker heartbeats use the `worker_status` file cache under `var/worker-status`,
-independent of SQLite result transactions. The shared database cache still handles
-authentication and API rate limits. The supervisor retries temporary status-store
-errors without stopping the web server or treating them as proof of worker failure.
+Historical environment notes are preserved in the [old guide](archive/operator-design/development.md).

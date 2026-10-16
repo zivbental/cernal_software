@@ -1,68 +1,53 @@
 # CERNAL documentation
 
-**Compiler-like Engine for RNA Logic** — TAU iGEM. A researcher supplies a transcriptomic
-signal, defines a biological objective, and receives a ranked list of candidate RNA logic
-circuits with scores, metrics, sequences and downloadable artifacts.
+CERNAL turns transcript-derived signals into ranked **computational RNA-control candidates**.
+It helps researchers inspect design choices and retain provenance; it does not establish that a
+construct will work experimentally. This guide describes the main baseline pinned in
+[status](status.md), with ongoing work identified separately.
 
----
+## Read by goal
 
-## Start here
-
-| If you want to… | Read |
+| Goal | Reading path |
 |---|---|
-| Understand how the system is put together | **[architecture.md](architecture.md)** ← the entry point |
-| Know what is built and what is next | **[ROADMAP.md](ROADMAP.md)** ← the only place future work lives |
-| Understand the biology the software computes over | **[modalities.md](modalities.md)** |
-| Work on the scientific engine | **[engine.md](engine.md)** |
-| Just run the thing | **[development.md](development.md)** |
-| Maintain the authenticated user guide and FAQ | **[user-help.md](user-help.md)** |
+| Understand the product | [Root overview](../README.md) → [capabilities and status](status.md) → [modalities](modalities.md) |
+| Try a supported workflow | [Install](development.md) → [tutorial](tutorial.md) → [interpret results](scientific-interpretation.md) |
+| Understand methods | [Engine](engine.md) → [genes](genes.md) → [trigger selection](triggers.md) → [window methods](window-selection-procedure.md) → [assembly](plasmids.md) |
+| Reproduce scientific evidence | [Evidence guide](evidence/README.md) → [trigger logbook](trigger-selection-development-logbook.md) → [reference datasets](public-datasets.md) |
+| Write an integration | [Public API/client guide](public-api.md) → [endpoint reference](api.md) → [generated API surface](api-surface.md) → [domain model](domain-model.md) |
+| Operate a deployment | [Configuration](configuration.md) → [deployment](deployment.md) → [operations](operations.md) → [security](security.md) |
+| Change the software | [Contributing](../CONTRIBUTING.md) → [architecture](architecture.md) → [testing](testing.md) → [ADRs](decisions/) |
+| Assess readiness | [Status](status.md) → [limitations/roadmap](ROADMAP.md) → [release decisions](release-decisions.md) → [attribution](attribution.md) |
 
-The end-user workflow help is rendered inside the signed-in React application at
-`/use-cases`, `/guide`, and `/faq`; it is not a MkDocs/Sphinx site. Its source is under
-`frontend/src/routes/`. This folder remains the engineering documentation index.
+## Scientific references
 
-## Everything
+- [Scientific interpretation](scientific-interpretation.md): definitions, units and what scores cannot prove
+- [Trigger/nucleation ranking](trigger-nucleation-ranking.md): ranking modes and provenance
+- [Off-target analysis](off-target-analysis.md): computational scope and specificity limits
+- [Catalog governance](catalog-governance.md), [public datasets](public-datasets.md) and [collaborations](collaborations.md)
+- [Integration](integration.md): scientific components versus the production execution path
+- [CRISPR workbench (Hebrew)](crispr-workbench.he.md) and [implementation reference (Hebrew)](crispr-implementation.he.md): research tools, not production capabilities
+- [Notebook directory](../src/engine/gates/notebooks/README.md): offline experiments; [status](status.md) distinguishes pending research branches
 
-| Document | What it is |
-|---|---|
-| [architecture.md](architecture.md) | **The authoritative reference.** Boundary rule, repository layout, domain model, run state machine, API shape, configuration, rules for agents |
-| [ROADMAP.md](ROADMAP.md) | Every future task, open scientific question and planned implementation. Status lives here |
-| [modalities.md](modalities.md) | The four design axes — input mode, host organism, gate chemistry, output payload — in detail |
-| [scientific-interpretation.md](scientific-interpretation.md) | Current metric definitions, calibration limits and research/application boundaries |
-| [engine.md](engine.md) | The scientific engine: contract, design principles, stages, records, tools, gates, scoring, layout, testing |
-| [domain-model.md](domain-model.md) | Field-level reference for the Django models |
-| [api.md](api.md) | Endpoint reference for the HTTP API |
-| [public-api.md](public-api.md) | External integration: API keys, the one-call `POST /api/design` fast path, the Python/R/MATLAB clients |
-| [smoke-run.md](smoke-run.md) | What blocked the first real (non-`MockEngine`) run, and the `direct`-path slice that unblocked it |
-| [plasmids.md](plasmids.md) | What stage 5 needs to make a circuit orderable — and the part-library questions nobody has asked yet |
-| [triggers.md](triggers.md) | Why a pasted transcript yields no designs: stage 2 is built but never called, and screens the window rather than the switch |
-| [trigger-nucleation-ranking.md](trigger-nucleation-ranking.md) | Reusable marginal-accessibility ranking: preserved nucleation-first semantics, explicit balanced geometric-mean mode, provenance and interpretation limits |
-| [development.md](development.md) | Setup, everyday commands, testing, troubleshooting |
-| [user-help.md](user-help.md) | Route ownership, claim-to-source map, regression command, and browser verification for in-app help |
-| [software-development-log.md](software-development-log.md) | iGEM-ready evidence log: future-entry template plus commit-derived historical index |
-| [deployment.md](deployment.md) | Where it runs in production, and why that shape |
-| [attribution.md](attribution.md) | Who did the work, what CERNAL builds on, and how AI tools were used. **The source of truth for the iGEM Attribution Form** — it has `TODO` lines only the team can fill in |
-| [decisions/](decisions/) | Architecture decision records. Adding a service or splitting the repo needs one |
-| [design-reference/](design-reference/) | The original Lovable design artifacts, kept for reference. **Not a specification** |
+## Where truth lives
 
-## Conventions for this folder
+Source and tests define implementation. `/api/version` describes the installed build's
+supported application choices. [Status](status.md) is a dated, commit-pinned snapshot,
+[ROADMAP](ROADMAP.md) contains unresolved work, and [evidence](evidence/README.md) records
+what was actually measured. These are different questions; a passing test is not an
+experimental result and a branch implementation is not a merged capability.
 
-- **Future work goes in [ROADMAP.md](ROADMAP.md)**, not in a new planning document. Fourteen
-  overlapping planning files is how the previous version of this folder happened.
-- **Decisions with a cost go in [decisions/](decisions/)** as a numbered ADR. Adding a
-  service (Redis, Postgres, Docker, S3) or splitting the repository requires one first.
-- **If a change contradicts [architecture.md](architecture.md), update it in the same
-  commit**, with the reason.
-- **Meaningful completed software work is recorded in [software-development-log.md](software-development-log.md)** with its commit and verification evidence; future work still belongs in [ROADMAP.md](ROADMAP.md).
-- Diagrams are Mermaid or ASCII, inline. They render on GitHub, in VS Code and in Obsidian
-  without a build step.
+Signed-in user help lives at `/use-cases`, `/guide` and `/faq` in the React application;
+[user-help.md](user-help.md) maps its source. This Markdown network renders directly on
+GitHub; no documentation server is required.
 
-## Elsewhere in the repository
+## History, data and maintenance
 
-| Path | What |
-|---|---|
-| `Design Maps/` | The original Obsidian vault — 21 canvases, the long-term north star. [architecture.md §17](architecture.md) indexes the ones worth consulting |
-| `README.md` (repo root) | Current application scope, quickstart and evidence boundaries |
-| `.env.example` | Every environment variable, documented, with safe defaults |
-| `.gitlab-ci.yml` | The CI pipeline — backend lint/checks/tests and a frontend build. One of iGEM's three Project Software deliverables |
-| `LICENSE` · `NOTICE` | Apache 2.0 |
+The [archive](archive/README.md) contains superseded plans and dated audits. The
+[development log](software-development-log.md) and [scientific logbook](trigger-selection-development-logbook.md)
+retain chronology, while primary guides describe current behavior. Original data, notebooks,
+figures and manifests remain available. [Inventory](evidence/documentation-inventory.md)
+records where each original documentation source went.
+
+Keep links relative, put new scientific claims beside evidence, pin external branch claims,
+and update the relevant active guide with a code change. Never copy a historical performance
+number into a current guarantee. New architectural trade-offs belong in [ADRs](decisions/).

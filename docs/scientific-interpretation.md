@@ -1,7 +1,7 @@
 # Interpreting current application metrics
 
 These definitions describe the LocalEngine application path at audit baseline
-`2baa75a7f0dc89f9aafac58dad50da5982f3f56a`. They do not transfer notebook-specific
+`c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026). They do not transfer notebook-specific
 observables or pending research branches into the application's scoring contract.
 The metrics are computational proxies. No established transcriptome-wide off-target
 or wet-lab validation, or calibrated cellular success probability, is claimed.
@@ -64,8 +64,30 @@ Single-gate orthogonality is not a transcriptome-wide off-target screen. A seque
 screening or release-policy decision is also distinct from biological specificity.
 Research workbenches can use other windows, joint opening probabilities, sampling
 or AND-state comparisons; identify their exact revision and definitions separately.
-PR 68 research reports and PR 69 screening UI were unmerged at the audit baseline.
+See [current status](status.md) for merged and pending work; a research report or
+workbench does not change the application contract merely by existing in the repository.
 
 Software regression tests can establish that the implementation follows these
 definitions. Functional cutoffs and cellular probabilities still require suitable
 experimental data and calibration; no such result is fabricated by this correction.
+
+## Evaluation context and unavailable evidence
+
+The application evaluates each retained gate separately with every requested output in
+switch–payload transcript context (`evaluation_sequence`). It does not infer complete
+vector transcription, protein maturation, localization or cellular concentrations from
+this folding input. The switch's GC metric remains the regulatory switch sequence's
+percent GC; `trigger_accessibility` is the minimum marginal unpaired probability across
+the selected target window.
+
+`state_separation` comes from the supplied DE comparison. It is absent for direct and
+named-gene input. Single-input orthogonality is not emitted; the default scoring profile
+skips that inapplicable metric. Other missing metrics follow their declared profile
+policy, so a zero must never substitute for missing evidence. The profile constant
+`DEFAULT_V1` currently identifies version `v3-computational-proxies`.
+
+No production transcriptome-wide off-target analysis is integrated. Physical output is
+limited to independent single-input activating constructs; logical enumeration and
+research chemistry implementations do not establish compiled multi-input behavior.
+See [engine scope](engine.md), [trigger selection](triggers.md) and
+[construct assembly](plasmids.md).

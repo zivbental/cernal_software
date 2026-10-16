@@ -1,5 +1,8 @@
 # In-app user help: maintainer map
 
+Source baseline: `main` at `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+See [status and remaining work](status.md) for verification and release limits.
+
 The user-facing help is authenticated React content, not a separate documentation site.
 There is one source of truth for each page:
 
@@ -19,7 +22,7 @@ When behavior changes, update the help from implementation evidence rather than 
 historical summaries:
 
 - engine default and upload limit: `src/config/settings/base.py`
-- MockEngine determinism and LocalEngine scope: `src/engine/client.py`
+- LocalEngine capabilities and scope: `src/engine/client.py`
 - DE parsing, aliases, and numeric handling: `src/engine/inputs.py`
 - upload formats and shallow validation: `src/apps/datasets/services.py`
 - pipeline hosts, families, backbones, warnings, and artifacts: `src/engine/pipeline.py`
@@ -70,4 +73,4 @@ For browser verification, sign in with an approved account and visit `/use-cases
 `/guide`, and `/faq` at desktop and narrow viewport widths. Follow the help navigation,
 the guide table of contents, every cross-page fragment, API Reference, and New Circuit.
 Confirm keyboard focus is visible and that the header/help links wrap without horizontal
-page overflow. MockEngine output is UI test data, not scientific validation.
+page overflow. Synthetic fixture output is UI test data, not scientific validation.

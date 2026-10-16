@@ -1,5 +1,8 @@
 # cernal (R client)
 
+Source client; no registry publication is claimed. See the [current integration guide](../../docs/public-api.md), [API reference](../../docs/api.md), and [pinned status](../../docs/status.md). Results are computational; sequence exports can be withheld independently of successful completion.
+
+
 ```r
 remotes::install_github("zivbental/cernal_software", subdir = "clients/r")
 ```
@@ -32,7 +35,7 @@ df <- cernal_results(cernal_wait(job))
 
 `httr2` + `tibble`, no Bioconductor dependency. `cernal_results()` returns one row per
 candidate, metric decomposition as columns, so it drops straight into `dplyr` and
-`ggplot2`. Errors carry an S3 class per docs/public-api.md §10's codes —
+`ggplot2`. Errors carry an S3 class per the API reference's error codes —
 `cernal_auth_error`, `cernal_validation_error` (with `$detail$did_you_mean`),
 `cernal_rate_limited` (with `$retry_after`), `cernal_run_failed` (with
 `$error_summary`) — so `tryCatch(..., cernal_validation_error = function(e) ...)` works.
