@@ -277,7 +277,7 @@ def _extent(elements: list[str]) -> tuple[float, float, float, float]:
 def flow() -> tuple[str, list[str]]:
     top = 86
     out = [
-        _text(MARGIN + 4, 30, "From two genes to a characterised design space", "fl-title"),
+        _text(MARGIN + 4, 30, "From gene pairs to evaluated AND-gate designs", "fl-title"),
         _text(
             MARGIN + 4,
             52,
@@ -325,8 +325,8 @@ def flow() -> tuple[str, list[str]]:
     height = top + len(STEPS) * (ROW_H + ROW_GAP) + 4
     body = "\n    ".join(out)
     svg = (
-        f'<svg viewBox="0 0 {WIDTH} {height}" role="img" aria-label="Six steps from two '
-        f"genes to a characterised design space: scan each gene for windows, pair two "
+        f'<svg viewBox="0 0 {WIDTH} {height}" role="img" aria-label="Six steps from '
+        f"gene pairs to evaluated AND-gate designs: scan each gene for windows, pair two "
         f"genes on "
         f"complementary windows, build the secondary hairpin, assemble the switch, vary and "
         f'cut, and fold all four trigger states.">\n    {body}\n</svg>'
