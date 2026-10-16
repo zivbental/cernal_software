@@ -86,3 +86,45 @@ def test_review_export_is_attributed_and_owned(auth_client, other_client, user):
     assert note["engine_ref"] == "cand-reviewed"
     assert note["decision_tag"] == "SHORTLISTED"
     assert other_client.get(url).status_code == 404
+
+
+def test_top_n_selects_global_ranks_before_filter_sort_and_pagination(auth_client, run):
+    Candidate.objects.bulk_create(
+        [
+            Candidate(
+                run=run,
+                engine_ref=f"cand-{index:05d}",
+                rank=index,
+                overall_score=1 - index / 10,
+                gate_family="toehold",
+                design={"logic_graph": {"output": "gfp" if index <= 2 else "other"}},
+            )
+            for index in range(1, 6)
+        ]
+        + [
+            Candidate(
+                run=run,
+                engine_ref="rejected",
+                is_rejected=True,
+                rejection_reason="Diagnostic",
+                gate_family="toehold",
+            )
+        ]
+    )
+    url = f"/api/runs/{run.id}/candidates"
+    page = auth_client.get(f"{url}?top_n=3&limit=1&offset=1&sort=-rank").json()
+    assert page["count"] == 3
+    assert [c["rank"] for c in page["items"]] == [2]
+    selected = auth_client.get(f"{url}?top_n=3&sort=overall_score&include_rejected=true").json()
+    assert [c["rank"] for c in selected["items"]] == [3, 2, 1]
+    filtered = auth_client.get(f"{url}?top_n=3&output=other").json()
+    assert filtered["count"] == 1
+    assert filtered["items"][0]["rank"] == 3
+    assert auth_client.get(f"{url}?include_rejected=true").json()["count"] == 6
+    assert Candidate.objects.filter(run=run).count() == 6
+
+
+@pytest.mark.parametrize("value", [0, -1, 1001, "true", "1.5"])
+def test_paginated_candidates_reject_invalid_top_n(auth_client, run, value):
+    response = auth_client.get(f"/api/runs/{run.id}/candidates?top_n={value}")
+    assert response.status_code == 422, response.content

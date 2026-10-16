@@ -1,0 +1,15 @@
+name: Backup integrity
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  backup-integrity:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      - run: uv run pytest tests/test_backups.py -q

@@ -71,13 +71,14 @@ from pathlib import Path
 from types import ModuleType
 
 from engine import sequences
+from engine.gates.tools import VIENNA_PARAMETER_LOCK
 
 #: The submodule's pinned commit. ``tests/engine/test_ais_china.py`` checks the checked-out
 #: submodule against this, so a bump is a deliberate edit to this line, the test run, and
 #: docs/collaborations.md in the same commit.
 PINNED_COMMIT = "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9"
 
-#: SHA-256 over every vendored file's own SHA-256, in sorted path order, excluding
+#: SHA-256 over every vendored file's own SHA-256, in relative POSIX string order, excluding
 #: ``PROVENANCE.md`` (which records this value and so cannot contribute to it).
 #:
 #: This replaces what used to be a ``git rev-parse HEAD`` check against
@@ -101,13 +102,8 @@ def vendored_tree_sha256(root: Path | str | None = None) -> str:
     """
     base = Path(root) if root is not None else DEFAULT_ROOT
     digest = hashlib.sha256()
-    # Sorted by the RELATIVE POSIX path, not by `Path`. `PurePath.__lt__` compares
-    # `_str_normcase`, which on Windows lowercases and uses `\` separators, so sorting
-    # the objects puts `LICENSE` after `codon_v2/...` there and before it on Linux --
-    # same bytes, same file set, different digest. Measured: identical trees hashed
-    # `4bb43a11...` on Windows against the `fa75b595...` recorded from Linux, so the
-    # check failed on every Windows machine. The relative POSIX path is also the string
-    # fed into the digest below, so this is the order the hash already describes.
+    # Native Path ordering folds case on Windows and compares path components.
+    # Sort the exact relative POSIX names used in the hash on every platform.
     for path in sorted(
         (p for p in base.rglob("*") if p.is_file()),
         key=lambda p: p.relative_to(base).as_posix(),
@@ -482,7 +478,11 @@ class AisChinaCodons:
             }
 
         try:
-            report = self._pipeline.optimize(request, refs=self._refs)
+            # Their optional RNA strategies load global energy tables. Serialize with
+            # CERNAL snapshot creation; otherwise a concurrent model selection could
+            # temporarily change their diagnostics, or vice versa. No vendor edits.
+            with VIENNA_PARAMETER_LOCK:
+                report = self._pipeline.optimize(request, refs=self._refs)
         except self._sequence.InputError as error:
             raise ValueError(f"[{error.field}] {error}") from error
         return self._convert_report(report)

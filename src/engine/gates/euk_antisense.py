@@ -68,7 +68,7 @@ class EukaryoticAntisenseNotGate(GateFamily):
     """
 
     name = "euk_antisense"
-    version = "0.1.0"
+    version = "0.1.1"
     kind = GateKind.EUK_ANTISENSE_NOT
     label = "Eukaryotic Antisense Repression"
     description = "Kozak NOT gate: trigger binds the 5' UTR and a short in-frame linker"

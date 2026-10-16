@@ -886,11 +886,12 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
 
 def test_human_construction_bumps_engine_version():
-    assert LocalEngine.ENGINE_VERSION.startswith("local-0.11.0")
+    # Explicit folding models are the next engine revision after human construction.
+    assert LocalEngine.ENGINE_VERSION.startswith("local-0.12.0")
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(
-    direct_request, always_continue, monkeypatch
+    direct_request, always_continue, screening_released
 ):
     """The positive half of the release gate.
 
@@ -900,20 +901,6 @@ def test_a_released_run_exports_fasta_genbank_and_sbol_together(
     to prove the SBOL export is wired in rather than dead, and that it travels with
     FASTA and GenBank rather than on some separate path of its own.
     """
-    import dataclasses
-
-    import engine.pipeline as pipeline_module
-
-    real = pipeline_module.fail_closed_release
-
-    def allow(reference, sequence, *, host_context):
-        # Flip only release_allowed on the real result, so the audit manifest and the
-        # recomputed result_sha256 stay exactly what the gate produced.
-        return dataclasses.replace(
-            real(reference, sequence, host_context=host_context), release_allowed=True
-        )
-
-    monkeypatch.setattr(pipeline_module, "fail_closed_release", allow)
     result = LocalEngine().run(direct_request(), always_continue)
 
     kinds = {a.kind for a in result.artifacts}
@@ -1083,4 +1070,31 @@ def test_forbidden_exact_trigger_changes_actual_candidate_eligibility(
     assert not blocked.candidates
     assert any(
         "Exact trigger excluded" in warning and "user-1" in warning for warning in blocked.warnings
+    )
+
+
+def test_configured_folding_model_reaches_run_and_candidate_provenance(
+    direct_request, always_continue
+):
+    import dataclasses
+    import json
+
+    from engine.domain import FoldingConfig
+
+    config = FoldingConfig(temperature_celsius=25, energy_parameters="andronescu2007")
+    request = direct_request(params={"folding": dataclasses.asdict(config)})
+    tools = build_tools(request, Host.ECOLI)
+    assert tools["folder"].config == tools["profiler"].config == config
+    result = LocalEngine().run(request, always_continue)
+    assert result.status == SUCCEEDED
+    assert result.candidates
+    provenance = result.scientific_provenance["folding_model"]
+    assert provenance == tools["folder"].provenance()
+    assert provenance["configuration"] == dataclasses.asdict(config)
+    for candidate in result.candidates:
+        assert candidate.design["folding_model"] == provenance
+        assert json.loads(candidate.design["tool_versions"]["folding_model"]) == provenance
+    assert (
+        json.loads(json.dumps(dataclasses.asdict(result)))["scientific_provenance"]["folding_model"]
+        == provenance
     )

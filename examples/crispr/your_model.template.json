@@ -1,0 +1,181 @@
+{
+  "target_dna": null,
+  "activation_window": null,
+  "transcripts": null,
+  "scaffold_reference": "(((((((.((((....))))...)))))))..(((......)))....((((....))))(((((((...)))))))...",
+  "templates": [
+    {
+      "loop_length": 14,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 14,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 14,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 16,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 16,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 16,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 18,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 18,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 18,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 20,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 20,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 20,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 22,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 22,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 22,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 24,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 24,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 24,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 26,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 26,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 26,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 28,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 28,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 28,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 30,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 30,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 30,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 32,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 32,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 32,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    }
+  ],
+  "objective": {
+    "w_on": 0.4,
+    "w_off": 0.6,
+    "w_energy": 0.5,
+    "w_accessibility": 0.5,
+    "v_on": 0.4,
+    "v_off": 0.6,
+    "w_spacer": 0.6,
+    "w_trigger": 0.4,
+    "off_target_max": 0.2
+  },
+  "spacer_metrics": null,
+  "trigger_metrics": null,
+  "score_source": null,
+  "calibration_source": "User-selected objective weights and thresholds; lambda computed from the ranking batch.",
+  "description": "User-supplied scaffold; E/E-prime=10 nt; BT=10,15,20; loop lengths=14..32 step 2. Loop sequences derive from the trigger. Fill remaining null inputs from documented research choices.",
+  "scaffold": "GTTTTAGAGCTAGAAATAGCAAGTTAAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGCTTTT",
+  "host": null,
+  "temperature_c": null,
+  "top_k": 10,
+  "trigger_stride": 1,
+  "max_pairs": 1000,
+  "max_switch_length": 250
+}

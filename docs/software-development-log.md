@@ -2,6 +2,19 @@
 
 This notebook is CERNAL's contest-ready, evidence-first record of meaningful software development. It complements the roadmap (future work), ADRs (decisions), tests, CI, and pull requests; it does not replace them.
 
+## 2026-10-12 — Audit F5: current documentation and scientific interpretation
+
+- **Change:** Replaced obsolete mock-engine/planned-folding claims with LocalEngine
+  defaults, locked installation and current application scope. Corrected guide/chart/API
+  metric descriptions without changing numeric science or scoring. Marked the old wiki
+  source draft historical and separated unmerged PR 68/69 from current capabilities.
+- **Evidence:** [F5 before/after and hosting record](evidence/audit-f5-documentation-2026-10-12.md).
+  New documentation regressions fail twice on audit baseline and pass after correction;
+  269 focused Python tests, lint/format and frontend check/build passed locally.
+- **Limits:** Dedicated iGEM GitLab software URL/commit/pipeline evidence remains missing.
+  Software checks do not establish wet-lab validation. Independent review and merge are
+  pending; the F5 draft PR records its exact commit and CI evidence.
+
 ## Scope and record rules
 
 - **Current-record cutoff:** **2026-09-22**. The generated historical index below was built from `origin/main` at [`b8e20f5d6148`](https://github.com/zivbental/cernal_software/commit/b8e20f5d6148720a2de60e05d94b792eaacff71d) on that cutoff date.
@@ -51,6 +64,60 @@ This notebook is CERNAL's contest-ready, evidence-first record of meaningful sof
 ### Links / evidence
 - <PR, issue, CI run, test artifact, dataset accession, notebook, ADR, release, or screenshot link>
 ```
+
+## 2026-10-10 — Integrate saved gate structures into run results
+
+- **Contributor(s):** OpenAI Codex, authorized by the maintainer; drawing primitives by the iGEM TAU 2026 Team from cernal-rnaviz
+- **Task / issue / PR:** [Draft PR #67](https://github.com/zivbental/cernal_software/pull/67), `dot/integrate-rna-gate-visualizer`
+- **Commit reference(s):** Initial integration [`71d7f06`](https://github.com/zivbental/cernal_software/commit/71d7f060f72ca5fae086aee8154361d4ac376702), 2026-10-10; based on [`e8e560d`](https://github.com/zivbental/cernal_software/commit/e8e560d002a651ea4497af61ec014f28c0187e23)
+- **Status:** In progress; not merged or deployed
+
+### Motivation and implementation
+
+Researchers can select a suggested candidate inside a completed run and inspect its
+stored RNA structure alongside the existing plasmid and logic views. The authenticated
+candidate-structure endpoint draws the saved primary switch through the existing
+ViennaRNA layout adapter and cernal-rnaviz's node/link conversion. The React drawing
+adapts the same tool's single-strand renderer, with zoom, rotation, nucleotide selection
+and architecture-validated region labels.
+
+No folding, scoring, sequence modification, external sequence submission or new service
+is introduced. Intended targets are labeled explicitly; missing/invalid structures,
+unknown provenance and multi-gate primary-only records remain distinguishable. The
+licensed source is pinned and its notices are retained in both vendored subsets.
+
+### Files and verification
+
+- `frontend/src/components/results/RnaStructureView.tsx`, `lib/rna-structure.ts`,
+  `vendor/cernal-rnaviz/`, results route and in-app guide: viewer and interpretation
+- `src/api/routers/results.py`, `engine/client.py`, `engine/gates/tools/folding.py`,
+  `engine/gates/tools/rnaviz/`: authorized stored-data layout boundary
+- Backend focused/API/boundary/house-rule/documentation suite: 656 passed
+- Existing folding-tool and client regression suite: 73 passed
+- `cd frontend && npm run check`: passed, including 16 new adapter contracts
+- `cd frontend && npm run build`: passed
+- Ruff, formatting, Django check and `git diff --check`: passed
+- Independent source review verified ownership, indexing, native bounds, upstream
+  license parity and 2,000-nt stress layouts; no unresolved code-review blocker
+- Final full `uv run --no-sync pytest -q`: **2,171 passed, four failed, six errors**.
+  All failures/errors reproduce on unchanged base `e8e560d` (`test_euk_antisense`,
+  obsolete `off_target_penalty` fixture). The initial run also exposed an isolated-
+  install test fixture omitting newly required modules; its file list was corrected,
+  preserving its assertions and resolving that regression.
+- CI results and synthetic browser screenshots are tracked in [PR #67](https://github.com/zivbental/cernal_software/pull/67).
+- Local headless browser execution: blocked by environment socket restrictions;
+  supported cloud browser cannot reach the isolated fixture server. No local browser
+  pass or visual result is claimed. The new 28-case browser suite and synthetic
+  screenshots/report run in CI; see the PR for exact-head verification status.
+
+### Decisions and review
+
+The 2,000-nt cap bounds presentation work and is not a scientific design constraint.
+Historical additional component switches have no saved structures, so the viewer shows
+only the primary switch and says so. The generated API-surface update also includes
+pre-existing documentation drift for `euk_antisense`; that scientific code is unchanged.
+Maintainer review and merge remain pending. See [API contract](api.md#stored-candidate-structure)
+and [source attribution](attribution.md#4-design-assets).
 
 ## 2026-10-01 — Improve the in-app guide, use cases, and FAQ
 

@@ -242,7 +242,9 @@ line-length 100, target py313, rules `E,F,I,UP,B,C4,DJ,RUF`.
 PATH, so on Windows prefer `uv run …` directly. **Never keep a git clone inside OneDrive,
 Dropbox or Google Drive** — the sync client holds handles on `.git` mid-write and corrupts
 rebases and merges; clone to `C:\dev\cernal_software`. ViennaRNA ships a prebuilt cp313
-Windows wheel, so no compiler and no WSL are needed.
+Windows wheel, so engine-only use needs no compiler or WSL. The queued application
+requires Linux/WSL2 because the locked Django Q2 worker requires fork; follow
+`docs/windows-worker.md` for the application and real queued acceptance test.
 
 ---
 

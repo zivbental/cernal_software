@@ -81,6 +81,7 @@ from engine.domain import (
     Constraints,
     CountMatrix,
     DesiredOutcome,
+    FoldingConfig,
     GateDesign,
     Host,
     LogicGraph,
@@ -101,7 +102,7 @@ from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.inputs import parse_dge_table
-from engine.safety import fail_closed_release
+from engine.safety import fail_closed_release, stored_release_allowed
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
 from engine.scoring.profiles import HardFilter, ScoringProfile, resolve_profile
 from engine.stages.circuits import CircuitDesigner, ConfusionEvaluator
@@ -218,7 +219,11 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         specificity is consequently never *measured* on this path, only defaulted —
         the warning below says so, so a 0.0 penalty is never mistaken for a clean scan.
     """
-    folder = FoldEngine()
+    try:
+        folding_config = FoldingConfig.from_mapping(request.params.get("folding", {}))
+    except ValueError as exc:
+        raise InputValidationError(str(exc)) from exc
+    folder = FoldEngine(config=folding_config)
     if host is Host.HUMAN and (request.params.get("backbone") or {}).get("catalog_key"):
         raise InputValidationError(
             "The bundled backbones are bacterial BioBrick vectors. For Human expression, "
@@ -255,7 +260,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
 
     tools: dict[str, object] = {
         "folder": folder,
-        "profiler": FoldProfiler(),
+        "profiler": FoldProfiler(config=folding_config),
         "screener": screener,
         "codons": codons,
         "aisc": aisc,
@@ -602,28 +607,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         dataclasses.replace(c, rank=ranks.get(c.ref), overall_score=score) for c, score in scored
     ]
 
-    if not on_progress(*_pct("Writing report")):
-        raise JobCancelled("Writing report")
-    artifacts = [store.snapshot("trigger_selection", trigger_candidates)]
-    artifacts.extend(
-        _write_artifacts(request.output_dir, candidates, plasmids, on_progress=on_progress)
-    )
-    from engine.stages.reporting import ReportBuilder, StructureRenderer
-
-    artifacts.append(
-        ReportBuilder(StructureRenderer()).build_result(
-            candidates,
-            warnings,
-            request.output_dir,
-            engine_version="local-0.11.0-scientific-qa",
-            profile_version=profile.version,
-        )
-    )
-
     if trigger_candidates:
-        # trigger_candidates was non-empty, so the loop above genuinely tried. When it is
-        # empty, _direct_trigger's own warning (above) already explains it and adding this
-        # too would double-report the same failure.
         summary = _summarize_rejections(incompatible_counts, incompatible_examples, "trigger set")
         summary += _summarize_rejections(invalid_counts, invalid_examples, "generated design")
         if not candidates:
@@ -656,6 +640,28 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                     )
                 )
 
+    if not on_progress(*_pct("Writing report")):
+        raise JobCancelled("Writing report")
+    artifacts = [
+        dataclasses.replace(
+            store.snapshot("trigger_selection", trigger_candidates), sequence_free=True
+        )
+    ]
+    artifacts.extend(
+        _write_artifacts(request.output_dir, candidates, plasmids, on_progress=on_progress)
+    )
+    from engine.stages.reporting import ReportBuilder, StructureRenderer
+
+    artifacts.append(
+        ReportBuilder(StructureRenderer()).build_result(
+            candidates,
+            warnings,
+            request.output_dir,
+            engine_version="local-0.12.0-scientific-qa-folding-model",
+            profile_version=profile.version,
+        )
+    )
+
     on_progress(100, "Writing report")
 
     return JobResult(
@@ -676,6 +682,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             "scoring_profile": profile.name,
             "scoring_profile_version": profile.version,
             "tool_versions": tools["folder"].versions(),
+            "folding_model": tools["folder"].provenance(),
             "seed": request.seed,
             "experimental_validation": "unavailable",
             "output_semantics": "alternative_single_payload_constructs_cross_product",
@@ -1604,6 +1611,9 @@ def _trigger_feature(trigger: TriggerCandidate) -> dict:
             "max_span": trigger.rnaplfold_max_span,
             "unpaired": trigger.rnaplfold_unpaired,
             "temperature_celsius": trigger.rnaplfold_temperature_celsius,
+            "folding_model": (
+                json.loads(trigger.rnaplfold_model) if trigger.rnaplfold_model else None
+            ),
         },
         # Which window this candidate came from (docs/triggers.md T2) —
         # 0 for the single-trigger fast path, a real scanned offset
@@ -1717,6 +1727,7 @@ def _candidate_result(
             if any(s.kind is SegmentKind.BACKBONE for s in plasmid.plasmid.segments)
             else "linear",
             "tool_versions": family.folder.versions(),
+            "folding_model": family.folder.provenance(),
             # The whole construct, not the switch alone - matches
             # convention (client.py) and Plasmid.length_bp's own definition. The
             # frontend's PlasmidRing draws arcs proportional to this against
@@ -1778,6 +1789,7 @@ def _write_artifacts(
             "\n".join(rows) + "\n",
             kind="design_table",
             media_type="text/csv",
+            sequence_free=True,
         )
     ]
 
@@ -1795,6 +1807,10 @@ def _write_artifacts(
             plasmid.plasmid.sequence,
             host_context=candidate.design.get("host", "unconfigured"),
         )
+        candidate.design["sequence_release"] = {
+            "switch": switch_screen.release_record(),
+            "plasmid": plasmid_screen.release_record(),
+        }
         artifacts.extend(
             [
                 write_artifact(
@@ -1804,6 +1820,7 @@ def _write_artifacts(
                     kind="safety_audit",
                     media_type="application/json",
                     candidate_ref=candidate.ref,
+                    sequence_free=True,
                 ),
                 write_artifact(
                     output_dir,
@@ -1812,10 +1829,11 @@ def _write_artifacts(
                     kind="safety_audit",
                     media_type="application/json",
                     candidate_ref=candidate.ref,
+                    sequence_free=True,
                 ),
             ]
         )
-        if not (switch_screen.release_allowed and plasmid_screen.release_allowed):
+        if not stored_release_allowed(candidate.design):
             continue
         fasta = (
             f">{candidate.ref} {candidate.gate_family} {candidate.logic_type} "
@@ -1856,3 +1874,14 @@ def _write_artifacts(
         )
 
     return artifacts
+
+
+def run_crispr_workbench(config: dict, on_progress=None) -> dict:
+    """Composition entry point for the explicit-input CRISPR research workbench."""
+    from engine.gates.tools.folding import FoldEngine
+    from engine.stages.switches import run_endogenous_crispr
+
+    if not isinstance(config, dict):
+        raise ValueError("CRISPR input must be a JSON object")
+    folder = FoldEngine(temperature=config.get("temperature_c", 37.0), cache_size=4096)
+    return run_endogenous_crispr(config, folder, on_progress)

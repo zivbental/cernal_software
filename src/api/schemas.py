@@ -5,6 +5,7 @@ docs/domain-model.md. Nothing here exposes storage paths or internal identifiers
 """
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from ninja import Field, ModelSchema, Schema
@@ -13,6 +14,7 @@ from apps.accounts.models import ApiKey
 from apps.analyses.models import AnalysisRun
 from apps.datasets.models import Dataset
 from apps.results.models import Annotation, Artifact, Candidate
+from engine.client import candidate_disclosure
 
 # --- Auth -------------------------------------------------------------------------
 
@@ -358,10 +360,42 @@ class CandidateDetailOut(CandidateOut):
     metrics: list[MetricOut] | None = None
 
     @staticmethod
+    def resolve_design(obj) -> dict:
+        return candidate_disclosure(obj.design, obj.triggers)[0]
+
+    @staticmethod
+    def resolve_triggers(obj) -> dict:
+        return candidate_disclosure(obj.design, obj.triggers)[1]
+
+    @staticmethod
     def resolve_metrics(obj) -> list:
         if not getattr(obj, "_include_metrics", True):
             return None
         return list(obj.metrics.all())
+
+
+class StructureBaseOut(Schema):
+    index: int
+    char: str
+    x: float
+    y: float
+
+
+class StructureLinkOut(Schema):
+    source: int
+    target: int
+
+
+class CandidateStructureOut(Schema):
+    status: Literal["available", "unavailable", "invalid", "error"]
+    reason: str | None
+    sequence: str
+    structure: str
+    structure_kind: str | None
+    bases: list[StructureBaseOut]
+    links: list[StructureLinkOut]
+    renderer: Literal["cernal-rnaviz"]
+    renderer_version: str
 
 
 class ArtifactOut(ModelSchema):
@@ -371,6 +405,13 @@ class ArtifactOut(ModelSchema):
     name: str
     category: str
     label: str
+    download_available: bool
+
+    @staticmethod
+    def resolve_download_available(obj) -> bool:
+        from apps.results.services import artifact_release_allowed
+
+        return artifact_release_allowed(obj)
 
     class Meta:
         model = Artifact
@@ -417,7 +458,7 @@ class AnnotationOut(ModelSchema):
 
 class DesignIn(Schema):
     """Everything ``POST /api/design`` accepts. ``constraints``, ``scoring``,
-    ``budget`` and ``payload`` are free-form dicts, not nested schemas — the same
+    ``folding``, ``budget`` and ``payload`` are dicts, not nested schemas — the same
     reason ``RunIn.params`` is a dict: their real shape is ``engine.domain.Constraints``
     / a scoring profile / etc, which ``api/`` may not import (architecture.md §3).
     ``strict`` (default ``True``, unlike the legacy run endpoint) is what catches a
@@ -449,6 +490,17 @@ class DesignIn(Schema):
     # --- search constraints: engine.domain.Constraints, field for field ---
     constraints: dict = Field(default_factory=dict)
 
+    # --- one thermodynamic model shared by design and transcript folding ---
+    folding: dict = Field(
+        default_factory=dict,
+        description=(
+            "Folding model: temperature_celsius (0..100), dangles (0 or 2), "
+            "special_hairpins, no_lonely_pairs, no_gu, no_gu_closure (booleans), "
+            "energy_parameters (turner2004, turner1999 or andronescu2007). "
+            "Unknown fields and invalid values are rejected even when strict=false."
+        ),
+    )
+
     # --- how candidates are compared (§9.1) ---
     scoring: dict = Field(default_factory=dict)
 
@@ -456,7 +508,13 @@ class DesignIn(Schema):
     budget: dict = Field(default_factory=dict)
 
     # --- output shaping ---
-    top_n: int = Field(default=25, ge=1, le=1000)
+    top_n: int = Field(
+        default=25,
+        ge=1,
+        le=1000,
+        strict=True,
+        description="Ranked rows shown (accepted by default); no evaluation or storage cap.",
+    )
     include_rejected: bool = False
     include_metrics: bool = True
     include_artifacts: list[str] = Field(default_factory=list)
@@ -484,6 +542,7 @@ class DesignResolvedOut(Schema):
     scoring_profile: str
     seed: int | None
     constraints: dict
+    folding: dict = Field(default_factory=dict)
     organism: str = "ecoli"
     budget: dict = Field(default_factory=dict)
     payload: dict = Field(default_factory=dict)

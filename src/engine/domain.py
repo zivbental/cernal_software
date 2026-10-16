@@ -437,6 +437,8 @@ class TriggerCandidate:
     rnaplfold_max_span: int | None = None
     rnaplfold_unpaired: int | None = None
     rnaplfold_temperature_celsius: float | None = None
+    # Immutable JSON evidence of the actual local-fold model; None for legacy records.
+    rnaplfold_model: str | None = None
 
     @property
     def length(self) -> int:
@@ -932,6 +934,53 @@ class ToolRequirement:
 
 
 @dataclass(frozen=True, slots=True)
+class FoldingConfig:
+    """Immutable, run-wide ViennaRNA model; defaults reproduce the original model.
+
+    Only dangling-end models 0 and 2 are supported because ViennaRNA's partition
+    function does not implement 1 and 3 consistently with MFE. Energy tables are
+    named, bundled ViennaRNA sets, never arbitrary server-side file paths.
+    """
+
+    temperature_celsius: float = 37.0
+    dangles: int = 2
+    special_hairpins: bool = True
+    no_lonely_pairs: bool = False
+    no_gu: bool = False
+    no_gu_closure: bool = False
+    energy_parameters: str = "turner2004"
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.temperature_celsius, bool)
+            or not isinstance(self.temperature_celsius, (int, float))
+            or not 0 <= self.temperature_celsius <= 100
+        ):
+            raise ValueError("folding.temperature_celsius must be a finite number from 0 to 100.")
+        object.__setattr__(self, "temperature_celsius", float(self.temperature_celsius))
+        if type(self.dangles) is not int or self.dangles not in (0, 2):
+            raise ValueError("folding.dangles must be 0 or 2 (consistent MFE/ensemble models).")
+        for name in ("special_hairpins", "no_lonely_pairs", "no_gu", "no_gu_closure"):
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"folding.{name} must be a boolean.")
+        if self.energy_parameters not in ("turner2004", "turner1999", "andronescu2007"):
+            raise ValueError(
+                "folding.energy_parameters must be turner2004, turner1999 or andronescu2007."
+            )
+
+    @classmethod
+    def from_mapping(cls, values: dict) -> "FoldingConfig":
+        if not isinstance(values, dict):
+            raise ValueError("folding must be an object.")
+        unknown = set(values) - set(cls.__dataclass_fields__)
+        if unknown:
+            raise ValueError(
+                f"Unknown folding parameter(s): {', '.join(map(str, sorted(unknown, key=str)))}"
+            )
+        return cls(**values)
+
+
+@dataclass(frozen=True, slots=True)
 class FoldResult:
     """Structure and free energy from one fold. Cached by the tool that produced it."""
 
@@ -975,3 +1024,63 @@ class QcReport:
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
     stats: dict = field(default_factory=dict)
+
+
+CRISPR_TRIGGER_TAIL_LENGTHS = (10, 15, 20)
+CRISPR_LOOP_LENGTHS = tuple(range(14, 33, 2))
+
+
+@dataclass(frozen=True, slots=True)
+class CrisprTemplate:
+    """Length-only architecture; the trigger supplies BT, B target, E-prime and loop."""
+
+    loop_length: int
+    extension_length: int
+    trigger_tail_length: int
+
+    def __post_init__(self) -> None:
+        if type(self.extension_length) is not int or self.extension_length != 10:
+            raise ValueError("E and E-prime must each contain exactly 10 nucleotides")
+        if (
+            type(self.trigger_tail_length) is not int
+            or self.trigger_tail_length not in CRISPR_TRIGGER_TAIL_LENGTHS
+        ):
+            raise ValueError("BT length must be one of 10, 15, 20 nucleotides")
+        if type(self.loop_length) is not int or self.loop_length not in CRISPR_LOOP_LENGTHS:
+            raise ValueError("Loop length must be 14 through 32 nucleotides in steps of 2")
+
+    @property
+    def trigger_length(self) -> int:
+        return self.loop_length + self.extension_length + 20 + self.trigger_tail_length
+
+
+@dataclass(frozen=True, slots=True)
+class CrisprObservables:
+    """Structural observables for free-guide OFF and connected-guide-trigger ON."""
+
+    a_off: float
+    a_on: float
+    d_off: float
+    d_on: float
+    dg_bind: float
+
+
+@dataclass(frozen=True, slots=True)
+class CrisprObjective:
+    """Parameters for the CRISPR objective and feasibility gates."""
+
+    # Selected thresholds.
+    tau_off: float = field(default=0.05, kw_only=True)
+    tau_on: float = field(default=0.50, kw_only=True)
+    epsilon: float = field(default=0.10, kw_only=True)
+
+    w_on: float
+    w_off: float
+    w_energy: float
+    w_accessibility: float
+    scale_lambda: float | None = field(default=None, kw_only=True)
+    v_on: float
+    v_off: float
+    w_spacer: float
+    w_trigger: float
+    off_target_max: float

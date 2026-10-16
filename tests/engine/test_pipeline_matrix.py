@@ -46,14 +46,9 @@ REACHABLE = {
 @pytest.mark.parametrize("family", [f.name for f in describe_families()])
 def test_real_pipeline_combination(host, input_mode, family, make_request, tmp_path):
     table = TABLES.get(host, TABLES["ecoli"])
+    content = table.encode("utf-8")
     path = tmp_path / "matrix.csv"
-    # The bytes written must be the bytes hashed. `write_text` translates newlines to
-    # the platform ending, so on Windows the file gets CRLF while `input_checksum`
-    # below is taken over the LF string -- and the engine then rejects every `de`
-    # request with "The dataset does not match the checksum recorded at submission".
-    # Writing the encoded bytes removes the translation step instead of compensating
-    # for it.
-    path.write_bytes(table.encode())
+    path.write_bytes(content)
     request = make_request(
         organism=host,
         params={"target_gene": {"gene_id": TABLES[host].splitlines()[1].split(",")[0]}},
@@ -61,7 +56,7 @@ def test_real_pipeline_combination(host, input_mode, family, make_request, tmp_p
         gate_families=[family],
         trigger_sequence=TRIGGER if input_mode == "direct" else "",
         input_path=str(path) if input_mode == "de" else "",
-        input_checksum=hashlib.sha256(table.encode()).hexdigest() if input_mode == "de" else "",
+        input_checksum=hashlib.sha256(content).hexdigest() if input_mode == "de" else "",
     )
     progress = []
 
@@ -94,3 +89,19 @@ def test_real_pipeline_combination(host, input_mode, family, make_request, tmp_p
         assert result.status == "failed"
         assert result.error
         assert not result.candidates
+
+
+def test_de_matrix_rejects_changed_input_bytes(make_request, tmp_path):
+    content = TABLES["ecoli"].encode("utf-8")
+    path = tmp_path / "matrix.csv"
+    path.write_bytes(content.replace(b"\n", b"\r\n"))
+    request = make_request(
+        organism="ecoli",
+        input_mode="de",
+        input_path=str(path),
+        input_checksum=hashlib.sha256(content).hexdigest(),
+    )
+    result = LocalEngine().run(request, lambda *_: True)
+    assert result.status == "failed"
+    assert "checksum" in result.error.lower()
+    assert not result.candidates

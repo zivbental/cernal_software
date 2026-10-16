@@ -33,6 +33,20 @@ from engine.errors import EngineError, JobCancelled
 ProgressFn = Callable[[int, str], bool]
 
 
+def candidate_release_allowed(design: object) -> bool:
+    """Read saved sequence release evidence through the engine boundary."""
+    from engine.safety import stored_release_allowed
+
+    return stored_release_allowed(design)
+
+
+def candidate_disclosure(design: object, triggers: object) -> tuple[dict, dict]:
+    """Return a release-aware API projection without changing the saved science."""
+    from engine.safety import disclosed_candidate_data
+
+    return disclosed_candidate_data(design, triggers)
+
+
 @runtime_checkable
 class EngineClient(Protocol):
     """What the Platform depends on. Implementations must be safe to call from a worker."""
@@ -127,6 +141,53 @@ def lookup_reference_gene(organism: str, identifier: str) -> dict:
         raise ValueError(str(exc)) from exc
 
 
+def layout_stored_structure(
+    sequence: object, structure: object, *, structure_kind: object = None
+) -> dict:
+    """Return drawing data for a stored primary switch, never a new scientific result.
+
+    Unknown provenance stays unknown. Missing historical data is unavailable; malformed
+    stored data is invalid. Known layout failures are safe data, while programming
+    errors still propagate. No engine/tool instance or scientific computation is created.
+    """
+    from engine.errors import StructureLayoutUnavailable
+
+    result = {
+        "status": "unavailable",
+        "reason": None,
+        "sequence": sequence if isinstance(sequence, str) else "",
+        "structure": structure if isinstance(structure, str) else "",
+        "structure_kind": structure_kind if isinstance(structure_kind, str) else None,
+        "bases": [],
+        "links": [],
+        "renderer": "cernal-rnaviz",
+        "renderer_version": "aa112e17a76941233987bb4287c2c66511c40d13",
+    }
+    if any(value is not None and not isinstance(value, str) for value in (sequence, structure)):
+        result.update(status="invalid", reason="Stored sequence and structure must be text.")
+        return result
+    if not sequence or not structure:
+        result["reason"] = "This candidate has no stored sequence and structure to display."
+        return result
+    from engine.gates.tools.folding import FoldEngine
+
+    try:
+        bases, links = FoldEngine.structure_layout(sequence, structure)
+    except StructureLayoutUnavailable as exc:
+        result["reason"] = str(exc)
+    except ValueError as exc:
+        result.update(status="invalid", reason=str(exc))
+    except EngineError as exc:
+        result.update(status="error", reason=str(exc))
+    else:
+        result.update(
+            status="available",
+            bases=[base.to_dict() for base in bases],
+            links=[link.to_dict() for link in links],
+        )
+    return result
+
+
 def normalize_trigger_sequence(sequence: str) -> str:
     """Normalize one RNA/DNA sequence or one FASTA record without changing symbols."""
     from engine import sequences
@@ -206,7 +267,7 @@ def validate_job_configuration(
     organism: str = "",
 ) -> dict:
     """Validate a runnable configuration before queueing; return normalized parameters."""
-    from engine.domain import Host
+    from engine.domain import FoldingConfig, Host
     from engine.gates.registry import get_family
     from engine.pipeline import (
         _UNBUILDABLE_FAMILIES,
@@ -223,9 +284,13 @@ def validate_job_configuration(
         raise ValueError("scientific_provenance is engine-generated metadata, not a parameter.")
     if input_mode not in ("direct", "de", "gene"):
         raise ValueError("input_mode must be direct, de, or gene.")
+    folding = FoldingConfig.from_mapping(params.get("folding", {}))
     for block in ("constraints", "payload", "backbone", "scoring", "statistics", "target_gene"):
         if block in params and not isinstance(params[block], dict):
             raise ValueError(f"params.{block} must be an object.")
+    # Presentation only: retained in the snapshot for the UI, never a search budget.
+    if "top_n" in params and (type(params["top_n"]) is not int or not 1 <= params["top_n"] <= 1000):
+        raise ValueError("top_n must be an integer between 1 and 1000.")
     budget = params.get("budget", {})
     if not isinstance(budget, dict) or set(budget) - {"max_designs"}:
         raise ValueError("budget supports only max_designs (integer 1..1000).")
@@ -328,6 +393,7 @@ def validate_job_configuration(
             else {}
         ),
         "constraints": dataclasses.asdict(constraints),
+        "folding": dataclasses.asdict(folding),
         "budget": {"max_designs": max_designs},
     }
     return copy.deepcopy(normalized)
@@ -418,7 +484,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.11.0-scientific-qa"
+    ENGINE_VERSION = "local-0.12.0-scientific-qa-folding-model"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

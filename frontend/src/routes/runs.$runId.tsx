@@ -13,6 +13,7 @@ import { ArtifactDownloads } from "@/components/results/ArtifactDownloads";
 import { MetricGrid } from "@/components/results/MetricGrid";
 import { PlasmidLegend, PlasmidRing } from "@/components/results/PlasmidRing";
 import { LogicCircuitView } from "@/components/results/LogicCircuit";
+import { RnaStructureView } from "@/components/results/RnaStructureView";
 import { RunStatusBadge } from "@/components/results/RunStatusBadge";
 import { PrecisionFilters, type Filters, DEFAULT_FILTERS } from "@/components/results/PrecisionFilters";
 import { Loading } from "@/components/layout/Loading";
@@ -65,7 +66,9 @@ function RunPage() {
       <WarningList title="Run warnings" warnings={status.data.warnings ?? []} />
       {run.isError && <p role="alert">Could not load the frozen run configuration. <button onClick={() => run.refetch()}>Retry</button></p>}
       {run.data && <details className="mb-4 rounded-xl border border-border p-4"><summary>Run provenance and frozen configuration</summary><p>Engine {run.data.engine_version || "pending"} · Seed {run.data.seed ?? "unspecified"} · Host {run.data.organism}</p><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(run.data.params_snapshot, null, 2)}</pre></details>}
-      {done ? <Results runId={runId} outputs={run.data?.params_snapshot.payload?.outputs ?? []} /> : <RunProgress runId={runId} status={status.data} />}
+      {done ? (
+        run.data ? <Results key={runId} topN={run.data.params_snapshot.top_n} runId={runId} outputs={run.data.params_snapshot.payload?.outputs ?? []} /> : run.isLoading ? <Loading /> : null
+      ) : <RunProgress runId={runId} status={status.data} />}
     </>
   );
 }
@@ -173,14 +176,19 @@ function RunProgress({ runId, status }: { runId: string; status: RunStatusRespon
 
 /* ---------- results ---------- */
 
-function Results({ runId, outputs: configuredOutputs }: { runId: string; outputs: string[] }) {
+function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId: string; outputs: string[]; topN?: number }) {
+  // Older /runs submissions allowed freeform params; invalid historical values mean all results.
+  const topN = typeof savedTopN === "number" && Number.isInteger(savedTopN) && savedTopN >= 1 && savedTopN <= 1000 ? savedTopN : undefined;
+  const [showAll, setShowAll] = useState(false);
+  const limited = !showAll && topN !== undefined;
   const [offset, setOffset] = useState(0);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState<"plasmid" | "logic">("plasmid");
+  const [view, setView] = useState<"plasmid" | "logic" | "rna">("plasmid");
 
   const [outputFilter, setOutputFilter] = useState<string | null>(null);
   const candidates = useCandidates(runId, {
+    topN: limited ? topN : undefined,
     includeRejected: filters.includeRejected,
     sort: filters.sort,
     limit: 50,
@@ -211,8 +219,27 @@ function Results({ runId, outputs: configuredOutputs }: { runId: string; outputs
           <SectionHeading
             kicker="Step 04 · Fulfillment"
             title="Ranked Candidates"
-            desc={`${candidates.data?.count ?? 0} matching candidates. Showing ${items.length ? offset + 1 : 0}–${offset + items.length}. Filters apply to the entire run.`}
+            desc={`${candidates.data?.count ?? 0} matching candidates. Showing ${items.length ? offset + 1 : 0}–${offset + items.length}. ${limited ? `Filters apply within the globally top ${topN} accepted results.` : "Filters apply to the entire run."}`}
           />
+
+          <div className="mb-4 space-y-2 text-sm">
+            <label className="flex items-center gap-2">
+              Result view
+              <select aria-label="Result view" value={limited ? "top" : "all"}
+                onChange={(event) => {
+                  setShowAll(event.target.value === "all");
+                  setFilters((current) => ({ ...current, includeRejected: false }));
+                  setOffset(0);
+                }} className="rounded-md border border-border bg-card px-3 py-2">
+                {topN !== undefined && <option value="top">Top {topN} accepted results</option>}
+                <option value="all">All stored results</option>
+              </select>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              The display limit selects the globally top-ranked accepted results before filters or table sorting. It does not reduce computation or stored results.
+              Exports retain all results. Showing rejected candidates switches to all stored results.
+            </p>
+          </div>
 
           {outputs.length > 1 && (
             <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -243,18 +270,20 @@ function Results({ runId, outputs: configuredOutputs }: { runId: string; outputs
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                       {detail.data.engine_ref} ·{" "}
-                      {view === "plasmid" ? "Plasmid Map" : "Logic Circuit"}
+                      {view === "plasmid" ? "Plasmid Map" : view === "logic" ? "Logic Circuit" : "RNA Structure"}
                     </div>
-                    <div className="inline-flex rounded-lg border border-border bg-surface p-1">
+                    <div className="inline-flex flex-wrap rounded-lg border border-border bg-surface p-1">
                       {(
                         [
                           { k: "plasmid", label: "Plasmid Map", Icon: Dna },
                           { k: "logic", label: "Logic Circuit", Icon: CircuitBoard },
+                          { k: "rna", label: "RNA Structure", Icon: Dna },
                         ] as const
                       ).map((tab) => (
                         <button
                           key={tab.k}
                           onClick={() => setView(tab.k)}
+                          aria-pressed={view === tab.k}
                           className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs transition ${
                             view === tab.k
                               ? "bg-card font-medium text-foreground shadow-clinical"
@@ -274,6 +303,8 @@ function Results({ runId, outputs: configuredOutputs }: { runId: string; outputs
                         <PlasmidRing candidate={detail.data} />
                         <PlasmidLegend segments={detail.data.design.plasmid_segments ?? []} />
                       </div>
+                    ) : view === "rna" ? (
+                      <RnaStructureView key={detail.data.id} candidate={detail.data} />
                     ) : (
                       <div className="w-full">
                         <LogicCircuitView
@@ -303,7 +334,9 @@ function Results({ runId, outputs: configuredOutputs }: { runId: string; outputs
                       Switch sequence 5&rsquo; → 3&rsquo;
                     </div>
                     <div className="mt-1 break-all font-mono text-[11px] text-foreground">
-                      {detail.data.design.switch_sequence}
+                      {detail.data.design.sequence_release?.release_allowed === true
+                        ? detail.data.design.switch_sequence
+                        : "Sequence withheld pending release approval. Scores and computational eligibility do not authorize sequence release."}
                     </div>
                   </div>
                 </>
@@ -311,7 +344,7 @@ function Results({ runId, outputs: configuredOutputs }: { runId: string; outputs
             </div>
 
             <div>
-              <PrecisionFilters filters={filters} onChange={(next) => { setFilters(next); setOffset(0); }} />
+              <PrecisionFilters filters={filters} onChange={(next) => { setFilters(next); if (next.includeRejected) setShowAll(true); setOffset(0); }} />
 
               <div className="mt-4 space-y-2">
                 {visible.map((candidate) => (

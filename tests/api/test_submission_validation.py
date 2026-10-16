@@ -335,3 +335,106 @@ def test_ecoli_marker_and_vector_scope_matches_public_capabilities(
         assert "E. coli" in response.json()["error"]["message"]
         assert not AnalysisRun.objects.exists()
     assert not Dataset.objects.exists()
+
+
+@pytest.mark.parametrize("endpoint", ["design?dry_run=true", "design", "runs"])
+@pytest.mark.parametrize(
+    "folding",
+    [
+        None,
+        [],
+        {"temperature": 25},
+        {"temperature_celsius": -1},
+        {"temperature_celsius": 101},
+        {"temperature_celsius": "25"},
+        {"temperature_celsius": True},
+        {"dangles": 1},
+        {"dangles": 3},
+        {"dangles": 2.0},
+        {"special_hairpins": "false"},
+        {"no_lonely_pairs": 1},
+        {"no_gu": 0},
+        {"no_gu_closure": None},
+        {"energy_parameters": "unsupported"},
+    ],
+)
+def test_invalid_folding_configuration_fails_before_queue(auth_client, endpoint, folding):
+    body = {"trigger_sequence": SEQUENCE}
+    if endpoint == "runs":
+        body.update(input_mode="direct", params={"folding": folding})
+    else:
+        body.update(folding=folding, strict=False)
+    response = auth_client.post(f"/api/{endpoint}", data=body, content_type="application/json")
+    assert response.status_code == 422, response.content
+    assert not AnalysisRun.objects.exists()
+    assert not Dataset.objects.exists()
+
+
+@pytest.mark.parametrize("endpoint", ["design?dry_run=true", "design", "runs"])
+@pytest.mark.parametrize(
+    "folding",
+    [
+        {},
+        {"temperature_celsius": 25, "energy_parameters": "turner1999"},
+        {
+            "temperature_celsius": 42.5,
+            "dangles": 0,
+            "special_hairpins": False,
+            "no_lonely_pairs": True,
+            "no_gu": True,
+            "no_gu_closure": True,
+            "energy_parameters": "andronescu2007",
+        },
+    ],
+)
+def test_folding_configuration_is_normalized_and_preserved(auth_client, endpoint, folding):
+    defaults = {
+        "temperature_celsius": 37.0,
+        "dangles": 2,
+        "special_hairpins": True,
+        "no_lonely_pairs": False,
+        "no_gu": False,
+        "no_gu_closure": False,
+        "energy_parameters": "turner2004",
+    }
+    expected = {**defaults, **folding}
+    body = {"trigger_sequence": SEQUENCE}
+    if endpoint == "runs":
+        body.update(input_mode="direct", params={"folding": folding})
+    else:
+        body["folding"] = folding
+    response = auth_client.post(f"/api/{endpoint}", data=body, content_type="application/json")
+    assert response.status_code in (200, 202), response.content
+    if endpoint != "runs":
+        assert response.json()["resolved"]["folding"] == expected
+    if endpoint.endswith("true"):
+        assert not AnalysisRun.objects.exists()
+    else:
+        run = AnalysisRun.objects.get()
+        assert run.params_snapshot["folding"] == expected
+        result = auth_client.get(f"/api/design/{run.id}/results")
+        assert result.status_code == 200, result.content
+        assert result.json()["resolved"]["folding"] == expected
+
+
+def test_folding_defaults_have_the_same_idempotency_identity(auth_client):
+    body = {"trigger_sequence": SEQUENCE, "idempotency_key": "folding-defaults"}
+    first = auth_client.post("/api/design", data=body, content_type="application/json")
+    assert first.status_code == 202, first.content
+    body["folding"] = first.json()["resolved"]["folding"]
+    body["folding"]["temperature_celsius"] = 37
+    repeated = auth_client.post("/api/design", data=body, content_type="application/json")
+    assert repeated.status_code == 202, repeated.content
+    assert repeated.json()["job_id"] == first.json()["job_id"]
+    assert AnalysisRun.objects.count() == 1
+    body["folding"]["temperature_celsius"] = 25
+    conflicting = auth_client.post("/api/design", data=body, content_type="application/json")
+    assert conflicting.status_code == 409, conflicting.content
+    assert AnalysisRun.objects.count() == 1
+
+
+def test_historical_run_does_not_claim_unrecorded_folding_defaults(auth_client, run):
+    assert "folding" not in run.params_snapshot
+    response = auth_client.get(f"/api/design/{run.id}/results")
+    assert response.status_code == 200, response.content
+    assert response.json()["resolved"]["folding"] == {}

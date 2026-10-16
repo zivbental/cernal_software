@@ -34,13 +34,22 @@ import math
 import os
 import subprocess
 import sys
+from dataclasses import asdict
 from functools import lru_cache
+from hashlib import sha256
 from itertools import permutations
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
 import RNA
 
-from engine.domain import FoldResult, StructureMatch
+from engine import sequences
+from engine.domain import FoldingConfig, FoldResult, StructureMatch
+from engine.errors import EngineError, StructureLayoutUnavailable
+from engine.gates.tools import VIENNA_PARAMETER_LOCK
+from engine.gates.tools.rnaviz.layout import build_bases_and_links
+from engine.gates.tools.rnaviz.models import Base, Link
 
 # ViennaRNA's ``pf()`` returns a C ``float``, so every ensemble free energy this module
 # handles lands exactly on the single-precision grid — verified by round-tripping real
@@ -53,6 +62,177 @@ from engine.domain import FoldResult, StructureMatch
 # distinguish them, and no threshold should be set inside that band. Quoted as the
 # coarsest case so it is a bound rather than an estimate.
 _FLOAT32_ENERGY_ULP = 3.1e-05
+
+# Presentation limit only: bounds native layout work, never filters scientific designs.
+_MAX_STRUCTURE_LAYOUT_NT = 2_000
+
+
+# All CERNAL snapshot creation and compound construction shares this lock. Native folds
+# use copied parameters after leaving it. Never load an energy file for every fold.
+_PARAMETER_LOCK = VIENNA_PARAMETER_LOCK
+_ENERGY_TABLES = {
+    "turner2004": RNA.parameter_set_rna_turner2004,
+    "turner1999": RNA.parameter_set_rna_turner1999,
+    "andronescu2007": RNA.parameter_set_rna_andronescu2007,
+}
+
+
+def _model(config: FoldingConfig, window_size: int, max_bp_span: int, uniq_ml: int):
+    """Explicit scalar defaults: RNA.md()/reset() otherwise inherit mutable globals."""
+    return RNA.md(
+        temperature=config.temperature_celsius,
+        dangles=config.dangles,
+        special_hp=int(config.special_hairpins),
+        noLP=int(config.no_lonely_pairs),
+        noGU=int(config.no_gu),
+        noGUclosure=int(config.no_gu_closure),
+        betaScale=1.0,
+        pf_smooth=1,
+        logML=0,
+        circ=0,
+        circ_penalty=1,
+        gquad=0,
+        uniq_ML=uniq_ml,
+        energy_set=0,
+        backtrack=1,
+        backtrack_type="F",
+        compute_bpp=1,
+        max_bp_span=max_bp_span,
+        min_loop_size=3,
+        window_size=window_size,
+        oldAliEn=0,
+        ribo=0,
+        cv_fact=1.0,
+        nc_fact=1.0,
+        sfact=1.07,
+        salt=1.021,
+        saltMLLower=6,
+        saltMLUpper=24,
+        saltDPXInit=99999,
+        saltDPXInitFact=-45.324,
+        helical_rise=2.8,
+        backbone_length=6.0,
+    )
+
+
+def _fresh_parameters(model):
+    # ViennaRNA 2.7.2 caches RNA.param/exp_param by model details only: loading a
+    # different energy table does NOT invalidate these caches. First request a model
+    # that differs from the wanted one, then the wanted one, for BOTH parameter types.
+    other = RNA.md()
+    other.temperature = model.temperature + 1.0
+    RNA.param(other)
+    parameters = RNA.param(model)
+    RNA.exp_param(other)
+    exp_parameters = RNA.exp_param(model)
+    return parameters, exp_parameters
+
+
+@lru_cache(maxsize=32)
+def _parameter_snapshot(config: FoldingConfig, window_size: int, max_bp_span: int, uniq_ml: int):
+    """Snapshot bundled tables once, restoring the previous global tables even on error.
+
+    Caller holds _PARAMETER_LOCK. Only native objects copied into compounds are used
+    for calculations. The cache key includes every configurable model field and each
+    algorithm override; no snapshot or global energy setting is a run's mutable state.
+    """
+    model = _model(config, window_size, max_bp_span, uniq_ml)
+    text = _ENERGY_TABLES[config.energy_parameters]
+    digest = sha256(text.encode("utf-8")).hexdigest()
+    label = f"cernal:{config.energy_parameters}:{digest}"
+    previous_name = RNA.last_parameter_file() or ""
+    with TemporaryDirectory(prefix="cernal-parameters-") as directory:
+        previous_path = Path(directory) / "previous.par"
+        if not RNA.params_save(str(previous_path)):
+            raise RuntimeError("Could not snapshot ViennaRNA energy parameters.")
+        previous = previous_path.read_text(encoding="utf-8")
+        try:
+            if not RNA.params_load_from_string(text, label):
+                raise RuntimeError(f"Could not load ViennaRNA energy parameters: {label}")
+            parameters, exp_parameters = _fresh_parameters(model)
+            if parameters.param_file != label or exp_parameters.param_file != label:
+                raise RuntimeError("ViennaRNA did not apply the requested energy parameter set.")
+        finally:
+            if not RNA.params_load_from_string(previous, previous_name):
+                raise RuntimeError("Could not restore ViennaRNA energy parameters.")
+            # Also restore parameter caches, not merely the raw global tables.
+            _fresh_parameters(RNA.md())
+    details = parameters.model_details
+    effective = {
+        name: getattr(details, name)
+        for name in dir(details)
+        if not name.startswith("_")
+        and name not in ("this", "thisown", "alias", "pair", "rtype", "nonstandards")
+        and not callable(getattr(details, name))
+    }
+    provenance = {
+        "schema": "cernal-folding-model-v1",
+        "viennarna_version": RNA.__version__,
+        "configuration": asdict(config),
+        "model_details": effective,
+        "sequence_length_normalization": {
+            "window_size": "clamped to nucleotide count; -1 means full length",
+            "max_bp_span": "clamped to window size; -1 means full window",
+        },
+        "energy_parameters": {
+            "name": config.energy_parameters,
+            "source": f"ViennaRNA.parameter_set_rna_{config.energy_parameters}",
+            "sha256": digest,
+            "hash_basis": "UTF-8 bytes of the bundled parameter string loaded",
+            "loaded_identity": parameters.param_file,
+        },
+        "ensemble_caveats": (
+            [
+                "ViennaRNA noLP excludes pairs that cannot stack; "
+                "lonely pairs may remain in ensembles."
+            ]
+            if config.no_lonely_pairs
+            else []
+        ),
+        "suboptimal_model_override": {"uniq_ML": 1},
+    }
+    return parameters, exp_parameters, json.dumps(provenance, sort_keys=True, allow_nan=False)
+
+
+def folding_provenance(
+    config: FoldingConfig, *, window_size: int = -1, max_bp_span: int = -1, uniq_ml: int = 0
+) -> dict:
+    """Return detached JSON-compatible evidence of the actual parameter snapshots."""
+    with _PARAMETER_LOCK:
+        _, _, encoded = _parameter_snapshot(config, window_size, max_bp_span, uniq_ml)
+        return json.loads(encoded)
+
+
+def configured_compound(
+    strands: str,
+    config: FoldingConfig,
+    *,
+    window_size: int = -1,
+    max_bp_span: int = -1,
+    uniq_ml: int = 0,
+    options: int = 0,
+):
+    """The shared model/energy authority for design, RNAplfold and suboptimal folds."""
+    with _PARAMETER_LOCK:
+        parameters, exp_parameters, _ = _parameter_snapshot(
+            config, window_size, max_bp_span, uniq_ml
+        )
+        compound = RNA.fold_compound(
+            strands, _model(config, window_size, max_bp_span, uniq_ml), options
+        )
+        compound.params_subst(parameters)
+        compound.exp_params_subst(exp_parameters)
+        # pf() sanitizes these fields and reloads GLOBAL tables if MFE/PF model
+        # details differ afterward. Normalize both snapshots before that check,
+        # including sequences whose MFE is zero (mfe/rescale is not a sufficient fix).
+        length = len(strands) - strands.count("&")
+        effective_window = min(window_size, length) if window_size > 0 else length
+        effective_span = min(max_bp_span, effective_window) if max_bp_span > 0 else effective_window
+        for parameters_copy in (compound.params, compound.exp_params):
+            parameters_copy.model_details.window_size = effective_window
+            parameters_copy.model_details.max_bp_span = effective_span
+        compound.exp_params_rescale()
+    return compound
 
 
 class FoldEngine:
@@ -69,10 +249,12 @@ class FoldEngine:
             and matches mammalian culture; *E. coli* work is often done at 37 too, but a
             wet-lab protocol at 30 should be reflected here. **Recorded on the run** —
             it changes every energy this module returns.
-        cache_size: Maximum cached folds **per cached method**. Each entry holds a
-            sequence and its structure, so 100k entries is roughly tens of MB. Raise it
-            before raising the machine size. ``None`` means unbounded — only for a run
-            whose working set is known to be small.
+        config: Immutable run-wide model. Use ``FoldingConfig`` for energy table,
+            dangling ends, special hairpins, lonely pairs and GU options. Its validated
+            defaults are explicit; global ViennaRNA settings never configure a run.
+        cache_size: Maximum cached folds. Each entry holds a sequence and its structure,
+            so 100k entries is roughly tens of MB. Raise it before raising the machine
+            size.
 
     Example:
         >>> folder = FoldEngine(temperature=37.0)
@@ -81,67 +263,45 @@ class FoldEngine:
         ('(((...)))', -1.2)
     """
 
-    #: The methods memoised per instance by ``__init__``. Listed here rather than marked
-    #: with a decorator because the bound has to come from ``cache_size``, which only
-    #: exists once there is an instance.
-    _CACHED = (
-        "mfe",
-        "structure_energy",
-        "partition",
-        "_partition_with_unpaired",
-        "_base_pair_probabilities_cached",
-    )
-
-    #: Methods whose entries are far too large for ``cache_size`` to govern, with their own
-    #: absolute cap. ``cache_size`` counts **entries**, and entries differ in size by four
-    #: orders of magnitude: a ``structure_energy`` result is a float against a short duplex,
-    #: while a base-pair-probability matrix for a 221-nt complex is n² Python floats —
-    #: **measured at ~0.9 MB each**.
-    #:
-    #: A 3,600-design stage-2 run touches 3,600 x 4 = 14,400 distinct complexes. That never
-    #: reaches a 100,000-entry bound, so nothing is ever evicted and the process grows to
-    #: ~13 GB — which is the same class of failure the entry bound was added to fix, just
-    #: one method down. Observed live at 1.76 GB and climbing 2.7 MB/s, on a 15.7 GB machine.
-    #:
-    #: 64 is generous for the reuse that actually exists: a design re-reads its **own** four
-    #: states within one evaluation and never touches another design's matrices.
-    _HEAVY_ENTRY_CAPS = {"_base_pair_probabilities_cached": 64}
-
-    def __init__(self, temperature: float = 37.0, cache_size: int | None = 100_000) -> None:
-        self.temperature = temperature
+    def __init__(
+        self,
+        temperature: float = 37.0,
+        cache_size: int = 1_024,
+        *,
+        config: FoldingConfig | None = None,
+    ) -> None:
+        if config is not None and temperature != 37.0:
+            raise ValueError("Pass either config or a nondefault temperature, not both.")
+        self._config = (
+            config if config is not None else FoldingConfig(temperature_celsius=temperature)
+        )
+        if not isinstance(self._config, FoldingConfig):
+            raise ValueError("config must be a FoldingConfig.")
+        self._provenance = json.dumps(folding_provenance(self._config), sort_keys=True)
         if isinstance(cache_size, bool) or not isinstance(cache_size, int) or cache_size < 0:
             raise ValueError("cache_size must be a nonnegative integer")
         self._cache_size = cache_size
-        # These were decorated ``@cache`` — that is ``lru_cache(maxsize=None)``, so the
-        # documented ``cache_size`` bound above was never applied to anything and every
-        # sequence the process ever folded was retained for its lifetime. Measured on the
-        # A0 sweep: 29k new ``structure_energy`` entries per trigger pair, ~7.6 MB of
-        # Python heap per pair, growing linearly and never released. A 1036-pair run died
-        # of memory exhaustion at pair 707, after 4h37m of work. Ruff's B019 flags exactly
-        # this and had been silenced with a ``noqa`` reading "one instance per run" —
-        # which bounds the number of caches, not the size of one.
-        #
-        # Binding per instance (rather than decorating the class) also keeps ``self`` out
-        # of the cache key, so the entries die with the engine that made them.
-        for name in self._CACHED:
-            limit = cache_size
-            cap = self._HEAVY_ENTRY_CAPS.get(name)
-            if cap is not None and (limit is None or cap < limit):
-                limit = cap
-            method = getattr(type(self), name).__get__(self, type(self))
-            setattr(self, name, lru_cache(maxsize=limit)(method))
+        self.constrained_free_energy = lru_cache(maxsize=min(cache_size, 4096))(
+            self.constrained_free_energy
+        )
+        # Instance-owned wrappers retain no tools through a class-level cache. Cycles
+        # between an instance and its bound wrappers are reclaimed by Python's GC.
+        for name in ("mfe", "structure_energy", "partition", "_partition_with_unpaired"):
+            setattr(self, name, lru_cache(maxsize=cache_size)(getattr(self, name)))
+        self._base_pair_probabilities_cached = lru_cache(maxsize=min(cache_size, 2))(
+            self._base_pair_probabilities_cached
+        )
 
-    def cache_report(self) -> dict[str, tuple[int, int, int]]:
-        """``{method: (hits, misses, entries)}`` — for checking a long run's cache health.
+    @property
+    def config(self) -> FoldingConfig:
+        return self._config
 
-        A hit rate near zero means the bound is too small for the working set, or that the
-        caller is asking a different question every time and the cache is pure overhead.
-        """
-        return {
-            name: (info.hits, info.misses, info.currsize)
-            for name in self._CACHED
-            if (info := getattr(self, name).cache_info())
-        }
+    @property
+    def temperature(self) -> float:
+        return self.config.temperature_celsius
+
+    def provenance(self) -> dict:
+        return json.loads(self._provenance)
 
     def _compound(self, strands: str) -> RNA.fold_compound:
         """Build a ``fold_compound`` at this engine's temperature.
@@ -163,9 +323,7 @@ class FoldEngine:
         ``RNA.cvar.temperature``, which is process-global and unsafe once folding moves
         to a process pool (see docs/ROADMAP.md §3).
         """
-        model = RNA.md()
-        model.temperature = self.temperature
-        return RNA.fold_compound(strands, model)
+        return configured_compound(strands, self.config)
 
     def mfe(self, strands: str) -> FoldResult:
         """Fold a sequence — or a multi-strand complex — and return its most stable
@@ -588,6 +746,35 @@ class FoldEngine:
         if depth:
             raise ValueError("Target structure has unbalanced parentheses.")
 
+    @staticmethod
+    def structure_layout(sequence: str, structure: str) -> tuple[list[Base], list[Link]]:
+        """Lay out an existing single-strand structure without folding or scoring it.
+
+        Coordinates reproduce cernal-rnaviz's default NAVIEW geometry. Selecting the
+        algorithm explicitly avoids reading or mutating ``RNA.cvar.rna_plot_type``.
+        The 2,000 nt cap is a viewer limit, not a scientific validity rule. No fold
+        compound, thermodynamic model, cache, file or network service is involved.
+        """
+        if not isinstance(sequence, str) or not isinstance(structure, str):
+            raise ValueError("Stored sequence and structure must be text.")
+        if sequence != sequence.upper() or not sequences.is_valid_rna(sequence):
+            raise ValueError("Stored sequence must contain only uppercase RNA bases A/C/G/U.")
+        FoldEngine.validate_target(sequence, structure)
+        if len(sequence) > _MAX_STRUCTURE_LAYOUT_NT:
+            raise StructureLayoutUnavailable(
+                f"Stored structure exceeds the {_MAX_STRUCTURE_LAYOUT_NT:,} nt viewer limit."
+            )
+
+        try:
+            coordinates = {
+                index: SimpleNamespace(X=x, Y=y)
+                for index, (x, y) in enumerate(FoldEngine.layout_coordinates(structure))
+            }
+            bases, links = build_bases_and_links(sequence, coordinates, RNA.ptable(structure))
+        except (RuntimeError, SystemError, ValueError, OverflowError) as exc:
+            raise EngineError("Stored structure layout could not be generated.") from exc
+        return bases, links
+
     def ensemble_defect(self, sequence: str, target: str) -> float:
         """How far the predicted ensemble sits from an intended structure.
 
@@ -838,7 +1025,7 @@ class FoldEngine:
         payload = json.dumps(
             {
                 "sequence": sequence,
-                "temperature": self.temperature,
+                "folding": asdict(self.config),
                 "delta": delta,
                 "max_structures": max_structures,
             },
@@ -929,7 +1116,8 @@ class FoldEngine:
             return None
         return float(saddle) / 100.0
 
-    def layout_coordinates(self, structure: str) -> list[tuple[float, float]]:
+    @staticmethod
+    def layout_coordinates(structure: str) -> list[tuple[float, float]]:
         """Where each nucleotide sits when a structure is drawn, one point per base.
 
         ViennaRNA's naview layout — the same algorithm behind ``RNAplot`` and the familiar
@@ -949,9 +1137,201 @@ class FoldEngine:
             * The underlying vector comes back one entry longer than the structure — the
               trailing point is padding, not a base — and is trimmed here so no caller
               rediscovers it as a stray point at the origin.
+            * A one-nucleotide NAVIEW layout is nonfinite in ViennaRNA 2.7.2; its sole
+              point is placed at the origin. All returned coordinates must be finite.
         """
-        points = RNA.naview_xy_coordinates(structure)
-        return [(points[i].X, points[i].Y) for i in range(len(structure))]
+        if not isinstance(structure, str):
+            raise ValueError("Stored structure must be text.")
+        FoldEngine.validate_target("A" * len(structure), structure)
+        if len(structure) == 1:
+            return [(0.0, 0.0)]
+        try:
+            points = RNA.naview_xy_coordinates(structure)
+            if not points or len(points) < len(structure):
+                raise EngineError("Stored structure layout returned incomplete coordinates.")
+            coordinates = [(points[i].X, points[i].Y) for i in range(len(structure))]
+        except (RuntimeError, SystemError, ValueError, OverflowError) as exc:
+            raise EngineError("Stored structure layout could not be generated.") from exc
+        if not all(math.isfinite(x) and math.isfinite(y) for x, y in coordinates):
+            raise EngineError("Stored structure layout returned nonfinite coordinates.")
+        return coordinates
+
+    def constrained_free_energy(self, strands: str, constraint: str = "") -> float:
+        """Partition free energy, using FcAB (connected states) for a heterodimer.
+
+        Constraints use ViennaRNA notation: x is forced unpaired, parentheses
+        force a specific pair, and . is unconstrained. Indices exclude '&'.
+        A 999 FcAB means no connected ensemble; it is represented internally by
+        +inf, never exposed as a successful measurement or an arbitrary score.
+        Impossible target pairs also give +inf (zero constrained partition).
+        Malformed constraints raise ValueError; they are not empty physical events.
+        Numerical PF failures raise; callers distinguish errors from threshold rejections.
+        """
+        parts = strands.split("&")
+        if len(parts) not in (1, 2) or any(not p or set(p) - set("ACGU") for p in parts):
+            raise ValueError("Expected one or two non-empty uppercase RNA strands")
+        if not math.isfinite(self.temperature) or self.temperature <= -273.15:
+            raise ValueError("Invalid folding temperature")
+        n = sum(map(len, parts))
+        if constraint and (len(constraint) != n or set(constraint) - set(".x()")):
+            raise ValueError("Invalid constraint length or alphabet")
+        if constraint:
+            self.validate_target("".join(parts), constraint.replace("x", "."))
+        fc = self._compound(strands)
+        if constraint:
+            # ENFORCE_BP can introduce noncanonical pairs or silently drop pairs
+            # with too short a hairpin. Neither is a subset of the original ensemble.
+            # Check against this compound's model before calling the native parser.
+            model = fc.params.model_details
+            encoded = fc.sequence_encoding
+            cut = len(parts[0])
+            stack = []
+            for j, char in enumerate(constraint):
+                if char == "(":
+                    stack.append(j)
+                elif char == ")":
+                    i = stack.pop()
+                    same_strand = (i < cut) == (j < cut)
+                    pair_type = model.pair[encoded[i + 1]][encoded[j + 1]]
+                    if (
+                        not pair_type
+                        or (model.noGU and pair_type in (3, 4))
+                        or (same_strand and j - i <= model.min_loop_size)
+                        or (model.max_bp_span > 0 and j - i > model.max_bp_span)
+                    ):
+                        return math.inf  # A validly specified, empty event.
+            if not fc.hc_add_from_db(
+                constraint, RNA.CONSTRAINT_DB_DEFAULT | RNA.CONSTRAINT_DB_ENFORCE_BP
+            ):
+                raise ArithmeticError("Native constraint parser failed")
+        if len(parts) == 2:
+            # Python 2.7 bindings: structure, FA, FB, FcAB, FAB.
+            # A forced interstrand pair makes isolated FA/FB infinite by design.
+            # Only the connected ensemble and its containing total are relevant here.
+            _, _, _, energy, fab = fc.pf_dimer()
+            if energy == 999.0:
+                return math.inf
+            if not math.isfinite(fab) or abs(fab) >= 1e4:
+                raise ArithmeticError("Dimer partition calculation failed")
+        else:
+            _, energy = fc.pf()
+        if not math.isfinite(energy) or abs(energy) >= 1e4:
+            raise ArithmeticError("Partition calculation failed")
+        return float(energy)
+
+    def constraint_probability(self, strands: str, constraint: str) -> float:
+        """Joint event Z_constrained / Z; never multiply marginal probabilities."""
+        reference = self.constrained_free_energy(strands)
+        if not math.isfinite(reference):
+            raise ValueError("No connected two-strand ensemble")
+        constrained = self.constrained_free_energy(strands, constraint)
+        if constrained == math.inf:
+            return 0.0  # A measured empty subset, not a failed measurement.
+        rt = self.rt
+        log_p = (reference - constrained) / rt
+        if log_p > 2e-5:
+            raise ArithmeticError("Constrained partition function exceeds total")
+        return math.exp(min(0.0, log_p))
+
+    def region_accessibility(self, strands: str, start: int, end: int) -> float:
+        """Probability every nucleotide in [start, end) is simultaneously unpaired."""
+        n = len(strands.replace("&", ""))
+        if not 0 <= start < end <= n:
+            raise ValueError("Invalid accessibility interval")
+        return self.constraint_probability(
+            strands, "." * start + "x" * (end - start) + "." * (n - end)
+        )
+
+    def region_defect(self, strands: str, reference: str, start: int = 0) -> float:
+        """Normalized expected incorrect bases in a region of the first strand.
+
+        start is a zero-based offset; reference describes only the region.
+
+        Constrained PF ratios work for connected dimers as well as monomers;
+        this avoids confusing cofold's null-model BPP with conditional gT BPP.
+        Every target pair is counted twice, once for each nucleotide.
+        """
+        n = len(strands.replace("&", ""))
+        if (
+            not reference
+            or type(start) is not int
+            or start < 0
+            or start + len(reference) > len(strands.split("&")[0])
+        ):
+            raise ValueError("Invalid reference region")
+        stack, partners = [], {}
+        for i, char in enumerate(reference):
+            if char == "(":
+                stack.append(i)
+            elif char == ")" and stack:
+                j = stack.pop()
+                partners[i], partners[j] = j, i
+            elif char != ".":
+                raise ValueError("Scaffold reference must be balanced dot-bracket")
+        if stack:
+            raise ValueError("Unbalanced scaffold reference")
+        correct = 0.0
+        for i, char in enumerate(reference):
+            if char == ")":
+                continue
+            constraint = ["."] * n
+            if char == ".":
+                constraint[start + i] = "x"
+                count = 1
+            else:
+                constraint[start + i], constraint[start + partners[i]] = "(", ")"
+                count = 2
+            correct += count * self.constraint_probability(strands, "".join(constraint))
+        return max(0.0, min(1.0, 1.0 - correct / len(reference)))
+
+    def binding_free_energy(self, strand_a: str, strand_b: str) -> float:
+        """Standard binding free energy from connected AB and free A/B ensembles.
+
+        Concentrations are not needed for this quantity. It does not predict
+        the fraction of strands bound in a solution.
+        """
+        if "&" in strand_a or "&" in strand_b:
+            raise ValueError("Supply two individual strands")
+        dg = (
+            self.constrained_free_energy(strand_a + "&" + strand_b)
+            - self.constrained_free_energy(strand_a)
+            - self.constrained_free_energy(strand_b)
+        )
+        if not math.isfinite(dg):
+            raise ValueError("No connected strand_a-strand_b ensemble")
+        return dg
+
+    def heterodimer_equilibrium(
+        self,
+        strand_a: str,
+        strand_b: str,
+        a_molar: float,
+        b_molar: float,
+    ) -> tuple[float, float]:
+        """Return (binding free energy, fraction of A bound) for {A, B, AB}.
+
+        Total concentrations are in M. This restricted model excludes homodimers
+        and larger complexes. It has no assumptions about biological regions or
+        strand lengths. Callers decide which observables to mix by bound fraction.
+        """
+        if not (math.isfinite(a_molar) and math.isfinite(b_molar) and a_molar > 0 and b_molar > 0):
+            raise ValueError("Require finite positive strand concentrations")
+        dg = self.binding_free_energy(strand_a, strand_b)
+        rt = self.rt
+        # Solve x = K (g0-x)(t0-x), in logs, with K relative to 1 M standard state.
+        # Bisection avoids quadratic cancellation and overflowing exp(-dG/RT).
+        lo, hi = 0.0, min(a_molar, b_molar)
+        for _ in range(100):
+            x = (lo + hi) / 2
+            if x == lo or x == hi:
+                break
+            log_ratio = math.log(x) - math.log(a_molar - x) - math.log(b_molar - x)
+            if log_ratio < -dg / rt:
+                lo = x
+            else:
+                hi = x
+        fraction = ((lo + hi) / 2) / a_molar
+        return dg, fraction
 
     def versions(self) -> dict[str, str]:
         """The tool versions this run was computed with.
@@ -961,10 +1341,16 @@ class FoldEngine:
         unanswerable.
 
         Returns:
-            e.g. ``{"ViennaRNA": "2.7.2", "temperature_c": "37.0"}``. Include anything
-            that changes the numbers, not only the library version.
+            The legacy version/temperature strings plus canonical JSON ``folding_model``
+            with effective model fields and loaded energy-table identity and SHA-256.
+            ``provenance()`` exposes the same evidence as a structured dictionary.
         """
-        return {"ViennaRNA": RNA.__version__, "temperature_c": str(self.temperature)}
+        provenance = self.provenance()
+        return {
+            "ViennaRNA": RNA.__version__,
+            "temperature_c": str(self.temperature),
+            "folding_model": json.dumps(provenance, sort_keys=True, separators=(",", ":")),
+        }
 
 
 def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:
@@ -1102,10 +1488,8 @@ def unpaired_defect(matrix: list[list[float]], start: int, end: int) -> float | 
 def _suboptimal_worker() -> None:
     """Private subprocess entry: do not execute native enumeration in a long-lived worker."""
     request = json.loads(sys.stdin.read())
-    model = RNA.md()
-    model.temperature = request["temperature"]
-    model.uniq_ML = 1
-    compound = RNA.fold_compound(request["sequence"], model)
+    config = FoldingConfig.from_mapping(request["folding"])
+    compound = configured_compound(request["sequence"], config, uniq_ml=1)
     results: dict[str, float] = {}
 
     def collect(structure, energy, _data):

@@ -1,5 +1,11 @@
 # CERNAL software wiki
 
+> **Historical draft, not current application documentation.** The 29 September
+> snapshot below predates removal of MockEngine and expanded reference support.
+> For current defaults, capabilities and scientific limits use the [README](../README.md)
+> and [scientific interpretation](scientific-interpretation.md). This source document
+> does not establish the state of any separately hosted wiki.
+
 > **Implementation status (29 September 2026).** CERNAL is a working web platform with a deterministic mock engine and a partially implemented scientific `LocalEngine`. The direct-sequence path and a scoped differential-expression path for *E. coli* and yeast run through trigger selection, single-input switch generation, scoring, ranking, plasmid assembly, persistence, and downloads. Multi-gene circuit design, two-input AND construction, operational antisense use, CRISPR gates, real off-target matching, generated scientific figures/PDF reports, and wet-lab validation are not complete. This page labels those boundaries rather than presenting planned behavior as current behavior.
 
 ## 1. What CERNAL is

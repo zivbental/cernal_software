@@ -3,11 +3,13 @@
 import io
 import sqlite3
 import tarfile
+from contextlib import closing
+from unittest.mock import Mock
 
 import pytest
 from django.db import connection
 
-from apps.common.backups import BackupError, create_backup, restore_backup
+from apps.common.backups import BackupError, _referenced_files, create_backup, restore_backup
 from apps.common.checksums import sha256_file
 
 
@@ -32,7 +34,8 @@ def test_backup_restore_preserves_ownership_media_and_pending_results(
         destination / "staging",
     )
     manifest = restore_backup(backup_archive, database, media, staging_target=staging)
-    with sqlite3.connect(database) as restored:
+    with closing(sqlite3.connect(database)) as restored:
+        assert restored.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         owner, digest, name = restored.execute(
             "SELECT uploaded_by_id, checksum_sha256, file FROM datasets_dataset WHERE id = ?",
             [dataset.id.hex],
@@ -45,6 +48,60 @@ def test_backup_restore_preserves_ownership_media_and_pending_results(
     assert digest == sha256_file(media / name) == dataset.checksum_sha256
     assert (staging / "run" / "lease" / "result.json").read_text() == '{"schema_version":"1"}'
     assert manifest["files"]["database.sqlite3"]["sha256"] == sha256_file(database)
+    database.unlink()  # Windows refuses this while a SQLite handle is still open.
+
+
+@pytest.fixture
+def snapshot_connections(monkeypatch):
+    """Retain handles so garbage collection cannot accidentally satisfy cleanup."""
+    real_connect = sqlite3.connect
+    opened = []
+
+    def connect(*args, **kwargs):
+        handle = real_connect(*args, **kwargs)
+        opened.append(handle)
+        return handle
+
+    monkeypatch.setattr("apps.common.backups.sqlite3.connect", connect)
+    yield opened
+    for handle in opened:
+        handle.close()
+
+
+def assert_closed(handles):
+    assert handles
+    for handle in handles:
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+            handle.execute("SELECT 1")
+
+
+def test_snapshot_connections_close_after_success(
+    transactional_db, dataset, media_root, tmp_path, snapshot_connections
+):
+    archive = tmp_path / "backup.tar.gz"
+    create_backup(connection, media_root, archive)
+    assert_closed(snapshot_connections)
+    restore_backup(archive, tmp_path / "restored.db", tmp_path / "restored-media")
+    assert_closed(snapshot_connections)
+    (tmp_path / "restored.db").unlink()
+
+
+def test_snapshot_connection_closes_when_backup_fails(tmp_path, snapshot_connections):
+    source = Mock(vendor="sqlite", in_atomic_block=False)
+    source.connection.backup.side_effect = sqlite3.OperationalError("injected backup failure")
+    with pytest.raises(sqlite3.OperationalError, match="injected backup failure"):
+        create_backup(source, tmp_path, tmp_path / "backup.tar.gz")
+    assert_closed(snapshot_connections)
+    assert not (tmp_path / "backup.tar.gz").exists()
+
+
+def test_snapshot_connection_closes_when_query_fails(tmp_path, snapshot_connections):
+    database = tmp_path / "missing-tables.db"
+    database.touch()
+    with pytest.raises(sqlite3.OperationalError, match="no such table"):
+        _referenced_files(database)
+    assert_closed(snapshot_connections)
+    database.unlink()
 
 
 def rewrite_archive(source, target, *, edit=None, extra=None):

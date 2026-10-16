@@ -1,0 +1,267 @@
+{
+  "description": "SYNTHETIC SOFTWARE DEMO ONLY. Repetitive toy trigger keeps exhaustive binary enumeration small. Toy scaffold and invented scores and weights; selected CRISPR thresholds; no biological validation.",
+  "host": "human",
+  "scaffold": "GGGAAACCC",
+  "scaffold_reference": "(((...)))",
+  "target_dna": "AAAACAAAAGAAAACAAAAGTGG",
+  "activation_window": [
+    0,
+    20
+  ],
+  "transcripts": {
+    "toy": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  },
+  "templates": [
+    {
+      "loop_length": 14,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 14,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 14,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 16,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 16,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 16,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 18,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 18,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 18,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 20,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 20,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 20,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 22,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 22,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 22,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 24,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 24,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 24,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 26,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 26,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 26,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 28,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 28,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 28,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 30,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 30,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 30,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    },
+    {
+      "loop_length": 32,
+      "extension_length": 10,
+      "trigger_tail_length": 10
+    },
+    {
+      "loop_length": 32,
+      "extension_length": 10,
+      "trigger_tail_length": 15
+    },
+    {
+      "loop_length": 32,
+      "extension_length": 10,
+      "trigger_tail_length": 20
+    }
+  ],
+  "temperature_c": 37.0,
+  "trigger_stride": 100,
+  "top_k": 5,
+  "max_pairs": 100,
+  "max_switch_length": 200,
+  "objective": {
+    "w_on": 0.4,
+    "w_off": 0.6,
+    "w_energy": 0.5,
+    "w_accessibility": 0.5,
+    "v_on": 0.4,
+    "v_off": 0.6,
+    "w_spacer": 0.6,
+    "w_trigger": 0.4,
+    "off_target_max": 0.2
+  },
+  "spacer_metrics": {
+    "0:20:+": {
+      "eta_on": 0.8,
+      "eta_off": 0.05
+    }
+  },
+  "trigger_metrics": {
+    "toy:0:54": {
+      "q_trigger": 0.8
+    },
+    "toy:0:56": {
+      "q_trigger": 0.8
+    },
+    "toy:0:58": {
+      "q_trigger": 0.8
+    },
+    "toy:0:59": {
+      "q_trigger": 0.8
+    },
+    "toy:0:60": {
+      "q_trigger": 0.8
+    },
+    "toy:0:61": {
+      "q_trigger": 0.8
+    },
+    "toy:0:62": {
+      "q_trigger": 0.8
+    },
+    "toy:0:63": {
+      "q_trigger": 0.8
+    },
+    "toy:0:64": {
+      "q_trigger": 0.8
+    },
+    "toy:0:65": {
+      "q_trigger": 0.8
+    },
+    "toy:0:66": {
+      "q_trigger": 0.8
+    },
+    "toy:0:67": {
+      "q_trigger": 0.8
+    },
+    "toy:0:68": {
+      "q_trigger": 0.8
+    },
+    "toy:0:69": {
+      "q_trigger": 0.8
+    },
+    "toy:0:70": {
+      "q_trigger": 0.8
+    },
+    "toy:0:71": {
+      "q_trigger": 0.8
+    },
+    "toy:0:72": {
+      "q_trigger": 0.8
+    },
+    "toy:0:73": {
+      "q_trigger": 0.8
+    },
+    "toy:0:74": {
+      "q_trigger": 0.8
+    },
+    "toy:0:75": {
+      "q_trigger": 0.8
+    },
+    "toy:0:76": {
+      "q_trigger": 0.8
+    },
+    "toy:0:77": {
+      "q_trigger": 0.8
+    },
+    "toy:0:78": {
+      "q_trigger": 0.8
+    },
+    "toy:0:80": {
+      "q_trigger": 0.8
+    },
+    "toy:0:82": {
+      "q_trigger": 0.8
+    }
+  },
+  "score_source": "synthetic demonstration values, NOT a genome scan",
+  "calibration_source": "uncalibrated demonstration parameters, NOT experimental fitting"
+}

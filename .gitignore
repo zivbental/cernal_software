@@ -108,3 +108,4 @@ docs/assets/barrier_superseded/landing_*.csv
 docs/assets/barrier_superseded/designs_*.csv
 docs/assets/barrier_superseded/best_*.csv
 docs/assets/barrier_superseded/log_*.txt
+frontend/test-results/

@@ -249,6 +249,7 @@ export interface LogicGraph {
 }
 
 export interface CandidateDesign {
+  sequence_release?: { release_allowed: boolean; reason?: string };
   switch_sequence: string;
   structure: string;
   toehold_length: number;
@@ -280,6 +281,19 @@ export interface CandidateDetail extends Candidate {
   metrics: Metric[];
 }
 
+/** Geometry for the saved switch structure. No folding or energies are computed. */
+export interface CandidateStructure {
+  status: "available" | "unavailable" | "invalid" | "error";
+  reason: string | null;
+  sequence: string;
+  structure: string;
+  structure_kind: string | null;
+  bases: Array<{ index: number; char: string; x: number; y: number }>;
+  links: Array<{ source: number; target: number }>;
+  renderer: string;
+  renderer_version: string;
+}
+
 /** Categories the download UI groups artifacts under (apps.results.models.ArtifactCategory). */
 export type ArtifactCategory =
   | "summary"
@@ -304,6 +318,7 @@ export interface Artifact {
   checksum_sha256: string;
   size_bytes: number;
   download_url: string;
+  download_available?: boolean;
   created_at: string;
 }
 
@@ -343,6 +358,10 @@ export interface ApiKeyCreated extends ApiKey {
 
 /** The wizard's configuration, frozen into params_snapshot at submission. */
 export interface RunParams {
+  /** Cap on validated gate designs evaluated; outputs are evaluated separately. */
+  budget?: { max_designs?: number };
+  /** Presentation only, after ranking accepted results; stored results stay complete. */
+  top_n?: number;
   schema_version?: string;
   organism?: string;
   input_mode?: InputMode;

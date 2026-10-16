@@ -21,6 +21,7 @@ import {
   type Artifact,
   type Candidate,
   type CandidateDetail,
+  type CandidateStructure,
   type Dataset,
   type DatasetPreview,
   type DecisionTag,
@@ -51,6 +52,7 @@ export const keys = {
   runStatus: (id: string) => ["run", id, "status"] as const,
   candidates: (runId: string, params: string) => ["candidates", runId, params] as const,
   candidate: (id: string) => ["candidate", id] as const,
+  candidateStructure: (id: string) => ["candidate", id, "structure"] as const,
   artifacts: (runId: string) => ["artifacts", runId] as const,
   annotations: (candidateId: string) => ["annotations", candidateId] as const,
   apiKeys: ["api-keys"] as const,
@@ -287,6 +289,8 @@ export function useCancelRun(id: string) {
 /* ---------- results ---------- */
 
 export interface CandidateFilters {
+  /** Restrict to the run's globally top-ranked accepted results; omit for all results. */
+  topN?: number;
   sort?: string;
   gateFamily?: string;
   output?: string;
@@ -300,6 +304,7 @@ export function useCandidates(runId: string, filters: CandidateFilters = {}, ena
   const search = new URLSearchParams();
   search.set("limit", String(filters.limit ?? 200));
   if (filters.offset) search.set("offset", String(filters.offset));
+  if (filters.topN !== undefined) search.set("top_n", String(filters.topN));
   if (filters.sort) search.set("sort", filters.sort);
   if (filters.output) search.set("output", filters.output);
   if (filters.minScore) search.set("min_score", String(filters.minScore));
@@ -319,6 +324,17 @@ export function useCandidate(id: string | null) {
     queryKey: keys.candidate(id ?? ""),
     queryFn: () => api.get<CandidateDetail>(`/candidates/${id}`),
     enabled: Boolean(id),
+  });
+}
+
+/** Loaded only while the structure view is mounted; cancelled on navigation. */
+export function useCandidateStructure(id: string) {
+  return useQuery({
+    queryKey: keys.candidateStructure(id),
+    queryFn: ({ signal }) => api.get<CandidateStructure>(`/candidates/${id}/structure`, signal),
+    enabled: Boolean(id),
+    staleTime: Infinity,
+    retry: false,
   });
 }
 

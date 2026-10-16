@@ -120,17 +120,21 @@ jobs:
       # cannot quietly pick up a newer transitive dependency than anyone tested against.
       - run: npm ci
 
-      # src/routeTree.gen.ts is gitignored — TanStack Router's Vite plugin writes it as a
-      # side effect of a real `vite build`, not of `tsc` alone. Both `npm run check` and
-      # `npm run build` start with a bare `tsc --noEmit`, so on a fresh checkout (nothing
-      # has ever run `vite build` here) that first `tsc` fails before the file exists:
-      # "Cannot find module './routeTree.gen'". `build:fast` is `vite build` with no
-      # leading tsc, so it generates the file without caring that it's missing yet.
-      - run: npm run build:fast
+      # Exercise the standard build before any command can generate the route tree.
+      # Also prove that the build still rejects TypeScript errors.
+      - run: npm run test:clean-build
       - run: npm run check
-      - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+        env:
+          RNA_VIEWER_SCREENSHOT_DIR: test-results/rna-viewer
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rna-viewer-browser
+          path: frontend/test-results/rna-viewer/
+          if-no-files-found: ignore
+          retention-days: 7
 
   release-windows:
     name: Windows supervisor runtime (manual/scheduled)

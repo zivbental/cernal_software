@@ -225,12 +225,32 @@ export function GuideContent() {
 
         <GuideSection id="interpret" title="5. Interpret results and downloads">
           <p>
+            Open a completed run, select a candidate, then choose <strong>RNA Structure</strong>
+            {" "}beside Plasmid Map and Logic Circuit. The cernal-rnaviz drawing shows the
+            saved switch structure; zoom, rotate, or select a nucleotide to inspect it.
+            Region labels appear only when the saved architecture matches the sequence.
+            An <strong>Intended target structure</strong> is the designed pairing pattern,
+            not a predicted OFF/ON fold or experimental validation. Missing structures
+            are shown as unavailable, and historical multi-gate candidates show only
+            their primary switch. Viewing a structure does not refold or modify the run.
+          </p>
+          <p>
             Scores are weighted rankings, not probabilities of experimental
             success. Missing metrics mean “not measured,” not zero. In Precision
             Filters, enable <strong>Show rejected candidates</strong> to see
             stored rejected rows and their reasons. Trigger windows filtered or
             skipped before candidate creation may instead be summarized in run
             warnings.
+          </p>
+          <p>
+            For bacterial toeholds, leakage is AUG-only mean marginal
+            accessibility over three bases, not the wider initiation footprint;
+            the target leaves AUG in an unpaired bulge. Dynamic range divides
+            ON accessibility by OFF accessibility with a 0.001 denominator
+            floor, not measured expression. The success sigmoid is not a
+            calibrated cellular probability. Ensemble defect has no calibrated
+            functional cutoff. These metrics do not establish transcriptome-wide
+            off-target or wet-lab validation.
           </p>
           <p>
             The results page currently does not render run-level warnings.

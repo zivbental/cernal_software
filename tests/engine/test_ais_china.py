@@ -9,6 +9,7 @@ boundary rather than assumed.
 """
 
 import csv
+import hashlib
 import importlib
 import inspect
 from pathlib import Path
@@ -91,6 +92,30 @@ def test_provenance_records_the_upstream_repository_and_commit():
     assert PINNED_COMMIT in text
     assert VENDORED_TREE_SHA256 in text
     assert "Apache-2.0" in text
+
+
+def test_vendor_hash_uses_relative_posix_string_order(tmp_path):
+    # Both case folding (Windows) and component ordering (Path on every OS)
+    # differ from the byte-sensitive relative POSIX names in the hash format.
+    files = {"a/child": b"nested\r\n", "a.txt": b"sibling\n", "Z.txt": b"upper\n"}
+    for name, content in files.items():
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    expected = hashlib.sha256()
+    for name in ("Z.txt", "a.txt", "a/child"):
+        expected.update(f"{name}\0".encode())
+        expected.update(hashlib.sha256(files[name]).hexdigest().encode("ascii"))
+    assert vendored_tree_sha256(tmp_path) == expected.hexdigest()
+
+    # Exclusions stay narrow, and even a newline-only content change is detected.
+    (tmp_path / "PROVENANCE.md").write_bytes(b"local provenance")
+    (tmp_path / "cache.pyc").write_bytes(b"bytecode")
+    (tmp_path / "__pycache__").mkdir()
+    (tmp_path / "__pycache__" / "cache").write_bytes(b"cache")
+    assert vendored_tree_sha256(tmp_path) == expected.hexdigest()
+    (tmp_path / "a" / "child").write_bytes(b"nested\n")
+    assert vendored_tree_sha256(tmp_path) != expected.hexdigest()
 
 
 def test_gitattributes_keeps_git_from_rewriting_their_bytes():
