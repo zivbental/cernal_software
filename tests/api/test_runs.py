@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from apps.analyses.models import AnalysisRun, RunStatus
 from apps.datasets.models import ValidationStatus
 
@@ -357,8 +359,25 @@ def test_cancelling_a_finished_run_says_so(auth_client, completed_run):
     assert body["status"] == RunStatus.COMPLETED
 
 
-def test_closure_set_is_withheld_from_public_api(auth_client, dataset):
-    response = _submit(auth_client, dataset_id=dataset.id,
-                       params={"constraints": {"closure_set": ["open_3x3"]}})
+@pytest.mark.parametrize("value", ["full", "chosen"])
+def test_closure_set_is_withheld_from_public_api(auth_client, dataset, value):
+    response = _submit(
+        auth_client, dataset_id=dataset.id, params={"constraints": {"closure_set": value}}
+    )
+    assert response.status_code == 422
+    assert "closure_set" in response.content.decode()
+    assert "closure_set" not in auth_client.get("/api/version").json()["constraints"]
+    response = auth_client.post(
+        "/api/design",
+        data=json.dumps(
+            {
+                "input_mode": "direct",
+                "trigger_sequence": "ACGU" * 10,
+                "constraints": {"closure_set": value},
+                "strict": False,
+            }
+        ),
+        content_type="application/json",
+    )
     assert response.status_code == 422
     assert "closure_set" in response.content.decode()

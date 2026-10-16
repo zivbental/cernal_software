@@ -917,3 +917,13 @@ See [running the workbench](crispr-workbench.he.md) and
 [implementation and assumptions](crispr-implementation.he.md). Examples and the
 user-input template are under `examples/crispr/`; these are software checks,
 not evidence of biological function.
+
+## Accepted model snapshot and application scope
+
+The quantitative model page is explicitly withheld until corrected barrier CSVs and
+axes_c8 row-level inputs are versioned with producer provenance. The portable audit
+checks this withholding snapshot only; it does not validate historical summary metrics.
+The prokaryotic/generic AND research generators remain available for engine research,
+but are not advertised through the application: their application workflow has not
+been validated alongside the eukaryotic stem-opening integration. No sequence-release
+activation or biological validation is implied.

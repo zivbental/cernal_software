@@ -4031,7 +4031,7 @@ class EukaryoticToeholdGate(ToeholdGate):
     supported_hosts: ClassVar[frozenset[Host]] = frozenset({Host.YEAST, Host.HUMAN})
 
 
-class EukaryoticToeholdAndGate(ToeholdAndGate):
+class EukaryoticToeholdAndGate(ToeholdGate):
     """Two-input AND toehold for eukaryotic translation: two toehold hairpins in series.
 
     **Mechanism.** The 5' hairpin (A) is the first switch up to its own Kozak; the 3' hairpin (B) is
@@ -4073,9 +4073,10 @@ class EukaryoticToeholdAndGate(ToeholdAndGate):
     """
 
     name = "eukaryotic_toehold_and"
+    kind = GateKind.TOEHOLD_AND
+    max_inputs = 2
     design_prefix = "eukaryotic_toehold_and"
-    # Re-declared, not inherited: ToeholdAndGate carries ``version = "0.1.0-stub"``, and
-    # ``available`` is inherited as True from ToeholdGate over stub bodies (CLAUDE.md sec 9).
+    # Independent chemistry: never inherit the prokaryotic overlap/footprint checks.
     version = "0.2.0-sampled-stem-opening"
     label = "Eukaryotic AND Toehold"
     description = "Eukaryotic two-input translational AND: two toehold hairpins in series"

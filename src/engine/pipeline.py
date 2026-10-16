@@ -170,7 +170,11 @@ _UNBUILDABLE_FAMILIES: dict[str, str] = {
         "EukaryoticAntisenseNotGate cannot be constructed without one. Request a "
         "toehold family instead."
     ),
-    # Both prokaryotic construction and eukaryotic stem-opening AND are implemented.
+    # Research generators exist, but their application workflow is not validated.
+    "toehold_and": "the research AND generator is not integrated with the application workflow.",
+    "prokaryotic_toehold_and": (
+        "the research AND generator is not integrated with the application workflow."
+    ),
 }
 
 
@@ -345,7 +349,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
             warnings.append(f"Skipped gate family '{name}': not available for {host.value}.")
             continue
 
-        if family_class.max_inputs > 1:
+        if issubclass(family_class, EukaryoticToeholdAndGate):
             gene_pair = _and_gene_pair(request.params)
             resolved_pair = (
                 tuple(resolve_gene_id(host, gene) for gene in gene_pair) if gene_pair else None
@@ -374,6 +378,8 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
     # families actually requested, and reported rather than applied silently.
     wanted: set[int] = set()
     for family in families:
+        if isinstance(family, EukaryoticToeholdAndGate):
+            continue  # Its single-switch generator uses the configured eukaryotic windows.
         role_footprints = getattr(family, "role_footprints", None)
         if callable(role_footprints):
             wanted.update(role_footprints())

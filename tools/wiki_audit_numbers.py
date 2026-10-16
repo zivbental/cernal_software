@@ -4,6 +4,7 @@ The missing source rows prevent numerical validation. An exact snapshot digest
 ensures added claims, figures or scripts cannot bypass this gate. Restoring results
 requires replacing this audit with checks derived from versioned scientific inputs.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -11,7 +12,7 @@ import hashlib
 from pathlib import Path
 
 PAGE = Path(__file__).resolve().parents[1] / "docs/wiki/and-gate-model.html"
-WITHHELD_SNAPSHOT_SHA256 = "54591c77ff63307cbf2a1870736c2a6437614527bc800cdd88b5f84840578352"
+WITHHELD_SNAPSHOT_SHA256 = "eadea6486c75fea01d632cff110db7ff6e2af41c253d12a6f3fc74af7bb2c4e9"
 
 
 def main(argv=None) -> int:

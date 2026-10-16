@@ -125,6 +125,8 @@ def _resolve_gate_families(body: DesignIn, capabilities) -> list[str]:
 
 def _resolve_scoring(body: DesignIn, capabilities) -> dict:
     scoring = body.scoring
+    if "closure_set" in body.constraints:
+        check_known_keys(body.constraints, CONSTRAINT_KEYS, "constraint")
     if body.strict:
         check_known_keys(scoring, SCORING_KEYS, "scoring field")
     check_scoring_block(scoring, capabilities)
@@ -214,9 +216,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
     scoring = _resolve_scoring(body, capabilities)
 
     if body.strict:
-        check_known_keys(
-            body.constraints, set(capabilities.constraints) or CONSTRAINT_KEYS, "constraint"
-        )
+        check_known_keys(body.constraints, CONSTRAINT_KEYS, "constraint")
         check_known_keys(body.budget, BUDGET_KEYS, "budget field")
         check_known_keys(body.payload, PAYLOAD_KEYS, "payload field")
         check_known_keys(body.backbone, BACKBONE_KEYS, "backbone field")

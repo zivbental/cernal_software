@@ -12,6 +12,7 @@ from django.db import DatabaseError, connection
 from django.http import JsonResponse
 from ninja import Router
 
+from api.params import CONSTRAINT_KEYS
 from api.schemas import BackboneInfoOut, GateFamilyOut, HardFilterOut, MetricInfoOut, VersionOut
 from apps.analyses.worker import worker_available
 from engine.client import load_engine
@@ -68,5 +69,5 @@ def version(request):
         backbone_hosts=getattr(capabilities, "backbone_hosts", {}),
         input_modes=capabilities.input_modes,
         limits=capabilities.limits,
-        constraints=capabilities.constraints,
+        constraints={k: v for k, v in capabilities.constraints.items() if k in CONSTRAINT_KEYS},
     )

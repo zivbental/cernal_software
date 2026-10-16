@@ -1,4 +1,5 @@
 """Missing scientific inputs cannot produce an accepted quantitative snapshot."""
+
 import importlib.util
 from pathlib import Path
 
