@@ -1,5 +1,8 @@
 # cernal (MATLAB client)
 
+Source client; no registry publication is claimed. See the [current integration guide](../../docs/public-api.md), [API reference](../../docs/api.md), and [pinned status](../../docs/status.md). Results are computational; sequence exports can be withheld independently of successful completion.
+
+
 ```matlab
 addpath('/path/to/cernal_software/clients/matlab');
 
@@ -15,7 +18,7 @@ job = c.design('dge_csv', fileread('deseq2.csv'), ...
                'seed', 42);
 T = job.wait().results();
 writetable(T, 'candidates.csv');
-job.artifact('fasta', 'best.fa');
+% Download only if artifact metadata confirms availability and release authorization.
 ```
 
 `webwrite`/`webread`/`weboptions` — built into base MATLAB, no toolbox required. That
@@ -33,12 +36,7 @@ idiom. Ship the `+cernal` folder as-is.
 not valid MATLAB identifiers — the nine metric names are all safe (`state_separation`,
 `predicted_leakage`, ...), asserted in `tests/testCernal.m`.
 
-**Not independently verified against a live server or a MATLAB/Octave interpreter** —
-built directly from docs/public-api.md §11.3's spec and this repo's actual API
-responses, but neither was available to run it. Per docs/public-api.md §11.4: *"A
-licence in CI is not worth it for an iGEM team — say so plainly rather than pretending"*
-— this client needs a manual run against a real deployment before a release, by
-someone with MATLAB.
+**MATLAB runtime conformance remains unverified.** Its source-level implementation needs a native MATLAB run against the intended API before release. Historical prose is not execution evidence.
 
 ## Verification and result contracts (8 October 2026)
 

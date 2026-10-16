@@ -1,5 +1,8 @@
 # Running the application on Windows through WSL2
 
+Source baseline: `main` at `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+See [status and remaining work](status.md) for verification and release limits.
+
 The locked Django Q2 1.11.0 worker explicitly selects `multiprocessing.get_context("fork")`
 in both cluster and worker startup. Native Windows has no `fork` context. Native
 engine tests or direct engine calls do **not** establish working queued application
@@ -60,7 +63,7 @@ Computational completion is not biological validation or sequence release approv
 
 ## Start the development application
 
-Follow the README's frontend setup in this same Linux checkout (use Linux Node/npm),
+Follow [the development guide](development.md) for frontend setup in this same Linux checkout (use Linux Node/npm),
 then run:
 
 ```bash

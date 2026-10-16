@@ -1,358 +1,210 @@
 # HTTP API reference
 
-The only HTTP surface in the system — see the generated [API surface](api-surface.md) and `/api/openapi.json` for the current inventory. Built with
-[django-ninja](https://django-ninja.dev) (ADR 0004); the machine-readable schema is
-generated at **`/api/openapi.json`** and the interactive docs at **`/api/docs`**.
+Source baseline: `main` at `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+See [status and remaining work](status.md) for verification and release limits.
 
-Design rules for this layer are in [architecture.md §7](architecture.md). The vocabularies
-a submission carries — input modes, organisms, gate families, payloads — are explained in
-[modalities.md](modalities.md). External, non-browser integration — API keys, the
-one-call `POST /api/design` fast path, and the Python/R/MATLAB clients — is the subject
-of [public-api.md](public-api.md); this page covers the whole surface, that one covers
-the rationale for the slice of it built for scripts.
+The running service publishes `/api/openapi.json` and interactive `/api/docs`.
+[Router registration](../src/api/__init__.py), [schemas](../src/api/schemas.py) and
+[routers](../src/api/routers/) are the HTTP authority. The generated
+[api-surface.md](api-surface.md) is an engine Python symbol inventory, not an HTTP
+endpoint list. For a runnable first request use [the tutorial](tutorial.md); for
+language wrappers use [external clients](public-api.md).
 
-**Compatibility promise.** Within `api_schema_version: "1"`, changes are additive only:
-new optional request fields and new response fields may appear; an existing field will
-not be removed, renamed, or change type or units. **Clients must ignore unknown response
-fields.** A breaking change means a new `api_schema_version` and a `/api/v2/` mount, with
-`"1"` supported for at least the remainder of the competition season.
+## Authentication and ownership
 
----
+Most routes accept either session cookies or `X-API-Key`. Session writes need a CSRF
+cookie from `GET /api/auth/csrf` and its value in `X-CSRFToken`; login/register/reviewer
+entry points also enforce CSRF. API keys are tried first and do not require CSRF.
+A supplied nonempty invalid key is rejected instead of falling back to a session.
 
-## Authentication
+Registration creates an inactive account pending staff approval. Login with correct
+credentials for a pending account returns `pending_approval`; incorrect credentials
+return a generic error. There is no email password-reset flow. Reviewer login is
+configuration-controlled and must be disabled for real user data.
 
-**Two credentials, one API (ADR 0006).** The SPA authenticates with a session cookie,
-same as always; everything else — a script, `curl`, Snakemake, Nextflow — authenticates
-with an `X-API-Key` header. Both reach the same 43 endpoints with the same ownership
-rules; there is no separate "public API" surface and no second data model. `auth=` tries
-the header first (cheaper, no CSRF path), then the session cookie.
+Key create/list/revoke/regenerate are session-only; whoami is key-only. Creation and
+regeneration return the secret once, while storage retains a SHA-256 digest. `read`
+permits authenticated reads and `design` implies read plus design-scoped mutations.
+Dataset deletion is session-only. Do not assume every route accepts both credentials.
+Keys default to 60 requests/minute and two owner-active runs; honor `Retry-After` on
+429. Owner/staff checks apply independently of scope, with inaccessible objects
+reported as 404. Public metadata/catalog routes are marked below.
 
-```bash
-curl https://your-cernal-host/api/version \
-  -H "X-API-Key: cern_live_7Kd2mQ8vF3xR9wLbN4pT6yH1sJ0aZcVe"
-```
+## Endpoint inventory
 
-### Session cookies (the SPA)
+Paths below include the `/api` mount. Request/response field types and query defaults
+come from the live OpenAPI schema. This table is source-audited for the baseline, not
+an additional generated schema.
 
-Session cookies, not tokens. The SPA is served from the same origin as `/api/`, so this
-needs no CORS configuration and puts nothing sensitive in browser storage (ADR 0003).
+| Method | Path | Handler source | Authentication override |
+|---|---|---|---|
+| GET | `/api/auth/csrf` | [csrf](../src/api/routers/auth.py) | Public |
+| POST | `/api/auth/register` | [register](../src/api/routers/auth.py) | Public |
+| POST | `/api/auth/login` | [login](../src/api/routers/auth.py) | Public |
+| POST | `/api/auth/reviewer-login` | [reviewer_login](../src/api/routers/auth.py) | Public |
+| POST | `/api/auth/logout` | [logout](../src/api/routers/auth.py) | Default |
+| GET | `/api/auth/me` | [me](../src/api/routers/auth.py) | Default |
+| GET | `/api/auth/keys` | [list_keys](../src/api/routers/auth.py) | Session only |
+| POST | `/api/auth/keys` | [create_key](../src/api/routers/auth.py) | Session only |
+| DELETE | `/api/auth/keys/{key_id}` | [delete_key](../src/api/routers/auth.py) | Session only |
+| POST | `/api/auth/keys/{key_id}/regenerate` | [regenerate_key](../src/api/routers/auth.py) | Session only |
+| GET | `/api/auth/whoami` | [whoami](../src/api/routers/auth.py) | API key only |
+| GET | `/api/datasets` | [list_datasets](../src/api/routers/datasets.py) | Default |
+| POST | `/api/datasets` | [upload_dataset](../src/api/routers/datasets.py) | Default |
+| GET | `/api/example-datasets` | [list_examples](../src/api/routers/datasets.py) | Public |
+| POST | `/api/datasets/example` | [use_example_dataset](../src/api/routers/datasets.py) | Default |
+| GET | `/api/datasets/{dataset_id}` | [get_dataset](../src/api/routers/datasets.py) | Default |
+| GET | `/api/datasets/{dataset_id}/preview` | [preview_dataset](../src/api/routers/datasets.py) | Default |
+| DELETE | `/api/datasets/{dataset_id}` | [remove_dataset](../src/api/routers/datasets.py) | Session only |
+| POST | `/api/design` | [create_design](../src/api/routers/design.py) | Default |
+| GET | `/api/design/{run_id}` | [get_design_status](../src/api/routers/design.py) | Default |
+| GET | `/api/design/{run_id}/results` | [get_design_results](../src/api/routers/design.py) | Default |
+| GET | `/api/reference-genes/resolve` | [resolve_reference_gene](../src/api/routers/expression.py) | Default |
+| GET | `/api/public-datasets/organisms` | [organisms](../src/api/routers/expression.py) | Public |
+| GET | `/api/public-datasets/experiments` | [experiments](../src/api/routers/expression.py) | Public |
+| GET | `/api/public-datasets/comparisons` | [comparisons](../src/api/routers/expression.py) | Public |
+| POST | `/api/public-datasets/materialize` | [materialize](../src/api/routers/expression.py) | Default |
+| GET | `/api/public-datasets/{comparison_key}` | [comparison_info](../src/api/routers/expression.py) | Public |
+| GET | `/api/health` | [health](../src/api/routers/meta.py) | Public |
+| GET | `/api/ready` | [ready](../src/api/routers/meta.py) | Public |
+| GET | `/api/version` | [version](../src/api/routers/meta.py) | Public |
+| GET | `/api/runs/{run_id}/candidates` | [list_candidates](../src/api/routers/results.py) | Default |
+| GET | `/api/candidates/{candidate_id}` | [get_candidate](../src/api/routers/results.py) | Default |
+| GET | `/api/candidates/{candidate_id}/structure` | [get_candidate_structure](../src/api/routers/results.py) | Default |
+| GET | `/api/runs/{run_id}/artifacts` | [list_artifacts](../src/api/routers/results.py) | Default |
+| GET | `/api/artifacts/{artifact_id}/download` | [download_artifact](../src/api/routers/results.py) | Default |
+| GET | `/api/runs/{run_id}/export.csv` | [export_candidates_csv](../src/api/routers/results.py) | Default |
+| GET | `/api/runs/{run_id}/artifacts/download` | [download_artifacts_zip](../src/api/routers/results.py) | Default |
+| GET | `/api/candidates/{candidate_id}/annotations` | [list_annotations](../src/api/routers/results.py) | Default |
+| POST | `/api/candidates/{candidate_id}/annotations` | [create_annotation](../src/api/routers/results.py) | Default |
+| DELETE | `/api/annotations/{annotation_id}` | [delete_annotation](../src/api/routers/results.py) | Default |
+| GET | `/api/runs/{run_id}/review.json` | [export_review](../src/api/routers/results.py) | Default |
+| GET | `/api/runs` | [list_all_runs](../src/api/routers/runs.py) | Default |
+| POST | `/api/runs` | [create_run](../src/api/routers/runs.py) | Default |
+| GET | `/api/runs/{run_id}` | [get_run_status](../src/api/routers/runs.py) | Default |
+| GET | `/api/runs/{run_id}/detail` | [get_run](../src/api/routers/runs.py) | Default |
+| POST | `/api/runs/{run_id}/cancel` | [cancel](../src/api/routers/runs.py) | Default |
 
-Writes are CSRF-protected. A single-page app has no server-rendered form to carry the
-token, so the sequence is:
+## Inputs and submission
 
-```js
-await fetch("/api/auth/csrf");                       // sets the csrftoken cookie
-await fetch("/api/auth/login", {
-  method: "POST",
-  headers: { "Content-Type": "application/json",
-             "X-CSRFToken": getCookie("csrftoken") },
-  body: JSON.stringify({ username, password }),
-});
-```
+`POST /api/design` accepts exactly one nonempty input:
 
-Every subsequent write must send the `X-CSRFToken` header. Omitting it returns **403**.
-
-| Endpoint | Purpose |
+| Input | Meaning |
 |---|---|
-| `GET /api/auth/csrf` | 204; sets the `csrftoken` cookie |
-| `POST /api/auth/register` | Request an account → 201, **pending approval** |
-| `POST /api/auth/login` | `{username, password}` → the user |
-| `POST /api/auth/logout` | 204 |
-| `GET /api/auth/me` | The current user, or 401 |
+| `trigger_sequence` | Direct RNA; skips differential-expression discovery |
+| `gene_id` | Stable reference ID or unambiguous symbol, resolved for the host |
+| `dataset_id` | A usable dataset owned by the caller (or accessible to staff) |
+| `dge_csv` | Inline differential-expression CSV, materialized as a dataset on submission |
 
-Login returns the same message for an unknown username and a wrong password, so the
-endpoint cannot be used to enumerate accounts.
+Use host keys such as `ecoli`, not display names. Discover hosts, input modes,
+available families, family/host compatibility, output/backbone compatibility, metrics,
+filters, constraint definitions and limits at `GET /api/version`; do not enable a
+family merely because its Python class exists. See [modalities](modalities.md).
+`GET /api/reference-genes/resolve?organism=human&gene=SELE` inspects reference resolution;
+gene submissions freeze resolved sequence and provenance.
 
-### Registration and approval
+`POST /api/runs` provides the lower-level equivalent: set `input_mode` to `de`,
+`direct` or `gene`, provide the corresponding dataset/sequence/gene, and put run
+configuration in `params`. In contrast, `/design` exposes configuration blocks directly.
+Both use the same submission service and immutable normalized run snapshot.
 
-Accounts are created **inactive**. A staff member approves them; no email is sent
-anywhere.
+Datasets upload as multipart `file`; CSV/TSV/TXT/XLSX are handled by the dataset service.
+Validation is synchronous and checks structure/numerics; an INVALID stored dataset
+can be inspected but cannot be submitted. Public catalog materialization is a separate
+owned-dataset action; it does not query remote scientific services during a run.
 
-```jsonc
-// POST /api/auth/register
-{"username": "maya", "email": "maya@example.org",
- "password": "…", "full_name": "Maya Cohen"}
+### Configuration and result controls
 
-// 201 — note there is no session: the account is not usable yet
-{"username": "maya", "email": "maya@example.org", "pending_approval": true,
- "message": "Your account has been created and is waiting for…"}
-```
+`/design` accepts `constraints`, `folding`, `scoring`, `budget`, `payload`, `backbone`,
+`gate_families`/`exclude_gate_families`, `seed`, `idempotency_key`, `notes`, `strict`,
+and result-selection fields. `strict` defaults true and rejects unknown keys in the
+validated configuration blocks. `strict=false` is not a way to bypass typed engine
+validation, family availability, folding validation or release restrictions.
+`/runs` explicitly checks constraints/scoring/backbone keys, with normalized scientific
+configuration validated by the shared service/client boundary.
 
-Signing in before approval returns **403 `pending_approval`**, distinct from 401
-`invalid_credentials`, so the applicant is told to wait rather than assuming their
-password is wrong. That distinction is only made when the password is *correct*, so it
-is not a way to discover which accounts exist.
+- `budget.max_designs` limits evaluation, not biological risk or elapsed time.
+- `top_n` (1–1000, default 25) selects ranked rows returned, not candidates evaluated/stored.
+- `include_rejected`, `include_metrics`, `include_artifacts` shape responses.
+- Custom scoring weights/filters must use advertised metric names; missing metrics
+  remain null rather than becoming zero. Direction/units are not user preferences.
+- Preserve seed, normalized input, reference/tool versions and manifest alongside the
+  snapshot; a response with defaults alone is not a complete reproducibility archive.
 
-Approve accounts either in Django admin (**Accounts → Users → Approval → Waiting for
-approval**, then the *Approve selected accounts* action — the changelist also warns when
-anyone is waiting) or from a terminal:
+### Dry run, waiting and retries
 
-```bash
-./do pending              # who is waiting
-./do approve maya bob     # approve them
-```
+`POST /api/design?dry_run=true` validates and estimates without persisting a dataset/run.
+The estimate is deliberately uncalibrated: `seconds` is unknown/null and
+`runtime_calibrated` is false. Counts are rough bounds, not latency promises.
+`?wait=<seconds>` accepts 0–300; it may return 200 with results or 202 with a handle.
+An expired wait does not mean the computation failed. Prefer polling long runs and set
+your transport timeout above the requested wait.
 
-**Forgotten passwords** are reset by a staff member in Django admin. There is no
-email-based reset flow, and therefore no SMTP configuration to hold correctly on the
-VPS.
+Keep one `idempotency_key` per intended submission and reuse it after a transport
+failure. Matching normalized requests return the same owner-scoped run; changed
+configuration under the same key produces 409. Use a new key for a different run.
 
-### API keys (scripts, notebooks, pipelines)
+## Polling and cancellation
 
-Session-authenticated only, on every one of these — you cannot mint, list or revoke a
-key with a key, so a leaked key can never become a permanent foothold.
+202 means accepted, not completed. Use the returned `poll_url`, or `/api/runs/{id}`.
+States are DRAFT, QUEUED, RUNNING, COMPLETED, FAILED and CANCELLED; the last three are
+terminal. `stage`, `progress_pct`, warnings, safe error summary, timestamps and result
+counts support the UI. `worker_available` is meaningful for queued runs; false does
+not invalidate the durable submission. A queue deadline can eventually fail it.
 
-| Endpoint | Notes |
+`POST /api/runs/{id}/cancel` returns `cancelled`, `cancellation_requested` or
+`already_terminal`. Running cancellation is cooperative at callback checkpoints;
+native computations need not stop immediately. See [operations](operations.md) for
+abandoned-run and execution-token reconciliation.
+
+## Results, review and artifact access
+
+`/design/{id}/results` returns ranked candidate JSON plus resolved configuration.
+Its result options are query parameters; clients must retain options when resuming a
+job. `format=csv` delegates to the common CSV export. Raw JSON preserves nested design,
+triggers, warnings and metrics; flattened client tables are a different representation.
+
+`/runs/{id}/candidates` supports detailed browsing; candidate detail includes stored
+science and metrics. A rejected candidate is unranked and carries its reason. Human
+annotations are separate review decisions. The SYNTHESIZE tag does not grant release.
+
+Artifact listing includes `download_available` and authenticated download URLs.
+Individual sequence-bearing downloads can return 409 while release approval is absent.
+ZIP selection accepts category or comma-separated IDs (IDs win), rejects unknown
+categories and refuses an archive containing withheld or missing files. Do not infer
+release authorization from COMPUTATIONAL completion or artifact metadata.
+See [release decisions](release-decisions.md).
+
+### Stored candidate structure
+
+Candidate `/structure` renders saved sequence/structure through the local renderer;
+it is not a fresh folding computation. Status is available/unavailable/invalid/error,
+with provenance and reason fields. Older candidates may lack saved structures.
+The viewer's primary-switch scope is documented in [user help](user-help.md).
+
+## Errors and versioning
+
+API-handled errors use `{"error":{"code":"…","message":"…","detail":{}}}`.
+Middleware/proxy failures can differ, so tolerate non-JSON errors in transport code.
+
+| HTTP | Typical interpretation |
 |---|---|
-| `GET /api/auth/keys` | Yours. Label, prefix, scopes, `last_used_at`, expiry. **Never the secret** |
-| `POST /api/auth/keys` | `{label, scopes, expires_in_days}` → 201, **the only response containing `secret`** |
-| `DELETE /api/auth/keys/{id}` | Revoke. Idempotent, 204 |
-| `GET /api/auth/whoami` | **Key-authenticated**, not session. The first call every client makes |
+| 401 | Missing/invalid authentication |
+| 403 | CSRF, insufficient scope, account pending approval |
+| 404 | Absent or inaccessible object |
+| 409 | Idempotency/configuration conflict, protected deletion, withheld/missing archive content |
+| 422 | Invalid input/configuration, unknown parameter |
+| 429 | Rate or active-run quota, inspect Retry-After |
+| 500 | Generic server failure; details go to protected logs |
+| 503 | `/ready` reports unavailable database/worker |
 
-```jsonc
-// POST /api/auth/keys  {"label": "laptop", "scopes": ["read", "design"]}
-// 201 — the secret is shown exactly once and is not recoverable afterwards
-{"id": "…", "label": "laptop", "prefix": "cern_live_7Kd2", "scopes": ["read", "design"],
- "max_concurrent_runs": 2, "rate_per_minute": 60, "expires_at": null,
- "secret": "cern_live_7Kd2mQ8vF3xR9wLbN4pT6yH1sJ0aZcVe"}
-```
+`/health` proves only that the web process responds; `/ready` adds database read and
+worker heartbeat checks. Neither certifies references, backup health or scientific
+validity. `/version` advertises API/engine versions. Clients should ignore unknown
+response fields. A future `/api/v2` mount or competition-season support promise from
+the original design proposal is not an implemented alternate endpoint.
 
-Store it now — the server never displays it again and cannot recover it (only its
-SHA-256 digest is stored). From the terminal, before a browser session is convenient:
-
-```bash
-./do key alice laptop            # mint
-./do keys alice                  # list — prefix, scopes, status; never the secret
-```
-
-**Scopes.** `read` — every `GET`. `design` — submission, cancellation, annotations;
-implies `read`. There is no `admin` or `delete` scope: destructive operations stay
-session-only, in the web UI, where a human is present.
-
-**Quotas.** `max_concurrent_runs` (default 2) is the control that actually matters — the
-worker runs one job at a time with a one-hour timeout, so a script that loops
-`POST /api/design` can park the whole queue for hours. `rate_per_minute` (default 60) is
-enforced separately, per key (not per user — a shared CI key cannot starve your laptop).
-Both return **429**, with `Retry-After`.
-
-Also usable wherever a session works, except the four endpoints above:
-
-```bash
-curl https://your-cernal-host/api/runs \
-  -H "X-API-Key: cern_live_7Kd2mQ8vF3xR9wLbN4pT6yH1sJ0aZcVe"
-```
-
----
-
-## Errors
-
-Every failure has one shape:
-
-```json
-{"error": {"code": "not_found", "message": "No run with that id.", "detail": {}}}
-```
-
-| Status | `code` | When |
-|---|---|---|
-| 401 | `not_authenticated` · `invalid_credentials` · `invalid_api_key` | No session/bad login (browser); missing, unknown, revoked or expired key (script) |
-| 403 | `insufficient_scope` (or nothing, for a CSRF failure) | A `read`-scoped key attempted a `design`-only endpoint; missing/invalid CSRF token |
-| 404 | `not_found` | Missing **or not yours** |
-| 409 | `conflict` | Duplicate name; deleting something still referenced |
-| 422 | `validation_failed` · `unknown_parameter` | Bad body, unknown gate family, unusable dataset; a `strict`-mode typo (carries `did_you_mean`) |
-| 429 | `rate_limited` · `too_many_active_runs` | Per-key requests/minute; the concurrency ceiling — both carry `Retry-After` |
-| 500 | `internal_error` | Generic message; the traceback goes to the log |
-
-`invalid_api_key` covers every failure reason — missing, malformed, unknown, revoked,
-expired — with one message. Telling a client *which* reason would let it learn which
-keys exist, the same reasoning behind 404-not-403 above and one login message for both a
-bad username and a bad password.
-
-> **404, never 403, for objects you do not own.** Returning 403 for an object that
-> exists would confirm its existence to someone who should not know
-> ([architecture.md §7.2](architecture.md)).
-
-Responses never contain filesystem paths, storage internals, engine tracebacks or
-settings.
-
----
-
-## Datasets
-
-Datasets are not organized into projects — each one is owned by the user who uploaded
-it, and any of your datasets can be used for any run.
-
-| Endpoint | Notes |
-|---|---|
-| `GET /api/datasets` | Yours only |
-| `POST /api/datasets` | `multipart/form-data`, field `file`. 201 |
-| `GET /api/example-datasets` | The bundled examples, so the wizard is usable with no data of your own |
-| `POST /api/datasets/example` | Copy one of them into a dataset you own. 201 |
-| `GET /api/datasets/{id}` | |
-| `DELETE /api/datasets/{id}` | 204. **409** if any run used it |
-
-Upload is **synchronous**: the file is checksummed and validated before the response
-returns, so the researcher learns immediately whether it is usable.
-
-```json
-{
-  "id": "…", "name": "expression.csv", "validation_status": "VALID",
-  "checksum_sha256": "4139ba32…", "size_bytes": 271,
-  "validation_report": {"rows": 5, "columns": ["gene_id", "log2fc", …],
-                        "errors": [], "warnings": []}
-}
-```
-
-`validation_status` is `VALID` · `INVALID` · `PENDING`. An `INVALID` dataset uploads
-successfully (so the researcher can read the report) but **cannot be submitted for
-analysis**. Validation is deliberately shallow — readable file, expected columns, sane
-row count, parseable numerics. Scientific validation belongs to the engine.
-
-## Runs
-
-Each run stands on its own — there is no project to organize it under.
-
-| Endpoint | Notes |
-|---|---|
-| `GET /api/runs` | Every run you own, newest first |
-| `POST /api/runs` | **202 Accepted** |
-| `GET /api/runs/{id}` | **The polling endpoint** |
-| `GET /api/runs/{id}/detail` | Full record incl. the immutable snapshot |
-| `POST /api/runs/{id}/cancel` | |
-
-### Submitting
-
-```json
-{
-  "input_mode": "de",
-  "dataset_id": "…",
-  "organism": "E. coli",
-  "gate_families": ["toehold"],
-  "scoring_profile": "default",
-  "seed": 42,
-  "params": {"organism": "ecoli", "payload": {"outputs": ["gfp"]}},
-  "idempotency_key": "any-unique-string"
-}
-```
-
-**202, not 201** — the work is accepted, not completed. Poll `GET /api/runs/{id}`.
-
-**Exactly one input source.** `input_mode` is `de` or `direct`
-([modalities.md §1](modalities.md)):
-
-| `input_mode` | Send | Must not send |
-|---|---|---|
-| `de` | `dataset_id` — a `VALID` dataset you own | `trigger_sequence` |
-| `direct` | `trigger_sequence` — the mRNA, pasted | `dataset_id` |
-
-A mismatch returns **422**. The rule is also a database constraint, so it cannot be
-bypassed by any other write path.
-
-**`params` is free-form at the top level.** It is frozen verbatim into `params_snapshot`,
-and the engine reads what it recognises at that level and ignores the rest — which is
-what lets the wizard add a field like `logic` or `mechanism` without an engine release.
-Its v1 shape is in [modalities.md §7](modalities.md).
-
-**Two sub-blocks are the exception, and are validated at submission.**
-`params.constraints` and `params.scoring` are typed projections of
-`engine.domain.Constraints` and a scoring profile (§9 below — the same key sets
-`POST /api/design` validates), not free-form data: an unrecognised key inside either one
-returns **422** with `did_you_mean` immediately, rather than surfacing later as an async
-`FAILED` run once the engine's own `_build_constraints` rejects it in the worker. This
-narrows an earlier version of this promise, which described the whole of `params` as
-ignored-if-unrecognised — that was never true for these two keys, since the engine has
-always rejected an unknown field inside `constraints`.
-
-`gate_families` and `scoring_profile` are validated against what the engine advertises at
-`GET /api/version`; an unknown value returns 422 listing the available ones.
-
-**Idempotency.** Resubmitting with the same `idempotency_key` returns the existing run
-rather than launching a second computation. Generate one key per user-initiated
-submission and reuse it across network retries.
-
-The configuration is snapshotted at submission — a run's `params_snapshot` never changes
-after the fact.
-
-### Polling
-
-`GET /api/runs/{id}` is called every ~3 seconds while a run is active. Kept cheap — no
-joins across candidates.
-
-```json
-{
-  "id": "…", "status": "RUNNING", "stage": "Evaluating gate designs",
-  "progress_pct": 78, "error_summary": null, "warnings": [],
-  "submitted_at": "…", "started_at": "…", "finished_at": null,
-  "counts": {"candidates": 0, "artifacts": 0}
-}
-```
-
-`status` is `DRAFT` · `QUEUED` · `RUNNING` · `COMPLETED` · `FAILED` · `CANCELLED`. The
-last three are terminal — stop polling. `stage` is human-readable and meant to be shown
-directly. On `FAILED`, `error_summary` is safe to display verbatim.
-
-`worker_available` is a boolean for queued runs and `null` otherwise. It comes from
-the queue cluster's recent heartbeat. `false` means no worker is currently available;
-the submission stays queued and the UI explains the interruption. Both polling
-endpoints (`/api/runs/{id}` and `/api/design/{id}`) expose the field.
-
-### Cancelling
-
-Cooperative — nothing is killed. A running analysis is flagged and stops at the next
-stage boundary.
-
-```json
-{"id": "…", "status": "RUNNING", "outcome": "cancellation_requested"}
-```
-
-`outcome` is `cancelled` (it had not started), `cancellation_requested` (it was running),
-or `already_terminal`.
-
----
-
-## Design — the one-call fast path
-
-The five calls above, collapsed into one for a script: `POST /api/design` resolves the
-dataset (inline `dge_csv` creates one), the gate families and the scoring profile, then
-submits through the same `submit_run` the wizard uses — no new science, no new status
-transitions.
-
-| Endpoint | Notes |
-|---|---|
-| `POST /api/design` | `?dry_run=true` estimates without submitting. `?wait=<seconds>` (ceiling 300) blocks for a finished result |
-| `GET /api/design/{id}` | Thin alias of `GET /api/runs/{id}` |
-| `GET /api/design/{id}/results` | Ranked candidates + metric decomposition. `?format=csv` delegates to `export.csv` |
-
-```bash
-curl https://your-cernal-host/api/design \
-  -H "X-API-Key: cern_live_…" -H "Content-Type: application/json" \
-  -d '{"trigger_sequence": "AUGGCUAAGCUUAACGGAUCCAUGGCUAAGCUUAAC", "organism": "ecoli"}'
-```
-
-```jsonc
-// 202 Accepted
-{
-  "job_id": "6f1c…", "status": "QUEUED", "progress_pct": 0,
-  "poll_url": "/api/design/6f1c…", "results_url": "/api/design/6f1c…/results",
-  "web_url": "/runs/6f1c…",
-  "estimate": {"designs": 14, "seconds": 0.2, "confidence": "very rough"},
-  "resolved": {"input_mode": "direct", "gate_families": ["toehold", …],
-               "scoring_profile": "default", "seed": null, "constraints": {}}
-}
-```
-
-`resolved` echoes every default the server chose — a run is reproducible from the
-response alone. `estimate` is deliberately rough and labelled as such: `direct` mode
-counts trigger lengths × gate families; `de` mode bounds the search space from the
-dataset's row count, since gene selection (stage 1) doesn't compute the real one yet.
-
-**Exactly one input**: `trigger_sequence`, `dataset_id`, or inline `dge_csv` — two or
-none is 422 naming the conflict. **`strict` defaults to `true`** here: an unknown key
-anywhere in `constraints`, `scoring`, `budget` or `payload` is 422 with `did_you_mean`.
-`budget` and `payload` are checked only on this endpoint. `constraints` and `scoring`
-are checked here *and*, unconditionally (no `strict` opt-out), on `POST /api/runs` (§7)
-— those two are the ones the engine itself cannot silently ignore, so both submission
-paths reject a typo in them at submission time rather than in the worker.
-
-### Folding model
+## Folding model
 
 Set `folding` on `POST /api/design`, or the same object at `params.folding` on
 `POST /api/runs`. Omitted fields receive the defaults below. One model is shared by
@@ -367,8 +219,7 @@ design folding and local transcript accessibility calculations within the run.
     "no_lonely_pairs": false,
     "no_gu": false,
     "no_gu_closure": false,
-    "energy_parameters": "turner2004",
-    "salt_molar": 1.021
+    "energy_parameters": "turner2004"
   }
 }
 ```
@@ -382,7 +233,6 @@ design folding and local transcript accessibility calculations within the run.
 | `no_gu` | Boolean | Disallow GU base pairs |
 | `no_gu_closure` | Boolean | Disallow GU pairs closing loops |
 | `energy_parameters` | `turner2004`, `turner1999`, `andronescu2007` | Built-in ViennaRNA RNA energy parameter set |
-| `salt_molar` | Finite number, 0.01–6.0 inclusive | Monovalent salt in mol/L (ViennaRNA salt correction); `1.021` is the reference condition, no correction |
 
 Only dangle models `0` and `2` are supported: ViennaRNA partition-function calculations
 do not consistently implement `1` and `3`. Parameter file paths and arbitrary model
@@ -432,306 +282,10 @@ For direct Python use, pass `FoldEngine(config=FoldingConfig(...))` and
 `FoldProfiler(config=the_same_config)`. `FoldingConfig` is a frozen dataclass in
 `engine.domain`. Existing `FoldEngine(temperature=...)` calls remain supported.
 
-**Custom scoring** — re-weight the nine metrics, or add a hard filter, per run:
 
-```jsonc
-"scoring": {
-  "weights": {"predicted_leakage": 4.0, "gc_content": 0.0},
-  "hard_filters": [{"metric": "dynamic_range", "minimum": 10.0}]
-}
-```
+## Historical rationale
 
-Only the nine names `GET /api/version`'s `metrics` array advertises are accepted — an
-unknown one is 422 listing all nine, not a metric that silently scores as the worst
-possible value. `direction` and `valid_range` are not overridable: those are physics and
-units, not preference. The derived profile gets a deterministic label,
-`custom-<hash8>` — recorded in `resolved.scoring_profile`, so two runs with identical
-weights are visibly comparable.
-
-**`wait=`** blocks and returns the finished result inline (`200` with candidates,
-instead of `202` with a handle) — the client code path is identical either way, since a
-timeout still returns `202` with the same handle. Never rely on it as the documented
-default for a large `de` run: 12,000 designs is about a minute, but a search space of
-millions is hours, and the ceiling (300s) is set below any reverse-proxy write timeout on
-purpose.
-
----
-
-## Results
-
-| Endpoint | Notes |
-|---|---|
-| `GET /api/runs/{id}/candidates` | Paginated |
-| `GET /api/candidates/{id}` | Full detail incl. metric decomposition |
-| `GET /api/candidates/{id}/structure` | Read-only layout of the stored primary switch |
-| `GET /api/runs/{id}/artifacts` | |
-| `GET /api/artifacts/{id}/download` | Authorized file serve, one artifact |
-| `GET /api/runs/{id}/artifacts/download` | Everything, one `?category=`, or a hand-picked `?ids=`, as one `.zip` |
-| `GET /api/runs/{id}/export.csv` | Flat candidate × metric table |
-
-### Listing candidates
-
-`?limit=` `&offset=` — `{"items": [...], "count": n}`.
-
-| Parameter | Default | Notes |
-|---|---|---|
-| `sort` | `rank` | `rank`, `overall_score`, `gate_family`, `logic_type`, `engine_ref`; prefix `-` for descending. Anything else → 422 with the allowed list |
-| `gate_family` | — | Exact match |
-| `include_rejected` | `false` | |
-
-NULLs sort last in both directions, so unranked candidates never lead the list.
-
-**Rejected candidates are kept, not deleted.** They are hidden by default, and every one
-carries a non-empty `rejection_reason` — guaranteed by a database constraint, not by
-convention.
-
-### Candidate detail
-
-Returns `triggers`, `design` (sequences, structure, logic graph) and the full `metrics`
-list. Each metric carries `raw_value`, `normalized_value`, `weight` and `direction`: the
-researcher is shown the decomposition, never a single opaque score (design map 12).
-
-### Stored candidate structure
-
-`GET /api/candidates/{candidate_id}/structure` accepts the same session or read-scoped
-API-key authentication and ownership/staff permissions as candidate detail. Unauthenticated
-requests return `401`; missing candidates and other owners' candidates return `404`.
-
-The response has this shape (an abbreviated example):
-
-```json
-{
-  "status": "available",
-  "reason": null,
-  "sequence": "GGGAAACCC",
-  "structure": "(((...)))",
-  "structure_kind": "intended_target",
-  "bases": [{"index": 0, "char": "G", "x": 92.5, "y": 92.5}],
-  "links": [{"source": 0, "target": 8}],
-  "renderer": "cernal-rnaviz",
-  "renderer_version": "aa112e17a76941233987bb4287c2c66511c40d13"
-}
-```
-
-`bases` contains one node per nucleotide, with zero-based indexes and finite coordinates.
-`links` contains each stored base pair exactly once; adjacent backbone connections are
-implicit in sequence order. Geometry uses the licensed cernal-rnaviz conversion and
-explicit ViennaRNA NAVIEW layout, with `(0, 0)` for a single unpaired nucleotide.
-
-All successfully authorized reads return `200`, with one of these display states:
-
-- `available`: stored sequence and dot-bracket data can be drawn; `reason` is null.
-- `unavailable`: sequence/structure is missing or empty, or the structure exceeds the
-  **2,000 nucleotide viewer limit**. This is not a scientific rejection.
-- `invalid`: malformed stored data (non-text, non-uppercase RNA alphabet, mismatched
-  length, unsupported dot-bracket symbols, or unbalanced parentheses).
-- `error`: a known native/layout failure, with a safe display reason.
-
-All other states have a nonempty `reason` and empty `bases` and `links`. Existing text
-values are returned unchanged; missing/non-text sequence or structure fields return
-empty strings. `structure_kind` retains its stored string exactly, including unknown
-labels, or is null when no string provenance was recorded. Do not infer that an old
-candidate's structure is a predicted fold. `intended_target` denotes the designed
-target pairing, not a predicted or experimentally measured structure.
-
-The input is `design.switch_sequence` and `design.structure`, also for old candidates
-without renderer metadata or artifacts. For multi-gate candidates these fields represent
-the **primary switch**, not the whole circuit or concatenated component switches.
-The request performs no folding, energy/probability/scoring calculation, scientific
-recomputation, external sequence submission, or writes to candidate/run records.
-
-### Artifacts
-
-`download_url` is always an API path, never a storage location. Artifacts are served
-through an authorized view that checks run ownership — a static handler would make every
-artifact readable by anyone who guessed the path.
-
-Each artifact also carries `category` (`summary` · `sequences` · `plasmids` ·
-`diagrams` · `reports` · `other` — see [domain-model.md](domain-model.md)), `label` (a
-human description) and `name` (its filename) — the download UI groups and labels files
-from these, never by re-deriving anything from `kind` itself.
-
-`GET /api/runs/{id}/artifacts/download` returns a `.zip`:
-
-| Query | Effect |
-|---|---|
-| *(none)* | Every artifact the run has |
-| `?category=sequences` | Only that category |
-| `?ids=<uuid>,<uuid>,…` | Exactly those artifacts — wins if both are given |
-
-Entries inside the archive are filed under `<category>/<name>`, regardless of storage
-layout, so the zip reads the same way the download UI is organized.
-
-## Annotations
-
-| Endpoint | Notes |
-|---|---|
-| `GET /api/candidates/{id}/annotations` | |
-| `POST /api/candidates/{id}/annotations` | `{text, decision_tag}` → 201 |
-| `DELETE /api/annotations/{id}` | 204 |
-
-`decision_tag` ∈ `NONE` · `PINNED` · `SHORTLISTED` · `REJECTED` · `SYNTHESIZE`. Anything
-else → 422 with the allowed set. Annotations are product-owned and survive re-runs.
-
-## Meta
-
-| Endpoint | Auth | Notes |
-|---|---|---|
-| `GET /api/health` | none | `{"status": "ok"}` |
-| `GET /api/version` | none | App, API and engine versions **plus engine capabilities** |
-
-```json
-{
-  "app_version": "0.1.0", "api_schema_version": "1",
-  "engine": "MockEngine", "engine_version": "mock-1.0.0",
-  "engine_schema_version": "1",
-  "gate_families": [
-    {"name": "toehold", "label": "Toehold Riboswitch",
-     "description": "Translational control · pre-mRNA", "available": true},
-    {"name": "crispr", "label": "CRISPR-Cas sgRNA Gate",
-     "description": "Transcriptional control · iSBH", "available": false}
-  ],
-  "scoring_profiles": ["default"],
-  "metrics": [
-    {"name": "predicted_leakage", "direction": "LOWER_BETTER", "weight": 2.5,
-     "valid_range": [0.0, 1.0], "unit": "fraction 0-1",
-     "description": "Proxy for OFF-state activation."}
-  ],
-  "hard_filters": [
-    {"metric": "predicted_leakage", "minimum": null, "maximum": 0.85,
-     "reason": "Predicted OFF-state leakage above the acceptable threshold."}
-  ]
-}
-```
-
-The frontend reads `gate_families` and `scoring_profiles` from here to populate its
-configuration form. The Platform cannot import the engine's registries directly
-([architecture.md §3](architecture.md)), so the engine advertises them instead.
-
-`metrics` (nine entries; one shown above) is the vocabulary `POST /api/design`'s
-`scoring.weights` accepts — including `unit`, the one piece of metadata that
-distinguishes `dynamic_range` (linear fold) from `state_separation` directly above it
-(log2 fold), and `gc_content` (0–100) from every neighbouring probability (0–1).
-
-**Planned families are listed with `available: false`**, so the wizard renders them greyed
-out with their real label — flipping the flag on the class changes the UI with no frontend
-release.
-
-> **Not yet host-aware.** CRISPR is eukaryotic only, but this endpoint reports
-> availability without an organism, so the wizard cannot grey it out for *E. coli*
-> specifically. Task **P2** in [ROADMAP.md](ROADMAP.md).
-
----
-
-## Worked example
-
-The full workflow, verified against a live server and worker:
-
-```bash
-./do dev        # terminal 1
-./do worker     # terminal 2 — without this, runs sit in QUEUED forever
-```
-
-1. `GET  /api/auth/csrf` → cookie
-2. `POST /api/auth/login`
-3. `GET  /api/version` → available gate families
-4. `POST /api/datasets` (multipart) → `VALID`
-5. `POST /api/runs` → **202**, `QUEUED`
-6. `GET  /api/runs/{id}` every 3s → `RUNNING 30% Discovering candidate features` → … → `COMPLETED 100%`
-7. `GET  /api/runs/{id}/candidates` → ranked, best first
-8. `GET  /api/candidates/{id}` → metric decomposition
-9. `GET  /api/artifacts/{id}/download` → the FASTA
-10. `POST /api/candidates/{id}/annotations`
-11. `GET  /api/runs/{id}/export.csv`
-
-Steps 3–9 collapse into one `POST /api/design` call from a script — see
-[Design — the one-call fast path](#design--the-one-call-fast-path) above.
-
----
-
-## Client libraries
-
-Every client — including `curl` — wraps the same five calls:
-`POST /api/design` · `GET /api/design/{id}` · `GET /api/design/{id}/results` ·
-`GET /api/artifacts/{id}/download` · `GET /api/version`. Anyone needing more talks to
-this reference or `/api/docs` directly; that is the integration story, and it costs
-nothing extra to keep working, since it is the same surface the SPA uses.
-
-### `curl` — the client that never breaks
-
-```bash
-KEY=cern_live_7Kd2mQ8vF3xR9wLbN4pT6yH1sJ0aZcVe
-HOST=https://your-cernal-host
-
-# submit and wait
-curl -s "$HOST/api/design?wait=60" -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
-  -d '{"trigger_sequence": "AUGGCUAAGCUUAACGGAUCCAUGGCUAAGCUUAAC", "organism": "ecoli"}' \
-  | tee response.json
-
-# or poll by hand
-JOB=$(jq -r .job_id response.json)
-curl -s "$HOST/api/design/$JOB" -H "X-API-Key: $KEY"
-curl -s "$HOST/api/design/$JOB/results?top_n=10" -H "X-API-Key: $KEY" | jq '.candidates[0]'
-curl -s "$HOST/api/design/$JOB/results?format=csv" -H "X-API-Key: $KEY" -o candidates.csv
-```
-
-### Python — `pip install cernal`
-
-```python
-import os
-from cernal import Client
-
-c = Client(api_key=os.environ["CERNAL_API_KEY"], base_url="https://your-cernal-host")
-job = c.design(trigger_sequence="AUGGCUAAGCUUAACGGAUCC", organism="ecoli")
-df = job.wait().to_dataframe()
-```
-
-`clients/python/` in this repo. `requests` only; pandas is optional
-(`pip install cernal[pandas]`, or use `.to_dicts()`). Genuinely tested end to end
-against a live server — see `clients/python/tests/test_conformance.py`.
-
-### R — `remotes::install_github(..., subdir = "clients/r")`
-
-```r
-library(cernal)
-cl  <- cernal_client(Sys.getenv("CERNAL_API_KEY"), base_url = "https://your-cernal-host")
-job <- cernal_design(cl, trigger_sequence = "AUGGCUAAGCUUAACGGAUCC", organism = "ecoli")
-df  <- cernal_results(cernal_wait(job))
-```
-
-`clients/r/`. `httr2` + `tibble`. The natural next step —
-`DESeq2::results() |> as.data.frame() |> cernal_design(...)` — is DESeq2 output to
-plasmid design in one script.
-
-### MATLAB — a `+cernal` package folder
-
-```matlab
-c = cernal.Client(getenv('CERNAL_API_KEY'), 'BaseURL', 'https://your-cernal-host');
-job = c.design('trigger_sequence', 'AUGGCUAAGCUUAACGGAUCC', 'organism', 'ecoli');
-T = job.wait().results();
-```
-
-`clients/matlab/`. `webwrite`/`webread` only — no toolbox. `addpath` the folder; there
-is no package manager worth targeting here.
-
-> **R and MATLAB have not been run against a live server** — no interpreter was
-> available while building them. Both are written directly from this reference and the
-> engine's actual, tested responses, and both ship a conformance test against
-> `clients/fixtures/`, but treat them as a first draft until someone with the runtime
-> confirms they pass. The Python client has been; its conformance suite is in CI.
-
-## Reference gene input
-
-`GET /api/reference-genes/resolve?organism=human&gene=SELE` resolves a stable ID or
-unambiguous symbol and returns its RNA sequence, canonical gene ID, transcript ID,
-reference release, and selection policy. Authentication is required.
-
-`POST /api/runs` accepts `input_mode: "gene"`, `organism`, and `gene_id` (or
-`params.target_gene.gene_id`). `POST /api/design` accepts `gene_id` as its exclusive
-input source. Sequences and provenance are frozen when the run is submitted. All four
-organisms support DE, direct, and gene input; DE accepts CSV, TSV, TXT, and XLSX.
-
-The engine-only `closure_set` axis is deliberately not accepted by the public API,
-alongside `stem_order` and `stems_per_pair`: these control one family's sampling
-budget, not a validated cross-family biological constraint. Requests containing
-`constraints.closure_set` receive 422. Exposing it requires a separate API decision.
+The [original HTTP notes](archive/operator-design/api.md) preserve detailed examples
+and historical evolution. They include obsolete endpoint counts, mock/stub claims,
+optimistic runtime estimates and client-publication commands. The active reference,
+source and running OpenAPI take precedence.

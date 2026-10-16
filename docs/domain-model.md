@@ -1,259 +1,73 @@
-# Domain model reference
+# Platform data model
 
-Seven models, down from the fifteen entities in design map 05. The architectural
-reasoning for the cuts is in [architecture.md §5](architecture.md); this document is the
-field-level reference for what actually exists. The *values* these fields carry — input
-modes, organisms, gate families, payloads — are explained in
-[modalities.md](modalities.md).
+Source baseline: `main` at `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+See [status and remaining work](status.md) for verification and release limits.
 
-UUID primary keys throughout — identifiers appear in URLs and are handed to the engine,
-so they must not leak row counts or be guessable by increment.
+This is a navigation and invariant guide. The linked Django model definitions and
+migrations are the field-level authority; the engine's frozen scientific records are
+separate in [domain.py](../src/engine/domain.py) and [contract.py](../src/engine/contract.py).
 
-Runs are not organized into projects — each `AnalysisRun` stands on its own, scoped only
-to the user who submitted it (`created_by`). A `Dataset` is scoped the same way
-(`uploaded_by`).
+## Stored objects
 
-```
-User ──┬── Dataset
-       ├── AnalysisRun ── Dataset (PROTECT)
-       │       │
-       │       ├── Candidate ──┬── CandidateMetric
-       │       │               ├── Artifact
-       │       │               └── Annotation ── User
-       │       └── Artifact (run-level)
-       └── Annotation
-```
-
----
-
-## `accounts.User`
-
-`AbstractUser`, intentionally empty. Declared at Step 0 **before the first migration** —
-swapping `AUTH_USER_MODEL` afterwards is a well-known Django trap.
-
-Workspaces, memberships and roles from design map 05 are **not** implemented. An iGEM
-team is one trusted group; authorization is "is this object mine, or am I staff".
-Re-add when external collaborators need scoped access.
-
-## `datasets.Dataset`
-
-**Immutable.** Re-uploading creates a new row — the Dataset *is* the version, which is
-why map 05's separate `DatasetVersion` table is unnecessary.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID pk | |
-| `name` | Char(200) | |
-| `file` | FileField | `var/media/datasets/<id>/<name>` |
-| `checksum_sha256` | Char(64), read-only | Computed once on upload |
-| `size_bytes` | BigInt, read-only | |
-| `schema_version` | Char(20) | Format this was validated against |
-| `validation_status` | `PENDING` · `VALID` · `INVALID` | |
-| `validation_report` | JSON | Columns, row counts, errors, warnings |
-| `uploaded_by` | FK → User, PROTECT | |
-| `created_at` | DateTime | |
-
-`is_usable` → only a `VALID` dataset may be submitted.
-
-Validation is **synchronous on upload** and deliberately shallow: readable file,
-expected columns, sane row count, parseable numerics. Deep scientific validation belongs
-to the engine and happens at run time.
-
-## `analyses.AnalysisRun`
-
-The centre of the product. **Immutable once submitted.**
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID pk | Also the external run identifier |
-| `organism` | Char(100), blank | e.g. `"E. coli"` — free text, submitted with the run |
-| `input_mode` | `de` · `direct` | How the trigger was supplied ([modalities.md §1](modalities.md)) |
-| `dataset` | FK → Dataset, **PROTECT**, null | **Null when `input_mode` is `direct`** — there is no uploaded table |
-| `trigger_sequence` | Text, blank | The pasted mRNA when `input_mode` is `direct` |
-| `created_by` | FK → User, PROTECT | Deleting an account never orphans research |
-| `idempotency_key` | Char(64), **unique** | A retry must not launch a second computation |
-| `params_snapshot` | JSON | Full normalized configuration, frozen at submission |
-| `gate_families` | JSON list | |
-| `scoring_profile` | Char(50) | |
-| `seed` | Int, null | |
-| `status` | see below | |
-| `stage` | Char(100) | Human-readable, shown to the user |
-| `progress_pct` | Int 0–100 | DB-enforced bounds |
-| `cancel_requested` | Bool | Cancellation is cooperative |
-| `engine_version` | Char(50) | Recorded at completion |
-| `error_summary` | Text | Safe to show a researcher |
-| `warnings` | JSON list | |
-| `submitted_at` / `started_at` / `finished_at` | DateTime, null | |
-
-### Database-enforced invariants
-
-| Constraint | Guarantees |
+| Model | Purpose and relationships |
 |---|---|
-| `run_has_exactly_one_input_source` | A `de` run has a dataset; a `direct` run does not. Neither can be written with the wrong one |
-| `progress_pct_within_bounds` | 0–100, in the schema rather than only in the validator |
+| [User, ApiKey](../src/apps/accounts/models.py) | Standard custom AbstractUser; keys belong to users, retain prefix/digest, scopes, expiry/revocation and quotas. User IDs are integers; API-facing research IDs are generally UUIDs. |
+| [Dataset](../src/apps/datasets/models.py) | Owner, immutable uploaded file, checksum/size, validation report/status and optional provenance. Re-upload creates a new row. |
+| [Expression catalog](../src/apps/expression/models.py) | Public experiment/comparison metadata and cached expression provenance; catalog materialization creates an owned dataset. |
+| [AnalysisRun](../src/apps/analyses/models.py) | Owner, input, frozen configuration, seed/families/profile, state/progress, timestamps, queue time and execution lease token. |
+| [Candidate](../src/apps/results/models.py) | Run-local engine reference, rank, score, triggers/design, warnings and rejection reason. |
+| CandidateMetric | Unique `(candidate, name)`; nullable raw/normalized values plus weight and direction. Missing is not zero. |
+| Artifact | Run, optional candidate, stored file, checksum/size, MIME type, kind and `sequence_free` classification. |
+| Annotation | Candidate, author, text and decision tag; researcher judgment rather than engine output. |
 
-**Collapsed from map 05:** `AnalysisConfiguration` → `params_snapshot`;
-`EngineJobReference` → `engine_version` + `status` + `stage`; `ResultManifestRecord` →
-`engine_version` + `params_snapshot` + artifact checksums.
+## Input and lifecycle invariants
 
-### States
+`input_mode` is `de`, `direct` or `gene`. DE requires a dataset; direct and gene runs
+have no dataset. Services enforce sequence/gene semantics beyond the database's
+mode/dataset check. Organism is a supported host key, not arbitrary display text;
+query `/api/version` for the current capability set.
 
-```
-DRAFT ──submit──► QUEUED ──worker──► RUNNING ──► COMPLETED
-                    │                   │
-                    │                   ├──► FAILED
-                    └────cancel─────────┴──► CANCELLED
-```
+Idempotency is unique per `(created_by, idempotency_key)`, not globally. A retry of the
+same normalized request returns its existing run; conflicting reuse is rejected.
+The submitted configuration remains frozen while lifecycle fields change.
+Progress is database-constrained to 0–100. The state graph, including QUEUED → FAILED
+on timeout, lives in `ALLOWED_TRANSITIONS`; see [architecture](architecture.md).
 
-`ALLOWED_TRANSITIONS` in `apps/analyses/models.py` is the specification, and is asserted
-by `tests/test_models.py`. Terminal states have no outgoing edges.
+Rejected candidates must carry a reason and have no rank. `(run, engine_ref)` is
+unique. An annotation's `REJECTED` tag is a human review decision and does not rewrite
+the candidate's scientific rejection status. Tags include NONE, PINNED, SHORTLISTED,
+REJECTED and SYNTHESIZE; the last is not a sequence-release authorization.
 
-Helpers: `is_terminal`, `is_active`, `can_transition_to(status)`.
+## Import, artifacts and release
 
-> Transitions happen **only** in `apps/analyses/services.py` (rule 5). Django admin
-> renders `status` read-only and refuses to create runs, so admin cannot be used to
-> sidestep this.
+[Result services](../src/apps/results/services.py) validate the result and artifact
+checksums, import database records atomically, and write derived `summary.csv` and
+`manifest.json`. They do not own run-state transitions. Staging and import failure
+recovery are described in [operations](operations.md); database atomicity does not
+make filesystem writes transactional.
 
-`params_snapshot` is the immutable record of everything the wizard asked for, including
-the two axes that have no column of their own — host organism and output payload. See
-[modalities.md §7](modalities.md).
+Artifact `kind` describes content; category/label are computed from `_KIND_INFO`.
+Unmapped kinds remain available under `other`. Plasmid, reporting and structure code
+exists; do not infer artifact availability from an old “stage is a stub” statement.
+What a particular run emits depends on accepted candidates, configuration and release
+policy. List that run's artifacts and inspect `download_available`.
 
-## `results.Candidate`
+Owner/staff checks and release checks apply to downloads. Individual sequence-bearing
+files can be withheld; ZIP requests containing withheld artifacts fail rather than
+silently supplying an incomplete archive. Never serve media directly from the proxy.
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID pk | |
-| `run` | FK → AnalysisRun, CASCADE | |
-| `engine_ref` | Char(50) | The engine's local id; unique per run |
-| `rank` | Int, null | Null for rejected candidates |
-| `overall_score` | Float, null | 0–1, higher is better |
-| `gate_family` / `logic_type` | Char(50) | |
-| `triggers` / `design` | JSON | Sequences, structure, logic graph |
-| `summary` | Text | |
-| `warnings` | JSON list | |
-| `is_rejected` | Bool | |
-| `rejection_reason` | Text | |
+## Deletion and ownership
 
-### Database-enforced invariants
+Run deletion cascades to its candidates, metrics, artifacts and annotations at the
+model level; this is not a promise of a public run-delete HTTP route. Referenced datasets
+and users with protected research relationships cannot simply be removed. File retention
+and orphan cleanup are separate operational concerns. Review [security](security.md)
+and dry-run cleanup output before deleting data.
 
-| Constraint | Guarantees |
-|---|---|
-| `rejected_candidates_carry_a_reason` | **Rule 8** — a rejected candidate with no reason cannot be written |
-| `rejected_candidates_are_unranked` | Rejected candidates never occupy a rank |
-| `unique_engine_ref_per_run` | A result manifest cannot be imported twice into one run |
+Ordinary object queries scope by dataset uploader or run creator; staff can access
+other owners' records. Missing and unauthorized objects both return 404. Annotation
+records remain tied to their candidate; a new run does not automatically copy them.
 
-Rule 8 lives in the schema rather than in a code path, so no future import path, admin
-action or data migration can quietly drop the reason.
-
-## `results.CandidateMetric`
-
-A table rather than a JSON blob, so the comparison UI can sort and filter in SQL.
-
-| Field | Type |
-|---|---|
-| `candidate` | FK → Candidate, CASCADE |
-| `name` | Char(100) |
-| `raw_value` | Float, null |
-| `normalized_value` | Float, null — 0–1, 1 is best |
-| `weight` | Float |
-| `direction` | `HIGHER_BETTER` · `LOWER_BETTER` |
-
-Unique per `(candidate, name)`. Both raw and normalized values are kept: the researcher
-is shown the decomposition, never a single opaque score (design map 12).
-
-## `results.Artifact`
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID pk | |
-| `run` | FK → AnalysisRun, CASCADE | |
-| `candidate` | FK → Candidate, null | Null = run-level artifact |
-| `kind` | Char(50) | `sequence_fasta`, `design_table`, `summary_table`, `run_manifest`, `genbank`, `structure_plot`, `logic_graph`, `report` |
-| `file` | FileField | `var/media/artifacts/<run id>/<relative path>` |
-| `media_type` | Char(100) | |
-| `checksum_sha256` | Char(64), read-only | Verified on import |
-| `size_bytes` | BigInt, read-only | |
-
-Subdirectories from the engine's artifact paths are preserved, so `sequences/x.fasta`
-and `plots/x.fasta` cannot collide. Path traversal and absolute paths are stripped.
-
-> Artifacts are **never** served by a static file handler. They go through an authorized
-> download view that checks run ownership ([architecture.md §7.2](architecture.md)).
-
-### Categories, for the download UI
-
-`kind` is not the same axis as `category` — `category` is how the download UI groups
-files (`ArtifactCategory` in `apps/results/models.py`), computed from `kind` by a
-lookup table (`_KIND_INFO`), not stored. An artifact whose `kind` the table has not
-learned yet still downloads fine, just filed under `other` instead of a specific
-group — a new engine artifact is never invisible, only ungrouped until this table
-catches up.
-
-| Category | `kind`s | Notes |
-|---|---|---|
-| `summary` | `design_table`, `summary_table`, `run_manifest` | `summary_table`/`run_manifest` are platform-native, not engine output — see below |
-| `sequences` | `sequence_fasta` | The switch/gate sequence, not a full plasmid |
-| `plasmids` | `genbank` | Not produced yet — stage 5 (`PlasmidBuilder`) is still a stub ([ROADMAP.md](ROADMAP.md)) |
-| `diagrams` | `structure_plot`, `logic_graph` | Not produced yet — stage 6 (`reporting.py`) is still a stub |
-| `reports` | `report` | Not produced yet |
-| `other` | anything unmapped | The fallback, never a dead end |
-
-### Platform-native artifacts
-
-`summary_table` (`summary.csv`) and `run_manifest` (`manifest.json`) are not written by
-the engine — `apps.results.services._write_derived_artifacts` materializes them at
-import time, computed from the candidates/metrics that import just wrote and from the
-`JobResult` (not from `run`, which has not yet been stamped `COMPLETED` at that point —
-see "Importing an engine result" below). `build_candidates_csv(run)` is the one place
-that decides what "the summary table" contains; `GET /api/runs/{id}/export.csv` calls
-the same function, so the two can never drift apart.
-
-## `results.Annotation`
-
-Product-owned and entirely independent of engine output, so decisions survive re-runs.
-
-| Field | Type |
-|---|---|
-| `candidate` | FK → Candidate, CASCADE |
-| `author` | FK → User, PROTECT |
-| `text` | Text |
-| `decision_tag` | `NONE` · `PINNED` · `SHORTLISTED` · `REJECTED` · `SYNTHESIZE` |
-| `created_at` | DateTime |
-
----
-
-## Deletion behaviour
-
-| Action | Result |
-|---|---|
-| Delete a run | Candidates, metrics, artifacts and annotations go with it |
-| Delete a dataset used by a run | **Blocked** (PROTECT) |
-| Delete a user with datasets or runs | **Blocked** (PROTECT) |
-
-Deleting demo data therefore requires dependency order — see `_reset()` in
-`apps/common/management/commands/seed_demo.py`.
-
-## Importing an engine result
-
-`apps.results.services.import_job_result(run, result, output_dir)` writes a `JobResult`
-into these tables **atomically**: either the whole result lands or none of it does. It
-verifies the manifest's input checksum against the dataset, verifies every artifact's
-checksum, links candidate-level artifacts to their candidate, refuses to import twice
-into the same run, and materializes the two platform-native artifacts above.
-
-It deliberately does **not** touch `run.status` — transitions belong to
-`apps/analyses/services.py` (rule 5). This is also why `run_manifest`'s content reads
-`engine_version`, `status` and `finished_at` from `result` and the current instant
-rather than from `run`: this function runs strictly before the caller transitions the
-run to `COMPLETED` and stamps those fields, so `run` itself is still mid-flight.
-
-## Seeing it populated
-
-```bash
-./do manage seed_demo --candidates 24
-./do dev     # then browse http://localhost:8000/admin/
-```
-
-`seed_demo` drives `MockEngine` through the real import path, so what lands in the
-database is exactly what Step 3's run lifecycle will produce — not hand-written fixtures
-that drift away from reality.
+The [original detailed model notes](archive/operator-design/domain-model.md) preserve
+historical rationale and field tables, but contain obsolete model counts, global
+idempotency and MockEngine claims. Consult source for current fields.

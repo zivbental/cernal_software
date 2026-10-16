@@ -1,5 +1,8 @@
 # Trigger/nucleation marginal-accessibility ranking
 
+Source baseline: `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+See [status](status.md) for release evidence and pending work.
+
 **Status:** reusable offline/research analysis, built and tested.
 
 `tools/trigger_nucleation_ranking.py` is the repository home for the ranking logic that
@@ -11,7 +14,8 @@ provenance.
 This utility is deliberately separate from the production
 `engine.stages.triggers.TriggerScorer`. The production scorer ranks exact gate footprints
 with gate-aware joint P8 evidence, terminal-20 opening diagnostics, motif screening,
-off-target evidence and construct design constraints. This analysis answers a narrower
+and later construct design constraints. No transcriptome-wide off-target evidence is
+computed by the production scorer at this baseline. This analysis answers a narrower
 research question about arithmetic aggregates of **marginal** RNAplfold accessibility. It
 must not be substituted for the production stage or described as a biological-success
 model.

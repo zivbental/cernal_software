@@ -1,5 +1,8 @@
 # Collaborations
 
+Source baseline: `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+See [status](status.md) for release evidence and pending work.
+
 This file records work CERNAL uses that was made by another iGEM team, on what terms, and
 exactly which version. It is the source of truth for the collaboration section of the wiki
 and for the iGEM Attribution Form.
@@ -49,9 +52,12 @@ its own, and its `LICENSE` carries no filled-in copyright line.)
 ### One energy model
 
 Their code loads its own ViennaRNA parameter file with `RNA.params_load()`, which is
-process-global. This does not create a second energy model because that file is numerically
-identical to the ViennaRNA 2.7.2 defaults CERNAL's `FoldEngine` uses (checked across all
-8,059 lines; only the line endings differ).
+process-global. The historical default-model comparison found that file numerically
+identical to ViennaRNA 2.7.2 defaults (checked across all 8,059 lines; only line endings
+differed). CERNAL now also supports explicit per-run folding configurations; this
+default-model comparison is not evidence that the vendor implements every configurable
+CERNAL model. Preserve vendor optimization provenance separately from run folding
+provenance when interpreting results.
 `tests/engine/test_ais_china_energy_model.py` makes that a standing check: it asserts
 their parameter file still matches the hash in their own `config/rna_model.json`, that
 loading it leaves `FoldEngine`'s folds bit-identical, and that their ensemble calculation

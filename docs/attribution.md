@@ -65,9 +65,10 @@ on the Attribution Form.
 
 ## 3. Third-party software
 
-Every dependency below is under a permissive, OSI-approved license compatible with
-CERNAL's own Apache-2.0 license. Versions are those resolved at the time of writing; the
-authoritative pins are [`uv.lock`](../uv.lock) and
+This is a contributor-maintained license inventory, not a complete dependency or legal
+compliance audit. CERNAL's Apache-2.0 license does not replace third-party terms; review
+the exact distributed artifacts and upstream notices before packaging. The
+authoritative dependency pins are [`uv.lock`](../uv.lock) and
 [`frontend/package-lock.json`](../frontend/package-lock.json).
 
 ### Python — runtime
@@ -88,8 +89,7 @@ authoritative pins are [`uv.lock`](../uv.lock) and
 
 ### Work by other iGEM teams
 
-**iGEM AIS-China — `codon-optimization-v2`** (Apache-2.0), used as an unmodified git
-vendored, unmodified, at `vendor/ais-china-codon-optimization-v2` with the authors'
+**iGEM AIS-China — `codon-optimization-v2`** (Apache-2.0), vendored, unmodified, at `vendor/ais-china-codon-optimization-v2` with the authors'
 written approval. See that directory's `PROVENANCE.md` for the exact upstream commit.
 Version, pinned commit, reference data and the Apache-2.0 §4(b) statement are in
 [collaborations.md](collaborations.md). Credit it on the wiki's collaboration page.
@@ -112,7 +112,8 @@ pytest (MIT), pytest-django (BSD-3-Clause), ruff (MIT).
 | class-variance-authority, SheetJS (`xlsx`), TypeScript, Playwright | Apache-2.0 |
 | Vite, ESLint and the build toolchain | MIT |
 
-No GPL, AGPL or other copyleft dependency is present in either tree.
+Do not infer that every transitive dependency has the same terms from this selected list.
+Review both lockfiles and the licenses in the installed artifacts for a release.
 
 ### Scientific dependencies — not OSI-approved
 
@@ -135,8 +136,9 @@ This does not affect CERNAL's own license, but it constrains distribution:
   wholly open source.
 - The dependency and its license must be stated on the wiki's software page alongside
   the claim that CERNAL is open source.
-- All ViennaRNA calls are funnelled through one module so the backend can be swapped;
-  that boundary is the mitigation if an OSI-licensed alternative becomes preferable.
+- ViennaRNA access is confined to the scientific folding adapters; see the current
+  [engine guide](engine.md) for their boundaries. A dependency change needs scientific
+  regression and license review.
 
 ## 4. Design assets
 

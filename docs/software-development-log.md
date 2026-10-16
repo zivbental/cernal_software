@@ -1,5 +1,7 @@
 # Software development log
 
+Dated entries retain the status known when written. Current implementation and merge status are in [status](status.md); older “pending” statements below are not live blockers.
+
 This notebook is CERNAL's contest-ready, evidence-first record of meaningful software development. It complements the roadmap (future work), ADRs (decisions), tests, CI, and pull requests; it does not replace them.
 
 ## 2026-10-12 — Audit F5: current documentation and scientific interpretation

@@ -1,61 +1,38 @@
-# Gate notebooks
+# Gate research notebooks
 
-A folder per gate family, for driving a single gate by hand — instantiate it, feed it a
-trigger set, call each method, look at what comes back — **without** starting Django, the
-task worker or the pipeline.
+These are **offline research/manual workbenches**, not the production capability list.
+The application baseline is main `c1bb92cc085a6bad272298b81bda28c22b1d57f5`.
+See [current status](../../../../docs/status.md), [engine methods](../../../../docs/engine.md)
+and [scientific interpretation](../../../../docs/scientific-interpretation.md).
 
-| Folder | Primary notebook | Class | Status |
-|---|---|---|---|
-| [`toehold/`](toehold/) | [`toehold.ipynb`](toehold/toehold.ipynb) | `ToeholdGate` — single input | `available`, bodies land in Step 5 |
-| [`toehold_and/`](toehold_and/) | [`toehold_and.ipynb`](toehold_and/toehold_and.ipynb) | `ToeholdAndGate` — two-input AND | `available`, bodies land in Step 5 |
-| [`antisense/`](antisense/) | [`antisense.ipynb`](antisense/antisense.ipynb) | `AntisenseNotGate` — NOT | planned (`available = False`) |
-| [`crispr/`](crispr/) | [`crispr.ipynb`](crispr/crispr.ipynb) | `CrisprGate` — sgRNA / iSBH | planned, eukaryotic only |
+| Directory | Scope |
+|---|---|
+| [toehold](toehold/) | Single-input walkthroughs and eukaryotic examples |
+| [toehold_and](toehold_and/) | AND experiments, comparison reports and design studies; not selectable on main |
+| [antisense](antisense/) | Antisense research; its class exists but production capability validation excludes it |
+| [crispr](crispr/) | CRISPR notebook; see the separate [workbench guide](../../../../docs/crispr-workbench.he.md) |
 
-Each folder holds the gate's walkthrough now and gets more notebooks as the science
-lands — parameter sweeps, leakage scans, structure comparisons. The walkthrough keeps
-the gate's own name; name the siblings for what they do (`toehold/stem-length-scan.ipynb`).
+The earlier claim that every gate method raises `NotImplementedError("Step 5")` is obsolete.
+Inspect the notebook's own inputs, execution cells and saved outputs before relying on it.
+Saved outputs can predate current code; rerunning is a separate computation, not proof of
+biological efficacy. Pending AND branches are pinned in [status](../../../../docs/status.md).
 
-[`_fixtures.py`](_fixtures.py) is the shared setup every notebook imports as `fx`: the
-`sys.path` bootstrap, sample `TriggerCandidate` / `TriggerSet` / `Constraints` builders,
-a fake `StubFoldEngine` (so the sequence-construction code runs with no ViennaRNA), and
-one-line gate builders (`fx.toehold(...)`, `fx.crispr(...)`, …). It stays in this root
-folder; the notebooks reach up to it.
+## Setup and execution
 
-## Running them
-
-**VS Code** — open a notebook and pick the `.venv` interpreter. `ipykernel` is already
-installed, so nothing else is needed.
-
-**Browser** — install a front end once, then launch from this folder:
+From the repository root, install the locked development environment:
 
 ```bash
-uv pip install jupyterlab          # or:  uv add --dev jupyterlab
-cd src/engine/gates/notebooks
-../../../../.venv/bin/jupyter lab
+uv sync --locked --extra dev
 ```
 
-Wherever a notebook is launched from, its first cell walks up from its own folder until
-it finds `_fixtures.py`, adds that folder to `sys.path`, and then `fx.bootstrap()` puts
-`<repo>/src` on the path so `import engine...` resolves.
+Open a notebook in VS Code and choose the repository `.venv` interpreter. `ipykernel`
+is a development dependency. JupyterLab is an optional front end, not part of the lockfile;
+if needed install it into a separate tooling environment or deliberately manage its addition.
+Do not imply an optional Jupyter installation changes the project's scientific lock.
 
-## What to expect
-
-Every scientific method on a gate currently raises `NotImplementedError("Step 5")`.
-`fx.attempt(...)` catches that and prints `pending Step 5` instead of a traceback, so a
-notebook still reads top to bottom today. What already produces real output:
-
-- `required_tools()` — the declared external dependencies
-- `is_compatible()` for the **planned** families (`antisense`, `crispr`) — they return
-  `Compatibility.no(...)` rather than raising
-- `emit_sequence()` and `describe()` — via a hand-built `fx.sample_design(...)`
-
-When the Step 5 bodies land, the same notebooks become a live manual test harness with
-no edits — the `pending Step 5` lines start printing results.
-
-## Real folding
-
-The default `fx.StubFoldEngine` is deterministic and fake. For genuine structure
-predictions (needs `import RNA` — ViennaRNA — to work):
+[_fixtures.py](_fixtures.py) provides shared bootstrap, example records and gate builders.
+Some walkthrough helpers use deterministic `StubFoldEngine` outputs by default. Those
+are software fixtures, not real ViennaRNA predictions. Where supported, select real folding:
 
 ```python
 gate = fx.toehold(host=fx.Host.ECOLI, real_fold=True)
@@ -63,9 +40,11 @@ folder = fx.fold_engine(real=True)
 folder.mfe("GGGAAACCCUUUGGGAAACCC")
 ```
 
-## Not part of the package
+Record the exact computation commit, parameters, reference versions, seed, folding backend
+and input/output checksums. Distinguish sampled/exact estimands, joint/marginal probabilities
+and computational/experimental observations. Retain raw data even when interpretations change.
+The [evidence guide](../../../../docs/evidence/README.md) explains reproducibility requirements.
 
-This tree is a manual workbench, not importable engine code — no `__init__.py`, and
-nothing under `engine/` imports from here. Keep one-off experiments in a new notebook in
-the relevant gate folder rather than editing the walkthroughs; those are meant to stay
-runnable as-is.
+This tree is outside the production import path. Application integration needs capability,
+validation, persistence, export and release-policy tests; it does not follow from a notebook
+or a gate class's `available` attribute.

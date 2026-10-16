@@ -1,0 +1,929 @@
+# Roadmap
+
+> **The single place future work is recorded.** Every task, open question and planned
+> implementation lives here. If it is not in this file, it is not planned — and if you
+> finish something here, update it in the same commit.
+>
+> Architecture that is already decided is in [architecture.md](architecture.md); it is
+> not repeated here. Rationale that is already settled is in [decisions/](decisions/);
+> §9 lists what is closed so nobody re-opens it.
+
+---
+
+## 0. Current status — 8 October 2026
+
+The default and only production engine is `engine.client.LocalEngine`. It performs
+real folding and candidate search; it is a computational prototype with provisional
+scientific models, not an experimentally validated circuit compiler. The dated
+[software audit](SOFTWARE_STATUS_REVIEW_2026-10-08.md) preserves the before state.
+[Remediation status](REMEDIATION_STATUS.md) records current fixes and remaining work.
+
+| Area | Implemented | Current limits |
+|---|---|---|
+| Inputs and reference resolution | Direct sequence, named gene and DE table input for E. coli, yeast, Human and C. acnes; CSV/TSV/TXT/XLSX DE parser | Reference mapping completeness and intended contrasts need stewardship; counts/metadata inference is not provided |
+| Scientific tools | ViennaRNA folding, RNAplfold profiling, gene/trigger selection, single-input toehold generation, scoring, construct assembly; CircuitDesigner and CodonOptimizer components exist | Component existence does not establish production integration, physical multigate logic, specificity or experimental efficacy |
+| Capabilities | `GET /api/version` identifies production families, their hosts, outputs and constraints | GFP/custom coding sequences are the supported payloads; the eukaryotic two-input AND is integrated (docs/and-gate.md), while the prokaryotic AND, antisense and CRISPR remain separate integration tasks |
+| Results and release | Computational ranks, stored warnings and frozen configuration; available artifact downloads | Uncalibrated accessibility/binding quantities are proxies. Sequence release is a separate fail-closed policy decision; an unconfigured adapter holds exports |
+| Product and clients | Wizard, progress, paged results/history, notes/review tags, Python/R/MATLAB source clients | Synthesis ordering has no funded/integrated partner. R and MATLAB execution require their runtimes and have not been verified locally |
+| Delivery | Locked Python 3.13 dependencies, frontend build/check and test lanes | Deployment, screening operations, backup recovery, human data governance and supported-runtime verification remain release acceptance work |
+
+Q1 is resolved for reference availability in all four hosts. Q1 does not establish
+transcriptome-wide off-target screening, tissue-specific isoform expression or full
+public-dataset mapping. Q2–Q15 scientific decisions remain scoped to their evidence,
+not silently closed by software tests. Historical execution counts below are dated
+observations and must not be treated as current expected candidate counts.
+
+Run the commands in the audit's reproduction section to obtain current test counts.
+The audit baseline passed 1,655 main-suite tests on 8 October; remediation tests are
+reported separately in the living status file. Formatter/client/browser defects found
+by that audit are tracked as GAP-05 and PD-06–09.
+
+## 1. Current priorities
+
+Resolve privacy/input integrity and worker terminal-state defects, make every
+selectable combination match authoritative production capabilities, and retain
+scientific/release warnings at the point of use. Missing mechanisms, payloads,
+functional validation and off-target work are feature/science tasks with explicit
+acceptance criteria, not completed by disabling UI choices.
+
+Use the audit's ENG, PLAT, PD and GAP identifiers in commits and release evidence.
+Only Offer and Ziv merge approved changes into `main`. Deployment, package
+publication and ordering require their own explicit authorization.
+
+### Done · the ON ceiling reads the ribosome's window
+
+`measure_design` gated on `open_11`, the main stem's arms (15 nt), while the value it
+stands for is measured over the ribosome's window (31 nt). Two earlier versions of this
+entry argued first that this was a defect and then that it was safe because the spans are
+nested. Both were beside the point: the gate now reads `dG_open_11`, the span the number
+belongs to, and there is nothing to reconcile.
+
+* threshold **7.2 kcal/mol** — the highest ON cost among Green's 77 switches above
+  20-fold ON/OFF; the median over all 168 is 3.64
+* `dG_open_11` is computed from the same ON-tube complex as `open_11`, so the extra cost
+  is one constrained partition function, not a second fold
+* `open_11` stays as an observable: every design built before the change carries it, and
+  it is what the stem levers act on most directly
+* **family version 0.6.0.** A run under 0.5.0 and a run under 0.6.0 are not comparable at
+  the same numeric setting, and the release note must say so
+* `tools/run_axes.cmd` and `tools/run_axes_complete.cmd` now default to `CEIL=7.2`
+
+**The run in progress keeps the old rule.** Its shards loaded 0.5.0 and will not pick this
+up unless restarted, so `axes_c8` is a 0.5.0 table. Everything in it that was fully
+measured carries `dG_open_11` and can be re-filtered at 7.2 without re-running — 109,803 of
+147,244 (74.6%) pass. Designs it stopped at the old ceiling have no `dG_open_11` and would
+need rebuilding to be judged on the new one.
+
+### Open · the invasion-run cap has no source
+
+`MAX_INVASION_STALL = 2` in `ToeholdAndGate`, with the comment *"Three in a row is enough
+to stall branch migration."* **That number is not attributed to anything.** It is a hard
+filter — it rejected 5 of 12 all-A builds in one test, so it is doing real work — and a
+hard filter with no provenance is exactly what CLAUDE.md §3 warns about.
+
+Find where it came from, or set it from something. Candidates to check: the
+strand-displacement kinetics literature already in the team's folder
+(`Toehold/RBS/Control of DNA strand displacement kinetics using toehold exchange`), Green
+2014's supplementary, and Kim 2019. If nothing supports it, it should either be derived
+from a measured distribution of stall runs across real candidate stems, or demoted from a
+filter to a recorded observable so the choice is visible rather than silent.
+
+The wiki page must not state a justification for it until one exists.
+
+### Open · widen the reading-frame repair to the whole acceptance window
+
+**For the toehold AND family, found while writing the model page.**
+
+A 30S subunit does not scan. It anchors on the Shine–Dalgarno and accepts a start codon a
+short distance downstream, with 6–8 nt optimal (Reeve et al. 2014, after Vellanoweth &
+Rabinowitz 1992). So:
+
+* an `AUG` **upstream** of the Shine–Dalgarno starts nothing. `augs_upstream_of_rbs`
+  counts them and is right to — 3,716 across 2,176 designs, none reachable.
+* an out-of-frame `AUG` **inside the acceptance window** is a competing start that
+  produces a different protein.
+
+Computed from the family's own constants, `RBS_CORE` (`AGGAGA`) ends exactly where
+`rbs_loop` ends, so the whole spacer to the start codon is `main_z`, 6 nt — our planned
+start sits at the optimal distance, and `main_z` is also trigger A's own `k1` copied in,
+which means sensed sequence we do not choose lands in exactly the dangerous place.
+
+`_repair_main_z` repairs `main_z` and nothing else. An out-of-frame `AUG` a little further
+downstream — inside `main_pre`, the three codons after the start — is still plausibly
+inside the window, and today it is validated and rejected rather than repaired. The same
+applies to the in-frame stop check.
+
+The task: define the acceptance window explicitly from the Shine–Dalgarno position rather
+than implicitly as "the spacer", and run both repairs over it. This changes which designs
+survive, so it needs a version bump and a golden-fixture update in the same commit.
+
+### Open · a message for whoever owns `gates/antisense.py` and `gates/euk_antisense.py`
+
+**Nothing in those two files was changed. This is a report, not a patch.**
+
+While moving the toehold family's span reduction into `gates/tools/folding.py`, we
+noticed that `antisense.py` carries its own `_mean_unpaired` — and that the two copies
+disagree about what to return for a span that falls outside the pair-probability matrix.
+The toehold copy returns `None`; the antisense copy clamps the span to the matrix and
+returns `0.0` for an empty one. `euk_antisense.py` imports the antisense copy.
+
+Why it may matter to you: both families pass that value straight to `predicted_leakage`,
+and both are `available = True`, so the value reaches `engine.scoring`. There,
+`normalize_value(0.0, predicted_leakage_spec)` is **1.0** — a perfect score — and
+`failed_filter({"predicted_leakage": 0.0}, DEFAULT_V1)` is `None`, so the 0.85 hard filter
+does not fire. `dynamic_range = on_accessibility / max(predicted_leakage, 1e-3)` turns the
+same value into a 1000× fold change. So a span that could not be measured would score as
+a flawless design that outranks every measured one, and nothing logs it.
+
+We have not checked whether that span can actually occur on your path, and we are not
+going to without being asked — that is your code and your call. If you want the shared
+definition, it is `mean_unpaired` in
+[`src/engine/gates/tools/folding.py`](../src/engine/gates/tools/folding.py), with the
+`None` contract that CLAUDE.md §3 requires; swapping to it would make `on_accessibility`
+and `predicted_leakage` `float | None` and the two `dynamic_range` lines would need to
+carry the `None` through rather than divide by it.
+
+Also worth knowing, since CLAUDE.md §7 says otherwise: `AntisenseNotGate` and
+`EukaryoticAntisenseNotGate` are both **`available = True`** today. Only `CrisprGate` is
+`False`. That table row has been corrected.
+
+### Open · `FoldEngine.versions()` under-records what sets the numbers
+
+**For whoever owns [`src/engine/gates/tools/folding.py`](../src/engine/gates/tools/folding.py).**
+`versions()` is what a run writes into `JobResult` so the result stays interpretable
+after an upgrade, and its own docstring says to "include anything that changes the
+numbers, not only the library version." Read today it returns two things:
+
+```python
+{"ViennaRNA": RNA.__version__, "temperature_c": str(self.temperature)}
+```
+
+Four things that change every energy are not in there: the **energy-parameter set**
+(ViennaRNA 2.x's default is Turner 2004, and `rna_turner1999.par` ships with the
+library, so which one was loaded is a real question), and the model details carried on
+the `RNA.md()` — `dangles`, `special_hp`, `noLP` and `noGU`. All four are set
+deliberately in this codebase and all four are invisible in the recorded provenance.
+The failure mode is specific: a rerun on a future ViennaRNA whose defaults had moved
+would produce different numbers, and nothing in the stored output would show why.
+`noGU` matters most, because one of the toehold family's construction levers works
+entirely through G·U wobbles and would silently stop working.
+
+The fix is to read them back off the model-details object rather than restate them as
+literals — a value restated is a value that can drift from what was used. Nothing
+should be *changed* about how folding is configured; this is a provenance gap only.
+
+It was found while writing the iGEM model page, which states the settings in prose
+because the output does not carry them. It is **not** on the wiki page: the page
+documents the model, not our defect list.
+
+---
+
+> **Historical planning archive (written before the 8 October 2026 audit).**
+> The remaining numbered sections preserve development decisions and earlier plans.
+> Their implementation-status sentences, timings and counts are superseded by the
+> current status above, source code, `/api/version` and the remediation ledger.
+> The removed simulated engine is mentioned only as historical context.
+
+## 2. Open questions for the scientific team
+
+These are scientific decisions that cannot be made from the software side. Each blocks a
+specific task.
+
+| # | Question | Blocks |
+|---|---|---|
+| **Q1** | **Answered for all four organisms.** E. coli and yeast use NCBI reference CDSs; C. acnes uses the AIS-China ATCC 6919 CDS reference. Human uses mature Ensembl GRCh38 release 116 cDNA and noncoding transcripts, preferring MANE Select, then canonical, then longest transcript. Gene IDs, unambiguous symbols, and versioned Human IDs resolve offline. | **E2** — direct, DE, and named-gene input supported for all hosts |
+| **Q2** | Thresholds for a usable trigger: minimum fold change, maximum adjusted p, expression bounds | E3 |
+| **Q3** | Maximum trigger-set size. Are 3-input circuits in scope, or is 2 the ceiling? | E3, and the whole compute budget (§3) |
+| **Q4** | Toehold construction rules: stem and loop lengths, RBS sequence, linker, start-codon placement, which toehold lengths to vary | E4 |
+| **Q5** | How leakage and dynamic range are computed from folding energies | E4 |
+| **Q6** | Final metric set and weights for `default-v1`. The nine metrics in place are provisional placeholders | E5 |
+| **Q7** | Hard filters — what disqualifies a candidate outright | E5 |
+| **Q8** | Does the organism affect the design rules, or only the input data? | E2, E4 |
+| **Q9** | ~~Antisense NOT: does the trigger transcript *act* as the antisense, or *drive* a separate one?~~ **Answered by implementation:** it acts directly (simpler, no extra transcriptional unit) — `engine/gates/antisense.py`. The "drives a separate antisense RNA" alternative, for amplification, is not built | Deferred family, §7 |
+| **Q10** | CRISPR: activator or repressor effector? It changes what the circuit means and has no home in the run configuration | Deferred family, §7 |
+| **Q11** | Payload sequences. There is no library for GFP, mCherry, luciferase, AmpR or an apoptosis inducer. **Partially answered:** GFP is now in `stages/plasmids.py`'s `PAYLOADS` table (E5a); mCherry, luciferase, AmpR and an apoptosis inducer are still missing | E5a (remaining outputs), E5 |
+| **Q12** | Constitutive promoter and termination parts are provisionally configured for E. coli, yeast, C. acnes, and Human. Human direct-trigger constructs use Registry-verified CMV BBa_I712004 / hGH polyadenylation BBa_K404108; default assembly setting is `none`, with an uploaded custom mammalian backbone or a bare cassette. No wet-lab protocol, cloning overlaps, or mammalian switch validation is inferred. All hosts now support DE and gene input. | E5a |
+| **Q13** | What backbone does the team build into? **Answered for the `direct` path (E5b), *E. coli* only:** ten real BioBrick vectors in `stages/plasmids.py`'s `BACKBONES` table, fetched and length-verified from the iGEM Registry API, or a lab's own GenBank file via `parse_custom_backbone`. **Deliberately not answered for yeast:** yeast's real BioBrick-family assembly grammar (the "Lim standard", pRS-series vectors) could not be fully verified from public sources in the time available — bundling a backbone under a half-verified restriction-site table is exactly the "almost-right is worse than missing" mistake CLAUDE.md §1 warns against. A yeast run today supplies its own real vector via `custom_genbank`, or omits a backbone entirely (`_resolve_backbone`'s own documented "fully legal choice"). Per-host defaults still open otherwise — a lab's strain/antibiotic choice stays theirs | E5a, E5b |
+| **Q14** | Does the RNA class change the trigger-selection rules? A window inside an mRNA's CDS, its 5′UTR, a lncRNA, or a small RNA are not equivalent choices — an sRNA may be functional only as a whole, and a CDS window is dense with start codons (measured: the #1 cause of switch-design rejection, docs/triggers.md §4). Should scanning prefer, avoid, or weight regions by class? | E2b |
+| **Q15** | ~~What makes a scanned trigger window good, beyond merely buildable?~~ **Answered:** exact 30/33/36-nt gate footprints are shortlisted per bucket using selected joint P8, P20-derived opening energy per nt, and terminal-20 mean marginal openness (`rnaplfold_gate_aware_joint_opening_v2`), then unioned round-robin. Mean marginal openness has the strongest current probing correlation; joint opening remains a mechanistic hypothesis, not a success probability | E2b implemented; functional calibration remains Q6 |
+
+**Q1 first.** Without trigger sequences there is nothing to fold.
+
+---
+
+## 3. The compute budget
+
+Not architecture — arithmetic. The engine's cost is dominated by RNA folding. Measured
+on ViennaRNA 2.7.2 on a development machine:
+
+| Operation | Sequence | Per call | Throughput, 1 core |
+|---|---|---|---|
+| `RNA.fold` | toehold switch, ~92 nt | 2.76 ms | 363/s |
+| `RNA.fold` | switch + trigger, ~150 nt | 9.09 ms | 110/s |
+| `RNA.cofold` | switch & trigger | 6.89 ms | 145/s |
+| partition function | accessibility, ~92 nt | 4.99 ms | 200/s |
+
+Evaluating one gate design realistically means a fold, a cofold and a partition function:
+**~15 ms per design on one core**, so ~65 designs/s per core.
+
+| Designs evaluated | 1 core | 2 vCPU | 4 vCPU |
+|---|---|---|---|
+| 10,000 | 2.5 min | 1.3 min | 40 s |
+| 50,000 | 13 min | 6.4 min | 3.2 min |
+| 100,000 | 26 min | 13 min | 6.4 min |
+| 500,000 | 2.1 h | 64 min | 32 min |
+
+The worker's timeout is **1 hour** (`Q_CLUSTER["timeout"]`). So a modest VPS absorbs
+~100k designs comfortably, and ~500k with in-process parallelism (E7).
+
+### The number that decides everything
+
+Search space, and it is a **scientific decision (Q2, Q3), not an infrastructure one**:
+
+- Top 50 DE genes, pairs → 1,225 trigger sets × ~10 designs = **12k designs → about a
+  minute.** Comfortable.
+- Top 200 genes, triples → 1.3M trigger sets × 10 = **13M designs → ~55 hours on one
+  core.** No VPS saves you; that needs pruning or a cluster.
+
+**Prune before you combine.** Filter triggers by fold change, adjusted p and accessibility
+*first*, then build combinations from the survivors, and the problem stays inside one
+machine. Exhaustive enumeration is what forces a cluster, and it is rarely the better
+science anyway.
+
+> **The first thing Step 5 should produce is a real timing on a real dataset** (E6).
+> Everything in §6 is contingent on it, and it takes one afternoon to know.
+
+---
+
+## 4. Phase P — Platform gaps
+
+Things that are wrong or missing *today*, independent of the science. All are small, none
+are blocked, and each is a good first task for someone new.
+
+| # | Task | Where | Size |
+|---|---|---|---|
+| **P1** | **Reconcile the two organism fields.** `AnalysisRun.organism` is free text (`"E. coli"`); `params_snapshot["organism"]` is a `Host` value (`"ecoli"`). `JobRequest.organism` is populated from the free-text one, but the engine will parse it as a `Host`. `run_pipeline`'s `_resolve_host` already prefers `params.organism` and turns a bad fallback into a clean `InputValidationError` rather than a crash (docs/smoke-run.md, E2a) — this task is about removing the duplication itself, not just tolerating it. Decide which is authoritative, constrain it to the enum, and migrate | `apps/analyses/models.py`, `apps/analyses/services.py`, `frontend/src/components/compile/Steps.tsx` | S |
+| **P2** | **Report gate families per host.** `available_families(host)` exists in the registry but `GET /api/version` calls it without a host, so the wizard cannot grey CRISPR out for *E. coli*. Add an optional `?organism=` and use it in the wizard | `api/routers/meta.py`, `api/schemas.py`, `frontend/src/components/compile/Steps.tsx` | S |
+| **P3** | **Validate `custom_sequence`.** The `other` output accepts any pasted string — no ORF check, no stop-codon check, no length cap | `apps/analyses/services.py` | S |
+| **P4** | **Artifact retention.** `var/media/artifacts/` grows without bound. Add a retention policy before it matters, not after | `apps/results/`, a management command | S |
+| **P5** | **Weight `progress_pct` by expected cost.** `STAGE_WEIGHTS` exists in `pipeline.py` but nothing consumes it. Real stages are unevenly sized; by stage index the bar sits at 60% for ten minutes | `engine/pipeline.py` | S |
+| **P6** | **Raise the worker timeout deliberately.** 1 h today. Raise `Q_CLUSTER["timeout"]` *and* `retry` together — `retry` must stay above `timeout` or django-q2 re-queues a running job | `config/settings/base.py` | S |
+| **P7** | **Extend CI.** `.gitlab-ci.yml` already runs backend lint + format + `manage.py check` + pytest, and frontend type-check + render test + build, on every push. What it does not yet have is the container build and the equivalence job — those arrive with **C1/C2**. Keep `MockEngine` as CI's engine: deterministic, no scientific dependencies, fast enough that people run it | `.gitlab-ci.yml` | S |
+| **P8** | **A type checker on `engine/` only.** Ruff catches style; pyright or mypy catches a `float \| None` used as a `float`, which is the failure mode of algorithmic code | `pyproject.toml` | S |
+| **P9** | **`ToeholdAndGate` is selectable but unimplemented.** It subclasses `ToeholdGate` and does not override `available`, so it inherits `True`. A submission requesting `toehold_and` passes validation and then raises `NotImplementedError` under `LocalEngine`. Set `available = False` until E4 lands, or decide deliberately to leave it on | `engine/gates/toehold.py` | S |
+
+---
+
+## 5. Phase E — The engine
+
+**This is Step 5, and it is the long pole.** Order is bottom-up, because every stage
+depends on the tools. Each task leaves the engine runnable.
+
+### E0 · Split dependency groups — *do this now*
+
+Independent of everything else and it costs nothing. Today `engine/` imports only the
+standard library; Step 5 changes that, and this is the moment to stop the two halves'
+dependencies from mixing.
+
+Today `[project].dependencies` holds the Django stack and there is one `dev` extra. Move
+the Django stack into a `platform` extra and add an `engine` one:
+
+```toml
+[project]
+dependencies = []          # nothing shared
+
+[project.optional-dependencies]
+platform = ["django>=5.2,<6.0", "django-ninja>=1.3", "django-q2>=1.7", …]
+engine   = ["viennarna>=2.7", "numpy>=2.0", "pandas>=2.2"]
+dev      = ["pytest>=8.3", "pytest-django>=4.9", "ruff>=0.8"]   # unchanged
+```
+
+The VM installs `platform`; the container installs `engine`. Neither installs the other.
+Also update `./do install` and the CI `backend` job to `--extra platform --extra dev`.
+
+**Done when:** `uv sync --extra engine --no-dev` produces an environment with no Django in
+it, and `./do test` still passes.
+
+### E1 · Tools — the scientific primitives
+
+`domain.py` is already written and tested. The tools are not.
+
+They no longer live in one folder: what the **gate families** share is in
+`gates/tools/`, what only **stages** use is beside the stages, and `sequences.py` — used
+by both — is at the engine root. See [engine.md §3.3](engine.md#33-tools--s1-to-s9).
+
+| Order | Build | Needs |
+|---|---|---|
+| 1 | `sequences.py` (S6) — `reverse_complement`, `translate`, `find_stops`, `find_augs`, `gc_content`, `longest_homopolymer` | Nothing. Start here |
+| 2 | `stages/motifs.py` (S7) — `MotifScreener`: RFC10/RFC1000 sites, RBP motifs, RNase sites, homopolymers > 5 nt | Nothing |
+| 3 | `gates/tools/folding.py` (S2, S4) — `FoldEngine`, `structure_match` | ViennaRNA |
+| 4 | `stages/folding.py` (S1) — `FoldProfiler`, wrapping `RNAplfold` | ViennaRNA |
+| 5 | `gates/tools/binding.py` (S3) — `hybridization_energy` | ViennaRNA |
+| 6 | `stages/off_target.py` (S5) — `OffTargetScanner`, both directions | Q1's transcriptome |
+| 7 | `gates/tools/codons.py` (S8), `gates/tools/translation.py` (S9) | Codon tables per host |
+
+**`FoldEngine` is the highest-leverage thing in the engine.** Every generator and
+validator folds sequences. Two rules:
+
+- **Only two modules import `RNA`**, and `FoldEngine` is the one that matters:
+  `gates/tools/folding.py` for design-side folding, `stages/folding.py` for windowed
+  `RNAplfold` profiling. One place to swap the library, one place to record its version.
+- **Cache aggressively.** `lru_cache` on `mfe` is the single biggest speed win available —
+  the same subsequence recurs constantly across designs, and folding it twice is pure
+  waste. (This is why sequences are `str` and trigger sets are tuples: `lru_cache` needs
+  hashable arguments.)
+
+**Done when:** `./do test tests/engine` passes in under a second with real folding, and
+`FoldEngine.versions()` returns the ViennaRNA version.
+
+### E2a · The `direct` smoke path — ✅ built
+
+Sits before E2, which stays blocked on Q1. Full assessment and design in
+[smoke-run.md](smoke-run.md); scoped deliberately to skip everything Q1/Q3/Q11 still
+block, and to touch nothing under `engine/gates/` (`gates/tools/` included) — see that
+file's §4 for what each skip costs.
+
+| # | Task | Where | Status |
+|---|---|---|---|
+| **E2a-1** | `build_tools` + `run_pipeline` — composition only, no science | `engine/pipeline.py` | ✅ |
+| **E2a-2** | Direct-mode trigger synthesis: pasted sequence → one `TriggerCandidate`, accessibility computed once | `engine/pipeline.py` | ✅ |
+| **E2a-3** | `SwitchDesigner.design` + `build_trigger_sets`; `SwitchValidator.validate` (sequence rules only — the structural rule needs `FoldEngine.ensemble_defect`, under `gates/tools/`, deliberately left for a phase allowed to touch it) | `engine/stages/switches.py` | ✅ (sequence rules) |
+| **E2a-4** | `FoldProfiler.profile` + `openness` — the windowed RNAplfold wrapper. Deleted the `test_both_folding_adapters_actually_fold` xfail; this is **E1 rung 4**, needed for `de` regardless | `engine/stages/folding.py` | ✅ |
+| **E2a-5** | `GateDesign` → `CandidateResult` + artifact writing (design table, FASTA per candidate) | `engine/pipeline.py` | ✅ |
+| **E2a-6** | Prove it: a `direct` run to `succeeded` under `LocalEngine`, twice with one seed, byte-identical | `tests/engine/test_pipeline.py` | ✅ |
+
+**Still not in this phase, deliberately:** stages 4–6, `OffTargetScanner`,
+`TranslationScorer`, `CodonOptimizer`, `GeneSelector`, `InputQualityCheck`, the CSV
+parser, `CandidateStore.snapshot`, `de` input mode (still blocked on Q1), any gate family
+beyond `toehold` requested via `gate_families` (`antisense` is skipped with a warning —
+Q11; multi-trigger `AND` combinations are generated up to arity 2 but never validated
+past that — Q3).
+
+### E2b · Trigger selection on the `direct` path — ✅ built
+
+Sits before E2, the way E2a does — same shape: a carve-out that skips Q1 entirely.
+Full assessment and design in [triggers.md](triggers.md); the finding that motivated it
+was a real, live `direct` submission (a full mRNA pasted as a trigger) producing zero
+candidates, because the whole paste was used *as* the trigger rather than searched for
+one within it.
+
+| # | Task | Where | Status |
+|---|---|---|---|
+| **E2b-T1** | `OffTargetScanner.scan_trigger`/`.scan_switch` — a defined answer for an empty transcriptome, plus a run-level "off-target not measured" warning | `engine/stages/off_target.py`, `engine/pipeline.py` | ✅ |
+| **E2b-T2** | `_direct_trigger` scans a paste longer than one trigger window via the already-built `TriggerScorer.score`, instead of silently using only its tail; window offset recorded on every candidate | `engine/pipeline.py` | ✅ |
+| **E2b-T3** | `SwitchDesigner.design` gains `on_incompatible`/`on_invalid` callbacks so a run that finds nothing names which rule rejected how many, instead of one generic message | `engine/stages/switches.py`, `engine/pipeline.py` | ✅ |
+| **E2b-fix** | `toehold_and` and both host variants have `available=True` but an unimplemented `generate_designs` — dormant with one trigger, but a real crash risk once E2b-T2 could produce multi-candidate trigger sets. Added to `_UNBUILDABLE_FAMILIES` | `engine/pipeline.py` | ✅ |
+
+**One deliberate divergence from [triggers.md](triggers.md)'s own first-draft
+recommendation, found during review:** scanning is not unconditional. It only triggers
+when a paste is longer than `max(constraints.trigger_lengths)` — scanning an
+already-correctly-sized paste was measured to change the existing `direct`-path reference
+scenario from 3 candidate designs to 7, contradicting [smoke-run.md](smoke-run.md) §5's
+explicit "three designs... is exactly what a smoke run wants." See
+[triggers.md](triggers.md) §6.1 for the full reasoning.
+
+**Still not in this phase, deliberately:** T4 (deriving scanned window lengths from the
+gate families' actual footprints, rather than `Constraints.trigger_lengths`, which
+today under-covers one of `ToeholdGate`'s three swept lengths) and T5 (constructibility-
+aware *ranking*, as opposed to filtering — `SwitchDesigner` already filters what it is
+given). Blocked on **Q14**, **Q15** for a *defensible* ranking; unblocked for *choosing a
+window that builds*.
+
+**Done when:** a `direct` run given a full mRNA returns candidates built against a named
+window at a reported offset, a run that returns none names the rule that rejected how
+many, and off-target is reported as unmeasured rather than clean. ✅ — verified against
+the exact mCherry CDS that motivated this: 0 candidates before, 41 after, each traceable
+to a scanned offset.
+
+### E2 · Stages 1–3 — input, genes, triggers · **✅ built for *E. coli*, blocked on Q1 for other hosts**
+
+`InputQualityCheck` → `GeneSelector` → `TriggerScorer`.
+
+- Read the DE table with pandas. **Do not carry DataFrames through the pipeline** —
+  convert to `DgeTable` at the edge. **✅ built** — `engine.inputs.parse_dge_table`
+  (no pandas: a stdlib CSV/TSV parser, since nothing downstream needs a DataFrame).
+- `GeneSelector` keeps genes that separate the two states: fold change, adjusted p, and a
+  usable absolute expression range in both states. Too low gives false negatives, too high
+  false positives. **✅ built** — full design and worked examples in
+  [genes.md](genes.md): a tiered significance rule (a table's own `p_adj`, a
+  computed Benjamini-Hochberg FDR, a raw-p fallback, or none at all, depending on what
+  the table actually carries), an effect-size floor *and* ceiling, a directional
+  ON/OFF abundance check, a no-folding trigger-yield screen when transcript sequences
+  are available, a greedy non-redundancy pass over a count matrix, and a
+  direction-balanced shortlist. `counts` and `sequences` are optional constructor
+  arguments, not required ones — every axis that needs them degrades to `None`
+  (never a placeholder number) when they are absent, which is the normal case for
+  every public dataset this product ships (docs/genes.md §2).
+- `TriggerScorer` slides a window along each surviving transcript and ranks every
+  sub-segment. **Per length class**, because each gate family needs a different footprint.
+- Genes DESeq2 filtered out carry **no** `p_adj` at all. "Not tested" must not be treated
+  as "not significant".
+
+**The `direct` branch is already built (E2b)** — a pasted sequence becomes one
+`TriggerCandidate` if it already fits one trigger window, or is scanned into several via
+`TriggerScorer.score` if it is longer ([triggers.md](triggers.md)); either way, stages 1–2
+proper are skipped ([modalities.md §1](modalities.md)).
+
+**`run_pipeline` now has a real `de` branch** (`_de_trigger`, [genes.md](genes.md) D6):
+parse → `GeneSelector` → `TriggerScorer`, then the same `SwitchDesigner`/
+`PlasmidBuilder` the `direct` path already uses, one gene at a time rather than
+through a `CircuitDesigner`. Verified end to end against real data for both bundled
+hosts — *E. coli* (730 accepted candidates from a real 3,000-row public catalog file)
+and yeast (110 accepted candidates from real genes in the bundled catalog). `Q1` is
+answered for *E. coli* and yeast by a bundled reference transcriptome each
+(`engine.transcriptome`); human still hits an explicit, named `InputValidationError`
+rather than a silent empty result — and unlike the yeast case, closing it needs a
+different fetch strategy, not just another accession (Q1's own row above).
+`InputQualityCheck` is still not called — there is no count matrix in this product to
+check ([genes.md](genes.md) §3 G-a), a separate, larger decision than Q1.
+
+**Done when (E. coli, yeast):** ✅ — a real DE file produces ranked, accepted toehold
+candidates with real ViennaRNA folding throughout. **Done when (other hosts):** a
+bundled or resolved reference transcriptome exists for that host.
+
+### E3 · Stages 4–5 — trigger sets and pruning · **blocked on Q2, Q3**
+
+**The most important step for performance.** Everything downstream scales with what
+survives here.
+
+- Combine surviving triggers into `TriggerSet`s up to `max_triggers`.
+- **Two triggers may come from the same gene.** Nothing here may deduplicate by
+  `gene_id`.
+- Prune on separation quality, expression bounds and accessibility — *before* combining,
+  not after.
+
+**Done when:** the number of trigger sets produced from a real dataset is a number you
+chose, not a number you discovered.
+
+### E4 · Toehold design and evaluation · **blocked on Q4, Q5**
+
+`ToeholdGate.generate_designs` and `evaluate_design`. **This is where the CPU time goes.**
+
+Construction and the metric list are spelled out in the stubs and summarised in
+[modalities.md §3](modalities.md). Two things worth repeating because they are the
+expensive mistakes:
+
+- Fold the ON state as a **dimer** (`cofold`, `&` separator), not a concatenated strand.
+- Return **raw** values with `None` for anything uncomputable. Normalization, weighting
+  and filtering belong to `engine.scoring`, which is already built and tested.
+
+**Done when:** a golden test fixes a small input to its full expected output, and
+`ENGINE_VERSION` is bumped whenever that file legitimately changes.
+
+### E5a · The first orderable construct — `direct` path only · ✅ built
+
+Sits before E5, the way E2a sits before E2 — same shape: a carve-out that skips what
+Q6/Q7/Q11/Q13 still block and builds `PlasmidBuilder` on the single-switch circuit a
+`direct` run already produces, skipping `CircuitDesigner` (stage 4) entirely by
+hand-building a placeholder one-gene `CircuitCandidate`, the way `pipeline._direct_trigger`
+already does for stages 1–2. Full assessment, evidence and gotchas in
+[plasmids.md](plasmids.md); §13 there is the as-built diff against the original plan.
+
+| # | Task | Where | Status |
+|---|---|---|---|
+| **E5a-1** | Parts table — promoter/terminator per host, payload CDS per `DesiredOutcome`, module constants in `stages/plasmids.py` following `motifs.py`'s precedent | `engine/stages/plasmids.py` | ✅ (E. coli + GFP only — Q11/Q12 remaining outputs and hosts still open) |
+| **E5a-2** | `payload_segment(outcome)` — table lookup + validation (whole codons, start codon, no internal in-frame stop, no forbidden motifs); `CUSTOM` gets the same validation via `build()`'s `custom_payload` | `engine/stages/plasmids.py` | ✅ |
+| **E5a-3** | `build(circuit, outcome)` — assemble promoter → switch → payload → terminator → backbone; screen the whole construct **as circular** (`MotifScreener.violations(..., circular=True)`); check frame continuity from the switch's ATG through the payload; violations recorded, never silently repaired | `engine/stages/plasmids.py` | ✅ |
+| **E5a-4** | Annotate and export GenBank — one feature per segment, standard GenBank types, CERNAL metadata in qualifiers, through `write_artifact(kind="genbank")` | `engine/stages/plasmids.py` | ✅ |
+| **E5a-5** | Wire into the `direct` pipeline — one hand-built `CircuitCandidate` per candidate, `plasmid_segments` populated, GenBank artifact per accepted candidate | `engine/pipeline.py` | ✅ |
+| **E5a-6** | Prove it — golden fixture, junction-site and circular-origin-join cases, frame-continuity case, pipeline wiring tests, and a manual run through the real Django platform layer (`submit_run`/`execute_run`, not just engine unit tests) | `tests/engine/test_plasmids.py`, `tests/engine/test_pipeline.py` | ✅ |
+
+**Dependency decision:** [ADR 0007](decisions/0007-biopython-for-genbank-export.md) —
+Biopython only for GenBank export, confined to one function in `stages/plasmids.py`.
+`pydna` (the integration brief's central recommendation) was evaluated directly and
+rejected on measurement: circular restriction screening and assembly turned out not to
+need a library at all once actually built. The OpenCloning frontend packages and backend
+service are out of scope — [plasmids.md §5.3](plasmids.md) has the measurements.
+
+**Still not in this phase, deliberately:** `CodonOptimizer` (payload emitted verbatim,
+never codon-optimised), mCherry/luciferase/AmpR/apoptosis-inducer payloads (Q11),
+non-*E. coli* hosts (Q12), multi-switch circuits, and any named wet-lab assembly protocol
+(Gibson, Golden Gate) — the construct is a composition, not a cloning plan
+([plasmids.md §9](plasmids.md)). A backbone (Q13) was left out of E5a and closed
+separately, below.
+
+### E5b · A real, selectable backbone — `direct` path only · ✅ built
+
+Closes Q13. A `direct` run's construct in E5a had no origin of replication and no
+selection marker — `PlasmidBuilder(backbone=())` is the default the pipeline constructed
+with. E5b gives a researcher ten real BioBrick vectors to choose from, or lets them
+upload their own, so the plasmid that comes out is actually orderable. Full assessment in
+[plasmids.md §13](plasmids.md), including why OpenCloning/pydna were not adopted for
+this: `PlasmidBuilder.build()` already assembled, screened and exported whatever
+`Segment`s it was given — `segments.extend(self.backbone)` needed no changes at all. What
+was missing was backbone *data* and a way to *choose* one, not an assembly engine.
+
+| # | Task | Where | Status |
+|---|---|---|---|
+| **E5b-1** | `BACKBONES` table — ten real BioBrick vectors (three resistance markers × three copy-number origins), fetched from the iGEM Registry API, length/alphabet/topology verified against the registry's own metadata | `engine/stages/plasmids.py` | ✅ |
+| **E5b-2** | `parse_custom_backbone(genbank_text)` — parse a researcher's own GenBank file; reject non-circular topology and unparseable text; the second and last function in the module to import Biopython (ADR 0007) | `engine/stages/plasmids.py` | ✅ |
+| **E5b-3** | `_resolve_backbone(params)` — resolve `params.backbone.catalog_key` / `.custom_genbank` (exactly one, or neither) into the `Segment`(s) `PlasmidBuilder` is constructed with; omitting `params.backbone` reproduces the pre-E5b empty backbone byte for byte | `engine/pipeline.py` | ✅ |
+| **E5b-4** | Advertise the catalog — `EngineCapabilities.available_backbones`, `GET /api/version`, validated at submission via `api/params.py`'s `check_backbone_block`, the same pattern `gate_families` already uses | `engine/contract.py`, `engine/client.py`, `api/schemas.py`, `api/routers/meta.py`, `api/params.py`, `api/routers/runs.py` | ✅ |
+| **E5b-5** | Wizard step — pick a catalog vector, upload a custom one (`FileReader`, the same client-side pattern `customPayload` already uses), or none; defaults to a real backbone, not "none" | `frontend/src/components/compile/Steps.tsx`, `routes/compile.tsx` | ✅ |
+| **E5b-6** | Prove it — `BACKBONES` sanity, `parse_custom_backbone` round-trip/rejection cases, pipeline resolution (no param / catalog / custom / both / unknown key), submission-time validation | `tests/engine/test_plasmids.py`, `tests/engine/test_pipeline.py`, `tests/api/test_runs.py` | ✅ |
+
+**Still not in this phase, deliberately:** per-host backbone defaults (a lab's actual
+strain/antibiotic choice stays theirs); feature-level sub-annotation of a backbone
+(origin vs. marker coordinates) — the registry doesn't expose them, so each backbone
+stays one opaque `Segment` rather than a guessed split.
+
+### E5 · Circuits, plasmids, report · **blocked on Q6, Q7, Q11**
+
+`CircuitDesigner` → `PlasmidBuilder` (multi-switch circuits) → `ReportBuilder`, then the
+already-implemented scoring layer. `PlasmidBuilder` itself is real for the single-switch
+`direct` case — E5a, above — so what remains here is `CircuitDesigner`, `ReportBuilder`,
+and extending `PlasmidBuilder` to circuits with more than one switch.
+
+- `CircuitDesigner` turns the genes' up/down pattern into a Boolean function, generates
+  the expressions reproducing it, keeps only those buildable from switches actually
+  designed upstream, and ranks by **separation versus complexity**.
+- Cross-talk: the circuit's own triggers against the circuit's *other* switches. **Do not
+  re-scan the transcriptome** — per-trigger and per-switch penalties are already computed
+  and stored upstream, and re-scanning would be both slow and inconsistent with the
+  numbers already recorded.
+- Multi-switch circuits still need the remaining Q11 payloads (mCherry, luciferase, AmpR,
+  apoptosis inducer), a backbone (Q13), and a scientific answer on whether each
+  transcriptional unit carries its own payload copy or only the one driving the output
+  does ([plasmids.md §8](plasmids.md)).
+- Screen the **whole assembled construct** for restriction sites, not each segment —
+  screening segments individually misses sites formed across a junction. `MotifScreener`
+  already supports this (`circular=True`, built in E5a); a multi-switch construct just
+  needs more than one switch segment fed into the same assembly.
+
+**Done when:** `JobResult` from `LocalEngine` populates every field the results screen
+already renders from `MockEngine`, for circuits with more than one switch.
+
+### E6 · Switch over and measure
+
+Set `CERNAL_ENGINE=engine.client.LocalEngine`, run a real dataset, and record wall time,
+peak RAM and core count. **Compare against §3.** This number sizes everything in §6.
+
+**`MockEngine` stays.** It remains what CI and frontend development use, and it is the
+control when a real result looks wrong.
+
+### E7 · Parallelism — the cheap win
+
+Before any thought of another machine. Gate evaluation is embarrassingly parallel —
+independent designs, no shared state, pure CPU.
+
+```python
+with ProcessPoolExecutor(max_workers=os.cpu_count()) as pool:
+    metrics = pool.map(evaluate_design, designs, chunksize=64)
+```
+
+Roughly **3.5× on a 4-vCPU box for about ten lines**. Two caveats: leave a core for the
+web process, and call `on_progress` from the parent so cancellation still works between
+batches. A segfault in a C extension kills the worker process — `ProcessPoolExecutor`
+contains that, which is a second reason to do it.
+
+**Order of optimisation, and stop when it is fast enough:** prune early → cache folding →
+generators → process pool → numpy for metric arithmetic → *only then* a bigger machine.
+**Measure before optimising.** If `cProfile` on a real run does not point at folding, the
+intuition behind this whole plan is wrong and worth knowing early.
+
+### E8 · Tests that lock it in
+
+| Kind | What |
+|---|---|
+| **Golden** | Fixed input → committed expected output. **The one teams skip and regret** |
+| **Property** | Score in 0–1; ranks contiguous; rejected candidates always carry reasons |
+| **Determinism** | Same seed twice → identical. Already asserted for `MockEngine`; must hold for `LocalEngine` |
+| **Tool** | The adapter against known structures — a hairpin folds as a hairpin |
+
+Keep fixtures small enough that `./do test tests/engine` stays under a second. A test
+suite nobody runs protects nothing.
+
+### E9 · Report the things a column header cannot say
+
+Three known reporting requirements that fall out of the modalities:
+
+1. **A gate's default state alongside its payload.** An antisense NOT gate is ON by
+   default, so a failed gate *expresses* the payload. With an apoptosis inducer that is a
+   safety failure ([modalities.md §5](modalities.md)).
+2. **When `predicted_leakage` means the opposite.** Same metric name, same direction,
+   opposite biological event between toehold and antisense.
+3. **Tool versions and model parameters**, recorded on every run. Without them a result
+   from six months ago is uninterpretable after a ViennaRNA upgrade.
+
+### E10 · Settle `CandidateStore`
+
+The pipeline map says every stage reads its input and writes its output through a store,
+with CSV as the only interface. **That is two ideas and only one of them is free.**
+
+**Worth keeping:** every stage writing an inspectable CSV with stable IDs and provenance.
+The scientific team can open stage 2's output in Excel, a run is auditable, and a stage
+can be re-run from saved input while it is being developed.
+
+**Worth reconsidering:** making CSV the *only* interface. It costs streaming (stage 3
+cannot start until stage 2 has written every row), types (every read re-parses strings,
+and a column typo fails at runtime rather than in the type checker), speed, and code
+(every record needs a writer, a reader and a schema).
+
+**Recommendation: typed objects between stages, CSV snapshots at stage boundaries.** A
+recorder, not a bus. You keep debuggability, provenance and re-runnability, and lose only
+the constraint that made streaming impossible.
+
+**This is a team decision, and it should be made deliberately** — it is hard to reverse
+once six stages depend on it.
+
+### E11 · Pareto filtering — ✅ built
+
+`rank_candidates` ranks by a single blended score; Pareto filtering across
+score-versus-complexity (or any other pair of axes) is now `ParetoFilter.frontier`/
+`.top_k` in `store.py` — see status table, [engine.md §9](engine.md#9-status). A circuit
+with a slightly lower score and half the components is often the better answer, and only
+a Pareto front says so; nothing in the engine calls `ParetoFilter` yet, so wiring it into
+a stage (`CircuitDesigner` is the obvious first caller) is still open.
+
+---
+
+## 6. Phase C — Container and cloud
+
+**Step 6.** Nothing here starts before E6 produces a measured run — sizing the compute is
+guesswork until then.
+
+### The shape
+
+A small always-on VM runs the product; a container runs the science on demand and stops.
+**Idle compute cost is zero.**
+
+```
+┌─ Compute Engine · e2-small · always on ────────────────────┐
+│   Caddy → gunicorn → Django                                │
+│   django-q2 worker                                         │
+│   Persistent disk:  var/cernal.db                          │
+└───────────┬────────────────────────────────────────────────┘
+            │ 1. upload dataset          ┌────────────────────┐
+            ├───────────────────────────▶│  Cloud Storage     │
+            │                            │   datasets/        │
+            │ 2. jobs.run(overrides)     │   runs/<id>/       │
+            ▼                            │     progress.json  │
+┌─ Cloud Run Job · 4–8 vCPU ─────────┐   │     result.json    │
+│   cernal-engine container          │◀──┤     artifacts/     │
+│   · starts on submit               │──▶│                    │
+│   · stages input down              │   └────────────────────┘
+│   · runs LocalEngine               │             ▲
+│   · stages artifacts up            │             │
+│   · exits · ZERO idle cost         │  3. poll progress, read result
+└────────────────────────────────────┘
+```
+
+Full rationale — why a batch job rather than an auto-waking service, why a plain VM rather
+than Cloud Run for the web app, why no presigned URLs — is in
+[deployment.md](deployment.md).
+
+### The tasks
+
+| # | Task | Done when |
+|---|---|---|
+| **C0** | Measure a real run: wall time, peak RAM, cores (= E6) | You know what `--cpu` and `--memory` to ask for |
+| **C1** | `engine/runner/gcs_entry.py` + `deploy/Dockerfile.engine`, **local paths only** | `docker run` on a laptop produces a `JobResult` |
+| **C2** | **Equivalence tests** — the same request through `LocalEngine` and the container, compared field for field | The same run, two engines, identical output |
+| **C3** | Bucket, service accounts, IAM. **No key files** | The VM can start a job; the job can reach only its bucket |
+| **C4** | `CloudRunEngineClient` in `engine/client.py` | `CERNAL_ENGINE=engine.client.CloudRunEngineClient` runs a real job |
+| **C5** | Upload the dataset to the bucket at submit time | **The only change to Platform code in this whole phase** |
+| **C6** | Progress, cancellation, idempotency over the boundary | The bar moves; cancel stops it; a double submit runs once |
+| **C7** | **Failure drills** — kill the execution mid-run, break IAM, submit twice, corrupt an artifact | Each lands in a terminal state with a readable message |
+
+**C2 is the discipline that matters.** It is the only thing that stops "works on my
+laptop" and "works on Cloud Run" from drifting apart, and it catches three failures
+nothing else does: a dependency present locally but missing from the image;
+non-determinism from an unseeded RNG or dictionary ordering; and a staging bug in
+`gcs_entry.py` that corrupts input or loses artifacts.
+
+For it to be runnable without a storage emulator, **`gcs_entry.py` must accept local
+paths as well as `gs://`** — check the scheme, and if it is not `gs://` use the path
+as-is. That is also how a failed production run gets reproduced on a laptop.
+
+**C7 is not optional.** Every one of those failures is new, and the only way to know they
+are handled is to cause them.
+
+### New `./do` commands this phase adds
+
+```
+engine-run     Run the pipeline locally on a file — no worker, no database, no cloud
+engine-build   Build the engine container
+engine-test    Run the container against local paths (the equivalence test's engine)
+deploy-engine  Build, push and update the Cloud Run Job:  ./do deploy-engine 0.4.0
+deploy-web     Deploy the Django app to the VM
+```
+
+`engine-run` is the one that matters day to day: it is the scientific team's inner loop,
+and it must never require Docker, a database or a network.
+
+### Versioning
+
+**Tag the image with `ENGINE_VERSION`, never `latest`.** Then `AnalysisRun.engine_version`
+identifies the exact image that produced a result, and a result from six months ago can be
+reproduced by running that tag. Bump it whenever output could change — a new metric, a
+changed threshold, a ViennaRNA upgrade.
+
+---
+
+## 7. Deferred work
+
+Recorded so the decision is cheap when someone asks. **None of this is scheduled.**
+
+| Item | Blocked on | Note |
+|---|---|---|
+| **`ToeholdAndGate` bodies** | E4 | The chemistry is inherited; the serial-stem construction is not. Watch the half-open intermediate state |
+| ~~`AntisenseNotGate`~~ | ✅ Built, not deferred | See status table, [engine.md §9](engine.md#9-status). Requires `payload` (a real gene, e.g. GFP or mCherry) at construction; there is still no payload library (Q11) |
+| **`CrisprGate`** | Q10 + a genomic off-target scanner | `OffTargetScanner` searches the transcriptome; the spacer needs the genome |
+| ~~**GenBank export**~~ | ✅ Built (E5a), `direct` path only | See [plasmids.md](plasmids.md). Multi-switch circuits still need E5 |
+| **Plasmid synthesis ordering** | E5 | A partner integration, not a code problem |
+| **3-input circuits** | Q3 | See §3 — this is what forces a cluster |
+| **Repository split** | Nothing | See §9. Do it when it hurts not to, not on a date |
+| **Slurm / TAU PowerSlurm** | — | The design maps' end state. For ~5 analyses/day with pruned search, unlikely to be worth it during the competition. Documented, not planned |
+
+---
+
+## 8. Growth path
+
+None of this is current work. It is recorded so that when the trigger fires, the move is
+known and small.
+
+| Trigger | Move |
+|---|---|
+| Runs take > 30 min, or the web app stutters during them | Raise `Q_CLUSTER["workers"]` to 2–3, then Postgres when SQLite write contention appears |
+| Concurrent runs needed by several researchers | Same |
+| Engine needs cores or RAM the web VPS should not have | Phase C — the container was always the answer to this |
+| Scientific team wants an independent release cadence | Phase C, then possibly a repo split |
+| SQLite write contention in the logs | `DATABASE_URL` → Postgres; run migrations. One variable |
+| Queue depth, or multi-machine workers | django-q2 → Redis broker, or Celery |
+| Disk pressure, or multi-host serving | `django-storages` → S3-compatible; `Artifact.file` is already an abstraction |
+| External collaborators need accounts | Re-introduce `Workspace` + `WorkspaceMembership` + role checks |
+| One analysis genuinely needs hours or many GB | Slurm. Highest cost by a distance — login-node access rules, no public listener on the cluster, shared filesystem staging, queue waits in hours |
+
+---
+
+## 9. Settled — do not re-litigate
+
+Each of these was decided with a reason. If you want to change one, the bar is a new ADR
+in [decisions/](decisions/) explaining what broke without it.
+
+| Decision | Where |
+|---|---|
+| One repository, in-process engine | [ADR 0001](decisions/0001-single-repo-in-process-engine.md) |
+| SQLite + django-q2 ORM broker, not Postgres + Celery | [ADR 0002](decisions/0002-sqlite-and-orm-task-queue.md) |
+| Same-origin SPA, session cookies, no JWT | [ADR 0003](decisions/0003-same-origin-spa-session-auth.md) |
+| django-ninja over DRF | [ADR 0004](decisions/0004-django-ninja-over-drf.md) |
+| Static SPA, not TanStack Start | [ADR 0005](decisions/0005-static-spa-not-tanstack-start.md) |
+| API keys as a second credential, not a second surface — extends 0003, does not reverse it | [ADR 0006](decisions/0006-api-keys-for-non-browser-clients.md) |
+| **Deployment separation is not repository separation.** The container builds a subset of the repo; splitting it would cost the boundary test, atomic contract changes, and the equivalence tests | [deployment.md](deployment.md) |
+| **No `Job` class.** The pipeline is functions over frozen data. A god object cannot be tested per stage, forces materialisation, and fights parallelism | [engine.md §2.3](engine.md) |
+| **Gate families do not score themselves.** Raw metrics out, normalization in `engine.scoring` | [engine.md §3.6](engine.md) |
+| **Tools are shared, not copied per gate.** Three transcriptome indexes means three mismatch conventions and three penalty scales — and scoring would normalise them onto one axis as though they were comparable | [engine.md §3.4](engine.md) |
+| **Host is a parameter, not a subclass**, until the method bodies actually diverge | [engine.md §2.4](engine.md) |
+| No Pydantic inside the engine, no workflow framework, no ORM in the engine | [engine.md §2.5](engine.md) |
+| Python 3.13, not 3.14 — scientific wheels lag new CPython by months | [development.md](development.md) |
+
+---
+
+## 10. Phase X — External integration
+
+Answers iGEM's *"How well can the software be integrated with external tools/software
+applications?"* Full rationale, the security review, and what NOT to build are in
+[public-api.md](public-api.md); this table is the work, per this file's own rule that
+work lives here, not in a second planning document.
+
+**X1–X8 and X7 are done. X9/X10 are unverified. X6 is mostly absorbed into X5. X12 is
+deliberately not built.** Rows below are kept as the record of what was planned and
+what actually landed — update them again the next time this phase moves.
+
+| # | Task | Where | Size | Status |
+|---|---|---|---|---|
+| **X1** | ADR 0006 + `ApiKey` model, migration, `issue_api_key`/`authenticate_api_key`, admin, `./do key` | `docs/decisions/`, `apps/accounts/` | M | **Done** |
+| **X2** | `ApiKeyAuth`; `auth=[ApiKeyAuth(), django_auth]`; key management endpoints; `GET /api/auth/whoami` | `api/security.py`, `api/__init__.py`, `api/routers/auth.py` | M | **Done** |
+| **X3** | Scopes, per-key throttle, `max_concurrent_runs`, `DatabaseCache` | `api/security.py`, `apps/analyses/services.py`, `config/settings/base.py` | S | **Done** |
+| **X4** | `MetricInfo` on `EngineCapabilities`; `unit` on every metric; surfaced at `GET /api/version` | `engine/contract.py`, `engine/client.py`, `engine/scoring/profiles.py`, `api/routers/meta.py` | S | **Done** |
+| **X5** | `POST /api/design` + `GET /api/design/{id}[/results]`: defaults, auto-project, inline `dge_csv`, `resolved`, `wait`, `strict`, `top_n` | `api/routers/design.py`, `apps/analyses/services.py` | M | **Done** |
+| **X6** | `budget` + `dry_run` estimate. API-side cap now; engine-side enforcement via `on_progress`/`JobCancelled` with an E-phase | `api/routers/design.py`, `engine/pipeline.py` | M | **API-side done, folded into X5.** Engine-side enforcement still blocked on `engine/pipeline.py`, which does not exist (Step 5) |
+| **X7** | Custom scoring profile — validate names against X4, deterministic `custom-<hash>` label, engine-side construction | `api/schemas.py`, `engine/scoring/profiles.py` | M | **Done** — `derive_profile`/`resolve_profile`/`custom_scoring_label` |
+| **X8** | Python client + PyPI + conformance test in CI | `clients/python/`, CI | M | **Done and verified.** `clients/python/tests/test_conformance.py` passes against a real live-server MockEngine run; wired into both CI files. Not yet published to PyPI |
+| **X9** | R client + conformance test in CI | `clients/r/`, CI | M | **Written, not verified.** No R interpreter was available to run it. Conformance test exists (`testthat`) but is inert without `CERNAL_TEST_BASE_URL`; no CI job wires it up |
+| **X10** | MATLAB client + manual conformance run | `clients/matlab/` | S | **Written, not verified.** No MATLAB/Octave was available. Per this table's own original note, MATLAB conformance was always meant to be manual, not CI |
+| **X11** | Docs: `api.md` key section, compatibility promise, three quickstarts, `curl` recipe | `docs/api.md`, `docs/public-api.md` | S | **Done** |
+| **X12** | *(optional, phase 2)* Webhooks with full SSRF guarding | `apps/analyses/services.py` | M | **Not built, deliberately.** [public-api.md §9.4](public-api.md) frames it as optional and names the SSRF risk explicitly; given ~5 analyses/day, polling remains sufficient |
+
+**Before X9/X10 ship for real:** someone with R installed runs
+`Rscript -e 'testthat::test_dir("clients/r/tests/testthat")'` against a live deployment
+(`CERNAL_TEST_BASE_URL`/`CERNAL_TEST_API_KEY` set), and someone with MATLAB runs
+`runtests('clients/matlab/tests/testCernal')` the same way. Both conformance tests
+submit `clients/fixtures/design_request.json` and check the columns against
+`clients/fixtures/expected_columns.json` — the same fixture the Python client's CI job
+already exercises.
+
+**Also open:** `ApiKey` is not published to PyPI/CRAN (that is a release step, not a code
+one); `ApiKeyAuth`'s scope/quota checks have no dedicated `/security-review` pass yet
+(docs/public-api.md §13 lists what one should look for); a sandbox `read`-scoped key
+against a `MockEngine` deployment, printed in documentation, is the single most
+persuasive judging artefact on this list and does not exist yet.
+
+**Web UI, added after X1–X11 landed (not in the original public-api.md scope, but the
+same ADR 0006 surface):** `/settings` lets a signed-in user see their own keys, mint one,
+reset it (`POST /api/auth/keys/{id}/regenerate` — a new endpoint; reissues a secret in
+place, keeping label/scopes/quotas, un-revokes on the way), and revoke it, with the
+secret shown exactly once. `/api-docs` is an in-app reference — Python/R/MATLAB/curl
+quickstarts plus the full `POST /api/design` field table — reachable from the main nav
+and cross-linked with `/settings`. This is what makes the "sandbox key, printed in
+documentation" idea above cheap to finish: the page to print it *in* now exists.
+
+---
+
+## 11. Phase D — Public dataset ingestion
+
+A curated, real public-transcriptomics catalog a researcher can browse and load, so a
+run can be seeded from a published biological state rather than only an upload. Full
+rationale, the exact endpoints used, discovered provider limitations, and "how to add
+another organism/provider" are in [public-datasets.md](public-datasets.md); this table
+is the work, per this file's own rule.
+
+**Deliberately does not touch Q1** (§2) or `src/engine/` at all — a materialized public
+dataset becomes an ordinary `apps.datasets.Dataset` row, indistinguishable from an
+upload downstream. It makes the *input* side of `de` mode real; `de` mode's *execution*
+is exactly as blocked on Q1 as it was before this phase.
+
+**D1–D5 are done.** Gene->sequence resolution (which would let a selected gene reach a
+real, running circuit design) was scoped out on purpose — see D6.
+
+| # | Task | Where | Size | Status |
+|---|---|---|---|---|
+| **D1** | `apps.expression` app skeleton; `DatasetProvenance` model (one-to-one on `Dataset`, additive — the existing model/migrations/tests are untouched); `gene_symbol` split out of `gene_id` in `COLUMN_ALIASES` | `apps/expression/`, `apps/datasets/services.py` | S | **Done** |
+| **D2** | Provider adapters (sync-time only — never called by the running app) + `manage.py sync_expression_catalog`; a real, live-verified curated catalog, 5 comparisons × 3 organisms | `apps/expression/providers/`, `apps/expression/catalog/` | M | **Done** |
+| **D3** | `apps/expression/services.py` — catalog reads + `materialize_public_dataset`, reusing `apps.datasets.services.create_dataset` unchanged | `apps/expression/services.py` | S | **Done** |
+| **D4** | API layer: catalog browsing, materialize, and one new `GET /datasets/{id}/preview` shared by public and uploaded datasets alike | `api/routers/expression.py`, `api/routers/datasets.py`, `api/schemas.py` | M | **Done** |
+| **D5** | Wizard UI: a public-dataset picker under `de` mode, an informational "Specific Gene" route, and an expression-profile preview (table + volcano) | `frontend/src/components/compile/` | M | **Done** |
+| **D6** | Gene-to-sequence resolution for all four organisms, with pinned transcript provenance and frozen sequences at submission | `engine.transcriptome`, API and wizard | M | **Done** |
+
+**Catalog composition**, all real, live-fetched accessions (never fabricated — see
+public-datasets.md for the full per-entry citation list): 5 human (EMBL-EBI Expression
+Atlas, RNA-seq differential only), 5 yeast (same provider, scoped to *S. cerevisiae* —
+yStreX was unreachable this session), 5 *E. coli* (BV-BRC biosets).
+
+---
+
+## 12. Phase S — Synthetic biology standards
+
+Answers the *first* of iGEM's six Best Software Tool aspects (2025 Judge Handbook p.83):
+*"How well is the software compatible with, and does it leverage, existing synthetic
+biology standards (e.g. SBOL, other RFCs, data formats)?"* Phase X above answers the
+*fourth* aspect (external tools, APIs, packages) and is not duplicated here — the two are
+separate questions and were separately scored.
+
+Before this phase the RFC half was already strong — `AssemblyStandard.RFC10`/`RFC1000`,
+`MotifScreener`'s BioBrick site tables, GenBank in and out (ADR 0007) — and the SBOL half
+was empty. The parts table was also *claimed* to be Registry-verified in its own comment,
+with nothing keeping that true.
+
+**S1–S3 are done.** S4 is deliberately not built.
+
+| # | Task | Where | Size | Status |
+|---|---|---|---|---|
+| **S1** | ADR 0008 + `to_sbol3`: native SBOL 3 export, SO roles per segment, Registry provenance, deterministic `SORTED_NTRIPLES`. Emitted inside the release gate beside FASTA/GenBank | `docs/decisions/0008-*`, `engine/stages/plasmids.py`, `engine/pipeline.py` | M | **Done** |
+| **S2** | `REGISTRY_PARTS` mapping + `tools/sync_registry_parts.py` + bundled `data/registry/parts.json` (identity and digests, never sequences) | `engine/stages/plasmids.py`, `tools/`, `engine/data/registry/` | M | **Done.** All 15 parts verified against the live Registry; the tool refuses to write on drift |
+| **S3** | Offline drift test so the table's "verified against the iGEM Registry" comment is enforced, not asserted | `tests/engine/test_registry_parts.py` | S | **Done.** No network in CI |
+| **S4** | *(deliberately not built)* Publishing parts to the Registry | — | — | **Not built.** Needs credentials and would push sequences to an external service, which collides with the fail-closed release gate (`engine/safety.py`). Read-only is the whole point |
+
+**Also open:** the Registry rate-limits at roughly five parts issued back to back, so
+`tools/sync_registry_parts.py` paces itself; if the table grows much past 15 parts that
+pacing is the thing to revisit, not the request count. `sbol3` is supported on Python 3.13
+by measurement — its PyPI classifiers stop at 3.12 (ADR 0008).
+
+---
+
+## How to use this file
+
+- **Starting something?** Check its blockers in §2 first.
+- **Finished something?** Update its row and §0 in the same commit.
+- **Found new work?** Add it here, with an id, a size and what it blocks. Not in a
+  separate document — that is how the previous fourteen planning files happened.
+- **Want to change a settled decision?** Write the ADR first.
+
+## Endogenous CRISPR research workbench
+
+An explicit-input research entry point now implements the endogenous CRISPR model:
+`engine.pipeline.run_crispr_workbench` and `tools/run_crispr.py`. It scans SpCas9 NGG
+spacers and trigger windows, exhaustively enumerates the agreed binary blocker
+choices, applies staged thermodynamic gates, computes one batch lambda, and ranks
+pair winners with the separate J/Phi objective. Normalized spacer/trigger scores
+are required upstream inputs and validated before candidate folding.
+
+The existing application pipeline remains unchanged. `CrisprGate.available` stays
+False until its explicit input contract is integrated. OFF is free guide; ON is
+conditional on a connected guide-trigger complex, without concentration mixing.
+Measurement failures block final ranking and remain distinct from threshold rejection.
+
+See [running the workbench](crispr-workbench.he.md) and
+[implementation and assumptions](crispr-implementation.he.md). Examples and the
+user-input template are under `examples/crispr/`; these are software checks,
+not evidence of biological function.
+
+## Accepted model snapshot and application scope
+
+The quantitative model page is explicitly withheld until corrected barrier CSVs and
+axes_c8 row-level inputs are versioned with producer provenance. The portable audit
+checks this withholding snapshot only; it does not validate historical summary metrics.
+The prokaryotic/generic AND research generators remain available for engine research,
+but are not advertised through the application: their application workflow has not
+been validated alongside the eukaryotic stem-opening integration. No sequence-release
+activation or biological validation is implied.

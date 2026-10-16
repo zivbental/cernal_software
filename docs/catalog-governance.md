@@ -1,5 +1,8 @@
 # Public catalog governance and contrast verification
 
+Source baseline: `c1bb92cc085a6bad272298b81bda28c22b1d57f5` (16 October 2026).
+See [status](status.md) for release evidence and pending work.
+
 Recorded 8 October 2026. A study title describes a whole experiment; the selected
 contrast determines each bundled DE table's biological interpretation and log2FC
 direction. Software execution does not establish a disease classifier.
