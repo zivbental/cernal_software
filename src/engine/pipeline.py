@@ -1337,8 +1337,10 @@ def _de_trigger(
     dge = dataclasses.replace(dge, rows=tuple(resolved_rows))
 
     chosen: tuple[str, ...] = ()
+    canonical_inputs: tuple[str, ...] = ()
     if and_genes is not None:
-        chosen = tuple(dict.fromkeys(resolve_gene_id(host, gene) for gene in and_genes))
+        canonical_inputs = tuple(resolve_gene_id(host, gene) for gene in and_genes)
+        chosen = tuple(dict.fromkeys(canonical_inputs))
         present = {row.gene_id for row in dge.rows}
         missing = [gene for gene in chosen if gene not in present]
         if missing:
@@ -1432,11 +1434,9 @@ def _de_trigger(
 
     if chosen:
         # One gene given twice supplies both inputs, so it needs twice the windows.
-        wanted = windows_per_gene * (2 if len(chosen) == 1 and and_genes[0] == and_genes[1] else 1)
-        if len(chosen) == 1 and and_genes[0] != and_genes[1]:
-            wanted = windows_per_gene
         kept_windows = []
         for gene in chosen:
+            wanted = windows_per_gene * canonical_inputs.count(gene)
             taken: list[TriggerCandidate] = []
             for c in (c for c in candidates if c.gene_id == gene):
                 end = c.start_index + len(c.sequence)

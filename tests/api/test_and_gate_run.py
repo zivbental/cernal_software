@@ -212,14 +212,18 @@ def test_sequences_of_an_and_candidate_are_released_only_through_the_screening_g
     assert provenance["folding_model"]["configuration"]["salt_molar"] == 0.1
 
 
+@pytest.mark.parametrize("gene_b", ["SELE", "ENSG00000007908"])
 def test_one_gene_can_supply_both_inputs_as_two_windows_of_its_transcript(
-    auth_client, csv_upload, media_root, django_capture_on_commit_callbacks
+    auth_client, csv_upload, media_root, django_capture_on_commit_callbacks, gene_b
 ):
     run_id = _submit_and_run(
         auth_client,
         csv_upload,
         django_capture_on_commit_callbacks,
-        params=_params(and_inputs={"gene_a": "SELE", "gene_b": "SELE"}),
+        params=_params(
+            and_inputs={"gene_a": "SELE", "gene_b": gene_b},
+            and_gate={**FAST_AND_GATE, "windows_per_gene": 1},
+        ),
     )
 
     assert auth_client.get(f"/api/runs/{run_id}").json()["status"] == RunStatus.COMPLETED
