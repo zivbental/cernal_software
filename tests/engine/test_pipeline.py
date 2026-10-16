@@ -489,58 +489,25 @@ def test_requesting_only_antisense_fails_cleanly_naming_q11(direct_request, alwa
     assert "antisense" in result.error.lower() or "payload" in result.error.lower()
 
 
-def test_requesting_only_toehold_and_reports_why_rather_than_crashing(
-    direct_request, always_continue
+@pytest.mark.parametrize("family", ["toehold_and", "prokaryotic_toehold_and"])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_research_and_family_is_rejected_before_folding(
+    direct_request, always_continue, monkeypatch, family, mixed
 ):
-    """`generate_designs` has a body now, so the family is no longer blocklisted.
+    """Offline generators do not imply an integrated application capability."""
 
-    This used to assert ``status == "failed"``, because `ToeholdAndGate.generate_designs`
-    raised `NotImplementedError` and `_UNBUILDABLE_FAMILIES` skipped it to keep the crash
-    out of a run. What must be true instead: a single direct trigger cannot form a 2-input
-    set, so the run SUCCEEDS with no candidates and a stated reason -- never a crash, and
-    never an empty result with nothing said about it.
-    """
-    result = LocalEngine().run(direct_request(gate_families=["toehold_and"]), always_continue)
+    def unexpected_build(*args, **kwargs):
+        pytest.fail("unsupported family reached folding tool construction")
 
-    assert result.status == "succeeded"
-    assert result.candidates == []
-    assert any("activating input(s)" in w for w in result.warnings), result.warnings
-
-
-def test_a_long_paste_reaches_the_and_family_without_an_uncaught_crash(
-    direct_request, always_continue
-):
-    """The scenario that was the crash: a working family mixed with the two-input one.
-
-    The AND family is reached now rather than skipped, so the point of the test is no longer
-    "it was kept away from the run" but "it ran and nothing escaped". On this 72-nt paste
-    (`CLEAN_TRIGGER` twice) the one-input family supplies every candidate, while the AND
-    family gets as far as building designs and has all of them rejected -- by the validator,
-    with named violations, which is the behaviour being asserted.
-
-    What is deliberately NOT asserted is which rejection fires. An earlier version pinned the
-    footprint message, and the trigger scorer's move to bucketed exact footprints retired it:
-    50-nt windows are kept now, so pairs reach `generate_designs` instead of being refused
-    before it. The counted-reason contract is the stable claim; a specific reason is not.
-    """
+    monkeypatch.setattr("engine.pipeline.build_tools", unexpected_build)
+    families = ["toehold", family] if mixed else [family]
     result = LocalEngine().run(
-        direct_request(
-            trigger_sequence=CLEAN_TRIGGER * 2, gate_families=["toehold", "toehold_and"]
-        ),
+        direct_request(trigger_sequence=CLEAN_TRIGGER * 2, gate_families=families),
         always_continue,
     )
-    assert result.status == "succeeded"
-    assert result.candidates
-    assert all(c.gate_family == "toehold" for c in result.candidates)
-
-    # The family reports its own shortfall, with counts, and never silently.
-    reports = [w for w in result.warnings if "toehold_and" in w]
-    assert reports, result.warnings
-    assert any("rejected" in w for w in reports), reports
-    # Every rejection carries a reason, so no design is dropped without one.
-    assert not any(
-        "0 trigger set(s) rejected. 0 generated design(s) rejected" in w for w in reports
-    )
+    assert result.status == FAILED
+    assert family in result.error
+    assert result.candidates == []
 
 
 def test_cancellation_before_the_run_starts(direct_request):
