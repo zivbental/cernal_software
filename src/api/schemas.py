@@ -496,7 +496,8 @@ class DesignIn(Schema):
         description=(
             "Folding model: temperature_celsius (0..100), dangles (0 or 2), "
             "special_hairpins, no_lonely_pairs, no_gu, no_gu_closure (booleans), "
-            "energy_parameters (turner2004, turner1999 or andronescu2007). "
+            "energy_parameters (turner2004, turner1999 or andronescu2007), "
+            "salt_molar (monovalent salt in mol/L, 0.01..6.0; 1.021 is the reference). "
             "Unknown fields and invalid values are rejected even when strict=false."
         ),
     )

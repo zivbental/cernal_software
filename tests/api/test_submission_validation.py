@@ -396,6 +396,7 @@ def test_folding_configuration_is_normalized_and_preserved(auth_client, endpoint
         "no_gu": False,
         "no_gu_closure": False,
         "energy_parameters": "turner2004",
+        "salt_molar": 1.021,
     }
     expected = {**defaults, **folding}
     body = {"trigger_sequence": SEQUENCE}

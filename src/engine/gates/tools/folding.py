@@ -34,12 +34,14 @@ import math
 import os
 import subprocess
 import sys
+from collections.abc import Sequence
 from dataclasses import asdict
 from functools import lru_cache
 from hashlib import sha256
 from itertools import permutations
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Lock
 from types import SimpleNamespace
 
 import RNA
@@ -70,6 +72,8 @@ _MAX_STRUCTURE_LAYOUT_NT = 2_000
 # All CERNAL snapshot creation and compound construction shares this lock. Native folds
 # use copied parameters after leaving it. Never load an energy file for every fold.
 _PARAMETER_LOCK = VIENNA_PARAMETER_LOCK
+# ViennaRNA's random generator is process-global: held while seeding and drawing.
+_SAMPLING_LOCK = Lock()
 _ENERGY_TABLES = {
     "turner2004": RNA.parameter_set_rna_turner2004,
     "turner1999": RNA.parameter_set_rna_turner1999,
@@ -105,7 +109,7 @@ def _model(config: FoldingConfig, window_size: int, max_bp_span: int, uniq_ml: i
         cv_fact=1.0,
         nc_fact=1.0,
         sfact=1.07,
-        salt=1.021,
+        salt=config.salt_molar,
         saltMLLower=6,
         saltMLUpper=24,
         saltDPXInit=99999,
@@ -190,6 +194,7 @@ def _parameter_snapshot(config: FoldingConfig, window_size: int, max_bp_span: in
             else []
         ),
         "suboptimal_model_override": {"uniq_ML": 1},
+        "sampling_model_override": {"uniq_ML": 1},
     }
     return parameters, exp_parameters, json.dumps(provenance, sort_keys=True, allow_nan=False)
 
@@ -233,6 +238,20 @@ def configured_compound(
             parameters_copy.model_details.max_bp_span = effective_span
         compound.exp_params_rescale()
     return compound
+
+
+def _contains_pairs(structure: str, pairs: Sequence[tuple[int, int]]) -> bool:
+    """Whether a dot-bracket string (``&`` ignored) pairs every ``(i, j)`` in ``pairs``."""
+    stack: list[int] = []
+    partner: dict[int, int] = {}
+    for position, char in enumerate(structure.replace("&", "")):
+        if char == "(":
+            stack.append(position)
+        elif char == ")":
+            opener = stack.pop()
+            partner[opener] = position
+            partner[position] = opener
+    return all(partner.get(i) == j for i, j in pairs)
 
 
 class FoldEngine:
@@ -286,7 +305,13 @@ class FoldEngine:
         )
         # Instance-owned wrappers retain no tools through a class-level cache. Cycles
         # between an instance and its bound wrappers are reclaimed by Python's GC.
-        for name in ("mfe", "structure_energy", "partition", "_partition_with_unpaired"):
+        for name in (
+            "mfe",
+            "structure_energy",
+            "partition",
+            "_partition_with_unpaired",
+            "_constrained_probability_cached",
+        ):
             setattr(self, name, lru_cache(maxsize=cache_size)(getattr(self, name)))
         self._base_pair_probabilities_cached = lru_cache(maxsize=min(cache_size, 2))(
             self._base_pair_probabilities_cached
@@ -968,6 +993,183 @@ class FoldEngine:
                     matrix[i - 1][j - 1] = probability
                     matrix[j - 1][i - 1] = probability
         return tuple(tuple(row) for row in matrix)
+
+    def constrained_probability(
+        self, strands: str, forced_pairs: Sequence[tuple[int, int]]
+    ) -> float | None:
+        """Exact probability that **all** of ``forced_pairs`` are present at once.
+
+        Why it exists: a joint event such as "both designed duplexes are formed in the
+        same structure" cannot be read off the pair-probability matrix, whose entries
+        are marginals — the product of marginals is only a bound under independence.
+        The partition-function ratio answers it exactly, with no sampling noise (on
+        multi-strand complexes :meth:`sample_structures` was measured to disagree badly
+        with the exact probabilities, and more draws do not fix it)::
+
+            P(all forced pairs) = Z(forced) / Z = exp(-(G_forced - G) / RT)
+
+        where ``Z(forced)`` is the partition function restricted to structures that
+        contain every forced pair, ``G`` the unconstrained ensemble free energy, and
+        ``RT`` is :attr:`rt` (ViennaRNA's own gas constant at this engine's temperature).
+        For a single forced pair this equals the matching
+        :meth:`base_pair_probabilities` entry exactly.
+
+        Args:
+            strands: RNA, uppercase; one sequence or several joined with ``&`` — the
+                same syntax and indexing as :meth:`sample_structures`.
+            forced_pairs: ``(i, j)`` positions, **0-indexed over the concatenation with
+                the** ``&`` **removed**, that must all be paired. Converted here to
+                ViennaRNA's 1-indexed ``hc_add_bp`` with all-loop-context enforcement.
+
+        Returns:
+            A probability in ``(0, 1]``, or ``None`` — never ``0.0`` — when
+            ``forced_pairs`` is empty (nothing to ask), the constraints cannot all hold
+            (an impossible pair, or pairs that conflict), or ViennaRNA fails.
+
+        Numerics: both compounds run ``mfe()`` and ``exp_params_rescale(mfe)`` before
+        ``pf()`` so the Boltzmann factors are scaled to the same energy scale and long
+        complexes do not overflow. Cached on ``(strands, forced_pairs)``.
+        """
+        pairs = tuple((int(i), int(j)) for i, j in forced_pairs)
+        if not pairs:
+            return None
+        return self._constrained_probability_cached(strands, pairs)
+
+    def _constrained_probability_cached(
+        self, strands: str, forced_pairs: tuple[tuple[int, int], ...]
+    ) -> float | None:
+        rt = self.rt
+
+        def free_energy(pairs: tuple[tuple[int, int], ...]) -> float | None:
+            fold_compound = self._compound(strands)
+            if pairs:
+                option = RNA.CONSTRAINT_CONTEXT_ALL_LOOPS | RNA.CONSTRAINT_CONTEXT_ENFORCE
+                for i, j in pairs:
+                    fold_compound.hc_add_bp(i + 1, j + 1, option)
+            structure, mfe_energy = fold_compound.mfe()
+            if pairs and not _contains_pairs(structure, pairs):
+                # ViennaRNA silently drops a forced pair it cannot place (and an
+                # enforced set that conflicts), which would read back as P = 1.0.
+                return None
+            fold_compound.exp_params_rescale(mfe_energy)
+            _, energy = fold_compound.pf()
+            return energy
+
+        try:
+            free_forced = free_energy(forced_pairs)
+            free_all = free_energy(())
+        except Exception:  # ViennaRNA raises bare RuntimeError/ValueError
+            return None
+        # An infeasible constraint set yields a non-finite or absurdly high energy.
+        if free_forced is None or free_all is None:
+            return None
+        if not (free_forced == free_forced and free_all == free_all):
+            return None
+        if free_forced - free_all > 100.0:
+            return None
+        cost = free_forced - free_all
+        probability = math.exp(-cost / rt)
+        if probability == 0.0:
+            return None
+        # Same clamp as ``p_open``: the constrained ensemble is a subset of the free one,
+        # so ``cost`` is non-negative in exact arithmetic; single-precision energies can put
+        # a near-certain event one ulp the wrong way (probability just above 1).
+        if probability > 1.0:
+            return 1.0 if cost > -_FLOAT32_ENERGY_ULP else None
+        return probability
+
+    def sample_structures(
+        self,
+        strands: str,
+        n_samples: int,
+        seed: int | None = None,
+        first_strand: int | None = None,
+    ) -> list[str]:
+        """Structures drawn from the Boltzmann ensemble, not just the best one.
+
+        :meth:`mfe` returns the single most stable structure; sampling shows what the
+        molecule does the rest of the time, and is the only way to ask a joint question
+        ("is region X open *in the same structure* as region Y?").
+
+        Args:
+            strands: RNA, uppercase. One sequence, or several joined with ``&``; same
+                indexing as :meth:`base_pair_probabilities` (positions over the
+                concatenation with the ``&`` removed, first strand first). The strand order
+                must already be one ViennaRNA can represent without a pseudoknot.
+            n_samples: How many structures to draw.
+            seed: If given, seeds ViennaRNA's random generator before drawing. That
+                generator is process-global, so seeding and drawing run under a lock and
+                concurrent seeded calls in one process are serialized (each reproducible);
+                an unseeded call still advances the shared generator.
+            first_strand: Index (in ``strands``) of the strand to write first when drawing;
+                the others follow in their cyclic order, so the structure stays nested.
+                ``None`` writes the last strand first (the validated choice for a switch
+                with its trigger: the trigger first). See the strand-order gotcha below.
+
+        Returns:
+            Dot-bracket strings (``&`` removed, in the caller's strand order). **May be
+            shorter than ``n_samples``**: ViennaRNA's stochastic backtracking can drop a
+            draw on a numerically awkward multiloop, so normalise by ``len(result)``,
+            never by ``n_samples``.
+
+        Not cached: draws are stochastic, so a second caller must not receive the first
+        caller's samples.
+
+        Gotchas:
+            * ``uniq_ML`` is required for stochastic backtracking. The compound comes from
+              :func:`configured_compound` (so ``no_gu``, dangles, energy tables and the
+              parameter lock match :meth:`mfe`, :meth:`partition` and
+              :meth:`base_pair_probabilities`) with ``uniq_ml=1`` as the only override,
+              recorded in :meth:`provenance` as ``sampling_model_override``.
+            * **Strand order matters.** ViennaRNA's ``pbacktrack`` can draw from the wrong
+              ensemble depending on which strand is written first: for real ~120-nt
+              switches plus their trigger, ``switch&trigger`` never drew the MFE and
+              returned structures with Boltzmann weight ~1e-11 as 70-75% of draws, while
+              ``trigger&switch`` matched exp(-(E-G)/RT) and the exact stem marginals. In a
+              switch with two hairpins and one trigger, the order that matched was the
+              one with the trigger on the side of the switch nearest its target hairpin
+              (trigger first for the 5' hairpin, last for the 3' one); the other order
+              drew the untargeted hairpin open. Not exact either (on a 57-nt construct the
+              top structure came out 4 points under its Boltzmann probability). Check
+              marginals built from samples against :meth:`base_pair_probabilities`.
+        """
+        parts = strands.split("&")
+        count = len(parts)
+        first = (count - 1) if first_strand is None else first_strand
+        if not 0 <= first < count:
+            raise ValueError(f"first_strand {first_strand} is outside the {count} strands")
+        order = [(first + k) % count for k in range(count)]  # a cyclic rotation: stays nested
+        drawn_order = "&".join(parts[i] for i in order)
+        # Same model, energy tables and parameter lock as every other fold; only uniq_ML
+        # differs, which stochastic backtracking requires (see the provenance record).
+        fold_compound = configured_compound(drawn_order, self.config, uniq_ml=1)
+        fold_compound.pf()
+        # ViennaRNA's generator is process-global: seeding and drawing must not interleave
+        # with another seeded draw in this process, or neither is reproducible.
+        with _SAMPLING_LOCK:
+            if seed is not None:
+                RNA.init_rand(seed)
+            drawn = list(fold_compound.pbacktrack(n_samples))
+        if count == 1 or order == list(range(count)):
+            return drawn
+        # Map each position of the drawn frame back to the caller's strand order.
+        original_start = [sum(len(parts[j]) for j in range(i)) for i in range(count)]
+        to_original: list[int] = []
+        for i in order:
+            to_original.extend(original_start[i] + k for k in range(len(parts[i])))
+        total = len(to_original)
+        mapped = []
+        for structure in drawn:
+            out = ["."] * total
+            stack: list[int] = []
+            for i, char in enumerate(structure):
+                if char == "(":
+                    stack.append(i)
+                elif char == ")":
+                    a, b = sorted((to_original[stack.pop()], to_original[i]))
+                    out[a], out[b] = "(", ")"
+            mapped.append("".join(out))
+        return mapped
 
     def suboptimal(
         self,

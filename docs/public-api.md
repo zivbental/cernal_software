@@ -557,7 +557,8 @@ POST /api/design
     "no_lonely_pairs": false,
     "no_gu": false,
     "no_gu_closure": false,
-    "energy_parameters": "turner2004"
+    "energy_parameters": "turner2004",
+    "salt_molar": 1.021
   },
 
   // ─── how candidates are compared (§9.1) ─────────────────────────────────

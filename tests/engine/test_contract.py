@@ -62,7 +62,7 @@ def test_contract_types_are_frozen():
     ]:
         instance = cls(**kwargs)
         with pytest.raises(dataclasses.FrozenInstanceError):
-            instance.kind = "mutated" if cls is ArtifactRef else None
+            setattr(instance, "kind" if cls is ArtifactRef else "name", "mutated")
 
 
 def test_accepted_returns_rank_order():
@@ -138,6 +138,7 @@ def test_job_configuration_snapshots_all_folding_defaults(params):
         "no_gu": False,
         "no_gu_closure": False,
         "energy_parameters": "turner2004",
+        "salt_molar": 1.021,
     }
     assert params in ({}, {"folding": {}})
 
@@ -158,7 +159,7 @@ def test_job_configuration_preserves_custom_folding_settings(temperature, energy
     }
     params = {"folding": folding}
     normalized = validate_job_configuration(params, ["toehold"], "default", "direct", "ACGU")
-    assert normalized["folding"] == folding
+    assert normalized["folding"] == {**folding, "salt_molar": 1.021}
     normalized["folding"]["dangles"] = 2
     assert params["folding"]["dangles"] == 0
 

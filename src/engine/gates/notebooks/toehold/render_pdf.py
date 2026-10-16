@@ -29,6 +29,10 @@ def render_pdf(html_path: Path, pdf_path: Path, *, landscape: bool = True) -> No
         try:
             page = browser.new_page()
             page.goto(html_path.resolve().as_uri())
+            # Reports that typeset math (KaTeX) or load web fonts finish after "load": wait for
+            # the network to go quiet and for the fonts to be ready before printing.
+            page.wait_for_load_state("networkidle")
+            page.evaluate("document.fonts.ready")
             # Chromium's PDF export always uses print styles: no separate
             # emulate_media() call needed for @media print to apply.
             page.pdf(
@@ -36,6 +40,7 @@ def render_pdf(html_path: Path, pdf_path: Path, *, landscape: bool = True) -> No
                 format="A4",
                 landscape=landscape,
                 print_background=True,
+                outline=True,  # bookmarks from the headings, for long reports
                 margin={"top": "14mm", "bottom": "14mm", "left": "14mm", "right": "14mm"},
             )
         finally:
