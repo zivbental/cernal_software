@@ -276,6 +276,8 @@ export interface Candidate {
 }
 
 export interface CandidateDetail extends Candidate {
+  /** Optional proposed extension; absent on legacy backends. Runtime validated before use. */
+  sequence_screening?: import("./screening").SequenceScreening | null;
   triggers: { features: Array<Record<string, unknown>> };
   design: CandidateDesign;
   metrics: Metric[];
