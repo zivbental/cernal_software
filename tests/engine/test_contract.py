@@ -62,7 +62,7 @@ def test_contract_types_are_frozen():
     ]:
         instance = cls(**kwargs)
         with pytest.raises(dataclasses.FrozenInstanceError):
-            instance.kind = "mutated" if cls is ArtifactRef else None
+            setattr(instance, "kind" if cls is ArtifactRef else "name", "mutated")
 
 
 def test_accepted_returns_rank_order():

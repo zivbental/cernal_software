@@ -61,6 +61,47 @@ def _reports(output_dir: Path) -> tuple[str, str]:
     return single, both
 
 
+def test_saved_results_reject_mismatches_and_preserve_provenance(tmp_path):
+    # Test the persistence boundary independently of expensive sampling/rendering.
+    sys.path.insert(0, str(NOTEBOOK_DIR))
+    try:
+        from _report_stats import load_results, save_results
+    finally:
+        sys.path.pop(0)
+    identity = {
+        "csv_sha256": "input-a",
+        "folding_model": {"salt": 0.1},
+        "settings": {"seed": 7, "samples": 300},
+        "part": "single",
+    }
+    original = {
+        "code_revision": "original",
+        "input_file": "original.csv",
+        "folding_model": "original model",
+    }
+    payload = {"results": {"1": {"on": 12}}, "check": {}}
+    path = tmp_path / "saved.json"
+    save_results(path, identity, original, payload)
+    assert load_results(path, identity) == (payload, original)
+    for changed in (
+        {**identity, "csv_sha256": "input-b"},
+        {**identity, "folding_model": {"salt": 1.021}},
+        {**identity, "settings": {"seed": 8, "samples": 300}},
+        {**identity, "settings": {"seed": 7, "samples": 301}},
+        {**identity, "part": "and"},
+    ):
+        with pytest.raises(ValueError, match="identity mismatch"):
+            load_results(path, changed)
+    saved = json.loads(path.read_text())
+    saved["payload"]["results"]["1"]["on"] = 99
+    path.write_text(json.dumps(saved))
+    with pytest.raises(ValueError, match="integrity"):
+        load_results(path, identity)
+    path.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="lack validated provenance"):
+        load_results(path, identity)
+
+
 @pytest.mark.parametrize("controls", [2, 0])
 def test_both_reports_render_with_and_without_control_triggers(tmp_path, controls):
     namespace = _run_notebook(tmp_path, {"N_CONTROLS": str(controls)})
@@ -133,3 +174,22 @@ def test_a_single_candidate_has_no_rank_correlation(tmp_path):
     assert "NaN" not in re.sub(r"base64,[A-Za-z0-9+/=]+", "", both)  # no NaN printed as a value
     assert "Spearman rank correlation n/a" in both
     assert list(tmp_path.rglob("eu_and_v3_and_trigger_positions_*.png"))
+    replay = _run_notebook(
+        tmp_path / "replay",
+        {
+            "AND_MAX_CANDIDATES": "1",
+            "N_CONTROLS": "2",
+            "RESULTS_TO_LOAD": repr(str(namespace["_results_path"])),
+            "RESULTS_TO_LOAD_AND": repr(str(namespace["_results_path_and"])),
+        },
+    )
+    assert replay["RUN_INFO"] == namespace["RUN_INFO"]
+    assert replay["AND_RUN_INFO"] == namespace["AND_RUN_INFO"]
+    assert [d["control_ranks"] for d in replay["designs"]] == [
+        d["control_ranks"] for d in namespace["designs"]
+    ]
+    assert replay["AND_IDENTITY"] == namespace["AND_IDENTITY"]
+    changed = json.loads(json.dumps(replay["AND_IDENTITY"]))
+    changed["and_jobs"][0]["fused"] += "A"
+    with pytest.raises(ValueError, match="identity mismatch"):
+        replay["load_results"](namespace["_results_path_and"], changed)

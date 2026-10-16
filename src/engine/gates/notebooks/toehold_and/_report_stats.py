@@ -15,6 +15,7 @@ how far it can be trusted:
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import statistics
 import subprocess
@@ -169,6 +170,37 @@ def file_sha256(path: str | Path) -> str:
         for block in iter(lambda: handle.read(1 << 20), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def result_digest(value: dict) -> str:
+    """Stable digest of detached JSON data, including sampling inputs and result identity."""
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    ).hexdigest()
+
+
+def save_results(path: Path, identity: dict, provenance: dict, payload: dict) -> None:
+    """Persist original provenance with a versioned, integrity-checked result envelope."""
+    body = {"schema_version": 1, "identity": identity, "provenance": provenance, "payload": payload}
+    path.write_text(json.dumps({**body, "sha256": result_digest(body)}), encoding="utf-8")
+
+
+def load_results(path: str | Path, identity: dict) -> tuple[dict, dict]:
+    """Reject legacy, altered or mismatched results rather than relabeling their numbers."""
+    saved = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(saved, dict) or saved.get("schema_version") != 1:
+        raise ValueError("Saved results lack validated provenance; repeat sampling")
+    digest = saved.pop("sha256", None)
+    if digest != result_digest(saved):
+        raise ValueError("Saved results integrity check failed")
+    if result_digest(saved["identity"]) != result_digest(identity):
+        raise ValueError("Saved results input/model/sampling identity mismatch; repeat sampling")
+    if not isinstance(saved.get("provenance"), dict) or not all(
+        isinstance(saved["provenance"].get(key), str)
+        for key in ("code_revision", "input_file", "folding_model")
+    ):
+        raise ValueError("Saved results lack original provenance")
+    return saved["payload"], saved["provenance"]
 
 
 def describe_folding_model(provenance: dict) -> str:

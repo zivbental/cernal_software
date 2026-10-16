@@ -36,7 +36,7 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import asdict
-from functools import cache, lru_cache
+from functools import lru_cache
 from hashlib import sha256
 from itertools import permutations
 from pathlib import Path
@@ -305,7 +305,13 @@ class FoldEngine:
         )
         # Instance-owned wrappers retain no tools through a class-level cache. Cycles
         # between an instance and its bound wrappers are reclaimed by Python's GC.
-        for name in ("mfe", "structure_energy", "partition", "_partition_with_unpaired"):
+        for name in (
+            "mfe",
+            "structure_energy",
+            "partition",
+            "_partition_with_unpaired",
+            "_constrained_probability_cached",
+        ):
             setattr(self, name, lru_cache(maxsize=cache_size)(getattr(self, name)))
         self._base_pair_probabilities_cached = lru_cache(maxsize=min(cache_size, 2))(
             self._base_pair_probabilities_cached
@@ -840,7 +846,6 @@ class FoldEngine:
             return None
         return self._constrained_probability_cached(strands, pairs)
 
-    @cache  # noqa: B019 — one instance per run; see the class docstring
     def _constrained_probability_cached(
         self, strands: str, forced_pairs: tuple[tuple[int, int], ...]
     ) -> float | None:
