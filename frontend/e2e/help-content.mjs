@@ -235,6 +235,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { GuideContent } from "@/routes/guide";
 import { UseCasesContent } from "@/routes/use-cases";
 import { FaqContent } from "@/routes/faq";
+import { METRICS } from "@/components/docs/MetricsChart";
+
+globalThis.__metricHelp = METRICS;
 globalThis.__help = {
   "/guide": renderToStaticMarkup(<GuideContent />),
   "/use-cases": renderToStaticMarkup(<UseCasesContent />),
@@ -266,6 +269,12 @@ try {
       "summary.csv",
       "separate output-specific candidates",
       "Show rejected candidates",
+      "AUG-only mean marginal",
+      "unpaired bulge",
+      "0.001 denominator",
+      "calibrated cellular probability",
+      "functional cutoff",
+      "off-target or wet-lab validation",
     ],
     "/use-cases": [
       "Choose a supported workflow",
@@ -280,6 +289,18 @@ try {
     ],
   };
   const failures = [];
+  const metricHelp = new Map(globalThis.__metricHelp.map((metric) => [metric.name, metric.description]));
+  for (const [name, required] of [
+    ["predicted_leakage", /AUG-only three-base mean marginal/],
+    ["dynamic_range", /0\.001 denominator floor/],
+    ["predicted_success_rate", /not a cellular success probability/],
+    ["gc_content", /Percent GC of the regulatory-switch sequence, not the full assembled construct/],
+  ]) {
+    if (!required.test(metricHelp.get(name) ?? ""))
+      failures.push(`${name}: missing scientific interpretation limit`);
+  }
+  if (/confidence.*in vivo/i.test(metricHelp.get("predicted_success_rate") ?? ""))
+    failures.push("Success help must not claim calibrated in vivo confidence");
   for (const [route, phrases] of Object.entries(required)) {
     for (const phrase of phrases)
       if (!pages[route].includes(phrase))

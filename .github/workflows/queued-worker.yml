@@ -1,0 +1,16 @@
+name: Queued worker acceptance
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  worker:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      # Windows checks the explicit unsupported-path error; Linux runs the real queue.
+      - run: uv run pytest tests/test_queued_worker_acceptance.py -q -s

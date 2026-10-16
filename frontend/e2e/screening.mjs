@@ -54,6 +54,26 @@ try {
     await check("unverifiable alphabet", report(), "unavailable", { ...subject, sequence: invalid });
   }
   const crypto = globalThis.crypto;
+  const originalNow = Date.now;
+  let finishDigest;
+  try {
+    Date.now = () => now;
+    Object.defineProperty(globalThis, "crypto", { value: { subtle: {
+      digest: (...args) => new Promise(resolve => {
+        finishDigest = async () => resolve(await crypto.subtle.digest(...args));
+      }),
+    } }, configurable: true });
+    const pending = assessScreening(report("clear", {
+      valid_until: new Date(now + 1000).toISOString(),
+    }), subject);
+    Date.now = () => now + 2000;
+    await finishDigest();
+    assert.equal((await pending).state, "stale", "expiry during digest must not render clear");
+    checks++;
+  } finally {
+    Date.now = originalNow;
+    Object.defineProperty(globalThis, "crypto", { value: crypto, configurable: true });
+  }
   Object.defineProperty(globalThis, "crypto", { value: undefined, configurable: true });
   await check("missing digest API", report(), "unavailable");
   Object.defineProperty(globalThis, "crypto", { value: crypto, configurable: true });

@@ -249,6 +249,7 @@ export interface LogicGraph {
 }
 
 export interface CandidateDesign {
+  sequence_release?: { release_allowed: boolean; reason?: string };
   switch_sequence: string;
   structure: string;
   toehold_length: number;
@@ -319,6 +320,7 @@ export interface Artifact {
   checksum_sha256: string;
   size_bytes: number;
   download_url: string;
+  download_available?: boolean;
   created_at: string;
 }
 

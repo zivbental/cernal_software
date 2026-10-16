@@ -2,7 +2,8 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFile, mkdir } from "node:fs/promises";
-import { resolve, extname, sep } from "node:path";
+import { resolve, extname } from "node:path";
+import { isContainedAsset } from "./asset-containment.mjs";
 import { chromium } from "playwright";
 import { report, sequence } from "./fixtures/screening.mjs";
 
@@ -39,7 +40,7 @@ const server = createServer(async (req, res) => {
   }
   if (path === "/favicon.ico") { res.writeHead(204).end(); return; }
   const asset = path.startsWith("/static/app/assets/") ? resolve(root, path.slice("/static/app/".length)) : resolve(root, "index.html");
-  if (asset !== resolve(root, "index.html") && !asset.startsWith(`${root}${sep}assets${sep}`)) { res.writeHead(404).end(); return; }
+  if (asset !== resolve(root, "index.html") && !isContainedAsset(root, asset)) { res.writeHead(404).end(); return; }
   try {
     let body = await readFile(asset);
     if (asset.endsWith("index.html")) body = body.toString().replace(/<link\b[^>]*href="https:\/\/fonts\.(?:googleapis|gstatic)\.com[^>]*>/g, "");
@@ -72,6 +73,10 @@ try {
     ["unavailable", "Screening unavailable"], ["flagged", "Flagged for review"], ["clear", "No concerns detected by this screening"]]) {
     await scenario(report(state), label);
   }
+  // Optional UI evidence must never override backend download availability.
+  assert.equal(await page.getByRole("link", { name: "Download everything (.zip)" }).getAttribute("href"), null);
+  assert.match(await page.locator("body").innerText(), /Some artifacts are withheld/);
+  checks++;
   const disclosure = panel.locator("summary");
   await disclosure.focus(); await page.keyboard.press("Enter");
   await panel.getByText(report().subject.sha256, { exact: true }).waitFor();
@@ -96,6 +101,18 @@ try {
   await scenario(report("pending"), "Screening pending");
   await panel.getByRole("status").filter({ hasText: "No concerns detected by this screening" }).waitFor({ timeout: 12000 });
   transition = false; checks++;
+  await page.addInitScript(() => {
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    let first = true;
+    crypto.subtle.digest = async (...args) => {
+      if (first) first = false;
+      else await new Promise(resolve => setTimeout(resolve, 2200));
+      return digest(...args);
+    };
+  });
+  await scenario(report("clear", { valid_until: new Date(Date.now() + 5000).toISOString() }), "No concerns detected by this screening");
+  await panel.getByRole("status").filter({ hasText: "Screening result is stale or mismatched" }).waitFor({ timeout: 12000 });
+  checks++;
   await page.setViewportSize({ width: 390, height: 844 });
   await scenario(report("flagged"), "Flagged for review");
   await panel.locator("summary").click();

@@ -33,6 +33,10 @@
 do          text eol=lf
 manage.py   text eol=lf
 
+# Catalog provenance hashes the shipped CSV bytes. Keep their recorded LF bytes
+# on checkout, including when Git for Windows enables core.autocrlf=true.
+src/apps/expression/catalog/**/*.csv text eol=lf
+
 # --- Binary: never touch these, and never try to merge them ---------------------------
 # Without this, an unlucky auto-detection could rewrite bytes inside an image or a PDF.
 *.png       binary

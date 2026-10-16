@@ -79,6 +79,11 @@ class Command(RunserverCommand):
     help = "Run the development server with an automatically restarted analysis worker."
 
     def handle(self, *args, **options):
+        if IS_WINDOWS:
+            raise CommandError(
+                "The application worker requires WSL2 on Windows; "
+                "see docs/windows-worker.md. Native Django Q2 requires unavailable fork support."
+            )
         if not settings.DEBUG:
             raise CommandError("devserver is only available with development settings.")
         with supervisor_lock(settings.VAR_DIR / "devserver.lock"):

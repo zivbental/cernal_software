@@ -17,18 +17,20 @@ def screening_released(monkeypatch):
     downstream of the gate — FASTA, GenBank, SBOL, and the Platform's import and
     download path for them — would otherwise be exercised by any test.
 
-    This flips only ``release_allowed`` on the result the real gate produced, leaving
-    the audit manifest and its recomputed digest exactly as screening wrote them, so a
-    test still sees genuine evidence rather than a fabricated clean screen. It is the
-    same seam ``tests/engine/test_pipeline.py`` uses for the SBOL export.
+    This test-only adapter supplies a consistent PASS/release pair with the real
+    sequence digest. A HOLD with a flipped boolean is contradictory evidence and
+    must remain withheld. No production screening success is inferred from this stub.
     """
     import engine.pipeline as pipeline_module
+    from engine.safety import Decision
 
     real = pipeline_module.fail_closed_release
 
     def allow(reference, sequence, *, host_context):
         return dataclasses.replace(
-            real(reference, sequence, host_context=host_context), release_allowed=True
+            real(reference, sequence, host_context=host_context),
+            decision=Decision.PASS,
+            release_allowed=True,
         )
 
     monkeypatch.setattr(pipeline_module, "fail_closed_release", allow)

@@ -1,5 +1,11 @@
 # The CERNAL Engine
 
+> **Current scope (2026-10-12):** LocalEngine is the default and only supported
+> application engine; MockEngine was removed. This reference retains historical
+> scaffold diagrams and research plans, whose availability markers are not current
+> integration claims. Use [`GET /api/version`](api.md), the [README](../README.md)
+> and [scientific interpretation](scientific-interpretation.md) for current scope.
+
 > Everything about the scientific engine: what crosses its boundary, how it is built
 > inside, what each class is, and where the code lives.
 >
@@ -100,8 +106,7 @@ class EngineClient(Protocol):
 
 | Class | Purpose |
 |---|---|
-| `MockEngine` | Deterministic fake science. **The default**, and what CI and frontend work use |
-| `LocalEngine` | The real pipeline, in-process. Raises `NotImplementedError` until Step 5 |
+| `LocalEngine` | Default and only supported application engine; real folding and scoped production workflows |
 | *a remote client* | *Future.* Same Protocol, runs the same pipeline elsewhere. [deployment.md](deployment.md) |
 
 Selected by dotted path: `engine = load_engine(settings.CERNAL_ENGINE)`. `load_engine`
@@ -199,7 +204,9 @@ returns `status="cancelled"`. Threads are never killed.
 Platform shows these to the researcher directly.
 
 **Determinism.** The same `idempotency_key` and `seed` must produce identical candidates
-and byte-identical artifacts. `MockEngine` guarantees this and is tested for it.
+and reproducible scientific content under the same inputs, references and configuration.
+Inspect current provenance and determinism tests; a former mock guarantee is not
+evidence for LocalEngine artifact reproducibility.
 
 **Rejected candidates survive** with a reason attached. Never filtered away silently.
 
@@ -231,9 +238,10 @@ When the engine becomes a service (design map 08), these dataclasses serialise d
 vocabulary, checksum rules, idempotency behaviour, and the guarantee that rejected
 candidates carry reasons.
 
-### 1.5 Using MockEngine
+### 1.5 Historical MockEngine options (removed)
 
-Options go under `JobRequest.params["mock"]` and are ignored by every real engine.
+The removed scaffold accepted these options under `JobRequest.params["mock"]`.
+This table is historical; it is not a runnable configuration for the current application.
 
 | Option | Default | Effect |
 |---|---|---|

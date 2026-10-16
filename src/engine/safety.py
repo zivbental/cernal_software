@@ -9,6 +9,7 @@ be released.
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import hmac
 import json
@@ -268,6 +269,261 @@ class SafetyScreenResult:
                 finding.identity for finding in self.unexpected_marker_findings
             ],
         }
+
+    def release_record(self) -> dict:
+        """Stable decision metadata; full time-bound evidence stays in audit artifacts.
+
+        Keep the wall clock and its dependent audit digest out of reproducible
+        candidate records. This does not alter or replace the full audit manifest.
+        """
+        record = self.audit_manifest()
+        record.pop("result_sha256")
+        record["adapter"].pop("validated_at")
+        record["adapter"].pop("expires_at")
+        return record
+
+
+def stored_release_allowed(design: object) -> bool:
+    """Require explicit, sequence-bound release evidence for both exported molecules.
+
+    Missing/legacy evidence is not approval. A contradictory HOLD/BLOCK/error with
+    a truthy flag is not approval either. This reads the decision already made; it
+    does not rerun screening or infer success from a score or an artifact's presence.
+    """
+    if not isinstance(design, dict):
+        return False
+    release = design.get("sequence_release")
+    sequence = design.get("switch_sequence")
+    if not isinstance(release, dict) or not isinstance(sequence, str) or not sequence:
+        return False
+    expected = {
+        "switch": hashlib.sha256(sequence.encode()).hexdigest(),
+        "plasmid": design.get("construct_sha256"),
+    }
+    return all(
+        isinstance(release.get(kind), dict)
+        and release[kind].get("release_allowed") is True
+        and isinstance(release[kind].get("decision"), str)
+        and release[kind].get("decision") in {"PASS", "REVIEW"}
+        and isinstance(digest, str)
+        and len(digest) == 64
+        and release[kind].get("sequence_sha256") == digest
+        for kind, digest in expected.items()
+    )
+
+
+def disclosed_candidate_data(design: object, triggers: object) -> tuple[dict, dict]:
+    """Project held candidate data onto known non-sequence fields, without mutation."""
+    design = design if isinstance(design, dict) else {}
+    triggers = triggers if isinstance(triggers, dict) else {}
+    allowed = stored_release_allowed(design)
+    if allowed:
+        disclosed = copy.deepcopy(design)
+        disclosed["sequence_release"]["release_allowed"] = True
+        return disclosed, copy.deepcopy(triggers)
+
+    def pick(value, keys):
+        if not isinstance(value, dict):
+            return {}
+        return {
+            key: item
+            for key, item in value.items()
+            if key in keys and isinstance(item, (str, int, float, bool, type(None)))
+        }
+
+    def records(value):
+        return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+    # Unknown fields, architecture fragments and nested component switches must not
+    # create an alternate route around the sequence release decision.
+    safe_keys = {
+        "toehold_length",
+        "evaluation_context",
+        "evaluation_sequence_sha256",
+        "payload_sequence_sha256",
+        "coding_junction",
+        "family_version",
+        "host",
+        "structure_kind",
+        "structure_deviation",
+        "structural_rule_version",
+        "maturity",
+        "orthogonality_status",
+        "assembly_method",
+        "insertion_index",
+        "payload_id",
+        "construct_sha256",
+        "topology",
+        "sequence_length_bp",
+        "trigger_start_index",
+    }
+    safe_design = {
+        key: value
+        for key, value in design.items()
+        if key in safe_keys and isinstance(value, (str, int, float, bool, type(None)))
+    }
+    safe_design.update(switch_sequence="", structure="", architecture={})
+    release = design.get("sequence_release")
+    safe_design["sequence_release"] = {}
+    if isinstance(release, dict):
+        for kind in ("switch", "plasmid"):
+            audit = release.get(kind)
+            if isinstance(audit, dict):
+                safe_design["sequence_release"][kind] = {
+                    key: copy.deepcopy(audit[key])
+                    for key in (
+                        "decision",
+                        "release_allowed",
+                        "sequence_sha256",
+                        "result_sha256",
+                        "adapter",
+                        "reasons",
+                        "declared_marker_findings",
+                        "unexpected_marker_findings",
+                    )
+                    if key in audit
+                }
+                safe_design["sequence_release"][kind]["adapter"] = pick(
+                    audit.get("adapter"),
+                    {
+                        "name",
+                        "version",
+                        "database_id",
+                        "database_sha256",
+                        "validated_at",
+                        "expires_at",
+                    },
+                )
+                decision = audit.get("decision")
+                safe_design["sequence_release"][kind]["decision"] = (
+                    decision
+                    if isinstance(decision, str)
+                    and decision in {"PASS", "REVIEW", "HOLD_SYSTEM", "BLOCK", "ERROR"}
+                    else "INVALID"
+                )
+    safe_design["sequence_release"]["release_allowed"] = False
+    safe_design["sequence_release"]["reason"] = (
+        "Sequence disclosure is withheld: no matching release approval for both switch and plasmid."
+    )
+    safe_design["plasmid_segments"] = [
+        pick(segment, {"kind", "name", "length_bp"})
+        for segment in records(design.get("plasmid_segments"))
+    ]
+    graph = design.get("logic_graph")
+    if isinstance(graph, dict):
+        safe_design["logic_graph"] = pick(
+            graph,
+            {
+                "mid_gate",
+                "outer_gate",
+                "invert",
+                "output",
+                "caption",
+            },
+        )
+
+        safe_design["logic_graph"]["genes"] = [
+            pick(gene, {"name", "role", "state", "direction"})
+            for gene in records(graph.get("genes"))
+        ]
+
+    def folding_provenance(value):
+        if not isinstance(value, dict):
+            return {}
+        result = pick(value, {"schema", "viennarna_version"})
+        for key in ("configuration", "model_details"):
+            block = value.get(key)
+            if isinstance(block, dict):
+                result[key] = {
+                    name: item
+                    for name, item in block.items()
+                    if isinstance(item, (int, float, bool))
+                }
+                result[key].update(pick(block, {"energy_parameters", "model_version"}))
+        result["energy_parameters"] = pick(
+            value.get("energy_parameters"),
+            {
+                "name",
+                "source",
+                "sha256",
+                "hash_basis",
+            },
+        )
+        return result
+
+    safe_design["coding_regions"] = [
+        pick(region, {"start", "end", "name", "protein_sha256"})
+        for region in records(design.get("coding_regions"))
+    ]
+    safe_design["tool_versions"] = pick(
+        design.get("tool_versions"),
+        {
+            "viennarna",
+            "ViennaRNA",
+            "temperature_c",
+        },
+    )
+    safe_design["folding_model"] = folding_provenance(design.get("folding_model"))
+    feature_keys = {
+        "feature_id",
+        "gene_id",
+        "gene_symbol",
+        "transcript_id",
+        "reference_accession",
+        "reference_selection_method",
+        "transcript_sequence_sha256",
+        "log2_fold_change",
+        "sequence_sha256",
+        "openness",
+        "accessibility",
+        "selection_method",
+        "selection_metric",
+        "selection_score",
+        "orientation",
+        "gate_toehold_length",
+        "hypothesis_start",
+        "hypothesis_end",
+        "joint_open_probability_20",
+        "mean_marginal_openness_20",
+        "delta_g_open_kcal_per_mol_per_nt",
+        "selected_seed_start",
+        "selected_seed_end",
+        "selected_seed_probability",
+        "start_index",
+    }
+    safe_triggers = {
+        "features": [
+            {
+                key: value
+                for key, value in feature.items()
+                if key in feature_keys and isinstance(value, (str, int, float, bool, type(None)))
+            }
+            for feature in records(triggers.get("features"))
+        ]
+    }
+    for source, feature in zip(
+        records(triggers.get("features")), safe_triggers["features"], strict=True
+    ):
+        feature["seed_trials"] = [
+            pick(trial, {"start", "end", "relative_start", "joint_probability"})
+            for trial in records(source.get("seed_trials"))
+        ]
+        feature["rnaplfold"] = pick(
+            source.get("rnaplfold"),
+            {
+                "viennarna_version",
+                "window",
+                "max_span",
+                "unpaired",
+                "temperature_celsius",
+            },
+        )
+        rnaplfold = source.get("rnaplfold")
+        if isinstance(rnaplfold, dict):
+            feature["rnaplfold"]["folding_model"] = folding_provenance(
+                rnaplfold.get("folding_model")
+            )
+    return safe_design, safe_triggers
 
 
 class SafetyGate:

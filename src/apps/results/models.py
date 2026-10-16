@@ -199,6 +199,7 @@ class Artifact(UUIDModel, CreatedAtModel):
     media_type = models.CharField(max_length=100)
     checksum_sha256 = models.CharField(max_length=64, editable=False)
     size_bytes = models.BigIntegerField(editable=False, default=0)
+    sequence_free = models.BooleanField(default=False, editable=False)
 
     class Meta:
         ordering = ["kind", "id"]

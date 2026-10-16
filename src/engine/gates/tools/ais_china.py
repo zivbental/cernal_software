@@ -78,7 +78,7 @@ from engine.gates.tools import VIENNA_PARAMETER_LOCK
 #: docs/collaborations.md in the same commit.
 PINNED_COMMIT = "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9"
 
-#: SHA-256 over every vendored file's own SHA-256, in sorted path order, excluding
+#: SHA-256 over every vendored file's own SHA-256, in relative POSIX string order, excluding
 #: ``PROVENANCE.md`` (which records this value and so cannot contribute to it).
 #:
 #: This replaces what used to be a ``git rev-parse HEAD`` check against
@@ -102,7 +102,12 @@ def vendored_tree_sha256(root: Path | str | None = None) -> str:
     """
     base = Path(root) if root is not None else DEFAULT_ROOT
     digest = hashlib.sha256()
-    for path in sorted(p for p in base.rglob("*") if p.is_file()):
+    # Native Path ordering folds case on Windows and compares path components.
+    # Sort the exact relative POSIX names used in the hash on every platform.
+    for path in sorted(
+        (p for p in base.rglob("*") if p.is_file()),
+        key=lambda p: p.relative_to(base).as_posix(),
+    ):
         # Bytecode is generated the first time their package is imported, inside their
         # own tree. Hashing it would make this check pass once and fail forever after.
         if path.suffix == ".pyc" or "__pycache__" in path.parts:

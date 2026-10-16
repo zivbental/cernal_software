@@ -13,10 +13,18 @@ export function SequenceScreening({ candidate }: { candidate: CandidateDetail })
   const [checked, setChecked] = useState<{ candidate: CandidateDetail; view: ScreeningView }>();
   useEffect(() => {
     let active = true;
+    let generation = 0;
+    let completedGeneration = 0;
     const verify = () => {
+      const current = ++generation;
       void assessScreening(candidate.sequence_screening, {
         runId: candidate.run_id, candidateId: candidate.id, sequence: candidate.design.switch_sequence,
-      }).then(view => { if (active) setChecked({ candidate, view }); });
+      }).then(view => {
+        if (active && current > completedGeneration) {
+          completedGeneration = current;
+          setChecked({ candidate, view });
+        }
+      });
     };
     verify();
     // Re-evaluate expiry even when the cached candidate response does not change.

@@ -26,7 +26,7 @@ export function screeningView(state: ScreeningState, reason: string, evidence?: 
 export async function assessScreening(
   raw: unknown,
   subject: { runId: string; candidateId: string; sequence: string },
-  now = Date.now(),
+  now?: number,
 ): Promise<ScreeningView> {
   if (raw == null) return screeningView("not_screened", "No screening evidence was supplied for this candidate.");
   const parsed = screeningSchema.safeParse(raw);
@@ -49,6 +49,8 @@ export async function assessScreening(
   if (hash !== identity.sha256 || sequence.length !== identity.length) {
     return screeningView("stale", "The screened sequence does not match the saved switch sequence.");
   }
+  // Digest verification may finish after expiry. Read the clock after the await.
+  now ??= Date.now();
   const completed = report.status === "clear" || report.status === "flagged";
   if (completed && (!report.screened_at || !report.valid_until || !report.provenance)) {
     return screeningView("unavailable", "Completed screening evidence is missing time or provenance.");
