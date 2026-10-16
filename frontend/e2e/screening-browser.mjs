@@ -74,7 +74,7 @@ try {
     await scenario(report(state), label);
   }
   // Optional UI evidence must never override backend download availability.
-  assert.equal(await page.getByRole("link", { name: "Download everything (.zip)" }).getAttribute("href"), null);
+  assert.equal(await page.getByText("Download everything (.zip)", { exact: true }).getAttribute("href"), null);
   assert.match(await page.locator("body").innerText(), /Some artifacts are withheld/);
   checks++;
   const disclosure = panel.locator("summary");
