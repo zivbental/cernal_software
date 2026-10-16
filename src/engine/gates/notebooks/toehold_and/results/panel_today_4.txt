@@ -1,0 +1,95 @@
+  writing this panel to panel_today_4.txt
+
+  197,784 distinct designs over 1,036 trigger pairs
+
+  BACKGROUNDS (3 of 400 qualifying)
+  pair   x*_start  best mean_sep  opening  3' open (6nt)  SED A (in mRNA)  SED B (in mRNA)
+  -----  --------  -------------  -------  -------------  ---------------  ---------------
+  x@508  283       0.4534         289      0.997          0.553            0.599          
+  x@272  425       0.2312         20       0.996          0.637            0.539          
+  x@73   456       0.427          272      0.992          0.593            0.507          
+
+==============================================================================
+  BACKGROUND x@508  (x* at 283)
+==============================================================================
+  accessibility: 3' open 3nt 0.998, 6nt 0.997;  5'-binds-3' 0.01;  trim indicated False
+  role         closure     upper3           lower3           scheme      stem  mean_sep  A_M(11)  A_M_gain  sep    log10 kin  A_M ratio  AUG(11)  freeX(00)  freeX(01)
+  -----------  ----------  ---------------  ---------------  ----------  ----  --------  -------  --------  -----  ---------  ---------  -------  ---------  ---------
+  arm-E        open_3x3    WWW_UAU          WSS              mixed       3     0.4534    0.881    0.801     6.5    4.95       10.99      0.957    0.037      0.862    
+  arm-E-ratio  open_3x3    WWW_UAU          WSS              B-anchored  0     0.4525    0.879    0.799     6.5    4.09       10.97      0.956    0.037      0.719    
+  arm-K        open_3x3    trigger_derived  SSW              mixed       3     0.2315    0.459    0.325     7.09   5.02       3.43       0.593    0.032      0.868    
+  old-stat*    closed_CAU  WWW_AUA          trigger_derived  B-anchored  0     0.0534    0.095    0.089     12.22  4.09       14.89      0.001    0.025      0.707    
+  leaky-10*    pair1_CCC   WWW_AUA          SWW              mixed       2     -0.0007   0.138    -0.0      6.39   4.65       1.0        0.665    0.033      0.808    
+  closure      closed_UAU  trigger_derived  trigger_derived  mixed       3     0.3392    0.593    0.593     10.41  4.95       735.91     0.738    0.025      0.851    
+  sequences (cap through linker):
+    arm-E       GGGGCCGUCCUCGAAGUUCAUCACGCGCUCCCACUUGAAGCCCUCGGGGGAGGCAAGAACUUAGACAACGUCCCCCGAGGGCUUCACCUUCUGCUUGAUCUUAUAGACAAGAACAGAGGAGAAUAAGAAUGAGCAGAAGGAACCUGGCGGCAGCGCAAAAG
+    arm-E-ratio GGGGCCGUCCUCGAAGUUCAUCACGCGCUCCCACUUGAAGCCCUCGGGGAAGGCAAGAACUUAGACAACCUUCCCCGAGGGCUUCACCUUCUGCUUGAUCUUAUAGACAAGAACAGAGGAGAAUAAGAAUGAGCAGAAGGAACCUGGCGGCAGCGCAAAAG
+    arm-K       GGGGCCGUCCUCGAAGUUCAUCACGCGCUCCCACUUGAAGCCCUCGGGGGAGGCAAGAACUUAGACAACGUCCCCCGAGGGCUUCAUCCUCUGCUUGAAUACGCAGACAAGAACAGAGGAGAGCGUAUAUGAGCAGAGGAAACCUGGCGGCAGCGCAAAAG
+    old-stat*   GGGGCCGUCCUCGAAGUUCAUCACGCGCUCCCACUUGAAGCCCUCGGGGAAGGCAAGAACUUAGACAACCUUCCCCGAGGGCUUCAGCCUCUGCUCAUUCUAUAAGACAAGAACAGAGGAGAUAUAGAAUGAGCAGAGGCAACCUGGCGGCAGCGCAAAAG
+    leaky-10*   GGGGCCGUCCUCGAAGUUCAUCACGCGCUCCCACUUGAAGCCCUCGGGGGGGGCAAGAACUUAGACAACCCCCCCCUAGGGCUUCAUUCUCUGCUCCCAUAAUAAGACAAGAACAGAGGAGAUAUUAUAUGAGCAGAGAAAACCUGGCGGCAGCGCAAAAG
+    closure     GGGGCCGUCCUCGAAGUUCAUCACGCGCUCCCACUUGAAGCCCUCGGGGGAGGCAAGAACUUAGACAACGUCCCCCGAGGGCUUCAGCCUCUGCUUAUUCUCGCAGACAAGAACAGAGGAGAGCGAGAAUGAGCAGAGGCAACCUGGCGGCAGCGCAAAAG
+
+==============================================================================
+  BACKGROUND x@272  (x* at 425)
+==============================================================================
+  accessibility: 3' open 3nt 0.999, 6nt 0.996;  5'-binds-3' 0.01;  trim indicated False
+  role         closure     upper3   lower3  scheme      stem  mean_sep  A_M(11)  A_M_gain  sep   log10 kin  A_M ratio  AUG(11)  freeX(00)  freeX(01)
+  -----------  ----------  -------  ------  ----------  ----  --------  -------  --------  ----  ---------  ---------  -------  ---------  ---------
+  arm-E        open_3x3    WWW_UAU  SWS     mixed       1     0.2312    0.698    0.523     3.28  2.87       4.0        0.648    0.014      0.732    
+  arm-E-ratio  open_3x3    WWW_UAU  SWS     B-anchored  3     0.225     0.698    0.509     2.13  2.92       3.7        0.648    0.014      0.743    
+  arm-K        open_3x3    WWW_AUA  SSW     mixed       2     0.023     0.488    0.145     0.39  3.64       1.42       0.415    0.011      0.922    
+  old-stat*    closed_UAU  WWW_AUA  SWS     mixed       1     -0.0002   0.007    -0.0      6.73  2.87       0.95       0.002    0.014      0.732    
+  leaky-10*    pair1_CCC   WWW_UAU  WSS     mixed       2     0.0001    0.12     -0.033    0.56  3.57       0.79       0.667    0.015      0.908    
+  sequences (cap through linker):
+    arm-E       GGGCGCUCGGAGGAGGCCUCCCAGCCCAUGGUCUUCUUCCGCAUUGCGGGGCCCAAGAACUUAGACAAGGCCCCGCAUUGCGGAAGCUCAGCUUCAAGUAGUAUAGACAAGAACAGAGGAGAAUACUAAUGGAAGCUGAGAACCUGGCGGCAGCGCAAAAG
+    arm-E-ratio GGGCGCUCGGAGGAGGCCUCCCAGCCCAUGGUCUUCUUCUGCAUUACGGGGCCCAAGAACUUAGACAAGGCCCCGUAAUGCGGAAGCUCAGCUUCAAGUAGUAUAGACAAGAACAGAGGAGAAUACUAAUGGAAGCUGAGAACCUGGCGGCAGCGCAAAAG
+    arm-K       GGGCGCUCGGAGGAGGCCUCCCAGCCCAUGGUCUUCUUCUGCGUUGCGGGGCCCAAGAACUUAGACAAGGCCCCGCAACGGGGAAGUCCAGCUUCAAGUAGAUAAGACAAGAACAGAGGAGAUAUCUAAUGGAAGCUGGAAACCUGGCGGCAGCGCAAAAG
+    old-stat*   GGGCGCUCGGAGGAGGCCUCCCAGCCCAUGGUCUUCUUCCGCAUUGCGGGGCCCAAGAACUUAGACAAGGCCCCGCAUUGCGGAAGCUCAGCUUCUAUUAGAUAAGACAAGAACAGAGGAGAUAUCUAAUGGAAGCUGAGAACCUGGCGGCAGCGCAAAAG
+    leaky-10*   GGGCGCUCGGAGGAGGCCUCCCAGCCCAUGGUCUUCUUCUGCGUUGCGGGGCCCAAGAACUUAGACAAGGCCCCGCAACGGGGAAGCCUAGCUUCCCCUAGUAUAGACAAGAACAGAGGAGAAUACUAAUGGAAGCUAGGAACCUGGCGGCAGCGCAAAAG
+
+==============================================================================
+  BACKGROUND x@73  (x* at 456)
+==============================================================================
+  accessibility: 3' open 3nt 0.987, 6nt 0.992;  5'-binds-3' 0.01;  trim indicated False
+  role         closure    upper3   lower3  scheme      stem  mean_sep  A_M(11)  A_M_gain  sep    log10 kin  A_M ratio  AUG(11)  freeX(00)  freeX(01)
+  -----------  ---------  -------  ------  ----------  ----  --------  -------  --------  -----  ---------  ---------  -------  ---------  ---------
+  arm-E        open_3x3   WWW_UAU  SSS     B-anchored  2     0.427     0.796    0.709     5.83   2.65       9.16       0.95     0.002      0.664    
+  arm-E-ratio  open_3x3   WWW_UAU  SWS     B-anchored  1     0.4229    0.803    0.716     6.1    3.22       9.2        0.958    0.001      0.807    
+  arm-K        open_3x3   WSW_AGA  WSS     B-anchored  0     0.0865    0.524    0.242     0.49   3.49       1.86       0.998    0.001      0.875    
+  old-stat     open_3x3   WWW_UAU  SSW     B-anchored  0     0.0074    0.094    0.012     6.95   3.39       1.15       0.146    0.001      0.847    
+  leaky-10*    pair1_CCC  WWW_AUA  SSW     B-anchored  1     -0.0017   0.128    -0.003    -2.65  3.1        0.98       0.665    0.001      0.777    
+  closure      pair1_CCC  WWW_AUA  WSS     B-anchored  3     0.2819    0.643    0.516     3.04   2.71       5.04       0.765    0.002      0.679    
+  sequences (cap through linker):
+    arm-E       GGGGCCCUUCAGGGCGCCGUCCUCGGGGUACAUCCGCUCGGAGGAGGCCUCCCCAAGAACUUAGACAAGGGAGGCCUCCUCGGAGCCCCCCAUGUGCACCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGACAUGGGGGAACCUGGCGGCAGCGCAAAAG
+    arm-E-ratio GGGGCCCUUCAGGGCGCCGUCCUCGGGGUACAUCCGCUCGGAGGAGGCCUCCCCAAGAACUUAGACAAGGGGGGCCUCCUCCGAGCCUCCCAUGUGCACCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGACAUGGGAGAACCUGGCGGCAGCGCAAAAG
+    arm-K       GGGGCCCUUCAGGGCGCCGUCCUCGGGGUACAUCCGCUCGGAGGAGGCCUCCCCAAGAACUUAGACAAGGGAGGCCUCCUCCGAGCCCUCCAUGUGCACCUAGAAGACAAGAACAGAGGAGAUCUAGGAUGACAUGGAGGAACCUGGCGGCAGCGCAAAAG
+    old-stat    GGGGCCCUUCAGGGCGCCGUCCUCGGGGUACAUCCGCUCGGAGGAGGCCUCCCCAAGAACUUAGACAAGGGAGGCCUCCUCCGAGCUCCCCAUGUGCAAUAUAUAGACAAGAACAGAGGAGAAUAUAUAUGACAUGGGGAAACCUGGCGGCAGCGCAAAAG
+    leaky-10*   GGGGCCCUUCAGGGCGCCGUCCUCGGGGUACAUCCGCUCGGAGGAGGCCUCCCCAAGAACUUAGACAAGGGGGGCCUCCUCCGAGCUCCCCAUGUCCCAUAAUAAGACAAGAACAGAGGAGAUAUUAUAUGACAUGGGGAAACCUGGCGGCAGCGCAAAAG
+    closure     GGGGCCCUUCAGGGCGCCGUCCUCGGGGUACAUCCGCUCGGAGGAGGCCUCCCCAAGAACUUAGACAAGGGGGGCCUCCUCGGAGCCCUCCAUGUCCCAUAAUAAGACAAGAACAGAGGAGAUAUUAUAUGACAUGGAGGAACCUGGCGGCAGCGCAAAAG
+
+==============================================================================
+  SECONDARY LOOP vs THE TRIGGERS -- can either bind the loop we never vary?
+==============================================================================
+  SECONDARY_LOOP is a fixed 15-mer and nothing has checked whether a trigger can
+  pair with it. A trigger that binds the loop competes with its own intended
+  site, which would read as a weak design rather than as an off-target.
+  Longest reverse-complementary run; 6 nt is worth a look, 8+ should not be
+  ordered without folding the pair properly.
+
+  background  loop vs trigger A  loop vs trigger B  verdict
+  ----------  -----------------  -----------------  -------
+  x@508       3                  4                  ok     
+  x@272       4                  3                  ok     
+  x@73        3                  3                  ok     
+
+==============================================================================
+  HOW TO READ A RESULT
+==============================================================================
+  arm-E works and arm-K does not  -> rank on mean_separation, drop the kinetic proxy.
+  arm-K works and arm-E does not  -> the equilibrium picture is not what limits us.
+  old-stat works                  -> the separation retraction was wrong; revisit it.
+  null also works                 -> the target is easy and the panel discriminates
+                                     nothing. Widen the design space before trusting
+                                     any ranking.
+  nothing works                   -> the model is wrong at a level no reranking fixes.
+

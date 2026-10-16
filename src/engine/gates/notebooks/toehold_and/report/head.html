@@ -1,0 +1,383 @@
+<title>Controlled Gate Panel</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<style>
+:root{
+  --paper:#f2f4f7; --card:#fff; --ink:#171b23; --dim:#5c6672; --line:#d9dee6;
+  --closed:#2b4a7d; --open:#c98416; --teal:#1f7a6f; --warn:#b4472e; --ok:#2f7a4e;
+  --lock:#7a5cc6; --trigA:#8E44AD; --trigB:#2F7A4E; --chip:#e8ecf3;
+  --shadow:0 1px 2px rgba(20,28,45,.06),0 4px 16px rgba(20,28,45,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --paper:#11141b; --card:#191e27; --ink:#e7ebf1; --dim:#98a3b2; --line:#2b323e;
+  --closed:#7f9bd0; --open:#f0b95c; --teal:#5fc0b2; --warn:#e8836a; --ok:#6fc793;
+  --lock:#b39ae8; --trigA:#C99BE8; --trigB:#6FC793; --chip:#232a36;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 22px rgba(0,0,0,.3);
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#11141b; --card:#191e27; --ink:#e7ebf1; --dim:#98a3b2; --line:#2b323e;
+  --closed:#7f9bd0; --open:#f0b95c; --teal:#5fc0b2; --warn:#e8836a; --ok:#6fc793;
+  --lock:#b39ae8; --trigA:#C99BE8; --trigB:#6FC793; --chip:#232a36;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 22px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;
+  padding-inline:16px;padding-block:0 64px;line-height:1.55;font-size:16.5px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-family:"IBM Plex Serif",Georgia,serif;font-weight:600;font-size:clamp(26px,4vw,38px);
+  margin:28px 0 6px;letter-spacing:-.015em;text-wrap:balance}
+h2{font-family:"IBM Plex Serif",Georgia,serif;font-size:21px;margin:34px 0 10px;font-weight:600}
+h3{font-size:14px;margin:0 0 8px;font-weight:600}
+.sub{color:var(--dim);max-width:74ch;margin:0 0 8px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.seqcell{font-size:11.5px;letter-spacing:.02em;white-space:nowrap}
+.dif{color:var(--warn);font-weight:700;background:rgba(180,71,46,.13);border-radius:2px}
+.cod{font-family:"IBM Plex Mono",monospace;font-size:10.5px;padding:0 3px;border-radius:3px}
+.cod.moved{background:rgba(180,71,46,.14);color:var(--warn)}
+.cod.kept{background:var(--chip);color:var(--dim)}
+.codonrow td{padding-top:2px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;
+  box-shadow:var(--shadow)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:7px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line);
+  font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+thead th{position:sticky;top:0;background:var(--card);font-size:11px;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--dim)}
+tbody tr:hover{background:var(--chip)}
+tbody tr:last-child td{border-bottom:none}
+.note{font-size:14px;color:var(--dim);margin-top:9px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--paper);
+  padding-block:10px;border-bottom:1px solid var(--line);margin-bottom:18px;
+  display:flex;flex-wrap:wrap;gap:8px 20px;align-items:flex-end}
+.grp{display:flex;flex-direction:column;gap:5px}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:600}
+button{font:inherit;font-size:14px;padding:5px 11px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--line);background:var(--chip);color:var(--ink);transition:.12s}
+button:hover{border-color:var(--dim)}
+button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.btns{display:flex;flex-wrap:wrap;gap:5px}
+.gates{display:flex;flex-wrap:wrap;gap:4px 14px}
+.filterbox{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:flex-end;flex:1 1 100%}
+.cnt{font-size:11px;opacity:.75;margin-left:5px;font-variant-numeric:tabular-nums}
+button.empty{opacity:.35;background:transparent}
+.mini{font-size:11px;padding:1px 7px;margin-left:8px;text-transform:none;letter-spacing:0}
+.gate{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--dim);cursor:pointer}
+.gate input{accent-color:var(--teal);cursor:pointer}
+.count{margin-left:auto;font-weight:600;font-variant-numeric:tabular-nums}
+.cells{display:flex;flex-direction:column;gap:26px}
+.cell{display:flex;flex-direction:column;gap:14px}
+.cellhead{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline;
+  border-bottom:2px solid var(--ink);padding-bottom:7px}
+.cellname{font-family:"IBM Plex Serif",Georgia,serif;font-size:19px;font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:15px;
+  box-shadow:var(--shadow);min-width:0}
+.card.kim{border-left:3px solid var(--open)}
+.card.naive{border-left:3px solid var(--teal)}
+.chead{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;margin-bottom:12px}
+.role{font-family:"IBM Plex Serif",Georgia,serif;font-size:17px;font-weight:600}
+.chip{font-size:12px;background:var(--chip);border-radius:999px;padding:2px 8px;color:var(--dim)}
+.chip.ref{background:rgba(31,122,111,.14);color:var(--teal);font-weight:600}
+.chip.win{background:rgba(47,122,78,.15);color:var(--ok);font-weight:600}
+.flag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;
+  background:rgba(180,71,46,.16);color:var(--warn);font-weight:600}
+.states{display:flex;flex-direction:column;gap:6px}
+.srow{display:grid;grid-template-columns:118px 1fr 52px;gap:8px;align-items:center}
+.stag{font-size:12.5px;display:flex;gap:6px;align-items:baseline}
+.sbin{font-family:"IBM Plex Mono",monospace;font-weight:500;font-size:12.5px}
+.strip{position:relative;height:20px;border-radius:3px;border:1px solid var(--line);overflow:hidden}
+.mark{position:absolute;top:0;bottom:0;border-left:1.5px solid var(--teal);
+  border-right:1.5px solid var(--teal);background:rgba(31,122,111,.1)}
+.mark.sec{border-color:var(--lock);background:rgba(122,92,198,.1)}
+.sval{font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
+.track{display:grid;grid-template-columns:118px 1fr 52px;gap:8px;margin-top:4px}
+.dom{position:relative;height:15px;font-size:8.5px}
+.dseg{position:absolute;top:0;bottom:0;border-left:1px solid var(--line);padding-left:2px;
+  color:var(--dim);overflow:hidden;white-space:nowrap;line-height:15px}
+.dseg.sec{border-left-color:var(--lock)}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:13px}
+.mbox{background:var(--paper);border-radius:7px;padding:7px 9px}
+.mv{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.25}
+.mk{font-size:11.5px;color:var(--dim)}
+.rng{position:relative;height:5px;margin-top:5px;border-radius:3px;background:var(--line);
+  overflow:hidden}
+.rng i{position:absolute;top:0;bottom:0;display:block}
+.rng .sd{background:var(--closed);opacity:.28}
+.rng .md{width:1.5px;background:var(--dim)}
+.rng .me{width:3px;background:var(--dim);border-radius:2px;transform:translateX(-1.5px)}
+.rng .me.good{background:var(--ok)} .rng .me.poor{background:var(--warn)}
+.rngkey{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px}
+.key{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim)}
+.key i{width:16px;height:6px;border-radius:3px;display:inline-block}
+.key .swsd{background:var(--closed);opacity:.28}
+.key .swmd{background:var(--dim);width:2px;height:10px}
+.key .swme{width:3px;height:10px}
+.key .swme.good{background:var(--ok)} .key .swme.poor{background:var(--warn)}
+.dir{font-size:8px;margin-left:3px;vertical-align:1px}
+.dir.up{color:var(--ok)} .dir.dn{color:var(--warn)}
+details{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-size:14px;font-weight:600}
+.seq{font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.7;
+  word-break:break-all;margin-top:8px}
+.scale{height:12px;border-radius:3px;border:1px solid var(--line)}
+.scale-row{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-top:3px}
+dl{margin:0}
+dl div{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:3px 0;align-items:baseline}
+dt{font-weight:600;font-size:14px;white-space:nowrap}
+dd{margin:0;color:var(--dim);font-size:14px}
+.win{color:var(--ok);font-weight:600}
+.bad{color:var(--warn);font-weight:600}
+.dimv{color:var(--dim)}
+.mech{font-size:13px;width:100%;table-layout:fixed;border-collapse:collapse}
+.mech td:first-child{word-break:break-word;padding-right:8px}
+.mech td:last-child{width:38%;text-align:right;font-variant-numeric:tabular-nums}
+.mech .flag{white-space:nowrap}
+table.cmp{font-size:12px;border-collapse:collapse;width:100%}
+table.cmp th,table.cmp td{padding:3px 6px;text-align:right;white-space:nowrap;
+  border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+table.cmp th{text-align:right;position:sticky;top:0;background:var(--card);z-index:1}
+table.cmp td:nth-child(-n+7),table.cmp th:nth-child(-n+7){text-align:left;
+  font-variant-numeric:normal}
+.viewer{margin-top:10px}
+.vbar{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin-bottom:8px}
+.vbar button{font-size:13px;padding:4px 10px}
+.vsep{width:1px;align-self:stretch;background:var(--line);margin:0 2px}
+.vbar .vinfo{font-size:13px;color:var(--dim);margin-left:auto;font-variant-numeric:tabular-nums}
+.stage{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;
+  position:relative;touch-action:none;cursor:grab}
+.stage.drag{cursor:grabbing}
+.stage svg{display:block;width:100%;height:420px;background:#fff}
+.stage text{font-family:"IBM Plex Mono",monospace;font-weight:500;pointer-events:none;
+  user-select:none}
+.domkey{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:8px;font-size:12px}
+.domkey span{display:flex;align-items:center;gap:5px;color:var(--dim)}
+.domkey i{width:10px;height:10px;border-radius:50%;display:inline-block;
+  border:1px solid rgba(0,0,0,.25)}
+@media (max-width:640px){
+  .srow,.track{grid-template-columns:78px 1fr 46px;gap:6px}
+  .stag{flex-direction:column;gap:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<h1>Controlled Gate Panel</h1>
+<p class="sub">Sixteen A0 two-input AND gates arranged so that <strong>each row differs from
+another in exactly one thing</strong>: which objective chose it, which secondary-arm geometry
+it uses, or which trigger pair it sits on. A bench result therefore points at one cause.</p>
+<p class="sub" style="font-size:13.5px" id="prov"></p>
+<div class="panel" style="margin-bottom:14px" id="recipe"></div>
+
+<div class="bar">
+  <button id="gatesToggle" class="mini" aria-expanded="true">hide filters</button>
+  <div id="filterbox" class="filterbox">
+  <div class="grp"><span class="lbl">view</span><div class="btns" id="fView"></div></div>
+  <div class="grp"><span class="lbl">objective</span><div class="btns" id="fArm"></div></div>
+  <div class="grp"><span class="lbl">geometry</span><div class="btns" id="fGeom"></div></div>
+  <div class="grp"><span class="lbl">trigger pair</span><div class="btns" id="fPair"></div></div>
+  <div class="grp" style="flex:1 1 100%">
+    <span class="lbl">narrow down (combine freely)</span>
+    <div class="gates" id="gates"></div></div>
+  </div>
+  <span class="count" id="count"></span>
+</div>
+
+<div class="panel">
+  <h3>The grid</h3>
+  <p class="note" style="margin-top:0"><strong>4 trigger pairs &times; 2 geometries &times; 2
+  objectives = 16 rows, all distinct.</strong> The trigger pair is held constant across the two
+  geometries, which is what makes the geometry comparison mean the geometry rather than the
+  transcript.</p>
+  <div class="two" style="margin-top:12px">
+    <div>
+      <h3>The two geometries</h3>
+      <dl>
+        <div><dt style="color:var(--teal)">naive 18nt</dt><dd>161-nt switch, secondary arm
+          <span class="mono">k2* = 18 &minus; len_x</span>. The default build.</dd></div>
+        <div><dt style="color:var(--open)">Kim 20/17/AUA</dt><dd>165-nt switch: Kim 2019's
+          20-nt arm, 17-nt invasion, AUA cap.</dd></div>
+      </dl>
+      <p class="note">Holding the pair across both took the right key. On
+      <span class="mono">(a_start, b_start)</span> <strong>0 of 2,078</strong> pairs are shared,
+      and that was reported here as structurally impossible. It is not:
+      <span class="mono">b_end</span> is <em>identical</em> in both and
+      <span class="mono">b_start</span> differs by 1&nbsp;nt only because trigger B's window is
+      50&nbsp;nt in the naive build and 49 in Kim's. Same location, different length. On
+      <span class="mono">(a_start, b_end, len_x)</span>, <strong>1,020 of 1,042</strong> are
+      shared.</p>
+    </div>
+    <div>
+      <h3>The two objectives</h3>
+      <dl>
+        <div><dt class="mono">f1</dt><dd>AND-ness in kcal/mol:
+          <span class="mono">open(11) &minus; min[open(00), open(01), open(10)]</span>.
+          A difference of free energies, bounded, and it names which state leaks.</dd></div>
+        <div><dt class="mono">Barrier</dt><dd>the activation energy alone, over the folding
+          saddle from findpath. An <strong>upper bound</strong> &mdash; a heuristic direct path,
+          not the minimum-barrier one.</dd></div>
+      </dl>
+      <p class="note"><strong>Two, not four, and that is measured.</strong> Under pair control
+      <strong>A_M ratio</strong> (the A_M ratio) picks the same design as
+      <strong>opening SEP</strong> in every cell, and <strong>combined with SEP</strong> collapses onto
+      <span class="mono">Barrier</span> for a structural reason: <span class="mono">access</span>
+      is a property of the trigger <em>pair</em>, so within a cell it is a constant offset.
+      Keeping all four gave 4 distinct designs out of 8 rows; these two give 16 of 16. Both
+      other values are still shown on every card so the collapse can be checked.</p>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>How to read a card</h3>
+  <div class="two">
+    <div>
+      <div class="scale" id="swatch"></div>
+      <div class="scale-row"><span>paired &middot; shut</span><span>0.5</span><span>unpaired &middot; open</span></div>
+      <p class="note">One slice per nucleotide, 5&prime; left; colour is the probability that
+      base is <strong>unpaired</strong> across the whole folding ensemble.
+      <span style="color:var(--teal);font-weight:600">Teal</span> marks the main stem's
+      descending arms (<span class="mono">main_z</span>, <span class="mono">main_pre</span>) --
+      what the energy terms constrain. The AUG bulge between them is excluded on purpose: it is
+      already open in the OFF state by design.
+      <span style="color:var(--lock);font-weight:600">Purple</span> marks
+      <span class="mono">x*</span>, the lock the secondary hairpin holds. Two domain tracks sit
+      below: the main hairpin (fixed 3&prime; 75&nbsp;nt) and the secondary hairpin, whose arms
+      depend on <span class="mono">len_x</span> and the geometry.</p>
+    </div>
+    <div>
+      <p class="note" style="margin:0 0 6px"><span class="dir up">&#9650;</span> higher is
+      better &middot; <span class="dir dn">&#9660;</span> lower is better.</p>
+      <dl>
+        <div><dt class="mono">open 00/01/10 <span class="dir up">&#9650;</span></dt>
+          <dd>cost to force the stem open with no trigger, with B alone, with A alone. Higher
+          means firmly shut. <strong>State 10 is the one that fails</strong> -- the weakest OFF
+          state in 400 of 400 designs checked.</dd></div>
+        <div><dt>ON opening cost, state 11 <span class="dir dn">&#9660;</span></dt>
+          <dd><strong>A cost in kcal/mol, so lower is better &mdash; not a signal level.</strong>
+          What forcing the main stem open costs with both triggers present. The ON state must open
+          cheaply. Capped at 4.0, calibrated to Green's
+          measured switches, whose 77 constructs above 20-fold ON/OFF have a median of
+          3.07.</dd></div>
+        <div><dt>opening SEP <span class="dir dn">&#9660;</span></dt><dd>AND-ness &mdash;
+          <strong>the floor, not a ranking</strong>. Every row satisfies
+          <span class="mono">SEP&nbsp;&le;&nbsp;&minus;2.0</span>. It is a <em>ratio</em> in log
+          units, so it says nothing about ON strength on its own: over the 2,559 feasible designs
+          it correlates with <span class="mono">open 11</span> at only
+          &rho;&nbsp;=&nbsp;&minus;0.136, which is why the ON cap exists as a separate
+          filter.</dd></div>
+        <div><dt>A_M ratio <span class="dir up">&#9650;</span></dt><dd>A_M ratio.
+          Unbounded: a near-zero denominator inflates it. Still the strongest single term against
+          Green.</dd></div>
+        <div><dt class="mono">Barrier <span class="dir dn">&#9660;</span></dt><dd>activation
+          energy, kcal/mol. An upper bound, from a heuristic direct path.</dd></div>
+        <div><dt>combined <span class="dir up">&#9650;</span></dt><dd>percentile aggregate
+          of the <strong>A_M ratio</strong> and the <strong>Barrier</strong>, weighted 0.60 / 0.40 &mdash; percentiles rather than a sum,
+          because sd(access)&nbsp;7.0 and sd(Barrier)&nbsp;4.4 against sd(SEP)&nbsp;2.9 mean a
+          plain sum is decided by the two large terms. This is what the panel ranks on.</dd></div>
+        <div><dt>combined with SEP <span class="dir up">&#9650;</span></dt><dd>the same aggregate
+          with opening SEP in the A_M ratio's place. <strong>Shown but not used</strong>, so the claim that opening SEP drags
+          the aggregate down can be checked on each card rather than taken on trust.</dd></div>
+        <div><dt class="mono">RBS(11) <span class="dir dn">&#9660;</span></dt><dd>cost of
+          opening the whole 11-nt Shine&ndash;Dalgarno <strong>at once</strong> in the ON state,
+          kcal/mol. Its own metric, not part of <span class="mono">A_M</span> &mdash; A_M spans
+          <span class="mono">main_z + AUG + main_pre</span> and the RBS loop is a different
+          domain. Deliberately the <em>joint</em> form and not a per-base mean: the ribosome needs
+          the whole site open together. Only state 11 is asked, because in the other three the RBS
+          sits open in its loop by design. Measured 0.42 to 4.73 across the nine, so it
+          discriminates.</dd></div>
+        <div><dt class="mono">A_M ratio <span class="dir up">&#9650;</span></dt><dd>
+          <span class="mono">A_M(11) / max(A_M OFF)</span>, where A_M is the <em>mean</em> per-base
+          unpaired probability over main_z + AUG + main_pre (18 nt, identical in both
+          architectures). A mean and not a joint probability because over 18 nt the joint is
+          ~1e-22 for any arm.</dd></div>
+        <div><dt>x*, four terms <span class="dir up">&#9650;</span></dt><dd>the lock's job changes
+          per state, so these are four <em>different</em> quantities: x* paired with sw_x in 00
+          and 10 (the lock holds), x* unpaired in 01 (B freed it), x* paired with trigger A in 11
+          (A took the freed site). All four read higher-is-right.</dd></div>
+        <div><dt>x* re-pairs with, 01</dt><dd>where x* goes once B has freed it. B releases the
+          secondary stem <strong>completely</strong> &mdash; the x*-to-sw_x term is 0.000 &mdash;
+          so the weak 01 figure is not a failure to open. x* is freed and immediately re-paired,
+          mostly with the <strong>linker</strong> (up to 0.66) or <span class="mono">sec_z</span>
+          (up to 0.43), which is why it is not available to A.</dd></div>
+        <div><dt>A engages the main stem <span class="dir up">&#9650;</span></dt><dd>share of
+          trigger A's contacts landing in the stem's ascending arm
+          (<span class="mono">main_pre_star + bulge_star + k1_star</span>), with and without B.
+          <strong>Read this instead of the cooperativity.</strong></dd></div>
+        <div><dt>&Delta;G bind <span class="dir dn">&#9660;</span></dt><dd>duplex energy per
+          trigger, and for A <em>given</em> B. Their difference is <strong>not</strong> a
+          cooperativity: A binds the secondary region without B and the main stem with it, so the
+          contact overlap is 0.00 and the two terms price different events.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <div class="rngkey">
+    <span class="key"><i class="swsd"></i>mean &plusmn; sd</span>
+    <span class="key"><i class="swmd"></i>median</span>
+    <span class="key"><i class="swme good"></i>better than median</span>
+    <span class="key"><i class="swme poor"></i>worse than median</span>
+  </div>
+  <p class="note">Bars under each tile span the <strong>feasible population's</strong>
+  min&ndash;max, not the panel's, with mean&nbsp;&plusmn;&nbsp;sd and median marked; hover for
+  exact figures. A median alone has argued both sides of a question here before.</p>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>What this panel already shows</h3>
+  <p class="note" style="margin-top:0"><strong>The geometry verdict depends on which objective you
+  ask &mdash; and that is the finding.</strong> With the trigger pair held fixed across
+  <strong>22</strong> pairs that carry gating designs in both geometries:</p>
+  <div class="scroll" style="margin-top:10px"><table><thead><tr><th>judged by</th>
+    <th>naive 18nt wins</th><th>Kim 20/17/AUA wins</th><th></th></tr></thead><tbody>
+    <tr><td>opening SEP &middot; AND-ness</td><td class="win">17</td><td>5</td>
+      <td class="dimv">gap (Kim &minus; naive) mean <span class="mono">+2.21</span>, sd
+      <span class="mono">2.80</span>, median <span class="mono">+3.01</span>, range
+      <span class="mono">&minus;2.94 to +6.71</span></td></tr>
+    <tr><td>combined &middot; what the panel ranks on</td><td>11</td><td>11</td>
+      <td class="dimv">a dead tie</td></tr>
+  </tbody></table></div>
+  <p class="note">An earlier version of this page reported "the naive 18-nt arm beats Kim in all
+  four pairs" as the panel's headline result. On 22 pairs instead of 4 it is 17&ndash;5 rather
+  than 4&ndash;0 &mdash; but more importantly <strong>it is an <strong>opening SEP</strong> result</strong>, and the SEP is the
+  objective that scores &minus;0.107 against Green's measured switches. Judged by combined the two
+  geometries are indistinguishable. Both are in the panel because a claim that changes sign with
+  the judge is a claim the bench has to settle.</p>
+  <p class="note"><strong>Caveats that matter.</strong> The sweep is still running:
+  <strong>35,331</strong> of 336,320 designs scored, <strong>2,559</strong> feasible,
+  <strong>1,026</strong> gating &mdash; so cells are small and every rate here should be read
+  against its count. The <span class="mono">165nt = Kim</span> label is an inference from switch
+  length, since the folded shards do not record which flag produced them. Off-target is not
+  joined to the scorer &mdash; of 399 flagged trigger pairs, 23 fire the gate alone and 113 block
+  the real triggers, so it belongs as a hard filter before ordering. And the mCherry
+  codon-shuffled reporter variants are not yet built into the sequences to order.</p>
+</div>
+
+<h2>What would be ordered</h2>
+<p class="sub">Every sequence on this page with its coordinates in the original mCherry
+transcript. <strong>Differences from the original are marked</strong>, so a recoded window can be
+checked base by base against the sequence it replaces.</p>
+<div id="order"></div>
+<p class="note" style="margin-top:14px"><strong>The ordering sheet.</strong> This writes the rows
+currently shown into the layout of <code>AND set 1.xlsx</code>: the switch and both triggers split
+into their domains, the four full mCherry transcripts with every changed stretch marked inside the
+sequence, and a block of sanity checks. <strong>Every check is a formula</strong> &mdash; it
+recomputes from the cells in the file, so a wrong cell fails in your own Excel rather than being
+blessed by whatever wrote it. The reverse-complement checks need Excel 2021 or 365.</p>
+<p class="note">It works in both places and takes a different route in each. Opened as a local
+file at <span class="mono">report/panel.html</span> it downloads straight away; in the published
+report a page cannot start a download by itself, so the workbook goes through the viewer's own save
+prompt and you confirm it there.</p>
+<div id="xlsx" style="margin-bottom:18px"></div>
+
+<h2>All designs side by side</h2>
+<p class="sub">The cards below carry everything about one design and nothing about how it compares.
+This table is the cross-design view, under the same filters.</p>
+<div id="comparison"></div>
+
+<h2>The designs</h2>
+<div class="cells" id="cells"></div>
+</div>

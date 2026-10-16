@@ -1,0 +1,156 @@
+  767 rows, 19 in full (2.5%)
+  3 cells (trigger pair x geometry)
+
+====================================================================================================
+SURVIVAL -- the outcome, over ALL rows
+  on_ceiling                        748   97.5%
+  measured                           19    2.5%
+
+  survival by closure
+    level                    rows  measured    rate
+    closed_CAU                 48         0    0.0%
+    closed_CGU                 48         0    0.0%
+    closed_UAU                 48         0    0.0%
+    d0_gc0_AUA                 47         0    0.0%
+    d0_gc1_ACA                 48         0    0.0%
+    d0_gc2_ACC                 48         0    0.0%
+    d0_gc3_GCC                 48         0    0.0%
+    d1_gc0_AAA                 48         0    0.0%
+    d1_gc1_AAC                 48         0    0.0%
+    d1_gc2_AGC                 48         3    6.2%
+    d2_gc0_AAU                 48         0    0.0%
+    d2_gc1_AGU                 48         0    0.0%
+    d2_gc3_CGC                 48         0    0.0%
+    open_3x3                   48         6   12.5%
+    pair1_CCC                  48         0    0.0%
+    pair2_CCU                  48        10   20.8%
+
+  survival by upper3
+    level                    rows  measured    rate
+    WWW_AUA                   192         0    0.0%
+    WWW_UAU                   287        19    6.6%
+    trigger_derived           288         0    0.0%
+
+  survival by lower3
+    level                    rows  measured    rate
+    trigger_derived           384         8    2.1%
+    wobble_GU                 383        11    2.9%
+
+  survival by geom
+    level                    rows  measured    rate
+    arm18/inv18/capnone       479        13    2.7%
+    arm20/inv17/capAUA        288         6    2.1%
+
+====================================================================================================
+CONTINUOUS AXES -- Spearman rho WITHIN each cell
+  rho > 0 means a larger axis value goes with a LARGER (worse) objective, since every
+  objective here is oriented lower-is-better. p is a two-sided sign test on the split.
+
+  f1_opening_sep
+  a_site_energy                     n     2  median  -0.974  mean  -0.974  sd 0.036  +0/-2  p      0.5
+  lock_energy                       n     2  median  +0.737  mean  +0.737  sd 0.372  +2/-0  p      0.5
+  lock_minus_a_site                 n     2  median  +0.974  mean  +0.974  sd 0.036  +2/-0  p      0.5
+  ddg_pref                          n     2  median  +0.263  mean  +0.263  sd 1.043  +1/-1  p        1
+  l_local_min                        no cell supports it
+  len_x                              no cell supports it
+
+  a_m_ratio
+  a_site_energy                     n     2  median  -0.974  mean  -0.974  sd 0.036  +0/-2  p      0.5
+  lock_energy                       n     2  median  +0.737  mean  +0.737  sd 0.372  +2/-0  p      0.5
+  lock_minus_a_site                 n     2  median  +0.974  mean  +0.974  sd 0.036  +2/-0  p      0.5
+  ddg_pref                          n     2  median  +0.263  mean  +0.263  sd 1.043  +1/-1  p        1
+  l_local_min                        no cell supports it
+  len_x                              no cell supports it
+
+  ied_gain
+  a_site_energy                     n     2  median  -0.974  mean  -0.974  sd 0.036  +0/-2  p      0.5
+  lock_energy                       n     2  median  +0.737  mean  +0.737  sd 0.372  +2/-0  p      0.5
+  lock_minus_a_site                 n     2  median  +0.974  mean  +0.974  sd 0.036  +2/-0  p      0.5
+  ddg_pref                          n     2  median  +0.263  mean  +0.263  sd 1.043  +1/-1  p        1
+  l_local_min                        no cell supports it
+  len_x                              no cell supports it
+
+  open_11
+  a_site_energy                     n     3  median  +0.029  mean  +0.025  sd 0.014  +3/-0  p     0.25
+  lock_energy                       n     3  median  -0.023  mean  -0.022  sd 0.013  +0/-3  p     0.25
+  lock_minus_a_site                 n     3  median  -0.029  mean  -0.025  sd 0.014  +0/-3  p     0.25
+  ddg_pref                          n     3  median  +0.007  mean  +0.011  sd 0.023  +2/-1  p        1
+  l_local_min                        no cell supports it
+  len_x                              no cell supports it
+
+====================================================================================================
+SHAPE -- mean within-cell z-score per within-cell quintile
+  A monotonic axis walks one way; a U or inverted U is the non-monotonic case a
+  correlation reads as ~0 and a win count reads as noise.
+
+  a_site_energy
+    objective                 Q1        Q2        Q3        Q4        Q5    n/bin
+    open_11               +0.153    +0.028    -0.128    +0.117    -0.175      153
+
+  lock_energy
+    objective                 Q1        Q2        Q3        Q4        Q5    n/bin
+    open_11               +0.185    +0.043    -0.147    +0.094    -0.180      153
+
+  lock_minus_a_site
+    objective                 Q1        Q2        Q3        Q4        Q5    n/bin
+    open_11               +0.185    +0.044    -0.147    +0.093    -0.180      153
+
+  ddg_pref
+    objective                 Q1        Q2        Q3        Q4        Q5    n/bin
+    open_11               +0.153    +0.040    -0.117    +0.099    -0.180      153
+
+  l_local_min
+    objective                 Q1        Q2        Q3        Q4        Q5    n/bin
+    open_11               +0.153    +0.034    -0.125    +0.108    -0.175      153
+
+  len_x
+    objective                 Q1        Q2        Q3        Q4        Q5    n/bin
+    open_11               +0.153    +0.034    -0.125    +0.108    -0.175      153
+
+====================================================================================================
+INTERACTIONS -- mean within-cell z-score per combination, n in brackets
+  A box that beats both of its margins is an interaction; no single-axis table can
+  show one. Read the n: a box with a handful of designs is not a finding.
+
+  closure x lower3   objective f1_opening_sep (lower is better)
+                        trigger_deriv      wobble_GU
+    d1_gc2_AGC                     --    -0.53(   3)
+    open_3x3              +0.41(   3)    +0.12(   3)
+    pair2_CCU             -0.00(   5)    -0.00(   5)
+
+  closure x lower3   objective a_m_ratio (lower is better)
+                        trigger_deriv      wobble_GU
+    d1_gc2_AGC                     --    -0.33(   3)
+    open_3x3              +0.45(   3)    -0.12(   3)
+    pair2_CCU             -0.00(   5)    -0.00(   5)
+
+  closure x geom   objective f1_opening_sep (lower is better)
+                        arm18/inv18/c  arm20/inv17/c
+    d1_gc2_AGC            -0.53(   3)             --
+    open_3x3              +0.27(   6)             --
+    pair2_CCU             +0.00(   4)    -0.00(   6)
+
+  closure x geom   objective a_m_ratio (lower is better)
+                        arm18/inv18/c  arm20/inv17/c
+    d1_gc2_AGC            -0.33(   3)             --
+    open_3x3              +0.17(   6)             --
+    pair2_CCU             -0.00(   4)    -0.00(   6)
+
+  lower3 x geom   objective f1_opening_sep (lower is better)
+                        arm18/inv18/c  arm20/inv17/c
+    trigger_derived       +0.25(   5)    -0.00(   3)
+    wobble_GU             -0.15(   8)    -0.00(   3)
+
+  lower3 x geom   objective a_m_ratio (lower is better)
+                        arm18/inv18/c  arm20/inv17/c
+    trigger_derived       +0.27(   5)    -0.00(   3)
+    wobble_GU             -0.17(   8)    -0.00(   3)
+
+  WHERE THE RESULTS ARE: C:\Users\Dell\source\repos\cernal_software\docs\assets\axes_check
+    report.txt        this whole report, kept
+    survival.csv          23 rows -- axis, level, rate
+    correlation.csv       16 rows -- rho per (objective, axis)
+    shape.csv             30 rows -- the non-monotonic check
+    interaction.csv       26 rows -- the two-way tables
+    rows.csv             767 rows -- one per design, 50 columns
+    Tidy (long) format: one observation per line, so a plot is a group-by.

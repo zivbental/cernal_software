@@ -50,6 +50,132 @@ Use the audit's ENG, PLAT, PD and GAP identifiers in commits and release evidenc
 Only Offer and Ziv merge approved changes into `main`. Deployment, package
 publication and ordering require their own explicit authorization.
 
+### Done · the ON ceiling reads the ribosome's window
+
+`measure_design` gated on `open_11`, the main stem's arms (15 nt), while the value it
+stands for is measured over the ribosome's window (31 nt). Two earlier versions of this
+entry argued first that this was a defect and then that it was safe because the spans are
+nested. Both were beside the point: the gate now reads `dG_open_11`, the span the number
+belongs to, and there is nothing to reconcile.
+
+* threshold **7.2 kcal/mol** — the highest ON cost among Green's 77 switches above
+  20-fold ON/OFF; the median over all 168 is 3.64
+* `dG_open_11` is computed from the same ON-tube complex as `open_11`, so the extra cost
+  is one constrained partition function, not a second fold
+* `open_11` stays as an observable: every design built before the change carries it, and
+  it is what the stem levers act on most directly
+* **family version 0.6.0.** A run under 0.5.0 and a run under 0.6.0 are not comparable at
+  the same numeric setting, and the release note must say so
+* `tools/run_axes.cmd` and `tools/run_axes_complete.cmd` now default to `CEIL=7.2`
+
+**The run in progress keeps the old rule.** Its shards loaded 0.5.0 and will not pick this
+up unless restarted, so `axes_c8` is a 0.5.0 table. Everything in it that was fully
+measured carries `dG_open_11` and can be re-filtered at 7.2 without re-running — 109,803 of
+147,244 (74.6%) pass. Designs it stopped at the old ceiling have no `dG_open_11` and would
+need rebuilding to be judged on the new one.
+
+### Open · the invasion-run cap has no source
+
+`MAX_INVASION_STALL = 2` in `ToeholdAndGate`, with the comment *"Three in a row is enough
+to stall branch migration."* **That number is not attributed to anything.** It is a hard
+filter — it rejected 5 of 12 all-A builds in one test, so it is doing real work — and a
+hard filter with no provenance is exactly what CLAUDE.md §3 warns about.
+
+Find where it came from, or set it from something. Candidates to check: the
+strand-displacement kinetics literature already in the team's folder
+(`Toehold/RBS/Control of DNA strand displacement kinetics using toehold exchange`), Green
+2014's supplementary, and Kim 2019. If nothing supports it, it should either be derived
+from a measured distribution of stall runs across real candidate stems, or demoted from a
+filter to a recorded observable so the choice is visible rather than silent.
+
+The wiki page must not state a justification for it until one exists.
+
+### Open · widen the reading-frame repair to the whole acceptance window
+
+**For the toehold AND family, found while writing the model page.**
+
+A 30S subunit does not scan. It anchors on the Shine–Dalgarno and accepts a start codon a
+short distance downstream, with 6–8 nt optimal (Reeve et al. 2014, after Vellanoweth &
+Rabinowitz 1992). So:
+
+* an `AUG` **upstream** of the Shine–Dalgarno starts nothing. `augs_upstream_of_rbs`
+  counts them and is right to — 3,716 across 2,176 designs, none reachable.
+* an out-of-frame `AUG` **inside the acceptance window** is a competing start that
+  produces a different protein.
+
+Computed from the family's own constants, `RBS_CORE` (`AGGAGA`) ends exactly where
+`rbs_loop` ends, so the whole spacer to the start codon is `main_z`, 6 nt — our planned
+start sits at the optimal distance, and `main_z` is also trigger A's own `k1` copied in,
+which means sensed sequence we do not choose lands in exactly the dangerous place.
+
+`_repair_main_z` repairs `main_z` and nothing else. An out-of-frame `AUG` a little further
+downstream — inside `main_pre`, the three codons after the start — is still plausibly
+inside the window, and today it is validated and rejected rather than repaired. The same
+applies to the in-frame stop check.
+
+The task: define the acceptance window explicitly from the Shine–Dalgarno position rather
+than implicitly as "the spacer", and run both repairs over it. This changes which designs
+survive, so it needs a version bump and a golden-fixture update in the same commit.
+
+### Open · a message for whoever owns `gates/antisense.py` and `gates/euk_antisense.py`
+
+**Nothing in those two files was changed. This is a report, not a patch.**
+
+While moving the toehold family's span reduction into `gates/tools/folding.py`, we
+noticed that `antisense.py` carries its own `_mean_unpaired` — and that the two copies
+disagree about what to return for a span that falls outside the pair-probability matrix.
+The toehold copy returns `None`; the antisense copy clamps the span to the matrix and
+returns `0.0` for an empty one. `euk_antisense.py` imports the antisense copy.
+
+Why it may matter to you: both families pass that value straight to `predicted_leakage`,
+and both are `available = True`, so the value reaches `engine.scoring`. There,
+`normalize_value(0.0, predicted_leakage_spec)` is **1.0** — a perfect score — and
+`failed_filter({"predicted_leakage": 0.0}, DEFAULT_V1)` is `None`, so the 0.85 hard filter
+does not fire. `dynamic_range = on_accessibility / max(predicted_leakage, 1e-3)` turns the
+same value into a 1000× fold change. So a span that could not be measured would score as
+a flawless design that outranks every measured one, and nothing logs it.
+
+We have not checked whether that span can actually occur on your path, and we are not
+going to without being asked — that is your code and your call. If you want the shared
+definition, it is `mean_unpaired` in
+[`src/engine/gates/tools/folding.py`](../src/engine/gates/tools/folding.py), with the
+`None` contract that CLAUDE.md §3 requires; swapping to it would make `on_accessibility`
+and `predicted_leakage` `float | None` and the two `dynamic_range` lines would need to
+carry the `None` through rather than divide by it.
+
+Also worth knowing, since CLAUDE.md §7 says otherwise: `AntisenseNotGate` and
+`EukaryoticAntisenseNotGate` are both **`available = True`** today. Only `CrisprGate` is
+`False`. That table row has been corrected.
+
+### Open · `FoldEngine.versions()` under-records what sets the numbers
+
+**For whoever owns [`src/engine/gates/tools/folding.py`](../src/engine/gates/tools/folding.py).**
+`versions()` is what a run writes into `JobResult` so the result stays interpretable
+after an upgrade, and its own docstring says to "include anything that changes the
+numbers, not only the library version." Read today it returns two things:
+
+```python
+{"ViennaRNA": RNA.__version__, "temperature_c": str(self.temperature)}
+```
+
+Four things that change every energy are not in there: the **energy-parameter set**
+(ViennaRNA 2.x's default is Turner 2004, and `rna_turner1999.par` ships with the
+library, so which one was loaded is a real question), and the model details carried on
+the `RNA.md()` — `dangles`, `special_hp`, `noLP` and `noGU`. All four are set
+deliberately in this codebase and all four are invisible in the recorded provenance.
+The failure mode is specific: a rerun on a future ViennaRNA whose defaults had moved
+would produce different numbers, and nothing in the stored output would show why.
+`noGU` matters most, because one of the toehold family's construction levers works
+entirely through G·U wobbles and would silently stop working.
+
+The fix is to read them back off the model-details object rather than restate them as
+literals — a value restated is a value that can drift from what was used. Nothing
+should be *changed* about how folding is configured; this is a provenance gap only.
+
+It was found while writing the iGEM model page, which states the settings in prose
+because the output does not carry them. It is **not** on the wiki page: the page
+documents the model, not our defect list.
+
 ---
 
 > **Historical planning archive (written before the 8 October 2026 audit).**
@@ -791,3 +917,13 @@ See [running the workbench](crispr-workbench.he.md) and
 [implementation and assumptions](crispr-implementation.he.md). Examples and the
 user-input template are under `examples/crispr/`; these are software checks,
 not evidence of biological function.
+
+## Accepted model snapshot and application scope
+
+The quantitative model page is explicitly withheld until corrected barrier CSVs and
+axes_c8 row-level inputs are versioned with producer provenance. The portable audit
+checks this withholding snapshot only; it does not validate historical summary metrics.
+The prokaryotic/generic AND research generators remain available for engine research,
+but are not advertised through the application: their application workflow has not
+been validated alongside the eukaryotic stem-opening integration. No sequence-release
+activation or biological validation is implied.

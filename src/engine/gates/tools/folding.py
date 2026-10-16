@@ -384,6 +384,51 @@ class FoldEngine:
         structure, energy = fc.mfe()
         return FoldResult(structure=structure, energy=energy)
 
+    def centroid(self, strands: str) -> FoldResult:
+        """The structure with the smallest expected base-pair distance to the ensemble.
+
+        A second answer to "what does this fold into", and a better one wherever the
+        ensemble is not concentrated on one structure. ``mfe`` returns the single most
+        stable fold, which can carry a small share of the Boltzmann weight — in that case
+        drawing it presents a structure the molecule mostly is **not** in. The centroid is
+        the structure closest on average to every structure in the ensemble, so it keeps
+        only pairs the ensemble broadly agrees on and leaves the contested regions open.
+
+        Neither is "the" structure and they are not ranked against each other: the centroid
+        can lose a real helix that half the ensemble forms, and the MFE can show one that
+        only it forms. Both are drawings, which is why every *measurement* in this engine
+        goes through the partition function instead — ``p_open``, ``open_penalty``,
+        ``pooled_pair_probabilities``. Use these two for the picture and those for the
+        number.
+
+        Args:
+            strands: RNA, uppercase, ``&``-joined for a complex — the same convention and
+                the same cache-key reason as ``mfe``.
+
+        Returns:
+            ``FoldResult(structure, energy)``. ``structure`` is dot-bracket over the
+            combined strands, the same length ``mfe`` returns. ``energy`` is the
+            **centroid's own free energy** in kcal/mol, evaluated under this model, not
+            the ensemble free energy and not ViennaRNA's distance-to-ensemble figure —
+            so it is directly comparable with ``mfe().energy`` and is always greater than
+            or equal to it, the MFE being the minimum by definition.
+
+        Gotchas:
+            * ``pf()`` must run before ``centroid()``; ViennaRNA returns a meaningless
+              structure otherwise, and silently. Handled here.
+            * ``fc.centroid()`` returns ``(structure, distance)`` where the second value
+              is the expected base-pair distance — **not** an energy. Reporting it as one
+              would put a positive "energy" of a few dozen on a drawing that sits beside
+              a negative MFE, which is why this re-evaluates the structure instead.
+        """
+        fold_compound = self._compound(strands)
+        fold_compound.pf()
+        structure, _distance = fold_compound.centroid()
+        return FoldResult(
+            structure=structure,
+            energy=float(fold_compound.eval_structure(structure)),
+        )
+
     def structure_energy(self, strands: str, structure: str) -> float | None:
         """Energy of one **given** structure, rather than the best one.
 
@@ -597,6 +642,120 @@ class FoldEngine:
         ]
         return probabilities, constrained, unconstrained
 
+    def open_penalty(self, strands: str, spans: tuple[tuple[int, int], ...]) -> float | None:
+        """Free energy cost of forcing every base in ``spans`` unpaired, in kcal/mol.
+
+        This is ``p_open`` expressed as an energy rather than a probability, and generalised
+        to several disjoint spans so that a stem can be constrained without constraining the
+        bulge between its arms.
+
+        **Why the energy and not the probability.** They are the same number —
+        ``G_constrained - G_ensemble = -RT ln(Q_constrained / Q)`` — but only one of them is
+        usable. Measured across the four tubes of one real A0 design, the probabilities span
+        ``1.9e-15`` to ``3.4e-04`` while the energies span ``4.93`` to ``20.89`` kcal/mol.
+        The probability underflows in the OFF states, where the answer matters most, and
+        ``p_open`` has to return ``None`` once it does. The energy never underflows, and
+        energies add, so terms built from this compose into an objective function without
+        weights: a sum of free energies is a free energy.
+
+        **Constrain the stem, not the window.** A window constraint asks "is this region
+        unpaired", which a design can satisfy by refolding the region onto something else —
+        measured on the VISTA library, where 57 of 60 switches re-pair the RBS-to-AUG window
+        in the ON state and a window-based score therefore reports a working switch as
+        broken. Constraining the stem's own arms cannot be faked that way.
+
+        **Direction matters, and only one direction carries information.** Forcing a stem
+        *closed* costs ``0.00 +/- 0.00`` kcal/mol in every state of every design measured:
+        the stem is already paired in the ensemble, so the constraint is pre-satisfied and
+        the term is identically zero. Forcing it *open* separates the states — 16.96 (00),
+        19.37 (01), 4.05 (10), 2.75 (11) on a five-design sample. So score every state with
+        the same open constraint and take the contrast; never mix directions.
+
+        Args:
+            strands: RNA, uppercase, ``&``-joined for a complex.
+            spans: ``(start, end)`` pairs into **the first strand**, 0-based, inclusive
+                start, exclusive end. May be given in any order; overlaps are harmless
+                because positions are de-duplicated.
+
+        Returns:
+            The cost in kcal/mol, ``>= 0`` in exact arithmetic, or ``None`` if any ensemble
+            came back non-finite. ``None`` rather than ``0.0``: zero is what a *free* region
+            costs, so returning it for a failed measurement would read as a perfectly
+            accessible stem.
+
+        Raises:
+            ValueError: if ``spans`` is empty or any span is empty, reversed, or runs off
+                the first strand. Always a bug upstream, not a bad design.
+        """
+        if not spans:
+            raise ValueError("spans must name at least one range")
+        first = strands.split("&")[0]
+        positions: set[int] = set()
+        for start, end in spans:
+            if not 0 <= start < end <= len(first):
+                raise ValueError(
+                    f"span {(start, end)} is not a non-empty range inside the first strand "
+                    f"(length {len(first)})"
+                )
+            positions.update(range(start + 1, end + 1))
+        ordered = tuple(sorted(positions))
+
+        constrained: list[float] = []
+        unconstrained: list[float] = []
+        for order in self._strand_orders(strands):
+            constrained.append(self._partition_with_unpaired(order, ordered))
+            unconstrained.append(self.partition(order))
+        if not all(math.isfinite(e) for e in (*constrained, *unconstrained)):
+            return None
+        return self._combine(constrained) - self._combine(unconstrained)
+
+    def saddle(
+        self, sequence: str, start: str, end: str, *, max_energy: float = 200.0
+    ) -> float | None:
+        """Activation barrier between two structures, in kcal/mol above ``start``.
+
+        The quantity every "kinetic barrier" in this project has so far *not* been. A state
+        difference is end minus beginning; a barrier is the highest energy on the path
+        between, and two states at equal energy can still be separated by one. Measured on a
+        real 165-nt A0 switch: the difference is +8.59 kcal/mol while the barrier is +9.60,
+        and on another design +7.29 against +9.30. The gap is small but it varies, so the
+        barrier is not a rescaled difference.
+
+        Args:
+            sequence: RNA, uppercase. A single strand — findpath does not take ``&``.
+            start: Dot-bracket for the starting structure, same length as ``sequence``.
+            end: Dot-bracket for the target structure, same length.
+            max_energy: Search ceiling in kcal/mol. Paths needing more are abandoned.
+
+        Returns:
+            Barrier height above ``start`` in kcal/mol, or ``None`` when no path was found
+            under ``max_energy``.
+
+        Gotchas:
+            * ``RNA.find_saddle`` takes **and returns dekacal/mol as an integer** — the
+              units trap this repo has already been bitten by. 290 means 2.90 kcal/mol.
+              Both conversions happen here so no caller repeats them.
+            * findpath walks a heuristic *direct* path, so this is an **upper bound** on the
+              true saddle, not the minimum-barrier path. Report it as such.
+            * **Cost depends entirely on how far apart the two structures are**, and the
+              spread is three orders of magnitude. Releasing only a stem's arms on a 161-nt
+              switch: median **136 ms** over six real designs (92-416 ms). Asking for the
+              fully open chain on the same switch: **24 seconds**, because findpath explores
+              every intermediate. An earlier version of this note said 11 ms, measured on a
+              27-nt toy hairpin — do not size a sweep from that number. Give the nearest
+              target that answers the question.
+        """
+        for name, structure in (("start", start), ("end", end)):
+            if len(structure) != len(sequence):
+                raise ValueError(
+                    f"{name} structure is {len(structure)} long but sequence is {len(sequence)}"
+                )
+        ceiling = round(max_energy * 100)
+        saddle = RNA.find_saddle(sequence, start, end, ceiling)
+        if saddle is None or saddle >= ceiling:
+            return None
+        return saddle / 100.0 - float(self._compound(sequence).eval_structure(start))
+
     @staticmethod
     def validate_target(sequence: str, target: str) -> None:
         """Reject malformed single-strand dot-bracket structures before native calls."""
@@ -763,6 +922,36 @@ class FoldEngine:
                     if probability:
                         target[index[j]] += share * probability
         return pooled
+
+    def pooled_partition(self, strands: str) -> float:
+        """``partition`` Boltzmann-summed over all strand orderings.
+
+        **Use this, not ``partition``, for any free energy of three or more strands.**
+        ``partition`` folds the strands in the order written and ViennaRNA counts only
+        structures that are non-crossing in that order, so the answer depends on it. The
+        two orderings of one real AND-gate tube measured **12.66 kcal/mol** apart here
+        (``switch&A&B`` = -162.97, ``switch&B&A`` = -150.31), and on a second trigger pair
+        the same switch came out 5.03 apart with the *opposite* ordering favoured — so
+        there is no ordering a caller can simply prefer, and picking one silently
+        discards the other's structures.
+
+        A binding energy built from unpooled terms inherits the whole spread, because the
+        complex and its sub-complexes are folded in different orders.
+
+        Returns:
+            Ensemble free energy in kcal/mol over the union of the orderings' ensembles.
+            Never above the lowest single ordering, and equal to ``partition`` for one or
+            two strands, where there is a single ordering.
+        """
+        orders = self._strand_orders(strands)
+        if len(orders) == 1:
+            return self.partition(strands)
+        energies = [self.partition(order) for order in orders]
+        # Shifted by the minimum before exponentiating, the same guard `p_open` uses: a
+        # bare exp(-G / RT) overflows a float at these magnitudes.
+        floor = min(energies)
+        total = math.fsum(math.exp(-(energy - floor) / self.rt) for energy in energies)
+        return floor - self.rt * math.log(total)
 
     @staticmethod
     def _position_map(order: list[str], canonical: list[str]) -> list[int]:
@@ -1412,6 +1601,90 @@ def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:
     # Structures alone carry no molecule or model energy: a Boltzmann probability
     # cannot be inferred from this signature and remains explicitly unavailable.
     return StructureMatch(deviation=deviation, p_target_fold=None)
+
+
+# --- Span reductions over a pair-probability matrix ----------------------------------
+#
+# These read a `base_pair_probabilities` matrix, so they belong with the adapter that
+# produces it rather than with any one gate family. They take the MATRIX and not a
+# sequence on purpose: a partition function is the expensive step, a design asks about a
+# dozen spans of the same molecule, and a function that refolded per span would multiply
+# the cost of every design by the number of spans. Fold once, reduce many times.
+#
+# They were promoted here from three private copies -- `gates/toehold.py`,
+# `gates/antisense.py` and, by import, `gates/euk_antisense.py` -- which had drifted
+# apart on the case that matters. The toehold copy returned `None` for a span outside the
+# matrix; the antisense copy clamped the span and returned `0.0` for an empty one, and
+# `euk_antisense` fed that straight into `predicted_leakage`, where
+# `normalize_value(0.0, spec)` is a perfect 1.0 that also passes the 0.85 hard filter. One
+# unmeasurable span would therefore have produced a flawless design. The `None` contract
+# is the one kept.
+
+
+def mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float | None:
+    """Mean P(unpaired) over ``[start, end)`` of a ``base_pair_probabilities`` matrix.
+
+    P(unpaired) at position ``i`` is ``1 - sum(matrix[i])``. The matrix is symmetric and
+    0-indexed (``FoldEngine.base_pair_probabilities``'s contract), so the sum covers a
+    position's pairing probability to *every* other position regardless of which strand it
+    sits on. For a dimer or trimer matrix that is exactly the question being asked: a loop
+    base paired to its own hairpin and one paired to the trigger are both blocked.
+
+    Use this where the answer has to stay a bounded 0-1 quantity and be compared as a
+    ratio between two states of the same molecule. It is **not** the probability that the
+    span is open all at once -- that is ``FoldEngine.p_open``, which costs a second,
+    constrained partition function and is the right question for a ribosome footprint.
+
+    Args:
+        matrix: From ``FoldEngine.base_pair_probabilities`` or
+            ``FoldEngine.pooled_pair_probabilities``.
+        start: First position, 0-indexed, inclusive.
+        end: One past the last position, exclusive.
+
+    Returns:
+        The mean, or ``None`` for a span that is empty or does not lie inside the matrix
+        -- never ``0.0``. This is an accessibility, so 0.0 is the *worst measurable* value
+        and reporting it for an unmeasurable span would rank the design as if it had been
+        measured, and rank it as fully sequestered. A span that runs off the end means the
+        domain map and the folded sequence are out of step, which is a bug upstream that
+        has to stay visible.
+    """
+    n = len(matrix)
+    if not 0 <= start < end <= n:
+        return None
+    unpaired = [max(0.0, 1.0 - sum(matrix[i])) for i in range(start, end)]
+    return sum(unpaired) / len(unpaired)
+
+
+def unpaired_defect(matrix: list[list[float]], start: int, end: int) -> float | None:
+    """Normalised ensemble defect over ``[start, end)`` against a fully unpaired target.
+
+    The ensemble defect against a target structure is the expected number of nucleotides
+    paired differently from that target, averaged over the ensemble
+    (``FoldEngine.ensemble_defect``, which takes a full-length dot-bracket target and
+    returns the raw count). When the target specifies a span as **completely unpaired**,
+    every pair in that span is an error, so the defect normalised by span length reduces
+    exactly to the mean pair probability -- that is, to ``1 - mean_unpaired``. This is the
+    form VISTA reports as the Ideal Ensemble Defect, and it is what a region required to
+    be single-stranded, such as a ribosome-binding loop, is scored on.
+
+    It is the same number as ``1 - mean_unpaired(...)``, and exists as a named function
+    because that arithmetic was previously written out at each call site, which is how one
+    measurement acquires two definitions. Lower is better: ``0.0`` is a perfectly open
+    span and ``1.0`` a fully paired one -- the opposite direction from ``mean_unpaired``,
+    which is the reason to name it rather than invert it inline.
+
+    Where an intended structure is actually specified, prefer
+    ``FoldEngine.ensemble_defect``: the mean pair probability is blind to partner identity
+    and this reduction inherits that blindness, while the full defect is not.
+
+    Returns:
+        The normalised defect, or ``None`` when ``mean_unpaired`` cannot measure the span.
+        Never ``0.0`` for an unmeasurable span: here 0.0 is a *perfect* score, so the
+        sentinel would be even more misleading than for an accessibility.
+    """
+    mean = mean_unpaired(matrix, start, end)
+    return None if mean is None else 1.0 - mean
 
 
 def _suboptimal_worker() -> None:

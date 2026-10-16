@@ -468,7 +468,13 @@ class Constraints:
         min_separation: Minimum absolute log2 fold change for a gene to be usable. A gene
             that barely moves cannot drive a switch however well it folds.
         max_p_adj: Significance threshold, conventionally 0.05.
-        trigger_lengths: Window sizes to scan, in nucleotides. A tuple because different
+        trigger_lengths: Window sizes to scan, in nucleotides. The one-input footprints
+            only; ``build_tools`` **widens this per requested gate family** rather than
+            carrying every family's needs by default. A two-input family needs a 50-nt
+            window for trigger B (``SECONDARY_INVASION_LEN + TOEHOLD_B_LEN``), and adding
+            it here unconditionally would rescan every one-input run and move its top-K
+            shortlist -- a change in numbers that buys those runs nothing. See
+            ``ToeholdAndGate.role_footprints``. A tuple because different
             chemistries need different footprints, and each length scanned multiplies the
             candidate count.
         max_switch_length: Ceiling on a switch construct. Bounded by what synthesis
@@ -490,6 +496,44 @@ class Constraints:
             abundance column at all, docs/genes.md §2).
         max_base_expression: Ceiling on a gene's expression in whichever group is the
             "OFF" state for its direction — too high and the switch leaks.
+        stem_order: HOW those stems are chosen from the pair's front, not how many.
+            ``secondary_stems`` returns the NON-DOMINATED set over ``(lock_energy,
+            a_site_energy, b_site_energy)``, so every stem it offers is already a distinct
+            trade among locking the hairpin, letting trigger A grip the secondary arm and
+            letting trigger B invade it. Measured on 404 real PFAS trigger pairs that front
+            holds a median of 82 usable stems (mean 89.4, max 268).
+
+            ``"lock"`` is the historic rule: sort by ``lock_energy`` and take the first
+            ``stems_per_pair``. That is two points from ONE EDGE of the front, and it
+            discards the ``a_site_energy`` axis entirely — the quantity the architecture's
+            central claim rests on and the one nothing has ever ranked on. The best dropped
+            stem is a median of only 0.40 kcal/mol behind the last one kept, so the cut is
+            not between good and bad stems.
+
+            ``"front"`` bins the front into quantiles on ``lock_energy`` and on
+            ``a_site_energy`` independently and takes one stem per occupied bin, nearest its
+            centre, so both axes are spanned at the same budget. Deterministic, so a resumed
+            run picks the same stems.
+        stems_per_pair: How many secondary stems a two-input family may take per trigger
+            pair, chosen by ``stem_order``. **A budget, and it has to be declared here rather
+            than chosen inside a gate family.** The axis grid is 16 closures x 3 upper3 x 2
+            lower3 = 96 designs per stem per pair per role assignment, so this number
+            multiplies the whole sweep; an undeclared default would be an invisible
+            per-family filter, which CLAUDE.md section 3 is explicit about.
+        min_window_gap: REMOVED. It was read by nobody -- the gap that exists is
+            ``find_trigger_pairs(transcript, min_window_gap=...)``, a keyword argument
+            defaulting to the class constant ``ToeholdAndGate.MIN_WINDOW_GAP``, which never
+            consulted this record. And the cross-gene path cannot use it at all:
+            ``find_cross_gene_pairs`` states that two windows on separate transcripts cannot
+            overlap, so there is nothing to space apart. A declared field wired to nothing is
+            worse than no field, because setting it raises no error and changes no behaviour.
+            Historical note kept so the removal is not re-litigated: "This
+            belongs in ``Constraints`` and there is no field for it yet" -- it does now.
+            Irrelevant when the two triggers come from different genes, where the windows
+            cannot collide.
+        overlap_range: Smallest and largest shared domain between the two triggers, in
+            nucleotides. The floor is what ``MIN_OVERLAP`` enforced; the ceiling is the
+            secondary invasion length, past which the arm cannot hold it.
         trigger_gc_range: GC% band a trigger window must fall inside to count as usable
             in stage 1's trigger-yield screen (docs/genes.md §4.2). Separate from
             ``engine.scoring``'s ``gc_content`` metric range: this is a coarse,
@@ -517,6 +561,19 @@ class Constraints:
     min_base_expression: float | None = None
     max_base_expression: float | None = None
     trigger_gc_range: tuple[float, float] = (30.0, 70.0)
+    stems_per_pair: int = 2
+    #: Which closure axis ``ToeholdAndGate`` walks. ``"full"`` is all sixteen levels, which
+    #: cycle 1's 431,916 designs were built on; ``"chosen"`` is the five of
+    #: ``CLOSURES_CHOSEN`` -- the energetic centre of each d, with Green's ``AUG`` filling
+    #: d = 0 where no centre exists because every option there is exactly 0.00.
+    #:
+    #: Declared rather than hardcoded for the same reason ``stem_order`` is: it changes WHICH
+    #: designs exist for a trigger pair, so two runs under different settings hold
+    #: incomparable candidate pools and the row has to say which it was.
+    closure_set: str = "full"
+
+    stem_order: str = "lock"
+    overlap_range: tuple[int, int] = (4, 18)
     direction_balance: bool = True
 
 

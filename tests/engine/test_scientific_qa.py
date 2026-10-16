@@ -156,7 +156,6 @@ def test_capabilities_advertise_only_runnable_host_family_pairs():
     is driven: a pasted sequence for a single-input switch, a two-gene table for the AND."""
     capabilities = LocalEngine().capabilities()
     assert "antisense" not in capabilities.available_families
-    # The unbuilt AND chemistries stay unadvertised; the eukaryotic AND is the one built.
     and_families = sorted(name for name in capabilities.available_families if "and" in name)
     assert and_families == ["eukaryotic_toehold_and"]
     assert set(capabilities.family_hosts) == set(capabilities.available_families)
@@ -476,3 +475,26 @@ def test_suboptimal_child_imports_same_installed_package_layout_without_pythonpa
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_eukaryotic_and_tool_wiring_does_not_inherit_prokaryotic_footprints(make_request):
+    from engine.domain import Host
+    from engine.pipeline import build_tools
+
+    request = make_request(
+        organism="human",
+        gate_families=["eukaryotic_toehold_and"],
+        params={
+            "constraints": {"trigger_lengths": [36]},
+            "and_inputs": {"gene_a": "SELE", "gene_b": "ICAM1"},
+        },
+    )
+    tools = build_tools(request, Host.HUMAN)
+    assert len(tools["families"]) == 1
+    assert tools["constraints"].trigger_lengths == (36,)
+    assert not any("footprint" in warning.lower() for warning in tools["warnings"])
+
+
+@pytest.mark.parametrize("family", ["toehold_and", "prokaryotic_toehold_and"])
+def test_research_and_generators_are_not_advertised_until_workflow_is_validated(family):
+    assert family not in LocalEngine().capabilities().available_families

@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from apps.analyses.models import AnalysisRun, RunStatus
 from apps.datasets.models import ValidationStatus
 
@@ -143,6 +145,17 @@ def test_every_constraint_the_api_rejects_is_an_explicit_decision():
     #: adding it to CONSTRAINT_KEYS and to that table, then removing it from this set.
     not_exposed = {
         "direction_balance",
+        # `overlap_range` is EXPOSED (see CONSTRAINT_KEYS) and `min_window_gap` is gone from
+        # the engine entirely -- it was read by nobody. These two remain withheld, and the
+        # reason is not that a request would go unrecorded (`JobResult.params` echoes the
+        # request verbatim) but that they are a COMPUTE budget for one family: they pick how
+        # many points of the secondary-stem Pareto front get built and from which part of it.
+        # The API has its own budget block for compute, and a per-family sampling rule sitting
+        # among cross-family search constraints would be read as biology. Exposing either
+        # means deciding where a generation budget belongs first.
+        "stem_order",
+        "closure_set",  # Family-specific sampling axis, deliberately withheld.
+        "stems_per_pair",
         "max_base_expression",
         "max_genes",
         "max_separation",
@@ -344,3 +357,27 @@ def test_cancelling_a_finished_run_says_so(auth_client, completed_run):
 
     assert body["outcome"] == "already_terminal"
     assert body["status"] == RunStatus.COMPLETED
+
+
+@pytest.mark.parametrize("value", ["full", "chosen"])
+def test_closure_set_is_withheld_from_public_api(auth_client, dataset, value):
+    response = _submit(
+        auth_client, dataset_id=dataset.id, params={"constraints": {"closure_set": value}}
+    )
+    assert response.status_code == 422
+    assert "closure_set" in response.content.decode()
+    assert "closure_set" not in auth_client.get("/api/version").json()["constraints"]
+    response = auth_client.post(
+        "/api/design",
+        data=json.dumps(
+            {
+                "input_mode": "direct",
+                "trigger_sequence": "ACGU" * 10,
+                "constraints": {"closure_set": value},
+                "strict": False,
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 422
+    assert "closure_set" in response.content.decode()

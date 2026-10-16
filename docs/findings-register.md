@@ -1,0 +1,214 @@
+# Findings register — every measured number, and what reproduces it
+
+One row per finding: the number, the file that holds its reasoning, and the command that
+reproduces it. This exists so a finding survives a context reset, a new contributor or a different
+agent: the reasoning lives in docstrings beside the code, and this is the index into them.
+
+**Rules for this file.** A row is added only when the number has been measured and the reproduction
+command has been run. Where a later measurement contradicts an earlier one, both rows stay and the
+later one says so — a register that quietly overwrites its own history is worse than none. `n` is
+quoted beside every rate, because a rate over seven cells and a rate over three hundred are not the
+same claim.
+
+**Scope note.** *E. coli* and PFAS are the **use case**, not the platform. Findings below are
+labelled by the dataset they were measured on, and **no metric in this work has held its sign
+across datasets** — see `no-metric-holds-sign` below before carrying any of them over.
+
+---
+
+## How to read the dataset column
+
+| label | what it means |
+|---|---|
+| **mCherry** | the A0 sweep: both trigger windows are segments of one 711-nt mCherry transcript |
+| **PFAS** | the real target: windows in two different endogenous *E. coli* mRNAs (`ggt`, `fadB`, `astC`, `aldA`) |
+| **Green 168** | Green et al. 2014's built-and-measured one-input switches — external ground truth |
+| **Kim** | Kim et al. 2019's four AND constructs |
+
+---
+
+## The completed grid, 301,440 designs — `axes_c8` measured end to end
+
+The run that finished the grid, analysed with the ON and OFF terms of every contrast reported
+separately. Rows marked **pre-filter** are measured on all 301,440 designs before the ON ceiling
+decides; everything else is conditional on surviving it, and says so.
+
+| finding | the number | dataset | reasoning lives in | reproduce |
+|---|---|---|---|---|
+| A grid can be complete and still short, and only one axis is ever the reason | `axes_c8` finished on all six shards (15.5–17.5 h each, 2.24–2.48 s per design) with **11.7% of grid points absent** and 276 of 420 cells whole. Rebuilding eight short cells through the production path returns **exactly** the point count already stored: `generate_designs` declines them. The shortfall is entirely one axis — closures are uniform to the row (296 each) and both lower3 levels are uniform (2,368 each), while upper3 splits **`WWW_AUA` 3,904 / `trigger_derived` 832 / `WWW_UAU` 0**. A level that is unbuildable for a pair goes missing wholly, so the shape separates "cannot" from "not yet" without rebuilding |
+| `WWW_AUA` is unbuildable for ~29% of trigger pairs | 122 of 420 cells lose the level entirely (3,904 absent points ÷ 32 per cell). The path is `_repair_patched_main_z` returning `None`, recorded as `aug_utr_unrepairable`: the lever writes `reverse_complement(upper3)` into the first three bases of `main_z`, which is the spacer immediately before the start codon, and the repair cannot then remove an out-of-frame `AUG` without undoing the lever. **The exact mechanism is not yet confirmed** — `upper3_natural` stores only 3 nt, so the test against the following base could not run off the table |
+| The ON ceiling now reads the window its value is calibrated on | Was `open_11`, the stem arms (15 nt); is now **`dG_open_11`**, the ribosome window (31 nt), which is the span Green's figures are measured over. Threshold **7.2 kcal/mol** — the highest ON cost among his 77 switches above 20-fold ON/OFF, against a median of 3.64 over all 168. Family version **0.6.0**: a run under 0.5.0 and one under 0.6.0 are not comparable at the same numeric setting. `open_11` is still recorded and decides nothing |
+| The table is uniform, so a within-cell comparison is sound | 420 of 420 cells built under one setting (`stem_order=front_tops`, 6 stems per pair, overlap 4–18, `pair_order=spread`). One distinct provenance tuple across 301,440 rows | PFAS | `tools/audit_grid_coverage.py` | `uv run python tools/audit_grid_coverage.py --out axes_c8` |
+| **The ceiling actually applied was 8.0, not 7.2** | every row carries `on_ceiling` 8.0, read against `dG_open_11`. The 7.2 recorded above is what the runner script now specifies; no row was built under it. Any statement at "the 7.2 threshold" is about a population that does not exist yet | PFAS | this register | the same command |
+| `gate_version` is empty on every row, so the resume guard could not fire | 0 of 301,440 rows carry a version. Related: the ceiling sweep finds **189,522 usable `dG_open_11` among 219,808 fully measured designs — 30,286 (13.8%) lack the value the ceiling is read against**, which is the signature a mixed-version table leaves. Unresolved | PFAS | `tools/sensitivity_filters.py` | `uv run python tools/sensitivity_filters.py --out axes_c8` |
+| **State 10 binds the ON/OFF contrast in 80–99% of designs** | `sep_open` 99.2%, `sep_dg_open` 99.3%, `sep_a_m` 93.3%, `sep_ied` 80.3%, n = 219,808. A metric referenced to state 00 is measuring the resting structure | PFAS | `analyse_axes.worst_off` | `uv run python tools/analyse_axes.py --out axes_c8 --into docs/assets/axes_c8` |
+| **pre-filter** — the state-10 leak is the normal case, not the exception | `xstar_engA_10` median **0.9988**, mean 0.7651; only **23.4%** of 301,440 designs below 0.5. `mainpre_engA_10` median 0.9761, 28.8% below 0.5 | PFAS | `tools/analyse_levers.py` | `uv run python tools/analyse_levers.py --out axes_c8` |
+| **The stem energies move the leak and the OFF state, and not the ON state** | within-cell ρ against `a_site_energy`: leak **−0.701**, worst-OFF −0.33 to −0.38, every ON-state term **+0.023 to +0.047** (n = 388–420 cells). The `barrier` is flat too, −0.021 at 291 of 388 cells | PFAS | `analyse_axes.CONTRASTS` | the `analyse_axes` command above |
+| Lock hard, grip weakly — and the composite beats either term | `lock_minus_a_site` ρ **+0.785** on `sep_a_m` (384 of 388 cells), +0.668 on `sep_open`; `a_site_energy` −0.760, `lock_energy` +0.724. The composite had never been ranked on | PFAS | `analyse_axes` CONTINUOUS | the same command |
+| The effects are threshold-shaped, not gradients | within-cell quintiles of `a_site_energy` against `sep_open`: +0.419, +0.378, +0.281, −0.052, **−1.032**. `lock_energy` is the mirror, −1.092 in Q1 then flat | PFAS | `analyse_axes` SHAPE | the same command |
+| Every lever cuts the leak and costs ON-state openness | cells won/lost: `wobble_GU` leak **171/0**, separation 158/5, `A_M_11` **52/119**; `WWW_UAU` 308/4, 276/6, **104/208**; `WWW_AUA` 216/0, 198/3, **78/138** | PFAS | `tools/analyse_levers.py` | the `analyse_levers` command above |
+| Closure survival and gating run opposite, at 2.8× | `closed_CAU` 40.7% survive / 26.9% gate; `open_3x3` 82.9% / 9.5%, 18,840 rows per level | PFAS | `tools/analyse_closure.py` | `uv run python tools/analyse_closure.py --out axes_c8` |
+| The closure × scheme interaction is mostly `a_site_energy` wearing a label | raw gap 1.05 z (B-anchored −1.37 against mixed −0.32 on `closed_CAU`); inside `a_site_energy` quartiles the gap falls 0.71 → 0.48 → 0.07 → −0.02 | PFAS | `tools/probe_axes.py` | `uv run python tools/probe_axes.py --out axes_c8` |
+| `scheme = B-anchored` is the only conclusion stable everywhere | best for all four contrasts at every ceiling from 8.00 down to 3.28, and in **28 of 28** contrast × floor combinations. The closure *family* is stable; the particular closure within it is not | PFAS | `tools/sensitivity_filters.py` | the `sensitivity_filters` command above |
+| The trigger pair decides more than the design | of 210 pairs, **15 (7.1%) have no design that opens** and **75 (35.7%) have >95% open**; median per-pair survival 0.880, sd 0.327, U-shaped | PFAS | `tools/probe_axes.py` | the `probe_axes` command above |
+| The reference state flips the IED result | ρ with `a_site_energy`: **−0.075** referenced to state 00 (`ied_gain`), **+0.651** to the worst of 01/10 (`ied_gain_worst`), +0.620 to the worst of all three (`sep_ied`). The 00-referenced version is near-useless and points the other way | PFAS | `analyse_axes.ORIENTATION` | the `analyse_axes` command above |
+| `access_a` was never measured in this run | 0 values of 301,440. `measure_design` computes it only when handed the transcript and both sites and correctly returns `None` otherwise; the runner does not pass them | PFAS | `ToeholdAndGate.measure_design` | the `sensitivity_filters` command above |
+| Geometry cannot be compared from the within-cell tables — but it can be compared one level up | `geom` is part of the cell key, so each cell holds one geometry: the `× geom` tables and every geometry flip under sensitivity are artefacts. Matching designs across the two cells a trigger pair contributes answers it anyway — **140,256 matched pairs over 195 trigger pairs**, nothing significant on any of the four contrasts (p 0.15–0.42), median paired difference exactly 0.000 on all four, the four disagreeing in direction, and 72 of 195 pairs exactly tied on the opening contrasts. Kim's extended secondary arm buys nothing measurable here | PFAS | `probe_axes` probe 4 | `uv run python tools\probe_axes.py --out axes_c8` |
+| The only kinetic observable is as flat as the equilibrium ones | `barrier` (findpath saddle, kcal/mol above the start) against the stem energies: median within-cell ρ **−0.021** on `a_site_energy`, **+0.024** on `lock_energy`, over 388 cells. Consistent in sign (291/388 negative) and negligible in size. It is also the **switch strand alone** — findpath takes no `&`, so no trigger is in the path — and an upper bound on a heuristic direct path. So it supports D2's negative result on trigger A's grip without being the measurement that would settle it | PFAS | `ToeholdAndGate.measure_design`, `FoldEngine.saddle` | the `analyse_axes` command above |
+| `access_a`'s orientation was inverted in the analysis layer, dormant | `access_a` is `open_penalty` — p_open as an **energy**, so a cost that faces the same way as `open_*`. `analyse_axes.ORIENTATION` carried `-1.0` with a comment calling it a probability, which would have scored it backwards. No published number moved, because the column is empty on every row of this run; the next run to fill it would have been ranked inverted | PFAS | `analyse_axes.ORIENTATION`, `FoldEngine.open_penalty` | `uv run pytest tests/engine/gates/test_axes_analysis.py -q` |
+| A stem energy is set by its OWN trigger's window, and `lock_energy` by trigger B's alone | Over 420 (pair × geometry) cells, pre-filter: `l_local_a` → `a_site_energy` ρ **+0.283** against **+0.135** for the other trigger; `l_local_b` → `b_site_energy` **+0.304** against **−0.020** (p 0.69). `lock_energy` is **+0.320** against `l_local_b` and **+0.036** (p 0.46) against `l_local_a` — the expectation that neither alone would account for it is **wrong**, and the reason is that the arm is the `x*` side, read out of gene B. The secondary hairpin is mixed in function and single-sided in sequence. Effective n is nearer 210 than 420 (each pair gives two cells), so every p is ~2× optimistic; only `l_local_b` → `a_site_energy` becomes borderline | PFAS | `probe_axes` probe 6 | `uv run python tools\probe_axes.py --out axes_c8` |
+| Accessibility predicts a stem energy almost only through GC | `gc_a` → `l_local_a` ρ −0.549 and `gc_a` → `a_site_energy` −0.571. Holding the trigger's own GC fixed inside quintiles, the A-side link falls from **+0.283 pooled to +0.041**, changing sign between strata; the B-side falls from +0.304 to +0.080 but stays positive in **all five** strata (+0.038 to +0.442). So accessibility and GC are not interchangeable in general — under a third of shared rank variance — but the predictive part of accessibility is its GC part, and screening a trigger window on both is screening twice on one property | PFAS | `probe_axes` probe 6 | the probe 6 command above |
+| The per-trigger accessibility test needs no re-folding | `l_local_a`/`l_local_b` and all three stem energies are on every row; GC comes from re-slicing the two footprints (35–36 nt for A, 49–50 nt for B) out of the reference with the pair record's own `window_a`/`window_b` arithmetic. The unit must be (pair × geometry) with the stem energies taken as cell medians — per-stem rows count a pair once per usable stem, and stem count is a property of the pair | PFAS | `probe_axes.probe_per_trigger` | `uv run python tools\probe_axes.py --out axes_c8` |
+
+---
+
+## The architecture and what it rests on
+
+| finding | number | dataset | reasoning lives in | reproduce |
+|---|---|---|---|---|
+| State 10 is the only leak that matters | leakiest OFF state in **400 of 400** designs | mCherry | `docs/igem-model-page.md` §Architecture | — |
+| A 4-nt minimum overlap is what makes endogenous triggers findable | **53,530** trigger pairs over 3 gene pairs; **73.1%** are exactly `len_x` 4 (17,977 of 24,597 on ggt×fadB) | PFAS | `toehold.find_cross_gene_pairs` | `uv run python tools/pair_budget_on_pfas.py` |
+| Trigger footprints are a constant size whatever the overlap | A 36 nt / B 50 nt naive; A 35 / B 49 Kim | both | `_CrossGenePair.window_a/window_b` | `uv run python src/engine/gates/notebooks/toehold_and/review/step2_switch_construction.py` |
+| The two geometries differ in the **secondary** arm, not the main one | `ARM_LEN` 18 in both; `SECONDARY_ARM_LEN` 20 (Kim) vs 18 (naive); switch 165 vs 161 nt | both | `ToeholdAndGate.geometry_name` | as above |
+| 33 of a 161-nt switch are gene bases nothing downstream can edit | `sw_x` 13 + `secondary_z` 5 + `main_z` 6 + `main_pre` 9 | PFAS | `review/step2_switch_construction.py` | as above |
+
+## Gaps found by reading the code, not by measuring
+
+| gap | what it is | consequence |
+|---|---|---|
+| **No partner-aware `x*` measure exists in the engine** | `A_S_00/01/10/11` are `_mean_unpaired` — **open or closed, partner-blind**. The partner-specific terms (`xstar_locked`, `free_xstar`, `xstar_engA`) live only in the notebook (`drift_fold.py`, `full_sweep.py`, `candidates.py`) and never came across | τ6 (`A_S_11 > 0.5`) passes a design whose `x*` is open but **not bound to trigger A** — refolded elsewhere. That is the exact failure `open_penalty`'s own docstring warns about, and the engine cannot see it |
+| **`free_xstar_01` is a declared column with 0 of 346,528 values** | I listed it in `characterise_axes.FIELDS`; `measure_design` never returns it | a header that promises a measurement and delivers an empty cell, which reads as "measured, came back None". Worse than an absent column |
+| **`A_M_*` includes the AUG; `open_*` excludes it** | `A_M = (main_z[0], main_pre[1])` is one contiguous span, so it covers `main_z → aug → main_pre`. `main_stem_arms = (main_z, main_pre)` is two spans with the bulge left out, on purpose | two measures both called "the main stem" over different regions, with nothing saying so. Same trap as `open_11` vs `dG_open_11`. **Both choices are right for their own purpose** — recommendation is to document, not to change, since changing either moves every stored number |
+
+## The competition at `x*` — the clearest result this work has
+
+| finding | number | dataset | reasoning lives in | reproduce |
+|---|---|---|---|---|
+| **Trigger A's `x` is sequence-identical to the switch's own `sw_x`** | **1,344 of 1,344 designs**, and structurally: `assemble` writes `("sw_x", x)` and `("sw_xs", revcomp(x))`, paired at line 1477 | PFAS | `toehold.assemble` lines 1366/1370/1477 | `uv run python tools/xstar_competition.py` |
+| So A has **no energetic advantage at `x*`** — it offers the duplex the hairpin already has | the fold charges **6.06** kcal/mol to free `x*`; A offers **2.00** | PFAS | `tools/xstar_competition.py` | as above |
+| The competition margin, length-cancelled | `median -4.36` (Q1 −5.82, Q3 −1.61, min −6.93, **max +2.66**); positive in 256 of 1,344 (19.0%) | PFAS | as above | as above |
+| **Our maximum is below Kim's working construct** | ours **+2.66** against his **+3.86**; his two non-gating ones are −1.32 and −5.61 | PFAS vs Kim | `tools/kim_competition.py` | `uv run python tools/kim_competition.py` |
+| Kim's `hold` is nearly constant while burial doubles | 9.41, 10.52, 10.54 kcal/mol at 5, 8, 11 nt buried — so the hold is a fold cost, not a length | Kim | as above | as above |
+| But his series **cannot calibrate the axis** | burial and his primary-hairpin toehold sum to 15 nt by construction, so they move together in opposite directions | Kim | as above | — |
+| And equilibrium fails on his own working gate | margin **+3.86** says A should strip the secondary hairpin unaided, which is a state-10 leak, yet it gates cleanly | Kim | `kim2019_comparison.md` | — |
+| ⚠ **A superseded number.** `\|lock_energy\| − hold` is **+8.52** median on the same designs — ~13 kcal/mol from the true margin and the opposite sign | an earlier turn reported "+10.70, far past Kim's +3.86, too generous to A". Wrong twice: we are too **stingy** | PFAS | `tools/xstar_competition.py` docstring | as above |
+| The lever it exposes | `sw_x` need not be `x`; weakening it lowers `hold` without touching `grip`, which is the asymmetry Kim's different sequences give him free. Closing 8 kcal/mol needs several substitutions, so parity may be unreachable | — | as above | not yet measured |
+
+## The secondary stem — the axis the claim rests on and nothing ranks
+
+| finding | number | dataset | reasoning lives in | reproduce |
+|---|---|---|---|---|
+| `secondary_stems` returns a **Pareto front**, not a candidate list | non-dominated over `(lock_energy, a_site_energy, b_site_energy)` | — | `toehold._pareto_front`, `_select_stems` | — |
+| A pair offers far more stems than assumed | offered: median **95**, mean 101.6, sd 49.1, max 297, min 10 (n=404 pairs) | PFAS | `tools/stem_census_on_pfas.py` | `uv run python tools/stem_census_on_pfas.py` |
+| …of which usable (B-anchored/mixed, `lock_energy ≤ 0`) | median **82**, mean 89.4, sd 44.3, max 268 | PFAS | as above | as above |
+| `stems_per_pair = 2` keeps **2.2%** of them, and every pair has more than two | 404 of 404 | PFAS | `generate_designs`' comment at the stem sort | as above |
+| The cut is arbitrary in the quantity it sorts on | best **dropped** stem is median **0.40** kcal/mol behind the last kept (mean 0.64, max 3.90) | PFAS | as above | as above |
+| Scheme split over every stem offered | mixed **77.4%**, B-anchored 13.9%, A-anchored 8.2%, unlocked 0.6% | PFAS | as above | as above |
+| `lock_energy` is the secondary hairpin's own stem dG, cap included | negative = a duplex forms, hence the `≤ 0` filter | — | `_SecondaryStem.lock_energy` docstring | — |
+| `a_site_energy` is **trigger A's binding to the secondary arm**, kcal/mol | carried on every design; **nothing ranks on it** | — | `_SecondaryStem.a_site_energy` docstring | — |
+| Three measures of A's grip exist and none is ranked | `a_site_energy`, `lock_minus_a_site`, and `x_mech`'s `xstar_engA_11` | — | same, plus `full_sweep.py` `x_mech` | — |
+| Carrying every usable stem is infeasible | **612M** designs over all PFAS pairs = **354 days** on six cores | PFAS | `tools/stem_census_on_pfas.py` | as above |
+
+## Survival through the filters — and why every win-rate is conditioned on it
+
+| finding | number | dataset | reasoning lives in | reproduce |
+|---|---|---|---|---|
+| `feasible()` is **sixteen** tests, not one | the ON ceiling, dead schemes, and floors on `aug_11`, `lock`, `lock01`, off-target, `hairpin_worst`, `engages_stem_mfe`, `engaged_arm_11`, `l_local`, out-of-frame AUG, drift cover, `lower3` keep/grip, closure drop, rare codons | — | `objective_panel.feasible` | `uv run python tools/attribute_survival.py` |
+| The **ON ceiling dominates** every level's losses | 57–90% of each upper3 level's rejections | mCherry | `tools/attribute_survival.py` | as above |
+| The all-weak upper3 overrides survive the ON ceiling best — as intended | lost to the ceiling: `WWW_UAU` **56.9%**, `WWW_AUA` 57.9%, `trigger_derived` 76.3%, `WWS_AUG` 81.5%, `WSW_AGA` 89.6% | mCherry | as above | as above |
+| `WWW_AUA` creates out-of-frame AUGs **17×** more often than `WWW_UAU` | 5.2% vs 0.3% of rows rejected for it | mCherry | as above | as above |
+| Overall survival through `feasible()` differs up to **37×** between levels | `open_3x3` 7.5%, `closed_CAU` 0.2%, `WSS` lower3 **0 of 7,208** | mCherry | as above | as above |
+| So every lift/win-rate so far is **selection on the dependent variable** | it can say "among designs that already open, which level wins" and no more | mCherry | `review/axis_effects_on_objectives.py` docstring | — |
+| The ON ceiling is externally calibrated and should stay | Green's 168 have median ON cost **3.64**; the 77 above 20-fold ON/OFF, **3.07**; so 4.0 admits designs no costlier than a switch known to work. An earlier version used **our** median, 8.0, and admitted a design 97% paired in the ON state | Green 168 | `objective_energy.ON_CEILING` docstring | — |
+| Designs passing the ceiling | **12.9%** on PFAS, 19.2% quoted on mCherry | both | `tools/characterise_axes.py` | `tools\axes_status.cmd` |
+
+## Which design decisions move the objectives — single-axis, mCherry only
+
+Read these **with the survival caveat above**: they describe designs that already pass the funnel.
+Lift is win-rate ÷ chance within a (pair, geometry) cell; gap is the median distance to the cell's
+best when the level loses. `review/one_cell_worked_example.py` prints one cell in full.
+
+| axis level | IED gain | A_M ratio | opening SEP | reading |
+|---|---|---|---|---|
+| scheme B-anchored / mixed | 1.20 / 0.80 | 1.11 / 0.89 | 0.91 / 1.09 | **gap 0.000 both ways on all three** — the arms cannot see this axis |
+| closure `open_3x3` | 0.41 | **2.23** | 0.37 (gap 3.50) | each arm has a different champion |
+| closure `closed_UAU` | 0.38 | 0.19 (gap **23.4**) | **1.92** | so closures cannot be cut |
+| closure `pair1_CCC` | **1.48** | 0.74 | 1.05 | |
+| upper3 `WWW_UAU` | 0.91 | **1.26** | **1.13** | UAU over AUA |
+| upper3 `WWW_AUA` | 1.02 | 0.69 | 0.85 | at or below chance on all three |
+| lower3 `wobble_GU` | **1.57** | 0.90 | **1.79** | complementary — |
+| lower3 `trigger_derived` | 0.49 | **1.80** | 0.57 (gap 2.52) | keep both |
+| geometry Kim / naive | 0.94 / 1.06 | 1.15 / 0.85 | **1.35** / 0.65 | Kim takes SEP, near-tied elsewhere |
+
+Reproduce: `uv run python src/engine/gates/notebooks/toehold_and/review/axis_effects_on_objectives.py`
+
+**Only 6 of 16 closures ever reached a scored population.** The ten absent ones are the systematic
+ladder `d2_*`/`d1_*`/`d0_*` (mismatch count × GC count) — where a non-monotonic optimum would live.
+
+## The night run, 431,916 designs — which design decisions help, asked conditionally
+
+Every row here is paired **inside a (pair, geometry) cell**, so the trigger pair, the geometry, the
+stem and every other axis are held fixed and the only thing that differs is the one decision. And
+every lever row is **conditioned**: only designs where the lever had something to write are
+compared, because the ones it never touched are the control by construction and dilute the answer.
+
+| finding | the number | dataset | reasoning lives in | reproduce |
+|---|---|---|---|---|
+| Both stem levers do one thing: a stronger stem lowers the state-10 leak and raises separation | `wobble_GU` 65 cells to 0 on separation and 66 to 0 on the leak, of 86; `WWW_UAU` 61–1 and 70–0 of 70; `WWW_AUA` 49–0 and 56–0 of 56. Sign test p = 5e-20 to 2e-21 | PFAS | `tools/analyse_levers.py` | `uv run python tools/analyse_levers.py --out axes_pfas_v2` |
+| **But the typical magnitude is negligible** — the consistency is the result, not the size | median paired difference among pairs that differ at all: **+0.0005 on separation, +0.0001 on A_M_ratio, +0.0004 on the leak — 0.00 sd in every case.** The effect is in the tail: only **8.5% (wobble), 14.3% (WWW_UAU), 16.5% (WWW_AUA)** of pairs improve separation by more than 1.0 log2 | PFAS | `tools/analyse_levers.py` | the same command |
+| What a lever can honestly be claimed to do: widen the top tail without hurting the rest | `wobble_GU` is **strictly worse in 6.7%** of 11,470 matched pairs, so 93.3% are equal or better; `WWW_UAU` 19.1% worse, `WWW_AUA` 18.3% | PFAS | this register | the same command |
+| Turning both levers on is better than either alone, and the cost does not add | separation mean +0.320 (upper3 alone) + 0.242 (wobble alone) = 0.562 against **+0.632 measured together**; the leak 0.059 + 0.035 = 0.094 against **+0.096**; the ON-state cost stays at the upper3-alone level (−0.021 against −0.023) | PFAS | `tools/analyse_closure.py` | `uv run python tools/analyse_closure.py --out axes_pfas_v2` |
+| `ied_gain` does not respond to either lever — the cost I reported on it does not exist | 30 cells to 36 (p = 0.54) for `wobble_GU`, 30 to 40 (p = 0.28) for `WWW_UAU`. **Supersedes** my earlier report of an IED cost | PFAS | `tools/analyse_levers.py` | the same command |
+| Only `wobble_GU` pays a real ON-state cost; `WWW_UAU`'s is not distinguishable from nothing | `A_M_11` 18 cells to 48, p = **3e-04** for `wobble_GU`; 32 to 38, p = **0.55** for `WWW_UAU`. **Supersedes** "all three levers pay an ON-state cost" | PFAS | `tools/analyse_levers.py` | the same command |
+| The closure axis **reverses** between survival and performance, and survival was the wrong measure | survival through the ceiling: `open_3x3` 35.1%, `closed_CAU` 7.5% (21,658 built per level). Performance paired against `open_3x3`: `closed_CAU` separation **+2.21**, leak **+0.348** (20 cells, 20–0); the leak comparison is **unanimous in all twelve closures** — 72–0 at the largest | PFAS | `tools/analyse_closure.py` | `uv run python tools/analyse_closure.py --out axes_pfas_v2` |
+| `ied_rbs_linker`, the strongest metric on Green's measured switches, was never computed here and is free | +0.356 on Green 168 and +0.390 on Green 13 in the panel's own table, against the Barrier's +0.179/+0.280. It is `1 - mean_unpaired` over `rbs_loop[0]..linker[1]`, read off a matrix the pass already builds. Measured now: median `ied_rbs_linker_11` 0.3262 against `_00` 0.4573 | PFAS | `ToeholdAndGate.four_tube_observables` | `uv run python tools/audit_column_coverage.py` |
+| The AND gain exists against "no trigger" and vanishes against "one trigger" | `ied_gain` median **+0.1256** against state 00; `ied_gain_worst` median **0.0000** against the worst OFF state, on 25,607 fully measured designs. `separation` median 0.0000 and `A_M_ratio` median exactly 1.000 say the same thing three ways | PFAS | this register | `uv run python tools/analyse_closure.py --out axes_pfas_v2` |
+| The state-10 leak is now measured on every design, not only survivors | 85,388 of 85,388, with **25.1%** below the 0.5 floor. Spearman **−0.500** between `open_11` and `xstar_engA_10` on a separate 600-design run, so the ceiling is not independent of the leak it does not look at | PFAS | `ToeholdAndGate.measure_design` | `uv run python tools/analyse_levers.py --out axes_pfas_v2` |
+
+---
+
+## Open contradictions, kept rather than resolved by assertion
+
+| the two claims | status |
+|---|---|
+| "`closed_*` holds 89 of the top 100 by A_M ratio" vs "`open_3x3` wins most cells at lift 2.23" | **Both true.** `closed_*` survives at 0.2–0.6% against `open_3x3`'s 7.5%, so its survivors are an extreme tail. Simpson's-paradox-shaped, and the mechanism is survival |
+| `a_site_energy` is the architecture's central mechanism vs the scheme axis shows lift≈1, gap 0.000 | **Unresolved.** Either the mechanism does not matter, or the three arms do not measure it. The scheme axis was measured on data already cut to 2 stems **by `lock_energy`**, so it could not have seen it |
+| Kim's constructs read as leaking in state 10 although they work | **Unresolved.** Equilibrium metrics on a kinetic gate. Kim's four constructs are a null test — trigger B moves `A_M` by 1e-13 — so they cannot calibrate a ranking; the open question is whether `a_site_energy` and `x_mech` separate them |
+
+<a id="no-metric-holds-sign"></a>
+## Cross-dataset warnings
+
+| warning | number |
+|---|---|
+| **No metric holds its sign across datasets** | `A_M_ratio` +0.306 on Green 168, −0.016 on VISTA; three metrics flip |
+| VISTA inverts and window matching does not explain it | all five objectives negative there |
+| VISTA's Table 6 is not reproducible | use their Tables 4/5 as data, never Table 6 as a target |
+| Green's correlation with our arms is real but modest | ρ ≈ +0.3 for IED and A_M; f5 +0.366, f2 +0.306, f4 +0.213, Barrier +0.179, f1 **−0.107** |
+| The bundled transcripts are **CDS only** | no UTRs, no operon context, so accessibility is folded on an incomplete molecule |
+| The closure's alignment energy does not order performance | `AGU` vs `AAC`, **0.20 kcal/mol** apart, is the more consistent paired comparison (`A_M_ratio` 74.5%–2.7%, `ied_gain` 80.4%–19.6%, p = 0.0009) than `CAU` vs `CCU`, **4.40** apart, which splits 47.8%–52.2% on `ied_gain` (p = 0.82). The classes overlap in energy — `UAU` is d = 3 at 3.00, above `CGC` at d = 2 and 2.60 — Spearman d↔energy −0.705. So the chosen set's rule is **one representative per d**, with the energetic centre as a declared tie-break inside the class |
+| Two near-identical energies can be opposite sides of one trade | `AGU` beats `AAC` on every OFF-state measure and **loses the ON state**: `A_M_11` worse in 74.9% of matched designs, median −0.0508. Dropping either one removes a real point of the ON/OFF trade, not a duplicate |
+| Six concurrent shards run 2–3× slower per design than one | the probe measured 0.861 s single-process; the six-way run measured 1.611–2.385 s, so an 8-hour projection became 9–18. Time the run in its real concurrency, never in a single process |
+
+## Method notes that cost time to learn
+
+| note | why |
+|---|---|
+| Compare variants **per trigger pair**, never per row | a cell fixes the transcript and both windows, so the axis is the only variable |
+| Report mean, sd, max beside every median | median-only let one finding be argued both ways |
+| Print `n` beside every rate | 0 of 6 became 22.6% over 470 |
+| The first items of a sorted list are not representative | sample every Nth instead |
+| A filter cannot set its own threshold | `l_green`'s min came back at 0.4838 against its own 0.483 floor |
+| Rebuild aggregates the way production does | a two-term scratch copy moved f4 by +0.139 |
+| Coordinates are 0-based, **end exclusive** | I read a window `end` as inclusive and 940 of 941 checks failed |
+| Measure, don't estimate | five runtime estimates were wrong; `secondary_stems` alone was ~60× slower than assumed |
+| Never change a sweep's column set while a resumable run is on disk | `FIELDS` grew 47 → 162 columns in one day; 85,388 of 431,916 rows went in at the new width under the old header and `skipped` came back holding `True`. Nothing was lost — `tools/split_mixed_schema.py` recovered both tables, 0 rows of any other width — and `characterise_axes.py` now refuses to append under a different header |
+| A subsample stride must be coprime with the grid, and blocks beat points | stride 6 on a 96-point grid pinned `lower3` to one level across 4,927 rows. And a coprime POINT stride covers every level yet leaves the paired comparison with **zero** matched pairs, because a design and its control sit at adjacent positions — stride whole closure blocks instead |
+| A four-nucleotide overlap is the normal case, not the worst case | Over **all 53,530** candidate pairs the finder returns on the three PFAS gene pairs: median overlap **4 nt**, mean 4.36, sd 0.71, max 13. **73.5% sit exactly at the 4-nt floor**, 98.1% are 6 nt or shorter, and **4 of 53,530** reach 12 nt — the shortest toehold Green's first-generation switches used. Measured over every candidate, not the subset a run takes, which is selected on accessibility and would bias the length. This is why the secondary hairpin has to extend trigger A's effective toehold rather than merely gate it |
+| The spacer that sets initiation is sensed sequence we do not choose | The Shine–Dalgarno core `AGGAGA` ends exactly where `rbs_loop` ends, so the only thing between it and the start codon is `main_z`, **6 nt** — inside the 6–8 nt optimal band (Reeve et al. 2014, after Vellanoweth & Rabinowitz 1992). `main_z` is also trigger A's own `k1`, copied in. So whatever trigger A begins with lands in the one place a competing start codon does damage, and `_repair_main_z` covers that 6 nt **and nothing downstream of it** |
+| Trigger B's grip is a satisfied condition, not an axis | R6 is `lock − b_site ≥ 0`, i.e. **`b_site ≤ lock`** — B outbinds the switch's own stem in **every** surviving build. Confirmed at scale: over **3,555 built stems** the margin is never negative (min 0.00, median 3.90, max 23.70). And it has little room: per cell B's grip spans a median **7.30** kcal/mol against A's **24.75** and the lock's **15.50** |
+| About 39% of the stems we build are dominated on the face that matters | Measured on **all 420 cells and 3,555 stems**, not a sample: **2,171 (61.1%)** are non-dominated on (lock, a_site); **1,384 (38.9%)** survive only through `b_site`. Stable across all six gene-pair orderings (median share 60.0–65.2%). **A 14-pair pilot put this at 40/60 and was wrong by half** — it capped disagreeing positions at 8 where the median is 10–11, so it sampled the easy pairs. Projecting onto the face before sampling would build fewer designs with all of them on the trade |
+| The front's 3-D-to-2-D collapse is still only a pilot result | 38 builds → 10 on the face, 73% present only through `b_site`, measured on **14 pairs of one gene pair capped at 8 disagreeing positions**. The whole Pareto front is not recoverable from the results table — only the stems the sampler chose — so this one cannot be redone at scale without re-enumerating. Quote it as a pilot |
+| `lock ≤ 0` is a sign test, not a strength test | It removes **1%** of the front (median 38 → 38). Builds at −0.80, −1.60, −2.30 kcal/mol pass it and are barely locked. If a weak lock is unacceptable the floor has to be a real number, and there is no measured distribution setting one yet |
+| A ceiling on a nested span is a safe stand-in for the span you meant | The ON ceiling filters `open_11` (stem arms, 15 nt) while the external value it stands for is Green's 3.64 over `dG_open_11` (ribosome window, 31 nt). **`w_rank` contains the arms**, so `dG_open_11 ≥ open_11` by construction — measured gap +0.12 to +7.45, median +0.83, Spearman **+0.974** on 147,244 designs. A ceiling of 8.0 on the arms therefore admits a superset: **0.0%** of the 7.0–8.0 band is below a 7.2 footprint ceiling, so nothing admissible was lost, and 109,803 of 147,244 (74.6%) pass the correct filter applied afterwards. Check containment before calling a proxy filter a defect |
+| A population count cannot detect a per-cell hole | `axes_c8` finished with all 16 closures present and evenly carried — 9,058 to 9,776 rows each, a 7.9% spread — and **0 of its 420 cells held the whole grid**. Median 48 of 96 points per cell, 44.6% of the grid absent. Different shards covered different closure blocks, so the population looks balanced while every paired comparison is missing half its partners. Audit coverage **inside a cell**, never across the table: `tools/audit_grid_coverage.py` |
+| Survival through a filter is not a performance measure | reporting it inverted the closure axis: `open_3x3` survives best (35.1%) and is the worst closure to build on every performance measure |

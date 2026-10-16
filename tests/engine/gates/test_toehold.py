@@ -4,6 +4,7 @@ Real ``FoldEngine``/ViennaRNA throughout, matching ``test_antisense.py``: every 
 here tops out under 90 nt, so a real fold costs low milliseconds.
 """
 
+import dataclasses
 import itertools
 
 import pytest
@@ -118,8 +119,15 @@ def test_incompatible_with_two_activators(gate, constraints):
 
 
 def test_and_gate_needs_exactly_two_activators():
-    """`is_compatible` is inherited from `ToeholdGate` unchanged, and generalises via
-    `self.max_inputs` rather than a hardcoded arity."""
+    """Arity generalises via `self.max_inputs` rather than a hardcoded number.
+
+    `ToeholdAndGate` now OVERRIDES `is_compatible` instead of inheriting it: the inherited
+    one-input footprint is far smaller than two inputs need, and a pair that cleared it
+    reached `secondary_stems` and raised `fixed alignment needs equal lengths`. So two
+    36-nt triggers are no longer compatible -- trigger B needs 50 -- and the arity claim is
+    checked on its own terms here: the one-activator set is rejected, and the two-activator
+    set is not rejected *for arity*, whatever else it fails.
+    """
     gate = ToeholdAndGate(
         Host.ECOLI, FoldEngine(), TranslationScorer(Host.ECOLI), CodonOptimizer(Host.ECOLI)
     )
@@ -127,8 +135,43 @@ def test_and_gate_needs_exactly_two_activators():
         activators=(make_trigger(trigger_id="trig-a"), make_trigger(trigger_id="trig-b"))
     )
     one = TriggerSet(activators=(make_trigger(trigger_id="trig-a"),))
-    assert gate.is_compatible(two, Constraints()) == Compatibility.yes()
-    assert not gate.is_compatible(one, Constraints()).ok
+
+    one_verdict = gate.is_compatible(one, Constraints())
+    assert not one_verdict.ok
+    assert "exactly 2 activating input(s)" in one_verdict.reason
+
+    # Not rejected for arity. It IS rejected, for the footprint, and says which.
+    two_verdict = gate.is_compatible(two, Constraints())
+    assert "activating input(s)" not in two_verdict.reason
+    assert "trigger B needs 50 nt" in two_verdict.reason
+
+
+def test_and_gate_reports_a_reason_for_every_rejection_it_makes():
+    """No silent drops. Each of the three ways a pair can fail names itself.
+
+    A pair sharing no reverse-complementary run used to pass `is_compatible` and then make
+    `generate_designs` yield nothing, which is the silent drop CLAUDE.md §3 bans. Measured
+    on a real scanned run, 12 of 578 trigger sets took that path.
+    """
+    gate = ToeholdAndGate(
+        Host.ECOLI, FoldEngine(), TranslationScorer(Host.ECOLI), CodonOptimizer(Host.ECOLI)
+    )
+    min_a, min_b = gate.role_footprints()
+    assert (min_a, min_b) == (36, 50)
+
+    # Long enough for both roles, but deliberately sharing no overlap: all-A against all-C
+    # cannot be reverse-complementary anywhere.
+    no_overlap = TriggerSet(
+        activators=(
+            make_trigger(trigger_id="trig-a", sequence="A" * min_b),
+            make_trigger(trigger_id="trig-b", sequence="C" * min_b),
+        )
+    )
+    verdict = gate.is_compatible(no_overlap, Constraints())
+    assert not verdict.ok
+    assert "share no reverse-complementary run" in verdict.reason
+    # And the generator agrees, rather than the two disagreeing about the same pair.
+    assert list(gate.generate_designs(no_overlap, Constraints())) == []
 
 
 def test_toehold_variants_are_registered_by_track_and_arity():
@@ -1045,9 +1088,150 @@ def test_forbidden_motifs_are_caught_in_the_trigger_window():
     clean_pre = "GCAUCGAUC"
 
     assert gate.screen_trigger_window("ACGUACGUACGU", clean_pre) == ()
-    assert "RNase_E" in gate.screen_trigger_window("ACGAAUGAACGU", clean_pre)
     assert "poly_U" in gate.screen_trigger_window("ACGUUUUUACGU", clean_pre)
     assert "internal_SD" in gate.screen_trigger_window("ACGAGGAGGACG", clean_pre)
+
+
+def test_rnase_e_is_counted_and_never_rejects():
+    """The pattern was wrong and the right one cannot be a filter. Both halves asserted.
+
+    `[AG]AUGA` was never the RNase E consensus. The consensus (Chao et al. 2017, ~22,000
+    sites mapped in vivo) is `RN|WUU`, a 2-nt uridine ruler. But measured over 4,308 bundled
+    *E. coli* transcripts it fires on 39.7% of 36-nt windows and 51.0% of 50-nt windows, so
+    as a hard screen it would reject half of every trigger B pool.
+    """
+    gate = _and_gate()
+
+    # The old pattern is gone from the hard screen, and so is the name.
+    assert "RNase_E" not in gate.FORBIDDEN_MOTIFS
+    assert gate.screen_trigger_window("ACGAAUGAACGU", "GCAUCGAUC") == ()
+
+    # The real consensus is reported instead, with positions.
+    assert gate.rnase_e_sites("ACGUACGUACGU") == ()
+    sites = gate.rnase_e_sites("CCCGAAUUCCC")  # GAAUU: purine, A, cut, A, U, U
+    assert sites, "the consensus should match GAAUU"
+    assert gate.screen_trigger_window("CCCGAAUUCCC", "GCAUCGAUC") == (), "counted, not screened"
+
+
+def test_rnase_e_sites_can_be_restricted_to_reachable_positions():
+    """RNase E cleaves single-stranded RNA, so a site inside a paired region is not a site.
+
+    The profile is per-base P(unpaired) aligned to the window. One RNAplfold pass per
+    transcript covers every window on it, so asking for this costs nothing per pair.
+    """
+    gate = _and_gate()
+    window = "CCCGAAUUCCC"
+    found = gate.rnase_e_sites(window)
+    assert found
+
+    wide_open = [1.0] * len(window)
+    assert gate.rnase_e_sites(window, wide_open, floor=0.5) == found
+
+    fully_paired = [0.0] * len(window)
+    assert gate.rnase_e_sites(window, fully_paired, floor=0.5) == ()
+
+
+def test_the_pair_screen_prices_a_stop_instead_of_rejecting_it():
+    """A stop in `main_pre` was the largest single rejection at step 1, and avoidable.
+
+    `main_pre` pairs with `main_pre_star`, so a wobble substitution can change it while the
+    pair survives. Exactly two moves exist - `A->G` opposite U, `C->U` opposite G - so UAG
+    and UGA each reach UGG (Trp) in one substitution, while UAA needs two because either
+    `A->G` alone turns it into another stop.
+    """
+    gate = _and_gate()
+    clean = "ACGUACGUACGU"
+
+    assert gate.screen_trigger_pair(clean, clean, "GCAUCGAUC") == ()
+
+    # UAG at offset 3: one substitution.
+    assert gate.screen_trigger_pair(clean, clean, "GCAUAGGCU") == ("A:stop_in_main_pre:1",)
+    # UGA at offset 3: one substitution.
+    assert gate.screen_trigger_pair(clean, clean, "GCAUGAGCU") == ("A:stop_in_main_pre:1",)
+    # UAA at offset 3: two, because UGA and UAG are both still stops.
+    assert gate.screen_trigger_pair(clean, clean, "GCAUAAGCU") == ("A:stop_in_main_pre:2",)
+
+    assert gate.stop_rescue_cost("GCAUCGAUC") == 0
+    assert gate.stop_rescue_cost("UAAUAAUAA") == 6
+    # Not 9 nt is not a measurement, and must not read as "no stop".
+    assert gate.stop_rescue_cost("GCAUC") is None
+
+
+def test_the_motif_screen_reads_the_switch_not_the_gene():
+    """Most of what reaches the switch is the reverse complement of the trigger's bases.
+
+    `r2_star` is revcomp of trigger B's `r2`; `k1_star` and `main_pre_star` are revcomp of
+    trigger A's. So the gene window is the wrong molecule: screening it both missed motifs
+    that appear in the switch and rejected pairs for patterns the construct never contains.
+    None of trigger B appears forward anywhere in the switch at all.
+    """
+    gate = _and_gate()
+    clean_pre = "GCAUCGAUC"
+
+    # A motif in the WINDOW no longer rejects the pair, in either half.
+    assert gate.screen_trigger_pair("ACGAGGAGGACG", "ACGUUUUUACGU", clean_pre) == ()
+
+    # It is caught on the assembled switch instead, where the molecule really is.
+    trigger_a, trigger_b, _ = _contested_pair()
+    stem = gate.secondary_stems(trigger_a, trigger_b, len(_OVERLAP))[0]
+    switch = gate.assemble(trigger_a, trigger_b, len(_OVERLAP), stem)
+    planted = switch.sequence[:40] + "AGGAGG" + switch.sequence[46:]
+    probe = dataclasses.replace(switch, sequence=planted)
+    assert "internal_SD" in gate.assembly_violations(probe)
+
+
+def test_cross_gene_pairs_come_in_both_role_assignments():
+    """A run shared by two transcripts is symmetric; the construct built on it is not.
+
+    Trigger A's footprint reaches `ARM_LEN` upstream of the overlap and trigger B's reaches
+    `TOEHOLD_B_LEN` downstream, so which gene supplies which role is a different design and
+    both are emitted from the one scan. That is what lets a caller enumerate only `j > i`.
+    """
+    gate = _and_gate()
+    shared = "GGAUCAUGCAUCGAUU"
+    left = "ACGUACGU" * 12 + shared + "ACGUACGU" * 12
+    right = "CAUCGAUC" * 12 + sq.reverse_complement(shared) + "CAUCGAUC" * 12
+
+    pairs = list(gate.find_cross_gene_pairs("geneA", left, "geneB", right))
+    assert pairs, "a planted reverse complement should be found"
+
+    # Every run appears with each gene as A.
+    forward = [p for p in pairs if (p.gene_a, p.gene_b) == ("geneA", "geneB")]
+    reverse = [p for p in pairs if (p.gene_a, p.gene_b) == ("geneB", "geneA")]
+    assert forward and reverse
+
+    # The overlap really is reverse-complementary at the coordinates reported, and both
+    # footprints really do lie inside their own transcript.
+    for pair in pairs:
+        source_a, source_b = (left, right) if pair.gene_a == "geneA" else (right, left)
+        x = source_a[pair.x_start : pair.x_start + pair.len_x]
+        x_star = source_b[pair.xstar_start : pair.xstar_start + pair.len_x]
+        assert x == sq.reverse_complement(x_star), (x, x_star)
+        a_lo, a_hi = pair.window_a()
+        b_lo, b_hi = pair.window_b()
+        assert 0 <= a_lo < a_hi <= len(source_a)
+        assert 0 <= b_lo < b_hi <= len(source_b)
+        assert a_hi - a_lo == gate.ARM_LEN + gate.SECONDARY_INVASION_LEN
+        assert b_hi - b_lo == gate.SECONDARY_INVASION_LEN + gate.TOEHOLD_B_LEN
+
+
+def test_cross_gene_scan_reports_no_within_gene_matches():
+    """A match inside one mRNA is one transcript's presence reported twice, not two inputs.
+
+    `find_trigger_pairs` is the within-one-transcript search and keeps its gap rule for the
+    collision it can have. This scan takes two sequences and cannot produce such a pair at
+    all, which is the point of it being a separate method.
+    """
+    gate = _and_gate()
+    # A transcript that is full of internal reverse complements...
+    selfish = "GGGGAUCCCC" * 20
+    # ...paired against one with nothing in common with it.
+    other = "AAAAAAAAAA" * 20
+
+    assert list(gate.find_cross_gene_pairs("g1", selfish, "g2", other)) == []
+    # Within one transcript the other method does find them, so the sequence is not the
+    # reason the list above is empty.
+    assert list(gate.find_trigger_pairs(selfish, min_window_gap=0))
 
 
 def test_a_stop_codon_in_main_pre_is_read_in_its_own_frame():
@@ -1222,7 +1406,10 @@ def test_an_aug_inside_main_z_is_repaired_through_a_wobble():
     start, end = switch.domains["main_z"]
     main_z = switch.sequence[start:end]
 
-    assert gate.assembly_violations(switch) == ()
+    # The structural faults only: `assembly_violations` also carries the motif screen now,
+    # and these hand-built triggers happen to contain a U run that a real one need not.
+    faults = gate.assembly_violations(switch)
+    assert not [f for f in faults if f in ("in_frame_stop", "upstream_aug", "frame_shift")], faults
     assert main_z != with_aug[:6], "mainZ should have been repaired"
     assert sum(a != b for a, b in zip(main_z, with_aug[:6], strict=True)) == 1
     # every position still pairs with k1*, which is what makes the repair cheap
@@ -1249,7 +1436,8 @@ def test_an_aug_straddling_the_rbs_loop_boundary_cannot_be_repaired():
 def test_a_clean_switch_reports_no_assembly_violations():
     gate, switch = _assembled()
 
-    assert gate.assembly_violations(switch) == ()
+    faults = gate.assembly_violations(switch)
+    assert not [f for f in faults if f in ("in_frame_stop", "upstream_aug", "frame_shift")], faults
 
 
 # --- Stage 4: the four tubes ---------------------------------------------------------
@@ -1444,11 +1632,13 @@ def test_the_gates_report_every_failure_not_the_first():
     """A design failing one threshold and a design failing six are different objects, and
     when nothing passes, *which* gate is binding is the entire result."""
     gate = _and_gate()
-    hopeless = dict.fromkeys(
-        (name for name, _, _ in gate.THRESHOLDS), 0.35
-    )  # fails every < 0.2 and every > 0.5 at once
-    hopeless["separation"] = 0.0
-    hopeless["ddG_AND"] = 0.0
+    # A value chosen PER THRESHOLD to fail it, not one value for all. A single 0.35 used to fail
+    # every threshold because they were all `< 0.2` or `> 0.5`; the state-10 leak thresholds are
+    # `< 0.5`, which 0.35 passes, so the shortcut silently tested 10 of 12. Deriving the value
+    # from the threshold makes this hold for whatever the table contains next.
+    hopeless = {
+        name: (limit + 1.0 if op == "<" else limit - 1.0) for name, op, limit in gate.THRESHOLDS
+    }
 
     violations = gate.gate_violations(hopeless)
 

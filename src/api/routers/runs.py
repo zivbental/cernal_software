@@ -76,7 +76,7 @@ def create_run(request, payload: RunIn):
     scoring = payload.params.get("scoring", {})
     backbone = payload.params.get("backbone", {})
     capabilities = load_engine(settings.CERNAL_ENGINE).capabilities()
-    check_known_keys(constraints, set(capabilities.constraints) or CONSTRAINT_KEYS, "constraint")
+    check_known_keys(constraints, CONSTRAINT_KEYS, "constraint")
     check_known_keys(scoring, SCORING_KEYS, "scoring field")
     check_known_keys(backbone, BACKBONE_KEYS, "backbone field")
     # Typed projections like the three above: a typo in the AND blocks is a 422 here, not a

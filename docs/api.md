@@ -730,3 +730,8 @@ reference release, and selection policy. Authentication is required.
 `params.target_gene.gene_id`). `POST /api/design` accepts `gene_id` as its exclusive
 input source. Sequences and provenance are frozen when the run is submitted. All four
 organisms support DE, direct, and gene input; DE accepts CSV, TSV, TXT, and XLSX.
+
+The engine-only `closure_set` axis is deliberately not accepted by the public API,
+alongside `stem_order` and `stems_per_pair`: these control one family's sampling
+budget, not a validated cross-family biological constraint. Requests containing
+`constraints.closure_set` receive 422. Exposing it requires a separate API decision.
