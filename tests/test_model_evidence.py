@@ -3,6 +3,8 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -28,3 +30,12 @@ def test_snapshot_audit_is_portable_and_rejects_added_claims(tmp_path, monkeypat
         changed.write_text(original + addition, encoding="utf-8")
         assert audit.main(["--page", str(changed)]) == 1
     assert audit.main(["--page", str(tmp_path / "missing.html")]) == 1
+
+
+def test_missing_kinetic_rows_produce_no_figure(tmp_path, monkeypatch):
+    kinetic = tool("figure_kinetic")
+    monkeypatch.setattr(kinetic, "ROWS", tmp_path / "missing")
+    output = tmp_path / "figure.svg"
+    with pytest.raises(SystemExit, match="no rows with both readings"):
+        kinetic.main(["--out", str(output)])
+    assert not output.exists()
