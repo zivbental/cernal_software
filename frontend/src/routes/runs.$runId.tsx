@@ -16,6 +16,7 @@ import { PlasmidLegend, PlasmidRing } from "@/components/results/PlasmidRing";
 import { LogicCircuitView } from "@/components/results/LogicCircuit";
 import { RnaStructureView } from "@/components/results/RnaStructureView";
 import { RunStatusBadge } from "@/components/results/RunStatusBadge";
+import { SequenceScreening } from "@/components/results/SequenceScreening";
 import { PrecisionFilters, type Filters, DEFAULT_FILTERS } from "@/components/results/PrecisionFilters";
 import { Loading } from "@/components/layout/Loading";
 
@@ -320,6 +321,7 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
                   </div>
 
                   <WarningList title="Candidate warnings" warnings={detail.data.warnings ?? []} />
+                  <SequenceScreening key={detail.data.id} candidate={detail.data} />
                   <p className="mt-3 text-xs">{detail.data.is_rejected ? "Rejected from ranking" : "Accepted for computational ranking"}. {detail.data.design.plasmid_segments?.some((segment) => segment.kind === "backbone") ? "Vector-containing construct" : "Bare expression cassette"}. Export release is a separate decision; see warnings and available artifacts.</p>
                   <details className="mt-3"><summary>Reference identity and model provenance</summary><pre className="overflow-auto text-xs">{JSON.stringify({ triggers: detail.data.triggers, design: detail.data.design }, null, 2)}</pre></details>
                   {detail.data.design.and_gate && <AndGateEvidence info={detail.data.design.and_gate} />}
