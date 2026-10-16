@@ -195,6 +195,71 @@ class ReportBuilder:
             )
         ]
 
+    @staticmethod
+    def _scope_paragraph(candidates: list[CandidateResult]) -> list[str]:
+        """What kind of constructs the report lists, and how far their scores can be trusted."""
+        if any(candidate.design.get("and_gate") for candidate in candidates):
+            return [
+                "<p>These are two-input AND constructs: two toehold hairpins in series, intended "
+                "to release translation only when both trigger RNAs are present. ON and OFF are "
+                "the joint opening of the two hairpin stems in structures sampled from the "
+                "equilibrium ensemble (a structural proxy, not a measurement of translation); the "
+                "other scores are computational proxies as well. Sampler checks against the exact "
+                "base-pair probabilities are shown per state, and a failed check is reported, "
+                "never corrected. No AND construct has been experimentally validated. PDF and "
+                "structure figures are not produced.</p>"
+            ]
+        return [
+            "<p>These are independent single-input constructs. Scores are computational proxies: "
+            "dynamic range is an initiation-accessibility ratio with denominator floored at 0.001; "
+            "predicted success rate is an uncalibrated binding-energy sigmoid, not a probability "
+            "of cellular success. Ensemble defect is normalized once and has no calibrated "
+            "functional acceptance threshold. PDF and structure figures are not produced.</p>"
+        ]
+
+    @staticmethod
+    def _and_gate_section(info: dict) -> list[str]:
+        """ON/OFF of one AND candidate, state by state, with every sampler check and warning."""
+
+        def pct(value) -> str:
+            return "unmeasured" if value is None else f"{value:.2f}%"
+
+        tied = info.get("tied_group")
+        tie_text = (
+            "not determined"
+            if tied is None
+            else "yes (indistinguishable from the best within the seed noise)"
+            if tied
+            else "no"
+        )
+        parts = [
+            f"<p>ON {pct(info.get('on_pct'))}; OFF {pct(info.get('off_pct'))} "
+            f"(set by {escape(str(info.get('off_source') or 'unmeasured'))}); "
+            f"tied with the best: {tie_text}.</p>",
+            "<table><tr><th>State</th><th>Joint opening</th><th>Draws</th>"
+            "<th>Sampler check</th></tr>",
+        ]
+        for name, state in (info.get("states") or {}).items():
+            verified = state.get("verified")
+            parts.append(
+                f"<tr><td>{escape(str(name))}</td><td>{pct(state.get('open_pct'))}</td>"
+                f"<td>{escape(str(state.get('draws')))}</td>"
+                f"<td>{'passed' if verified else 'FAILED' if verified is False else 'unavailable'}"
+                "</td></tr>"
+            )
+        parts.append("</table>")
+        controls = info.get("controls") or {}
+        parts.append(
+            f"<p>Mismatched-trigger controls: {escape(str(controls.get('found')))} of "
+            f"{escape(str(controls.get('requested')))} ({escape(str(controls.get('mode')))}); "
+            f"highest {pct(controls.get('max_open_pct'))}.</p>"
+        )
+        if info.get("warnings"):
+            parts.append(
+                "<ul>" + "".join(f"<li>{escape(w)}</li>" for w in info["warnings"]) + "</ul>"
+            )
+        return parts
+
     def build_result(
         self,
         candidates: list[CandidateResult],
@@ -213,11 +278,7 @@ class ReportBuilder:
             "<p>Computation is complete. Experimental efficacy, functional success calibration "
             "and transcriptome off-target screening are unavailable. Sequence export remains "
             "held until release policy approval; see safety audit artifacts.</p>",
-            "<p>These are independent single-input constructs. Scores are computational proxies: "
-            "dynamic range is an initiation-accessibility ratio with denominator floored at 0.001; "
-            "predicted success rate is an uncalibrated binding-energy sigmoid, not a probability "
-            "of cellular success. Ensemble defect is normalized once and has no calibrated "
-            "functional acceptance threshold. PDF and structure figures are not produced.</p>",
+            *self._scope_paragraph(candidates),
             "<h2>Run caveats</h2><ul>",
             *(f"<li>{escape(warning)}</li>" for warning in warnings),
             "</ul><h2>Candidates</h2>",
@@ -246,6 +307,9 @@ class ReportBuilder:
                     f"<td>{escape(normalized)}</td></tr>"
                 )
             parts.append("</table>")
+            and_gate = candidate.design.get("and_gate")
+            if and_gate:
+                parts.extend(self._and_gate_section(and_gate))
         parts.append("</html>")
         return write_artifact(
             output_dir,

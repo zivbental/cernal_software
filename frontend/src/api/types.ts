@@ -56,6 +56,10 @@ export interface Version {
   reviewer_login_enabled: boolean;
   supported_hosts: string[];
   family_hosts: Record<string, string[]>;
+  /** Trigger inputs each available family takes: 1 for a single-input switch, 2 for the AND. */
+  family_inputs?: Record<string, number>;
+  /** Input modes that can drive each available family (the AND names its genes in a DE table). */
+  family_input_modes?: Record<string, string[]>;
   supported_outputs: string[];
   output_hosts?: Record<string, string[]>;
   backbone_hosts?: Record<string, string[]>;
@@ -248,8 +252,50 @@ export interface LogicGraph {
   caption: string;
 }
 
+/** What a two-input AND candidate's ON/OFF came from (`design.and_gate`); never holds a sequence. */
+export interface AndGateState {
+  open_pct: number | null;
+  mean_open_nt_a?: number | null;
+  mean_open_nt_b?: number | null;
+  mean_open_nt_a_matrix?: number | null;
+  mean_open_nt_b_matrix?: number | null;
+  draws?: number;
+  verified?: boolean;
+}
+
+export interface AndGateDiagnostics {
+  definition?: string;
+  n_samples?: number;
+  seed?: number | null;
+  on_pct: number | null;
+  off_pct: number | null;
+  off_source: string | null;
+  on_minus_off_pp: number | null;
+  delta_g_kcal_per_mol?: number | null;
+  /** `null` when the seed-noise check was not run, so the tied group is undetermined. */
+  tied_group?: boolean | null;
+  best_on_minus_off_pp?: number | null;
+  off_terms_pct?: Record<string, number | null>;
+  stem_lengths_nt?: Record<string, number>;
+  states?: Record<string, AndGateState>;
+  controls?: {
+    mode?: string;
+    requested?: number;
+    found?: number;
+    max_open_pct?: number | null;
+  };
+  noise?: {
+    second_seed?: number;
+    second_on_minus_off_pp?: number | null;
+    seed_to_seed_change_pp?: number | null;
+  };
+  warnings?: string[];
+}
+
 export interface CandidateDesign {
   sequence_release?: { release_allowed: boolean; reason?: string };
+  /** Present only for a two-input AND candidate. */
+  and_gate?: AndGateDiagnostics;
   switch_sequence: string;
   structure: string;
   toehold_length: number;
@@ -403,5 +449,9 @@ export interface RunParams {
    * Reference identity resolved server-side and frozen with the selected transcript.
    */
   target_gene?: { organism: string; gene_id: string; gene_symbol: string | null };
+  /** The two input genes of a two-input AND gate, both from the submitted DE table. */
+  and_inputs?: { gene_a: string; gene_b: string };
+  /** Optional AND-gate settings (sampling draws, controls); the engine validates them. */
+  and_gate?: Record<string, unknown>;
   [key: string]: unknown;
 }

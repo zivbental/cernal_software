@@ -61,6 +61,8 @@ def version(request):
         reviewer_login_enabled=settings.REVIEWER_LOGIN_ENABLED,
         supported_hosts=capabilities.supported_hosts,
         family_hosts=capabilities.family_hosts,
+        family_inputs=getattr(capabilities, "family_inputs", {}),
+        family_input_modes=getattr(capabilities, "family_input_modes", {}),
         supported_outputs=capabilities.supported_outputs,
         output_hosts=getattr(capabilities, "output_hosts", {}),
         backbone_hosts=getattr(capabilities, "backbone_hosts", {}),

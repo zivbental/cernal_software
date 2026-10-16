@@ -548,19 +548,26 @@ class PlasmidBuilder:
                 "A circuit needs at least one switch design to build a plasmid."
             )
 
-        # Only an identity expression with one activating input has a compiled
-        # topology here. Concatenation cannot implement a Boolean operator.
-        if len(circuit.designs) != 1 or circuit.expression.operator is not LogicOperator.IDENTITY:
+        # Two compiled topologies exist, each ONE physical design: an identity expression on a
+        # single-input toehold, and an AND expression on a two-input toehold AND (two hairpins on
+        # one transcript). Concatenating separate gates cannot implement a Boolean operator.
+        physical_design = circuit.designs[0] if circuit.designs else None
+        expected_operator = (
+            LogicOperator.AND
+            if physical_design is not None and physical_design.gate_kind is GateKind.TOEHOLD_AND
+            else LogicOperator.IDENTITY
+        )
+        if len(circuit.designs) != 1 or circuit.expression.operator is not expected_operator:
             raise InputValidationError(
                 "Unsupported physical circuit: no reviewed Boolean compiler."
             )
-        physical_design = circuit.designs[0]
         inputs = physical_design.trigger_set.activators
-        if physical_design.gate_kind is not GateKind.TOEHOLD or len(inputs) != 1:
+        compiled_inputs = {GateKind.TOEHOLD: 1, GateKind.TOEHOLD_AND: 2}
+        if compiled_inputs.get(physical_design.gate_kind) != len(inputs):
             raise InputValidationError(
                 "Unsupported physical gate: no reviewed compiler for this mechanism."
             )
-        allowed_ids = {inputs[0].gene_id, inputs[0].symbol}
+        allowed_ids = {name for trigger in inputs for name in (trigger.gene_id, trigger.symbol)}
         if set(circuit.expression.gene_ids()) - allowed_ids:
             raise InputValidationError(
                 "Logical expression does not identify the physical gate input."

@@ -350,6 +350,9 @@ def build_candidates_csv(run) -> str:
             for name in (metric.name for metric in candidate.metrics.all())
         }
     )
+    # A two-input AND run also reports what its ON/OFF numbers came from. The columns exist only
+    # when some candidate has them, so a single-input export is byte-for-byte what it was.
+    has_and = any((candidate.design or {}).get("and_gate") for candidate in candidates)
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
@@ -364,6 +367,7 @@ def build_candidates_csv(run) -> str:
             "rejection_reason",
             *[f"{name}_raw" for name in metric_names],
             *[f"{name}_normalized" for name in metric_names],
+            *(AND_CSV_COLUMNS if has_and else []),
         ]
     )
 
@@ -386,10 +390,45 @@ def build_candidates_csv(run) -> str:
                     _csv_number(getattr(by_name.get(name), "normalized_value", None))
                     for name in metric_names
                 ],
+                *(_and_csv_cells(candidate) if has_and else []),
             ]
         )
 
     return buffer.getvalue()
+
+
+#: Added to the candidates table for a two-input AND run. Percentages are of each hairpin's own
+#: stem (100 = both stems fully open together); an unmeasured value is an empty cell, never 0.
+AND_CSV_COLUMNS = [
+    "and_on_pct",
+    "and_off_pct",
+    "and_off_source",
+    "and_on_minus_off_pp",
+    "and_tied_group",
+    "and_delta_g_kcal_per_mol",
+    "and_sampler_checks_failed",
+    "and_controls_found",
+]
+
+
+def _and_csv_cells(candidate) -> list:
+    """The AND columns of one candidate row (empty for a candidate without diagnostics)."""
+    info = (candidate.design or {}).get("and_gate") or {}
+    if not info:
+        return [""] * len(AND_CSV_COLUMNS)
+    states = info.get("states") or {}
+    failed = sum(1 for state in states.values() if state.get("verified") is False)
+    tied = info.get("tied_group")
+    return [
+        _csv_number(info.get("on_pct")),
+        _csv_number(info.get("off_pct")),
+        _csv_number(info.get("off_source")),
+        _csv_number(info.get("on_minus_off_pp")),
+        "" if tied is None else ("yes" if tied else "no"),
+        _csv_number(info.get("delta_g_kcal_per_mol")),
+        failed if states else "",
+        _csv_number((info.get("controls") or {}).get("found")),
+    ]
 
 
 def _csv_number(value):

@@ -152,20 +152,37 @@ def test_single_fasta_record_normalizes_without_changing_coordinates():
 
 
 def test_capabilities_advertise_only_runnable_host_family_pairs():
+    """Every (family, host) pair the engine advertises must validate, driven the way that family
+    is driven: a pasted sequence for a single-input switch, a two-gene table for the AND."""
     capabilities = LocalEngine().capabilities()
     assert "antisense" not in capabilities.available_families
-    # The two-input AND family IS advertised now -- `generate_designs` has a body. What must
-    # never be advertised is the EUKARYOTIC one: `assemble` sets the loop to the prokaryotic
-    # Shine-Dalgarno with no host branch, so a eukaryotic design would carry no Kozak and could
-    # not initiate. Verified by building one before this assertion was narrowed.
-    assert "eukaryotic_toehold_and" not in capabilities.available_families
+    and_families = sorted(name for name in capabilities.available_families if "and" in name)
+    assert and_families == ["eukaryotic_toehold_and", "prokaryotic_toehold_and", "toehold_and"]
     assert set(capabilities.family_hosts) == set(capabilities.available_families)
+    assert set(capabilities.family_inputs) == set(capabilities.available_families)
+    assert set(capabilities.family_input_modes) == set(capabilities.available_families)
+    assert capabilities.family_hosts["eukaryotic_toehold_and"] == ["human", "yeast"]
+    assert capabilities.family_inputs["eukaryotic_toehold_and"] == 2
+    assert capabilities.family_input_modes["eukaryotic_toehold_and"] == ["de"]
     for name, hosts in capabilities.family_hosts.items():
         for host in hosts:
-            assert (
-                validate_job_configuration({}, [name], "default", "direct", "AUGC", host)["host"]
-                == host
-            )
+            if capabilities.family_inputs[name] == 1:
+                normalized = validate_job_configuration(
+                    {}, [name], "default", "direct", "AUGC", host
+                )
+            else:
+                normalized = validate_job_configuration(
+                    {
+                        "constraints": {"max_triggers": 2},
+                        "and_inputs": {"gene_a": "SELE", "gene_b": "ICAM1"},
+                    },
+                    [name],
+                    "default",
+                    "de",
+                    "",
+                    host,
+                )
+            assert normalized["host"] == host
     with pytest.raises(ValueError, match="production supported"):
         validate_job_configuration(
             {}, ["prokaryotic_toehold"], "default", "direct", "AUGC", "human"

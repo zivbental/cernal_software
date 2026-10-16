@@ -578,6 +578,143 @@ class Constraints:
 
 
 @dataclass(frozen=True, slots=True)
+class AndGateSettings:
+    """Every tunable of the two-input eukaryotic AND gate, with the notebook's defaults.
+
+    Lives beside ``Constraints`` for the same reason: a threshold that is a module-level literal
+    inside a gate family is an invisible per-family filter, so it is a declared field here and is
+    recorded with the run (``scientific_provenance["and_gate"]``). Parsed from the submission's
+    ``params["and_gate"]``; unknown or out-of-range values raise ``ValueError`` naming the field.
+
+    ``seed`` is not a field: the run's ``JobRequest.seed`` is threaded in by the pipeline, so
+    the same seed reproduces the same draws (CLAUDE.md sec 6).
+    """
+
+    #: Structures drawn per sampled state (the notebook's ``N_SAMPLES``).
+    n_samples: int = 2000
+    #: Structures drawn when ranking single-switch variants before they are fused. Only orders the
+    #: variants to fuse; every reported number comes from ``n_samples``.
+    screen_samples: int = 300
+    #: Mismatched-trigger controls per candidate (the notebook's ``N_CONTROLS``).
+    n_controls: int = 5
+    #: ``True``: sample the control states like the others. ``False``: take each control's exact
+    #: matrix ``E[k]``, an upper bound of its Open. ViennaRNA's sampler disagrees with its own
+    #: matrix on mismatched states (eu_and_v3_spec.md, Traps 2), so the bound is the default here.
+    controls_sampled: bool = False
+    #: Trigger windows of each input gene that are paired (the best by stage 2's score).
+    windows_per_gene: int = 3
+    #: Best single-switch variants of each trigger that are fused (3 variants x 3 variants x
+    #: 2 strand orders x spacer variants candidates per trigger pair).
+    singles_per_trigger: int = 3
+    #: ``no_spacer`` joins the two hairpins directly; ``spacer`` inserts the best of a seeded pool.
+    spacer_variants: tuple[str, ...] = ("no_spacer", "spacer")
+    spacer_min_length: int = 15
+    spacer_max_length: int = 20
+    spacer_pool_size: int = 150
+    #: Longest identical or complementary run allowed between trigger A and trigger B, and between
+    #: a control trigger and either real trigger.
+    max_overlap_nt: int = 8
+    #: Largest share of G.U wobble pairs in the complementary run counted by that screen.
+    wobble_max_fraction: float = 0.5
+    #: Sampler check: ``tau = verify_sigma * sd / sqrt(N) + verify_floor_nt`` per hairpin.
+    verify_sigma: float = 4.0
+    verify_floor_nt: float = 0.02
+    #: OFF below this many percent of the stem is replaced by it in the displayed ratio only.
+    off_floor_pct: float = 1.0
+    #: A second sampling with ``seed + noise_seed_offset`` measures the seed-to-seed change of
+    #: ``ON - OFF`` per candidate (about doubles the sampling cost, ~1.4 s a candidate in all); it
+    #: defines the tied group.
+    noise_check: bool = True
+    noise_seed_offset: int = 1000
+
+    _SPACER_VARIANTS = ("no_spacer", "spacer")
+
+    @classmethod
+    def from_mapping(cls, raw: dict | None) -> "AndGateSettings":
+        """Validate a JSON-sourced mapping. ``None``/empty gives the defaults."""
+        if raw is None:
+            raw = {}
+        if not isinstance(raw, dict):
+            raise ValueError("and_gate must be an object.")
+        known = {name for name in cls.__dataclass_fields__ if not name.startswith("_")}
+        unknown = sorted(set(raw) - known)
+        if unknown:
+            raise ValueError(
+                f"and_gate.{unknown[0]} is not a recognised setting "
+                f"(known: {', '.join(sorted(known))})."
+            )
+        values = dict(raw)
+        if "spacer_variants" in values:
+            variants = values["spacer_variants"]
+            if (
+                not isinstance(variants, (list, tuple))
+                or not variants
+                or any(v not in cls._SPACER_VARIANTS for v in variants)
+                or len(set(variants)) != len(variants)
+            ):
+                raise ValueError(
+                    "and_gate.spacer_variants must be a non-empty list of unique values from "
+                    f"{list(cls._SPACER_VARIANTS)}."
+                )
+            values["spacer_variants"] = tuple(variants)
+        settings = cls(**values)
+        settings._validate()
+        return settings
+
+    def _validate(self) -> None:
+        def integer(name: str, low: int, high: int) -> None:
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+                raise ValueError(f"and_gate.{name} must be an integer between {low} and {high}.")
+
+        def number(name: str, low: float, high: float) -> None:
+            value = getattr(self, name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not low <= value <= high
+            ):
+                raise ValueError(f"and_gate.{name} must be a number between {low} and {high}.")
+
+        def boolean(name: str) -> None:
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"and_gate.{name} must be true or false.")
+
+        integer("n_samples", 100, 20_000)
+        integer("screen_samples", 50, 20_000)
+        integer("n_controls", 0, 20)
+        integer("singles_per_trigger", 1, 6)
+        integer("windows_per_gene", 1, 10)
+        integer("spacer_min_length", 8, 40)
+        integer("spacer_max_length", 8, 40)
+        integer("spacer_pool_size", 10, 1000)
+        integer("max_overlap_nt", 4, 20)
+        integer("noise_seed_offset", 1, 1_000_000)
+        number("wobble_max_fraction", 0.0, 1.0)
+        number("verify_sigma", 1.0, 10.0)
+        number("verify_floor_nt", 0.0, 2.0)
+        number("off_floor_pct", 0.01, 10.0)
+        boolean("controls_sampled")
+        boolean("noise_check")
+        if self.spacer_max_length < self.spacer_min_length:
+            raise ValueError("and_gate.spacer_max_length must be at least spacer_min_length.")
+        if self.screen_samples > self.n_samples:
+            raise ValueError("and_gate.screen_samples must not exceed n_samples.")
+
+    def to_dict(self) -> dict:
+        """The settings as plain JSON types, for ``scientific_provenance``."""
+        return {
+            name: (
+                list(getattr(self, name))
+                if isinstance(getattr(self, name), tuple)
+                else getattr(self, name)
+            )
+            for name in self.__dataclass_fields__
+            if not name.startswith("_")
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class Compatibility:
     """Whether a gate family can realise a trigger set, and why not if it cannot."""
 

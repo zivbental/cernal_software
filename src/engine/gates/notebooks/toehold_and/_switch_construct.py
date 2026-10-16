@@ -17,7 +17,9 @@ from pathlib import Path
 from _joint_state_parallel import both_triggers_extra  # the one A/B strand-order rule
 
 from engine.gates.toehold import _mean_unpaired  # same accessibility helper measure() uses
-from engine.sequences import find_augs, hamming, is_valid_rna, reverse_complement, to_rna, windows
+from engine.gates.tools.stem_opening import fuse as fuse  # the one AND-construct builder
+from engine.gates.tools.stem_opening import upstream_augs as upstream_augs
+from engine.sequences import hamming, is_valid_rna, reverse_complement, to_rna, windows
 
 
 def _maybe_float(value):
@@ -173,102 +175,6 @@ def load_ranked_designs(path, folder, columns, carry_metrics, limit=None):
             if limit is not None and len(rows) >= limit:
                 break
     return rows, problems
-
-
-def fuse(design_5p, design_3p, cut_before, keep_after, spacer):
-    """One AND candidate: every domain from both halves, relocated into the fused frame.
-
-    Returns ``(built, problem)``. ``built["domains_5p"]``/``["domains_3p"]`` carry every
-    surviving domain's fused-frame span, not just the toehold — the layout bar and the
-    register diagrams both need to know where every domain landed, and re-deriving those
-    offsets in two more places would be two more chances to get the arithmetic wrong.
-    ``problem`` is non-None when either design lacks the domain its cut is defined by,
-    lacks ``stem_up`` (the ascending arm a trigger's footprint needs), or when a relocated
-    span does not hold the sequence it started as — slicing a guessed offset instead would
-    still return a sequence, and it would fold into a plausible-looking wrong answer
-    nothing downstream could catch.
-
-    Note for other topologies: cutting the 5' half at ``kozak`` leaves its ``pre_kozak``
-    arm in place while dropping the ``post_kozak`` it was designed to pair with. Both are
-    zero-length in ``euk_open_5p_kozak_after_stem``, so nothing is orphaned here; a
-    topology that uses them needs this cut reconsidered, not just re-pointed.
-
-    ``spacer`` sits between the two bodies unshifted-domain-wise for the 5' half and
-    folded into the 3' half's shift -- a physical separator between the two hairpins,
-    not part of either design's own domain set.
-
-    ``cut_before``/``keep_after``/``spacer``: the caller's own ``CUT_5P_BEFORE``/
-    ``KEEP_3P_AFTER``/``SPACER_SEQ``-equivalent values. Required, not defaulted here --
-    see this module's own docstring.
-    """
-    for label, design, domain in (("5'", design_5p, cut_before), ("3'", design_3p, keep_after)):
-        if domain not in design["domains"]:
-            return None, f"{label} line {design['line_no']}: no {domain!r} domain"
-
-    cut_5p = design_5p["domains"][cut_before][0]
-    keep_3p = design_3p["domains"][keep_after][1]
-    body_5p = design_5p["switch"][:cut_5p]
-    body_3p = design_3p["switch"][keep_3p:]
-    fused = body_5p + spacer + body_3p
-    shift = len(body_5p) + len(spacer) - keep_3p
-
-    # Every 5' domain that ends at or before the cut survives unshifted; every 3' domain
-    # that starts at or after the keep point survives, shifted by how far it moved.
-    domains_5p = {name: span for name, span in design_5p["domains"].items() if span[1] <= cut_5p}
-    domains_3p = {
-        name: (start + shift, end + shift)
-        for name, (start, end) in design_3p["domains"].items()
-        if start >= keep_3p
-    }
-
-    # CLAUDE.md §6: every coordinate translation is an off-by-one until it is checked.
-    for label, domains, design, base_shift in (
-        ("5'", domains_5p, design_5p, 0),
-        ("3'", domains_3p, design_3p, shift),
-    ):
-        for name, (start, end) in domains.items():
-            original_start, original_end = start - base_shift, end - base_shift
-            if fused[start:end] != design["switch"][original_start:original_end]:
-                return None, f"{label} line {design['line_no']}: {name} does not survive relocation"
-
-    for label, domains, design in (("5'", domains_5p, design_5p), ("3'", domains_3p, design_3p)):
-        missing = [name for name in ("toehold", "stem_up") if name not in domains]
-        if missing:
-            return (
-                None,
-                f"{label} line {design['line_no']}: missing {', '.join(missing)} after the cut",
-            )
-
-    return (
-        {
-            "fused": fused,
-            "domains_5p": domains_5p,
-            "domains_3p": domains_3p,
-            "toehold_5p": domains_5p["toehold"],
-            "toehold_3p": domains_3p["toehold"],
-            # The footprint is toehold + the ascending arm -- exactly the region the
-            # trigger reverse-complements against, same definition the single-input
-            # report uses for its own "footprint" highlight.
-            "footprint_5p": (domains_5p["toehold"][0], domains_5p["stem_up"][1]),
-            "footprint_3p": (domains_3p["toehold"][0], domains_3p["stem_up"][1]),
-            "spacer_span": (len(body_5p), len(body_5p) + len(spacer)),
-        },
-        None,
-    )
-
-
-def upstream_augs(built):
-    """Start positions (0-based, in the fused RNA) of every AUG that begins before the second
-    hairpin's ``stem_down``.
-
-    The intended start codon of an AND construct is the payload's, after the second hairpin
-    (and its Kozak); an AUG anywhere upstream of that hairpin -- in the first hairpin, the spacer,
-    or the second hairpin's toehold, stem or loop -- is a competing start codon. An AUG that
-    begins at or after the start of the second ``stem_down`` is not counted. Uses
-    ``engine.sequences.find_augs`` (CLAUDE.md sec 1: one AUG finder).
-    """
-    limit = built["domains_3p"]["stem_down"][0]
-    return tuple(i for i in find_augs(built["fused"]) if i < limit)
 
 
 def measure(built, trigger_5p, trigger_3p, folder, own_kozak_rc_3p, own_prefix_rc_5p):

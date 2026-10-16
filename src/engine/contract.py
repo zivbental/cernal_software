@@ -133,6 +133,13 @@ class EngineCapabilities:
 
     supported_hosts: list[str] = field(default_factory=list)
     family_hosts: dict[str, list[str]] = field(default_factory=dict)
+    #: How many trigger inputs each available family takes (1 for a single-input switch, 2 for a
+    #: two-input AND). Additive and defaulted, like ``family_hosts``: a caller that predates it
+    #: still reads every family as single-input.
+    family_inputs: dict[str, int] = field(default_factory=dict)
+    #: Which input modes can drive each available family. A two-input AND names its two genes in a
+    #: differential-expression table, so it lists only ``de``.
+    family_input_modes: dict[str, list[str]] = field(default_factory=dict)
     supported_outputs: list[str] = field(default_factory=list)
     output_hosts: dict[str, list[str]] = field(default_factory=dict)
     backbone_hosts: dict[str, list[str]] = field(default_factory=dict)
