@@ -81,6 +81,13 @@ percent GC and explicitly distinguished marginal versus joint probabilities. Unk
 measurements remain `None`. A score is neither a calibrated success probability nor an
 experimental validation result.
 
+## External research design inputs
+
+[NucSyn](nucsyn.md) supplies the external ranked designs named in the offline eukaryotic
+AND notebook. That notebook reuses CERNAL folding tools for downstream analysis, while
+the production generator above constructs its own candidates. Producer scores, notebook
+energy comparisons and production scores must retain separate provenance.
+
 ## Verification
 
 Use `uv run pytest tests/engine -q` for engine regression tests, and the focused tests

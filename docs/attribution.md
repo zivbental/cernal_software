@@ -87,6 +87,16 @@ authoritative dependency pins are [`uv.lock`](../uv.lock) and
 | asgiref, sqlparse | BSD |
 | sbol3 | MIT |
 
+### NucSyn external research designs
+
+**NucSyn Platform**, released by Yehuda Landau and credited to Landau, Arbel, Benarroch,
+Klein, Moree and Tuller, is the upstream source named by the eukaryotic AND notebook
+for ranked single-input design CSVs. It is not a bundled or production runtime dependency
+at the audited main baseline. [NucSyn provenance](nucsyn.md) records the exact research
+interface, public release, full requested preprint citation and reproducibility limits.
+Its Academic Research License is separate from CERNAL’s Apache-2.0 license; separately
+authorized uses must follow their actual permission scope and external-tool terms.
+
 ### Work by other iGEM teams
 
 **iGEM AIS-China — `codon-optimization-v2`** (Apache-2.0), vendored, unmodified, at `vendor/ais-china-codon-optimization-v2` with the authors'

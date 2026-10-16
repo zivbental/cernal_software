@@ -20,6 +20,8 @@ construct will work experimentally. This guide describes the main baseline pinne
 
 ## Scientific references
 
+- [NucSyn design inputs and attribution](nucsyn.md): upstream credit, research CSV contract, reproducibility and runtime boundary
+
 - [Scientific interpretation](scientific-interpretation.md): definitions, units and what scores cannot prove
 - [Trigger/nucleation ranking](trigger-nucleation-ranking.md): ranking modes and provenance
 - [Off-target analysis](off-target-analysis.md): computational scope and specificity limits

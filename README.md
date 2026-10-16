@@ -39,6 +39,14 @@ Bacterial leakage is AUG-only marginal accessibility; dynamic range is a floored
 ratio, and predicted success is an uncalibrated binding heuristic. Read the
 [interpretation guide](docs/scientific-interpretation.md) before comparing scores.
 
+## NucSyn research inputs and credit
+
+[NucSyn Platform](https://github.com/YehudaLandau/NucSyn-Platform), released by Yehuda Landau
+and credited to Landau and colleagues, supplies externally generated switch designs used by
+a CSV-consuming research notebook. See [NucSyn provenance, citation and scope](docs/nucsyn.md)
+for the input contract, independent CERNAL evaluation and licensing boundary. This is distinct
+from the production LocalEngine/ViennaRNA path; the v0.1.2 release is not evidence of a runtime integration.
+
 ## Reproducible local quickstart
 
 Use Python **3.13**, uv, Node **22+**, npm, Git and Bash. Run the application server and

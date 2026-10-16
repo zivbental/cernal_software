@@ -40,7 +40,8 @@ visualizer and CRISPR branches already contained in main are not counted as pend
 app controls and notebook controls differ. Its folding context includes the first 30 payload
 nucleotides, not the whole payload. Structural leakage/dynamic-range values are proxies,
 not measured translation. Do not promise numeric equivalence with notebook runs or NucSyn.
-A NucSyn release is not evidence of CERNAL integration.
+A NucSyn release is not evidence of CERNAL runtime integration. The existing
+[ranked-CSV research workflow and attribution](nucsyn.md) are documented separately.
 
 **Barriers:** PR 82's corrected estimate is the maximum evaluated energy along the
 searched path minus the starting energy. The endpoint difference is not a barrier.

@@ -8,6 +8,14 @@ Many scientific components are implemented; some research classes are intentiona
 excluded from production. The [engine guide](engine.md) and [status](status.md) separate
 those scopes. Follow [CLAUDE.md](../CLAUDE.md) for repository contribution rules.
 
+## NucSyn research-data boundary
+
+The [NucSyn guide](nucsyn.md) documents the existing ranked-CSV notebook workflow and
+upstream attribution. It is not the production gate generator or a runtime adapter.
+Do not silently substitute NucSyn scores for CERNAL metrics, assume historical exports
+were produced by the newest release, or bundle/expose the external executable without
+checking the applicable permission scope.
+
 ## Before changing a calculation
 
 1. Find the shared implementation and its callers. Read `pipeline.build_tools`,

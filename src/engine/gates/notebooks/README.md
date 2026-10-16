@@ -17,6 +17,13 @@ Inspect the notebook's own inputs, execution cells and saved outputs before rely
 Saved outputs can predate current code; rerunning is a separate computation, not proof of
 biological efficacy. Pending AND branches are pinned in [status](../../../../docs/status.md).
 
+## NucSyn design exports
+
+The eukaryotic AND notebook includes a research workflow consuming ranked NucSyn CSVs.
+Read [upstream credit, schema and reproducibility limits](../../../../docs/nucsyn.md)
+before using it. Its local paths and historical outputs are not a portable v0.1.2
+reproduction, and its upstream scores are distinct from CERNAL’s production score.
+
 ## Setup and execution
 
 From the repository root, install the locked development environment:
