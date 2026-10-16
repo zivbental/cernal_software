@@ -37,10 +37,10 @@ so that convention is the only rule there is.
 
 | | Count |
 | --- | ---: |
-| Modules | 68 |
-| Public classes | 113 |
-| Public callables (excluding `__init__`) | 381 |
-| — `BUILT` | 368 |
+| Modules | 74 |
+| Public classes | 115 |
+| Public callables (excluding `__init__`) | 423 |
+| — `BUILT` | 410 |
 | — `STUB` | 5 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -63,7 +63,7 @@ layers above it, never the ones below.
 | gate_tools | `engine.gates.tools.ais_china` |  | 5 | 0 | Adapter over the AIS-China *Cutibacterium acnes* codon-optimization library. |
 | gate_tools | `engine.gates.tools.binding` | S3 | 7 | 0 | S3 — trigger/switch hybridisation energy. |
 | gate_tools | `engine.gates.tools.codons` | S8 | 4 | 0 | S8 — codon usage and synonymous rewriting. |
-| gate_tools | `engine.gates.tools.folding` | S2, S4 | 28 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
+| gate_tools | `engine.gates.tools.folding` | S2, S4 | 30 | 0 | S2, S4 — RNA secondary structure prediction for gate designs. |
 | gate_tools | `engine.gates.tools.rnaviz` |  | 0 | 0 | Licensed cernal-rnaviz drawing primitives; no folding or sequence services. |
 | gate_tools | `engine.gates.tools.translation` | S9 | 0 | 4 | S9 — translation initiation strength. |
 | gate_tools | `engine.gates.tools.rnaviz.layout` |  | 1 | 0 | Turning ViennaRNA output into something drawable. |
@@ -77,6 +77,12 @@ layers above it, never the ones below.
 | gates | `engine.gates.toehold` |  | 20 | 1 | Toehold switches — single input, and two-input AND. |
 | gates | `engine.gates.notebooks._fixtures` |  | 18 | 0 | Shared setup for the per-gate notebooks under this folder. |
 | gates | `engine.gates.notebooks.toehold.render_pdf` |  | 2 | 0 | Render an HTML report to PDF via headless Chromium (Playwright). |
+| gates | `engine.gates.notebooks.toehold_and._joint_state_parallel` |  | 7 | 0 | Shared helpers of the toehold notebooks (used by ``eu_and_v3.ipynb`` and its workers). |
+| gates | `engine.gates.notebooks.toehold_and._report_figures` |  | 4 | 0 | Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a base-pair probability heatmap as a PNG. |
+| gates | `engine.gates.notebooks.toehold_and._report_stats` |  | 17 | 0 | Statistics behind the ``eu_and_v3`` reports that must be testable on their own. |
+| gates | `engine.gates.notebooks.toehold_and._sampled_and_parallel` |  | 3 | 0 | Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by part 2 of ``eu_and_v3.ipynb``). |
+| gates | `engine.gates.notebooks.toehold_and._sampled_stem_parallel` |  | 4 | 0 | Expected longest open run of the stem, by sampling, in parallel (used by ``eu_and_v3.ipynb``). |
+| gates | `engine.gates.notebooks.toehold_and._switch_construct` |  | 5 | 0 | Shared AND-construct builder and single-switch loader/measurement. |
 | gates | `engine.gates.notebooks.toehold_and.build_report` |  | 1 | 0 | Assemble the architecture decision report, inlining the eight structure figures. |
 | gates | `engine.gates.notebooks.toehold_and.bulge_geometry` |  | 6 | 0 | What the AUG bulge actually is, which side is designable, and what the two hairpins weigh. |
 | gates | `engine.gates.notebooks.toehold_and.design_panel` |  | 4 | 0 | The whole A0 pipeline, end to end, for a wet-lab panel. One command, no hand-holding. |
@@ -664,6 +670,7 @@ Immutable, run-wide ViennaRNA model; defaults reproduce the original model.
 | `no_gu` | `bool` | `False` |
 | `no_gu_closure` | `bool` | `False` |
 | `energy_parameters` | `str` | `'turner2004'` |
+| `salt_molar` | `float` | `1.021` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -1156,6 +1163,8 @@ S2 — minimum free energy, ensemble properties and suboptimal structures.
 | `BUILT` | `def ensemble_defect(self, sequence: str, target: str) -> float` | How far the predicted ensemble sits from an intended structure. |
 | `BUILT` | `def base_pair_probabilities(self, sequence: str) -> list[list[float]]` | Probability that each pair of positions is bonded, over the whole ensemble. |
 | `BUILT` | `def pooled_pair_probabilities(self, strands: str) -> list[list[float]]` | ``base_pair_probabilities`` Boltzmann-averaged over all strand orderings. |
+| `BUILT` | `def constrained_probability(self, strands: str, forced_pairs: Sequence[tuple[int, int]]) -> float \| None` | Exact probability that **all** of ``forced_pairs`` are present at once. |
+| `BUILT` | `def sample_structures(self, strands: str, n_samples: int, seed: int \| None = None, first_strand: int \| None = None) -> list[str]` | Structures drawn from the Boltzmann ensemble, not just the best one. |
 | `BUILT` | `def suboptimal(self, sequence: str, delta: float = 2.0, *, max_structures: int = 1000, timeout_seconds: float = 2.0) -> list[FoldResult]` | Enumerate exact structures within ``delta`` kcal/mol of MFE. |
 | `BUILT` | `def mfe_with_window_open(self, strands: str, window: tuple[int, int]) -> tuple[str, float]` | The most stable structure that leaves ``window`` single-stranded. |
 | `BUILT` | `def refolding_saddle(self, strands: str, start: str, target: str, *, width: int = 20) -> float \| None` | Highest energy on a direct refolding path from ``start`` to ``target``. |
@@ -1562,7 +1571,7 @@ Shared setup for the per-gate notebooks under this folder.
 | Status | Function | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def bootstrap() -> pathlib.Path` | Put ``<repo>/src`` on ``sys.path`` and say where it pointed. |
-| `BUILT` | `def fold_engine(real: bool = False, temperature: float = 37.0) -> object` | The folder to hand a gate. |
+| `BUILT` | `def fold_engine(real: bool = False, temperature: float = 37.0, salt_molar: float = 1.021) -> object` | The folder to hand a gate. |
 | `BUILT` | `def sample_trigger(*, trigger_id: str = 'trig-000001', gene_id: str = 'b0002', symbol: str = 'thrA', sequence: str \| None = None, length: int = 36, start_index: int = 120, seed: int = 2026) -> TriggerCandidate` | One made-up :class:`~engine.domain.TriggerCandidate` with plausible values. |
 | `BUILT` | `def sample_trigger_set(n_activators: int = 1, n_repressors: int = 0) -> TriggerSet` | A :class:`~engine.domain.TriggerSet` of made-up triggers. |
 | `BUILT` | `def sample_constraints(**overrides) -> Constraints` | A :class:`~engine.domain.Constraints` with library defaults; each keyword overrides one field (e.g. ``max_switch_length=160``). |
@@ -1601,6 +1610,143 @@ Render an HTML report to PDF via headless Chromium (Playwright).
 | --- | --- | --- |
 | `BUILT` | `def render_pdf(html_path: Path, pdf_path: Path, *, landscape: bool = True) -> None` |  |
 | `BUILT` | `def main() -> None` |  |
+
+### `engine.gates.notebooks.toehold_and._joint_state_parallel`
+
+`src/engine/gates/notebooks/toehold_and/_joint_state_parallel.py`
+
+Shared helpers of the toehold notebooks (used by ``eu_and_v3.ipynb`` and its workers).
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def use_fold_engine(engine) -> None` | Publish the single shared ``FoldEngine`` for the workers to fold through. |
+| `BUILT` | `def both_triggers_extra(trigger_a: str, trigger_b: str) -> tuple[str, str]` | The ONE place the strand order of a two-real-trigger AND state is decided. |
+| `BUILT` | `def trigger_pair_too_similar(trigger_a: str, trigger_b: str, *, max_overlap_nt: int, wobble_max_fraction: float) -> bool` | True when an AND pair's own two REAL triggers (trigger A, trigger B) are too similar to each other by EITHER of two independent checks, each compared against ``max_overlap_nt``: a complementary run (wobble included, :func:`_longest_complementary_run_wobble` -- would they hybridize to each other) or a same-direction identity run (:func:`_longest_identity_run` -- are they (nearly) the same sequence, i.e. |
+| `BUILT` | `def pick_fake_trigger(real_triggers, exclude_ranks, pool, start_offset = 0, *, max_overlap_nt = 8)` | Next pool design whose TRIGGER shares at most ``max_overlap_nt`` nt of identical sequence with EVERY real trigger in ``real_triggers``. |
+| `BUILT` | `def pick_fake_triggers(real_triggers, exclude_ranks, pool, n, start_offset = 0, *, max_overlap_nt)` | Up to ``n`` distinct fakes for one footprint set: :func:`pick_fake_trigger` called with ``start_offset``, ``start_offset + 1``, ... |
+| `BUILT` | `def generate_spacer_candidates(n: int, min_length: int = 15, max_length: int = 20, seed: int = 1) -> list[str]` | A fixed, reproducible pool of low-GC candidate spacer sequences -- lengths cycle 15..20 so the whole requested range is covered, and every base is drawn A/U-biased (A-U pairs are weaker than G-C, hence a low-GC spacer). |
+| `BUILT` | `def pick_optimized_spacer(design_5p, design_3p, candidates: list[str]) -> tuple[str, int]` | Picks the candidate spacer with the smallest worst-case complementary run against either design's toehold OR trigger ("minimal interaction" estimated as no hybridization with triggers or toeholds). |
+
+### `engine.gates.notebooks.toehold_and._report_figures`
+
+`src/engine/gates/notebooks/toehold_and/_report_figures.py`
+
+Figures for ``eu_and_v3.ipynb``: a lettered 2D structure as inline SVG and a base-pair probability heatmap as a PNG.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `DOMAIN_COLORS` |  | `{'prefix': '#C9A227', 'toehold': '#1F6FEB', 'stem_up': '#7E97AC', 'loop': '#8E6AA8', 's…` |
+| `DOMAIN_COLORS_B` |  | `{'toehold': '#17A2B8', 'stem_up': '#9CB5A0', 'loop': '#C27BA0', 'stem_down': '#C9D9CB',…` |
+| `SPACER_COLOR` |  | `'#B0B0B0'` |
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def domain_fill(domains: dict, palette: dict \| None = None, suffix: str = '') -> list[tuple[int, int, str, str]]` | ``(start, end, colour, label)`` per non-empty domain of a ``{name: (start, end)}`` dict. |
+| `BUILT` | `def structure_svg(points, sequence, structure, title, spans = (), domain_fill = (), visible_len = None, construct_len = None, spacing = 23.0, pad = 34.0, radius = 7.4, legend_ncol = 3)` | One folded structure as an inline SVG: every base a circle with its letter inside, the backbone through them and a rung on every base pair, filled by domain. |
+| `BUILT` | `def bpp_heatmap_png(sequence: str, matrix, title: str, boundary = None, dpi: int = 120) -> str` | Base-pair-probability heatmap as a base64 PNG; ``boundary``: a strand junction position (or several) marked with a dotted crosshair. |
+| `BUILT` | `def construct_figure_svg(single: bool = False) -> str` | The schematic of the fused AND construct (``eu_and_v3_construct.svg``), or of one switch (``eu_and_v3_single.svg``), as inline SVG. |
+
+### `engine.gates.notebooks.toehold_and._report_stats`
+
+`src/engine/gates/notebooks/toehold_and/_report_stats.py`
+
+Statistics behind the ``eu_and_v3`` reports that must be testable on their own.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def sd_or_default(sd: float \| None, default: float) -> float` | ``sd`` when it was measured (including a valid 0.0), ``default`` when it is missing. |
+| `BUILT` | `def verification_tolerance(sd: float \| None, n_drawn: int, *, default_sd: float, sigma: float, floor_nt: float) -> float` | tau = sigma * sd / sqrt(N) + floor; ``default_sd`` (<= L/2) only if ``sd`` is missing. |
+| `BUILT` | `def state_ok(state: dict, stem_len: int, *, sigma: float, floor_nt: float) -> bool` | Single-switch state verified: sampled mean k and sampled Open agree with the exact matrix. |
+| `BUILT` | `def open_value(state: dict, name: str) -> float \| None` | Open of an AND state in nt, as the sampler check needs it: E[r_A] + E[r_B] for +A+B (bounded by E[k_A] + E[k_B]), E[min(r_A, r_B)] for the others. The ranking uses ``open_frac_sampled``. |
+| `BUILT` | `def state_ok_and(state: dict, name: str, l_a: int, l_b: int, *, sigma: float, floor_nt: float) -> bool` | AND state verified: each hairpin's sampled E[k] agrees with its matrix value within its own tolerance, and the sampled Open does not exceed the matrix bound. |
+| `BUILT` | `def median_or_none(values: Iterable[float \| None]) -> float \| None` | Median of the non-missing values, ``None`` when there are none. |
+| `BUILT` | `def median_text(values: Iterable[float \| None], *, unit: str = '', digits: int = 1) -> str` | The median as text with its unit, or ``n/a`` when no value is available. |
+| `BUILT` | `def pct_text(value: float \| None, *, digits: int = 1) -> str` | A percentage as text, ``n/a`` for a missing value. |
+| `BUILT` | `def spearman(x: list[float], y: list[float]) -> float \| None` | Spearman rank correlation of two equally long rank/value lists, ``None`` when it is undefined: fewer than two items, or no variation in either list. |
+| `BUILT` | `def noise_summary(changes: Iterable[float \| None]) -> tuple[float \| None, float \| None]` | ``(median, 95th percentile)`` of the absolute seed-to-seed changes, ``(None, None)`` when there is none (no candidate, or none with both runs measured). |
+| `BUILT` | `def num_text(value: float \| None, digits: int = 2, unit: str = '') -> str` | A number as text, ``n/a`` when it is unavailable. |
+| `BUILT` | `def file_sha256(path: str \| Path) -> str` | SHA-256 of a file, streamed. |
+| `BUILT` | `def result_digest(value: dict) -> str` | Stable digest of detached JSON data, including sampling inputs and result identity. |
+| `BUILT` | `def save_results(path: Path, identity: dict, provenance: dict, payload: dict) -> None` | Persist original provenance with a versioned, integrity-checked result envelope. |
+| `BUILT` | `def load_results(path: str \| Path, identity: dict) -> tuple[dict, dict]` | Reject legacy, altered or mismatched results rather than relabeling their numbers. |
+| `BUILT` | `def describe_folding_model(provenance: dict) -> str` | One line from ``FoldEngine.provenance()``: library version, energy table, settings. |
+| `BUILT` | `def run_provenance(csv_path: str \| Path, folding_provenance: dict, repo_dir: str \| Path) -> dict` | What a reader needs to check a report: the code revision (and whether files were modified since that commit), the input file with its checksum, and the folding model. |
+
+### `engine.gates.notebooks.toehold_and._sampled_and_parallel`
+
+`src/engine/gates/notebooks/toehold_and/_sampled_and_parallel.py`
+
+Longest open run of BOTH hairpins of a fused AND switch, by sampling, in parallel (used by part 2 of ``eu_and_v3.ipynb``).
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def state_strands(job: AndJob) -> dict[str, tuple[str, int \| None]]` | ``{state: (strands, first_strand)}`` for the four states of a candidate. |
+| `BUILT` | `def and_state(engine, strands: str, first_strand: int \| None, job: AndJob) -> dict` | Open and E[k] of one state, sampled, plus each hairpin's E[k] from the exact matrix. |
+| `BUILT` | `def run_parallel_and(jobs: list[AndJob], max_workers: int = 6) -> dict[str, dict]` | One process-pool call for all candidates (fork, like every ``run_parallel*`` here). |
+
+#### `class AndJob(NamedTuple)`
+
+One AND candidate: the fused switch, the two real triggers and both hairpins' stems.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `key` | `str` |  |
+| `fused` | `str` |  |
+| `trigger_a` | `str` |  |
+| `trigger_b` | `str` |  |
+| `stem_up_a` | `tuple[int, int]` |  |
+| `stem_down_a` | `tuple[int, int]` |  |
+| `stem_up_b` | `tuple[int, int]` |  |
+| `stem_down_b` | `tuple[int, int]` |  |
+| `temperature` | `float` |  |
+| `n_samples` | `int` |  |
+| `seed` | `int` |  |
+| `controls` | `tuple` | `()` |
+| `sample_controls` | `bool` | `False` |
+
+### `engine.gates.notebooks.toehold_and._sampled_stem_parallel`
+
+`src/engine/gates/notebooks/toehold_and/_sampled_stem_parallel.py`
+
+Expected longest open run of the stem, by sampling, in parallel (used by ``eu_and_v3.ipynb``).
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def open_counts(structure: str, stem_up: tuple[int, int], stem_down: tuple[int, int]) -> tuple[int, int]` | ``(k, r)`` of a dot-bracket (``&`` removed): the number of open ``stem_up`` nt, and the longest stretch of consecutive open ones. Open = not paired to a ``stem_down`` nt. |
+| `BUILT` | `def stem_open_state(engine, strands: str, job: DesignJob) -> dict` | E[r] and E[k] of one state, sampled, plus E[k] from the exact matrix. |
+| `BUILT` | `def matrix_open_nt(engine, strands: str, job: DesignJob) -> float` | Exact E[k] of one state from the base-pair-probability matrix (no sampling). |
+| `BUILT` | `def run_parallel_designs(jobs: list[DesignJob], max_workers: int = 6) -> dict[str, dict]` | One process-pool call for all designs (fork, like every ``run_parallel*`` here). |
+
+#### `class DesignJob(NamedTuple)`
+
+One design: the switch with its real trigger, and the switch alone.
+
+| Attribute | Type | Default |
+| --- | --- | --- |
+| `key` | `str` |  |
+| `switch` | `str` |  |
+| `trigger` | `str` |  |
+| `stem_up` | `tuple[int, int]` |  |
+| `stem_down` | `tuple[int, int]` |  |
+| `temperature` | `float` |  |
+| `n_samples` | `int` |  |
+| `seed` | `int` |  |
+| `controls` | `tuple` | `()` |
+| `sample_controls` | `bool` | `False` |
+
+### `engine.gates.notebooks.toehold_and._switch_construct`
+
+`src/engine/gates/notebooks/toehold_and/_switch_construct.py`
+
+Shared AND-construct builder and single-switch loader/measurement.
+
+| Status | Function | Purpose |
+| --- | --- | --- |
+| `BUILT` | `def motif_self_bind_score(sequence, motif_seq)` | Best fractional match, sliding a window the length of ``motif_seq`` across ``sequence``, against the reverse complement of ``motif_seq`` -- built entirely from existing engine functions (``windows`` for the scan, ``reverse_complement`` for… |
+| `BUILT` | `def load_ranked_designs(path, folder, columns, carry_metrics, limit = None)` | Rows of a NucSyn ``results_ranked.csv``, kept in file order (already ranked). |
+| `BUILT` | `def fuse(design_5p, design_3p, cut_before, keep_after, spacer)` | One AND candidate: every domain from both halves, relocated into the fused frame. |
+| `BUILT` | `def upstream_augs(built)` | Start positions (0-based, in the fused RNA) of every AUG that begins before the second hairpin's ``stem_down``. |
+| `BUILT` | `def measure(built, trigger_5p, trigger_3p, folder, own_kozak_rc_3p, own_prefix_rc_5p)` | Energies for the four states, both toehold accessibilities, and the Kozak/prefix self-binding risk of whichever toehold each fixed element could actually reach. |
 
 ### `engine.gates.notebooks.toehold_and.build_report`
 

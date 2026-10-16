@@ -162,7 +162,7 @@ class StubFoldEngine:
         return {"StubFoldEngine": "fake-no-science", "temperature_c": "37.0"}
 
 
-def fold_engine(real: bool = False, temperature: float = 37.0) -> object:
+def fold_engine(real: bool = False, temperature: float = 37.0, salt_molar: float = 1.021) -> object:
     """The folder to hand a gate.
 
     ``real=False`` (default) → :class:`StubFoldEngine`.
@@ -170,7 +170,11 @@ def fold_engine(real: bool = False, temperature: float = 37.0) -> object:
     returns the real object; it raises the moment a method is called, which is the
     honest failure.
     """
-    return FoldEngine(temperature=temperature) if real else StubFoldEngine()
+    if not real:
+        return StubFoldEngine()
+    from engine.domain import FoldingConfig
+
+    return FoldEngine(config=FoldingConfig(temperature_celsius=temperature, salt_molar=salt_molar))
 
 
 # --- sample inputs ------------------------------------------------------------

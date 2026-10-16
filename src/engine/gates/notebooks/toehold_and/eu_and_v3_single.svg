@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 760 640" role="img">
+<title>A single switch: OFF and ON states</title>
+<desc>One hairpin with its prefix, toehold, Kozak and payload; closed in the OFF state, with the trigger bound in the ON state.</desc>
+<text x="40" y="30" text-anchor="start" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15px" font-weight="600" fill="#1a1a1a"><tspan x="40" y="30" fill="#1a1a1a">OFF: the switch alone</tspan></text>
+<text x="40" y="47" text-anchor="start" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="40" y="47" fill="#8c8c86">hairpin closed: stem↑ is paired with stem↓</tspan></text>
+<text x="60" y="344" text-anchor="end" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="60" y="344" fill="#8c8c86">5′</tspan></text>
+<path d="M 70,340 H 130" fill="none" stroke="#1a1a1a" stroke-width="5.5" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 130,340 H 230" fill="none" stroke="#1a1a1a" stroke-width="5.5" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 130,340 H 230" fill="none" stroke="#4C6E8C" stroke-width="9" opacity="0.45" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 230,340 Q 250,340 250,320 V 175 A 24 24 0 1 1 290 175 V 320 Q 290,340 310,340" fill="none" stroke="#1a1a1a" stroke-width="5.5" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="250" y1="310" x2="290" y2="310" stroke="#1a1a1a" stroke-width="2.5" opacity="0.7" stroke-linecap="butt"/>
+<line x1="250" y1="296" x2="290" y2="296" stroke="#1a1a1a" stroke-width="2.5" opacity="0.7" stroke-linecap="butt"/>
+<line x1="250" y1="282" x2="290" y2="282" stroke="#1a1a1a" stroke-width="2.5" opacity="0.7" stroke-linecap="butt"/>
+<line x1="250" y1="268" x2="290" y2="268" stroke="#1a1a1a" stroke-width="2.5" opacity="0.7" stroke-linecap="butt"/>
+<line x1="250" y1="254" x2="290" y2="254" stroke="#1a1a1a" stroke-width="2.5" opacity="0.7" stroke-linecap="butt"/>
+<line x1="250" y1="240" x2="290" y2="240" stroke="#1a1a1a" stroke-width="2.5" opacity="0.7" stroke-linecap="butt"/>
+<line x1="250" y1="226" x2="290" y2="226" stroke="#1a1a1a" stroke-width="2.5" opacity="0.7" stroke-linecap="butt"/>
+<line x1="250" y1="212" x2="290" y2="212" stroke="#1a1a1a" stroke-width="2.5" opacity="0.7" stroke-linecap="butt"/>
+<line x1="250" y1="198" x2="290" y2="198" stroke="#1a1a1a" stroke-width="2.5" opacity="0.7" stroke-linecap="butt"/>
+<path d="M 250,320 V 175" fill="none" stroke="#4C6E8C" stroke-width="9" opacity="0.45" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 310,340 H 390" fill="none" stroke="#2E9E56" stroke-width="5.5" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 390,340 H 725" fill="none" stroke="#bdbdb8" stroke-width="5.5" opacity="1" stroke-dasharray="1 9" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="100" y="364" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="100" y="364" fill="#8c8c86">Prefix</tspan></text>
+<text x="180" y="364" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="180" y="364" fill="#8c8c86">Toehold</tspan><tspan x="180" y="379" fill="#8c8c86">binds the trigger</tspan></text>
+<text x="240" y="245" text-anchor="end" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="240" y="245" fill="#4C6E8C">stem↑</tspan><tspan x="240" y="260" fill="#8c8c86">L nt</tspan></text>
+<text x="300" y="245" text-anchor="start" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="300" y="245" fill="#4C6E8C">stem↓</tspan></text>
+<text x="270" y="118" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="270" y="118" fill="#8c8c86">Loop</tspan></text>
+<text x="270" y="88" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14px" font-weight="normal" fill="#4C6E8C"><tspan x="270" y="88" fill="#4C6E8C">Hairpin</tspan></text>
+<text x="350" y="364" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="350" y="364" fill="#8c8c86">Kozak</tspan><tspan x="350" y="379" fill="#1a1a1a">GCCACC</tspan></text>
+<text x="560" y="364" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="560" y="364" fill="#8c8c86">Payload</tspan></text>
+<text x="40" y="430" text-anchor="start" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15px" font-weight="600" fill="#1a1a1a"><tspan x="40" y="430" fill="#1a1a1a">ON: trigger bound</tspan></text>
+<text x="40" y="447" text-anchor="start" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="40" y="447" fill="#8c8c86">the trigger pairs with its footprint (toehold + stem↑); the stem opens</tspan></text>
+<text x="60" y="564" text-anchor="end" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="60" y="564" fill="#8c8c86">5′</tspan></text>
+<text x="90" y="548" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="90" y="548" fill="#8c8c86">Prefix</tspan></text>
+<path d="M 70,560 H 110" fill="none" stroke="#1a1a1a" stroke-width="5.5" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 110,560 H 260" fill="none" stroke="#1a1a1a" stroke-width="5.5" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 110,560 H 260" fill="none" stroke="#4C6E8C" stroke-width="9" opacity="0.45" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 260,560 Q 295,490 330,560" fill="none" stroke="#1a1a1a" stroke-width="3.5" opacity="1" stroke-dasharray="1 6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 330,560 H 400" fill="none" stroke="#2E9E56" stroke-width="5.5" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 400,560 H 725" fill="none" stroke="#bdbdb8" stroke-width="5.5" opacity="1" stroke-dasharray="1 9" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="118" y1="564" x2="118" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="128" y1="564" x2="128" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="138" y1="564" x2="138" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="148" y1="564" x2="148" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="158" y1="564" x2="158" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="168" y1="564" x2="168" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="178" y1="564" x2="178" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="188" y1="564" x2="188" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="198" y1="564" x2="198" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="208" y1="564" x2="208" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="218" y1="564" x2="218" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="228" y1="564" x2="228" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="238" y1="564" x2="238" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<line x1="248" y1="564" x2="248" y2="578" stroke="#8c8c86" stroke-width="1.5" opacity="0.9" stroke-linecap="butt"/>
+<path d="M 114,582 H 256" fill="none" stroke="#4C6E8C" stroke-width="5.5" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="185" y="612" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="185" y="612" fill="#4C6E8C">Trigger</tspan><tspan x="185" y="627" fill="#8c8c86">binds toehold + stem↑</tspan></text>
+<path d="M 180,544 V 538 H 260 V 544" fill="none" stroke="#4C6E8C" stroke-width="2" opacity="0.9" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="220" y="531" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="220" y="531" fill="#4C6E8C">stem↑ open (r)</tspan></text>
+<text x="295" y="480" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11px" font-weight="normal" fill="#8c8c86"><tspan x="295" y="480" fill="#8c8c86">loop + stem↓</tspan><tspan x="295" y="495" fill="#8c8c86">released</tspan></text>
+<text x="365" y="584" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12px" font-weight="normal" fill="#8c8c86"><tspan x="365" y="584" fill="#8c8c86">Kozak</tspan></text>
+</svg>
