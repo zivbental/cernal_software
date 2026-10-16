@@ -1,7 +1,7 @@
 """Figure 7.4 -- the equilibrium leak against the path barrier, per design.
 
 Drawn from the rows themselves, never from the summary numbers: one mark per design,
-306 of them, read out of ``docs/assets/barrier_fixed/best_*.csv``.
+306 of them, read out of ``docs/assets/barrier/best_*.csv``.
 
 Two panels of the same 306 points, differing only in the y scale, because the finding
 needs both.
@@ -38,7 +38,7 @@ LEFT_X = 60
 RIGHT_X = 500
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-ROWS = REPO / "docs/assets/barrier_fixed"
+ROWS = REPO / "docs/assets/barrier"
 
 X_MIN, X_MAX = 0.0, 27.0
 X_TICKS = (0, 5, 10, 15, 20, 25)
@@ -127,7 +127,7 @@ def figure() -> str:
     rho = spearman(barriers, leaks)
 
     out = [
-        _text(10, 26, "One measure has room to rank these designs; the other does not", "kx-title"),
+        _text(10, 26, "Preferred-stem occupancy is concentrated near 1.0", "kx-title"),
         _text(
             10,
             46,
@@ -188,11 +188,11 @@ def figure() -> str:
     height = axis_y + 36
     body = "\n    ".join(out)
     return (
-        f'<svg viewBox="0 0 {WIDTH} {height:.0f}" role="img" aria-label="Two scatter '
-        f"panels of the same {len(points)} designs, path barrier on the horizontal axis "
-        f"against equilibrium occupancy on the vertical. On a 0 to 1 vertical scale "
-        f"every point lies against the top edge; zoomed to the narrow range the data "
-        f'occupies, an ordering appears that correlates with the barrier.">'
+        f'<svg viewBox="0 0 {WIDTH} {height:.0f}" role="img" aria-label="Scatter plots '
+        f"of {len(points)} preferred-stem designs, showing heuristic path-energy "
+        f"estimate against state-10 equilibrium occupancy. The left panel uses the "
+        f"complete zero-to-one occupancy scale; the right magnifies the narrow "
+        f'0.998-to-1.000 range.">'
         f"\n    {body}\n</svg>"
     )
 

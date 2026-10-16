@@ -135,7 +135,7 @@ def right_panel(top: float, bottom: float) -> list[str]:
     """How much of each level survives the ON-state ceiling in the first place."""
     out = [
         _text(RIGHT_X, top, "Share clearing the ON-state ceiling", "cl-panel"),
-        _text(RIGHT_X, top + 16, "The population each ranking is computed on.", "cl-note"),
+        _text(RIGHT_X, top + 16, "Share of designs passing the ON-state screen.", "cl-note"),
     ]
     levels = [("open 3&times;3 loop", OPEN_SURVIVAL)] + [
         (name, survival) for name, survival, _rows in CLOSURES
@@ -169,7 +169,7 @@ def right_panel(top: float, bottom: float) -> list[str]:
 
 def figure() -> str:
     out = [
-        _text(10, 26, "Closing the bulge buys the leak and spends the ON state", "cl-title"),
+        _text(10, 26, "Bulge closure: better predicted OFF, worse ON", "cl-title"),
         _text(
             10,
             46,

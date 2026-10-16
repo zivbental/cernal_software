@@ -101,7 +101,7 @@ def main(argv=None) -> int:
         "--barriers",
         type=pathlib.Path,
         default=BARRIERS,
-        help="folder of barrier CSVs; point it at barrier_fixed for the corrected run",
+        help="folder of barrier CSVs; the corrected run is docs/assets/barrier",
     )
     args = parser.parse_args(argv)
 

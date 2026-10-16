@@ -44,15 +44,26 @@ QUANTITIES: tuple[tuple[str, str], ...] = (
     ("designs built", r"(?:built|holds|sweep holds) ([\d,]{7,})(?: designs| versions)?"),
     ("budget before the grid cuts", r"([\d,]{7,}) designs, about 202 core-hours"),
     ("span-comparison sample", r"measured on all ([\d,]{6,}) designs"),
-    ("designs in both barrier readings", r"across ([\d,]{4,}) designs there is no design"),
+    (
+        "designs in both barrier readings",
+        r"([\d,]{4,}) (?:designs compared with a heuristic|designs drawn from three"
+        r"|modeled designs are not the entire|designs, no heuristic path"
+        r"|designs showed that equilibrium)",
+    ),
     ("designs folded in four states", r"([\d,]{6,}) (?:were folded|folded) in (?:all )?four"),
-    ("designs folded, trailing form", r"folded ([\d,]{6,})\b"),
+    ("designs folded, trailing form", r"([\d,]{6,}) designs folded in (?:all )?four"),
     ("candidate trigger pairs", r"([\d,]{6,}) candidate (?:trigger )?pairs"),
     ("feasible designs", r"admits ([\d,]{3,}) designs"),
-    ("cells", r"across (\d{3}) cells"),
+    # Not a bare "NNN cells": 7.6 legitimately reports a 389-cell matched subset, and a
+    # loose pattern would read that as a second value for this quantity.
+    (
+        "cells",
+        r"(?:[Aa]cross all |of the |switches over |two geometries \()(\d{3}) "
+        r"(?:cells|trigger-pair-by-geometry|pair-by-geometry)",
+    ),
     ("carried trigger pairs", r"take (\d{3}) of the 53,530"),
     ("stems built", r"all ([\d,]{4,}) stems"),
-    ("preferred-stem designs", r"(\d{3}) of \1 preferred-stem"),
+    ("preferred-stem designs", r"(\d{3}) preferred-stem designs"),
     ("path barrier span", r"spans? ([\d.]+) kcal/mol"),
     ("ON-state ceiling", r"ceiling (?:of |is now )?\(?([\d.]+) kcal/mol"),
     ("Green measured switches", r"Green's ([\d,]{3}) measured"),

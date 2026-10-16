@@ -65,12 +65,11 @@ def survival() -> str:
     tallest = max(n for _, n in SURVIVAL)
     height = 210
     out = [
-        _text(8, 28, "A trigger pair is mostly usable or mostly dead", "mt-title"),
+        _text(8, 28, "ON-state screening success varies across trigger pairs", "mt-title"),
         _text(
             8,
             48,
-            "Each bar is a count of trigger pairs. The axis is the share of "
-            "that pair's designs that open at all.",
+            "Number of trigger pairs by percentage of designs passing the ON-state screen.",
             "mt-caption",
         ),
     ]
@@ -88,13 +87,12 @@ def survival() -> str:
         f'<line class="mt-axis-line" x1="{left - 16}" y1="{base}" '
         f'x2="{left + len(SURVIVAL) * (bar_w + gap)}" y2="{base}" />'
     )
-    out.append(_text(8, base + 22, "% open", "mt-axis"))
+    out.append(_text(8, base + 22, "% pass", "mt-axis"))
     out.append(
         _text(
             8,
             base + 58,
-            "120 of 210 pairs sit in the two end bands and 90 in the eight "
-            "between them. 15 pairs have no design that opens at all.",
+            "120/210 pairs fall in the two end bands; 15 have no designs passing the screen.",
             "mt-note",
         )
     )
@@ -102,15 +100,17 @@ def survival() -> str:
         _text(
             8,
             base + 78,
-            "A pair is a pass/fail gate rather than something the levers can improve:",
+            "Pass rates reflect the sampled designs and the chosen screening threshold.",
             "mt-note",
         )
     )
     return _svg(
         out,
         base + 100,
-        "Histogram of per-pair survival over 210 trigger pairs, strongly U-shaped "
-        "with 98 pairs in the 90 to 100% band and 22 in the 0 to 10% band.",
+        "Histogram showing the percentage of sampled designs passing the "
+        "ON-state opening-cost screen for each of 210 trigger-window pairs: "
+        "98 pairs in the 90 to 100 percent band and 22 pairs in the 0 to 10 "
+        "percent band.",
     )
 
 
@@ -119,12 +119,12 @@ def terms() -> str:
     left, top, row_h, zero = 300, 96, 26, 560
     scale = 300  # units per 1.0 of rho
     out = [
-        _text(8, 28, "What trigger A&#8217;s grip on the inhibitory arm moves", "mt-title"),
+        _text(8, 28, "Trigger A binding tracks A-only occupancy", "mt-title"),
         _text(
             8,
             48,
-            "Within-cell Spearman against that grip. Negative means a stronger "
-            "grip goes with a worse value.",
+            "Spearman correlation within a fixed input pair and geometry; "
+            "stronger binding means more-negative energy.",
             "mt-caption",
         ),
     ]
@@ -153,20 +153,23 @@ def terms() -> str:
         _text(
             8,
             base + 56,
-            "The grip is an energy, so a more negative correlation means a stronger "
-            "grip goes with a leakier gate.",
+            "Negative correlation: stronger A binding is associated with higher A-only occupancy.",
             "mt-note",
         )
     )
     out.append(
-        _text(8, base + 76, "The four ON-state terms do not move with it at all.", "mt-note")
+        _text(
+            8, base + 76, "All four ON-state correlations are small: +0.023 to +0.047.", "mt-note"
+        )
     )
     return _svg(
         out,
         base + 96,
-        "Horizontal bars of within-cell Spearman correlation between the "
-        "trigger-A grip and each measured term, grouped into leak terms, "
-        "worst-OFF terms and ON-state terms.",
+        "Within-cell Spearman rank correlations between the predicted "
+        "trigger-A inhibitory-arm binding energy and A-only binding, "
+        "worst-OFF structural quantities, and ON-state quantities. A-only "
+        "binding shows stronger negative correlations, while ON-state "
+        "correlations are near zero.",
     )
 
 

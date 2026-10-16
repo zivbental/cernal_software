@@ -86,14 +86,14 @@ def figure() -> str:
         _text(
             LABEL_X,
             26,
-            "What the trigger pair settles, and what the design settles",
+            "Where the variation lies: input pair or sequence design",
             "vs-title",
         ),
         _text(
             LABEL_X,
             46,
-            "Each bar is one quantity's raw variance, split by where it lies. "
-            "Sorted by the share the pair settles.",
+            "Each bar divides the variance in one calculated quantity into "
+            "between-pair and within-pair shares.",
             "vs-caption",
         ),
     ]
@@ -108,7 +108,7 @@ def figure() -> str:
                 _text(
                     LABEL_X,
                     rule + 16,
-                    "below the rule: the design decides, not the pair",
+                    "Below: most variance occurs among designs of the same pair",
                     "vs-divider",
                 )
             )
@@ -119,8 +119,8 @@ def figure() -> str:
     legend_y = y + 10
     for index, (tone, label) in enumerate(
         (
-            ("pair", "between trigger pairs &mdash; settled when the genes were chosen"),
-            ("design", "within one pair &mdash; settled by the design"),
+            ("pair", "between sampled trigger-window pairs"),
+            ("design", "within a pair, across sequence variants"),
         )
     ):
         x = LABEL_X + index * 430
@@ -134,11 +134,10 @@ def figure() -> str:
     body = "\n    ".join(out)
     return (
         f'<svg viewBox="0 0 {WIDTH} {height:.0f}" role="img" aria-label="Eight '
-        f"hundred-percent stacked bars, one per measured quantity, splitting each "
-        f"quantity's variance into the share lying between trigger pairs and the share "
-        f"lying within one pair. The two ON-state opening costs are about two thirds "
-        f"between pairs; the six leak and contrast quantities are between 2 and 14 "
-        f'percent between pairs.">\n    {body}\n</svg>'
+        f"100-percent stacked bars showing the variance share between sampled trigger "
+        f"pairs versus within each pair across sequence designs. Two ON-state opening "
+        f"costs show 63.5 to 67.1 percent between-pair variance, while other modeled "
+        f'quantities show 2.1 to 14.4 percent between-pair variance.">\n    {body}\n</svg>'
     )
 
 
