@@ -7,15 +7,19 @@ probabilities.  Mean marginal openness is retained as diagnostic evidence.
 
 import json
 import math
-from collections.abc import Iterator
+import random
+from collections.abc import Callable, Iterator
 
 from engine import sequences as sq
 from engine.domain import (
     Constraints,
+    ProkaryoticAndSettings,
     SeedOpeningTrial,
     SelectedGene,
     TriggerCandidate,
+    TriggerSet,
 )
+from engine.errors import JobCancelled
 from engine.gates.tools.folding import FoldEngine
 from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
@@ -62,6 +66,148 @@ class TriggerScorer:
         self.profiler = profiler
         self.screener = screener
         self.folder = folder
+
+    def compatible_pairs(
+        self,
+        genes: list[SelectedGene],
+        sequences: dict[str, str],
+        families: list,
+        settings: ProkaryoticAndSettings,
+        constraints: Constraints,
+        *,
+        seed: int,
+        on_progress: Callable[[int, int], bool] | None = None,
+    ) -> tuple[list[tuple[str, TriggerSet]], dict]:
+        """Find the architecture's overlap before shortlisting whole pairs.
+
+        Pair ordering uses the lower of the two window MEAN marginal unpaired
+        probabilities. Candidate ``accessibility`` separately retains the MINIMUM
+        marginal probability, as it does for single-input scanning. Neither is an
+        experimentally calibrated probability of AND function. No independent top-K
+        window filter is applied: that can erase the overlap this chemistry needs.
+        """
+        by_id = {gene.gene_id: gene for gene in genes}
+        ids = list(by_id)
+        profiles = {gene: self.profiler.profile(sequences[gene]) for gene in ids}
+        rows = []
+        discovered = 0
+        screened = 0
+        discovery_truncated = False
+        seed_matches = 0
+        discovery_scopes = {}
+        # The chosen gene pair is a single search; roles are emitted by the family.
+        first, second = ids[0], ids[-1]
+        for family in families:
+            remaining = settings.max_pair_seed_matches - seed_matches
+            if remaining <= 0:
+                discovery_truncated = True
+                break
+            finder_options = {"max_matches": remaining, "on_progress": on_progress}
+            source = (
+                family.find_trigger_pairs(sequences[first], **finder_options)
+                if first == second
+                else family.find_cross_gene_pairs(
+                    first, sequences[first], second, sequences[second], **finder_options
+                )
+            )
+            for pair in source:
+                if discovered >= settings.max_pair_candidates:
+                    discovery_truncated = True
+                    break
+                discovered += 1
+                if discovered % 128 == 1 and on_progress is not None:
+                    if not on_progress(discovered, settings.max_pair_candidates):
+                        raise JobCancelled("Finding compatible trigger pairs")
+                if not constraints.overlap_range[0] <= pair.len_x <= constraints.overlap_range[1]:
+                    screened += 1
+                    continue
+                gene_a = getattr(pair, "gene_a", first)
+                gene_b = getattr(pair, "gene_b", second)
+                a0, a1 = pair.window_a()
+                b0, b1 = pair.window_b()
+                windows = (sequences[gene_a][a0:a1], sequences[gene_b][b0:b1])
+                if any(self.screener.violations(window) for window in windows):
+                    screened += 1
+                    continue
+                a_profile, b_profile = profiles[gene_a][a0:a1], profiles[gene_b][b0:b1]
+                a_mean, b_mean = sum(a_profile) / len(a_profile), sum(b_profile) / len(b_profile)
+                rows.append(
+                    (min(a_mean, b_mean), family.geometry_name, gene_a, a0, a1, gene_b, b0, b1)
+                )
+            scope = dict(family.last_pair_search)
+            discovery_scopes[family.geometry_name] = scope
+            seed_matches += scope["seed_matches_considered"]
+            discovery_truncated |= scope["discovery_truncated"]
+            if discovery_truncated:
+                break
+        rows.sort(key=lambda row: (-row[0], *row[1:]))
+        eligible = rows
+        if settings.pair_selection == "percentile_sample" and rows:
+            # Nearest-rank percentile: an explicit relative sampling rule, not a
+            # new biological gate. Sampling without replacement uses the job seed.
+            ascending = sorted(row[0] for row in rows)
+            index = min(
+                len(rows) - 1,
+                max(0, math.ceil(settings.accessibility_percentile / 100 * len(rows)) - 1),
+            )
+            cutoff = ascending[index]
+            eligible = [row for row in rows if row[0] >= cutoff]
+            taken = random.Random(seed).sample(eligible, min(settings.max_pairs, len(eligible)))
+            taken.sort(key=lambda row: (-row[0], *row[1:]))
+        else:
+            cutoff = None
+            taken = eligible[: settings.max_pairs]
+
+        cache: dict[tuple[str, int, int], TriggerCandidate] = {}
+
+        def candidate(gene_id: str, start: int, end: int) -> TriggerCandidate:
+            key = gene_id, start, end
+            if key not in cache:
+                gene = by_id[gene_id]
+                sequence = sequences[gene_id][start:end]
+                values = profiles[gene_id][start:end]
+                cache[key] = TriggerCandidate(
+                    trigger_id=f"pair-{gene_id}-{start}-{end}",
+                    gene_id=gene_id,
+                    symbol=gene.symbol,
+                    sequence=sequence,
+                    start_index=start,
+                    openness=sum(values) / len(values),
+                    accessibility=min(values),
+                    mfe=self.folder.mfe(sequence).energy,
+                    gc_content=sq.gc_content(sequence),
+                    log2_fold_change=gene.log2_fold_change,
+                    aug_indexes=sq.find_augs(sequence),
+                    stop_indexes=sq.find_stops(sequence),
+                    score=sum(values) / len(values),
+                    rnaplfold_version=self.profiler.provenance(sequences[gene_id])[
+                        "viennarna_version"
+                    ],
+                    rnaplfold_window=self.profiler.window,
+                    rnaplfold_max_span=self.profiler.max_span,
+                    rnaplfold_unpaired=self.profiler.unpaired,
+                    rnaplfold_temperature_celsius=self.profiler.temperature_celsius,
+                )
+            return cache[key]
+
+        plan = [
+            (family, TriggerSet(activators=(candidate(ga, a0, a1), candidate(gb, b0, b1))))
+            for _, family, ga, a0, a1, gb, b0, b1 in taken
+        ]
+        return plan, {
+            "pair_ranking": "min_of_two_window_mean_marginal_unpaired_probabilities",
+            "candidate_accessibility": "minimum_per_base_marginal_unpaired_probability",
+            "discovered_pairs": discovered,
+            "screened_pairs": screened,
+            "eligible_pairs": len(eligible),
+            "selected_pairs": len(plan),
+            "discovery_truncated": discovery_truncated,
+            "seed_matches_considered": seed_matches,
+            "discovery_scopes": discovery_scopes,
+            "pair_selection": settings.pair_selection,
+            "accessibility_percentile": settings.accessibility_percentile,
+            "percentile_cutoff": cutoff,
+        }
 
     def score(
         self,

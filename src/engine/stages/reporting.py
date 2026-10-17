@@ -198,6 +198,24 @@ class ReportBuilder:
     @staticmethod
     def _scope_paragraph(candidates: list[CandidateResult]) -> list[str]:
         """What kind of constructs the report lists, and how far their scores can be trusted."""
+        if not candidates:
+            return [
+                "<p>No candidate rows were evaluated; "
+                "the run caveats describe the search outcome.</p>"
+            ]
+        if any(
+            (candidate.design.get("and_gate") or {}).get("method") == "prokaryotic_equilibrium"
+            for candidate in candidates
+        ):
+            return [
+                "<p>These are bacterial two-input AND designs. ON and OFF describe the joint "
+                "equilibrium probability that the entire declared initiation window is unpaired, "
+                "alongside the opening cost in kcal/mol. OFF is the largest opening probability "
+                "of states 00, 10 and 01; ON is state 11. All declared feasibility checks precede "
+                "shared scoring. These structural predictions do not establish measured "
+                "translation or kinetic rates; this workflow does not compute path barriers. "
+                "No AND construct has been experimentally validated.</p>"
+            ]
         if any(candidate.design.get("and_gate") for candidate in candidates):
             return [
                 "<p>These are two-input AND constructs: two toehold hairpins in series, intended "
@@ -219,7 +237,10 @@ class ReportBuilder:
 
     @staticmethod
     def _and_gate_section(info: dict) -> list[str]:
-        """ON/OFF of one AND candidate, state by state, with every sampler check and warning."""
+        """State-level evidence, with the definition belonging to this candidate's method."""
+
+        if info.get("method") == "prokaryotic_equilibrium":
+            return ReportBuilder._prokaryotic_and_section(info)
 
         def pct(value) -> str:
             return "unmeasured" if value is None else f"{value:.2f}%"
@@ -258,6 +279,56 @@ class ReportBuilder:
             parts.append(
                 "<ul>" + "".join(f"<li>{escape(w)}</li>" for w in info["warnings"]) + "</ul>"
             )
+        return parts
+
+    @staticmethod
+    def _prokaryotic_and_section(info: dict) -> list[str]:
+        """Display stored bacterial equilibrium observables without resampling or folding."""
+
+        def pct(value) -> str:
+            return "unmeasured" if value is None else f"{value:.2f}%"
+
+        payload_head = escape(str(info.get("payload_head_nt", "unrecorded")))
+        evaluated_nt = escape(str(info.get("evaluated_nt", "unrecorded")))
+        parts = [
+            "<section data-and-method='prokaryotic_equilibrium'>",
+            "<h4>Bacterial AND equilibrium evidence</h4>",
+            "<p>Full output context status: "
+            f"{escape(str(info.get('full_context_status', 'unrecorded')))}.</p>",
+            f"<p>{escape(str(info.get('definition') or 'Whole initiation-window opening'))}</p>",
+            f"<p>Folding context: switch plus {payload_head} "
+            f"nt of payload tail ({evaluated_nt} nt total). "
+            "The exported construct retains its complete payload. Whole-construct folding can "
+            "change these predictions; promoter and terminator interactions "
+            "are outside this model.</p>",
+            f"<p>ON {pct(info.get('on_pct'))}; OFF {pct(info.get('off_pct'))} "
+            f"(state {escape(str(info.get('worst_off_state') or 'unmeasured'))}).</p>",
+            "<table><tr><th>State</th><th>Entire initiation window open</th>"
+            "<th>Opening cost (kcal/mol)</th></tr>",
+        ]
+        for name, state in (info.get("states") or {}).items():
+            probability = state.get("open_probability")
+            energy = state.get("opening_energy_kcal_per_mol")
+            energy_text = "unmeasured" if energy is None else f"{energy:.2f}"
+            parts.append(
+                f"<tr><td>{escape(str(name))}</td>"
+                f"<td>{pct(None if probability is None else 100 * probability)}</td>"
+                f"<td>{energy_text}</td></tr>"
+            )
+        parts.append("</table>")
+        feasibility = info.get("feasibility") or {}
+        if feasibility:
+            passed, total = feasibility.get("passed"), feasibility.get("total")
+            parts.append(
+                f"<p>Feasibility: {'passed' if passed == total else 'failed'}; "
+                f"{escape(str(passed))}/{escape(str(total))} declared checks.</p>"
+            )
+        for items in (feasibility.get("violations"), info.get("warnings")):
+            if items:
+                parts.append(
+                    "<ul>" + "".join(f"<li>{escape(str(w))}</li>" for w in items) + "</ul>"
+                )
+        parts.append("</section>")
         return parts
 
     def build_result(

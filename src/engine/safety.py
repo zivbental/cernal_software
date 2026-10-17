@@ -335,6 +335,63 @@ def _disclosed_and_gate(value: object) -> dict:
             return {}
         return {str(k): v for k, v in block.items() if isinstance(v, (int, float, type(None)))}
 
+    if value.get("method") == "prokaryotic_equilibrium":
+        result = pick(
+            value,
+            (
+                "method",
+                "definition",
+                "on_pct",
+                "off_pct",
+                "on_minus_off_pp",
+                "worst_off_state",
+                "barrier_computed",
+                "evaluation_context",
+                "coordinate_convention",
+                "evaluated_nt",
+                "payload_head_nt",
+                "full_context_status",
+            ),
+        )
+        states = value.get("states")
+        result["states"] = (
+            {
+                state: pick(states.get(state), ("open_probability", "opening_energy_kcal_per_mol"))
+                for state in ("00", "10", "01", "11")
+            }
+            if isinstance(states, dict)
+            else {}
+        )
+        feasibility = value.get("feasibility")
+        result["feasibility"] = pick(feasibility, ("passed", "total"))
+        if isinstance(feasibility, dict):
+            result["feasibility"]["violations"] = [
+                item for item in feasibility.get("violations", []) if isinstance(item, str)
+            ]
+        result["secondary_search"] = pick(
+            value.get("secondary_search"),
+            (
+                "assignments_total",
+                "assignments_considered",
+                "exhaustive",
+                "selection",
+                "seed",
+            ),
+        )
+        # Numeric observables only; this does not release sequences or structures.
+        result["observables"] = numbers(value.get("observables"))
+        result["warnings"] = [item for item in value.get("warnings", []) if isinstance(item, str)]
+        result["upper3_levels"] = [
+            item
+            for item in value.get("upper3_levels", [])
+            if item in ("trigger_derived", "WWW_AUA", "WWW_UAU")
+        ]
+        if isinstance(value.get("screening"), dict):
+            screening = dict(value["screening"])
+            screening.pop("screening", None)
+            result["screening"] = _disclosed_and_gate(screening)
+        return result
+
     result = pick(
         value,
         (
@@ -549,6 +606,9 @@ def disclosed_candidate_data(design: object, triggers: object) -> tuple[dict, di
     )
     safe_design["folding_model"] = folding_provenance(design.get("folding_model"))
     feature_keys = {
+        "trigger_id",
+        "end_index",
+        "length",
         "feature_id",
         "gene_id",
         "gene_symbol",

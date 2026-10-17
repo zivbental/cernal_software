@@ -92,6 +92,7 @@ docs/assets/axes_*/rows.csv
 
 # Local agent checkouts are not project submodules.
 .claude/worktrees/
+.claude/settings.local.json
 
 # The split copies of the sweep output: derived from axes_*.csv by tools/split_mixed_schema.py,
 # same size as the originals, and regenerable in a minute.

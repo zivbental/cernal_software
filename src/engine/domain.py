@@ -715,6 +715,76 @@ class AndGateSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class ProkaryoticAndSettings:
+    """Declared search budgets for the bacterial equilibrium compiler.
+
+    These limit computation, not biological feasibility. Historical characterisation
+    sweeps keep their own exhaustive settings. Defaults are conservative pilot budgets;
+    the measured comparison and exact levels are recorded with each production run.
+    """
+
+    max_pairs: int = 8
+    max_pair_candidates: int = 50000
+    max_pair_seed_matches: int = 50000
+    pair_selection: str = "top"
+    accessibility_percentile: float = 50.0
+    stems_per_pair: int = 2
+    max_stem_assignments: int = 2187
+    max_attempts: int = 160
+    geometry: str = "naive"
+    closure_set: str = "chosen"
+    upper3_set: str = "compact"
+    on_ceiling: float = 7.2
+    payload_context_nt: int = 30
+    full_context_finalists: int = 2
+
+    @classmethod
+    def from_mapping(cls, raw: dict | None) -> "ProkaryoticAndSettings":
+        """Reject unknown fields and unbounded work before a worker starts."""
+        if raw is None:
+            raw = {}
+        if not isinstance(raw, dict):
+            raise ValueError("prokaryotic_and must be an object.")
+        unknown = sorted(set(raw) - set(cls.__dataclass_fields__))
+        if unknown:
+            raise ValueError(f"prokaryotic_and.{unknown[0]} is not a recognised setting.")
+        value = cls(**raw)
+        for name, low, high in (
+            ("max_pairs", 1, 100),
+            ("max_pair_candidates", 1, 200000),
+            ("max_pair_seed_matches", 1, 200000),
+            ("stems_per_pair", 1, 12),
+            ("max_stem_assignments", 1, 19683),
+            ("max_attempts", 1, 10000),
+            ("payload_context_nt", 30, 120),
+            ("full_context_finalists", 1, 10),
+        ):
+            item = getattr(value, name)
+            if type(item) is not int or not low <= item <= high:
+                raise ValueError(f"prokaryotic_and.{name} must be an integer {low}..{high}.")
+        for name, choices in (
+            ("pair_selection", ("top", "percentile_sample")),
+            ("geometry", ("naive", "kim", "both")),
+            ("closure_set", ("chosen", "full")),
+            ("upper3_set", ("compact", "full")),
+        ):
+            if getattr(value, name) not in choices:
+                raise ValueError(f"prokaryotic_and.{name} must be one of {choices}.")
+        for name, low, high in (
+            ("accessibility_percentile", 0.0, 100.0),
+            ("on_ceiling", 0.0, 20.0),
+        ):
+            item = getattr(value, name)
+            if type(item) not in (int, float) or not low <= item <= high:
+                raise ValueError(f"prokaryotic_and.{name} must be a number {low}..{high}.")
+        return value
+
+    def to_dict(self) -> dict:
+        """JSON-ready values, preserved in configuration and provenance."""
+        return {name: getattr(self, name) for name in self.__dataclass_fields__}
+
+
+@dataclass(frozen=True, slots=True)
 class Compatibility:
     """Whether a gate family can realise a trigger set, and why not if it cannot."""
 
