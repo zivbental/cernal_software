@@ -711,7 +711,9 @@ def windows() -> str:
     scale, left, mid = 16, 150, 176
 
     def at(pos):
-        return left + (pos + 20) * scale
+        # +1 immediately follows -1; there is no nucleotide at coordinate zero.
+        offset = pos if pos < 0 else pos - 1
+        return left + (offset + 20) * scale
 
     out = [
         _text(8, 28, "Two windows, one inside the other", "mt-title"),
@@ -738,8 +740,8 @@ def windows() -> str:
             mid - 70,
             -17,
             13,
-            "the ribosome&#8217;s window, 31 nt",
-            "what Green&#8217;s 3.64 kcal/mol is measured over",
+            "the ribosome&#8217;s window, 30 nt",
+            "the declared W_rank, with no zero coordinate",
             "wide",
         ),
         (
@@ -747,13 +749,13 @@ def windows() -> str:
             -6,
             9,
             "the main stem&#8217;s arms, 15 nt",
-            "what the ON-state ceiling filters",
+            "a diagnostic span, not the ON-state ceiling",
             "narrow",
         ),
     ):
         out.append(
             f'<rect class="mt-span mt-span--{kind}" x="{at(lo)}" y="{y - 14}" '
-            f'width="{(hi - lo + 1) * scale}" height="28" rx="3" />'
+            f'width="{at(hi + 1) - at(lo)}" height="28" rx="3" />'
         )
         out.append(_text(at(lo) + 10, y + 5, label, "mt-dom"))
         # Under the bar, not beside it: the wide span reaches x=678 and its note is
@@ -767,10 +769,10 @@ def windows() -> str:
     base = mid + 116
     for offset, line in enumerate(
         (
-            "The ON-state ceiling is read over the WIDE span, which is the one an initiating "
-            "30S subunit occupies and the one",
-            "Green&#8217;s published ON costs are measured over. 7.2 kcal/mol is the highest "
-            "cost among his switches above 20-fold ON/OFF.",
+            "The ON-state ceiling is read over the WIDE span: 30 nucleotides from -17 to +13, "
+            "with no zero coordinate.",
+            "The retained 7.2 kcal/mol ceiling came from a 31-nt single-input calibration; "
+            "the coordinate audit is reported in Methods.",
             "The narrow span is recorded for every design and decides nothing. The two are "
             "not interchangeable: measured on all 219,808",
             "designs they differ by a median of 0.83 and by up to 7.90 kcal/mol, so every "
@@ -781,7 +783,7 @@ def windows() -> str:
     return _svg(
         out,
         base + 96,
-        "The ribosome's 31-nucleotide window drawn above the main stem's "
+        "The ribosome's 30-nucleotide window drawn above the main stem's "
         "15-nucleotide arms, showing the narrow span lying entirely inside "
         "the wide one.",
     )

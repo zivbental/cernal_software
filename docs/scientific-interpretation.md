@@ -3,10 +3,38 @@
 These definitions describe the LocalEngine application path at audit baseline
 `2baa75a7f0dc89f9aafac58dad50da5982f3f56a`. They do not transfer notebook-specific
 observables or pending research branches into the application's scoring contract.
+The bacterial AND extension below describes `local-0.14.0-prokaryotic-and-equilibrium`.
 The metrics are computational proxies. No established transcriptome-wide off-target
 or wet-lab validation, or calibrated cellular success probability, is claimed.
 
 ## Leakage and dynamic range
+
+### Bacterial two-input AND extension
+
+`prokaryotic_toehold_and` uses a different observable from the single-input family:
+the joint probability that the entire 30-nt initiation window is unpaired. Its
+coordinates are -17 through +13 relative to start-codon A at +1, with no zero base.
+`predicted_leakage` is the largest probability over 00, 10 and 01; ON is 11.
+`dynamic_range` is ON/worst-OFF, and `state_separation` is its log2 equivalent
+derived from the opening-energy difference with the actual model temperature.
+These are equilibrium structural proxies, not protein output or kinetic rates.
+
+Pair-aware discovery and finite search budgets precede a short output-prefix
+screen. The shared scoring profile selects a small full-output finalist cohort;
+only complete switch-plus-output CDS measurements passing all 22 structural checks,
+shared scoring filters and construct checks receive final ranks. Prefix failures
+can exclude designs a complete output might rescue. Unchecked screen survivors
+remain explicit, unranked `not_evaluated_budget` records. The finite search does
+not establish global optimality or a complete set of feasible designs.
+
+The retained 7.2 kcal/mol ON ceiling originally came from a 31-nt single-input
+calibration, not this exact 30-nt window. An explicit recheck of the same 77 Green
+switches above 20-fold measured ON/OFF gives maximum computed ON cost 7.048805 for
+30 nt and 7.204948 for 31 nt. The threshold is retained, not retuned; this does not
+validate an AND or full-CDS context. See the
+[recorded coordinate audit](evidence/prokaryotic-and/README.md).
+
+### Single-input families (audit baseline)
 
 In [`ToeholdGate.evaluate_design`](../src/engine/gates/toehold.py), a loop-layout
 design measures `predicted_leakage` as the mean marginal unpaired probability over
