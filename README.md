@@ -21,10 +21,13 @@ before assuming a registry entry or notebook is a supported application workflow
 - Direct RNA/DNA, named reference genes, and DE tables for E. coli, yeast, Human and
   C. acnes. DE uploads accept CSV, TSV, TXT and XLSX; raw-count inference is not provided.
 - Production submissions support **one input and one gate**, using supported
-  single-input toehold families, plus **one two-input gate**: the eukaryotic AND
-  (`eukaryotic_toehold_and`, Human and yeast), which takes its two genes from a DE table
+  single-input toehold families, plus **one two-input AND gate per run**: bacterial
+  equilibrium (`prokaryotic_toehold_and`, E. coli) or eukaryotic joint-stem sampling
+  (`eukaryotic_toehold_and`, Human and yeast). Both take their two genes from a DE table
   ([docs/and-gate.md](docs/and-gate.md)). GFP and custom coding sequences are supported
-  outputs. Other AND chemistries, antisense and CRISPR workbenches are not production
+  outputs. Bacterial searches screen a bounded design set and check the full output
+  CDS for a few finalists; only full-context passers receive final ranks. Other
+  AND chemistries, antisense and CRISPR workbenches are not production
   integrations.
 - Human references use pinned Ensembl release 116 mature cDNA/noncoding transcripts.
   Human assembly uses CMV/hGH parts with an uploaded backbone or a bare expression cassette.
@@ -33,9 +36,11 @@ before assuming a registry entry or notebook is a supported application workflow
   sequence exports. Software availability does not establish specificity or efficacy.
 
 Read [scientific interpretation](docs/scientific-interpretation.md) before comparing
-metrics: bacterial leakage measures only AUG's three-base marginal accessibility;
+metrics: single-input bacterial leakage measures only AUG's three-base marginal accessibility;
 dynamic range is a floored accessibility ratio; success is an uncalibrated binding
 heuristic. No established transcriptome-wide off-target or wet-lab validation is claimed.
+The bacterial AND family instead reports whole-window equilibrium opening across
+four input states and checks complete output-CDS finalists before final ranking.
 
 ## Installation and reproducible quickstart
 

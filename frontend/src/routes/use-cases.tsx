@@ -25,7 +25,7 @@ const WORKFLOWS = [
     output:
       "Real, reproducible candidates and artifacts — the same ones a full run produces, just fewer.",
     limit:
-      "The pipeline is incomplete: off-target specificity is not measured, and state separation and orthogonality are not computed by any gate family, so they report blank. Candidates are designs to test, not validated predictions.",
+      "Off-target specificity is not established. Available metrics depend on the gate family; a blank value means unmeasured. Candidates are computational designs to test.",
     href: "/guide#before-running",
     next: "Check what the engine supports",
   },
@@ -38,7 +38,7 @@ const WORKFLOWS = [
     output:
       "Ranked candidates, rejection reasons, warnings, and the artifacts actually emitted by the run.",
     limit:
-      "LocalEngine DE processing is currently scoped to E. coli and yeast. Upload acceptance does not prove the engine can parse or scientifically use a file.",
+      "Identifiers must resolve in the selected host's bundled reference. Upload acceptance does not prove the engine can scientifically use the table.",
     href: "/guide#choose-input",
     next: "Prepare a DE input",
   },
@@ -50,9 +50,19 @@ const WORKFLOWS = [
     output:
       "Candidate switches for that transcript, with scores, filters, warnings, and available sequence artifacts.",
     limit:
-      "Specific Gene records a label only; it does not resolve a gene to a sequence. Direct input is a single-transcript workflow, not a multi-gene Boolean compiler.",
+      "Specific Gene resolves one bundled reference transcript. Direct and Specific Gene input are single-transcript workflows; two-input AND requires DE input and two explicit genes.",
     href: "/guide#choose-input",
     next: "Use direct input",
+  },
+  {
+    id: "two-input-and",
+    title: "Design one gate for two chosen input genes",
+    goal: "Find RNA switches intended to activate when both selected inputs are present.",
+    input: "A differential-expression table and two up-regulated genes from that table. Bacterial AND uses E. coli; eukaryotic AND supports Human and yeast.",
+    output: "Ranked candidates, four-state structural diagnostics, feasibility or rejection reasons, and available sequence artifacts with a reproducibility manifest.",
+    limit: "Bacterial AND screens a short payload prefix, then checks a limited set of finalists with the full output CDS before ranking. Promoter and terminator interactions remain outside the folding model; predicted structural AND behavior requires experimental testing.",
+    href: "/guide#configure",
+    next: "Configure the two-input gate",
   },
   {
     id: "api-runs",
@@ -83,8 +93,9 @@ export function UseCasesContent() {
       />
       <Caveat>
         <strong>Scope:</strong> the current LocalEngine designs from one
-        transcript or selects single-gene triggers from DE data. Multi-gene
-        Boolean circuit design is future work.
+        transcript, selects triggers from DE data, or builds one supported
+        two-input AND gate from two explicitly chosen DE genes. Arbitrary Boolean
+        circuit design is future work.
       </Caveat>
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         {WORKFLOWS.map((item) => (

@@ -264,6 +264,7 @@ export interface AndGateState {
 }
 
 export interface AndGateDiagnostics {
+  method?: "eukaryotic_stem_sampling";
   definition?: string;
   n_samples?: number;
   seed?: number | null;
@@ -292,10 +293,36 @@ export interface AndGateDiagnostics {
   warnings?: string[];
 }
 
+/** Exact equilibrium opening of the bacterial initiation window declared in the diagnostics. */
+export interface ProkaryoticAndDiagnostics {
+  screening?: ProkaryoticAndDiagnostics;
+  full_context_status?: "evaluated" | "screen_failed" | "not_evaluated_budget";
+  method: "prokaryotic_equilibrium";
+  definition?: string;
+  evaluation_context?: string;
+  evaluated_nt?: number;
+  payload_head_nt?: number;
+  on_pct: number | null;
+  off_pct: number | null;
+  worst_off_state?: string | null;
+  on_minus_off_pp: number | null;
+  states?: Record<string, {
+    open_probability: number | null;
+    opening_energy_kcal_per_mol: number | null;
+  }>;
+  feasibility?: {
+    passed: number;
+    total: number;
+    violations?: string[];
+  };
+  ranking?: string;
+  warnings?: string[];
+}
+
 export interface CandidateDesign {
   sequence_release?: { release_allowed: boolean; reason?: string };
   /** Present only for a two-input AND candidate. */
-  and_gate?: AndGateDiagnostics;
+  and_gate?: AndGateDiagnostics | ProkaryoticAndDiagnostics;
   switch_sequence: string;
   structure: string;
   toehold_length: number;
@@ -455,5 +482,7 @@ export interface RunParams {
   and_inputs?: { gene_a: string; gene_b: string };
   /** Optional AND-gate settings (sampling draws, controls); the engine validates them. */
   and_gate?: Record<string, unknown>;
+  /** Bacterial equilibrium AND search settings; separate from eukaryotic sampling. */
+  prokaryotic_and?: Record<string, unknown>;
   [key: string]: unknown;
 }

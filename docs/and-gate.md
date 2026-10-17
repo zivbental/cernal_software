@@ -1,4 +1,78 @@
-# The eukaryotic two-input AND gate
+# Two-input AND gates
+
+The application has two distinct two-input chemistries. Select one family per run:
+`prokaryotic_toehold_and` for the E. coli equilibrium model below, or
+`eukaryotic_toehold_and` for the Human/yeast joint-stem sampler described afterward.
+Their probabilities, state definitions and search settings are not interchangeable.
+
+## Bacterial equilibrium AND (E. coli)
+
+Choose **E. coli**, a **DE dataset**, and the bacterial AND family, then choose two
+up-regulated genes that pass the normal gene-selection rules. Selecting the same gene
+twice uses two non-overlapping windows. Both A/B role assignments are considered.
+Direct-sequence and Specific Gene modes cannot name the two inputs and are refused.
+
+Both submission endpoints use `and_inputs: {"gene_a": "b3447", "gene_b": "b3846"}`.
+For `/api/runs`, put it in `params`; for `/api/design`, use the top-level field. Set
+`constraints.max_triggers` to 2 and keep `max_circuit_gates` at 1. Family-specific options
+go in **`prokaryotic_and`**, not the eukaryotic `and_gate` block:
+
+| Option | Meaning |
+|---|---|
+| `max_pair_candidates` | Discovery cap before accessibility sorting; truncation is recorded |
+| `max_pair_seed_matches` | Separately bound seed matches inspected during overlap discovery |
+| `max_pairs` | Maximum compatible trigger pairs carried into design |
+| `pair_selection` | `top`: best accessibility first; `percentile_sample`: seeded sampling from the permitted accessibility percentile |
+| `accessibility_percentile` | Lower percentile boundary used by the percentile-sampling rule |
+| `stems_per_pair`, `max_stem_assignments` | Bound selected inhibitory stems and their enumeration |
+| `max_attempts` | Bound attempted design assemblies, separately from evaluated designs |
+| `geometry` | `naive`, `kim`, or `both` architectures |
+| `closure_set`, `upper3_set` | `chosen`/`full` closures and `compact`/`full` upper3 levels; both lower3 levels remain represented |
+| `on_ceiling` | Existing ON-state opening-energy screen; not a kinetic threshold |
+| `payload_context_nt` | First 30–120 payload-tail bases included in the initial screen (default 30), after the original payload AUG is removed by fusion |
+| `full_context_finalists` | At most 1–10 prefix-screen survivors selected by shared score for full switch-plus-output-CDS evaluation (default 2); only full-context passers may rank |
+
+The effective defaults and seed are saved with the submission. `budget.max_designs`
+bounds evaluated candidates; it is not a request to reproduce the historical exhaustive
+sweep. A finite search can return no feasible switch, and reports that outcome with its
+counts and rejection reasons. The evaluated-design budget bounds the initial screen;
+`full_context_finalists` separately bounds the expensive full-CDS checks.
+
+The workflow has two folding stages:
+
+1. Screen each candidate using its complete switch and the configured payload-tail prefix.
+2. Take at most `full_context_finalists` passing candidates, ordered by their shared
+   screening score, and repeat equilibrium measurement and feasibility checks on the
+   **complete switch plus output CDS**. Recompute shared scores from those full-context
+   measurements. Only candidates passing this stage and remaining construct checks may rank.
+
+Rows that fail the initial screen or are not selected within the finalist budget remain
+visible with no rank. Their `full_context_status` is respectively `screen_failed` or
+`not_evaluated_budget`; selected finalists use `evaluated`, including full-context rejects.
+An `evaluated` status means the check ran, not that it passed. Inspect feasibility and
+the candidate's rejection reason.
+
+The results panel and CSV distinguish this method as **`prokaryotic_equilibrium`**.
+Its four states are `00` (no triggers), `10` (A), `01` (B), and `11` (A+B).
+The observables are the joint equilibrium probability that the **entire 30-nt initiation
+window** is unpaired and its opening cost in kcal/mol. ON is state `11`; OFF is the
+largest opening probability in `00`, `10`, or `01`. Failed or unmeasured values remain
+explicit, including OFF states skipped after a failed ON screen. Feasibility failures
+are distinct from ranking. CSV includes the method, four probabilities/costs, feasibility
+and violations, plus `and_full_context_status` and the modeled lengths;
+sampler/control/tie fields are empty for this method. A finalist's main diagnostics are
+its full-CDS measurements; its initial measurements remain nested under `screening`.
+
+These are computational structural proxies, not measured translation or kinetic rates.
+The initial prefix screen is a runtime shortcut; passing it alone does not establish
+full-CDS feasibility. Final ranking uses the full switch-plus-CDS checks described above.
+Both stages exclude promoter and terminator interactions. Diagnostics and CSV identify
+which stage supplied each row's values and record its actual modeled length.
+The application does not compute path barriers. Historical barrier investigations and
+their remaining evidence/provenance questions stay separate from this equilibrium
+workflow. Sequence downloads retain the existing release checks.
+
+## Eukaryotic joint-stem AND
 
 `eukaryotic_toehold_and` designs a **two-hairpin toehold construct** that is meant to make its
 payload only when **two** chosen RNAs are both present. It is the first gate with two inputs that

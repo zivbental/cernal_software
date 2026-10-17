@@ -88,11 +88,14 @@ def test_the_capability_document_advertises_the_and_gate_exactly_where_it_runs(a
     assert version["family_inputs"][AND_FAMILY] == 2
     assert version["family_input_modes"][AND_FAMILY] == ["de"]
     assert version["limits"]["max_gate_inputs"] == 2
-    # The single-input default is unchanged, and the unbuilt AND chemistries stay unadvertised.
+    # The single-input default is unchanged; bacterial AND has its own supported host.
     assert version["limits"]["max_triggers"] == 1
     assert version["family_inputs"]["toehold"] == 1
     assert "ecoli" not in version["family_hosts"][AND_FAMILY]
-    assert not {"toehold_and", "prokaryotic_toehold_and"} & set(version["family_inputs"])
+    assert "toehold_and" not in version["family_inputs"]
+    assert version["family_inputs"]["prokaryotic_toehold_and"] == 2
+    assert version["family_hosts"]["prokaryotic_toehold_and"] == ["ecoli"]
+    assert version["family_input_modes"]["prokaryotic_toehold_and"] == ["de"]
 
 
 def test_naming_no_family_never_selects_the_and_gate(auth_client):

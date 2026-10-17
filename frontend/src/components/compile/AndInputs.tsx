@@ -4,7 +4,7 @@
  * The AND needs a differential-expression table to name its inputs, so this reads the same
  * ranked preview the dataset already has (`useDatasetPreview`). Only up-regulated genes are
  * offered: the gate is activated by its inputs, and a down-regulated gene cannot be one. The
- * same gene may be picked twice, which uses two windows of one transcript.
+ * same gene may be picked twice, using two non-overlapping windows of one transcript.
  */
 
 import { useDatasetPreview } from "@/api/queries";
@@ -24,10 +24,12 @@ export function AndInputs({
   datasetId,
   value,
   onChange,
+  bacterial = false,
 }: {
   datasetId: string | null;
   value: AndGenes;
   onChange: (next: AndGenes) => void;
+  bacterial?: boolean;
 }) {
   const preview = useDatasetPreview(datasetId);
   const rows = (preview.data?.rows ?? []).filter((row) => row.log2fc !== null && row.log2fc > 0);
@@ -74,13 +76,15 @@ export function AndInputs({
         Two Input Genes
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        {field("and-gene-a", "Input A (5′ hairpin)", "a")}
-        {field("and-gene-b", "Input B (3′ hairpin)", "b")}
+        {field("and-gene-a", bacterial ? "First input gene" : "Input A (5′ hairpin)", "a")}
+        {field("and-gene-b", bacterial ? "Second input gene" : "Input B (3′ hairpin)", "b")}
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         The payload is intended to be made only when both genes are expressed. Both come from the
-        dataset above and must be up-regulated; choose the same gene twice to use two windows of
-        one transcript. {preview.data?.truncated ? "Showing the top-ranked genes of a large table." : ""}
+        dataset above and must be up-regulated. {bacterial
+          ? "Both A/B role assignments are screened using equilibrium folding and bounded design choices. Passing finalists require a full output-CDS check before receiving a rank. Choose the same gene twice to use two non-overlapping windows of one transcript."
+          : "Choose the same gene twice to use two windows of one transcript."}{" "}
+        {preview.data?.truncated ? "Showing the top-ranked genes of a large table." : ""}
         {rows.length === 0 ? " This dataset has no up-regulated genes to choose from." : ""}
       </p>
     </div>

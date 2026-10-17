@@ -592,6 +592,16 @@ parameter snapshot. To model a 25 °C experiment with Turner 1999 parameters, pa
 `"folding": {"temperature_celsius": 25, "energy_parameters": "turner1999"}`; every
 other setting retains its default. `POST /api/runs` accepts this under `params.folding`.
 
+Two-input AND requests additionally require `and_inputs` and an explicitly selected
+supported family. Bacterial equilibrium options use `prokaryotic_and`; eukaryotic
+joint-stem sampler options use `and_gate`. These fields are top-level on `/api/design`
+and nested in `params` on `/api/runs`. See [two-input AND workflows](and-gate.md) for
+host/input restrictions, bounded search and payload-context definitions, and output semantics.
+For bacterial AND, `payload_context_nt` bounds the initial prefix screen and
+`full_context_finalists` bounds the subsequent full-switch-plus-output-CDS checks.
+Candidates without a passing full-context result have no final rank; inspect
+`design.and_gate.full_context_status` and the rejection reason.
+
 Temperature must be a finite number from 0 through 100 °C; dangles must be the integer
 `0` or `2`, because partition-function calculations do not consistently support `1`
 and `3`. The four switches must be JSON booleans. Supported energy parameter sets are

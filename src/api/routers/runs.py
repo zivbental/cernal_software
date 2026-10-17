@@ -12,6 +12,7 @@ from api.params import (
     AND_INPUT_KEYS,
     BACKBONE_KEYS,
     CONSTRAINT_KEYS,
+    PROKARYOTIC_AND_KEYS,
     SCORING_KEYS,
     check_backbone_block,
     check_known_keys,
@@ -84,6 +85,7 @@ def create_run(request, payload: RunIn):
     for block, allowed, name in (
         ("and_inputs", AND_INPUT_KEYS, "and_inputs field"),
         ("and_gate", AND_GATE_KEYS, "and_gate field"),
+        ("prokaryotic_and", PROKARYOTIC_AND_KEYS, "prokaryotic_and field"),
     ):
         if block in payload.params:
             check_known_keys(payload.params[block], allowed, name)

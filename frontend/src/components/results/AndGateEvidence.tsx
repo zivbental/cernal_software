@@ -1,14 +1,12 @@
 /**
  * The measurements behind a two-input AND candidate's ON and OFF.
  *
- * ON is the joint opening of both hairpin stems with both triggers present; OFF is the largest
- * joint opening in any state that should stay shut. Every sampled state carries its sampler
- * check against the exact base-pair probabilities, and a failed check is shown as failed, not
- * hidden: the value stays and so does the warning. A value that could not be measured reads
- * "unmeasured", never 0. Nothing here is a sequence, so it is shown even while sequences are held.
+ * Bacterial whole-window equilibrium opening and eukaryotic joint-stem sampling have distinct
+ * displays. Missing values read "unmeasured", and failed checks remain visible. These numeric
+ * diagnostics contain no sequence, so they remain readable while sequences are held.
  */
 
-import type { AndGateDiagnostics } from "@/api/types";
+import type { AndGateDiagnostics, ProkaryoticAndDiagnostics } from "@/api/types";
 
 const STATE_LABEL: Record<string, string> = {
   alone: "Alone (no trigger)",
@@ -26,7 +24,108 @@ function tie(value: boolean | null | undefined) {
   return value ? "yes, indistinguishable from the best within the seed noise" : "no";
 }
 
-export function AndGateEvidence({ info }: { info: AndGateDiagnostics }) {
+function BacterialEquilibriumEvidence({ info }: { info: ProkaryoticAndDiagnostics }) {
+  const fullContext = info.full_context_status === "evaluated";
+  const screening = info.screening;
+  const contextStatus = fullContext ? "completed; see full-context feasibility below"
+    : info.full_context_status === "screen_failed" ? "not run because the initial screen failed; no final rank"
+      : info.full_context_status === "not_evaluated_budget" ? "not run within the finalist budget; no final rank"
+        : "not recorded";
+  const labels: Record<string, string> = {
+    "00": "No triggers",
+    "10": "Trigger A only",
+    "01": "Trigger B only",
+    "11": "Both triggers (ON)",
+  };
+  return (
+    <section aria-label="Bacterial AND equilibrium evidence" data-testid="and-gate-evidence"
+      className="mt-6 rounded-xl border border-border bg-card p-4">
+      <div className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+        Bacterial AND · equilibrium folding
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {info.definition ?? "Joint equilibrium probability that the entire declared initiation window is unpaired."}
+        {" "}This is a structural model, not measured translation or a kinetic rate.
+      </p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Displayed folding context: {fullContext ? "complete switch plus full output CDS"
+          : `initial screen with switch plus ${info.payload_head_nt ?? "unrecorded"} nt of payload tail`}
+        {info.evaluated_nt != null ? ` (${info.evaluated_nt} nt total)` : ""}.
+        {" "}Only candidates passing the full switch-plus-CDS evaluation and remaining checks receive
+        a final rank. Promoter and terminator interactions are outside both folding stages.
+      </p>
+      <p className="mt-2 text-xs font-medium">
+        Full switch-plus-CDS equilibrium check: {contextStatus}.
+      </p>
+      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+        <div><dt className="text-xs text-muted-foreground">ON (both triggers)</dt>
+          <dd className="font-semibold">{pct(info.on_pct)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Worst OFF</dt>
+          <dd className="font-semibold">{pct(info.off_pct)}{info.worst_off_state ? ` (${info.worst_off_state})` : ""}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">ON − OFF</dt>
+          <dd className="font-semibold">{info.on_minus_off_pp == null
+            ? "unmeasured" : `${info.on_minus_off_pp.toFixed(2)} points`}</dd></div>
+      </dl>
+      <table className="mt-3 w-full text-left text-xs">
+        <caption className="sr-only">Whole initiation-window opening in each equilibrium state</caption>
+        <thead><tr className="text-muted-foreground">
+          <th scope="col" className="py-1 pr-3 font-medium">State</th>
+          <th scope="col" className="py-1 pr-3 font-medium">Window open</th>
+          <th scope="col" className="py-1 font-medium">Opening cost</th>
+        </tr></thead>
+        <tbody>{Object.entries(info.states ?? {}).map(([name, state]) => (
+          <tr key={name} className="border-t border-border">
+            <th scope="row" className="py-1 pr-3 font-normal">{name} · {labels[name] ?? name}</th>
+            <td className="py-1 pr-3">{pct(state.open_probability == null ? null : 100 * state.open_probability)}</td>
+            <td className="py-1">{state.opening_energy_kcal_per_mol == null
+              ? "unmeasured" : `${state.opening_energy_kcal_per_mol.toFixed(2)} kcal/mol`}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+      <p className="mt-3 text-xs">
+        {fullContext ? "Full-context" : info.full_context_status ? "Screen" : "Equilibrium"} feasibility: <strong>{info.feasibility == null ? "unavailable"
+          : info.feasibility.passed === info.feasibility.total ? "passed" : "failed"}</strong>
+        {info.feasibility != null ? ` (${info.feasibility.passed}/${info.feasibility.total} declared checks)` : ""}.
+      </p>
+      {!!info.feasibility?.violations?.length && (
+        <ul className="mt-2 list-disc pl-5 text-xs text-destructive">
+          {info.feasibility.violations.map((reason) => <li key={reason}>{reason}</li>)}
+        </ul>
+      )}
+      {fullContext && screening && (
+        <details className="mt-3 text-xs">
+          <summary className="cursor-pointer font-medium">Compare initial screen with full CDS</summary>
+          <table className="mt-2 w-full text-left">
+            <caption className="sr-only">Initial screening compared with full-CDS equilibrium check</caption>
+            <thead><tr className="text-muted-foreground">
+              <th scope="col" className="py-1 pr-3 font-medium">Context</th>
+              <th scope="col" className="py-1 pr-3 font-medium">ON</th>
+              <th scope="col" className="py-1 pr-3 font-medium">Worst OFF</th>
+              <th scope="col" className="py-1 font-medium">Passed checks</th>
+            </tr></thead>
+            <tbody>{[
+              { label: "Initial payload-prefix screen", measurement: screening },
+              { label: "Full output CDS", measurement: info },
+            ].map(({ label, measurement }) => (
+              <tr key={label} className="border-t border-border">
+                <th scope="row" className="py-1 pr-3 font-normal">{label}</th>
+                <td className="py-1 pr-3">{pct(measurement.on_pct)}</td>
+                <td className="py-1 pr-3">{pct(measurement.off_pct)}</td>
+                <td className="py-1">{measurement.feasibility
+                  ? `${measurement.feasibility.passed}/${measurement.feasibility.total}` : "unavailable"}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </details>
+      )}
+      {info.ranking && <p className="mt-2 text-xs text-muted-foreground">{info.ranking}</p>}
+      {!!info.warnings?.length && <p className="mt-2 text-xs text-muted-foreground">{info.warnings.join(" ")}</p>}
+    </section>
+  );
+}
+
+export function AndGateEvidence({ info }: { info: AndGateDiagnostics | ProkaryoticAndDiagnostics }) {
+  if (info.method === "prokaryotic_equilibrium") return <BacterialEquilibriumEvidence info={info} />;
   const states = Object.entries(info.states ?? {});
   const failed = states.filter(([, state]) => state.verified === false).map(([name]) => name);
   return (

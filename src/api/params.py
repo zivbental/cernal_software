@@ -55,6 +55,23 @@ AND_GATE_KEYS = {
     "noise_check",
     "noise_seed_offset",
 }
+#: Mirrors ``engine.domain.ProkaryoticAndSettings``; values are validated by the engine.
+PROKARYOTIC_AND_KEYS = {
+    "max_pair_candidates",
+    "max_pair_seed_matches",
+    "max_pairs",
+    "pair_selection",
+    "accessibility_percentile",
+    "stems_per_pair",
+    "max_stem_assignments",
+    "max_attempts",
+    "geometry",
+    "closure_set",
+    "upper3_set",
+    "on_ceiling",
+    "payload_context_nt",
+    "full_context_finalists",
+}
 
 
 class UnknownParameter(ApiError):

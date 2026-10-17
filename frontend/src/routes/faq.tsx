@@ -153,8 +153,10 @@ const GROUPS: FaqGroup[] = [
         question: "Can LocalEngine compile arbitrary A AND NOT B logic?",
         answer: (
           <>
-            No. The current real path is single-trigger/single-gene. Multi-gene
-            Boolean design remains future work. See{" "}
+            No. Supported two-input AND families build one physical gate from two
+            chosen up-regulated DE genes: bacterial equilibrium AND for E. coli,
+            and eukaryotic AND for Human and yeast. Arbitrary Boolean construction
+            remains future work. See{" "}
             <HelpLink href="/guide#configure">configure logic</HelpLink>.
           </>
         ),
