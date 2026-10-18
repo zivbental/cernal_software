@@ -247,7 +247,10 @@ def test_and_audit_survives_final_sequence_screening_without_releasing_held_sequ
         assert switch.sequence == candidate.design["switch_sequence"]
         assert construct.sequence_sha256 == candidate.design["construct_sha256"]
         assert len(construct.sequence) > len(switch.sequence)
-    assert not any(a.kind in {"sequence_fasta", "genbank", "sbol"} for a in result.artifacts)
+    # The fixture stubs reporting to None; inspect the actual export artifacts.
+    assert not any(
+        a.kind in {"sequence_fasta", "genbank", "sbol"} for a in result.artifacts if a is not None
+    )
     with open(f"{request.output_dir}/and-candidates.json") as handle:
         audit = json.load(handle)
     assert {row["ref"] for row in audit["candidates"]} == {c.ref for c in result.candidates}
