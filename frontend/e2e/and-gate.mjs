@@ -98,6 +98,17 @@ const CASES = {
     has: ["Bacterial AND", "declared 30-nt initiation window", "170 nt total", "not run because the initial screen failed; no final rank", "40.00%", "5.00%", "0.10%", "4.20 kcal/mol", "unmeasured", "<strong>failed</strong>", "21/22 declared checks", "A-only equilibrium check failed", "not measured translation or a kinetic rate"],
     lacks: ["Sampler check", "Draws", "Mismatched-trigger controls", "Tied with the best", "Seed-to-seed", "NaN", "undefined"],
   },
+  "current bacterial candidates use only the switch through the linker": {
+    info: {
+      method: "prokaryotic_equilibrium",
+      evaluation_context: "switch_through_linker_excluding_output",
+      evaluated_nt: 161, payload_head_nt: 0,
+      on_pct: 40, off_pct: 5, on_minus_off_pp: 35,
+      feasibility: { passed: 22, total: 22, violations: [] },
+    },
+    has: ["complete switch through its linker", "excluding the output CDS", "161 nt total", "<strong>passed</strong>"],
+    lacks: ["Full switch-plus-CDS equilibrium check", "initial screen with switch plus", "Only candidates passing the full"],
+  },
   "a full-CDS finalist shows its final measurement context": {
     info: {
       method: "prokaryotic_equilibrium",

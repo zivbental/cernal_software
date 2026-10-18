@@ -60,7 +60,7 @@ const WORKFLOWS = [
     goal: "Find RNA switches intended to activate when both selected inputs are present.",
     input: "A differential-expression table and two up-regulated genes from that table. Bacterial AND uses E. coli; eukaryotic AND supports Human and yeast.",
     output: "Ranked candidates, four-state structural diagnostics, feasibility or rejection reasons, and available sequence artifacts with a reproducibility manifest.",
-    limit: "Bacterial AND screens a short payload prefix, then checks a limited set of finalists with the full output CDS before ranking. Promoter and terminator interactions remain outside the folding model; predicted structural AND behavior requires experimental testing.",
+    limit: "Bacterial AND folds the complete switch through its linker, excluding the output CDS. Exported constructs include the complete output; predicted structural AND behavior requires experimental testing.",
     href: "/guide#configure",
     next: "Configure the two-input gate",
   },

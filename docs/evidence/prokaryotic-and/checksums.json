@@ -93,6 +93,38 @@
         "src\\engine\\stages\\switches.py": "0c98a899b9946bce3b251c7e8ede5f748b7d879fab88b42fc8ef8527f8a099c8",
         "src\\engine\\stages\\triggers.py": "53e918ddd5891fc93ead0ca9ab3f165388b3232efb847c1ff07fea5652ea29fc"
       }
+    },
+    {
+      "file": "region-input-gfp-20.json.gz",
+      "sha256": "99aaa8382325603b7aaf4764769cd7bed04a641aa2be9fe9f13b2b5d633f8206",
+      "uncompressed_sha256": "8aa21153c99aa81cbe9a3fbbe8a2953d7a1c5046f35e819f6ff59ca33317bc9f",
+      "bytes": 108010,
+      "producer_revision": "b029687c8ccd6df007c397019929ad8700c2b59e",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "src\\engine\\pipeline.py": "7532f27227482f340ef02e26410753c012c20995c5ac7b5c4ebc8454ddaeb43a",
+        "src\\engine\\domain.py": "334cacb7fb00b9a5fd6072711c3e1b2a5681a1ba9dc331a204fef8c6850b63bb",
+        "src\\engine\\client.py": "a6e1a6e8b65abf7b2ec09d9da0005a7ff7b6f8bb8bd933d648458d2a52f1282a",
+        "src\\engine\\gates\\toehold.py": "93b959cf2fae3889b7a1929a52050621fc5f9d7a79a982ee504cadd74aedaed8",
+        "src\\engine\\stages\\switches.py": "38c8c03d68aa11378c014fac31aabf49666fc3b483af3330dda5e7550fc7f118",
+        "src\\engine\\stages\\triggers.py": "59cfe363d6968e5b18926f59e1398e198cb893e160f93c6e5e7c88e916900633"
+      }
+    },
+    {
+      "file": "region-input-gfp-160.json.gz",
+      "sha256": "58a8cc781f5eb46e4ce17dac5367943f51ca184e7a6aefc3e00b984f85415bfa",
+      "uncompressed_sha256": "6056dc57af9976bc7a33de5aaab7b63755628e55ef9b591b352f503ab0b3dcda",
+      "bytes": 644316,
+      "producer_revision": "b029687c8ccd6df007c397019929ad8700c2b59e",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "src\\engine\\pipeline.py": "f7f47bfb03a0656bf71410c7ee11207cc10b36a103902b69fca0489d687065f9",
+        "src\\engine\\domain.py": "334cacb7fb00b9a5fd6072711c3e1b2a5681a1ba9dc331a204fef8c6850b63bb",
+        "src\\engine\\client.py": "a6e1a6e8b65abf7b2ec09d9da0005a7ff7b6f8bb8bd933d648458d2a52f1282a",
+        "src\\engine\\gates\\toehold.py": "93b959cf2fae3889b7a1929a52050621fc5f9d7a79a982ee504cadd74aedaed8",
+        "src\\engine\\stages\\switches.py": "38c8c03d68aa11378c014fac31aabf49666fc3b483af3330dda5e7550fc7f118",
+        "src\\engine\\stages\\triggers.py": "59cfe363d6968e5b18926f59e1398e198cb893e160f93c6e5e7c88e916900633"
+      }
     }
   ]
 }

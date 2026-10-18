@@ -1,9 +1,36 @@
 # Bacterial AND development measurements
 
+The `region-input-*` records below exercise the corrected compiler. The other
+archives preserve earlier development models and do not validate its current
+contract. See the scope correction in
+[the historical record](../prokaryotic-and-pipeline-2026-10-18.md); old commands must
+be run at their producer revision. Previously archived bytes remain unchanged.
+
 These small, compressed JSON records preserve the actual development measurements
 used to assess pair selection and output-context cost. `checksums.json` gives both
 compressed and original SHA-256 digests. Decode with Python's `gzip` module; no
 scientific dependency is needed to inspect them.
+
+The corrected production examples are `region-input-gfp-20.json.gz` and
+`region-input-gfp-160.json.gz`. Both used the same upstream 100 regions across
+`ggt`/`astC`, discovered 86 ordered compatible pairs and carried the top 8. They
+evaluated 20 and 145 switches respectively (23 and 160 attempted assemblies),
+accepting none; all rejections and four-state diagnostics were retained. Elapsed
+times were 50.608 and 220.579 seconds on this Windows machine with concurrent test
+processes, not controlled performance comparisons. The second record's producer
+core hashes match the committed correction; the first precedes the unrelated
+non-AND call-shape fix. Neither result establishes useful production yield or
+biological function. A real historical positive separately passes the switch-only
+22-check regression test; it was not selected by these bounded upstream-pool runs.
+
+Re-run the current example from the repository root:
+
+```console
+uv run --locked --extra dev python tools/pair_budget_on_pfas.py --pipeline --pipeline-output gfp --seed 7 --max-designs 160 --max-pairs 8 --run-dir var/and-region-input-gfp-expanded --out var/and-region-input-gfp-expanded.json
+```
+
+The remaining records below preserve earlier development models; their historical
+commands and conclusions must not be substituted for this production contract.
 
 They were produced from integration baseline `e7d675e` plus working-tree changes.
 Each record explicitly marks that fact and, where available, records producer-file
@@ -30,8 +57,10 @@ model, not guaranteed runtimes. All 22 structural thresholds remain unchanged.
 The context comparison is consequential: the 161-nt switch passed all 22 checks
 in 1.926 seconds; the 170-nt short-output transcript passed in 2.448 seconds;
 the 878-nt full GFP transcript took 116.587 seconds and failed `A_M_11 > 0.5`.
-Those are computational structural predictions. They motivated separate screening
-and complete output-CDS verification, not a new biological threshold.
+Those are computational structural predictions and demonstrate context dependence.
+The assistant-added mandatory full-CDS verification was subsequently removed to
+restore the team's declared folding boundary. The comparison does not establish
+that the full-CDS context is more accurate.
 
 The coordinate audit found maxima 7.048805 kcal/mol over the engine's 30-nt
 `span(-17,13)` and 7.204948 over the legacy calibration's 31-nt slice. The 7.2

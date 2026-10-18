@@ -1,4 +1,14 @@
-# Bacterial AND compiler measurements — 2026-10-18
+# Historical development measurements — superseded AND model (2026-10-18)
+
+**Scope correction:** these measurements describe the earlier development model at
+`679ea32`, before the maintainer clarified upstream-region inputs and the deliberate
+switch-through-linker folding boundary. They do **not** validate the current compiler.
+The current method is [documented here](../and-gate.md). Preserved context comparisons
+show that changing the modeled RNA changes predictions; they do not establish that
+full-CDS folding is more accurate or a required eligibility test. The associated raw
+archives/checksums are preserved unchanged. Historical commands below must be run at
+that historical revision, whose CLI still accepts `--full-finalists`.
+
 
 The complete compiler was run on the bundled E. coli `ggt` (`b3447`) and `astC`
 (`b1748`) references, supplied through a small differential-expression table. The
@@ -50,16 +60,17 @@ positive from the pinned references. It took 1.926 seconds for the 161-nt switch
 alone and 2.448 seconds with the 170-nt short-output transcript; both passed the
 22 checks. The same switch with the entire 878-nt GFP transcript took 116.587
 seconds and failed `A_M_11 > 0.5`. This selected example is not a general search
-yield estimate. It demonstrates why a cheap output-prefix screen must be labeled
-as an approximation and why only full-output-verified finalists receive ranks.
+yield estimate. It demonstrates context dependence in that selected example; it does not establish
+which context is more accurate. Mandatory full-CDS eligibility was subsequently
+removed to restore the team's declared switch-through-linker model.
 
-Regenerate the complete short-output example from the repository root:
+Historical reproduction at revision `679ea32` (not the current compiler):
 
 ```console
 uv run --locked --extra dev python tools/pair_budget_on_pfas.py --pipeline --pipeline-output other --seed 7 --max-designs 20 --max-pairs 8 --full-finalists 2 --run-dir var/prokaryotic-and-compiler-rotated-custom --out var/prokaryotic-and-compiler-rotated-custom.json
 ```
 
-Regenerate the complete GFP example with at most one full-output finalist:
+Historical GFP reproduction at revision `679ea32`:
 
 ```console
 uv run --locked --extra dev python tools/pair_budget_on_pfas.py --pipeline --pipeline-output gfp --seed 7 --max-designs 20 --max-pairs 8 --full-finalists 1 --run-dir var/prokaryotic-and-compiler-rotated-gfp --out var/prokaryotic-and-compiler-rotated-gfp.json

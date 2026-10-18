@@ -7,70 +7,81 @@ Their probabilities, state definitions and search settings are not interchangeab
 
 ## Bacterial equilibrium AND (E. coli)
 
-Choose **E. coli**, a **DE dataset**, and the bacterial AND family, then choose two
-up-regulated genes that pass the normal gene-selection rules. Selecting the same gene
-twice uses two non-overlapping windows. Both A/B role assignments are considered.
-Direct-sequence and Specific Gene modes cannot name the two inputs and are refused.
+Choose **E. coli**, a **DE dataset**, and `prokaryotic_toehold_and`. The normal
+CERNAL stages select genes and accessible trigger windows. The gate-specific search
+consumes that shortlist; it does not discover overlaps elsewhere in the transcripts.
+Only pairs from **different genes** are considered. `and_inputs` is an optional
+restriction to two selected up-regulated genes, not a required manual selection.
+Direct-sequence and Specific Gene modes cannot provide this input pool.
 
-Both submission endpoints use `and_inputs: {"gene_a": "b3447", "gene_b": "b3846"}`.
-For `/api/runs`, put it in `params`; for `/api/design`, use the top-level field. Set
-`constraints.max_triggers` to 2 and keep `max_circuit_gates` at 1. Family-specific options
-go in **`prokaryotic_and`**, not the eukaryotic `and_gate` block:
+Set `constraints.max_triggers` to 2 and `max_circuit_gates` to 1. Family options go
+in `prokaryotic_and`, distinct from the eukaryotic `and_gate` block.
 
-| Option | Meaning |
+1. Find reverse-complementary runs of at least 4 nt inside the upstream regions.
+   Keep maximal runs within the architecture's invasion limit; consider both roles.
+2. Derive complete A/B footprints around the overlap, including when it lies at an
+   upstream window edge. These footprints may extend outside a nominated region,
+   but must fit their reference transcript: A/B are 36/50 nt (naive) or 35/49 nt (Kim).
+3. Score each adjusted footprint using `TriggerScorer.score_window`, also used by
+   upstream scanning. This uses the existing RNAplfold gate-aware joint P8 method,
+   terminal-20 diagnostics and model provenance. Reuse unchanged upstream records.
+   The AND pair order uses the lower of the two trigger scores. This reduction to
+   a pair score is a declared selection policy, not a calibrated AND success probability.
+4. Carry top K whole pairs, or a seeded sample above a declared score percentile.
+   If discovery stops early, this ordering/percentile describes only the discovered pool.
+5. Explore bounded secondary-stem assignments and a declared lever grid, rotating
+   grid starts and interleaving pairs/stems. A-anchored stems face the same checks as
+   other stems; their label never directly excludes them. An empty sampled stem set
+   means none was found within that sample, not proof that the pair is unbuildable.
+6. Validate assemblies, measure equilibrium states and collect all 22 feasibility
+   violations. Apply shared scoring/construct checks and rank survivors. Missing
+   measurements are None, never zero. Retain rejected records with their reasons.
+
+**Folding boundary:** the complete generated switch through the linker, **excluding
+all output CDS**. The historical base scaffolds are 161/165 nt; architecture and
+sequence choices can change the actual generated length, which is recorded. There
+is no output-prefix screen or mandatory full-CDS finalist stage. The assembled and
+exported constructs still contain the complete requested output. This deliberate
+model scope does not establish that distal output interactions are absent.
+
+| Option | Meaning / pilot default |
 |---|---|
-| `max_pair_candidates` | Discovery cap before accessibility sorting; truncation is recorded |
-| `max_pair_seed_matches` | Separately bound seed matches inspected during overlap discovery |
-| `max_pairs` | Maximum compatible trigger pairs carried into design |
-| `pair_selection` | `top`: best accessibility first; `percentile_sample`: seeded sampling from the permitted accessibility percentile |
-| `accessibility_percentile` | Lower percentile boundary used by the percentile-sampling rule |
-| `stems_per_pair`, `max_stem_assignments` | Bound selected inhibitory stems and their enumeration |
-| `max_attempts` | Bound attempted design assemblies, separately from evaluated designs |
-| `geometry` | `naive`, `kim`, or `both` architectures |
-| `closure_set`, `upper3_set` | `chosen`/`full` closures and `compact`/`full` upper3 levels; both lower3 levels remain represented |
-| `on_ceiling` | Existing ON-state opening-energy screen; not a kinetic threshold |
-| `payload_context_nt` | First 30–120 payload-tail bases included in the initial screen (default 30), after the original payload AUG is removed by fusion |
-| `full_context_finalists` | At most 1–10 prefix-screen survivors selected by shared score for full switch-plus-output-CDS evaluation (default 2); only full-context passers may rank |
+| `max_pair_candidates`, `max_pair_seed_matches` | Discovery/storage caps, both 50,000; record truncation before sorting |
+| `max_pairs` | Whole compatible pairs carried, 8 |
+| `pair_selection`, `accessibility_percentile` | `top`, or `percentile_sample` using a lower percentile boundary (50 by default) and the job seed |
+| `stems_per_pair`, `max_stem_assignments` | 2 selected stems; at most 2,187 assignments per pair/geometry before Pareto pruning |
+| `max_attempts` | 160 attempted assemblies, including invalid ones |
+| `geometry` | `naive` (default), `kim`, or `both` |
+| `closure_set`, `upper3_set` | `chosen` / `compact`: five closures, natural plus weak upper3, both lower3 levels; 20 points per stem. `full` expands the named axis |
+| `on_ceiling` | 7.2 kcal/mol ON-state screen; not a kinetic threshold |
+| `budget.max_designs` | Validated gate designs evaluated, default 20, ceiling 1,000 |
+| `budget.max_runtime_seconds`, `on_exceed` | Optional cooperative search deadline, integer 1..259,200 seconds, `return_partial`; count budgets remain active |
 
-The effective defaults and seed are saved with the submission. `budget.max_designs`
-bounds evaluated candidates; it is not a request to reproduce the historical exhaustive
-sweep. A finite search can return no feasible switch, and reports that outcome with its
-counts and rejection reasons. The evaluated-design budget bounds the initial screen;
-`full_context_finalists` separately bounds the expensive full-CDS checks.
+Use small count/time limits for demonstrations and larger explicit limits for full
+searches. Hours to a few days are acceptable when the chosen search and execution
+environment permit them; no seconds-only performance target is imposed.
 
-The workflow has two folding stages:
+Queued submissions automatically receive a search deadline derived from the deployed
+worker timeout and execution timeout, reserving up to 60 seconds for finishing and
+saving results (currently 3,540 seconds against the 3,600-second worker). Both API
+submission paths and dry-run resolution enforce the same ceiling; requests above it
+are refused explicitly. Longer searches can use `LocalEngine` outside that queue, or
+require the platform owner to configure longer worker limits. This change does not
+raise deployment timeouts. Checkpoints occur during region discovery, footprint
+scoring, stem assignment and generation, and between complete equilibrium evaluations.
+A native folding call is not preempted; this is not a hard wall-clock guarantee.
+Completed candidates survive a search deadline; user cancellation remains cancellation.
 
-1. Screen each candidate using its complete switch and the configured payload-tail prefix.
-2. Take at most `full_context_finalists` passing candidates, ordered by their shared
-   screening score, and repeat equilibrium measurement and feasibility checks on the
-   **complete switch plus output CDS**. Recompute shared scores from those full-context
-   measurements. Only candidates passing this stage and remaining construct checks may rank.
-
-Rows that fail the initial screen or are not selected within the finalist budget remain
-visible with no rank. Their `full_context_status` is respectively `screen_failed` or
-`not_evaluated_budget`; selected finalists use `evaluated`, including full-context rejects.
-An `evaluated` status means the check ran, not that it passed. Inspect feasibility and
-the candidate's rejection reason.
-
-The results panel and CSV distinguish this method as **`prokaryotic_equilibrium`**.
-Its four states are `00` (no triggers), `10` (A), `01` (B), and `11` (A+B).
-The observables are the joint equilibrium probability that the **entire 30-nt initiation
-window** is unpaired and its opening cost in kcal/mol. ON is state `11`; OFF is the
-largest opening probability in `00`, `10`, or `01`. Failed or unmeasured values remain
-explicit, including OFF states skipped after a failed ON screen. Feasibility failures
-are distinct from ranking. CSV includes the method, four probabilities/costs, feasibility
-and violations, plus `and_full_context_status` and the modeled lengths;
-sampler/control/tie fields are empty for this method. A finalist's main diagnostics are
-its full-CDS measurements; its initial measurements remain nested under `screening`.
-
-These are computational structural proxies, not measured translation or kinetic rates.
-The initial prefix screen is a runtime shortcut; passing it alone does not establish
-full-CDS feasibility. Final ranking uses the full switch-plus-CDS checks described above.
-Both stages exclude promoter and terminator interactions. Diagnostics and CSV identify
-which stage supplied each row's values and record its actual modeled length.
-The application does not compute path barriers. Historical barrier investigations and
-their remaining evidence/provenance questions stay separate from this equilibrium
-workflow. Sequence downloads retain the existing release checks.
+The normal frozen `TriggerCandidate`, `TriggerSet`, `GateDesign` and candidate records
+are the inter-stage interface. CSV is an export. `candidates.csv`, `and-search.json`
+and the run manifest retain coordinates, design axes, context length/hash, all four
+states, checks, rejection reasons, counts, seed, settings and reference/model versions.
+Four-state diagnostics use `prokaryotic_equilibrium`: 00 alone, 10 A, 01 B, 11 both.
+ON/OFF values are joint equilibrium opening probabilities of the 30-nt initiation
+window and opening costs; OFF is the worst of all three OFF states. They are structural
+proxies, not measured translation or kinetic rates. Historical barrier investigations
+remain separate. Sequence downloads retain existing release checks. Physical
+multi-gate circuit assembly remains outside this one-gate production path.
 
 ## Eukaryotic joint-stem AND
 

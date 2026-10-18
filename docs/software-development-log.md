@@ -2,7 +2,67 @@
 
 This notebook is CERNAL's contest-ready, evidence-first record of meaningful software development. It complements the roadmap (future work), ADRs (decisions), tests, CI, and pull requests; it does not replace them.
 
-## 2026-10-18 — Integrate bounded bacterial AND equilibrium compilation
+## 2026-10-18 — Align AND compilation with upstream regions and the declared model
+
+The maintainer clarified the production contract: CERNAL nominates accessible
+regions, the AND module locates reverse-complementary runs of at least 4 nt within
+them, derives complete cross-gene A/B footprints and uses CERNAL's shared scoring
+method for those adjusted intervals. Gene-pool selection is automatic unless an
+optional pair of different genes is supplied. `TriggerScorer.score_window` is also
+used by normal upstream scanning, preserving one accessibility implementation.
+
+The previous assistant-added output-prefix/full-CDS eligibility stages were removed.
+Equilibrium folding ends at the switch linker, excluding the output CDS. Exported
+constructs retain the complete output. The direct A-anchored label rejection was
+removed; those stems face the normal construction and feasibility checks. The
+maximal-overlap rule is retained, without enumerating sub-overlaps. Family/engine
+versions were bumped. Earlier context probes remain historical development evidence;
+they do not establish that full-CDS folding is more accurate.
+
+The module accepts count limits and a cooperative runtime limit, saves completed
+candidates on budget exhaustion, and distinguishes that outcome from cancellation.
+A small platform adapter passes the deployed worker ceiling into queued AND jobs,
+reserving up to 60 seconds for completion/saving. It does not change deployment
+timeouts or other gate families. Longer queued searches need platform-owner review;
+local-engine requests can specify up to three days.
+
+The API, input picker, reports and method documentation describe the same boundary.
+The companion Wiki replaces the duplicated historical/production algorithms with a
+production Algorithm 1, a parameter-table introduction and generated compiler-flow
+diagram. It retains SecondaryStems, historical results and the experimental roadmap,
+adding a responsibility table and a diagram of the existing two-track proposal.
+This remains [PR #84](https://github.com/zivbental/cernal_software/pull/84) and
+[Wiki MR !3](https://gitlab.igem.org/2026/tau-israel/-/merge_requests/3), pending review.
+
+Local verification:
+
+- Core integration, shared trigger scoring and house rules: 763 passed.
+- API, architecture boundary and house rules: 914 passed.
+- Final focused submission/input/budget/AND checks: 203 passed.
+- Non-AND pipeline and evaluation-budget regression rerun: 98 passed. Four call-shape
+  failures found by the broader run were fixed by passing the new stop callback only
+  to bacterial AND; the required engine-version expectation was updated.
+- Broad engine run: 1,980 passed, 9 failed, 110 passing subtests. After the focused
+  fixes above, the remaining four failures are the unchanged Windows eukaryotic
+  notebook harness's `unicodeescape` path error, previously reproduced on main.
+  No notebook/harness changes were made; Linux CI must independently verify the head.
+- Full Ruff lint/format, generated API reference and Django system checks passed.
+- Frontend check/build, result-display and browser regressions passed.
+- Wiki freeze, internal anchors/IDs, 18-quantity consistency, exact generated SVG
+  matches, desktop/mobile overflow and print expansion checks passed. The two new
+  diagrams are procedural schematics, not experimental plots.
+
+Raw native runs and browser artifacts are ignored under `var/`; preserved small
+sequence-free evidence records keep model/input/source hashes and search results.
+Historical barrier archives and broader supervisor-review editorial work are unchanged.
+The corrected native `ggt`/`astC` GFP examples evaluated 20 and 145 switches, accepting
+none within the top-8-pair searches. They retained every rejection and its reasons.
+These checks verify integration and honest empty outcomes, not useful design yield.
+The compact sampling policy still needs scientific review; no threshold was relaxed
+or extra search performed to force a positive result. Exact settings, hashes and
+timing limitations are in [the evidence archive index](evidence/prokaryotic-and/README.md).
+
+## 2026-10-18 — Earlier development integration (superseded modeling scope)
 
 - **AI assistance:** OpenAI Codex implementation, verification and documentation, acting on the maintainer's instructions; human review remains pending.
 - **Task / PR:** [Draft PR #84](https://github.com/zivbental/cernal_software/pull/84).

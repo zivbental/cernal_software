@@ -25,6 +25,7 @@ function tie(value: boolean | null | undefined) {
 }
 
 function BacterialEquilibriumEvidence({ info }: { info: ProkaryoticAndDiagnostics }) {
+  const switchOnly = info.evaluation_context === "switch_through_linker_excluding_output";
   const fullContext = info.full_context_status === "evaluated";
   const screening = info.screening;
   const contextStatus = fullContext ? "completed; see full-context feasibility below"
@@ -47,7 +48,12 @@ function BacterialEquilibriumEvidence({ info }: { info: ProkaryoticAndDiagnostic
         {info.definition ?? "Joint equilibrium probability that the entire declared initiation window is unpaired."}
         {" "}This is a structural model, not measured translation or a kinetic rate.
       </p>
-      <p className="mt-2 text-xs text-muted-foreground">
+      {switchOnly ? <p className="mt-2 text-xs text-muted-foreground">
+        Folding context: complete switch through its linker, excluding the output CDS
+        {info.evaluated_nt != null ? ` (${info.evaluated_nt} nt total)` : ""}.
+        {" "}Candidates must pass the declared feasibility and construct checks before ranking.
+        Exported constructs include the complete output. Distal output interactions are outside this model.
+      </p> : <><p className="mt-2 text-xs text-muted-foreground">
         Displayed folding context: {fullContext ? "complete switch plus full output CDS"
           : `initial screen with switch plus ${info.payload_head_nt ?? "unrecorded"} nt of payload tail`}
         {info.evaluated_nt != null ? ` (${info.evaluated_nt} nt total)` : ""}.
@@ -56,7 +62,7 @@ function BacterialEquilibriumEvidence({ info }: { info: ProkaryoticAndDiagnostic
       </p>
       <p className="mt-2 text-xs font-medium">
         Full switch-plus-CDS equilibrium check: {contextStatus}.
-      </p>
+      </p></>}
       <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
         <div><dt className="text-xs text-muted-foreground">ON (both triggers)</dt>
           <dd className="font-semibold">{pct(info.on_pct)}</dd></div>

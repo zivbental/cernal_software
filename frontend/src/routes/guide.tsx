@@ -193,9 +193,8 @@ export function GuideContent() {
           <p>
             Bacterial AND uses a bounded search rather than the historical research sweep.
             Its saved configuration records trigger-pair selection and the stem, closure,
-            upper/lower stem and architecture choices. An initial screen folds a short payload
-            prefix; a limited set of passing finalists is checked again with the full output CDS.
-            Only candidates passing that final check receive a rank. The result shows all four
+            upper/lower stem and architecture choices. The declared folding model includes the complete switch through its linker and excludes
+            the output CDS. Candidates passing feasibility and construct checks may receive a rank. The result shows all four
             input states, the folding context, and feasibility failures. Barrier kinetics remain
             a research question.
           </p>

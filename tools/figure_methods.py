@@ -17,7 +17,8 @@ and every sentence lives in the page's caption; and the panels are laid out in d
 bands rather than by eye, because judging a 1,500-unit figure in a browser is how the
 first version shipped with labels on top of each other.
 
-**The numbers are measured, not illustrative.** The overlap histogram is every candidate
+The compiler and experimental-track diagrams are procedural schematics, not measured
+data. **The numerical plots use measured inputs.** The overlap histogram is every candidate
 the pair finder returns on the three gene pairs (53,530 of them). The conflict figure and
 the lever figure are one real ``ggt`` x ``fadB`` pair carried through the production path,
 and its ``len_x`` is 4 -- the modal overlap, not a convenient one. The one thing chosen
@@ -31,6 +32,7 @@ from __future__ import annotations
 import argparse
 import math
 import pathlib
+from html import escape
 
 WIDTH = 900
 
@@ -796,6 +798,125 @@ def _svg(parts: list[str], height: int, aria: str) -> str:
     )
 
 
+def compiler_flow() -> str:
+    """Production contract, distinct from historical population figures."""
+    rows = (
+        ("CERNAL upstream", "Selected genes + accessible regions + pinned reference transcripts"),
+        (
+            "1. Locate the overlap",
+            "Reverse-complementary runs >= 4 nt inside regions; different genes",
+        ),
+        (
+            "2. Define AND triggers",
+            "Build full A/B footprints around each maximal compatible overlap",
+        ),
+        (
+            "3. Reuse CERNAL scoring",
+            "Score adjusted footprints; carry top K pairs or a seeded percentile sample",
+        ),
+        ("4. Build a declared grid", "Secondary stem / closure / upper3 / lower3 / architecture"),
+        (
+            "5. Evaluate equilibrium",
+            "Switch through linker only; states 00, 10, 01, 11; 22 feasibility checks",
+        ),
+        (
+            "CERNAL downstream",
+            "Candidate records + rejection reasons + shared ranks + reproducible exports",
+        ),
+    )
+    parts = [
+        _text(20, 25, "AND gate compilation: one input pool, one candidate interface", "mt-title")
+    ]
+    for index, (title, detail) in enumerate(rows):
+        y = 48 + index * 88
+        if index:
+            parts.append(
+                f'<path d="M450 {y - 20} v14 l-5 -6 m5 6 l5 -6" '
+                'fill="none" stroke="currentColor" />'
+            )
+        parts.append(
+            f'<rect x="20" y="{y}" width="860" height="66" rx="6" class="mt-box mt-fill-b" />'
+        )
+        parts.append(_text(38, y + 25, escape(title), "mt-title"))
+        parts.append(_text(38, y + 49, escape(detail), "mt-caption"))
+    parts.append(
+        _text(
+            20,
+            685,
+            "Count/time limits stop search; completed candidates are saved. No path barrier.",
+            "mt-caption",
+        )
+    )
+    return _svg(
+        parts,
+        705,
+        "CERNAL supplies accessible regions; AND overlap discovery derives and "
+        "rescores complete triggers, builds switches, evaluates equilibrium through the "
+        "linker and returns candidate records under declared compute limits.",
+    )
+
+
+def experimental_tracks() -> str:
+    """Existing proposed experiments, without implying measured rates or a new panel."""
+    parts = [_text(20, 28, "Two proposed experimental tracks", "mt-title")]
+    panels = (
+        (
+            20,
+            "A. Equilibrium baseline",
+            (
+                "Pass the current feasibility checks",
+                "Rank within the feasible set",
+                "Keep diverse input pairs and designs",
+            ),
+        ),
+        (
+            470,
+            "B. Barrier challenge",
+            (
+                "Include labeled A-only equilibrium rejects",
+                "Contrast lower / higher path estimates",
+                "A heuristic energy is not a measured rate",
+            ),
+        ),
+    )
+    for x, title, lines in panels:
+        parts.append(
+            f'<rect x="{x}" y="55" width="410" height="154" rx="6" class="mt-box mt-fill-b" />'
+        )
+        parts.append(_text(x + 16, 84, title, "mt-title"))
+        for index, line in enumerate(lines):
+            parts.append(_text(x + 16, 117 + index * 29, line, "mt-caption"))
+        parts.append(
+            f'<path d="M{x + 205} 211 V240 H450 V255" fill="none" stroke="currentColor" />'
+        )
+    parts.append('<rect x="150" y="257" width="600" height="89" rx="6" class="mt-box mt-fill-a" />')
+    parts.append(
+        _text(170, 286, "Measure reporter output over time in all four input states", "mt-title")
+    )
+    parts.append(
+        _text(
+            170,
+            317,
+            "Compare predictions; control trigger availability and pair identity",
+            "mt-caption",
+        )
+    )
+    parts.append(
+        _text(
+            20,
+            384,
+            "Experimental proposal only: no tested panel, kinetic threshold or validated winner.",
+            "mt-caption",
+        )
+    )
+    return _svg(
+        parts,
+        407,
+        "Proposed equilibrium baseline and separately labeled barrier challenge "
+        "converge on four-state reporter time courses; neither track is a completed experiment.",
+    )
+
+
 FIGURES = {
     "methods-triggers.svg": triggers,
     "methods-funnel.svg": funnel,
@@ -804,6 +925,8 @@ FIGURES = {
     "methods-overlaps.svg": overlaps,
     "methods-conflicts.svg": conflicts,
     "methods-levers.svg": levers,
+    "methods-compiler.svg": compiler_flow,
+    "discussion-tracks.svg": experimental_tracks,
 }
 
 

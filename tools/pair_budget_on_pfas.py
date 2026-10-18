@@ -5,7 +5,7 @@
         --assignment-budget 1000 --accessible-fraction .25 --seed 7 \
         --out var/prokaryotic-and-pilot.json
     python tools/pair_budget_on_pfas.py --pipeline --max-designs 20 --max-pairs 8
-    python tools/pair_budget_on_pfas.py --pipeline --pipeline-output gfp --full-finalists 1
+    python tools/pair_budget_on_pfas.py --pipeline --pipeline-output gfp
 
 Fractions and compute limits are engineering experiments, not biological thresholds.
 Pair ranking uses the weaker window's mean unpaired probability by default; --pair-key
@@ -199,7 +199,6 @@ def pipeline_example(args):
             "and_inputs": {"gene_a": "b3447", "gene_b": "b1748"},
             "prokaryotic_and": {
                 "max_pairs": args.max_pairs,
-                "full_context_finalists": args.full_finalists,
             },
             "budget": {"max_designs": args.max_designs},
         },
@@ -268,9 +267,8 @@ def pipeline_example(args):
                 "switch_sequence_sha256": sha256_bytes(
                     candidate_result.design.get("switch_sequence", "").encode()
                 ),
-                "full_context_status": info.get("full_context_status"),
+                "evaluation_context": info.get("evaluation_context"),
                 "feasibility": info.get("feasibility"),
-                "screening_feasibility": info.get("screening", {}).get("feasibility"),
                 "states": info.get("states"),
                 "worst_off_state": info.get("worst_off_state"),
                 "architecture": {
@@ -336,7 +334,6 @@ def main(argv=None):
     mode.add_argument("--regression-contexts", action="store_true")
     mode.add_argument("--pipeline", action="store_true", help="run complete compiler on ggt/astC")
     parser.add_argument("--pipeline-output", choices=("other", "gfp"), default="other")
-    parser.add_argument("--full-finalists", type=int, default=2)
     parser.add_argument("--max-pairs", type=int, default=8, help="complete compiler pair budget")
     parser.add_argument("--max-designs", type=int, default=20)
     parser.add_argument("--run-dir", type=Path)
