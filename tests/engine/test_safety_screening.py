@@ -368,7 +368,9 @@ def test_commec_requires_pinned_policy_and_software_provenance(monkeypatch, tmp_
 
     manifest = replace(MANIFEST, adapter_name="ibbis-common-mechanism", adapter_version="2.1.0")
     assert not manifest.is_valid_at(NOW)
-    manifest = replace(manifest, policy_version="commec-exact-pass-v1", software_sha256="a" * 64)
+    manifest = replace(
+        manifest, policy_version="commec-resolved-findings-v2", software_sha256="a" * 64
+    )
     result = SafetyGate().evaluate(
         SUBMISSION, ScreeningEvidence(manifest, AdapterStatus.COMPLETE), now=NOW
     )
@@ -377,7 +379,7 @@ def test_commec_requires_pinned_policy_and_software_provenance(monkeypatch, tmp_
     monkeypatch.setenv("CERNAL_COMMEC_MANIFEST", str(config))
     design = release_design(result)
     assert stored_release_allowed(design, now=NOW)
-    assert result.release_record()["adapter"]["policy_version"] == "commec-exact-pass-v1"
+    assert result.release_record()["adapter"]["policy_version"] == "commec-resolved-findings-v2"
     assert result.release_record()["adapter"]["software_sha256"] == "a" * 64
     design["sequence_release"]["switch"]["adapter"]["policy_version"] = "unknown-policy"
     assert not stored_release_allowed(design, now=NOW)

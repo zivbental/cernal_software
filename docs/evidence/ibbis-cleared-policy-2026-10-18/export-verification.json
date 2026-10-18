@@ -1,0 +1,17 @@
+{
+  "records": [
+    {
+      "kind": "switch",
+      "length": 83,
+      "sequence_sha256": "14e055cee1a4516d5cc3e3f9502880281a2bbf54ce104a4829897701fba3fdf0",
+      "audit_matches_export": true
+    },
+    {
+      "kind": "plasmid",
+      "length": 958,
+      "sequence_sha256": "588418b397789d0ce53bdf70d714cb639a868d5a7d78261ae2bde502089fab80",
+      "audit_matches_export": true
+    }
+  ],
+  "all_artifact_checksums_match": true
+}

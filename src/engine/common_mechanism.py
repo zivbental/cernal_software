@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import signal
@@ -33,11 +34,79 @@ from engine.sequences import to_dna
 
 TOOL_VERSION = "2.1.0"
 JSON_VERSION = "0.6"
-POLICY_VERSION = "commec-exact-pass-v1"
+POLICY_VERSION = "commec-resolved-findings-v2"
 DATABASES = frozenset({"biorisk", "best_match", "low_concern", "control_lists"})
 MAX_BATCH = 64
 MAX_BATCH_BASES = 1_000_000
 MAX_OUTPUT_BYTES = 16 * 1024 * 1024
+
+# Pinned commec.config.result.ScreenStatus importance, excluding incomplete states.
+_RESOLVED_ORDER = {"Pass": 0, "Warning (Cleared)": 1, "Flag (Cleared)": 2}
+_UNRESOLVED = {"Flag", "Warning"}
+_HIT_STEPS = {
+    "Biorisk Search": "biorisk",
+    "Protein Taxonomy Search": "protein_taxonomy",
+    "Nucleotide Taxonomy Search": "nucleotide_taxonomy",
+    "Low Concern Protein Search": "low_concern",
+    "Low Concern RNA Search": "low_concern",
+    "Low Concern DNA Search": "low_concern",
+}
+
+
+def _resolved_query(query: dict) -> bool:
+    """Check native cleared-only consistency, without reimplementing search thresholds.
+
+    Upstream aggregates each primary step from its hits, then low_concern from
+    all steps. Clearing requires both an original hit and a low-concern hit.
+    Conditional nucleotide Skip is permitted only without nucleotide hits.
+    """
+    status = query["status"]
+    grouped = {name: [] for name in set(_HIT_STEPS.values())}
+    for hit in query["hits"]:
+        recommendation = hit["recommendation"]
+        step = _HIT_STEPS[recommendation["from_step"]]
+        outcome = recommendation["status"]
+        if outcome not in _RESOLVED_ORDER:
+            return False
+        if (
+            not isinstance(hit["name"], str)
+            or not hit["name"].strip()
+            or not isinstance(hit["description"], str)
+            or not isinstance(hit["annotations"], dict)
+        ):
+            return False
+        region = hit["region"]
+        if any(
+            type(region[key]) is not int or not 1 <= region[key] <= query["length"]
+            for key in ("query_start", "query_end")
+        ):
+            return False
+        evalue = region["e_value"]
+        if type(evalue) not in (int, float) or not math.isfinite(evalue) or evalue < 0:
+            return False
+        grouped[step].append(outcome)
+
+    def worst(values):
+        return max(["Pass", *values], key=_RESOLVED_ORDER.__getitem__)
+
+    for step in ("biorisk", "protein_taxonomy", "nucleotide_taxonomy"):
+        if step == "nucleotide_taxonomy" and status[step] == "Skip" and not grouped[step]:
+            continue
+        if status[step] != worst(grouped[step]):
+            return False
+    primary = [v for step, values in grouped.items() if step != "low_concern" for v in values]
+    aggregate = worst(primary + grouped["low_concern"])
+    if status["screen_status"] != aggregate:
+        return False
+    if aggregate == "Pass":
+        return status["low_concern"] in {"Pass", "Skip"} and not (
+            status["low_concern"] == "Skip" and grouped["low_concern"]
+        )
+    return (
+        status["low_concern"] == aggregate
+        and worst(primary) == aggregate
+        and worst(grouped["low_concern"]) == aggregate
+    )
 
 
 def _object(pairs):
@@ -303,7 +372,23 @@ class CommonMechanismAdapter:
                     return held(AdapterStatus.INCONCLUSIVE)
                 status = query["status"]
                 aggregate = status["screen_status"]
-                if aggregate in {"Flag", "Warning", "Flag (Cleared)", "Warning (Cleared)"}:
+                components = [status[key] for key in _HIT_STEPS.values()]
+                hit_statuses = [hit["recommendation"]["status"] for hit in query["hits"]]
+                known = set(_RESOLVED_ORDER) | _UNRESOLVED | {"Skip", "Error"}
+                if any(value not in known for value in [aggregate, *components, *hit_statuses]):
+                    return held(AdapterStatus.INCONCLUSIVE)
+                native = json.dumps(query, sort_keys=True, separators=(",", ":"), allow_nan=False)
+                if "Error" in [aggregate, *components, *hit_statuses]:
+                    results.append(
+                        ScreeningEvidence(
+                            self.manifest,
+                            AdapterStatus.FAILED
+                            if aggregate == "Error"
+                            else AdapterStatus.INCONCLUSIVE,
+                            native_screening_json=native,
+                        )
+                    )
+                elif aggregate in _UNRESOLVED:
                     results.append(
                         ScreeningEvidence(
                             self.manifest,
@@ -316,21 +401,21 @@ class CommonMechanismAdapter:
                                     f"local:commec:{POLICY_VERSION}:{aggregate}",
                                 ),
                             ),
+                            native_screening_json=native,
                         )
                     )
-                elif aggregate == "Error":
-                    results.append(ScreeningEvidence(self.manifest, AdapterStatus.FAILED))
-                elif (
-                    aggregate == "Pass"
-                    and status["biorisk"] == "Pass"
-                    and status["protein_taxonomy"] == "Pass"
-                    and status["nucleotide_taxonomy"] in {"Pass", "Skip"}
-                    and status["low_concern"] in {"Pass", "Skip"}
-                    and all(hit["recommendation"]["status"] == "Pass" for hit in query["hits"])
-                ):
-                    results.append(ScreeningEvidence(self.manifest, AdapterStatus.COMPLETE))
+                elif _resolved_query(query):
+                    results.append(
+                        ScreeningEvidence(
+                            self.manifest, AdapterStatus.COMPLETE, native_screening_json=native
+                        )
+                    )
                 else:
-                    results.append(ScreeningEvidence(self.manifest, AdapterStatus.INCONCLUSIVE))
+                    results.append(
+                        ScreeningEvidence(
+                            self.manifest, AdapterStatus.INCONCLUSIVE, native_screening_json=native
+                        )
+                    )
             return tuple(results)
         except (ValueError, TypeError, KeyError, AttributeError):
             return held(AdapterStatus.INCONCLUSIVE)

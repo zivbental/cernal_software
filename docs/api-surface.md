@@ -3653,7 +3653,7 @@ Bounded local IBBIS Common Mechanism v2.1.0 adapter, JSON format 0.6.
 | --- | --- | --- |
 | `TOOL_VERSION` |  | `'2.1.0'` |
 | `JSON_VERSION` |  | `'0.6'` |
-| `POLICY_VERSION` |  | `'commec-exact-pass-v1'` |
+| `POLICY_VERSION` |  | `'commec-resolved-findings-v2'` |
 | `DATABASES` |  | `frozenset({'biorisk', 'best_match', 'low_concern', 'control_lists'})` |
 | `MAX_BATCH` |  | `64` |
 | `MAX_BATCH_BASES` |  | `1000000` |
@@ -4067,6 +4067,7 @@ Immutable identity and validation window for a local screening deployment.
 | `manifest` | `LocalScreeningManifest` |  |
 | `adapter_status` | `AdapterStatus` |  |
 | `findings` | `tuple[Finding, ...]` | `()` |
+| `native_screening_json` | `str` | `''` |
 
 #### `class LocalScreeningAdapter(Protocol)`
 
@@ -4121,6 +4122,7 @@ Signs review-only release tokens bound to one exact screening result.
 | `release_allowed` | `bool` | `False` |
 | `approval_expires_at` | `datetime \| None` | `None` |
 | `adapter_status` | `AdapterStatus` | `AdapterStatus.COMPLETE` |
+| `native_screening_json` | `str` | `''` |
 | `result_sha256` | `str` | `field(init=False)` |
 
 | Status | Method | Purpose |

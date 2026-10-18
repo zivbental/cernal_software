@@ -22,6 +22,137 @@ from engine.safety import AdapterStatus, Decision, LocalScreeningManifest, Seque
 
 
 @pytest.fixture
+def real_cleared_report(adapter):
+    """Actual native JSON; same-length synthetic submissions test parsing only."""
+    path = Path(__file__).parents[1] / "fixtures/ibbis/mg1655-mcherry-native.json"
+    report = json.loads(path.read_text())
+    adapter = replace(adapter, revisions=report["database_info"]["revisions"])
+    submissions = tuple(
+        SequenceSubmission(q["query"], "A" * q["length"], "plasmid", "parser-test-only")
+        for q in report["queries"].values()
+    )
+    return adapter, report, submissions
+
+
+def test_real_cleared_output_retains_annotation_and_identity(real_cleared_report):
+    from engine.safety import SafetyGate
+
+    adapter, report, submissions = real_cleared_report
+    results = [
+        SafetyGate().evaluate(s, e, now=datetime.now(UTC))
+        for s, e in zip(submissions, adapter.parse_result(report, submissions), strict=True)
+    ]
+    assert [r.decision for r in results] == [Decision.PASS, Decision.PASS]
+    assert all(r.release_allowed for r in results)
+    audit = results[1].audit_manifest()
+    assert audit["native_screening"] == report["queries"]["q000001"]
+    assert audit["adapter"]["policy_version"] == "commec-resolved-findings-v2"
+    assert audit["sequence_sha256"] == submissions[1].sequence_sha256
+    report["queries"]["q000001"]["hits"][1]["description"] += " changed annotation"
+    updated = adapter.parse_result(report, submissions)[1]
+    assert (
+        SafetyGate().evaluate(submissions[1], updated, now=datetime.now(UTC)).result_sha256
+        != results[1].result_sha256
+    )
+    assert not replace(adapter.manifest, policy_version="commec-exact-pass-v1").is_valid_at(
+        datetime.now(UTC)
+    )
+
+
+@pytest.mark.parametrize("cleared", ["Warning (Cleared)", "Flag (Cleared)"])
+@pytest.mark.parametrize(
+    "primary", ["Biorisk Search", "Protein Taxonomy Search", "Nucleotide Taxonomy Search"]
+)
+@pytest.mark.parametrize(
+    "low", ["Low Concern Protein Search", "Low Concern RNA Search", "Low Concern DNA Search"]
+)
+def test_consistent_cleared_status_combinations(real_cleared_report, cleared, primary, low):
+    from engine.safety import SafetyGate
+
+    adapter, report, submissions = real_cleared_report
+    q = report["queries"]["q000001"]
+    q["status"].update(
+        screen_status=cleared,
+        biorisk="Pass",
+        protein_taxonomy="Pass",
+        nucleotide_taxonomy="Pass",
+        low_concern=cleared,
+    )
+    fields = {
+        "Biorisk Search": "biorisk",
+        "Protein Taxonomy Search": "protein_taxonomy",
+        "Nucleotide Taxonomy Search": "nucleotide_taxonomy",
+    }
+    q["status"][fields[primary]] = cleared
+    for hit, step in zip(q["hits"], (primary, low), strict=True):
+        hit["recommendation"].update(status=cleared, from_step=step)
+    result = SafetyGate().evaluate(
+        submissions[1], adapter.parse_result(report, submissions)[1], now=datetime.now(UTC)
+    )
+    assert result.decision == Decision.PASS
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda q: q["status"].update(screen_status="Pass"),
+        lambda q: q["status"].update(screen_status="Warning (Cleared)"),
+        lambda q: q["status"].update(biorisk="Incomplete"),
+        lambda q: q["status"].update(biorisk="Error"),
+        lambda q: q["status"].update(protein_taxonomy="Pass"),
+        lambda q: q["status"].update(protein_taxonomy="Skip"),
+        lambda q: q["status"].update(low_concern="Skip"),
+        lambda q: q["status"].update(low_concern="Pass"),
+        lambda q: q["status"].update(nucleotide_taxonomy="Flag"),
+        lambda q: q["status"].update(biorisk="future-status"),
+        lambda q: q.update(hits=[]),
+        lambda q: q["hits"].pop(0),
+        lambda q: q["hits"].pop(1),
+        lambda q: q["hits"][0]["recommendation"].update(status="Flag"),
+        lambda q: q["hits"][0]["recommendation"].update(status="Warning"),
+        lambda q: q["hits"][0]["recommendation"].update(status="Error"),
+        lambda q: q["hits"][0]["recommendation"].update(status="future-status"),
+        lambda q: q["hits"][1]["recommendation"].update(from_step="unknown-step"),
+        lambda q: q["hits"][1]["recommendation"].update(from_step="Protein Taxonomy Search"),
+        lambda q: q["hits"][1]["region"].update(query_start=0),
+        lambda q: q["hits"][1]["region"].update(query_end=959),
+        lambda q: q["hits"][1]["region"].update(query_start=True),
+        lambda q: q["hits"][1]["region"].update(e_value=float("nan")),
+        lambda q: q["hits"][1].update(name=""),
+        lambda q: q["hits"][1].update(annotations=[]),
+    ],
+)
+def test_inconsistent_cleared_records_never_release(real_cleared_report, mutation):
+    from engine.safety import SafetyGate
+
+    adapter, report, submissions = real_cleared_report
+    mutation(report["queries"]["q000001"])
+    result = SafetyGate().evaluate(
+        submissions[1], adapter.parse_result(report, submissions)[1], now=datetime.now(UTC)
+    )
+    assert result.decision == Decision.HOLD_SYSTEM
+    assert not result.release_allowed
+
+
+@pytest.mark.parametrize("unresolved", ["Warning", "Flag"])
+def test_mixed_cleared_and_unresolved_stays_blocked(real_cleared_report, unresolved):
+    from engine.safety import SafetyGate
+
+    adapter, report, submissions = real_cleared_report
+    q = report["queries"]["q000001"]
+    q["status"].update(screen_status=unresolved, biorisk=unresolved, low_concern=unresolved)
+    hit = copy.deepcopy(q["hits"][0])
+    hit["recommendation"].update(status=unresolved, from_step="Biorisk Search")
+    q["hits"].append(hit)
+    result = SafetyGate().evaluate(
+        submissions[1], adapter.parse_result(report, submissions)[1], now=datetime.now(UTC)
+    )
+    assert result.decision == Decision.BLOCK
+    assert not result.release_allowed
+    assert result.audit_manifest()["native_screening"] == q
+
+
+@pytest.fixture
 def submission():
     return SequenceSubmission("synthetic", "ACGU" * 25, "plasmid", "test-only")
 
@@ -112,8 +243,8 @@ def test_actual_process_mock_and_original_rna_identity(adapter, submission):
         ("Pass", AdapterStatus.COMPLETE),
         ("Flag", AdapterStatus.COMPLETE),
         ("Warning", AdapterStatus.COMPLETE),
-        ("Flag (Cleared)", AdapterStatus.COMPLETE),
-        ("Warning (Cleared)", AdapterStatus.COMPLETE),
+        ("Flag (Cleared)", AdapterStatus.INCONCLUSIVE),  # No supporting hits in this fixture.
+        ("Warning (Cleared)", AdapterStatus.INCONCLUSIVE),
         ("Error", AdapterStatus.FAILED),
         ("Incomplete", AdapterStatus.INCONCLUSIVE),
         ("Skip", AdapterStatus.INCONCLUSIVE),
@@ -127,7 +258,7 @@ def test_actual_process_mock_and_original_rna_identity(adapter, submission):
 def test_every_native_status_is_explicit(adapter, submission, status, expected):
     evidence = adapter.parse_result(native_result((submission,), status), (submission,))[0]
     assert evidence.adapter_status == expected
-    if status in {"Flag", "Warning", "Flag (Cleared)", "Warning (Cleared)"}:
+    if status in {"Flag", "Warning"}:
         from engine.safety import SafetyGate
 
         result = SafetyGate().evaluate(submission, evidence, now=datetime.now(UTC))

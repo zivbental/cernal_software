@@ -127,7 +127,7 @@ class LocalScreeningManifest:
                 self.adapter_name != "ibbis-common-mechanism"
                 or (
                     self.adapter_version == "2.1.0"
-                    and self.policy_version == "commec-exact-pass-v1"
+                    and self.policy_version == "commec-resolved-findings-v2"
                     and _is_sha256(self.software_sha256)
                 )
             )
@@ -156,6 +156,7 @@ class ScreeningEvidence:
     manifest: LocalScreeningManifest
     adapter_status: AdapterStatus
     findings: tuple[Finding, ...] = ()
+    native_screening_json: str = ""
 
 
 class LocalScreeningAdapter(Protocol):
@@ -233,6 +234,7 @@ class SafetyScreenResult:
     release_allowed: bool = False
     approval_expires_at: datetime | None = None
     adapter_status: AdapterStatus = AdapterStatus.COMPLETE
+    native_screening_json: str = ""
     result_sha256: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -261,6 +263,8 @@ class SafetyScreenResult:
             "reasons": self.reasons,
             "sequence_sha256": self.sequence_sha256,
         }
+        if self.native_screening_json:
+            payload["native_screening"] = json.loads(self.native_screening_json)
         object.__setattr__(
             self,
             "result_sha256",
@@ -285,6 +289,11 @@ class SafetyScreenResult:
 
     def audit_manifest(self) -> dict:
         return {
+            **(
+                {"native_screening": json.loads(self.native_screening_json)}
+                if self.native_screening_json
+                else {}
+            ),
             "decision": self.decision.value,
             "adapter_status": self.adapter_status.value,
             "release_allowed": self.release_allowed,
@@ -833,6 +842,7 @@ class SafetyGate:
                 reasons=result.reasons,
                 release_allowed=allowed,
                 adapter_status=evidence.adapter_status,
+                native_screening_json=evidence.native_screening_json,
                 approval_expires_at=(
                     datetime.fromisoformat(
                         json.loads(_unb64(review_token.split(".", 1)[0]))["expires_at"]
@@ -872,6 +882,7 @@ class SafetyGate:
             reasons=reasons,
             release_allowed=release_allowed,
             adapter_status=evidence.adapter_status,
+            native_screening_json=evidence.native_screening_json,
         )
 
 

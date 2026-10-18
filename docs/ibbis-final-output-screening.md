@@ -35,20 +35,24 @@ to disclose sequences.
 - Common Mechanism: `2.1.0`, upstream commit
   `24fe0390978eb66d13db4f91c18f122d051b1a65`.
 - Native JSON output version: `0.6`.
-- Local restrictive policy identifier: `commec-exact-pass-v1`.
+- Local policy identifier: `commec-resolved-findings-v2`.
 - Required database revision keys: `biorisk`, `best_match`, `low_concern`,
   `control_lists`, matching the native output exactly.
 
-The candidate policy accepts only aggregate `Pass`, with `Pass` biorisk and protein
-taxonomy, all hit recommendations `Pass`, and nucleotide-taxonomy/low-concern status
-`Pass` or the native tool's conditional `Skip`. This is **not** permission to disable
+The policy accepts internally consistent `Pass`, `Flag (Cleared)` and
+`Warning (Cleared)` results. Each primary stage must agree with its hit outcomes;
+cleared outcomes require both a cleared primary hit and a low-concern supporting
+hit, with the aggregate and low-concern status matching the worst resolved outcome.
+Unknown steps, malformed hit metadata/coordinates, inconsistent components, or a
+cleared aggregate containing an unresolved hit hold release. Native conditional
+nucleotide `Skip` is permitted only without nucleotide hits; low-concern `Skip`
+is permitted only for Pass without low-concern hits. This is **not** permission to disable
 searches: the effective configuration must explicitly show
 `skip_taxonomy_search`, `skip_nt_search`, `auto_update_databases` and `resume` all false.
 The native tool's per-query conditional status and an operator-skipped search are
-separate concepts. The policy remains subject to user review and validation against
-the pinned tool's actual output semantics.
+separate concepts. Search thresholds and native clearing decisions are unchanged.
 
-`Flag`, `Warning`, `Flag (Cleared)` and `Warning (Cleared)` all withhold release:
+Unresolved `Flag` and `Warning`, including mixtures with cleared findings, withhold release:
 they create a screening-flag finding mapped to `BLOCK` by `SafetyGate`. They do not
 become an automatically approvable `REVIEW`. Error, missing/inconsistent evidence,
 unknown status, invalid schema, unavailable tool, timeout or changed installation
@@ -56,6 +60,20 @@ hold release. Generic selectable-marker review elsewhere in `safety.py` does not
 create an exemption for Common Mechanism flags. Empty hits alone never prove success.
 No fast mode, skipped taxonomy search, database reduction or reusable successful-
 verdict cache is supported.
+
+Version 1 deliberately blocked even cleared native results. The real MG1655/mCherry
+benchmark exposed that restriction: native low-concern DNA clearing recognized a
+reporter match but CERNAL still blocked it. Version 2 preserves the native query,
+stage statuses, rationale and hit annotations in `native_screening` in the audit
+and release record, and binds that evidence into the result digest. A cleared
+record remains visibly cleared in that evidence, not rewritten to native Pass.
+This is a screening-policy decision, not biological safety or function certification.
+
+Old v1 manifests and stored grants are invalid under v2. An operator must validate
+and issue a fresh v2 manifest and re-screen outputs; changing a stored result label
+or replaying an old grant is not migration. No production manifest is provisioned
+by this code change. The saved native JSON is a parser regression fixture; it does
+not authorize release of placeholder sequences used by unit tests.
 
 ## Operator manifest schema
 
@@ -97,7 +115,7 @@ Do not replace unknown checksums with zeros or treat this example as validated e
     "database_id": "<operator's validated immutable deployment identifier>",
     "database_sha256": "<canonical files inventory SHA-256>",
     "software_sha256": "<canonical software_files inventory SHA-256>",
-    "policy_version": "commec-exact-pass-v1",
+    "policy_version": "commec-resolved-findings-v2",
     "validated_at": "<actual timezone-aware validation timestamp>",
     "expires_at": "<approved timezone-aware expiry timestamp>"
   }
