@@ -1,0 +1,34 @@
+{
+  "report.html": {
+    "bytes": 2840,
+    "sha256": "4d171bb33e09bf4895b5701c861b2093d1c11cb57b033b155d0e0ea676c0cb71"
+  },
+  "candidates.csv": {
+    "bytes": 120,
+    "sha256": "052dc6c57f9693a91c68a35b908d8fac6888de03b7e22e276ca7f1a30b1cf619"
+  },
+  "plasmids/cand-000001.gb": {
+    "bytes": 3683,
+    "sha256": "fe6ef0e7d8b6b5f1686f42bbf35651f95881c8b4861e00bedcf2254ad21caebe"
+  },
+  "safety/cand-000001-plasmid.json": {
+    "bytes": 3456,
+    "sha256": "0e7e140007c9322a1bc31460a4514f946741625493ae56f2bfabc4c231839644"
+  },
+  "safety/cand-000001-switch.json": {
+    "bytes": 1265,
+    "sha256": "f2dcf166500b29b4e890cef848c21a815821ab64ec4c0f0f5ce33c797d8dfac3"
+  },
+  "sbol/cand-000001.nt": {
+    "bytes": 14003,
+    "sha256": "55f7fbb39ed26f82da7db63ccc4653ed3278fd0b828d797f28bbe2355639ac7a"
+  },
+  "snapshots/trigger_selection.csv": {
+    "bytes": 353261,
+    "sha256": "34093b53f50cf5a9c8682536c712b97cb7185d555785020e2f4420e1c330ac2c"
+  },
+  "sequences/cand-000001.fasta": {
+    "bytes": 125,
+    "sha256": "389a1f2f3701925f04e943b52970bb75ecb8d4dfb9fc94ca0e59cbaf70a01849"
+  }
+}

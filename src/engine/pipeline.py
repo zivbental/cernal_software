@@ -53,6 +53,7 @@ import copy
 import dataclasses
 import json
 import math
+import os
 import random
 import re
 import statistics
@@ -62,6 +63,7 @@ from pathlib import Path
 
 from engine import sequences as sq
 from engine.artifacts import sha256_bytes, write_artifact
+from engine.common_mechanism import configured_final_screens
 from engine.contract import (
     HIGHER_BETTER,
     INPUT_DE,
@@ -106,7 +108,7 @@ from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.inputs import parse_dge_table
-from engine.safety import fail_closed_release, stored_release_allowed
+from engine.safety import SequenceSubmission, fail_closed_release, stored_release_allowed
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
 from engine.scoring.profiles import HardFilter, ScoringProfile, resolve_profile
 from engine.stages.circuits import CircuitDesigner, ConfusionEvaluator
@@ -2089,16 +2091,49 @@ def _write_artifacts(
         )
     ]
 
-    for candidate in sorted((c for c in candidates if not c.is_rejected), key=lambda c: c.ref):
+    accepted = sorted((c for c in candidates if not c.is_rejected), key=lambda c: c.ref)
+    screened = {}
+    deployment = os.environ.get("CERNAL_COMMEC_MANIFEST")
+    if deployment:
+        submissions = tuple(
+            SequenceSubmission(
+                sequence_id=f"{candidate.ref}:{kind}",
+                sequence=sequence,
+                delivery_method="plasmid",
+                host_context=candidate.design.get("host", "unconfigured"),
+            )
+            for candidate in accepted
+            for kind, sequence in (
+                ("switch", candidate.design["switch_sequence"]),
+                ("plasmid", plasmids[candidate.ref].plasmid.sequence),
+            )
+        )
+        # Full final molecules, after assembly/optimization. No truncated windows or
+        # successful-verdict cache; bounded batches keep every candidate covered.
+        screened.update(
+            zip(
+                (s.sequence_id for s in submissions),
+                configured_final_screens(
+                    submissions,
+                    deployment,
+                    on_batch=(lambda: on_progress(96, "Screening final sequences"))
+                    if on_progress
+                    else None,
+                ),
+                strict=True,
+            )
+        )
+
+    for candidate in accepted:
         if on_progress is not None and not on_progress(97, "Writing report"):
             raise JobCancelled("Writing report")
         plasmid = plasmids[candidate.ref]
-        switch_screen = fail_closed_release(
+        switch_screen = screened.get(f"{candidate.ref}:switch") or fail_closed_release(
             f"{candidate.ref}:switch",
             candidate.design["switch_sequence"],
             host_context=candidate.design.get("host", "unconfigured"),
         )
-        plasmid_screen = fail_closed_release(
+        plasmid_screen = screened.get(f"{candidate.ref}:plasmid") or fail_closed_release(
             f"{candidate.ref}:plasmid",
             plasmid.plasmid.sequence,
             host_context=candidate.design.get("host", "unconfigured"),

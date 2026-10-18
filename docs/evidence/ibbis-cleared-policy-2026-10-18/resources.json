@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/home/zivbental/coding/igem/cernal_software/.venv/bin/python",
+    "/mnt/c/Users/zivbe/Documents/Codex/2026-10-16/task/cernal-ibbis-correction/tools/benchmark_ibbis_cleared_policy.py",
+    "--installation",
+    "/home/zivbental/cernal-ibbis-benchmark-20261016",
+    "--output",
+    "/home/zivbental/cernal-ibbis-benchmark-20261016/acceptance-v2-real-path"
+  ],
+  "returncode": 0,
+  "inner_wall_seconds": 272.29061270099965,
+  "child_maxrss_kib": 8757248,
+  "child_user_cpu_seconds": 433.724211,
+  "child_system_cpu_seconds": 28.764544,
+  "maxrss_note": "Largest child-process lifetime RSS, not simultaneous tree RSS",
+  "memory_peak_note": "Cgroup aggregate memory including filesystem cache and measurement wrapper",
+  "memory.peak": "6442450944",
+  "memory.events": "low 0\nhigh 0\nmax 41256\noom 0\noom_kill 0\noom_group_kill 0",
+  "cpu.stat": "usage_usec 462559722\nuser_usec 432407066\nsystem_usec 30152656\nnice_usec 437044000\nnr_periods 2723\nnr_throttled 257\nthrottled_usec 797387\nnr_bursts 0\nburst_usec 0"
+}
