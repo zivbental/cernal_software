@@ -1,0 +1,122 @@
+{
+  "started_at": "2026-10-18T06:24:58.810569+00:00",
+  "wall_seconds": 55.51995708100003,
+  "status": "succeeded",
+  "error": null,
+  "accepted": 1,
+  "phases": [
+    {
+      "phase": "integrity",
+      "seconds": 26.124465724999936
+    },
+    {
+      "phase": "screen_batch",
+      "seconds": 2.072860087999743
+    },
+    {
+      "phase": "integrity",
+      "seconds": 23.36878863000038
+    }
+  ],
+  "dataset_sha256": "452d25b413d6c3f3a6eec321da41adfe166578c95fc17492c2bc1fe5012f1cf0",
+  "manifest": {
+    "adapter_name": "ibbis-common-mechanism",
+    "adapter_version": "2.1.0",
+    "database_id": "BENCHMARK-ONLY-CLEARED-V2-NOT-PRODUCTION",
+    "database_sha256": "2852dd4f71a6e657fb6b979ecb59ba33479d31e6e2e19fc5fcda40a611e5f055",
+    "software_sha256": "fc17fe9a4dde5648bf8f526ca01c4f3c448b6166869e8cff6a3c8bf13821376f",
+    "policy_version": "commec-resolved-findings-v2",
+    "validated_at": "2026-10-18T06:24:58.810569+00:00",
+    "expires_at": "2026-10-18T07:24:58.810569+00:00"
+  },
+  "audit_files": [
+    "artifacts/safety/cand-000001-plasmid.json",
+    "artifacts/safety/cand-000001-switch.json"
+  ],
+  "audits": [
+    {
+      "adapter": {
+        "database_id": "BENCHMARK-ONLY-CLEARED-V2-NOT-PRODUCTION",
+        "database_sha256": "2852dd4f71a6e657fb6b979ecb59ba33479d31e6e2e19fc5fcda40a611e5f055",
+        "expires_at": "2026-10-18T07:24:58.810569+00:00",
+        "name": "ibbis-common-mechanism",
+        "policy_version": "commec-resolved-findings-v2",
+        "software_sha256": "fc17fe9a4dde5648bf8f526ca01c4f3c448b6166869e8cff6a3c8bf13821376f",
+        "validated_at": "2026-10-18T06:24:58.810569+00:00",
+        "version": "2.1.0"
+      },
+      "adapter_status": "FAILED",
+      "approval_expires_at": null,
+      "decision": "HOLD_SYSTEM",
+      "declared_marker_findings": [],
+      "native_screening": {
+        "description": "",
+        "hits": [],
+        "length": 958,
+        "query": "q000001",
+        "status": {
+          "biorisk": "Error",
+          "low_concern": "Error",
+          "nucleotide_taxonomy": "Error",
+          "protein_taxonomy": "Error",
+          "rationale": "There was an error during Biorisk Screening",
+          "screen_status": "Error"
+        }
+      },
+      "reasons": [
+        "local screening adapter status is FAILED"
+      ],
+      "release_allowed": false,
+      "result_sha256": "eb7ffb901608e018babc93d43396f17d34498c8c5de872a2a671b406c600a051",
+      "screening_status": "error",
+      "sequence_sha256": "588418b397789d0ce53bdf70d714cb639a868d5a7d78261ae2bde502089fab80",
+      "unexpected_marker_findings": []
+    },
+    {
+      "adapter": {
+        "database_id": "BENCHMARK-ONLY-CLEARED-V2-NOT-PRODUCTION",
+        "database_sha256": "2852dd4f71a6e657fb6b979ecb59ba33479d31e6e2e19fc5fcda40a611e5f055",
+        "expires_at": "2026-10-18T07:24:58.810569+00:00",
+        "name": "ibbis-common-mechanism",
+        "policy_version": "commec-resolved-findings-v2",
+        "software_sha256": "fc17fe9a4dde5648bf8f526ca01c4f3c448b6166869e8cff6a3c8bf13821376f",
+        "validated_at": "2026-10-18T06:24:58.810569+00:00",
+        "version": "2.1.0"
+      },
+      "adapter_status": "FAILED",
+      "approval_expires_at": null,
+      "decision": "HOLD_SYSTEM",
+      "declared_marker_findings": [],
+      "native_screening": {
+        "description": "",
+        "hits": [],
+        "length": 83,
+        "query": "q000000",
+        "status": {
+          "biorisk": "Error",
+          "low_concern": "Error",
+          "nucleotide_taxonomy": "Error",
+          "protein_taxonomy": "Error",
+          "rationale": "There was an error during Biorisk Screening",
+          "screen_status": "Error"
+        }
+      },
+      "reasons": [
+        "local screening adapter status is FAILED"
+      ],
+      "release_allowed": false,
+      "result_sha256": "35a3f8b514a2bf3ab0cb32d599ae7dd72979e217af2bed60c8f1b26f4895e6d4",
+      "screening_status": "error",
+      "sequence_sha256": "14e055cee1a4516d5cc3e3f9502880281a2bbf54ce104a4829897701fba3fdf0",
+      "unexpected_marker_findings": []
+    }
+  ],
+  "source_sha256": {
+    "src/engine/common_mechanism.py": "fcb8db21fa4370f5fa20179d247d38b34d28f5ca4b48dc0e5b3e82e90a609c66",
+    "src/engine/safety.py": "e90128146ed1d6e4a0e2300d1184173926a3e9411b1ddcbd2c3792a2ba277ec2",
+    "src/engine/pipeline.py": "5b9cbea12cf1107febf719f1dfdd87e2e3eed60dbd642d0b806d772e1cc062ea"
+  },
+  "candidate_release_checks": [
+    false
+  ]
+}

@@ -217,6 +217,43 @@ def test_missing_structural_measurement_is_retained_as_rejected_without_rank(
         assert check["value"] is None and not check["measured"] and not check["passed"]
 
 
+def test_and_audit_survives_final_sequence_screening_without_releasing_held_sequences(
+    bacterial_request, synthetic_equilibrium, monkeypatch
+):
+    from engine.safety import fail_closed_release
+
+    submitted = []
+
+    def hold_final_sequences(submissions, manifest_path, **kwargs):
+        assert manifest_path == "test-only-unprovisioned-manifest.json"
+        submitted.extend(submissions)
+        return tuple(
+            fail_closed_release(s.sequence_id, s.sequence, host_context=s.host_context)
+            for s in submissions
+        )
+
+    monkeypatch.setenv("CERNAL_COMMEC_MANIFEST", "test-only-unprovisioned-manifest.json")
+    monkeypatch.setattr(pipeline, "configured_final_screens", hold_final_sequences)
+    request = bacterial_request(payload={"outputs": ["gfp"]})
+    result = LocalEngine().run(request, lambda *_: True)
+
+    assert result.status == "succeeded", result.error
+    accepted = [c for c in result.candidates if not c.is_rejected]
+    assert accepted and len(submitted) == 2 * len(accepted)
+    by_id = {s.sequence_id: s for s in submitted}
+    for candidate in accepted:
+        switch = by_id[f"{candidate.ref}:switch"]
+        construct = by_id[f"{candidate.ref}:plasmid"]
+        assert switch.sequence == candidate.design["switch_sequence"]
+        assert construct.sequence_sha256 == candidate.design["construct_sha256"]
+        assert len(construct.sequence) > len(switch.sequence)
+    assert not any(a.kind in {"sequence_fasta", "genbank", "sbol"} for a in result.artifacts)
+    with open(f"{request.output_dir}/and-candidates.json") as handle:
+        audit = json.load(handle)
+    assert {row["ref"] for row in audit["candidates"]} == {c.ref for c in result.candidates}
+    assert all(len(row["equilibrium"]["checks"]) == 22 for row in audit["candidates"])
+
+
 def test_output_length_does_not_change_the_declared_switch_folding_boundary(
     bacterial_request, synthetic_equilibrium
 ):

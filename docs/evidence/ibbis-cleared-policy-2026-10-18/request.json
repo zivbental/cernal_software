@@ -1,0 +1,72 @@
+{
+  "schema_version": "1",
+  "run_id": "ibbis-cleared-v2",
+  "idempotency_key": "ibbis-cleared-v2",
+  "input_mode": "de",
+  "input_path": "/home/zivbental/cernal-ibbis-benchmark-20261016/acceptance-v2-real-path/source.csv",
+  "input_checksum": "452d25b413d6c3f3a6eec321da41adfe166578c95fc17492c2bc1fe5012f1cf0",
+  "trigger_sequence": "",
+  "organism": "ecoli",
+  "params": {
+    "constraints": {
+      "max_triggers": 1,
+      "max_circuit_gates": 1,
+      "min_separation": 0.5,
+      "max_p_adj": 0.05,
+      "trigger_lengths": [
+        30,
+        33,
+        36
+      ],
+      "max_switch_length": 200,
+      "forbidden_motifs": [],
+      "standard": "none",
+      "max_genes": 3,
+      "max_separation": null,
+      "min_base_expression": null,
+      "max_base_expression": null,
+      "trigger_gc_range": [
+        30.0,
+        70.0
+      ],
+      "stems_per_pair": 2,
+      "closure_set": "full",
+      "stem_order": "lock",
+      "overlap_range": [
+        4,
+        18
+      ],
+      "direction_balance": true
+    },
+    "budget": {
+      "max_designs": 1
+    },
+    "payload": {
+      "outputs": [
+        "mcherry"
+      ],
+      "optimize_codons": false
+    },
+    "backbone": {},
+    "statistics": {
+      "hypothesis_universe_complete": false
+    },
+    "host": "ecoli",
+    "folding": {
+      "temperature_celsius": 37.0,
+      "dangles": 2,
+      "special_hairpins": true,
+      "no_lonely_pairs": false,
+      "no_gu": false,
+      "no_gu_closure": false,
+      "energy_parameters": "turner2004",
+      "salt_molar": 1.021
+    }
+  },
+  "gate_families": [
+    "toehold"
+  ],
+  "scoring_profile": "default",
+  "seed": 42,
+  "output_dir": "/home/zivbental/cernal-ibbis-benchmark-20261016/acceptance-v2-real-path/artifacts"
+}

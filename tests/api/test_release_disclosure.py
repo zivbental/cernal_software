@@ -2,26 +2,82 @@
 
 import copy
 import hashlib
+import io
 import json
+import zipfile
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from django.core.files.base import ContentFile
 from django.test import Client
 
 from apps.results.models import Artifact, Candidate
+from engine.safety import (
+    AdapterStatus,
+    DeclaredSelectableMarker,
+    Finding,
+    FindingKind,
+    LocalScreeningManifest,
+    ReviewTokenSigner,
+    SafetyGate,
+    ScreeningEvidence,
+    SequenceSubmission,
+)
 
 SEQUENCE = "GGGAAACCC"
 
 
-def release_design(decision="PASS", allowed=True):
-    digest = hashlib.sha256(SEQUENCE.encode()).hexdigest()
-    audit = {"decision": decision, "release_allowed": allowed, "sequence_sha256": digest}
+def release_design(decision="PASS", allowed=True, *, now=None):
+    now = now or datetime.now(UTC)
+    manifest = LocalScreeningManifest(
+        "mock-local-screen",
+        "test",
+        "mock-database",
+        "a" * 64,
+        now - timedelta(hours=1),
+        now + timedelta(hours=1),
+    )
+    marker = DeclaredSelectableMarker(
+        "mock-marker",
+        "selectable_marker",
+        "test-host",
+        "test-plasmid",
+        "mock fixture only",
+        "test-approval",
+    )
+    findings = (Finding(FindingKind.AMR, "mock-marker", "confirmed", "mock"),)
+    evidence = ScreeningEvidence(
+        manifest,
+        AdapterStatus.COMPLETE,
+        findings if decision == "REVIEW" else (),
+    )
+    audits = {}
+    for kind, sequence in (("switch", SEQUENCE), ("plasmid", SEQUENCE + "AAA")):
+        submission = SequenceSubmission(
+            kind,
+            sequence,
+            "plasmid",
+            "test-host",
+            (marker,) if decision == "REVIEW" else (),
+        )
+        gate = SafetyGate()
+        result = gate.evaluate(submission, evidence, now=now)
+        if decision == "REVIEW" and allowed is True:
+            signer = ReviewTokenSigner(b"test-only-review-secret")
+            token = signer.issue(
+                result, approver="test-reviewer", expires_at=now + timedelta(minutes=30)
+            )
+            result = gate.evaluate(submission, evidence, now=now, signer=signer, review_token=token)
+        audit = result.release_record()
+        # Invalid-state tests deliberately corrupt genuine current screening records.
+        audit.update(decision=decision, release_allowed=allowed)
+        audits[kind] = audit
     return {
         "switch_sequence": SEQUENCE,
         "structure": "(((...)))",
         "structure_kind": "intended_target",
-        "construct_sha256": digest,
-        "sequence_release": {"switch": copy.deepcopy(audit), "plasmid": copy.deepcopy(audit)},
+        "construct_sha256": hashlib.sha256((SEQUENCE + "AAA").encode()).hexdigest(),
+        "sequence_release": audits,
         "architecture": {"stem": SEQUENCE},
         "component_switches": [{"switch_sequence": SEQUENCE}],
         "payload_source": {"sequence": SEQUENCE},
@@ -149,7 +205,7 @@ def test_sequence_free_evidence_stays_available(auth_client, held_candidate, med
         sequence_free=True,
         file=ContentFile(b"Computational report; sequence withheld", name="report.html"),
         media_type="text/html",
-        checksum_sha256="0" * 64,
+        checksum_sha256=hashlib.sha256(b"Computational report; sequence withheld").hexdigest(),
     )
     assert auth_client.get(f"/api/artifacts/{artifact.id}/download").status_code == 200
     assert (
@@ -185,11 +241,14 @@ def test_nested_fragments_and_malformed_optional_data_fail_closed(auth_client, h
     assert response.json()["design"]["logic_graph"]["genes"] == [{"name": "A"}]
 
 
-@pytest.mark.parametrize("kind", ["sequence_fasta", "genbank", "sbol"])
+@pytest.mark.parametrize(
+    "kind", ["sequence_fasta", "genbank", "sbol", "structure_plot", "run_manifest"]
+)
+@pytest.mark.parametrize("decision", ["PASS", "REVIEW"])
 def test_approved_sequence_artifact_downloads_unchanged(
-    auth_client, held_candidate, media_root, kind
+    auth_client, held_candidate, media_root, kind, decision
 ):
-    held_candidate.design = release_design()
+    held_candidate.design = release_design(decision)
     held_candidate.save()
     artifact = Artifact.objects.create(
         run=held_candidate.run,
@@ -260,3 +319,189 @@ def test_real_hold_result_retains_audits_without_exporting_sequences(run, auth_c
         else:
             assert response.status_code == 200
             assert sequence.encode() not in b"".join(response.streaming_content)
+
+
+@pytest.mark.parametrize("audit_kind", ["switch", "plasmid"])
+@pytest.mark.parametrize(
+    "invalidity",
+    [
+        "expired_manifest",
+        "expired_review",
+        "legacy",
+        "missing_window",
+        "naive_expiry",
+        "malformed_expiry",
+        "future_validation",
+        "missing_result_digest",
+        "malformed_result_digest",
+        "wrong_sequence",
+        "swapped_records",
+        "missing_review_expiry",
+    ],
+)
+def test_invalid_evidence_withholds_every_delivery_route(
+    auth_client, held_candidate, media_root, audit_kind, invalidity
+):
+    now = datetime.now(UTC)
+    decision = "REVIEW" if "review" in invalidity else "PASS"
+    issued_at = now - timedelta(hours=2) if invalidity == "expired_manifest" else now
+    if invalidity == "expired_review":
+        issued_at = now - timedelta(minutes=45)
+    design = release_design(decision, now=now)
+    if invalidity in {"expired_manifest", "expired_review"}:
+        design["sequence_release"][audit_kind] = release_design(decision, now=issued_at)[
+            "sequence_release"
+        ][audit_kind]
+    record = design["sequence_release"][audit_kind]
+    if invalidity == "legacy":
+        record["schema"] = "sequence-release-v1"
+    elif invalidity == "missing_window":
+        record["adapter"].pop("expires_at")
+    elif invalidity == "naive_expiry":
+        record["adapter"]["expires_at"] = (
+            (now + timedelta(hours=1)).replace(tzinfo=None).isoformat()
+        )
+    elif invalidity == "malformed_expiry":
+        record["adapter"]["expires_at"] = {"invalid": True}
+    elif invalidity == "future_validation":
+        record["adapter"]["validated_at"] = (now + timedelta(minutes=1)).isoformat()
+    elif invalidity == "missing_result_digest":
+        record.pop("result_sha256")
+    elif invalidity == "malformed_result_digest":
+        record["result_sha256"] = "not-a-digest"
+    elif invalidity == "wrong_sequence":
+        record["sequence_sha256"] = "0" * 64
+    elif invalidity == "swapped_records":
+        design["sequence_release"][audit_kind] = copy.deepcopy(
+            design["sequence_release"]["plasmid" if audit_kind == "switch" else "switch"]
+        )
+    elif invalidity == "missing_review_expiry":
+        record.pop("approval_expires_at")
+    held_candidate.design = design
+    held_candidate.save()
+    artifacts = [
+        Artifact.objects.create(
+            run=held_candidate.run,
+            candidate=None if kind == "run_manifest" else held_candidate,
+            kind=kind,
+            file=ContentFile(SEQUENCE.encode(), name=f"{kind}.txt"),
+            checksum_sha256=hashlib.sha256(SEQUENCE.encode()).hexdigest(),
+        )
+        for kind in ("sequence_fasta", "genbank", "sbol", "structure_plot", "run_manifest")
+    ]
+    for url in (
+        f"/api/candidates/{held_candidate.id}",
+        f"/api/candidates/{held_candidate.id}/structure",
+        f"/api/design/{held_candidate.run_id}/results",
+        f"/api/runs/{held_candidate.run_id}/candidates",
+        f"/api/runs/{held_candidate.run_id}/export.csv",
+    ):
+        response = auth_client.get(url)
+        assert response.status_code == 200
+        assert SEQUENCE not in response.content.decode()
+    listed = auth_client.get(f"/api/runs/{held_candidate.run_id}/artifacts").json()
+    assert all(not item["download_available"] for item in listed)
+    for artifact in artifacts:
+        assert auth_client.get(f"/api/artifacts/{artifact.id}/download").status_code == 409
+        for suffix in (f"?ids={artifact.id}", f"?category={artifact.category}", ""):
+            response = auth_client.get(f"/api/runs/{artifact.run_id}/artifacts/download{suffix}")
+            assert response.status_code == 409
+            assert SEQUENCE not in response.content.decode()
+
+
+@pytest.mark.parametrize("endpoint", ["download", "zip"])
+def test_changed_artifact_bytes_are_withheld(auth_client, held_candidate, media_root, endpoint):
+    held_candidate.design = release_design()
+    held_candidate.save()
+    artifact = Artifact.objects.create(
+        run=held_candidate.run,
+        candidate=held_candidate,
+        kind="sequence_fasta",
+        file=ContentFile(b"replaced after screening", name="changed.txt"),
+        checksum_sha256=hashlib.sha256(SEQUENCE.encode()).hexdigest(),
+    )
+    url = (
+        f"/api/artifacts/{artifact.id}/download"
+        if endpoint == "download"
+        else f"/api/runs/{artifact.run_id}/artifacts/download?ids={artifact.id}"
+    )
+    response = auth_client.get(url)
+    assert response.status_code == 409
+    assert b"replaced after screening" not in response.content
+
+
+@pytest.mark.parametrize("endpoint", ["download", "zip"])
+def test_release_expiring_during_snapshot_is_withheld(
+    auth_client, held_candidate, media_root, monkeypatch, endpoint
+):
+    import engine.safety as safety
+    from api.routers import results
+
+    now = datetime.now(UTC)
+    held_candidate.design = release_design(now=now)
+    held_candidate.save()
+    artifact = Artifact.objects.create(
+        run=held_candidate.run,
+        candidate=held_candidate,
+        kind="sequence_fasta",
+        file=ContentFile(SEQUENCE.encode(), name="expiry.txt"),
+        checksum_sha256=hashlib.sha256(SEQUENCE.encode()).hexdigest(),
+    )
+    original_snapshot = results._verified_artifact_snapshot
+
+    class LaterDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp((now + timedelta(hours=2)).timestamp(), tz)
+
+    def snapshot_then_expire(item):
+        snapshot = original_snapshot(item)
+        monkeypatch.setattr(safety, "datetime", LaterDatetime)
+        return snapshot
+
+    monkeypatch.setattr(results, "_verified_artifact_snapshot", snapshot_then_expire)
+    url = (
+        f"/api/artifacts/{artifact.id}/download"
+        if endpoint == "download"
+        else f"/api/runs/{artifact.run_id}/artifacts/download?ids={artifact.id}"
+    )
+    assert auth_client.get(url).status_code == 409
+
+
+@pytest.mark.parametrize("endpoint", ["download", "zip"])
+def test_storage_replacement_after_check_cannot_change_verified_delivery(
+    auth_client, held_candidate, media_root, monkeypatch, endpoint
+):
+    from api.routers import results
+
+    held_candidate.design = release_design()
+    held_candidate.save()
+    artifact = Artifact.objects.create(
+        run=held_candidate.run,
+        candidate=held_candidate,
+        kind="sequence_fasta",
+        file=ContentFile(SEQUENCE.encode(), name="snapshot.txt"),
+        checksum_sha256=hashlib.sha256(SEQUENCE.encode()).hexdigest(),
+    )
+    original_checksum = results.sha256_upload
+
+    def verify_then_replace(snapshot):
+        digest = original_checksum(snapshot)
+        with open(artifact.file.path, "wb") as stored:
+            stored.write(b"replacement after checksum")
+        return digest
+
+    monkeypatch.setattr(results, "sha256_upload", verify_then_replace)
+    url = (
+        f"/api/artifacts/{artifact.id}/download"
+        if endpoint == "download"
+        else f"/api/runs/{artifact.run_id}/artifacts/download?ids={artifact.id}"
+    )
+    response = auth_client.get(url)
+    assert response.status_code == 200
+    delivered = b"".join(response.streaming_content)
+    if endpoint == "zip":
+        with zipfile.ZipFile(io.BytesIO(delivered)) as archive:
+            assert len(archive.namelist()) == 1
+            delivered = archive.read(archive.namelist()[0])
+    assert delivered == SEQUENCE.encode()

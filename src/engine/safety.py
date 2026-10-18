@@ -13,9 +13,11 @@ import copy
 import hashlib
 import hmac
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 from typing import Protocol
 
 
@@ -32,11 +34,13 @@ class AdapterStatus(StrEnum):
     STALE = "STALE"
     FAILED = "FAILED"
     TIMEOUT = "TIMEOUT"
+    INCONCLUSIVE = "INCONCLUSIVE"
 
 
 class FindingKind(StrEnum):
     AMR = "AMR"
     OTHER_HAZARD = "OTHER_HAZARD"
+    SCREENING_FLAG = "SCREENING_FLAG"
 
 
 _VALID_BASES = frozenset("ACGTU")
@@ -109,6 +113,8 @@ class LocalScreeningManifest:
     database_sha256: str
     validated_at: datetime
     expires_at: datetime
+    policy_version: str = "safety-v2"
+    software_sha256: str = ""
 
     def is_valid_at(self, now: datetime) -> bool:
         digest = self.database_sha256.lower()
@@ -116,6 +122,15 @@ class LocalScreeningManifest:
             bool(self.adapter_name.strip())
             and bool(self.adapter_version.strip())
             and bool(self.database_id.strip())
+            and bool(self.policy_version.strip())
+            and (
+                self.adapter_name != "ibbis-common-mechanism"
+                or (
+                    self.adapter_version == "2.1.0"
+                    and self.policy_version == "commec-resolved-findings-v2"
+                    and _is_sha256(self.software_sha256)
+                )
+            )
             and len(digest) == 64
             and set(digest) <= _HEX
             and self.validated_at.tzinfo is not None
@@ -141,6 +156,7 @@ class ScreeningEvidence:
     manifest: LocalScreeningManifest
     adapter_status: AdapterStatus
     findings: tuple[Finding, ...] = ()
+    native_screening_json: str = ""
 
 
 class LocalScreeningAdapter(Protocol):
@@ -191,8 +207,10 @@ class ReviewTokenSigner:
             if not hmac.compare_digest(signature, expected):
                 return False
             payload = json.loads(_unb64(encoded))
+            if not isinstance(payload, dict) or not isinstance(payload.get("approver"), str):
+                return False
             expiry = datetime.fromisoformat(payload["expires_at"])
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        except (KeyError, TypeError, ValueError, AttributeError, UnicodeError):
             return False
         return (
             expiry.tzinfo is not None
@@ -214,11 +232,15 @@ class SafetyScreenResult:
     unexpected_marker_findings: tuple[Finding, ...]
     reasons: tuple[str, ...]
     release_allowed: bool = False
+    approval_expires_at: datetime | None = None
+    adapter_status: AdapterStatus = AdapterStatus.COMPLETE
+    native_screening_json: str = ""
     result_sha256: str = field(init=False)
 
     def __post_init__(self) -> None:
         payload = {
             "decision": self.decision.value,
+            "adapter_status": self.adapter_status.value,
             "findings": [
                 (
                     finding.kind.value,
@@ -233,12 +255,16 @@ class SafetyScreenResult:
                 self.manifest.adapter_version,
                 self.manifest.database_id,
                 self.manifest.database_sha256,
+                self.manifest.policy_version,
+                self.manifest.software_sha256,
                 self.manifest.validated_at.isoformat(),
                 self.manifest.expires_at.isoformat(),
             ),
             "reasons": self.reasons,
             "sequence_sha256": self.sequence_sha256,
         }
+        if self.native_screening_json:
+            payload["native_screening"] = json.loads(self.native_screening_json)
         object.__setattr__(
             self,
             "result_sha256",
@@ -247,17 +273,43 @@ class SafetyScreenResult:
             ).hexdigest(),
         )
 
+    @property
+    def screening_status(self) -> str:
+        if self.adapter_status is AdapterStatus.UNAVAILABLE:
+            return "unavailable"
+        if self.adapter_status in (AdapterStatus.STALE, AdapterStatus.INCONCLUSIVE):
+            return "inconclusive"
+        if self.adapter_status in (AdapterStatus.FAILED, AdapterStatus.TIMEOUT):
+            return "error"
+        if self.decision in (Decision.REVIEW, Decision.BLOCK):
+            return "flagged"
+        if self.decision is Decision.PASS:
+            return "screened"
+        return "inconclusive"
+
     def audit_manifest(self) -> dict:
         return {
+            **(
+                {"native_screening": json.loads(self.native_screening_json)}
+                if self.native_screening_json
+                else {}
+            ),
             "decision": self.decision.value,
+            "adapter_status": self.adapter_status.value,
             "release_allowed": self.release_allowed,
+            "screening_status": self.screening_status,
             "sequence_sha256": self.sequence_sha256,
             "result_sha256": self.result_sha256,
+            "approval_expires_at": (
+                self.approval_expires_at.isoformat() if self.approval_expires_at else None
+            ),
             "adapter": {
                 "name": self.manifest.adapter_name,
                 "version": self.manifest.adapter_version,
                 "database_id": self.manifest.database_id,
                 "database_sha256": self.manifest.database_sha256,
+                "policy_version": self.manifest.policy_version,
+                "software_sha256": self.manifest.software_sha256,
                 "validated_at": self.manifest.validated_at.isoformat(),
                 "expires_at": self.manifest.expires_at.isoformat(),
             },
@@ -271,25 +323,36 @@ class SafetyScreenResult:
         }
 
     def release_record(self) -> dict:
-        """Stable decision metadata; full time-bound evidence stays in audit artifacts.
+        """Retain expiry for download-time checks of provisioned screening evidence.
 
-        Keep the wall clock and its dependent audit digest out of reproducible
-        candidate records. This does not alter or replace the full audit manifest.
+        Only the unprovisioned, always-held default omits time-dependent fields so
+        unavailable screening does not make otherwise deterministic output vary.
+        Missing expiry can never authorize disclosure.
         """
         record = self.audit_manifest()
-        record.pop("result_sha256")
-        record["adapter"].pop("validated_at")
-        record["adapter"].pop("expires_at")
+        record["schema"] = "sequence-release-v2"
+        if (
+            self.manifest.adapter_name == "unprovisioned-local-screening"
+            and self.decision is Decision.HOLD_SYSTEM
+            and not self.release_allowed
+        ):
+            record.pop("result_sha256")
+            record["adapter"].pop("validated_at")
+            record["adapter"].pop("expires_at")
         return record
 
 
-def stored_release_allowed(design: object) -> bool:
-    """Require explicit, sequence-bound release evidence for both exported molecules.
+def stored_release_allowed(design: object, *, now: datetime | None = None) -> bool:
+    """Revalidate persisted release evidence at every disclosure boundary.
 
-    Missing/legacy evidence is not approval. A contradictory HOLD/BLOCK/error with
-    a truthy flag is not approval either. This reads the decision already made; it
-    does not rerun screening or infer success from a score or an artifact's presence.
+    Records are trusted server-side screening metadata, not user-supplied approval.
+    Legacy records without validation windows fail closed. Approval of a REVIEW
+    cannot outlive either the verified review token or the screening deployment.
+    This check never reruns screening or interprets artifact presence as approval.
     """
+    now = datetime.now(UTC) if now is None else now
+    if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+        return False
     if not isinstance(design, dict):
         return False
     release = design.get("sequence_release")
@@ -300,16 +363,90 @@ def stored_release_allowed(design: object) -> bool:
         "switch": hashlib.sha256(sequence.encode()).hexdigest(),
         "plasmid": design.get("construct_sha256"),
     }
-    return all(
-        isinstance(release.get(kind), dict)
-        and release[kind].get("release_allowed") is True
-        and isinstance(release[kind].get("decision"), str)
-        and release[kind].get("decision") in {"PASS", "REVIEW"}
-        and isinstance(digest, str)
-        and len(digest) == 64
-        and release[kind].get("sequence_sha256") == digest
-        for kind, digest in expected.items()
-    )
+    for kind, digest in expected.items():
+        record = release.get(kind)
+        if (
+            not isinstance(record, dict)
+            or record.get("schema") != "sequence-release-v2"
+            or record.get("release_allowed") is not True
+            or record.get("adapter_status") != "COMPLETE"
+            or record.get("screening_status")
+            != ("screened" if record.get("decision") == "PASS" else "flagged")
+            or record.get("decision") not in ("PASS", "REVIEW")
+            or not _is_sha256(digest)
+            or record.get("sequence_sha256") != digest
+            or not _is_sha256(record.get("result_sha256"))
+        ):
+            return False
+        adapter = record.get("adapter")
+        if not isinstance(adapter, dict):
+            return False
+        try:
+            manifest = LocalScreeningManifest(
+                adapter_name=adapter["name"],
+                adapter_version=adapter["version"],
+                database_id=adapter["database_id"],
+                database_sha256=adapter["database_sha256"],
+                policy_version=adapter["policy_version"],
+                software_sha256=adapter["software_sha256"],
+                validated_at=datetime.fromisoformat(adapter["validated_at"]),
+                expires_at=datetime.fromisoformat(adapter["expires_at"]),
+            )
+            if not manifest.is_valid_at(now):
+                return False
+            if manifest.adapter_name == "ibbis-common-mechanism" and not _active_manifest_matches(
+                manifest
+            ):
+                return False
+            if record["decision"] == "REVIEW":
+                approval_expiry = datetime.fromisoformat(record["approval_expires_at"])
+                if approval_expiry.tzinfo is None or not now < approval_expiry:
+                    return False
+        except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+            return False
+    return True
+
+
+def _unique_json_fields(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate screening configuration field")
+        result[key] = value
+    return result
+
+
+def _active_manifest_matches(manifest: LocalScreeningManifest) -> bool:
+    """Deployment rotation/revocation invalidates old grants without a 40 GB read.
+
+    This checks the operator's active identity, not mutable database bytes. Runtime
+    DB/software must be immutable, versioned and read-only; full inventory hashing
+    is performed around screening before any grant is emitted.
+    """
+    try:
+        path = Path(os.environ["CERNAL_COMMEC_MANIFEST"])
+        if path.stat().st_size > 16 * 1024 * 1024:
+            return False
+        config = json.loads(path.read_text(), object_pairs_hook=_unique_json_fields)
+        active = dict(config["manifest"])
+        for key in ("validated_at", "expires_at"):
+            active[key] = datetime.fromisoformat(active[key]).isoformat()
+        return active == {
+            "adapter_name": manifest.adapter_name,
+            "adapter_version": manifest.adapter_version,
+            "database_id": manifest.database_id,
+            "database_sha256": manifest.database_sha256,
+            "policy_version": manifest.policy_version,
+            "software_sha256": manifest.software_sha256,
+            "validated_at": manifest.validated_at.isoformat(),
+            "expires_at": manifest.expires_at.isoformat(),
+        }
+    except (OSError, KeyError, TypeError, ValueError, AttributeError):
+        return False
+
+
+def _is_sha256(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and set(value) <= _HEX
 
 
 def _disclosed_and_gate(value: object) -> dict:
@@ -505,8 +642,12 @@ def disclosed_candidate_data(design: object, triggers: object) -> tuple[dict, di
                 safe_design["sequence_release"][kind] = {
                     key: copy.deepcopy(audit[key])
                     for key in (
+                        "schema",
+                        "adapter_status",
+                        "screening_status",
                         "decision",
                         "release_allowed",
+                        "approval_expires_at",
                         "sequence_sha256",
                         "result_sha256",
                         "adapter",
@@ -523,6 +664,8 @@ def disclosed_candidate_data(design: object, triggers: object) -> tuple[dict, di
                         "version",
                         "database_id",
                         "database_sha256",
+                        "policy_version",
+                        "software_sha256",
                         "validated_at",
                         "expires_at",
                     },
@@ -729,10 +872,14 @@ class SafetyGate:
         hazards = tuple(
             finding for finding in evidence.findings if finding.kind is FindingKind.OTHER_HAZARD
         )
-        if unexpected or hazards:
+        screening_flags = tuple(
+            finding for finding in evidence.findings if finding.kind is FindingKind.SCREENING_FLAG
+        )
+        if unexpected or hazards or screening_flags:
             reasons = tuple(
                 ["unexpected resistance determinant" for _ in unexpected]
                 + ["confirmed non-marker hazard" for _ in hazards]
+                + ["screening flag requires review" for _ in screening_flags]
             )
             return self._result(Decision.BLOCK, submission, evidence, declared, unexpected, reasons)
         if declared:
@@ -754,6 +901,15 @@ class SafetyGate:
                 unexpected_marker_findings=result.unexpected_marker_findings,
                 reasons=result.reasons,
                 release_allowed=allowed,
+                adapter_status=evidence.adapter_status,
+                native_screening_json=evidence.native_screening_json,
+                approval_expires_at=(
+                    datetime.fromisoformat(
+                        json.loads(_unb64(review_token.split(".", 1)[0]))["expires_at"]
+                    )
+                    if allowed and review_token
+                    else None
+                ),
             )
         return self._result(
             Decision.PASS,
@@ -785,6 +941,8 @@ class SafetyGate:
             unexpected_marker_findings=unexpected,
             reasons=reasons,
             release_allowed=release_allowed,
+            adapter_status=evidence.adapter_status,
+            native_screening_json=evidence.native_screening_json,
         )
 
 

@@ -98,7 +98,8 @@
       "file": "region-input-gfp-20.json.gz",
       "sha256": "99aaa8382325603b7aaf4764769cd7bed04a641aa2be9fe9f13b2b5d633f8206",
       "uncompressed_sha256": "8aa21153c99aa81cbe9a3fbbe8a2953d7a1c5046f35e819f6ff59ca33317bc9f",
-      "bytes": 108010,
+      "bytes": 11121,
+      "uncompressed_bytes": 108010,
       "producer_revision": "b029687c8ccd6df007c397019929ad8700c2b59e",
       "working_tree_changes_may_be_present": true,
       "producer_code_checksums": {
@@ -114,7 +115,8 @@
       "file": "region-input-gfp-160.json.gz",
       "sha256": "58a8cc781f5eb46e4ce17dac5367943f51ca184e7a6aefc3e00b984f85415bfa",
       "uncompressed_sha256": "6056dc57af9976bc7a33de5aaab7b63755628e55ef9b591b352f503ab0b3dcda",
-      "bytes": 644316,
+      "bytes": 39768,
+      "uncompressed_bytes": 644316,
       "producer_revision": "b029687c8ccd6df007c397019929ad8700c2b59e",
       "working_tree_changes_may_be_present": true,
       "producer_code_checksums": {

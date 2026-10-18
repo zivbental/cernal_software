@@ -1,6 +1,6 @@
 """Shared pytest fixtures."""
 
-import dataclasses
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from django.core.files.base import ContentFile
@@ -22,15 +22,28 @@ def screening_released(monkeypatch):
     must remain withheld. No production screening success is inferred from this stub.
     """
     import engine.pipeline as pipeline_module
-    from engine.safety import Decision
-
-    real = pipeline_module.fail_closed_release
+    from engine.safety import (
+        AdapterStatus,
+        LocalScreeningManifest,
+        SafetyGate,
+        ScreeningEvidence,
+        SequenceSubmission,
+    )
 
     def allow(reference, sequence, *, host_context):
-        return dataclasses.replace(
-            real(reference, sequence, host_context=host_context),
-            decision=Decision.PASS,
-            release_allowed=True,
+        now = datetime.now(UTC)
+        manifest = LocalScreeningManifest(
+            adapter_name="synthetic-test-only",
+            adapter_version="1",
+            database_id="mock-no-biological-screening",
+            database_sha256="1" * 64,
+            validated_at=now - timedelta(minutes=1),
+            expires_at=now + timedelta(hours=1),
+        )
+        return SafetyGate().evaluate(
+            SequenceSubmission(reference, sequence, "plasmid", host_context),
+            ScreeningEvidence(manifest, AdapterStatus.COMPLETE),
+            now=now,
         )
 
     monkeypatch.setattr(pipeline_module, "fail_closed_release", allow)

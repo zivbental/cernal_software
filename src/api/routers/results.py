@@ -5,6 +5,7 @@ import zipfile
 from tempfile import SpooledTemporaryFile
 from uuid import UUID
 
+from django.core.files import File
 from django.db.models import F
 from django.http import FileResponse, HttpResponse, JsonResponse
 from ninja import Query, Router, Status
@@ -23,6 +24,7 @@ from api.schemas import (
 from api.security import require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun
+from apps.common.checksums import sha256_upload
 from apps.results.models import (
     Annotation,
     Artifact,
@@ -135,8 +137,12 @@ def download_artifact(request, artifact_id: UUID):
     if not artifact.file or not artifact.file.storage.exists(artifact.file.name):
         raise NotFound("That artifact is no longer stored.")
 
+    snapshot = _verified_artifact_snapshot(artifact)
+    if not artifact_release_allowed(artifact):
+        snapshot.close()
+        raise Conflict("Sequence-bearing artifact is withheld pending release approval.")
     response = FileResponse(
-        artifact.file.open("rb"),
+        snapshot,
         content_type=artifact.media_type or "application/octet-stream",
         as_attachment=True,
         filename=artifact.file.name.rsplit("/", 1)[-1],
@@ -218,20 +224,43 @@ def download_artifacts_zip(
                     f"{artifact.category}/{artifact.display_name}", used_names
                 )
                 with (
-                    artifact.file.open("rb") as handle,
+                    _verified_artifact_snapshot(artifact) as handle,
                     archive.open(arcname, "w", force_zip64=True) as entry,
                 ):
                     shutil.copyfileobj(handle, entry, length=1024 * 1024)
+        if any(not artifact_release_allowed(artifact) for artifact in artifacts):
+            raise Conflict("Sequence release approval expired while preparing this archive.")
         buffer.seek(0)
     except OSError:
         buffer.close()
         raise Conflict(
             "This archive could not be completed because artifact storage is unavailable."
         ) from None
+    except BaseException:
+        buffer.close()
+        raise
     response = FileResponse(buffer, content_type="application/zip")
     response["Content-Disposition"] = f'attachment; filename="run-{str(run.id)[:8]}-{label}.zip"'
 
     return response
+
+
+def _verified_artifact_snapshot(artifact):
+    """Serve only the exact imported bytes; never reopen storage after verification."""
+    snapshot = SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode="w+b")
+    try:
+        with artifact.file.open("rb") as source:
+            shutil.copyfileobj(source, snapshot, length=1024 * 1024)
+        snapshot.seek(0)
+        if sha256_upload(File(snapshot)) != artifact.checksum_sha256:
+            raise Conflict("Stored artifact bytes no longer match their recorded checksum.")
+        return snapshot
+    except OSError:
+        snapshot.close()
+        raise Conflict("Stored artifact is unavailable.") from None
+    except BaseException:
+        snapshot.close()
+        raise
 
 
 def _unique_arcname(name: str, used: set[str]) -> str:
