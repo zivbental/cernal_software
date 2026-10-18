@@ -1,5 +1,6 @@
 """Real process cleanup checks using sleeping mock children, never screening data."""
 
+import errno
 import os
 import signal
 import subprocess
@@ -26,9 +27,39 @@ def _running(pid):
     """An orphan may briefly be a zombie until the host's init reaps it."""
     try:
         status = Path(f"/proc/{pid}/status").read_text()
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
+        # /proc can vanish before open (ENOENT) or during the read (ESRCH).
         return False
     return not any(line.startswith("State:") and "Z" in line for line in status.splitlines())
+
+
+@pytest.mark.parametrize("error_number", [errno.ENOENT, errno.ESRCH])
+def test_running_returns_false_when_process_vanishes(monkeypatch, error_number):
+    def vanished(path):
+        assert path == Path("/proc/12345/status")
+        raise OSError(error_number, "process vanished during status read")
+
+    monkeypatch.setattr(Path, "read_text", vanished)
+    assert not _running(12345)
+
+
+@pytest.mark.parametrize("error_number", [errno.EACCES, errno.EIO])
+def test_running_preserves_unexpected_status_read_errors(monkeypatch, error_number):
+    error = OSError(error_number, "unexpected status read failure")
+
+    def unreadable(path):
+        raise error
+
+    monkeypatch.setattr(Path, "read_text", unreadable)
+    with pytest.raises(OSError) as caught:
+        _running(12345)
+    assert caught.value is error
+
+
+@pytest.mark.parametrize("state,expected", [("S (sleeping)", True), ("Z (zombie)", False)])
+def test_running_distinguishes_live_and_zombie_processes(monkeypatch, state, expected):
+    monkeypatch.setattr(Path, "read_text", lambda path: f"Name:\ttest-child\nState:\t{state}\n")
+    assert _running(12345) is expected
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux process-group/proc regression")
