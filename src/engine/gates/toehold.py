@@ -1013,7 +1013,9 @@ class ToeholdAndGate(ToeholdGate):
     #: include the assembled payload context, and production can request equilibrium-only
     #: measurement and an explicit bounded secondary-arm search. Research defaults retain
     #: the full arm enumeration, upper3 grid and barrier measurement.
-    version = "0.10.0-accessible-region-and"
+    # 0.11: production selects the strongest lock row, AUA only, and beneficial
+    # lower3 strengthening. Historical research settings remain available explicitly.
+    version = "0.11.0-strong-lock-row-and"
     kind = GateKind.TOEHOLD_AND
     label = "AND Toehold"
     description = "Two-input translational AND"
@@ -1031,6 +1033,7 @@ class ToeholdAndGate(ToeholdGate):
         compute_barrier: bool = True,
         balanced_grid: bool = False,
         upper3_levels: tuple[str, ...] | None = None,
+        strengthen_lower3_only: bool = False,
         max_secondary_assignments: int | None = None,
         seed: int = 0,
         should_stop: Callable[[], bool] | None = None,
@@ -1058,7 +1061,10 @@ class ToeholdAndGate(ToeholdGate):
             raise ValueError("seed must be an integer.")
         if type(balanced_grid) is not bool:
             raise ValueError("balanced_grid must be a boolean.")
+        if type(strengthen_lower3_only) is not bool:
+            raise ValueError("strengthen_lower3_only must be a boolean.")
         self.balanced_grid = balanced_grid
+        self.strengthen_lower3_only = strengthen_lower3_only
         self.compute_barrier = compute_barrier
         self.upper3_levels = upper3_levels
         self.max_secondary_assignments = max_secondary_assignments
@@ -3060,7 +3066,13 @@ class ToeholdAndGate(ToeholdGate):
     )
 
     #: Additional provenance when the caller declares a bounded production search.
-    PRODUCTION_GENERATION_KEYS: ClassVar[tuple[str, ...]] = ("secondary_search",)
+    PRODUCTION_GENERATION_KEYS: ClassVar[tuple[str, ...]] = (
+        "secondary_search",
+        "secondary_selection",
+        "lower3_energy_before",
+        "lower3_energy_after",
+        "lower3_strong_after",
+    )
 
     #: Every key ``measure_design`` returns, declared once so a reader never keeps its own list.
     #:
@@ -3464,6 +3476,7 @@ class ToeholdAndGate(ToeholdGate):
                 f"Measurement stopped at {raw['skipped']}; later values are unmeasured."
             )
         return {
+            "schema_version": "and-equilibrium-diagnostics-v2",
             "method": "prokaryotic_equilibrium",
             "definition": (
                 "Joint probability that the 30-nt ribosome footprint (-17 through +13, "
@@ -3482,7 +3495,33 @@ class ToeholdAndGate(ToeholdGate):
             "on_pct": None if on is None else 100.0 * on,
             "off_pct": None if off is None else 100.0 * off,
             "on_minus_off_pp": None if on is None or off is None else 100.0 * (on - off),
+            "ranking_measures": {
+                "on_probability": on,
+                "worst_off_probability": off,
+                "on_minus_off": None if on is None or off is None else on - off,
+                "raw_on_off_ratio": (None if on is None or off is None or off <= 0.0 else on / off),
+                "denominator_floor": None,
+                "direction": "maximize ON and ON-minus-OFF/ratio; minimize worst OFF",
+                "status": "provisional within-model comparisons; no protein calibration",
+                "cross_architecture_comparability": (
+                    "Not established: gate families use different observables, spans and "
+                    "missing-metric patterns. Shared field names do not calibrate biology."
+                ),
+            },
             "observables": dict(raw),
+            "checks": [
+                {
+                    "observable": name,
+                    "comparison": comparison,
+                    "threshold": threshold,
+                    "value": raw.get(name),
+                    "measured": raw.get(name) is not None,
+                    "passed": not self.gate_violations(
+                        raw, thresholds=((name, comparison, threshold),)
+                    ),
+                }
+                for name, comparison, threshold in self.THRESHOLDS
+            ],
             "feasibility": {
                 "passed": len(self.THRESHOLDS) - len(violations),
                 "total": len(self.THRESHOLDS),
@@ -3498,6 +3537,11 @@ class ToeholdAndGate(ToeholdGate):
             "evaluated_nt": len(evaluated_sequence),
             "payload_head_nt": len(evaluated_sequence) - len(design.sequence),
             "upper3_levels": list(self.upper3_levels or (name for name, _ in self.UPPER3)),
+            "lower3_policy": (
+                "strengthen_only_with_lower_arm_energy_gain"
+                if self.strengthen_lower3_only
+                else "historical_2s1w_target"
+            ),
             "secondary_search": dict(design.architecture.get("secondary_search", {})),
             "ribosome_footprint": list(design.architecture["w_rank"]),
             "coordinate_convention": "0-based half-open within the evaluated transcript",
@@ -3691,10 +3735,11 @@ class ToeholdAndGate(ToeholdGate):
     #:                   energy to be in the middle of
     #:
     #: **``AUG`` fills d = 0 on external evidence instead.** It is the most common bulge in
-    #: Green's measured library -- 62.5% of the 176 located structurally in his Table S1, median
-    #: ON/OFF 86.5 on n = 102 -- and it was never one of our sixteen. Its rivals there are not
-    #: distinguishable from it (``AUA`` p = 0.91, ``GUG`` p = 0.33) or have single-digit n, so it
-    #: is the only d = 0 choice that is not a sample of one.
+    #: Green's measured 168-switch set (102 AUG motifs, measured ON/OFF median 18.0
+    #: in the source workbook recheck). It was never one of our sixteen. This is a
+    #: well-represented external reference, not evidence that AUG outperforms all
+    #: other motifs; several alternatives have much smaller samples. Earlier comment
+    #: values 86.5 and pairwise p-values were not reproduced and are not used here.
     #:
     #: **Why d and not energy, measured.** The set's three real rungs are 1.80, 3.20 and 3.40 --
     #: ``AUG``'s 0.00 is a sentinel, since ``fixed_alignment_energy`` returns 0.0 by contract
@@ -3929,6 +3974,12 @@ class ToeholdAndGate(ToeholdGate):
         over 12 pair-stems WSS opened 59 times against SSW's 28 at the same leak, so forcing
         a position would convert away from the arrangement that opens most.
 
+        The reduced production policy, ``strengthen_lower3_only``, never converts
+        GC to AU. It considers eligible AU-to-GC changes only below the target and
+        retains them only if the shared fixed-alignment energy of the complete
+        lower arm decreases. Missing/non-improving energies leave the control alone.
+        This is a construction preference, not a new four-state feasibility cutoff.
+
         **And this is where a stem lever can cost a design its reading frame.** The writes
         land in ``main_pre_star`` and, pairing with them, in ``main_pre`` -- nine coding
         nucleotides immediately after the AUG, exactly three codons in frame. All three
@@ -3956,6 +4007,8 @@ class ToeholdAndGate(ToeholdGate):
         star_start = base.domains["main_pre_star"][0]
         pre_end = base.domains["main_pre"][1]
         strong = sum(1 for i in range(3) if sequence[star_start + i] in "GC")
+        if self.strengthen_lower3_only and strong >= 2:
+            return {"wobble_applied": 0, "wobble_skip_reason": "already_at_or_above_2s1w"}
         # Which positions CAN move, and to what. Only star A (trigger U) and star C
         # (trigger G) have a G-U to reach for; star G and star U are left alone rather than
         # forced into a mismatch.
@@ -3967,7 +4020,14 @@ class ToeholdAndGate(ToeholdGate):
             elif strong > 2 and here == "C":
                 movable.append((offset, "U", "A", -1))
         if not movable or strong == 2:
-            return {"wobble_applied": 0}
+            return {
+                "wobble_applied": 0,
+                **(
+                    {"wobble_skip_reason": "no_eligible_strengthening_position"}
+                    if self.strengthen_lower3_only
+                    else {}
+                ),
+            }
 
         need = 2 - strong
         want = abs(need)
@@ -3978,12 +4038,43 @@ class ToeholdAndGate(ToeholdGate):
             if size == want
         ] or [tuple(movable[:1])]
 
-        def codon_after(subset) -> str:
+        def sequence_after(subset) -> list[str]:
             trial = list(sequence)
             for offset, star_base, pre_base, _ in subset:
                 trial[star_start + offset] = star_base
                 trial[pre_end - 1 - offset] = pre_base
-            return "".join(trial[pre_end - 3 : pre_end])
+            return trial
+
+        def codon_after(subset) -> str:
+            return "".join(sequence_after(subset)[pre_end - 3 : pre_end])
+
+        def lower_arm_energy(trial) -> float | None:
+            star_lo, star_hi = base.domains["main_pre_star"]
+            pre_lo, pre_hi = base.domains["main_pre"]
+            return fixed_alignment_energy(
+                "".join(trial[star_lo:star_hi]), "".join(trial[pre_lo:pre_hi]), self.folder
+            )
+
+        energies = {}
+        before_energy = None
+        if self.strengthen_lower3_only:
+            before_energy = lower_arm_energy(sequence)
+            for subset in choices:
+                energy = lower_arm_energy(sequence_after(subset))
+                if (
+                    before_energy is not None
+                    and energy is not None
+                    and math.isfinite(before_energy)
+                    and math.isfinite(energy)
+                    and energy < before_energy
+                ):
+                    energies[subset] = energy
+            choices = [subset for subset in choices if subset in energies]
+            if not choices:
+                return {
+                    "wobble_applied": 0,
+                    "wobble_skip_reason": "no_modeled_lower_arm_energy_gain",
+                }
 
         ranked = sorted(
             choices,
@@ -4000,6 +4091,15 @@ class ToeholdAndGate(ToeholdGate):
             sequence[pre_end - 1 - offset] = pre_base
         return {
             "wobble_applied": len(best),
+            **(
+                {
+                    "lower3_energy_before": before_energy,
+                    "lower3_energy_after": energies[best],
+                    "lower3_strong_after": strong + sum(delta for *_, delta in best),
+                }
+                if self.strengthen_lower3_only
+                else {}
+            ),
             "wobble_codon": codon,
             "wobble_made_stop": codon in self.STOP_CODONS,
             "wobble_made_rare": codon in self.RARE_CODONS,
@@ -4208,6 +4308,14 @@ class ToeholdAndGate(ToeholdGate):
         # Widening this is a budget decision: every usable stem on every PFAS pair is 612M
         # designs. Carried as a declared cap rather than silently, and this is what it costs.
         selected = _select_stems(stems, constraints.stems_per_pair, constraints.stem_order)
+        if constraints.stem_order == "strong_lock_row":
+            search_scope["secondary_selection"] = {
+                "policy": constraints.stem_order,
+                "requested": constraints.stems_per_pair,
+                "selected": len(selected),
+                "front_size": len(stems),
+                "bins": "global_front_tertiles_lock_by_a_site",
+            }
         grid = tuple(self._axis_grid(constraints.closure_set))
         if self.balanced_grid and grid:
             offset = grid_offset % len(grid)
@@ -4228,6 +4336,13 @@ class ToeholdAndGate(ToeholdGate):
             if built is None:
                 continue
             switch, notes = built
+            if (
+                self.strengthen_lower3_only
+                and lower3[1] == self.LOWER3_WOBBLE
+                and not notes["wobble_applied"]
+            ):
+                # An inapplicable optional lever creates no second copy of the control.
+                continue
             # `assembly_violations` had no caller anywhere in the engine until now, so
             # three switch-level checks it implements -- an upstream AUG, an in-frame
             # stop, a frame shift -- were written, tested and never run. It is also
@@ -5119,7 +5234,7 @@ class KimSecondaryArmToeholdAndGate(ProkaryoticToeholdAndGate):
     ``vista_metrics`` verifies its own against a real assembly instead of trusting them.
     """
 
-    version = "kim-secondary-4"
+    version = "kim-secondary-5-strong-lock-row"
 
     SECONDARY_ARM_LEN: ClassVar[int] = 20
     SECONDARY_INVASION_LEN: ClassVar[int] = 17
@@ -5469,6 +5584,11 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
     rather than its corner. Bins are visited in a fixed order and any budget left over goes to
     the lock-sorted remainder, so the result is deterministic and a resumed run rebuilds it.
 
+    ``"strong_lock_row"`` keeps only the strongest lock tertile of that SAME 3x3
+    board and takes a representative nearest the mean of each occupied A-site bin.
+    Empty cells stay empty; it never fills them with a weaker lock or repartitions
+    the A-site axis. The budget is an upper bound, with at most three representatives.
+
     ``"front_tops"`` is ``"front"`` without the quota, plus the third axis:
 
     * one stem per **non-empty** square of the 3x3 board, nearest that square's centre. An empty
@@ -5494,7 +5614,7 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
     if budget <= 0 or not stems:
         return []
     by_lock = sorted(stems, key=lambda stem: stem.lock_energy)
-    if order not in ("front", "front_tops"):
+    if order not in ("front", "front_tops", "strong_lock_row"):
         return by_lock[:budget]
     if order == "front" and len(stems) <= budget:
         return by_lock[:budget]
@@ -5508,7 +5628,12 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
     sites = sorted(stem.a_site_energy for stem in stems)
 
     def edges(values: list[float]) -> list[float]:
-        return [values[int(len(values) * (i + 1) / bins) - 1] for i in range(bins - 1)]
+        return [
+            values[max(0, int(len(values) * (i + 1) / bins) - 1)]
+            if order == "strong_lock_row"
+            else values[int(len(values) * (i + 1) / bins) - 1]
+            for i in range(bins - 1)
+        ]
 
     def which(value: float, cuts: list[float]) -> int:
         for i, cut in enumerate(cuts):
@@ -5524,6 +5649,8 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
 
     chosen: list[_SecondaryStem] = []
     for key in sorted(buckets):
+        if order == "strong_lock_row" and key[0] != 0:
+            continue
         group = buckets[key]
         mid_lock = sum(stem.lock_energy for stem in group) / len(group)
         mid_site = sum(stem.a_site_energy for stem in group) / len(group)
@@ -5536,8 +5663,12 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
                 ),
             )
         )
-        if order == "front" and len(chosen) >= budget:
+        if order in ("front", "strong_lock_row") and len(chosen) >= budget:
             return chosen[:budget]
+
+    if order == "strong_lock_row":
+        # Empty A-site bins stay empty; never fill them from a weaker lock row.
+        return chosen[:budget]
 
     taken = {id(stem) for stem in chosen}
     if order == "front_tops":

@@ -49,10 +49,10 @@ model scope does not establish that distal output interactions are absent.
 | `max_pair_candidates`, `max_pair_seed_matches` | Discovery/storage caps, both 50,000; record truncation before sorting |
 | `max_pairs` | Whole compatible pairs carried, 8 |
 | `pair_selection`, `accessibility_percentile` | `top`, or `percentile_sample` using a lower percentile boundary (50 by default) and the job seed |
-| `stems_per_pair`, `max_stem_assignments` | 2 selected stems; at most 2,187 assignments per pair/geometry before Pareto pruning |
+| `stems_per_pair`, `max_stem_assignments` | Up to 3 selected stems; at most 2,187 assignments per pair/geometry before Pareto pruning |
 | `max_attempts` | 160 attempted assemblies, including invalid ones |
 | `geometry` | `naive` (default), `kim`, or `both` |
-| `closure_set`, `upper3_set` | `chosen` / `compact`: five closures, natural plus weak upper3, both lower3 levels; 20 points per stem. `full` expands the named axis |
+| `closure_set`, `upper3_set` | `chosen` / `aua_only`: five closures, AUA upper3, original lower3 plus an eligible strengthening variant; at most 10 points per stem. `compact` and `full` retain comparison grids |
 | `on_ceiling` | 7.2 kcal/mol ON-state screen; not a kinetic threshold |
 | `budget.max_designs` | Validated gate designs evaluated, default 20, ceiling 1,000 |
 | `budget.max_runtime_seconds`, `on_exceed` | Optional cooperative search deadline, integer 1..259,200 seconds, `return_partial`; count budgets remain active |
@@ -60,6 +60,28 @@ model scope does not establish that distal output interactions are absent.
 Use small count/time limits for demonstrations and larger explicit limits for full
 searches. Hours to a few days are acceptable when the chosen search and execution
 environment permit them; no seconds-only performance target is imposed.
+
+The assignment cap 2,187 = 3^7 was an initial engineering budget, not a model-derived
+conflict count or a validated optimum. A pair with n conflicts has 3^n assignments.
+The cap does not mean 2,187 hairpins are carried to four-state folding; if it samples
+the space, the resulting Pareto front describes only those sampled assignments.
+
+Production selection keeps the strongest-lock row (most negative lock tertile) of
+the existing global 3x3 lock/A-site-energy grid. One representative nearest each
+occupied cell's mean is selected, up to three. Empty cells are not filled using
+weaker lock rows or by repartitioning the A-site axis. The exact selected count and
+front size are stored under `secondary_selection`.
+
+The five closures already implement one control plus four closure-depth classes:
+original, AUG (0 paired positions), AAC (1), AGU (2), CGU (3). AAC/AGU/CGU have the
+fixed-alignment energy nearest their class mean against AUG, at the correct
+antiparallel register. The zero-pair class has no distinct energetic centre, so
+AUG is a well-represented external Green reference. It is not a demonstrated
+best-performing choice. Current production uses AUA upper3 only. Lower3 considers
+eligible AU-to-GC substitutions below the existing 2S1W target and keeps a wobble
+variant only if the complete lower arm's shared fixed-alignment energy decreases;
+GC-to-AU weakening and no-op duplicate designs are omitted. The 22 four-state
+checks and common ranking profile remain unchanged.
 
 Queued submissions automatically receive a search deadline derived from the deployed
 worker timeout and execution timeout, reserving up to 60 seconds for finishing and
@@ -82,6 +104,43 @@ window and opening costs; OFF is the worst of all three OFF states. They are str
 proxies, not measured translation or kinetic rates. Historical barrier investigations
 remain separate. Sequence downloads retain existing release checks. Physical
 multi-gate circuit assembly remains outside this one-gate production path.
+
+### Bacterial candidate audit and ranking
+
+`and-candidates.json` (`and-candidate-audit-v1`) is a sequence-free export of the
+existing `CandidateResult` records, sorted by rank then stable reference, with
+unranked rejects last. It includes explicit A/B roles, transcript intervals and
+reference/sequence hashes, domain coordinates, stem energies, lever settings,
+four-state observations, all 22 individual check values/thresholds/statuses, and
+raw/normalized metric decomposition. Each candidate's `equilibrium.ranking_profile`
+records the actual resolved profile, including request overrides, missing-value
+rules, normalization ranges, hard filters and tie-breakers. The run manifest and
+`and-search.json` supply input/seed/budget/search-scope provenance. Full sequences
+stay in the internal candidate record; released sequence downloads retain the
+existing screening requirements. CSV adds the nine raw shared metrics, ON-minus-OFF
+and raw ON/OFF ratio. Blank/null means unmeasured; rejected records have no rank.
+
+The default is `default-v3-computational-proxies`: a weighted mean of metrics
+clamped/normalized to declared ranges, with lower-is-better terms inverted.
+For bacterial AND, OFF is max(P00, P10, P01); `predicted_leakage` is OFF,
+`dynamic_range` is P11/OFF, and `state_separation` is its log2 equivalent from
+opening energies. No ratio floor is applied; a zero/missing OFF gives a missing
+ratio. `ranking_measures.on_minus_off` is diagnostic, not a new scored metric.
+The existing shared filters (leakage <= 0.85; separation >= 0.5) are additional to
+the 22 structural checks. This revision does not change them or introduce a new
+feasibility gate. Changing those shared rules requires a separate scoring decision.
+
+The common schema permits downstream consumption, but **does not establish
+cross-architecture biological comparability**. Single-input AUG marginal opening,
+bacterial AND joint-window opening, and eukaryotic joint-stem sampling describe
+different events. AND also leaves uncalibrated success/complexity metrics missing,
+which the default profile penalizes. Keep family identity, raw states and score
+decomposition visible; do not interpret the aggregate as calibrated protein output.
+An ON/worst-OFF Pareto comparison is a proposed supplementary baseline, not an
+implemented replacement for the shared rank.
+
+For the scientific revision, current yield limitation and reproducible local audit,
+see [the review report](evidence/prokaryotic-and-revision-2026-10-18.md).
 
 ## Eukaryotic joint-stem AND
 

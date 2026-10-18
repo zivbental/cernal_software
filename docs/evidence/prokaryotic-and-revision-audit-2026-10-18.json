@@ -1,0 +1,477 @@
+{
+  "analysis_version": "and-revision-audit-v1",
+  "producer_script_sha256": "9559bf3029769b6eab8cc31e69f04e3b7d93263f6bec38ccb6c597125312887d",
+  "shared_code_sha256": {
+    "tools/analyse_axes.py": "9efd8811fa25966411acbaf832a9aeebef66dc3ab902c478dba2545692f2ed0e",
+    "tools/experiment_contrasts.py": "01bbcb127e37dad9e800ab5b28e271e311af949d9f22c18edd8badfb0dc0caa4",
+    "src/engine/gates/toehold.py": "53931224cd6d91d5eed89615052f0d4328456062587ca0b738ea73bc69681f2c",
+    "uv.lock": "1d49be013468721626a45319e933a733d9a2b3ae8488f485e71c53a0b0563aad"
+  },
+  "thresholds": [
+    [
+      "A_S_00",
+      "<",
+      0.2
+    ],
+    [
+      "A_M_00",
+      "<",
+      0.2
+    ],
+    [
+      "xstar_engA_10",
+      "<",
+      0.5
+    ],
+    [
+      "mainpre_engA_10",
+      "<",
+      0.5
+    ],
+    [
+      "A_M_10",
+      "<",
+      0.2
+    ],
+    [
+      "A_M_01",
+      "<",
+      0.2
+    ],
+    [
+      "A_S_01",
+      ">",
+      0.5
+    ],
+    [
+      "A_M_11",
+      ">",
+      0.5
+    ],
+    [
+      "A_r2_star_00",
+      ">",
+      0.4
+    ],
+    [
+      "hairpin_lock_00",
+      ">",
+      0.5
+    ],
+    [
+      "hairpin_lock_10",
+      ">",
+      0.5
+    ],
+    [
+      "hairpin_lock_01",
+      "<",
+      0.5
+    ],
+    [
+      "hairpin_lock_11",
+      "<",
+      0.5
+    ],
+    [
+      "hairpin_sec_00",
+      ">",
+      0.5
+    ],
+    [
+      "hairpin_sec_10",
+      ">",
+      0.5
+    ],
+    [
+      "hairpin_sec_01",
+      "<",
+      0.5
+    ],
+    [
+      "hairpin_k1_00",
+      ">",
+      0.5
+    ],
+    [
+      "hairpin_k1_10",
+      ">",
+      0.5
+    ],
+    [
+      "hairpin_k1_01",
+      ">",
+      0.5
+    ],
+    [
+      "hairpin_main_pre_00",
+      ">",
+      0.5
+    ],
+    [
+      "hairpin_main_pre_10",
+      ">",
+      0.5
+    ],
+    [
+      "hairpin_main_pre_01",
+      ">",
+      0.5
+    ]
+  ],
+  "barrier_inputs": [
+    {
+      "path": "docs\\assets\\barrier\\best_0.csv",
+      "sha256": "1a5995caa31ba60b40aae8838b480821d4070138422d6c0307dea3ae667be3bf"
+    },
+    {
+      "path": "docs\\assets\\barrier\\best_1.csv",
+      "sha256": "0f07a373ff8f9c1fa5e2d52e0db180681d69cf8abf94beaceb4d36b84bcd80c7"
+    },
+    {
+      "path": "docs\\assets\\barrier\\best_2.csv",
+      "sha256": "30865bab7d6f24af19f5638a0192c6d085f30bbd0a1fc46e498f3f92979ad9f3"
+    },
+    {
+      "path": "docs\\assets\\barrier\\best_3.csv",
+      "sha256": "838e4a42310df61d01892253e72013969e4e924a604738913658d66766e53ce4"
+    },
+    {
+      "path": "docs\\assets\\barrier\\designs_0.csv",
+      "sha256": "8adaa862950031a638b646046b67d652806bd2c07f3f890b1e0de56cf27e1ee5"
+    },
+    {
+      "path": "docs\\assets\\barrier\\designs_1.csv",
+      "sha256": "17b147b555240636349105f7bd458e71548eb401e49fc8cee157d17430dffc23"
+    },
+    {
+      "path": "docs\\assets\\barrier\\designs_2.csv",
+      "sha256": "54cd82679cf097600c4b3ca0edb941cd15e960cc2fb1d2b62a99c96795ba05db"
+    },
+    {
+      "path": "docs\\assets\\barrier\\designs_3.csv",
+      "sha256": "ef87f1024165aa6ce70ae221b017fe569893f46fa723890363714eaf9a58624e"
+    },
+    {
+      "path": "docs\\assets\\barrier\\designs_4.csv",
+      "sha256": "5fc76513c4cbc821f561cc38f55205bff86cca07d8247723a626d41ca52c2b05"
+    },
+    {
+      "path": "docs\\assets\\barrier\\designs_5.csv",
+      "sha256": "3b93eb5061006b1cce62dcd7d1b20409efd0650c58b3adb0ce35153de6ac8f74"
+    },
+    {
+      "path": "docs\\assets\\barrier\\landing_0.csv",
+      "sha256": "4c3dfbffcb6ce775b8a0ddc0c75b8333c1022783ae3b9ad098725c27eb15364e"
+    },
+    {
+      "path": "docs\\assets\\barrier\\landing_1.csv",
+      "sha256": "1a6bb2eec11a789f3ab88e1a5fc5682e8457137dc48c5669901fe1d5809f093f"
+    },
+    {
+      "path": "docs\\assets\\barrier\\landing_2.csv",
+      "sha256": "e3bcddae3107844ebc84e3d65e912979967229c2b420cd49ceee6ed98078d2de"
+    },
+    {
+      "path": "docs\\assets\\barrier\\landing_3.csv",
+      "sha256": "b0c5c60dcff4b54e94424088fedc9aab23e3919ac6a71d8b093771bc5735e682"
+    },
+    {
+      "path": "docs\\assets\\barrier\\landing_4.csv",
+      "sha256": "0a2db34990b02b91ceaf76ab876f7ad24ef8e45bed9df944e1bca317951cb5c4"
+    },
+    {
+      "path": "docs\\assets\\barrier\\landing_5.csv",
+      "sha256": "69dd35f1472ff1ac95b48a7d9343f2f26f6c4cf3f3366aa3905d62f7517ceb4f"
+    },
+    {
+      "path": "docs\\assets\\barrier\\on_state_cost.csv",
+      "sha256": "385f932b660980dab7403697cbda73b8273ef6134f75e9d259736447ca95cac8"
+    }
+  ],
+  "status": "Historical post-hoc analysis; not a current-compiler yield or wet-lab validation",
+  "sources": [
+    {
+      "path": "src\\engine\\gates\\notebooks\\toehold_and\\results\\axes_c8_0.csv",
+      "sha256": "8324a50585b008ac3411adedf98813699b3b26461f8bc52228413d3c269b3846"
+    },
+    {
+      "path": "src\\engine\\gates\\notebooks\\toehold_and\\results\\axes_c8_1.csv",
+      "sha256": "66beded9028e8711f14dd2c6934679f126de1cc313841feec9cd8935777c80b3"
+    },
+    {
+      "path": "src\\engine\\gates\\notebooks\\toehold_and\\results\\axes_c8_2.csv",
+      "sha256": "4205e83609eb6a583f4ef154e44a7e162b64fdcee501623c95c6948f34fb4542"
+    },
+    {
+      "path": "src\\engine\\gates\\notebooks\\toehold_and\\results\\axes_c8_3.csv",
+      "sha256": "8c44acb660a5ea8f358963f55ebbea692b7407fd44fe010335f424eb218d746a"
+    },
+    {
+      "path": "src\\engine\\gates\\notebooks\\toehold_and\\results\\axes_c8_4.csv",
+      "sha256": "4aedece50ac23095f5e6b67eeec7589d2f8459a5852a62c28b1a951a50c1e160"
+    },
+    {
+      "path": "src\\engine\\gates\\notebooks\\toehold_and\\results\\axes_c8_5.csv",
+      "sha256": "3c3e2f266adcdbce77e0690535751c7010d88f030170f4b356f0c604539e5f15"
+    }
+  ],
+  "rows": 301440,
+  "four_state_rows": 219808,
+  "posthoc_current_22_pass": 4762,
+  "within_cell_rho": {
+    "a_site_energy vs xstar_engA_10": {
+      "n": 420,
+      "median": -0.7007444430197436,
+      "mean": -0.6742590122876988,
+      "positive_cells": 0,
+      "negative_cells": 420
+    },
+    "a_site_energy vs mainpre_engA_10": {
+      "n": 420,
+      "median": -0.4695274149833799,
+      "mean": -0.45100626995808474,
+      "positive_cells": 1,
+      "negative_cells": 419
+    },
+    "a_site_energy vs dG_open_11": {
+      "n": 388,
+      "median": 0.023425099598193853,
+      "mean": 0.04825119213898503,
+      "positive_cells": 375,
+      "negative_cells": 13
+    },
+    "lock_energy vs xstar_engA_10": {
+      "n": 420,
+      "median": 0.6578136230230951,
+      "mean": 0.6429693184337133,
+      "positive_cells": 419,
+      "negative_cells": 1
+    },
+    "opening_gain vs IED_gain_OFF_00": {
+      "n": 389,
+      "median": -0.1370669525816818,
+      "mean": -0.13459423801212692,
+      "positive_cells": 84,
+      "negative_cells": 305
+    },
+    "opening_gain vs IED_gain_OFF_single": {
+      "n": 389,
+      "median": 0.660848067373487,
+      "mean": 0.6322170865289445,
+      "positive_cells": 384,
+      "negative_cells": 5
+    },
+    "opening_gain vs IED_gain_OFF_all": {
+      "n": 389,
+      "median": 0.6194916197183417,
+      "mean": 0.5957275990903032,
+      "positive_cells": 381,
+      "negative_cells": 8
+    }
+  },
+  "off_reference_correlations": {
+    "x": "min(dG_open_00,01,10)-dG_open_11",
+    "y": "min(IED_OFF_reference)-IED_11",
+    "directions": "both gains higher-is-better",
+    "summary": "median Spearman within gene/window/lenx/geometry cell; >=5 complete rows, constants omitted",
+    "usable_rows_by_reference": {
+      "00": 219807,
+      "single": 219807,
+      "all": 219807
+    }
+  },
+  "matched_AUA_x_wobble": {
+    "controls": "same genes/windows/lenx/geometry/secondary stem/closure",
+    "rates": {
+      "baseline": {
+        "n": 37488,
+        "posthoc_22_pass": 527
+      },
+      "AUA": {
+        "n": 37488,
+        "posthoc_22_pass": 495
+      },
+      "wobble": {
+        "n": 37488,
+        "posthoc_22_pass": 530
+      },
+      "both": {
+        "n": 37488,
+        "posthoc_22_pass": 485
+      }
+    },
+    "deltas": {
+      "both_minus_baseline:xstar_engA_10": {
+        "n": 37488,
+        "median": -0.00022815943130788385,
+        "mean": -0.08623240825852725
+      },
+      "interaction_both_minus_AUA_minus_wobble_plus_baseline:xstar_engA_10": {
+        "n": 37488,
+        "median": 0.0,
+        "mean": -0.003710385446253828
+      },
+      "both_minus_baseline:mainpre_engA_10": {
+        "n": 37488,
+        "median": -0.011125549120537023,
+        "mean": -0.1737131259865017
+      },
+      "interaction_both_minus_AUA_minus_wobble_plus_baseline:mainpre_engA_10": {
+        "n": 37488,
+        "median": 0.0,
+        "mean": -0.01865682297799217
+      },
+      "both_minus_baseline:dG_open_11": {
+        "n": 23289,
+        "median": 0.10518569440498027,
+        "mean": 0.21776803465621933
+      },
+      "interaction_both_minus_AUA_minus_wobble_plus_baseline:dG_open_11": {
+        "n": 23289,
+        "median": 0.0,
+        "mean": 0.0882934959219902
+      },
+      "both_minus_baseline:P_open_11": {
+        "n": 23289,
+        "median": -2.2401354268907796e-06,
+        "mean": 0.0005650316881970967
+      },
+      "interaction_both_minus_AUA_minus_wobble_plus_baseline:P_open_11": {
+        "n": 23289,
+        "median": 0.0,
+        "mean": -0.00019150728374922146
+      }
+    },
+    "interpretation": "Not a test of longer effective A toeholds or independent bulge x stem-energy compensation. No p-values or causal claim."
+  },
+  "barrier_contrasts": {
+    "rows_with_ON": 3113,
+    "within_pair_contrasts_gap_at_least_8_ON_tolerance_0_5": 0,
+    "examples": [
+      [
+        {
+          "cell": [
+            "arm18/inv18/capnone",
+            "astC",
+            "ggt",
+            1175,
+            789,
+            4
+          ],
+          "key": "naive:astC:ggt:1175:789:4:4:d0_gc3_GCC:trigger_derived:trigger_derived",
+          "geom": "arm18/inv18/capnone",
+          "genes": "astCxggt",
+          "closure": "d0_gc3_GCC",
+          "upper3": "trigger_derived",
+          "lower3": "trigger_derived",
+          "leak": 0.998740031372784,
+          "barrier": 4.5,
+          "on_cost": 4.816375732421875
+        },
+        {
+          "cell": [
+            "arm18/inv18/capnone",
+            "fadB",
+            "ggt",
+            1981,
+            1440,
+            9
+          ],
+          "key": "naive:fadB:ggt:1981:1440:9:1:d0_gc3_GCC:WWW_AUA:wobble_GU",
+          "geom": "arm18/inv18/capnone",
+          "genes": "fadBxggt",
+          "closure": "d0_gc3_GCC",
+          "upper3": "WWW_AUA",
+          "lower3": "wobble_GU",
+          "leak": 0.9998087344157042,
+          "barrier": 25.2,
+          "on_cost": 4.8188018798828125
+        },
+        "DIFFERENT trigger pairs"
+      ],
+      [
+        {
+          "cell": [
+            "arm20/inv17/capAUA",
+            "astC",
+            "ggt",
+            1175,
+            789,
+            4
+          ],
+          "key": "kim:astC:ggt:1175:789:4:0:d1_gc1_AAC:trigger_derived:trigger_derived",
+          "geom": "arm20/inv17/capAUA",
+          "genes": "astCxggt",
+          "closure": "d1_gc1_AAC",
+          "upper3": "trigger_derived",
+          "lower3": "trigger_derived",
+          "leak": 0.9987398111778628,
+          "barrier": 4.5,
+          "on_cost": 4.8300628662109375
+        },
+        {
+          "cell": [
+            "arm18/inv18/capnone",
+            "fadB",
+            "ggt",
+            1981,
+            1440,
+            9
+          ],
+          "key": "naive:fadB:ggt:1981:1440:9:1:d0_gc3_GCC:WWW_AUA:wobble_GU",
+          "geom": "arm18/inv18/capnone",
+          "genes": "fadBxggt",
+          "closure": "d0_gc3_GCC",
+          "upper3": "WWW_AUA",
+          "lower3": "wobble_GU",
+          "leak": 0.9998087344157042,
+          "barrier": 25.2,
+          "on_cost": 4.8188018798828125
+        },
+        "DIFFERENT trigger pairs"
+      ],
+      [
+        {
+          "cell": [
+            "arm18/inv18/capnone",
+            "astC",
+            "ggt",
+            1175,
+            789,
+            4
+          ],
+          "key": "naive:astC:ggt:1175:789:4:8:closed_CGU:WWW_UAU:trigger_derived",
+          "geom": "arm18/inv18/capnone",
+          "genes": "astCxggt",
+          "closure": "closed_CGU",
+          "upper3": "WWW_UAU",
+          "lower3": "trigger_derived",
+          "leak": 0.9980881116906526,
+          "barrier": 4.5,
+          "on_cost": 6.864562990070198
+        },
+        {
+          "cell": [
+            "arm18/inv18/capnone",
+            "fadB",
+            "ggt",
+            1981,
+            1440,
+            9
+          ],
+          "key": "naive:fadB:ggt:1981:1440:9:4:d0_gc1_ACA:WWW_AUA:wobble_GU",
+          "geom": "arm18/inv18/capnone",
+          "genes": "fadBxggt",
+          "closure": "d0_gc1_ACA",
+          "upper3": "WWW_AUA",
+          "lower3": "wobble_GU",
+          "leak": 0.9997755293263706,
+          "barrier": 25.2,
+          "on_cost": 7.282501220703125
+        },
+        "DIFFERENT trigger pairs"
+      ]
+    ]
+  }
+}

@@ -861,7 +861,7 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
 def test_bacterial_and_integration_bumps_engine_version():
     # Region-input compilation and the restored folding boundary change the results.
-    assert LocalEngine.ENGINE_VERSION.startswith("local-0.15.0")
+    assert LocalEngine.ENGINE_VERSION.startswith("local-0.15.1")
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(

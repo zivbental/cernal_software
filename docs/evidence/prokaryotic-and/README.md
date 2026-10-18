@@ -29,6 +29,25 @@ Re-run the current example from the repository root:
 uv run --locked --extra dev python tools/pair_budget_on_pfas.py --pipeline --pipeline-output gfp --seed 7 --max-designs 160 --max-pairs 8 --run-dir var/and-region-input-gfp-expanded --out var/and-region-input-gfp-expanded.json
 ```
 
+The local scientific/engineering revision additionally records
+`revision-export-gfp-20.json.gz`: the complete new sequence-free AND audit export
+alongside its real compiler run summary and producer-file hashes. It evaluated 20
+switches in 55.565 seconds and accepted/ranked none. This verifies export behavior,
+not successful search yield. It was produced at `d32703e` plus the explicitly hashed
+local revision; checking out that commit alone does not reproduce the new schema.
+All 22 check records, raw/normalized metrics and the resolved ranking profile are
+included. The [revision report](../prokaryotic-and-revision-2026-10-18.md) gives the
+schema, limitations and exact commands. Earlier archive bytes are unchanged.
+
+`refinement-export-gfp-20.json.gz` records the subsequent author-requested
+strong-lock-row, AUA-only and strengthening-only lower3 policy (family 0.11).
+Its final real example evaluated 20 switches in 45.592 seconds and accepted none;
+the original grid had two occupied cells in each represented strongest row.
+All designs used AUA; one had an eligible lower3 strengthening from -10.1000 to
+-12.1000 kcal/mol. The archive also preserves the closure-center/Green source
+check. Producer hashes match the local code; the base commit alone does not
+contain the changes. These timings are not controlled performance comparisons.
+
 The remaining records below preserve earlier development models; their historical
 commands and conclusions must not be substituted for this production contract.
 

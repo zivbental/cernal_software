@@ -2,6 +2,7 @@
 
 import csv
 import hashlib
+import json
 import math
 from types import SimpleNamespace
 
@@ -169,6 +170,10 @@ def test_two_gene_run_delivers_four_state_diagnostics_and_candidate_csv(
         assert set(diagnostics["states"]) == {"00", "01", "10", "11"}
         assert diagnostics["worst_off_state"] == "10"
         assert diagnostics["feasibility"] == {"passed": 22, "total": 22, "violations": []}
+        assert len(diagnostics["checks"]) == 22
+        assert all(check["passed"] and check["measured"] for check in diagnostics["checks"])
+        assert diagnostics["ranking_measures"]["denominator_floor"] is None
+        assert diagnostics["ranking_profile"]["version"] == "v3-computational-proxies"
         assert diagnostics["barrier_computed"] is False
         assert candidate.rank is not None
     for design, kwargs in seen:
@@ -178,6 +183,20 @@ def test_two_gene_run_delivers_four_state_diagnostics_and_candidate_csv(
     with open(f"{request.output_dir}/candidates.csv", newline="") as handle:
         rows = list(csv.DictReader(handle))
     assert len(rows) == len(result.candidates)
+    with open(f"{request.output_dir}/and-candidates.json") as handle:
+        exported = json.load(handle)
+    assert exported["schema_version"] == "and-candidate-audit-v1"
+    assert len(exported["candidates"]) == len(result.candidates)
+    for row in exported["candidates"]:
+        # Output is rank ordered; compare by ref rather than assuming result order.
+        matched = next(c for c in result.candidates if c.ref == row["ref"])
+        assert row["rank"] == matched.rank
+        assert row["equilibrium"]["checks"] == matched.design["and_gate"]["checks"]
+        assert row["metrics"][0]["raw_value"] == matched.metrics[0].raw_value
+        assert matched.design["switch_sequence"] not in json.dumps(row)
+        assert [feature["role"] for feature in row["inputs"]] == ["A", "B"]
+        assert all(feature["length"] > 0 for feature in row["inputs"])
+    assert "metric_state_separation" in rows[0]
 
 
 def test_missing_structural_measurement_is_retained_as_rejected_without_rank(
@@ -191,6 +210,11 @@ def test_missing_structural_measurement_is_retained_as_rejected_without_rank(
     assert result.candidates
     assert all(candidate.is_rejected and candidate.rank is None for candidate in result.candidates)
     assert all("xstar_engA_10" in candidate.rejection_reason for candidate in result.candidates)
+    for candidate in result.candidates:
+        check = next(
+            c for c in candidate.design["and_gate"]["checks"] if c["observable"] == "xstar_engA_10"
+        )
+        assert check["value"] is None and not check["measured"] and not check["passed"]
 
 
 def test_output_length_does_not_change_the_declared_switch_folding_boundary(
@@ -255,7 +279,7 @@ def test_completed_candidates_survive_the_time_limit(
     assert result.scientific_provenance["and_gate"]["search"]["runtime_limit_reached"] is True
 
 
-def test_build_tools_uses_shared_folder_and_explicit_compact_equilibrium_configuration(
+def test_build_tools_uses_shared_folder_and_requested_reduced_search(
     bacterial_request,
 ):
     from engine.domain import Host
@@ -264,7 +288,11 @@ def test_build_tools_uses_shared_folder_and_explicit_compact_equilibrium_configu
     family = next(f for f in tools["families"] if isinstance(f, ProkaryoticToeholdAndGate))
     assert family.folder is tools["folder"]
     assert family.compute_barrier is False
-    assert len(list(family._axis_grid("chosen"))) == 20
+    assert family.upper3_levels == ("WWW_AUA",)
+    assert family.strengthen_lower3_only is True
+    assert len(list(family._axis_grid("chosen"))) == 10
+    assert tools["constraints"].stem_order == "strong_lock_row"
+    assert ProkaryoticAndSettings().stems_per_pair == 3
 
 
 def pair_scorer_fixture():

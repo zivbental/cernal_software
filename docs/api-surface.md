@@ -517,12 +517,12 @@ Declared search budgets for the bacterial equilibrium compiler.
 | `max_pair_seed_matches` | `int` | `50000` |
 | `pair_selection` | `str` | `'top'` |
 | `accessibility_percentile` | `float` | `50.0` |
-| `stems_per_pair` | `int` | `2` |
+| `stems_per_pair` | `int` | `3` |
 | `max_stem_assignments` | `int` | `2187` |
 | `max_attempts` | `int` | `160` |
 | `geometry` | `str` | `'naive'` |
 | `closure_set` | `str` | `'chosen'` |
-| `upper3_set` | `str` | `'compact'` |
+| `upper3_set` | `str` | `'aua_only'` |
 | `on_ceiling` | `float` | `7.2` |
 
 | Status | Method | Purpose |
@@ -1621,7 +1621,7 @@ Two-input AND toehold.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'toehold_and'` |
-| `version` |  | `'0.10.0-accessible-region-and'` |
+| `version` |  | `'0.11.0-strong-lock-row-and'` |
 | `kind` |  | `GateKind.TOEHOLD_AND` |
 | `label` |  | `'AND Toehold'` |
 | `description` |  | `'Two-input translational AND'` |
@@ -1647,7 +1647,7 @@ Two-input AND toehold.
 | `MAX_INVASION_STALL` | `ClassVar[int]` | `2` |
 | `RT_KCAL` | `ClassVar[float]` | `0.0019872042586408 * 310.15` |
 | `GENERATION_KEYS` | `ClassVar[tuple[str, ...]]` | `('geometry', 'scheme', 'len_x', 'stem_index', 'closure', 'upper3', 'lower3', 'trigger_a…` |
-| `PRODUCTION_GENERATION_KEYS` | `ClassVar[tuple[str, ...]]` | `('secondary_search',)` |
+| `PRODUCTION_GENERATION_KEYS` | `ClassVar[tuple[str, ...]]` | `('secondary_search', 'secondary_selection', 'lower3_energy_before', 'lower3_energy_afte…` |
 | `MEASURED_KEYS` | `ClassVar[tuple[str, ...]]` | `('gc_content', 'switch_length', 'longest_homopolymer', 'component_count', *(f'open_{sta…` |
 | `CLOSURES_CHOSEN` | `ClassVar[tuple[tuple[str, str \| None], ...]]` | `(('trigger_derived', None), ('green_AUG', 'AUG'), ('centre_d1_AAC', 'AAC'), ('centre_d2…` |
 | `CLOSURES` | `ClassVar[tuple[tuple[str, str \| None], ...]]` | `(('open_3x3', None), ('closed_UAU', 'UAU'), ('closed_CAU', 'CAU'), ('closed_CGU', 'CGU'…` |
@@ -1658,7 +1658,7 @@ Two-input AND toehold.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer, *, kozak_layouts: tuple[str, ...] \| None = None, payload: str \| None = None, compute_barrier: bool = True, balanced_grid: bool = False, upper3_levels: tuple[str, ...] \| None = None, max_secondary_assignments: int \| None = None, seed: int = 0, should_stop: Callable[[], bool] \| None = None) -> None` |  |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer, *, kozak_layouts: tuple[str, ...] \| None = None, payload: str \| None = None, compute_barrier: bool = True, balanced_grid: bool = False, upper3_levels: tuple[str, ...] \| None = None, strengthen_lower3_only: bool = False, max_secondary_assignments: int \| None = None, seed: int = 0, should_stop: Callable[[], bool] \| None = None) -> None` |  |
 | `BUILT` | `def find_cross_gene_pairs(self, gene_a: str, transcript_a: str, gene_b: str, transcript_b: str, *, max_matches: int \| None = None, on_progress: Callable[[int, int], bool] \| None = None, regions_a: tuple[tuple[int, int], ...] \| None = None, regions_b: tuple[tuple[int, int], ...] \| None = None) -> Iterator['_CrossGenePair']` | Every maximal reverse-complementary run shared by two transcripts, both roles. |
 | `BUILT` | `def screen_trigger_window(self, window_a: str, main_pre: str \| None = None) -> tuple[str, ...]` | Sequence restrictions on ONE trigger window. Empty means clean. |
 | `BUILT` | `def stop_rescue_cost(self, main_pre: str) -> int \| None` | Wobble substitutions needed to clear every in-frame stop in ``main_pre``. |
@@ -1764,7 +1764,7 @@ A0 with Kim 2019's verified inhibitory geometry on the secondary hairpin.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `version` |  | `'kim-secondary-4'` |
+| `version` |  | `'kim-secondary-5-strong-lock-row'` |
 | `SECONDARY_ARM_LEN` | `ClassVar[int]` | `20` |
 | `SECONDARY_INVASION_LEN` | `ClassVar[int]` | `17` |
 | `SECONDARY_CAP` | `ClassVar[str]` | `'AUA'` |
@@ -3669,7 +3669,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.15.0-prokaryotic-and-equilibrium'` |
+| `ENGINE_VERSION` |  | `'local-0.15.1-prokaryotic-and-equilibrium-strong-lock-row'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |

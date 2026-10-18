@@ -386,9 +386,12 @@ def build_tools(
                     tools["codons"],
                     compute_barrier=False,
                     balanced_grid=True,
-                    upper3_levels=("trigger_derived", "WWW_AUA")
-                    if prok_settings.upper3_set == "compact"
-                    else None,
+                    upper3_levels={
+                        "aua_only": ("WWW_AUA",),
+                        "compact": ("trigger_derived", "WWW_AUA"),
+                        "full": None,
+                    }[prok_settings.upper3_set],
+                    strengthen_lower3_only=True,
                     max_secondary_assignments=prok_settings.max_stem_assignments,
                     seed=request.seed if request.seed is not None else 0,
                     should_stop=should_stop,
@@ -398,7 +401,7 @@ def build_tools(
             constraints = dataclasses.replace(
                 constraints,
                 stems_per_pair=prok_settings.stems_per_pair,
-                stem_order="front",
+                stem_order="strong_lock_row",
                 closure_set=prok_settings.closure_set,
             )
             tools["constraints"] = constraints
@@ -789,6 +792,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                 )
                 raw = family.metrics_from_measurement(evaluated_design, measured)
                 diagnostics = family.diagnostics_from_measurement(evaluated_design, measured)
+                diagnostics["ranking_profile"] = dataclasses.asdict(profile)
             else:
                 raw = family.evaluate_design(evaluated_design)
                 diagnostics = (
@@ -878,6 +882,8 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             "feasibility_checks": len(families[0].THRESHOLDS),
             "ranking": "shared_scoring_profile_after_all_feasibility_and_construct_checks",
             "design_order": "round_robin_pairs_rotated_balanced_grid_interleaved_stems_v1",
+            "secondary_selection": "strongest_lock_tertile_one_per_global_a_site_tertile",
+            "lower3_policy": "strengthen_only_with_lower_arm_energy_gain",
         }
         warnings.append(
             "Bacterial AND: four-state equilibrium structural predictions, with all declared "
@@ -2398,6 +2404,22 @@ def _write_artifacts(
             "evaluation_context",
             "evaluation_sequence_sha256",
             "switch_sequence_sha256",
+            "and_on_minus_off",
+            "and_raw_on_off_ratio",
+            *[
+                f"metric_{name}"
+                for name in (
+                    "state_separation",
+                    "trigger_accessibility",
+                    "gate_folding_energy",
+                    "predicted_leakage",
+                    "dynamic_range",
+                    "gc_content",
+                    "orthogonality",
+                    "predicted_success_rate",
+                    "circuit_complexity",
+                )
+            ],
             *[f"and_p_open_{state}" for state in ("00", "10", "01", "11")],
             *[f"and_dg_open_{state}_kcal_per_mol" for state in ("00", "10", "01", "11")],
         ]
@@ -2452,6 +2474,9 @@ def _write_artifacts(
             for state, values in info.get("states", {}).items():
                 row[f"and_p_open_{state}"] = values.get("open_probability")
                 row[f"and_dg_open_{state}_kcal_per_mol"] = values.get("opening_energy_kcal_per_mol")
+            row["and_on_minus_off"] = info.get("ranking_measures", {}).get("on_minus_off")
+            row["and_raw_on_off_ratio"] = info.get("ranking_measures", {}).get("raw_on_off_ratio")
+            row.update({f"metric_{metric.name}": metric.raw_value for metric in candidate.metrics})
         writer.writerow(row)
 
     artifacts = [
@@ -2464,6 +2489,106 @@ def _write_artifacts(
             sequence_free=True,
         )
     ]
+
+    if bacterial:
+        # Existing CandidateResult remains the inter-stage contract. This sequence-free
+        # export makes its AND-specific checks and ranking definitions inspectable without
+        # bypassing the sequence-release policy below.
+        records = []
+        for candidate in sorted(candidates, key=lambda c: (c.rank is None, c.rank or 0, c.ref)):
+            info = candidate.design.get("and_gate", {})
+            architecture = candidate.design.get("architecture", {})
+            records.append(
+                {
+                    "ref": candidate.ref,
+                    "rank": candidate.rank,
+                    "overall_score": candidate.overall_score,
+                    "rejected": candidate.is_rejected,
+                    "rejection_reason": candidate.rejection_reason,
+                    "inputs": [
+                        {
+                            **{
+                                key: feature.get(key)
+                                for key in (
+                                    "gene_id",
+                                    "gene_symbol",
+                                    "start_index",
+                                    "reference_accession",
+                                    "transcript_sequence_sha256",
+                                    "sequence_sha256",
+                                    "selection_score",
+                                )
+                            },
+                            "role": role,
+                            "length": len(feature.get("sequence", "")),
+                            "end_index": feature["start_index"] + len(feature.get("sequence", "")),
+                        }
+                        for role, feature in zip(
+                            ("A", "B"), candidate.triggers.get("features", []), strict=False
+                        )
+                    ],
+                    "parameters": {
+                        key: architecture.get(key)
+                        for key in (
+                            "gene_a",
+                            "gene_b",
+                            "geometry",
+                            "len_x",
+                            "stem_index",
+                            "closure",
+                            "upper3",
+                            "lower3",
+                            "secondary_search",
+                            "secondary_selection",
+                            "domain_map",
+                            "lock_energy",
+                            "a_site_energy",
+                            "b_site_energy",
+                            "lock_minus_a_site",
+                            "ddg_pref",
+                            "closure_natural",
+                            "closure_changed",
+                            "upper3_natural",
+                            "upper3_changed",
+                            "lower3_strong_before",
+                            "wobble_applied",
+                            "lower3_energy_before",
+                            "lower3_energy_after",
+                            "lower3_strong_after",
+                        )
+                    },
+                    "switch_sequence_sha256": sha256_bytes(
+                        candidate.design["switch_sequence"].encode()
+                    ),
+                    "family_version": candidate.design.get("family_version"),
+                    "tool_versions": candidate.design.get("tool_versions"),
+                    "folding_model": candidate.design.get("folding_model"),
+                    "metrics": [dataclasses.asdict(metric) for metric in candidate.metrics],
+                    "equilibrium": info,
+                }
+            )
+        artifacts.append(
+            write_artifact(
+                output_dir,
+                "and-candidates.json",
+                json.dumps(
+                    {
+                        "schema_version": "and-candidate-audit-v1",
+                        "sequence_policy": (
+                            "Full sequences remain in internal CandidateResult; "
+                            "released exports require screening."
+                        ),
+                        "candidates": records,
+                    },
+                    indent=2,
+                    allow_nan=False,
+                )
+                + "\n",
+                kind="design_table",
+                media_type="application/json",
+                sequence_free=True,
+            )
+        )
 
     for candidate in sorted((c for c in candidates if not c.is_rejected), key=lambda c: c.ref):
         if on_progress is not None and not on_progress(97, "Writing report"):

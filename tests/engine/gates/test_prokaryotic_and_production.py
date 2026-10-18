@@ -2,10 +2,12 @@
 
 import math
 from dataclasses import replace
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
+from engine import sequences as sq
 from engine.domain import Constraints, Host, TriggerCandidate, TriggerSet
 from engine.errors import JobCancelled
 from engine.gates import toehold
@@ -393,3 +395,102 @@ def test_grid_offset_does_not_change_historical_generation_order(production):
     assert list(gate.generate_designs(design.trigger_set, constraints, grid_offset=7)) == list(
         gate.generate_designs(design.trigger_set, constraints)
     )
+
+
+def test_strong_lock_selection_returns_the_three_cells_of_the_first_row():
+    # Each weaker-lock point has better B energy, so it is a genuine trade-off.
+    front = [
+        toehold._SecondaryStem("A", "U", (), 0, -30 + i, -30 + 10 * (i % 3), -i) for i in range(9)
+    ]
+    selected = toehold._select_stems(front, 3, "strong_lock_row")
+    assert [(s.lock_energy, s.a_site_energy) for s in selected] == [
+        (-30, -30),
+        (-29, -20),
+        (-28, -10),
+    ]
+    assert toehold._select_stems(front, 12, "strong_lock_row") == selected
+    assert toehold._select_stems(list(reversed(front)), 3, "strong_lock_row") == selected
+
+
+def test_reduced_generation_records_the_selected_row_and_never_emits_noop_wobble(production):
+    gate, design = production
+    reduced = type(gate)(
+        Host.ECOLI,
+        gate.folder,
+        gate.translation,
+        gate.codons,
+        upper3_levels=("WWW_AUA",),
+        strengthen_lower3_only=True,
+        max_secondary_assignments=1000,
+        seed=7,
+    )
+    constraints = Constraints(stems_per_pair=3, stem_order="strong_lock_row", closure_set="chosen")
+    candidates = list(reduced.generate_designs(design.trigger_set, constraints))
+    assert candidates
+    for candidate in candidates:
+        architecture = candidate.architecture
+        assert architecture["upper3"] == "WWW_AUA"
+        selection = architecture["secondary_selection"]
+        assert selection["policy"] == "strong_lock_row"
+        assert selection["requested"] == 3
+        assert 1 <= selection["selected"] <= 3
+        if architecture["lower3"] == "wobble_GU":
+            assert architecture["wobble_applied"] > 0
+            assert architecture["lower3_energy_after"] < architecture["lower3_energy_before"]
+        assert "secondary_selection" in reduced.PRODUCTION_GENERATION_KEYS
+
+
+def test_strong_lock_selection_does_not_fill_empty_cells_from_weaker_rows():
+    front = [toehold._SecondaryStem("A", "U", (), 0, -30 + i, -30 + i, -i) for i in range(9)]
+    selected = toehold._select_stems(front, 3, "strong_lock_row")
+    assert len(selected) == 1
+    assert selected[0].lock_energy == -29  # centre of the only occupied top-row cell
+    assert toehold._select_stems([], 3, "strong_lock_row") == []
+    assert toehold._select_stems(front[:2], 3, "strong_lock_row") == front[:1]
+
+
+@pytest.mark.parametrize("star", ["AAAGCGCGC", "AAGGCGCGC"])
+def test_reduced_wobble_requires_actual_lower_arm_strengthening(production, star):
+    gate, _ = production
+    reduced = type(gate)(
+        Host.ECOLI, gate.folder, gate.translation, gate.codons, strengthen_lower3_only=True
+    )
+    base = SimpleNamespace(domains={"main_pre_star": (0, 9), "main_pre": (9, 18)})
+    sequence = list(star + sq.reverse_complement(star))
+    original = list(sequence)
+    result = reduced._apply_lower3(sequence, base, reduced.LOWER3_WOBBLE)
+    assert result["wobble_applied"] > 0
+    assert result["lower3_energy_after"] < result["lower3_energy_before"]
+    assert sum(b in "GC" for b in sequence[:3]) > sum(b in "GC" for b in original[:3])
+    assert all(
+        a == b or (a, b) == ("A", "G") for a, b in zip(original[:9], sequence[:9], strict=True)
+    )
+
+
+@pytest.mark.parametrize("star", ["CCCGCGCGC", "ACGGCGCGC", "UUUGCGCGC"])
+def test_reduced_wobble_never_weakens_or_duplicates_an_inapplicable_change(production, star):
+    gate, _ = production
+    reduced = type(gate)(
+        Host.ECOLI, gate.folder, gate.translation, gate.codons, strengthen_lower3_only=True
+    )
+    base = SimpleNamespace(domains={"main_pre_star": (0, 9), "main_pre": (9, 18)})
+    sequence = list(star + sq.reverse_complement(star))
+    original = list(sequence)
+    result = reduced._apply_lower3(sequence, base, reduced.LOWER3_WOBBLE)
+    assert result["wobble_applied"] == 0
+    assert sequence == original
+
+
+def test_reduced_wobble_does_not_claim_strengthening_when_energy_is_missing(
+    production, monkeypatch
+):
+    gate, _ = production
+    reduced = type(gate)(
+        Host.ECOLI, gate.folder, gate.translation, gate.codons, strengthen_lower3_only=True
+    )
+    base = SimpleNamespace(domains={"main_pre_star": (0, 9), "main_pre": (9, 18)})
+    sequence = list("AAAGCGCGC" + sq.reverse_complement("AAAGCGCGC"))
+    original = list(sequence)
+    monkeypatch.setattr(toehold, "fixed_alignment_energy", lambda *_: None)
+    assert reduced._apply_lower3(sequence, base, reduced.LOWER3_WOBBLE)["wobble_applied"] == 0
+    assert sequence == original

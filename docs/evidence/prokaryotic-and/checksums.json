@@ -125,6 +125,38 @@
         "src\\engine\\stages\\switches.py": "38c8c03d68aa11378c014fac31aabf49666fc3b483af3330dda5e7550fc7f118",
         "src\\engine\\stages\\triggers.py": "59cfe363d6968e5b18926f59e1398e198cb893e160f93c6e5e7c88e916900633"
       }
+    },
+    {
+      "file": "revision-export-gfp-20.json.gz",
+      "sha256": "b627cbf6ba4b3fa2e85c002388e9be2184eedc78007b536acf06d2642a3452d3",
+      "uncompressed_sha256": "040a6bd5dc9cc209eb6942c8728303ea09b906e5ad00e4e197fe10c85c66393a",
+      "bytes": 48375,
+      "producer_revision": "d32703eb33c6c90dc7a2578bc8ba4641fc31a1c0",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "src/engine/gates/toehold.py": "53931224cd6d91d5eed89615052f0d4328456062587ca0b738ea73bc69681f2c",
+        "src/engine/pipeline.py": "61577e6e3e1313b5bba76634eed9bd5d4b9e3585928a390fc4911b657be5c8bb",
+        "src/engine/scoring/profiles.py": "7cae9f6e0e98e18a171edc30ec8ff57310d351ffe68abe7a61bac035bcd45d68",
+        "src/engine/scoring/normalize.py": "771d6a3ed694cb85cb4557a150ba5f1ee770dc3fc13d79ce0f8e84331b61a58f",
+        "tools/pair_budget_on_pfas.py": "e830faa235971278aca8dc23536f741039a799219b470046377d2b1d11afec28",
+        "uv.lock": "1d49be013468721626a45319e933a733d9a2b3ae8488f485e71c53a0b0563aad"
+      }
+    },
+    {
+      "file": "refinement-export-gfp-20.json.gz",
+      "sha256": "386341b6882183f160d17ebbe93dc05ed563495d97c01603b22e8420db784370",
+      "uncompressed_sha256": "3b89a489ac9b7ac3c02b5bb857aa5a563125715636d62d54d317e35e84376841",
+      "bytes": 57070,
+      "producer_revision": "d32703eb33c6c90dc7a2578bc8ba4641fc31a1c0",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "src\\engine\\pipeline.py": "e9790b8fbed9fb89102987c030816e82f0d004d918dd59109e40fc1dab3180cb",
+        "src\\engine\\domain.py": "0eaec58fae7e391747a413a36158a56235edc86988a05437ae7730b96faa479d",
+        "src\\engine\\client.py": "664e4151364a29688db4e05d2028ce739e54916b190a69175a87586b3b289198",
+        "src\\engine\\gates\\toehold.py": "a8d17493491fd316851f18ef21f258f415f187736962bc562acbe7d4fb945288",
+        "src\\engine\\stages\\switches.py": "38c8c03d68aa11378c014fac31aabf49666fc3b483af3330dda5e7550fc7f118",
+        "src\\engine\\stages\\triggers.py": "59cfe363d6968e5b18926f59e1398e198cb893e160f93c6e5e7c88e916900633"
+      }
     }
   ]
 }

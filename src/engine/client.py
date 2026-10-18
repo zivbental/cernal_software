@@ -608,7 +608,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.15.0-prokaryotic-and-equilibrium"
+    ENGINE_VERSION = "local-0.15.1-prokaryotic-and-equilibrium-strong-lock-row"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.
