@@ -34,12 +34,14 @@ import math
 import os
 import subprocess
 import sys
+from collections.abc import Sequence
 from dataclasses import asdict
 from functools import lru_cache
 from hashlib import sha256
 from itertools import permutations
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Lock
 from types import SimpleNamespace
 
 import RNA
@@ -70,6 +72,8 @@ _MAX_STRUCTURE_LAYOUT_NT = 2_000
 # All CERNAL snapshot creation and compound construction shares this lock. Native folds
 # use copied parameters after leaving it. Never load an energy file for every fold.
 _PARAMETER_LOCK = VIENNA_PARAMETER_LOCK
+# ViennaRNA's random generator is process-global: held while seeding and drawing.
+_SAMPLING_LOCK = Lock()
 _ENERGY_TABLES = {
     "turner2004": RNA.parameter_set_rna_turner2004,
     "turner1999": RNA.parameter_set_rna_turner1999,
@@ -105,7 +109,7 @@ def _model(config: FoldingConfig, window_size: int, max_bp_span: int, uniq_ml: i
         cv_fact=1.0,
         nc_fact=1.0,
         sfact=1.07,
-        salt=1.021,
+        salt=config.salt_molar,
         saltMLLower=6,
         saltMLUpper=24,
         saltDPXInit=99999,
@@ -190,6 +194,7 @@ def _parameter_snapshot(config: FoldingConfig, window_size: int, max_bp_span: in
             else []
         ),
         "suboptimal_model_override": {"uniq_ML": 1},
+        "sampling_model_override": {"uniq_ML": 1},
     }
     return parameters, exp_parameters, json.dumps(provenance, sort_keys=True, allow_nan=False)
 
@@ -233,6 +238,20 @@ def configured_compound(
             parameters_copy.model_details.max_bp_span = effective_span
         compound.exp_params_rescale()
     return compound
+
+
+def _contains_pairs(structure: str, pairs: Sequence[tuple[int, int]]) -> bool:
+    """Whether a dot-bracket string (``&`` ignored) pairs every ``(i, j)`` in ``pairs``."""
+    stack: list[int] = []
+    partner: dict[int, int] = {}
+    for position, char in enumerate(structure.replace("&", "")):
+        if char == "(":
+            stack.append(position)
+        elif char == ")":
+            opener = stack.pop()
+            partner[opener] = position
+            partner[position] = opener
+    return all(partner.get(i) == j for i, j in pairs)
 
 
 class FoldEngine:
@@ -286,7 +305,13 @@ class FoldEngine:
         )
         # Instance-owned wrappers retain no tools through a class-level cache. Cycles
         # between an instance and its bound wrappers are reclaimed by Python's GC.
-        for name in ("mfe", "structure_energy", "partition", "_partition_with_unpaired"):
+        for name in (
+            "mfe",
+            "structure_energy",
+            "partition",
+            "_partition_with_unpaired",
+            "_constrained_probability_cached",
+        ):
             setattr(self, name, lru_cache(maxsize=cache_size)(getattr(self, name)))
         self._base_pair_probabilities_cached = lru_cache(maxsize=min(cache_size, 2))(
             self._base_pair_probabilities_cached
@@ -358,6 +383,51 @@ class FoldEngine:
         fc = self._compound(strands)
         structure, energy = fc.mfe()
         return FoldResult(structure=structure, energy=energy)
+
+    def centroid(self, strands: str) -> FoldResult:
+        """The structure with the smallest expected base-pair distance to the ensemble.
+
+        A second answer to "what does this fold into", and a better one wherever the
+        ensemble is not concentrated on one structure. ``mfe`` returns the single most
+        stable fold, which can carry a small share of the Boltzmann weight — in that case
+        drawing it presents a structure the molecule mostly is **not** in. The centroid is
+        the structure closest on average to every structure in the ensemble, so it keeps
+        only pairs the ensemble broadly agrees on and leaves the contested regions open.
+
+        Neither is "the" structure and they are not ranked against each other: the centroid
+        can lose a real helix that half the ensemble forms, and the MFE can show one that
+        only it forms. Both are drawings, which is why every *measurement* in this engine
+        goes through the partition function instead — ``p_open``, ``open_penalty``,
+        ``pooled_pair_probabilities``. Use these two for the picture and those for the
+        number.
+
+        Args:
+            strands: RNA, uppercase, ``&``-joined for a complex — the same convention and
+                the same cache-key reason as ``mfe``.
+
+        Returns:
+            ``FoldResult(structure, energy)``. ``structure`` is dot-bracket over the
+            combined strands, the same length ``mfe`` returns. ``energy`` is the
+            **centroid's own free energy** in kcal/mol, evaluated under this model, not
+            the ensemble free energy and not ViennaRNA's distance-to-ensemble figure —
+            so it is directly comparable with ``mfe().energy`` and is always greater than
+            or equal to it, the MFE being the minimum by definition.
+
+        Gotchas:
+            * ``pf()`` must run before ``centroid()``; ViennaRNA returns a meaningless
+              structure otherwise, and silently. Handled here.
+            * ``fc.centroid()`` returns ``(structure, distance)`` where the second value
+              is the expected base-pair distance — **not** an energy. Reporting it as one
+              would put a positive "energy" of a few dozen on a drawing that sits beside
+              a negative MFE, which is why this re-evaluates the structure instead.
+        """
+        fold_compound = self._compound(strands)
+        fold_compound.pf()
+        structure, _distance = fold_compound.centroid()
+        return FoldResult(
+            structure=structure,
+            energy=float(fold_compound.eval_structure(structure)),
+        )
 
     def structure_energy(self, strands: str, structure: str) -> float | None:
         """Energy of one **given** structure, rather than the best one.
@@ -572,6 +642,120 @@ class FoldEngine:
         ]
         return probabilities, constrained, unconstrained
 
+    def open_penalty(self, strands: str, spans: tuple[tuple[int, int], ...]) -> float | None:
+        """Free energy cost of forcing every base in ``spans`` unpaired, in kcal/mol.
+
+        This is ``p_open`` expressed as an energy rather than a probability, and generalised
+        to several disjoint spans so that a stem can be constrained without constraining the
+        bulge between its arms.
+
+        **Why the energy and not the probability.** They are the same number —
+        ``G_constrained - G_ensemble = -RT ln(Q_constrained / Q)`` — but only one of them is
+        usable. Measured across the four tubes of one real A0 design, the probabilities span
+        ``1.9e-15`` to ``3.4e-04`` while the energies span ``4.93`` to ``20.89`` kcal/mol.
+        The probability underflows in the OFF states, where the answer matters most, and
+        ``p_open`` has to return ``None`` once it does. The energy never underflows, and
+        energies add, so terms built from this compose into an objective function without
+        weights: a sum of free energies is a free energy.
+
+        **Constrain the stem, not the window.** A window constraint asks "is this region
+        unpaired", which a design can satisfy by refolding the region onto something else —
+        measured on the VISTA library, where 57 of 60 switches re-pair the RBS-to-AUG window
+        in the ON state and a window-based score therefore reports a working switch as
+        broken. Constraining the stem's own arms cannot be faked that way.
+
+        **Direction matters, and only one direction carries information.** Forcing a stem
+        *closed* costs ``0.00 +/- 0.00`` kcal/mol in every state of every design measured:
+        the stem is already paired in the ensemble, so the constraint is pre-satisfied and
+        the term is identically zero. Forcing it *open* separates the states — 16.96 (00),
+        19.37 (01), 4.05 (10), 2.75 (11) on a five-design sample. So score every state with
+        the same open constraint and take the contrast; never mix directions.
+
+        Args:
+            strands: RNA, uppercase, ``&``-joined for a complex.
+            spans: ``(start, end)`` pairs into **the first strand**, 0-based, inclusive
+                start, exclusive end. May be given in any order; overlaps are harmless
+                because positions are de-duplicated.
+
+        Returns:
+            The cost in kcal/mol, ``>= 0`` in exact arithmetic, or ``None`` if any ensemble
+            came back non-finite. ``None`` rather than ``0.0``: zero is what a *free* region
+            costs, so returning it for a failed measurement would read as a perfectly
+            accessible stem.
+
+        Raises:
+            ValueError: if ``spans`` is empty or any span is empty, reversed, or runs off
+                the first strand. Always a bug upstream, not a bad design.
+        """
+        if not spans:
+            raise ValueError("spans must name at least one range")
+        first = strands.split("&")[0]
+        positions: set[int] = set()
+        for start, end in spans:
+            if not 0 <= start < end <= len(first):
+                raise ValueError(
+                    f"span {(start, end)} is not a non-empty range inside the first strand "
+                    f"(length {len(first)})"
+                )
+            positions.update(range(start + 1, end + 1))
+        ordered = tuple(sorted(positions))
+
+        constrained: list[float] = []
+        unconstrained: list[float] = []
+        for order in self._strand_orders(strands):
+            constrained.append(self._partition_with_unpaired(order, ordered))
+            unconstrained.append(self.partition(order))
+        if not all(math.isfinite(e) for e in (*constrained, *unconstrained)):
+            return None
+        return self._combine(constrained) - self._combine(unconstrained)
+
+    def saddle(
+        self, sequence: str, start: str, end: str, *, max_energy: float = 200.0
+    ) -> float | None:
+        """Activation barrier between two structures, in kcal/mol above ``start``.
+
+        The quantity every "kinetic barrier" in this project has so far *not* been. A state
+        difference is end minus beginning; a barrier is the highest energy on the path
+        between, and two states at equal energy can still be separated by one. Measured on a
+        real 165-nt A0 switch: the difference is +8.59 kcal/mol while the barrier is +9.60,
+        and on another design +7.29 against +9.30. The gap is small but it varies, so the
+        barrier is not a rescaled difference.
+
+        Args:
+            sequence: RNA, uppercase. A single strand — findpath does not take ``&``.
+            start: Dot-bracket for the starting structure, same length as ``sequence``.
+            end: Dot-bracket for the target structure, same length.
+            max_energy: Search ceiling in kcal/mol. Paths needing more are abandoned.
+
+        Returns:
+            Barrier height above ``start`` in kcal/mol, or ``None`` when no path was found
+            under ``max_energy``.
+
+        Gotchas:
+            * ``RNA.find_saddle`` takes **and returns dekacal/mol as an integer** — the
+              units trap this repo has already been bitten by. 290 means 2.90 kcal/mol.
+              Both conversions happen here so no caller repeats them.
+            * findpath walks a heuristic *direct* path, so this is an **upper bound** on the
+              true saddle, not the minimum-barrier path. Report it as such.
+            * **Cost depends entirely on how far apart the two structures are**, and the
+              spread is three orders of magnitude. Releasing only a stem's arms on a 161-nt
+              switch: median **136 ms** over six real designs (92-416 ms). Asking for the
+              fully open chain on the same switch: **24 seconds**, because findpath explores
+              every intermediate. An earlier version of this note said 11 ms, measured on a
+              27-nt toy hairpin — do not size a sweep from that number. Give the nearest
+              target that answers the question.
+        """
+        for name, structure in (("start", start), ("end", end)):
+            if len(structure) != len(sequence):
+                raise ValueError(
+                    f"{name} structure is {len(structure)} long but sequence is {len(sequence)}"
+                )
+        ceiling = round(max_energy * 100)
+        saddle = RNA.find_saddle(sequence, start, end, ceiling)
+        if saddle is None or saddle >= ceiling:
+            return None
+        return saddle / 100.0 - float(self._compound(sequence).eval_structure(start))
+
     @staticmethod
     def validate_target(sequence: str, target: str) -> None:
         """Reject malformed single-strand dot-bracket structures before native calls."""
@@ -739,6 +923,36 @@ class FoldEngine:
                         target[index[j]] += share * probability
         return pooled
 
+    def pooled_partition(self, strands: str) -> float:
+        """``partition`` Boltzmann-summed over all strand orderings.
+
+        **Use this, not ``partition``, for any free energy of three or more strands.**
+        ``partition`` folds the strands in the order written and ViennaRNA counts only
+        structures that are non-crossing in that order, so the answer depends on it. The
+        two orderings of one real AND-gate tube measured **12.66 kcal/mol** apart here
+        (``switch&A&B`` = -162.97, ``switch&B&A`` = -150.31), and on a second trigger pair
+        the same switch came out 5.03 apart with the *opposite* ordering favoured — so
+        there is no ordering a caller can simply prefer, and picking one silently
+        discards the other's structures.
+
+        A binding energy built from unpooled terms inherits the whole spread, because the
+        complex and its sub-complexes are folded in different orders.
+
+        Returns:
+            Ensemble free energy in kcal/mol over the union of the orderings' ensembles.
+            Never above the lowest single ordering, and equal to ``partition`` for one or
+            two strands, where there is a single ordering.
+        """
+        orders = self._strand_orders(strands)
+        if len(orders) == 1:
+            return self.partition(strands)
+        energies = [self.partition(order) for order in orders]
+        # Shifted by the minimum before exponentiating, the same guard `p_open` uses: a
+        # bare exp(-G / RT) overflows a float at these magnitudes.
+        floor = min(energies)
+        total = math.fsum(math.exp(-(energy - floor) / self.rt) for energy in energies)
+        return floor - self.rt * math.log(total)
+
     @staticmethod
     def _position_map(order: list[str], canonical: list[str]) -> list[int]:
         """Index in the canonical concatenation for each index in ``order``'s.
@@ -779,6 +993,183 @@ class FoldEngine:
                     matrix[i - 1][j - 1] = probability
                     matrix[j - 1][i - 1] = probability
         return tuple(tuple(row) for row in matrix)
+
+    def constrained_probability(
+        self, strands: str, forced_pairs: Sequence[tuple[int, int]]
+    ) -> float | None:
+        """Exact probability that **all** of ``forced_pairs`` are present at once.
+
+        Why it exists: a joint event such as "both designed duplexes are formed in the
+        same structure" cannot be read off the pair-probability matrix, whose entries
+        are marginals — the product of marginals is only a bound under independence.
+        The partition-function ratio answers it exactly, with no sampling noise (on
+        multi-strand complexes :meth:`sample_structures` was measured to disagree badly
+        with the exact probabilities, and more draws do not fix it)::
+
+            P(all forced pairs) = Z(forced) / Z = exp(-(G_forced - G) / RT)
+
+        where ``Z(forced)`` is the partition function restricted to structures that
+        contain every forced pair, ``G`` the unconstrained ensemble free energy, and
+        ``RT`` is :attr:`rt` (ViennaRNA's own gas constant at this engine's temperature).
+        For a single forced pair this equals the matching
+        :meth:`base_pair_probabilities` entry exactly.
+
+        Args:
+            strands: RNA, uppercase; one sequence or several joined with ``&`` — the
+                same syntax and indexing as :meth:`sample_structures`.
+            forced_pairs: ``(i, j)`` positions, **0-indexed over the concatenation with
+                the** ``&`` **removed**, that must all be paired. Converted here to
+                ViennaRNA's 1-indexed ``hc_add_bp`` with all-loop-context enforcement.
+
+        Returns:
+            A probability in ``(0, 1]``, or ``None`` — never ``0.0`` — when
+            ``forced_pairs`` is empty (nothing to ask), the constraints cannot all hold
+            (an impossible pair, or pairs that conflict), or ViennaRNA fails.
+
+        Numerics: both compounds run ``mfe()`` and ``exp_params_rescale(mfe)`` before
+        ``pf()`` so the Boltzmann factors are scaled to the same energy scale and long
+        complexes do not overflow. Cached on ``(strands, forced_pairs)``.
+        """
+        pairs = tuple((int(i), int(j)) for i, j in forced_pairs)
+        if not pairs:
+            return None
+        return self._constrained_probability_cached(strands, pairs)
+
+    def _constrained_probability_cached(
+        self, strands: str, forced_pairs: tuple[tuple[int, int], ...]
+    ) -> float | None:
+        rt = self.rt
+
+        def free_energy(pairs: tuple[tuple[int, int], ...]) -> float | None:
+            fold_compound = self._compound(strands)
+            if pairs:
+                option = RNA.CONSTRAINT_CONTEXT_ALL_LOOPS | RNA.CONSTRAINT_CONTEXT_ENFORCE
+                for i, j in pairs:
+                    fold_compound.hc_add_bp(i + 1, j + 1, option)
+            structure, mfe_energy = fold_compound.mfe()
+            if pairs and not _contains_pairs(structure, pairs):
+                # ViennaRNA silently drops a forced pair it cannot place (and an
+                # enforced set that conflicts), which would read back as P = 1.0.
+                return None
+            fold_compound.exp_params_rescale(mfe_energy)
+            _, energy = fold_compound.pf()
+            return energy
+
+        try:
+            free_forced = free_energy(forced_pairs)
+            free_all = free_energy(())
+        except Exception:  # ViennaRNA raises bare RuntimeError/ValueError
+            return None
+        # An infeasible constraint set yields a non-finite or absurdly high energy.
+        if free_forced is None or free_all is None:
+            return None
+        if not (free_forced == free_forced and free_all == free_all):
+            return None
+        if free_forced - free_all > 100.0:
+            return None
+        cost = free_forced - free_all
+        probability = math.exp(-cost / rt)
+        if probability == 0.0:
+            return None
+        # Same clamp as ``p_open``: the constrained ensemble is a subset of the free one,
+        # so ``cost`` is non-negative in exact arithmetic; single-precision energies can put
+        # a near-certain event one ulp the wrong way (probability just above 1).
+        if probability > 1.0:
+            return 1.0 if cost > -_FLOAT32_ENERGY_ULP else None
+        return probability
+
+    def sample_structures(
+        self,
+        strands: str,
+        n_samples: int,
+        seed: int | None = None,
+        first_strand: int | None = None,
+    ) -> list[str]:
+        """Structures drawn from the Boltzmann ensemble, not just the best one.
+
+        :meth:`mfe` returns the single most stable structure; sampling shows what the
+        molecule does the rest of the time, and is the only way to ask a joint question
+        ("is region X open *in the same structure* as region Y?").
+
+        Args:
+            strands: RNA, uppercase. One sequence, or several joined with ``&``; same
+                indexing as :meth:`base_pair_probabilities` (positions over the
+                concatenation with the ``&`` removed, first strand first). The strand order
+                must already be one ViennaRNA can represent without a pseudoknot.
+            n_samples: How many structures to draw.
+            seed: If given, seeds ViennaRNA's random generator before drawing. That
+                generator is process-global, so seeding and drawing run under a lock and
+                concurrent seeded calls in one process are serialized (each reproducible);
+                an unseeded call still advances the shared generator.
+            first_strand: Index (in ``strands``) of the strand to write first when drawing;
+                the others follow in their cyclic order, so the structure stays nested.
+                ``None`` writes the last strand first (the validated choice for a switch
+                with its trigger: the trigger first). See the strand-order gotcha below.
+
+        Returns:
+            Dot-bracket strings (``&`` removed, in the caller's strand order). **May be
+            shorter than ``n_samples``**: ViennaRNA's stochastic backtracking can drop a
+            draw on a numerically awkward multiloop, so normalise by ``len(result)``,
+            never by ``n_samples``.
+
+        Not cached: draws are stochastic, so a second caller must not receive the first
+        caller's samples.
+
+        Gotchas:
+            * ``uniq_ML`` is required for stochastic backtracking. The compound comes from
+              :func:`configured_compound` (so ``no_gu``, dangles, energy tables and the
+              parameter lock match :meth:`mfe`, :meth:`partition` and
+              :meth:`base_pair_probabilities`) with ``uniq_ml=1`` as the only override,
+              recorded in :meth:`provenance` as ``sampling_model_override``.
+            * **Strand order matters.** ViennaRNA's ``pbacktrack`` can draw from the wrong
+              ensemble depending on which strand is written first: for real ~120-nt
+              switches plus their trigger, ``switch&trigger`` never drew the MFE and
+              returned structures with Boltzmann weight ~1e-11 as 70-75% of draws, while
+              ``trigger&switch`` matched exp(-(E-G)/RT) and the exact stem marginals. In a
+              switch with two hairpins and one trigger, the order that matched was the
+              one with the trigger on the side of the switch nearest its target hairpin
+              (trigger first for the 5' hairpin, last for the 3' one); the other order
+              drew the untargeted hairpin open. Not exact either (on a 57-nt construct the
+              top structure came out 4 points under its Boltzmann probability). Check
+              marginals built from samples against :meth:`base_pair_probabilities`.
+        """
+        parts = strands.split("&")
+        count = len(parts)
+        first = (count - 1) if first_strand is None else first_strand
+        if not 0 <= first < count:
+            raise ValueError(f"first_strand {first_strand} is outside the {count} strands")
+        order = [(first + k) % count for k in range(count)]  # a cyclic rotation: stays nested
+        drawn_order = "&".join(parts[i] for i in order)
+        # Same model, energy tables and parameter lock as every other fold; only uniq_ML
+        # differs, which stochastic backtracking requires (see the provenance record).
+        fold_compound = configured_compound(drawn_order, self.config, uniq_ml=1)
+        fold_compound.pf()
+        # ViennaRNA's generator is process-global: seeding and drawing must not interleave
+        # with another seeded draw in this process, or neither is reproducible.
+        with _SAMPLING_LOCK:
+            if seed is not None:
+                RNA.init_rand(seed)
+            drawn = list(fold_compound.pbacktrack(n_samples))
+        if count == 1 or order == list(range(count)):
+            return drawn
+        # Map each position of the drawn frame back to the caller's strand order.
+        original_start = [sum(len(parts[j]) for j in range(i)) for i in range(count)]
+        to_original: list[int] = []
+        for i in order:
+            to_original.extend(original_start[i] + k for k in range(len(parts[i])))
+        total = len(to_original)
+        mapped = []
+        for structure in drawn:
+            out = ["."] * total
+            stack: list[int] = []
+            for i, char in enumerate(structure):
+                if char == "(":
+                    stack.append(i)
+                elif char == ")":
+                    a, b = sorted((to_original[stack.pop()], to_original[i]))
+                    out[a], out[b] = "(", ")"
+            mapped.append("".join(out))
+        return mapped
 
     def suboptimal(
         self,
@@ -1210,6 +1601,90 @@ def structure_match(dot_bracket: str, target_structure: str) -> StructureMatch:
     # Structures alone carry no molecule or model energy: a Boltzmann probability
     # cannot be inferred from this signature and remains explicitly unavailable.
     return StructureMatch(deviation=deviation, p_target_fold=None)
+
+
+# --- Span reductions over a pair-probability matrix ----------------------------------
+#
+# These read a `base_pair_probabilities` matrix, so they belong with the adapter that
+# produces it rather than with any one gate family. They take the MATRIX and not a
+# sequence on purpose: a partition function is the expensive step, a design asks about a
+# dozen spans of the same molecule, and a function that refolded per span would multiply
+# the cost of every design by the number of spans. Fold once, reduce many times.
+#
+# They were promoted here from three private copies -- `gates/toehold.py`,
+# `gates/antisense.py` and, by import, `gates/euk_antisense.py` -- which had drifted
+# apart on the case that matters. The toehold copy returned `None` for a span outside the
+# matrix; the antisense copy clamped the span and returned `0.0` for an empty one, and
+# `euk_antisense` fed that straight into `predicted_leakage`, where
+# `normalize_value(0.0, spec)` is a perfect 1.0 that also passes the 0.85 hard filter. One
+# unmeasurable span would therefore have produced a flawless design. The `None` contract
+# is the one kept.
+
+
+def mean_unpaired(matrix: list[list[float]], start: int, end: int) -> float | None:
+    """Mean P(unpaired) over ``[start, end)`` of a ``base_pair_probabilities`` matrix.
+
+    P(unpaired) at position ``i`` is ``1 - sum(matrix[i])``. The matrix is symmetric and
+    0-indexed (``FoldEngine.base_pair_probabilities``'s contract), so the sum covers a
+    position's pairing probability to *every* other position regardless of which strand it
+    sits on. For a dimer or trimer matrix that is exactly the question being asked: a loop
+    base paired to its own hairpin and one paired to the trigger are both blocked.
+
+    Use this where the answer has to stay a bounded 0-1 quantity and be compared as a
+    ratio between two states of the same molecule. It is **not** the probability that the
+    span is open all at once -- that is ``FoldEngine.p_open``, which costs a second,
+    constrained partition function and is the right question for a ribosome footprint.
+
+    Args:
+        matrix: From ``FoldEngine.base_pair_probabilities`` or
+            ``FoldEngine.pooled_pair_probabilities``.
+        start: First position, 0-indexed, inclusive.
+        end: One past the last position, exclusive.
+
+    Returns:
+        The mean, or ``None`` for a span that is empty or does not lie inside the matrix
+        -- never ``0.0``. This is an accessibility, so 0.0 is the *worst measurable* value
+        and reporting it for an unmeasurable span would rank the design as if it had been
+        measured, and rank it as fully sequestered. A span that runs off the end means the
+        domain map and the folded sequence are out of step, which is a bug upstream that
+        has to stay visible.
+    """
+    n = len(matrix)
+    if not 0 <= start < end <= n:
+        return None
+    unpaired = [max(0.0, 1.0 - sum(matrix[i])) for i in range(start, end)]
+    return sum(unpaired) / len(unpaired)
+
+
+def unpaired_defect(matrix: list[list[float]], start: int, end: int) -> float | None:
+    """Normalised ensemble defect over ``[start, end)`` against a fully unpaired target.
+
+    The ensemble defect against a target structure is the expected number of nucleotides
+    paired differently from that target, averaged over the ensemble
+    (``FoldEngine.ensemble_defect``, which takes a full-length dot-bracket target and
+    returns the raw count). When the target specifies a span as **completely unpaired**,
+    every pair in that span is an error, so the defect normalised by span length reduces
+    exactly to the mean pair probability -- that is, to ``1 - mean_unpaired``. This is the
+    form VISTA reports as the Ideal Ensemble Defect, and it is what a region required to
+    be single-stranded, such as a ribosome-binding loop, is scored on.
+
+    It is the same number as ``1 - mean_unpaired(...)``, and exists as a named function
+    because that arithmetic was previously written out at each call site, which is how one
+    measurement acquires two definitions. Lower is better: ``0.0`` is a perfectly open
+    span and ``1.0`` a fully paired one -- the opposite direction from ``mean_unpaired``,
+    which is the reason to name it rather than invert it inline.
+
+    Where an intended structure is actually specified, prefer
+    ``FoldEngine.ensemble_defect``: the mean pair probability is blind to partner identity
+    and this reduction inherits that blindness, while the full defect is not.
+
+    Returns:
+        The normalised defect, or ``None`` when ``mean_unpaired`` cannot measure the span.
+        Never ``0.0`` for an unmeasurable span: here 0.0 is a *perfect* score, so the
+        sentinel would be even more misleading than for an accessibility.
+    """
+    mean = mean_unpaired(matrix, start, end)
+    return None if mean is None else 1.0 - mean
 
 
 def _suboptimal_worker() -> None:

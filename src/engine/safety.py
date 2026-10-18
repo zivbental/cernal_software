@@ -440,6 +440,74 @@ def _is_sha256(value: object) -> bool:
     return isinstance(value, str) and len(value) == 64 and set(value) <= _HEX
 
 
+def _disclosed_and_gate(value: object) -> dict:
+    """The AND gate's measurements as a sequence-free whitelist.
+
+    ``design["and_gate"]`` carries the ON/OFF diagnostics of a two-input AND candidate: each
+    state's joint opening, the controls, the sampler checks, ``dG`` and the tie status. It holds
+    numbers, booleans and the engine's own fixed text -- never a nucleotide sequence -- so it may
+    be disclosed while the sequences are held. Everything is rebuilt from named keys and types,
+    so a field added to the diagnostics later stays withheld until it is listed here.
+    """
+    if not isinstance(value, dict):
+        return {}
+    scalar = (str, int, float, bool, type(None))
+
+    def pick(block, keys):
+        if not isinstance(block, dict):
+            return {}
+        return {k: block[k] for k in keys if k in block and isinstance(block[k], scalar)}
+
+    def numbers(block):
+        if not isinstance(block, dict):
+            return {}
+        return {str(k): v for k, v in block.items() if isinstance(v, (int, float, type(None)))}
+
+    result = pick(
+        value,
+        (
+            "definition",
+            "n_samples",
+            "seed",
+            "evaluated_nt",
+            "payload_head_nt",
+            "on_pct",
+            "off_pct",
+            "off_source",
+            "on_minus_off_pp",
+            "delta_g_kcal_per_mol",
+            "tied_group",
+            "best_on_minus_off_pp",
+        ),
+    )
+    result["off_terms_pct"] = numbers(value.get("off_terms_pct"))
+    result["stem_lengths_nt"] = numbers(value.get("stem_lengths_nt"))
+    result["states"] = {
+        str(name): pick(
+            state,
+            (
+                "open_pct",
+                "mean_open_nt_a",
+                "mean_open_nt_b",
+                "mean_open_nt_a_matrix",
+                "mean_open_nt_b_matrix",
+                "draws",
+                "verified",
+            ),
+        )
+        for name, state in (value.get("states") or {}).items()
+        if isinstance(state, dict)
+    }
+    result["controls"] = pick(value.get("controls"), ("mode", "requested", "found", "max_open_pct"))
+    if isinstance(value.get("noise"), dict):
+        result["noise"] = pick(
+            value["noise"],
+            ("second_seed", "second_on_minus_off_pp", "seed_to_seed_change_pp"),
+        )
+    result["warnings"] = [w for w in value.get("warnings", []) if isinstance(w, str)]
+    return result
+
+
 def disclosed_candidate_data(design: object, triggers: object) -> tuple[dict, dict]:
     """Project held candidate data onto known non-sequence fields, without mutation."""
     design = design if isinstance(design, dict) else {}
@@ -491,6 +559,14 @@ def disclosed_candidate_data(design: object, triggers: object) -> tuple[dict, di
         if key in safe_keys and isinstance(value, (str, int, float, bool, type(None)))
     }
     safe_design.update(switch_sequence="", structure="", architecture={})
+    if "and_gate" in design:
+        safe_design["and_gate"] = _disclosed_and_gate(design["and_gate"])
+    if isinstance(design.get("trigger_start_indexes"), list):
+        safe_design["trigger_start_indexes"] = [
+            i
+            for i in design["trigger_start_indexes"]
+            if isinstance(i, int) and not isinstance(i, bool)
+        ]
     release = design.get("sequence_release")
     safe_design["sequence_release"] = {}
     if isinstance(release, dict):
@@ -574,6 +650,14 @@ def disclosed_candidate_data(design: object, triggers: object) -> tuple[dict, di
                     if isinstance(item, (int, float, bool))
                 }
                 result[key].update(pick(block, {"energy_parameters", "model_version"}))
+        # The one setting sampling changes (ViennaRNA needs uniq_ML for stochastic backtracking).
+        override = value.get("sampling_model_override")
+        if isinstance(override, dict):
+            result["sampling_model_override"] = {
+                name: item
+                for name, item in override.items()
+                if isinstance(item, (int, float, bool))
+            }
         result["energy_parameters"] = pick(
             value.get("energy_parameters"),
             {

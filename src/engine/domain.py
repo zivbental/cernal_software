@@ -468,7 +468,13 @@ class Constraints:
         min_separation: Minimum absolute log2 fold change for a gene to be usable. A gene
             that barely moves cannot drive a switch however well it folds.
         max_p_adj: Significance threshold, conventionally 0.05.
-        trigger_lengths: Window sizes to scan, in nucleotides. A tuple because different
+        trigger_lengths: Window sizes to scan, in nucleotides. The one-input footprints
+            only; ``build_tools`` **widens this per requested gate family** rather than
+            carrying every family's needs by default. A two-input family needs a 50-nt
+            window for trigger B (``SECONDARY_INVASION_LEN + TOEHOLD_B_LEN``), and adding
+            it here unconditionally would rescan every one-input run and move its top-K
+            shortlist -- a change in numbers that buys those runs nothing. See
+            ``ToeholdAndGate.role_footprints``. A tuple because different
             chemistries need different footprints, and each length scanned multiplies the
             candidate count.
         max_switch_length: Ceiling on a switch construct. Bounded by what synthesis
@@ -490,6 +496,44 @@ class Constraints:
             abundance column at all, docs/genes.md §2).
         max_base_expression: Ceiling on a gene's expression in whichever group is the
             "OFF" state for its direction — too high and the switch leaks.
+        stem_order: HOW those stems are chosen from the pair's front, not how many.
+            ``secondary_stems`` returns the NON-DOMINATED set over ``(lock_energy,
+            a_site_energy, b_site_energy)``, so every stem it offers is already a distinct
+            trade among locking the hairpin, letting trigger A grip the secondary arm and
+            letting trigger B invade it. Measured on 404 real PFAS trigger pairs that front
+            holds a median of 82 usable stems (mean 89.4, max 268).
+
+            ``"lock"`` is the historic rule: sort by ``lock_energy`` and take the first
+            ``stems_per_pair``. That is two points from ONE EDGE of the front, and it
+            discards the ``a_site_energy`` axis entirely — the quantity the architecture's
+            central claim rests on and the one nothing has ever ranked on. The best dropped
+            stem is a median of only 0.40 kcal/mol behind the last one kept, so the cut is
+            not between good and bad stems.
+
+            ``"front"`` bins the front into quantiles on ``lock_energy`` and on
+            ``a_site_energy`` independently and takes one stem per occupied bin, nearest its
+            centre, so both axes are spanned at the same budget. Deterministic, so a resumed
+            run picks the same stems.
+        stems_per_pair: How many secondary stems a two-input family may take per trigger
+            pair, chosen by ``stem_order``. **A budget, and it has to be declared here rather
+            than chosen inside a gate family.** The axis grid is 16 closures x 3 upper3 x 2
+            lower3 = 96 designs per stem per pair per role assignment, so this number
+            multiplies the whole sweep; an undeclared default would be an invisible
+            per-family filter, which CLAUDE.md section 3 is explicit about.
+        min_window_gap: REMOVED. It was read by nobody -- the gap that exists is
+            ``find_trigger_pairs(transcript, min_window_gap=...)``, a keyword argument
+            defaulting to the class constant ``ToeholdAndGate.MIN_WINDOW_GAP``, which never
+            consulted this record. And the cross-gene path cannot use it at all:
+            ``find_cross_gene_pairs`` states that two windows on separate transcripts cannot
+            overlap, so there is nothing to space apart. A declared field wired to nothing is
+            worse than no field, because setting it raises no error and changes no behaviour.
+            Historical note kept so the removal is not re-litigated: "This
+            belongs in ``Constraints`` and there is no field for it yet" -- it does now.
+            Irrelevant when the two triggers come from different genes, where the windows
+            cannot collide.
+        overlap_range: Smallest and largest shared domain between the two triggers, in
+            nucleotides. The floor is what ``MIN_OVERLAP`` enforced; the ceiling is the
+            secondary invasion length, past which the arm cannot hold it.
         trigger_gc_range: GC% band a trigger window must fall inside to count as usable
             in stage 1's trigger-yield screen (docs/genes.md §4.2). Separate from
             ``engine.scoring``'s ``gc_content`` metric range: this is a coarse,
@@ -517,7 +561,157 @@ class Constraints:
     min_base_expression: float | None = None
     max_base_expression: float | None = None
     trigger_gc_range: tuple[float, float] = (30.0, 70.0)
+    stems_per_pair: int = 2
+    #: Which closure axis ``ToeholdAndGate`` walks. ``"full"`` is all sixteen levels, which
+    #: cycle 1's 431,916 designs were built on; ``"chosen"`` is the five of
+    #: ``CLOSURES_CHOSEN`` -- the energetic centre of each d, with Green's ``AUG`` filling
+    #: d = 0 where no centre exists because every option there is exactly 0.00.
+    #:
+    #: Declared rather than hardcoded for the same reason ``stem_order`` is: it changes WHICH
+    #: designs exist for a trigger pair, so two runs under different settings hold
+    #: incomparable candidate pools and the row has to say which it was.
+    closure_set: str = "full"
+
+    stem_order: str = "lock"
+    overlap_range: tuple[int, int] = (4, 18)
     direction_balance: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class AndGateSettings:
+    """Every tunable of the two-input eukaryotic AND gate, with the notebook's defaults.
+
+    Lives beside ``Constraints`` for the same reason: a threshold that is a module-level literal
+    inside a gate family is an invisible per-family filter, so it is a declared field here and is
+    recorded with the run (``scientific_provenance["and_gate"]``). Parsed from the submission's
+    ``params["and_gate"]``; unknown or out-of-range values raise ``ValueError`` naming the field.
+
+    ``seed`` is not a field: the run's ``JobRequest.seed`` is threaded in by the pipeline, so
+    the same seed reproduces the same draws (CLAUDE.md sec 6).
+    """
+
+    #: Structures drawn per sampled state (the notebook's ``N_SAMPLES``).
+    n_samples: int = 2000
+    #: Structures drawn when ranking single-switch variants before they are fused. Only orders the
+    #: variants to fuse; every reported number comes from ``n_samples``.
+    screen_samples: int = 300
+    #: Mismatched-trigger controls per candidate (the notebook's ``N_CONTROLS``).
+    n_controls: int = 5
+    #: ``True``: sample the control states like the others. ``False``: take each control's exact
+    #: matrix ``E[k]``, an upper bound of its Open. ViennaRNA's sampler disagrees with its own
+    #: matrix on mismatched states (eu_and_v3_spec.md, Traps 2), so the bound is the default here.
+    controls_sampled: bool = False
+    #: Trigger windows of each input gene that are paired (the best by stage 2's score).
+    windows_per_gene: int = 3
+    #: Best single-switch variants of each trigger that are fused (3 variants x 3 variants x
+    #: 2 strand orders x spacer variants candidates per trigger pair).
+    singles_per_trigger: int = 3
+    #: ``no_spacer`` joins the two hairpins directly; ``spacer`` inserts the best of a seeded pool.
+    spacer_variants: tuple[str, ...] = ("no_spacer", "spacer")
+    spacer_min_length: int = 15
+    spacer_max_length: int = 20
+    spacer_pool_size: int = 150
+    #: Longest identical or complementary run allowed between trigger A and trigger B, and between
+    #: a control trigger and either real trigger.
+    max_overlap_nt: int = 8
+    #: Largest share of G.U wobble pairs in the complementary run counted by that screen.
+    wobble_max_fraction: float = 0.5
+    #: Sampler check: ``tau = verify_sigma * sd / sqrt(N) + verify_floor_nt`` per hairpin.
+    verify_sigma: float = 4.0
+    verify_floor_nt: float = 0.02
+    #: OFF below this many percent of the stem is replaced by it in the displayed ratio only.
+    off_floor_pct: float = 1.0
+    #: A second sampling with ``seed + noise_seed_offset`` measures the seed-to-seed change of
+    #: ``ON - OFF`` per candidate (about doubles the sampling cost, ~1.4 s a candidate in all); it
+    #: defines the tied group.
+    noise_check: bool = True
+    noise_seed_offset: int = 1000
+
+    _SPACER_VARIANTS = ("no_spacer", "spacer")
+
+    @classmethod
+    def from_mapping(cls, raw: dict | None) -> "AndGateSettings":
+        """Validate a JSON-sourced mapping. ``None``/empty gives the defaults."""
+        if raw is None:
+            raw = {}
+        if not isinstance(raw, dict):
+            raise ValueError("and_gate must be an object.")
+        known = {name for name in cls.__dataclass_fields__ if not name.startswith("_")}
+        unknown = sorted(set(raw) - known)
+        if unknown:
+            raise ValueError(
+                f"and_gate.{unknown[0]} is not a recognised setting "
+                f"(known: {', '.join(sorted(known))})."
+            )
+        values = dict(raw)
+        if "spacer_variants" in values:
+            variants = values["spacer_variants"]
+            if (
+                not isinstance(variants, (list, tuple))
+                or not variants
+                or any(v not in cls._SPACER_VARIANTS for v in variants)
+                or len(set(variants)) != len(variants)
+            ):
+                raise ValueError(
+                    "and_gate.spacer_variants must be a non-empty list of unique values from "
+                    f"{list(cls._SPACER_VARIANTS)}."
+                )
+            values["spacer_variants"] = tuple(variants)
+        settings = cls(**values)
+        settings._validate()
+        return settings
+
+    def _validate(self) -> None:
+        def integer(name: str, low: int, high: int) -> None:
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+                raise ValueError(f"and_gate.{name} must be an integer between {low} and {high}.")
+
+        def number(name: str, low: float, high: float) -> None:
+            value = getattr(self, name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not low <= value <= high
+            ):
+                raise ValueError(f"and_gate.{name} must be a number between {low} and {high}.")
+
+        def boolean(name: str) -> None:
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"and_gate.{name} must be true or false.")
+
+        integer("n_samples", 100, 20_000)
+        integer("screen_samples", 50, 20_000)
+        integer("n_controls", 0, 20)
+        integer("singles_per_trigger", 1, 6)
+        integer("windows_per_gene", 1, 10)
+        integer("spacer_min_length", 8, 40)
+        integer("spacer_max_length", 8, 40)
+        integer("spacer_pool_size", 10, 1000)
+        integer("max_overlap_nt", 4, 20)
+        integer("noise_seed_offset", 1, 1_000_000)
+        number("wobble_max_fraction", 0.0, 1.0)
+        number("verify_sigma", 1.0, 10.0)
+        number("verify_floor_nt", 0.0, 2.0)
+        number("off_floor_pct", 0.01, 10.0)
+        boolean("controls_sampled")
+        boolean("noise_check")
+        if self.spacer_max_length < self.spacer_min_length:
+            raise ValueError("and_gate.spacer_max_length must be at least spacer_min_length.")
+        if self.screen_samples > self.n_samples:
+            raise ValueError("and_gate.screen_samples must not exceed n_samples.")
+
+    def to_dict(self) -> dict:
+        """The settings as plain JSON types, for ``scientific_provenance``."""
+        return {
+            name: (
+                list(getattr(self, name))
+                if isinstance(getattr(self, name), tuple)
+                else getattr(self, name)
+            )
+            for name in self.__dataclass_fields__
+            if not name.startswith("_")
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -892,6 +1086,7 @@ class FoldingConfig:
     no_gu: bool = False
     no_gu_closure: bool = False
     energy_parameters: str = "turner2004"
+    salt_molar: float = 1.021  # mol/L monovalent; 1.021 = ViennaRNA reference, no correction
 
     def __post_init__(self) -> None:
         if (
@@ -906,6 +1101,13 @@ class FoldingConfig:
         for name in ("special_hairpins", "no_lonely_pairs", "no_gu", "no_gu_closure"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"folding.{name} must be a boolean.")
+        if (
+            isinstance(self.salt_molar, bool)
+            or not isinstance(self.salt_molar, (int, float))
+            or not 0.01 <= self.salt_molar <= 6.0
+        ):
+            raise ValueError("folding.salt_molar must be a number from 0.01 to 6.0 (mol/L).")
+        object.__setattr__(self, "salt_molar", float(self.salt_molar))
         if self.energy_parameters not in ("turner2004", "turner1999", "andronescu2007"):
             raise ValueError(
                 "folding.energy_parameters must be turner2004, turner1999 or andronescu2007."

@@ -1,0 +1,224 @@
+
+  301,440 designs, 219,808 fully measured, 420 cells
+
+  Positive ALWAYS means the arm named first was better. For the two leak measures that
+  means a LOWER value, since a leak is bad -- the sign is already flipped for them.
+  'cells won' counts (pair, geometry) cells whose median paired difference is above zero.
+
+========================================================================================================
+  CLOSURE: each level against open_3x3, paired inside a cell
+========================================================================================================
+
+  closed_CAU vs open_3x3   7,672 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   254   244     6     4       +0.0017     +1.6160
+    A_M ratio                           254   250     2     2       +0.0010     +7.1788
+    IED gain vs state 00                254    59   193     2       -0.0338     -0.0436
+    IED gain vs worst OFF               254   239    13     2       +0.0000     +0.0150
+    leak: x* taken by A alone           254   252     0     2       +0.0197     +0.2671
+    leak: stem reached by A alone       254   252     0     2       +0.5633     +0.5515
+    A_M in the ON state                 254     0   252     2       -0.3612     -0.3224
+
+  closed_CGU vs open_3x3   10,086 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   290   265     9    16       +0.0005     +1.4905
+    A_M ratio                           290   276     4    10       +0.0004     +7.3364
+    IED gain vs state 00                290    79   201    10       -0.0213     -0.0374
+    IED gain vs worst OFF               290   263    17    10       +0.0000     +0.0147
+    leak: x* taken by A alone           290   278     2    10       +0.0101     +0.2437
+    leak: stem reached by A alone       290   278     2    10       +0.5087     +0.5028
+    A_M in the ON state                 290     0   280    10       -0.2928     -0.2724
+
+  closed_UAU vs open_3x3   10,432 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   306   281     7    18       +0.0004     +1.4159
+    A_M ratio                           306   291     5    10       +0.0003     +6.4420
+    IED gain vs state 00                306    90   206    10       -0.0107     -0.0308
+    IED gain vs worst OFF               306   277    19    10       +0.0000     +0.0161
+    leak: x* taken by A alone           306   294     2    10       +0.0079     +0.2352
+    leak: stem reached by A alone       306   296     0    10       +0.4218     +0.4600
+    A_M in the ON state                 306     0   296    10       -0.2303     -0.2496
+
+  d0_gc0_AUA vs open_3x3   14,993 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   372   315    26    31       +0.0000     +0.5563
+    A_M ratio                           372   359     9     4       +0.0000     +0.0233
+    IED gain vs state 00                372    59   309     4       -0.0173     -0.0252
+    IED gain vs worst OFF               372   346    22     4       +0.0000     +0.0097
+    leak: x* taken by A alone           372   364     4     4       +0.0000     +0.1102
+    leak: stem reached by A alone       372   366     2     4       +0.0102     +0.1745
+    A_M in the ON state                 372    20   348     4       -0.0144     -0.0623
+
+  d0_gc1_ACA vs open_3x3   14,836 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   374   330    16    28       +0.0000     +0.6855
+    A_M ratio                           374   366     6     2       +0.0000     +0.3683
+    IED gain vs state 00                374   157   215     2       -0.0023     -0.0135
+    IED gain vs worst OFF               374   363     9     2       +0.0000     +0.0141
+    leak: x* taken by A alone           374   370     2     2       +0.0001     +0.1281
+    leak: stem reached by A alone       374   372     0     2       +0.0131     +0.2017
+    A_M in the ON state                 374    18   354     2       -0.0169     -0.0830
+
+  d0_gc2_ACC vs open_3x3   14,992 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   374   282    19    73       +0.0000     +0.3718
+    A_M ratio                           374   333    19    22       +0.0000     -0.1394
+    IED gain vs state 00                374    22   330    22       -0.0285     -0.0370
+    IED gain vs worst OFF               374   297    54    23       +0.0000     +0.0032
+    leak: x* taken by A alone           374   346     6    22       +0.0000     +0.0759
+    leak: stem reached by A alone       374   352     0    22       +0.0060     +0.1212
+    A_M in the ON state                 374    44   308    22       -0.0021     -0.0400
+
+  d0_gc3_GCC vs open_3x3   15,016 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   374   239    27   108       +0.0000     +0.2183
+    A_M ratio                           374   333    29    12       +0.0000     -0.1939
+    IED gain vs state 00                374    12   350    12       -0.0268     -0.0352
+    IED gain vs worst OFF               374   306    56    12       +0.0000     +0.0010
+    leak: x* taken by A alone           374   342    20    12       +0.0000     +0.0471
+    leak: stem reached by A alone       374   358     4    12       +0.0021     +0.0787
+    A_M in the ON state                 374    60   302    12       -0.0007     -0.0327
+
+  d1_gc0_AAA vs open_3x3   14,971 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   372   315    22    35       +0.0000     +0.5720
+    A_M ratio                           372   359     9     4       +0.0000     -0.0171
+    IED gain vs state 00                372    23   345     4       -0.0283     -0.0344
+    IED gain vs worst OFF               372   343    25     4       +0.0000     +0.0075
+    leak: x* taken by A alone           372   364     4     4       +0.0000     +0.1115
+    leak: stem reached by A alone       372   366     2     4       +0.0102     +0.1734
+    A_M in the ON state                 372    26   342     4       -0.0131     -0.0560
+
+  d1_gc1_AAC vs open_3x3   14,980 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   374   316    17    41       +0.0000     +0.4671
+    A_M ratio                           374   362    12     0       +0.0000     -0.0596
+    IED gain vs state 00                374    36   338     0       -0.0283     -0.0353
+    IED gain vs worst OFF               374   339    34     1       +0.0000     +0.0053
+    leak: x* taken by A alone           374   370     4     0       +0.0000     +0.0934
+    leak: stem reached by A alone       374   372     2     0       +0.0085     +0.1472
+    A_M in the ON state                 374    41   333     0       -0.0035     -0.0467
+
+  d1_gc2_AGC vs open_3x3   15,037 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   374   278    18    78       +0.0000     +0.3593
+    A_M ratio                           374   348    18     8       +0.0000     -0.0929
+    IED gain vs state 00                374    41   325     8       -0.0247     -0.0306
+    IED gain vs worst OFF               374   330    36     8       +0.0000     +0.0045
+    leak: x* taken by A alone           374   358     8     8       +0.0000     +0.0723
+    leak: stem reached by A alone       374   364     2     8       +0.0067     +0.1160
+    A_M in the ON state                 374    57   309     8       -0.0011     -0.0346
+
+  d2_gc0_AAU vs open_3x3   13,214 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   338   310    13    15       +0.0000     +0.8986
+    A_M ratio                           338   329     5     4       +0.0000     +0.3550
+    IED gain vs state 00                338   107   227     4       -0.0084     -0.0272
+    IED gain vs worst OFF               338   320    13     5       +0.0000     +0.0133
+    leak: x* taken by A alone           338   332     2     4       +0.0004     +0.1613
+    leak: stem reached by A alone       338   334     0     4       +0.0263     +0.2582
+    A_M in the ON state                 338     9   325     4       -0.0733     -0.1435
+
+  d2_gc1_AGU vs open_3x3   14,452 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   358   324    12    22       +0.0000     +0.8567
+    A_M ratio                           358   349     7     2       +0.0000     +0.4245
+    IED gain vs state 00                358   110   246     2       -0.0074     -0.0231
+    IED gain vs worst OFF               358   341    15     2       +0.0000     +0.0129
+    leak: x* taken by A alone           358   354     2     2       +0.0003     +0.1556
+    leak: stem reached by A alone       358   354     2     2       +0.0267     +0.2507
+    A_M in the ON state                 358    15   341     2       -0.0275     -0.1068
+
+  d2_gc3_CGC vs open_3x3   14,208 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   364   309    21    34       +0.0000     +0.9157
+    A_M ratio                           364   337    19     8       +0.0000     +0.5766
+    IED gain vs state 00                364   167   189     8       -0.0005     -0.0185
+    IED gain vs worst OFF               364   328    28     8       +0.0000     +0.0140
+    leak: x* taken by A alone           364   340    16     8       +0.0004     +0.1667
+    leak: stem reached by A alone       364   344    12     8       +0.0494     +0.2890
+    A_M in the ON state                 364    25   331     8       -0.0101     -0.1015
+
+  pair1_CCC vs open_3x3   14,638 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   363   312    10    41       +0.0000     +0.7758
+    A_M ratio                           363   345     6    12       +0.0000     +0.1154
+    IED gain vs state 00                363    84   267    12       -0.0168     -0.0308
+    IED gain vs worst OFF               363   327    24    12       +0.0000     +0.0091
+    leak: x* taken by A alone           363   349     2    12       +0.0002     +0.1409
+    leak: stem reached by A alone       363   351     0    12       +0.0218     +0.2363
+    A_M in the ON state                 363    38   313    12       -0.0046     -0.0705
+
+  pair2_CCU vs open_3x3   13,883 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   352   320     8    24       +0.0000     +1.0381
+    A_M ratio                           352   346     4     2       +0.0000     +0.6038
+    IED gain vs state 00                352   121   229     2       -0.0105     -0.0281
+    IED gain vs worst OFF               352   333    17     2       +0.0000     +0.0124
+    leak: x* taken by A alone           352   348     2     2       +0.0012     +0.1787
+    leak: stem reached by A alone       352   350     0     2       +0.1035     +0.3279
+    A_M in the ON state                 352    12   338     2       -0.0390     -0.1261
+
+========================================================================================================
+  THE LEVERS TOGETHER, which was never measured: both write, to different domains
+========================================================================================================
+
+  upper3 alone (WWW_UAU) vs neither   36,125 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   304   268     6    30       +0.0000     +0.3678
+    A_M ratio                           304   291    11     2       +0.0000     -0.7750
+    IED gain vs state 00                304   138   164     2       -0.0023     -0.0027
+    IED gain vs worst OFF               304   269    33     2       +0.0000     +0.0034
+    leak: x* taken by A alone           304   298     4     2       +0.0001     +0.0641
+    leak: stem reached by A alone       304   298     4     2       +0.0058     +0.1144
+    A_M in the ON state                 304   113   189     2       -0.0215     -0.0398
+
+  wobble alone (WWW_UAU) vs neither   36,957 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   296   125     3   168       +0.0000     +0.1531
+    A_M ratio                           296   133     3   160       +0.0000     -0.1618
+    IED gain vs state 00                296    58    78   160       +0.0000     -0.0035
+    IED gain vs worst OFF               296   128     7   161       +0.0000     +0.0008
+    leak: x* taken by A alone           296   136     0   160       +0.0000     +0.0265
+    leak: stem reached by A alone       296   132     4   160       +0.0000     +0.0437
+    A_M in the ON state                 296    59    77   160       +0.0000     -0.0145
+
+  both together (WWW_UAU) vs neither   35,007 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   304   271     7    26       +0.0000     +0.5337
+    A_M ratio                           304   291    11     2       +0.0000     -0.8334
+    IED gain vs state 00                304   123   179     2       -0.0059     -0.0093
+    IED gain vs worst OFF               304   269    33     2       +0.0000     +0.0036
+    leak: x* taken by A alone           304   298     4     2       +0.0002     +0.0943
+    leak: stem reached by A alone       304   298     4     2       +0.0114     +0.1721
+    A_M in the ON state                 304   102   200     2       -0.0425     -0.0644
+
+  upper3 alone (WWW_AUA) vs neither   24,893 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   214   195     3    16       +0.0000     +0.3674
+    A_M ratio                           214   207     5     2       +0.0000     -0.7688
+    IED gain vs state 00                214    80   132     2       -0.0083     -0.0111
+    IED gain vs worst OFF               214   184    27     3       +0.0000     +0.0019
+    leak: x* taken by A alone           214   212     0     2       +0.0001     +0.0625
+    leak: stem reached by A alone       214   208     4     2       +0.0061     +0.1149
+    A_M in the ON state                 214    80   132     2       -0.0368     -0.0573
+
+  wobble alone (WWW_AUA) vs neither   36,957 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   296   125     3   168       +0.0000     +0.1531
+    A_M ratio                           296   133     3   160       +0.0000     -0.1618
+    IED gain vs state 00                296    58    78   160       +0.0000     -0.0035
+    IED gain vs worst OFF               296   128     7   161       +0.0000     +0.0008
+    leak: x* taken by A alone           296   136     0   160       +0.0000     +0.0265
+    leak: stem reached by A alone       296   132     4   160       +0.0000     +0.0437
+    A_M in the ON state                 296    59    77   160       +0.0000     -0.0145
+
+  both together (WWW_AUA) vs neither   24,075 matched pairs
+    measure                           cells   won  lost  tied   median diff   mean diff
+    separation (log2)                   214   202     4     8       +0.0000     +0.5509
+    A_M ratio                           214   209     5     0       +0.0000     -0.8191
+    IED gain vs state 00                214    82   132     0       -0.0129     -0.0171
+    IED gain vs worst OFF               214   190    23     1       +0.0000     +0.0025
+    leak: x* taken by A alone           214   214     0     0       +0.0003     +0.0973
+    leak: stem reached by A alone       214   214     0     0       +0.0132     +0.1764
+    A_M in the ON state                 214    82   132     0       -0.0479     -0.0762

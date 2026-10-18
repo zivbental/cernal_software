@@ -203,6 +203,8 @@ const PARAMETERS: ParamRow[] = [
   { field: "payload", type: "object", default: "{}", notes: "What the circuit expresses — every field explained below." },
   { field: "backbone", type: "object", default: "{}", notes: "Use catalog_key, or custom_genbank plus insertion_index (a zero-based boundary between vector bases). Omit for a cassette. The engine rejects protected feature disruption; no cloning protocol is inferred." },
   { field: "top_n", type: "integer", default: "25", notes: "Default number of accepted results displayed after ranking (1–1,000). Does not reduce evaluation or stored/exported results." },
+  { field: "and_inputs", type: "object", default: "{}", notes: 'Two-input AND only: {"gene_a": ..., "gene_b": ...}, both from the submitted DE table (the same gene twice is allowed). Required for eukaryotic_toehold_and, rejected otherwise. DE input only.' },
+  { field: "and_gate", type: "object", default: "{}", notes: "Two-input AND only: optional sampling settings (n_samples, n_controls, noise_check, ...). Unknown or out-of-range values are rejected by name." },
   { field: "include_rejected", type: "boolean", default: "false", notes: "Include candidates a hard filter disqualified, with their reason." },
   { field: "include_metrics", type: "boolean", default: "true", notes: "Embed the full metric decomposition per candidate." },
   { field: "include_artifacts", type: "string[]", default: "[]", notes: 'Artifact kinds to embed, e.g. ["fasta", "structure_svg"].' },
@@ -213,11 +215,12 @@ const PARAMETERS: ParamRow[] = [
 ];
 
 const CONSTRAINTS_FIELDS: ParamRow[] = [
-  { field: "max_triggers", type: "integer", default: "1", notes: "Physical single-input gate only; larger arity is unavailable in this engine." },
-  { field: "max_circuit_gates", type: "integer", default: "1", notes: "Independent single-input constructs only. Requests above 1 require an unavailable reviewed physical compiler and are rejected." },
+  { field: "max_triggers", type: "integer", default: "1", notes: "Inputs of the one physical gate: 1 for a single-input switch, 2 for the two-input AND (eukaryotic_toehold_and), which requires exactly 2. See GET /api/version family_inputs." },
+  { field: "max_circuit_gates", type: "integer", default: "1", notes: "One gate per circuit. Requests above 1 require an unavailable reviewed physical compiler and are rejected; the AND is one gate with two inputs, not two gates." },
   { field: "min_separation", type: "float", default: "0.5", notes: "Minimum |log2 fold change| for a gene to be considered usable." },
   { field: "max_p_adj", type: "float", default: "0.05", notes: "Adjusted p-value significance threshold." },
   { field: "trigger_lengths", type: "integer[]", default: "[30, 33, 36]", notes: "Window sizes to scan, in nt." },
+  { field: "overlap_range", type: "integer[2]", default: "[4, 18]", notes: "Two-input AND gates only: [low, high] length in nt of the overlap the two triggers share. 4 is the shortest run that can nucleate; 18 is the longest secondary arm any geometry has, and Kim's geometry clamps to 17 because trigger B invades only 17 of its 20-nt arm. Narrowing it only narrows the search." },
   { field: "max_switch_length", type: "integer", default: "200", notes: "Synthesis length ceiling, in nt." },
   { field: "forbidden_motifs", type: "string[]", default: "[]", notes: 'Sequence motifs to reject, e.g. ["GGTCTC", "GAATTC"].' },
   { field: "standard", type: "string", default: '"RFC10"', notes: '"RFC10" | "RFC1000" — which restriction sites are banned.' },

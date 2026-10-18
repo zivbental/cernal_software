@@ -11,6 +11,8 @@ docs/engine.md §3.3. This file tests them together because what they have in co
 that they are *finished*, which is a fact about the test suite, not about the layout.
 """
 
+import math
+
 import pytest
 
 from engine import sequences as sq
@@ -204,7 +206,130 @@ def test_extra_motifs_can_be_supplied_without_touching_the_logic():
     assert any(v.name == "custom" for v in screener.violations("AAGGGGGAA"))
 
 
+def test_in_frame_stops_are_reported_and_out_of_frame_ones_are_not():
+    """The same three letters are a fault in frame and ordinary sequence one base over."""
+    screener = MotifScreener(AssemblyStandard.RFC10)
+    # AUG GCA UAA GCA  -- a stop in the third codon.
+    seq = "AUGGCAUAAGCAGCA"
+    assert [v.kind for v in screener.violations(seq, reading_frame=0)] == ["in-frame stop"]
+    # Shifted by one, the UAA straddles two codons and is no longer a stop.
+    assert not [
+        v for v in screener.violations("C" + seq, reading_frame=0) if v.kind == "in-frame stop"
+    ]
+    # No frame given means the check cannot run rather than being guessed.
+    assert not [v for v in screener.violations(seq) if v.kind == "in-frame stop"]
+
+
+def test_a_stop_at_the_very_end_is_not_a_violation():
+    """A terminal stop is the point of a coding sequence, not a defect in it."""
+    screener = MotifScreener(AssemblyStandard.RFC10)
+    assert not screener.violations("AUGGCAUAA", reading_frame=0)
+
+
+def test_rbp_motifs_are_opt_in_and_match_degenerately():
+    """They are regexes, not literals -- `extra_motifs` could not have held them."""
+    plain = MotifScreener(AssemblyStandard.RFC10)
+    screening = MotifScreener(AssemblyStandard.RFC10, rbp_motifs=True)
+    csra = "CCAAGGACC"  # matches the A.GGA core
+    assert not [v for v in plain.violations(csra) if v.kind == "RBP motif"]
+    assert any(v.name == "CsrA_core" for v in screening.violations(csra))
+
+
+def test_the_conserved_spacer_upstream_of_the_rbs_is_not_flagged():
+    """`AAGAACAGA` sits 5' of the Shine-Dalgarno in every A0 switch. An Hfq ARN-repeat
+    pattern matched it in 192 of 192 panel switches, so that motif was dropped: a screen
+    that fires on an invariant, required element cannot separate one design from another."""
+    screening = MotifScreener(AssemblyStandard.RFC10, rbp_motifs=True)
+    assert not [v for v in screening.violations("AAGAACAGAGGAGAUAUA") if v.kind == "RBP motif"]
+
+
+def test_quadruplex_needs_four_g_runs_not_two():
+    """Two G-runs is a G-rich patch; screening for two would reject most GC-rich designs."""
+    screening = MotifScreener(AssemblyStandard.RFC10, quadruplex=True, max_homopolymer=10)
+    two = "GGGAAGGGAA"
+    four = "GGGAAGGGAAGGGAAGGG"
+    assert not [v for v in screening.violations(two) if v.kind == "quadruplex"]
+    assert any(v.kind == "quadruplex" for v in screening.violations(four))
+
+
+def test_per_base_homopolymer_holds_u_tighter_and_is_opt_in():
+    """A U tract is a terminator signal, so four is a risk where four A's are not --
+    but a terminator legitimately IS one, which is why this cannot be the default."""
+    uniform = MotifScreener(AssemblyStandard.RFC10, max_homopolymer=5)
+    per_base = MotifScreener(AssemblyStandard.RFC10, max_homopolymer=5, per_base_homopolymer=True)
+    assert not uniform.violations("CCUUUUCC")
+    assert any(v.kind == "homopolymer" for v in per_base.violations("CCUUUUCC"))
+    # A runs of the same length stay allowed under both.
+    assert not per_base.violations("CCAAAACC")
+
+
 # --- Folding ------------------------------------------------------------------------
+
+
+def test_open_penalty_is_p_open_as_an_energy():
+    """The same quantity in the variable that does not underflow."""
+    folder = FoldEngine(temperature=37.0)
+    sequence = "GGGAAACCCAAAGGGUUUCCC"
+    window = (5, 11)
+    penalty = folder.open_penalty(sequence, (window,))
+    probability = folder.p_open(sequence, window)
+    assert penalty is not None and probability is not None
+    assert penalty == pytest.approx(-folder.rt * math.log(probability), abs=1e-6)
+    assert penalty > 0.0  # forcing a paired region open always costs something
+
+
+def test_open_penalty_takes_several_spans_and_skips_the_gap():
+    """A stem is two arms with a bulge between them; the bulge must stay unconstrained."""
+    folder = FoldEngine(temperature=37.0)
+    sequence = "GGGGAAAACCCCAAAAGGGGAAAACCCC"
+    both = folder.open_penalty(sequence, ((0, 4), (8, 12)))
+    spanning = folder.open_penalty(sequence, ((0, 12),))
+    assert both is not None and spanning is not None
+    # Constraining the gap as well can only cost more, never less.
+    assert spanning >= both - 1e-6
+
+
+def test_open_penalty_rejects_a_span_outside_the_first_strand():
+    folder = FoldEngine(temperature=37.0)
+    with pytest.raises(ValueError):
+        folder.open_penalty("GGGAAACCC&AAA", ((5, 40),))
+    with pytest.raises(ValueError):
+        folder.open_penalty("GGGAAACCC", ())
+
+
+def test_forcing_a_stem_closed_carries_no_information():
+    """Why the objective constrains stems OPEN in every state and never CLOSED: a stem that
+    is already paired in the ensemble costs nothing to require paired, so the term is
+    identically zero and cannot separate one design from another."""
+    folder = FoldEngine(temperature=37.0)
+    sequence = "GGGGGGAAAACCCCCC"
+    opening = folder.open_penalty(sequence, ((0, 6),))
+    assert opening is not None and opening > 1.0
+
+
+def test_saddle_exceeds_the_state_difference():
+    """A barrier is the highest point on the path, not end minus beginning."""
+    folder = FoldEngine(temperature=37.0)
+    sequence = "GGGAAACCCUUUAAAGGGAAACCCUUU"
+    closed = folder.mfe(sequence)
+    open_chain = "." * len(sequence)
+    barrier = folder.saddle(sequence, closed.structure, open_chain)
+    assert barrier is not None
+    difference = 0.0 - closed.energy  # the open chain has zero folding energy
+    assert barrier >= difference - 1e-6
+
+
+def test_saddle_returns_none_when_no_path_fits_the_ceiling():
+    folder = FoldEngine(temperature=37.0)
+    sequence = "GGGGGGGGGGAAAACCCCCCCCCC"
+    closed = folder.mfe(sequence)
+    assert folder.saddle(sequence, closed.structure, "." * len(sequence), max_energy=0.01) is None
+
+
+def test_saddle_rejects_a_mismatched_structure_length():
+    folder = FoldEngine(temperature=37.0)
+    with pytest.raises(ValueError):
+        folder.saddle("GGGAAACCC", "(((...)))", "..")
 
 
 def test_mfe_folds_a_hairpin():
@@ -531,6 +656,74 @@ def test_mean_unpaired_matches_a_raw_pair_probability_sum():
     assert from_shared == pytest.approx(sum(expected) / len(expected), abs=1e-12)
 
 
+# --- One definition of the span reduction (S2) ----------------------------------------
+#
+# The reduction lives in `gates/tools/folding.py`, beside the adapter that produces the
+# matrix it reads, and `gates/toehold.py` keeps the private name as an alias. These tests
+# cover the toehold family only. Other gate families are not this branch's to change; where
+# one carries its own copy, that is recorded in `docs/ROADMAP.md` for its owner.
+
+
+def test_the_toehold_span_reduction_is_the_shared_one():
+    """The toehold family reads the tool's function, not a copy of its arithmetic.
+
+    Not "the same arithmetic" -- the same object. An equality check on a few sample inputs
+    would not be enough, because two copies of a reduction differ precisely on the inputs
+    nobody thinks to sample.
+    """
+    from engine.gates import toehold
+    from engine.gates.tools import folding
+
+    assert toehold._mean_unpaired is folding.mean_unpaired
+
+
+def test_an_unmeasurable_span_is_none_and_never_a_number():
+    """A span outside the matrix is `None`, because every number here is a *good* score.
+
+    The assertions below are why the contract has to be `None`. A 0.0 substituted for a
+    span that could not be measured is a perfect score that no hard filter stops, so it
+    would rank above every design that was measured honestly.
+    """
+    from engine.gates.tools.folding import mean_unpaired, unpaired_defect
+    from engine.scoring.normalize import failed_filter, normalize_value
+    from engine.scoring.profiles import DEFAULT_V1
+
+    matrix = [[0.0, 0.4], [0.4, 0.0]]
+    for start, end in ((0, 0), (2, 1), (-1, 1), (1, 5), (0, 3)):
+        assert mean_unpaired(matrix, start, end) is None, (start, end)
+        assert unpaired_defect(matrix, start, end) is None, (start, end)
+
+    # Why `None` and not `0.0`: a leakage of 0.0 is a flawless design that no filter stops.
+    spec = DEFAULT_V1.spec("predicted_leakage")
+    assert normalize_value(0.0, spec) == pytest.approx(1.0)
+    assert failed_filter({"predicted_leakage": 0.0}, DEFAULT_V1) is None
+    # And the scoring layer handles the honest answer explicitly.
+    assert normalize_value(None, spec) is None
+
+
+def test_unpaired_defect_is_the_mean_pair_probability_over_the_span():
+    """The normalised ensemble defect against a fully unpaired target reduces to `1 - mean`.
+
+    That identity is the reason the reduction is allowed to stand in for a defect at all: if
+    the target specifies the whole span as unpaired then every pair is an error, so the
+    defect divided by span length is exactly the mean pairing probability. The function
+    exists so that this is written once and carries its direction in its name -- lower is
+    better, the opposite of `mean_unpaired`.
+    """
+    from engine.gates.tools.folding import mean_unpaired, unpaired_defect
+
+    folder = FoldEngine(temperature=37.0)
+    matrix = folder.base_pair_probabilities("GGGGGGGGGGAAAACCCCCCCCCC")
+    for span in ((0, 10), (10, 14), (0, 24), (14, 24)):
+        mean = mean_unpaired(matrix, *span)
+        assert mean is not None
+        assert unpaired_defect(matrix, *span) == pytest.approx(1.0 - mean, abs=1e-15)
+
+    # A hairpin's stem is mostly paired and its loop mostly open, so the defect has to be
+    # high on the stem and low on the loop. A sign error would pass the identity above.
+    assert unpaired_defect(matrix, 0, 10) > unpaired_defect(matrix, 10, 14)
+
+
 # --- Strand ordering in pair probabilities (S2) ---------------------------------------
 #
 # A three-strand complex has (n-1)! orderings and ViennaRNA counts only structures that
@@ -613,3 +806,79 @@ def test_the_position_map_gives_each_repeated_strand_its_own_copy():
     mapping = FoldEngine._position_map(["AAA", "GG", "AAA"], ["AAA", "AAA", "GG"])
     assert mapping == [0, 1, 2, 6, 7, 3, 4, 5]
     assert sorted(mapping) == list(range(8)), "every position is used exactly once"
+
+
+def test_pooled_partition_does_not_depend_on_how_the_caller_writes_the_strands():
+    """Same invariant as `pooled_pair_probabilities`, for the free energy.
+
+    `partition` alone is order-dependent, and on a real AND-gate tube the two orderings of
+    one switch and its two triggers measured 12.66 kcal/mol apart -- large enough to flip
+    the sign of a cooperativity built from it.
+    """
+    folder = FoldEngine()
+    switch = _TWO_SITE_SWITCH
+    nested = folder.pooled_partition(f"{switch}&{_SITE_A}&{_SITE_B}")
+    crossed = folder.pooled_partition(f"{switch}&{_SITE_B}&{_SITE_A}")
+
+    assert nested == pytest.approx(crossed, abs=1e-9)
+
+
+def test_pooled_partition_is_never_above_the_best_single_ordering():
+    """Pooling unions the orderings' ensembles, so it can only lower the free energy.
+
+    A value above the lowest ordering would mean structures went missing, which is the bug
+    this exists to prevent.
+    """
+    folder = FoldEngine()
+    strands = f"{_TWO_SITE_SWITCH}&{_SITE_A}&{_SITE_B}"
+    orders = [
+        folder.partition(strands),
+        folder.partition(f"{_TWO_SITE_SWITCH}&{_SITE_B}&{_SITE_A}"),
+    ]
+
+    assert folder.pooled_partition(strands) <= min(orders) + 1e-9
+
+
+def test_pooled_partition_matches_partition_when_there_is_one_ordering():
+    """One or two strands have a single ordering, so pooling must be a no-op -- otherwise
+    every existing two-strand caller would silently shift if it moved over."""
+    folder = FoldEngine()
+
+    assert folder.pooled_partition(_TWO_SITE_SWITCH) == folder.partition(_TWO_SITE_SWITCH)
+    pair = f"{_TWO_SITE_SWITCH}&{_SITE_A}"
+    assert folder.pooled_partition(pair) == folder.partition(pair)
+
+
+def test_centroid_agrees_with_the_mfe_on_a_concentrated_ensemble():
+    """A clean hairpin's ensemble sits on one structure, so both drawings are that one."""
+    folder = FoldEngine(temperature=37.0)
+    sequence = "GGGGGAAAAACCCCC"
+    assert folder.centroid(sequence).structure == folder.mfe(sequence).structure
+
+
+def test_centroid_energy_is_an_energy_and_never_beats_the_mfe():
+    """`fc.centroid()` returns (structure, expected base-pair DISTANCE). Returning that
+    second value would put a positive number of a few dozen in an energy field beside a
+    negative MFE, so the structure is re-evaluated instead — and the MFE is the minimum by
+    definition, so the centroid's energy can only be greater or equal."""
+    folder = FoldEngine(temperature=37.0)
+    for sequence in ("GGGGGAAAAACCCCC", "GCGCAUAUGGGCAAAGCCCAUAUGCGC", "AUAUAUAUAUAUAUAU"):
+        centroid, mfe = folder.centroid(sequence), folder.mfe(sequence)
+        assert centroid.energy >= mfe.energy - 1e-9, sequence
+        assert centroid.energy < 1e4, sequence
+
+
+def test_centroid_can_differ_from_the_mfe_where_the_ensemble_is_split():
+    """The whole reason for having both: a sequence whose weight is spread over competing
+    folds has a centroid that drops the contested pairs the MFE commits to."""
+    folder = FoldEngine(temperature=37.0)
+    sequence = "AUAUAUAUAUAUAUAUAUAU"
+    assert folder.centroid(sequence).structure != folder.mfe(sequence).structure
+
+
+def test_centroid_folds_a_complex_over_the_combined_strands():
+    """Same length contract as `mfe`: one character per nucleotide, no `&`."""
+    folder = FoldEngine(temperature=37.0)
+    strands = "GGGGGAAAAACCCCC&GGGGGUUUUUCCCCC"
+    result = folder.centroid(strands)
+    assert len(result.structure) == len(strands) - strands.count("&")

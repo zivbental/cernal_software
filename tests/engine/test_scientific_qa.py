@@ -152,16 +152,37 @@ def test_single_fasta_record_normalizes_without_changing_coordinates():
 
 
 def test_capabilities_advertise_only_runnable_host_family_pairs():
+    """Every (family, host) pair the engine advertises must validate, driven the way that family
+    is driven: a pasted sequence for a single-input switch, a two-gene table for the AND."""
     capabilities = LocalEngine().capabilities()
     assert "antisense" not in capabilities.available_families
-    assert all("and" not in name for name in capabilities.available_families)
+    and_families = sorted(name for name in capabilities.available_families if "and" in name)
+    assert and_families == ["eukaryotic_toehold_and"]
     assert set(capabilities.family_hosts) == set(capabilities.available_families)
+    assert set(capabilities.family_inputs) == set(capabilities.available_families)
+    assert set(capabilities.family_input_modes) == set(capabilities.available_families)
+    assert capabilities.family_hosts["eukaryotic_toehold_and"] == ["human", "yeast"]
+    assert capabilities.family_inputs["eukaryotic_toehold_and"] == 2
+    assert capabilities.family_input_modes["eukaryotic_toehold_and"] == ["de"]
     for name, hosts in capabilities.family_hosts.items():
         for host in hosts:
-            assert (
-                validate_job_configuration({}, [name], "default", "direct", "AUGC", host)["host"]
-                == host
-            )
+            if capabilities.family_inputs[name] == 1:
+                normalized = validate_job_configuration(
+                    {}, [name], "default", "direct", "AUGC", host
+                )
+            else:
+                normalized = validate_job_configuration(
+                    {
+                        "constraints": {"max_triggers": 2},
+                        "and_inputs": {"gene_a": "SELE", "gene_b": "ICAM1"},
+                    },
+                    [name],
+                    "default",
+                    "de",
+                    "",
+                    host,
+                )
+            assert normalized["host"] == host
     with pytest.raises(ValueError, match="production supported"):
         validate_job_configuration(
             {}, ["prokaryotic_toehold"], "default", "direct", "AUGC", "human"
@@ -454,3 +475,26 @@ def test_suboptimal_child_imports_same_installed_package_layout_without_pythonpa
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_eukaryotic_and_tool_wiring_does_not_inherit_prokaryotic_footprints(make_request):
+    from engine.domain import Host
+    from engine.pipeline import build_tools
+
+    request = make_request(
+        organism="human",
+        gate_families=["eukaryotic_toehold_and"],
+        params={
+            "constraints": {"trigger_lengths": [36]},
+            "and_inputs": {"gene_a": "SELE", "gene_b": "ICAM1"},
+        },
+    )
+    tools = build_tools(request, Host.HUMAN)
+    assert len(tools["families"]) == 1
+    assert tools["constraints"].trigger_lengths == (36,)
+    assert not any("footprint" in warning.lower() for warning in tools["warnings"])
+
+
+@pytest.mark.parametrize("family", ["toehold_and", "prokaryotic_toehold_and"])
+def test_research_and_generators_are_not_advertised_until_workflow_is_validated(family):
+    assert family not in LocalEngine().capabilities().available_families

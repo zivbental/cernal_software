@@ -42,6 +42,70 @@ staticfiles/
 desktop.ini
 *:Zone.Identifier
 
+# --- A0 full-sweep outputs (regenerable; hundreds of MB) ---
+# The small result files under toehold_and/results/ ARE committed on purpose: they are
+# the evidence behind the report, and all 72 of them come to 4.1 MB. The full sweep is a
+# different kind of object. sweep_cheap.csv is ~450 MB at 707 of 1036 trigger pairs and
+# ~650 MB complete, and git keeps every version of every committed file forever, so
+# adding it once would grow this 21 MB repo roughly thirtyfold and there would be no
+# clean way to take it back. It is regenerable from full_sweep.py plus the FASTA.
+# Listed by exact name rather than as sweep_* so the small, deliberately-pinned
+# sweep_smoke_cheap.csv and sweep_smoke_folded.csv fixtures stay tracked.
+src/engine/gates/notebooks/toehold_and/results/sweep_cheap.csv
+src/engine/gates/notebooks/toehold_and/results/sweep_folded.csv
+# The temporary copy --resume writes while trimming a partial file.
+src/engine/gates/notebooks/toehold_and/results/*.trimmed
+# The compact Parquet copy sweep_analysis.py --build derives from the CSV above.
+src/engine/gates/notebooks/toehold_and/results/*_analysis.parquet
+# Per-phase sweep outputs from run_night.ps1 and its logs. Same reasoning as sweep_*:
+# regenerable, and the folded files run to hundreds of MB across six shards.
+src/engine/gates/notebooks/toehold_and/results/p[0-9]_cheap.csv
+src/engine/gates/notebooks/toehold_and/results/p[0-9]_folded*.csv
+# The same objects under the phase prefixes the rules above never learned about. This gap is why
+# 2,798 MB across 362 files got committed under results/ against the budget stated above: the
+# ignore rules were written for sweep_* and p<digit>_*, and the k1_, a1_ and wob_ phases went in
+# unnoticed. Twelve of those blobs are 109-134 MB, over GitHub's 100 MB per-file limit, which is
+# what makes this branch unpushable.
+#
+# wob_cheap_0..5.csv are BYTE-IDENTICAL to k1_cheap_0..5.csv -- same blob SHAs, 806 MB of tracked
+# paths carrying nothing new.
+src/engine/gates/notebooks/toehold_and/results/k1_cheap_*.csv
+src/engine/gates/notebooks/toehold_and/results/k1_folded_*.csv
+src/engine/gates/notebooks/toehold_and/results/a1_cheap_*.csv
+src/engine/gates/notebooks/toehold_and/results/a1top_cheap.csv
+src/engine/gates/notebooks/toehold_and/results/wob_cheap_*.csv
+src/engine/gates/notebooks/toehold_and/results/wob_folded_*.csv
+src/engine/gates/notebooks/toehold_and/results/logs/
+src/engine/gates/notebooks/toehold_and/results/*_vista*.csv
+src/engine/gates/notebooks/toehold_and/results/toehold.csv
+
+# Report build products: regenerate with report/panel_data.py and report/panel_page.py
+src/engine/gates/notebooks/toehold_and/report/panel_data.json
+src/engine/gates/notebooks/toehold_and/report/panel.html
+
+# The axis-characterisation run: one row per design, hundreds of thousands of them.
+# Regenerable by tools/run_axes.cmd, and the analysis that reads them is what gets committed.
+src/engine/gates/notebooks/toehold_and/results/axes_*.csv
+
+# The analysis output: regenerated from the run by tools/analyse_axes.py, and rows.csv is large.
+docs/assets/axes_*/rows.csv
+
 # Local agent checkouts are not project submodules.
 .claude/worktrees/
+
+# The split copies of the sweep output: derived from axes_*.csv by tools/split_mixed_schema.py,
+# same size as the originals, and regenerable in a minute.
+src/engine/gates/notebooks/toehold_and/results/axes_*_v1_*.csv
+src/engine/gates/notebooks/toehold_and/results/axes_*_v2_*.csv
+src/engine/gates/notebooks/toehold_and/results/axes_*_odd_*.csv
+
+# the overnight barrier shards: results, not source. barrier_superseded holds the run
+# made before the barrier was computed from the path; its README says why it is kept.
+docs/assets/barrier/landing_*.csv
+docs/assets/barrier/designs_*.csv
+docs/assets/barrier/best_*.csv
+docs/assets/barrier_superseded/landing_*.csv
+docs/assets/barrier_superseded/designs_*.csv
+docs/assets/barrier_superseded/best_*.csv
+docs/assets/barrier_superseded/log_*.txt
 frontend/test-results/

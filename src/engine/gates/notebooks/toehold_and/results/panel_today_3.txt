@@ -1,0 +1,85 @@
+  writing this panel to panel_today_3.txt
+
+  197,784 distinct designs over 1,036 trigger pairs
+
+  BACKGROUNDS (3 of 400 qualifying)
+  pair   x*_start  best mean_sep  designs opening  toehold 3' open
+  -----  --------  -------------  ---------------  ---------------
+  x@260  37        0.214          24               1.0            
+  x@58   551       0.3112         14               0.999          
+  x@130  480       0.2829         24               0.999          
+
+==============================================================================
+  BACKGROUND x@260  (x* at 37)
+==============================================================================
+  role      closure     upper3   lower3  scheme      stem  mean_sep  A_M(11)  A_M_gain  sep   log10 kin
+  --------  ----------  -------  ------  ----------  ----  --------  -------  --------  ----  ---------
+  arm-E     open_3x3    WWW_UAU  WSS     mixed       1     0.214     0.54     0.348     1.7   4.41     
+  arm-K     open_3x3    WWW_UAU  SSW     B-anchored  2     0.0074    0.455    0.012     0.03  4.68     
+  old-stat  closed_UAU  WWW_AUA  SSW     mixed       1     0.0122    0.034    0.02      7.34  4.29     
+  null      closed_CAU  WWW_UAU  SWS     B-anchored  2     -0.0002   0.007    -0.0      4.94  4.62     
+
+  sequences (161 nt, cap through linker):
+    arm-E     GGGCCCUCCAUGUGCACCUUGAAGCGCAUGAACUCCUUGAAGAUGGCCAUGUUCAAGAACUUAGACAAGGCAUGGCCAUCUUCAAGCCUUCGGGGAUGUCGUAUAGACAAGAACAGAGGAGAAUACGAAUGCCCCGAAGGAACCUGGCGGCAGCGCAAAAG
+    arm-K     GGGCCCUCCAUGUGCACCUUGAAGCGCAUGAACUCCUUGAUGAUGGCCAUGUUCAAGAACUUAGACAAAACAUGGCCAUCUUCAAGUCCUCGGGGAUGUCGUAUAGACAAGAACAGAGGAGAAUACGAAUGCCCCGAGGAAACCUGGCGGCAGCGCAAAAG
+    old-stat  GGGCCCUCCAUGUGCACCUUGAAGCGCAUGAACUCCUUGAAGAUGGCCAUGUUCAAGAACUUAGACAAGGCAUGGCCAUCUUCAAGUCCUCGGGGUAUUCGAUAAGACAAGAACAGAGGAGAUAUCGAAUGCCCCGAGGAAACCUGGCGGCAGCGCAAAAG
+    null      GGGCCCUCCAUGUGCACCUUGAAGCGCAUGAACUCCUUGAUGAUGGCCAUGUUCAAGAACUUAGACAAAACAUGGCCAUCUUCAAGCUCUCGGGGCAUUCGUAUAGACAAGAACAGAGGAGAAUACGAAUGCCCCGAGAGAACCUGGCGGCAGCGCAAAAG
+
+==============================================================================
+  BACKGROUND x@58  (x* at 551)
+==============================================================================
+  role      closure     upper3   lower3  scheme      stem  mean_sep  A_M(11)  A_M_gain  sep   log10 kin
+  --------  ----------  -------  ------  ----------  ----  --------  -------  --------  ----  ---------
+  arm-E     open_3x3    WWW_UAU  SWS     mixed       2     0.3112    0.569    0.485     2.93  1.21     
+  arm-K     open_3x3    WWW_UAU  SSW     B-anchored  0     0.2602    0.505    0.415     2.58  2.59     
+  old-stat  closed_UAU  WWW_UAU  SSW     mixed       2     0.0063    0.018    0.008     6.94  1.26     
+  null      closed_CAU  WWW_AUA  SSW     B-anchored  0     -0.0142   0.008    -0.001    3.95  2.59     
+
+  sequences (161 nt, cap through linker):
+    arm-E     GGGGCCGGGCAGCUGCACGGGCUUCUUGGCCUUGUAGGUGGUCUUGGCCUCAGCAAGAACUUAGACAACUGAGGCCAUGACCACCUCUCAGCGCAUGAACUUAUAGACAAGAACAGAGGAGAAUAAGUAUGUGCGCUGAGAACCUGGCGGCAGCGCAAAAG
+    arm-K     GGGGCCGGGCAGCUGCACGGGCUUCUUGGCCUUGUAGGUGGUCUUGACCUCAGCAAGAACUUAGACAACUGAGGUCAAGACCACCUUCCAGCGCAUGAACUUAUAGACAAGAACAGAGGAGAAUAAGUAUGUGCGCUGGAAACCUGGCGGCAGCGCAAAAG
+    old-stat  GGGGCCGGGCAGCUGCACGGGCUUCUUGGCCUUGUAGGUGGUCUUGGCCUCAGCAAGAACUUAGACAACUGAGGCCAUGACCACCUUCCAGCGCAUAUACUUAUAGACAAGAACAGAGGAGAAUAAGUAUGUGCGCUGGAAACCUGGCGGCAGCGCAAAAG
+    null      GGGGCCGGGCAGCUGCACGGGCUUCUUGGCCUUGUAGGUGGUCUUGACCUCAGCAAGAACUUAGACAACUGAGGUCAAGACCACCUUCCAGCGCACAUACUAUAAGACAAGAACAGAGGAGAUAUAGUAUGUGCGCUGGAAACCUGGCGGCAGCGCAAAAG
+
+==============================================================================
+  BACKGROUND x@130  (x* at 480)
+==============================================================================
+  role      closure     upper3   lower3  scheme      stem  mean_sep  A_M(11)  A_M_gain  sep   log10 kin
+  --------  ----------  -------  ------  ----------  ----  --------  -------  --------  ----  ---------
+  arm-E     open_3x3    WWW_UAU  WSS     B-anchored  1     0.2829    0.583    0.432     3.04  1.16     
+  arm-K     open_3x3    WWW_UAU  SWS     mixed       3     0.2163    0.626    0.434     1.42  2.25     
+  old-stat  closed_UAU  WWW_UAU  WSS     B-anchored  2     0.0161    0.023    0.016     4.13  0.71     
+  null      pair2_CCU   WWW_UAU  SSW     B-anchored  0     0.0065    0.078    0.01      1.38  1.07     
+
+  sequences (161 nt, cap through linker):
+    arm-E     GGGUCAGCUUCAGCCUCUGCUUGAUCUCGCCCUUCAGGGCGCCGUCCUCGGGGCAAGAACUUAGACAACCCCGGGGACGGCGCCCUCCUAGGGGCGGCCCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGGCCCCUAGGAACCUGGCGGCAGCGCAAAAG
+    arm-K     GGGUCAGCUUCAGCCUCUGCUUGAUCUCGCCCUUCAGGGCGCCGUGCUCGGGGCAAGAACUUAGACAACCCCGAGCAGGGUGCCCUCUCAGGGGCGGCCCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGGCCCCUGAGAACCUGGCGGCAGCGCAAAAG
+    old-stat  GGGUCAGCUUCAGCCUCUGCUUGAUCUCGCCCUUCAGGGCGCCGUCCUCGGGGCAAGAACUUAGACAACCCCGGGGACGGUGCCCUCCUAGGGGCUAUCCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGGCCCCUAGGAACCUGGCGGCAGCGCAAAAG
+    null      GGGUCAGCUUCAGCCUCUGCUUGAUCUCGCCCUUCAGGGCGCCGUCCUCGGGGCAAGAACUUAGACAACCCCGAGGACGGCGCCCUUCCAGGGGCCCUCCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGGCCCCUGGAAACCUGGCGGCAGCGCAAAAG
+
+==============================================================================
+  SECONDARY LOOP vs THE TRIGGERS -- can either bind the loop we never vary?
+==============================================================================
+  SECONDARY_LOOP is a fixed 15-mer and nothing has checked whether a trigger can
+  pair with it. A trigger that binds the loop competes with its own intended
+  site, which would read as a weak design rather than as an off-target.
+  Longest reverse-complementary run; 6 nt is worth a look, 8+ should not be
+  ordered without folding the pair properly.
+
+  background  loop vs trigger A  loop vs trigger B  verdict
+  ----------  -----------------  -----------------  -------
+  x@260       4                  5                  ok     
+  x@58        5                  3                  ok     
+  x@130       3                  3                  ok     
+
+==============================================================================
+  HOW TO READ A RESULT
+==============================================================================
+  arm-E works and arm-K does not  -> rank on mean_separation, drop the kinetic proxy.
+  arm-K works and arm-E does not  -> the equilibrium picture is not what limits us.
+  old-stat works                  -> the separation retraction was wrong; revisit it.
+  null also works                 -> the target is easy and the panel discriminates
+                                     nothing. Widen the design space before trusting
+                                     any ranking.
+  nothing works                   -> the model is wrong at a level no reranking fixes.
+

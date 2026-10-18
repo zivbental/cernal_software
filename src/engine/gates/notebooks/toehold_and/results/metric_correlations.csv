@@ -1,0 +1,32 @@
+metric,window,what,G168_n,G168_rho,G168_pearson,G13_n,G13_rho,G13_pearson,VISTA_n,VISTA_rho,VISTA_pearson
+ied_rbs_linker_on,RBS loop..linker,"the same, ON",168,0.356,0.3236,13,0.3901,0.5212,189,-0.0964,-0.0768
+dG_rbs_linker,RBS loop..linker,Green's own predictor: MFE of the stretch,168,0.3344,0.274,13,0.2632,0.6926,189,-0.134,-0.1375
+A_M_gain,"arm, 18 nt","A_M_on - A_M_off, the DIFFERENCE",168,0.3198,0.2766,13,0.5604,0.7079,189,-0.0259,-0.019
+mean_wrank_gain,"W_rank, 31 nt",the difference,168,0.3169,0.3162,13,0.3297,0.581,189,-0.0046,0.035
+A_M_on,"arm, 18 nt","the same, ON -- our A_M(11)",168,0.3153,0.271,13,0.5275,0.6775,189,-0.0498,-0.0376
+p_open_on,"W_rank, 31 nt","joint probability all 31 nt open, ON",168,0.3151,0.0807,13,0.478,0.4423,189,-0.0736,-0.0573
+dG_open_on,"W_rank, 31 nt","same, ON state -- our ON cost",168,0.3151,0.2146,13,0.478,0.7293,189,-0.0736,-0.079
+mean_wrank_on,"W_rank, 31 nt","the same, ON",168,0.3089,0.2993,13,0.2582,0.4765,189,-0.0156,0.0304
+A_M_ratio_log,"arm, 18 nt","log10 of the ratio -- rank-identical, for scale",168,0.3059,0.2795,13,0.6978,0.7502,189,-0.0165,0.0013
+A_M_ratio_floor0.1,"arm, 18 nt","A_M_on / max(A_M_off, 0.10)",168,0.3059,0.288,13,0.6978,0.7288,189,-0.0165,-0.0099
+A_M_ratio_floor0.05,"arm, 18 nt","A_M_on / max(A_M_off, 0.05)",168,0.3059,0.288,13,0.6978,0.6845,189,-0.0165,-0.0099
+A_M_ratio_floor0.01,"arm, 18 nt","A_M_on / max(A_M_off, 0.01)",168,0.3059,0.288,13,0.6978,0.6845,189,-0.0165,-0.0099
+A_M_ratio_cap20,"arm, 18 nt",the ratio capped at 20x,168,0.3059,0.288,13,0.6978,0.6845,189,-0.0165,-0.0099
+A_M_ratio,"arm, 18 nt","A_M_on / A_M_off, the RATIO -- our f2",168,0.3059,0.288,13,0.6978,0.6845,189,-0.0165,-0.0099
+aug_gain,"AUG, 3 nt",the difference,168,0.2409,0.2583,13,0.6099,0.6698,189,0.1227,0.1501
+aug_on,"AUG, 3 nt","the same, ON -- our aug_11",168,0.2397,0.2357,13,0.5604,0.6606,189,0.0797,0.1598
+mean_wrank_off,"W_rank, 31 nt","mean unpaired over W_rank, OFF",168,0.14,0.1863,13,0.6154,0.7631,189,0.0356,0.0177
+aug_off,"AUG, 3 nt","AUG unpaired probability, OFF",168,0.0907,0.1692,13,0.5165,0.6049,189,0.0682,0.0005
+k_analogue12,"toehold, first 12 nt","mean unpaired over the toehold, OFF",168,0.0232,-0.0057,13,-0.1538,-0.4169,189,-0.1181,-0.1108
+ied_toehold12_off,"toehold, first 12 nt",1 - the above,168,0.0232,-0.0057,13,-0.1538,-0.4169,189,-0.1181,-0.1108
+d_OFF,whole switch,"ensemble defect vs its own MFE, length-normalised",168,-0.0319,0.0525,13,-0.6538,-0.528,,,
+k_analogue15,"toehold, first 15 nt","the same, 15 nt",168,-0.0323,-0.0248,13,-0.2857,-0.4363,189,-0.1642,-0.1488
+k_analogue18,"toehold, first 18 nt","the same, 18 nt",168,-0.0369,-0.0282,13,-0.2967,-0.3848,189,-0.2054,-0.1946
+A_M_off,"arm, 18 nt","mean per-base unpaired over the arm, OFF",168,-0.0464,0.0893,13,0.6484,0.7213,189,0.021,0.0061
+ied_rbs_linker_off,RBS loop..linker,"VISTA's IED over the same span, OFF",168,-0.073,-0.1313,13,-0.2253,-0.4011,189,-0.1856,-0.1512
+narrow_sep,"AUG, 3 nt",the same difference over the start codon alone,168,-0.1068,-0.1418,13,0.1703,0.2779,189,0.0353,0.0578
+separation,"W_rank, 31 nt",dG_open_off - dG_open_on -- the SEP analogue,168,-0.1071,-0.1538,13,-0.033,0.4486,189,-0.0699,-0.0673
+dG_OFF,whole switch,the closed switch's own MFE,168,-0.2844,-0.2253,13,-0.2527,-0.1247,,,
+ied_rbs_linker_gain,RBS loop..linker,the difference,168,-0.3451,-0.3226,13,-0.4945,-0.5954,189,-0.1158,-0.0988
+p_open_off,"W_rank, 31 nt","joint probability all 31 nt open, OFF",168,-0.3616,-0.0045,13,-0.2363,0.0741,189,-0.024,-0.0431
+dG_open_off,"W_rank, 31 nt","cost to force W_rank open, OFF state",168,-0.3616,-0.3119,13,-0.2363,0.0657,189,-0.024,-0.0193

@@ -128,6 +128,11 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
         </a>
       </div>
 
+      <p className="mb-4 rounded-lg border border-border p-3 text-xs">
+        Screening context: candidate screening covers only the saved switch sequence, not these files or the full construct.
+        A downloadable artifact, completed run or ranking score does not establish screening clearance or authorize release.
+        Screening evidence is not currently embedded in these exports; retain the applicable identity and provenance separately.
+      </p>
       {items.some((artifact) => artifact.download_available !== true) && (
         <p role="status" className="mb-4 text-sm text-muted-foreground">
           Some artifacts are withheld pending sequence release approval. Select available files to download a partial archive.

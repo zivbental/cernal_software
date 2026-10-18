@@ -1,0 +1,245 @@
+  writing this panel to panel_k1.txt
+
+  200,064 distinct designs over 1,042 trigger pairs
+
+  BACKGROUNDS (3 of 400 qualifying)
+  pair   x*_start  best mean_sep  opening  3' open (6nt)  SED A (in mRNA)  SED B (in mRNA)
+  -----  --------  -------------  -------  -------------  ---------------  ---------------
+  x@525  84        0.4669         47       n/a            0.526            0.55           
+  x@525  224       0.4668         46       n/a            0.526            0.573          
+  x@118  359       0.4626         70       n/a            0.5              0.619          
+
+==============================================================================
+  BACKGROUND x@525  (x* at 84)
+==============================================================================
+  accessibility: 3' open 3nt 0.871, 6nt 0.925;  5'-binds-3' 0.17;  trim indicated False
+  green-rbs scanned 31 of this background's designs; dG_rbs_linker spans -5.5 to -4.9 kcal/mol
+  role         closure     upper3   lower3     scheme      stem  mean_sep  A_M(11)  A_M_gain  sep   log10 kin  A_M ratio  AUG(11)  freeX(00)  freeX(01)
+  -----------  ----------  -------  ---------  ----------  ----  --------  -------  --------  ----  ---------  ---------  -------  ---------  ---------
+  arm-E        open_3x3    WWW_UAU  SWS        mixed       3     0.4669    0.891    0.82      5.19  1.08       12.52      0.976    0.004      0.273    
+  arm-E-ratio  open_3x3    WWW_UAU  SWS        B-anchored  0     0.4516    0.865    0.793     5.11  2.32       12.14      0.957    0.004      0.583    
+  arm-K        open_3x3    WWW_AUA  wobble_GU  B-anchored  0     0.4483    0.892    0.816     2.98  2.34       11.62      0.972    0.001      0.586    
+  old-stat*    closed_CAU  WWW_AUA  wobble_GU  mixed       3     0.0223    0.046    0.037     9.46  1.07       5.06       0.003    0.001      0.267    
+  leaky-10*    pair1_CCC   WWW_AUA  SWS        B-anchored  0     -0.0003   0.119    -0.0      7.06  2.32       1.0        0.667    0.004      0.583    
+  closure      pair2_CCU   WWW_UAU  wobble_GU  mixed       3     0.232     0.667    0.599     8.44  1.07       9.82       0.796    0.001      0.267    
+  green-rbs    open_3x3    WWW_UAU  wobble_GU  mixed       3     0.4071    0.899    0.732     1.32  1.07       5.37       0.976    0.001      0.267    
+
+  recovered metrics -- specified but absent from every folded run
+  (x* decomposition tells the lock HOLDING from the lock torn OPEN)
+  role         A(r2*|00)  x*lock 00  x*lock 10  x*free 01  x*engA 11  dG_bind_A  dG_bind(A|B)  coop  dG_rbs_linker
+  -----------  ---------  ---------  ---------  ---------  ---------  ---------  ------------  ----  -------------
+  arm-E        n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  arm-E-ratio  n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  arm-K        n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  old-stat*    n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  leaky-10*    n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  closure      n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  green-rbs    n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+
+  DESIGN-GUIDE THRESHOLDS (Green 2014 / VISTA 2026 / Kim 2019)
+  reported, never scored -- see _RULES for why two of the guide's rules
+  belong to tsgen2's architecture and not to this refolding one
+  role         codon3          dG_rbs_linker  dG_OFF  homopolymer  mid-stem GC  dG_crosstalk
+  -----------  --------------  -------------  ------  -----------  -----------  ------------
+  arm-E        AAG/GAC/GAG OK  -4.9 OK        -71 OK  Gx4 FAIL     50% OK       -6.7 FAIL   
+  arm-E-ratio  AAG/GAC/GAG OK  -4.9 OK        -75 OK  Gx4 FAIL     50% OK       -6.7 FAIL   
+  arm-K        AAG/GAC/GAC OK  -4.9 OK        -76 OK  Gx4 FAIL     50% OK       -6.7 FAIL   
+  old-stat*    AAG/GAC/GAC OK  -4.9 OK        -77 OK  Gx4 FAIL     42% OK       -6.7 FAIL   
+  leaky-10*    AAG/GAC/GAG OK  -4.9 OK        -73 OK  Gx4 FAIL     58% high     -6.7 FAIL   
+  closure      AAG/GAC/GAC OK  -4.9 OK        -72 OK  Gx4 FAIL     50% OK       -6.7 FAIL   
+  green-rbs    AAG/GAC/GAC OK  -4.9 OK        -72 OK  Gx4 FAIL     50% OK       -6.8 FAIL   
+
+  ORDERABLE? -- hard filters, not weights.
+  Restriction sites and homopolymers: run tools/screen_candidates.py on
+  the CSV export; MotifScreener lives in stages/ and cannot be imported here.
+  role         poly-U  AGGAGG copies  verdict
+  -----------  ------  -------------  -------
+  arm-E        3 OK    0 OK           ORDER  
+  arm-E-ratio  3 OK    0 OK           ORDER  
+  arm-K        2 OK    0 OK           ORDER  
+  old-stat*    2 OK    0 OK           ORDER  
+  leaky-10*    2 OK    0 OK           ORDER  
+  closure      3 OK    0 OK           ORDER  
+  green-rbs    3 OK    0 OK           ORDER  
+
+  every option for this background, for Excel: panel_k1_x525_xs84.csv
+  (192 designs, 64 columns, panel_role marks the picks)
+
+  sequences (cap through linker):
+    arm-E       GGGGCCCUCGCCCUCGCCCUCGAUCUCGAACUCGUGGCCACUCACGGAGCCCAUACAAGAACUUAGACAAUAUGGGGUGCGUGAGUGGCCCUCGUCCUUCAGCUUUAUAGACAAGAACAGAGGAGAAUAAAGAUGAAGGACGAGAACCUGGCGGCAGCGCAAAAG
+    arm-E-ratio GGGGCCCUCGCCCUCGCCCUCGAUCUCGAACUCGUGGCCGUUCACGGAGCCCAUACAAGAACUUAGACAAUAUGGGGUCCGUGAGCGGCCCUCGUCCUUCAGCUUUAUAGACAAGAACAGAGGAGAAUAAAGAUGAAGGACGAGAACCUGGCGGCAGCGCAAAAG
+    arm-K       GGGGCCCUCGCCCUCGCCCUCGAUCUCGAACUCGUGGCCGUUCACGGAGCCCAUACAAGAACUUAGACAAUAUGGGGUCCGUGAGCGGCCGUCGUCCUUCAGCUUAUAAGACAAGAACAGAGGAGAUAUAAGAUGAAGGACGACAACCUGGCGGCAGCGCAAAAG
+    old-stat*   GGGGCCCUCGCCCUCGCCCUCGAUCUCGAACUCGUGGCCACUCACGGAGCCCAUACAAGAACUUAGACAAUAUGGGGUGCGUGAGUGGCCGUCGUCCUUCAUCUUAUAAGACAAGAACAGAGGAGAUAUAAGAUGAAGGACGACAACCUGGCGGCAGCGCAAAAG
+    leaky-10*   GGGGCCCUCGCCCUCGCCCUCGAUCUCGAACUCGUGGCCGUUCACGGAGCCCAUACAAGAACUUAGACAAUAUGGGGUCCGUGAGCGGCCCUCGUCCUUCCCCUUAUAAGACAAGAACAGAGGAGAUAUAAGAUGAAGGACGAGAACCUGGCGGCAGCGCAAAAG
+    closure     GGGGCCCUCGCCCUCGCCCUCGAUCUCGAACUCGUGGCCACUCACGGAGCCCAUACAAGAACUUAGACAAUAUGGGGUGCGUGAGUGGCCGUCGUCCUUCCUCUUUAUAGACAAGAACAGAGGAGAAUAAAGAUGAAGGACGACAACCUGGCGGCAGCGCAAAAG
+    green-rbs   GGGGCCCUCGCCCUCGCCCUCGAUCUCGAACUCGUGGCCACUCACGGAGCCCAUACAAGAACUUAGACAAUAUGGGGUGCGUGAGUGGCCGUCGUCCUUCAGCUUUAUAGACAAGAACAGAGGAGAAUAAAGAUGAAGGACGACAACCUGGCGGCAGCGCAAAAG
+
+  triggers -- the same pair for every row above (x@525, x* at 84):
+    trigger A   transcript[507:542]  35 nt   CUGAAGCUGAAGGACGGCGGCCACUACGACGCUGA
+    trigger B   transcript[71:120]  49 nt   GGGCUCCGUGAACGGCCACGAGUUCGAGAUCGAGGGCGAGGGCGAGGGC
+    (RNA, 5'->3'. x_start alone names FIVE different pairs in this run, so
+     the x* coordinate above is part of the identity, not decoration.)
+
+==============================================================================
+  BACKGROUND x@525  (x* at 224)
+==============================================================================
+  accessibility: 3' open 3nt 0.803, 6nt 0.521;  5'-binds-3' 0.31;  trim indicated False
+  green-rbs scanned 30 of this background's designs; dG_rbs_linker spans -5.5 to -4.9 kcal/mol
+  role         closure     upper3   lower3     scheme      stem  mean_sep  A_M(11)  A_M_gain  sep    log10 kin  A_M ratio  AUG(11)  freeX(00)  freeX(01)
+  -----------  ----------  -------  ---------  ----------  ----  --------  -------  --------  -----  ---------  ---------  -------  ---------  ---------
+  arm-E        open_3x3    WWW_UAU  SWS        mixed       1     0.4668    0.891    0.82      5.24   2.0        12.59      0.976    0.001      0.502    
+  arm-E-ratio  open_3x3    WWW_UAU  SWS        B-anchored  3     0.4604    0.88     0.809     4.94   2.0        12.41      0.968    0.002      0.501    
+  arm-K        open_3x3    WWW_AUA  wobble_GU  mixed       2     0.4511    0.892    0.821     3.9    2.02       12.49      0.971    0.001      0.505    
+  old-stat*    closed_CAU  WWW_AUA  wobble_GU  mixed       1     0.0234    0.046    0.039     10.87  2.01       7.13       0.003    0.001      0.504    
+  leaky-10*    pair1_CCC   WWW_UAU  SSW        mixed       2     -0.0076   0.134    -0.011    5.92   2.01       0.92       0.659    0.001      0.502    
+  closure      pair2_CCU   WWW_UAU  wobble_GU  mixed       1     0.2326    0.665    0.6       9.85   2.01       10.2       0.795    0.001      0.504    
+  green-rbs    open_3x3    WWW_UAU  wobble_GU  mixed       1     0.4551    0.899    0.818     2.67   2.01       11.07      0.976    0.001      0.504    
+
+  recovered metrics -- specified but absent from every folded run
+  (x* decomposition tells the lock HOLDING from the lock torn OPEN)
+  role         A(r2*|00)  x*lock 00  x*lock 10  x*free 01  x*engA 11  dG_bind_A  dG_bind(A|B)  coop  dG_rbs_linker
+  -----------  ---------  ---------  ---------  ---------  ---------  ---------  ------------  ----  -------------
+  arm-E        n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  arm-E-ratio  n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  arm-K        n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  old-stat*    n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  leaky-10*    n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  closure      n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  green-rbs    n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+
+  DESIGN-GUIDE THRESHOLDS (Green 2014 / VISTA 2026 / Kim 2019)
+  reported, never scored -- see _RULES for why two of the guide's rules
+  belong to tsgen2's architecture and not to this refolding one
+  role         codon3          dG_rbs_linker  dG_OFF  homopolymer  mid-stem GC  dG_crosstalk
+  -----------  --------------  -------------  ------  -----------  -----------  ------------
+  arm-E        AAG/GAC/GAG OK  -4.9 OK        -73 OK  Gx4 FAIL     50% OK       -6.0 FAIL   
+  arm-E-ratio  AAG/GAC/GAG OK  -4.9 OK        -69 OK  Gx4 FAIL     50% OK       -6.0 FAIL   
+  arm-K        AAG/GAC/GAC OK  -4.9 OK        -74 OK  Gx4 FAIL     50% OK       -6.0 FAIL   
+  old-stat*    AAG/GAC/GAC OK  -4.9 OK        -78 OK  Gx4 FAIL     42% OK       -6.0 FAIL   
+  leaky-10*    AAG/GAC/GGA OK  -4.9 OK        -71 OK  Gx4 FAIL     58% high     -6.0 FAIL   
+  closure      AAG/GAC/GAC OK  -4.9 OK        -74 OK  Gx4 FAIL     50% OK       -6.0 FAIL   
+  green-rbs    AAG/GAC/GAC OK  -4.9 OK        -73 OK  Gx4 FAIL     50% OK       -6.0 FAIL   
+
+  ORDERABLE? -- hard filters, not weights.
+  Restriction sites and homopolymers: run tools/screen_candidates.py on
+  the CSV export; MotifScreener lives in stages/ and cannot be imported here.
+  role         poly-U  AGGAGG copies  verdict
+  -----------  ------  -------------  -------
+  arm-E        3 OK    0 OK           ORDER  
+  arm-E-ratio  3 OK    0 OK           ORDER  
+  arm-K        2 OK    0 OK           ORDER  
+  old-stat*    2 OK    0 OK           ORDER  
+  leaky-10*    3 OK    0 OK           ORDER  
+  closure      3 OK    0 OK           ORDER  
+  green-rbs    3 OK    0 OK           ORDER  
+
+  every option for this background, for Excel: panel_k1_x525_xs224.csv
+  (192 designs, 64 columns, panel_role marks the picks)
+
+  sequences (cap through linker):
+    arm-E       GGGUAGUCGGGGAUGUCGGCGGGGUGCUUCACGUAGGCCACGGAGCCGUACAAUACAAGAACUUAGACAAUAUUGUGCGGCGUCGUGGCCCUCGUCCUUCAGCUUUAUAGACAAGAACAGAGGAGAAUAAAGAUGAAGGACGAGAACCUGGCGGCAGCGCAAAAG
+    arm-E-ratio GGGUAGUCGGGGAUGUCGGCGGGGUGCUUCACGUAGGCCUUGGAGCCGUACAAUACAAGAACUUAGACAAUAUUGAGCGGCUCCAUGGCCCUCGUCCUUCAGCUUUAUAGACAAGAACAGAGGAGAAUAAAGAUGAAGGACGAGAACCUGGCGGCAGCGCAAAAG
+    arm-K       GGGUAGUCGGGGAUGUCGGCGGGGUGCUUCACGUAGGCCAUGGAGCCGUACAAUACAAGAACUUAGACAAUAUUGUGCGGCGCCGUGGCCGUCGUCCUUCAGCUUAUAAGACAAGAACAGAGGAGAUAUAAGAUGAAGGACGACAACCUGGCGGCAGCGCAAAAG
+    old-stat*   GGGUAGUCGGGGAUGUCGGCGGGGUGCUUCACGUAGGCCACGGAGCCGUACAAUACAAGAACUUAGACAAUAUUGUGCGGCGUCGUGGCCGUCGUCCUUCAUCUUAUAAGACAAGAACAGAGGAGAUAUAAGAUGAAGGACGACAACCUGGCGGCAGCGCAAAAG
+    leaky-10*   GGGUAGUCGGGGAUGUCGGCGGGGUGCUUCACGUAGGCCAUGGAGCCGUACAAUACAAGAACUUAGACAAUAUUGUGCGGCGCCGUGGCCUCCGUCCUUCCCCUUUAUAGACAAGAACAGAGGAGAAUAAAGAUGAAGGACGGAAACCUGGCGGCAGCGCAAAAG
+    closure     GGGUAGUCGGGGAUGUCGGCGGGGUGCUUCACGUAGGCCACGGAGCCGUACAAUACAAGAACUUAGACAAUAUUGUGCGGCGUCGUGGCCGUCGUCCUUCCUCUUUAUAGACAAGAACAGAGGAGAAUAAAGAUGAAGGACGACAACCUGGCGGCAGCGCAAAAG
+    green-rbs   GGGUAGUCGGGGAUGUCGGCGGGGUGCUUCACGUAGGCCACGGAGCCGUACAAUACAAGAACUUAGACAAUAUUGUGCGGCGUCGUGGCCGUCGUCCUUCAGCUUUAUAGACAAGAACAGAGGAGAAUAAAGAUGAAGGACGACAACCUGGCGGCAGCGCAAAAG
+
+  triggers -- the same pair for every row above (x@525, x* at 224):
+    trigger A   transcript[507:542]  35 nt   CUGAAGCUGAAGGACGGCGGCCACUACGACGCUGA
+    trigger B   transcript[211:260]  49 nt   UGUACGGCUCCAAGGCCUACGUGAAGCACCCCGCCGACAUCCCCGACUA
+    (RNA, 5'->3'. x_start alone names FIVE different pairs in this run, so
+     the x* coordinate above is part of the identity, not decoration.)
+
+==============================================================================
+  BACKGROUND x@118  (x* at 359)
+==============================================================================
+  accessibility: 3' open 3nt 0.824, 6nt 0.613;  5'-binds-3' 0.14;  trim indicated False
+  green-rbs scanned 14 of this background's designs; dG_rbs_linker spans -6.9 to -6.9 kcal/mol
+  role       closure     upper3   lower3     scheme      stem  mean_sep  A_M(11)  A_M_gain  sep   log10 kin  A_M ratio  AUG(11)  freeX(00)  freeX(01)
+  ---------  ----------  -------  ---------  ----------  ----  --------  -------  --------  ----  ---------  ---------  -------  ---------  ---------
+  arm-E      closed_CGU  WWW_UAU  WSS        mixed       3     0.4626    0.772    0.765     5.11  3.47       115.52     0.897    0.001      0.869    
+  arm-K      closed_CGU  WWW_UAU  WSS        B-anchored  0     0.4077    0.681    0.675     8.95  3.75       104.84     0.791    0.001      0.938    
+  old-stat   closed_CGU  WWW_UAU  SWS        B-anchored  0     0.0002    0.007    0.0       9.29  3.76       1.0        0.001    0.001      0.942    
+  leaky-10*  pair1_CCC   WWW_UAU  SSW        B-anchored  0     -0.0004   0.122    -0.001    8.24  3.79       0.99       0.667    0.001      0.948    
+  closure    open_3x3    WWW_UAU  SWS        mixed       3     0.4486    0.809    0.742     4.31  3.48       12.11      0.932    0.001      0.871    
+  green-rbs  closed_CGU  WWW_UAU  wobble_GU  mixed       2     0.4593    0.772    0.76      3.03  2.02       63.67      0.897    0.001      0.507    
+
+  recovered metrics -- specified but absent from every folded run
+  (x* decomposition tells the lock HOLDING from the lock torn OPEN)
+  role       A(r2*|00)  x*lock 00  x*lock 10  x*free 01  x*engA 11  dG_bind_A  dG_bind(A|B)  coop  dG_rbs_linker
+  ---------  ---------  ---------  ---------  ---------  ---------  ---------  ------------  ----  -------------
+  arm-E      n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  arm-K      n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  old-stat   n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  leaky-10*  n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  closure    n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+  green-rbs  n/a        n/a        n/a        n/a        n/a        n/a        n/a           n/a   n/a          
+
+  DESIGN-GUIDE THRESHOLDS (Green 2014 / VISTA 2026 / Kim 2019)
+  reported, never scored -- see _RULES for why two of the guide's rules
+  belong to tsgen2's architecture and not to this refolding one
+  role       codon3                    dG_rbs_linker  dG_OFF  homopolymer  mid-stem GC  dG_crosstalk
+  ---------  ------------------------  -------------  ------  -----------  -----------  ------------
+  arm-E      AGG/GCG/AGG RARE:AGG,AGG  -6.9 OK        -92 OK  Gx6 FAIL     75% high     -0.5 OK     
+  arm-K      AGG/GCG/AGG RARE:AGG,AGG  -6.9 OK        -92 OK  Gx4 FAIL     75% high     -0.5 OK     
+  old-stat   AGG/GCG/GAG RARE:AGG      -6.9 OK        -92 OK  Gx4 FAIL     75% high     -0.5 OK     
+  leaky-10*  AGG/GCG/GGA RARE:AGG      -6.9 OK        -86 OK  Cx5 FAIL     83% high     -0.6 OK     
+  closure    AGG/GCG/GAG RARE:AGG      -6.9 OK        -87 OK  Gx6 FAIL     83% high     -0.5 OK     
+  green-rbs  AGG/GCG/AGG RARE:AGG,AGG  -6.9 OK        -91 OK  Gx6 FAIL     75% high     -0.5 OK     
+
+  ORDERABLE? -- hard filters, not weights.
+  Restriction sites and homopolymers: run tools/screen_candidates.py on
+  the CSV export; MotifScreener lives in stages/ and cannot be imported here.
+  role       poly-U  AGGAGG copies  verdict
+  ---------  ------  -------------  -------
+  arm-E      2 OK    0 OK           ORDER  
+  arm-K      2 OK    0 OK           ORDER  
+  old-stat   2 OK    0 OK           ORDER  
+  leaky-10*  2 OK    0 OK           ORDER  
+  closure    2 OK    0 OK           ORDER  
+  green-rbs  2 OK    0 OK           ORDER  
+
+  every option for this background, for Excel: panel_k1_x118_xs359.csv
+  (192 designs, 64 columns, panel_role marks the picks)
+
+  sequences (cap through linker):
+    arm-E       GGGGUGCCGCGCAGCUUCACCUUGUAGAUGAACUCGCCGCCCUGCAGGGGGGAUACAAGAACUUAGACAAUAUCCCCCCGUCGGGGCGGCCCUCGCCCUCGUCCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGAGGGCGAGGAACCUGGCGGCAGCGCAAAAG
+    arm-K       GGGGUGCCGCGCAGCUUCACCUUGUAGAUGAACUCGCCGUCCUGCAGGGAGGAUACAAGAACUUAGACAAUAUGCUCCCUGCAGGACGGCCCUCGCCCUCGUCCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGAGGGCGAGGAACCUGGCGGCAGCGCAAAAG
+    old-stat    GGGGUGCCGCGCAGCUUCACCUUGUAGAUGAACUCGCCGUCCUGCAGGGAGGAUACAAGAACUUAGACAAUAUGCUCCCUGCAGGACGGCCUCCGCCCUCGUCCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGAGGGCGGAGAACCUGGCGGCAGCGCAAAAG
+    leaky-10*   GGGGUGCCGCGCAGCUUCACCUUGUAGAUGAACUCGCCGUCCUGCAGGGAGGAUACAAGAACUUAGACAAUAUGCUCCCUGCAGGACGGCUCCCGCCCUCCCCCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGAGGGCGGGAAACCUGGCGGCAGCGCAAAAG
+    closure     GGGGUGCCGCGCAGCUUCACCUUGUAGAUGAACUCGCCGCCCUGCAGGGGGGAUACAAGAACUUAGACAAUAUCCCCCCGUCGGGGCGGCCUCCGCCCUCGCCCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGAGGGCGGAGAACCUGGCGGCAGCGCAAAAG
+    green-rbs   GGGGUGCCGCGCAGCUUCACCUUGUAGAUGAACUCGCCGUCCUGCAGGGGGGAUACAAGAACUUAGACAAUAUCCCCCCUGAGGGGCGGCCCUCGCCCUCGUCCUUAUAGACAAGAACAGAGGAGAAUAAGGAUGAGGGCGAGGAACCUGGCGGCAGCGCAAAAG
+
+  triggers -- the same pair for every row above (x@118, x* at 359):
+    trigger A   transcript[100:135]  35 nt   UCGAGGGCGAGGGCGAGGGCCGCCCCUACGAGGGC
+    trigger B   transcript[346:395]  49 nt   CCUCCCUGCAGGACGGCGAGUUCAUCUACAAGGUGAAGCUGCGCGGCAC
+    (RNA, 5'->3'. x_start alone names FIVE different pairs in this run, so
+     the x* coordinate above is part of the identity, not decoration.)
+
+==============================================================================
+  SECONDARY LOOP vs THE TRIGGERS -- can either bind the loop we never vary?
+==============================================================================
+  SECONDARY_LOOP is a fixed 15-mer and nothing has checked whether a trigger can
+  pair with it. A trigger that binds the loop competes with its own intended
+  site, which would read as a weak design rather than as an off-target.
+  Longest reverse-complementary run; 6 nt is worth a look, 8+ should not be
+  ordered without folding the pair properly.
+
+  background  loop vs trigger A  loop vs trigger B  verdict
+  ----------  -----------------  -----------------  -------
+  x@525       3                  5                  ok     
+  x@525       3                  3                  ok     
+  x@118       3                  5                  ok     
+
+==============================================================================
+  HOW TO READ A RESULT
+==============================================================================
+  arm-E works and arm-K does not  -> rank on mean_separation, drop the kinetic proxy.
+  arm-K works and arm-E does not  -> the equilibrium picture is not what limits us.
+  old-stat works                  -> the separation retraction was wrong; revisit it.
+  null also works                 -> the target is easy and the panel discriminates
+                                     nothing. Widen the design space before trusting
+                                     any ranking.
+  nothing works                   -> the model is wrong at a level no reranking fixes.
+

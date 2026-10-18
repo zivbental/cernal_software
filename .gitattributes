@@ -65,3 +65,20 @@ frontend/package-lock.json  linguist-generated=true
 #     line-ending conversion is a modification.
 # `-text` means "never infer text, never convert": the bytes go in and come out unchanged.
 vendor/ais-china-codon-optimization-v2/** -text
+
+# --- The pinned expression catalog: LF in the working copy too -----------------------
+#
+# Same failure mode as vendor/ above, one layer in. Each dataset's
+# provider_metadata.csv_sha256 in catalog/manifest.json is recorded over the STORED
+# bytes, and tests/test_catalog_governance.py reads the file back with read_bytes() and
+# compares. `* text=auto` stores LF and checks out CRLF on Windows, so the comparison
+# fails on every Windows clone while the repository is perfectly intact. Measured across
+# all 15 entries: the git blob matches the recorded digest every time, the on-disk copy
+# carries 3,001 CRLF and does not, and LF-normalising the on-disk bytes reproduces the
+# recorded digest every time.
+#
+# `text eol=lf` rather than vendor's `-text`: these are text that the catalog pipeline
+# regenerates and someone reviews, so diff and merge handling should stay on. They are
+# already stored as LF, so nothing committed changes -- only the checkout stops being
+# rewritten, which is what makes the digest mean the same thing on every platform.
+src/apps/expression/catalog/**/*.csv  text eol=lf

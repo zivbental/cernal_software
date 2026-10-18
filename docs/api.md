@@ -367,7 +367,8 @@ design folding and local transcript accessibility calculations within the run.
     "no_lonely_pairs": false,
     "no_gu": false,
     "no_gu_closure": false,
-    "energy_parameters": "turner2004"
+    "energy_parameters": "turner2004",
+    "salt_molar": 1.021
   }
 }
 ```
@@ -381,6 +382,7 @@ design folding and local transcript accessibility calculations within the run.
 | `no_gu` | Boolean | Disallow GU base pairs |
 | `no_gu_closure` | Boolean | Disallow GU pairs closing loops |
 | `energy_parameters` | `turner2004`, `turner1999`, `andronescu2007` | Built-in ViennaRNA RNA energy parameter set |
+| `salt_molar` | Finite number, 0.01–6.0 inclusive | Monovalent salt in mol/L (ViennaRNA salt correction); `1.021` is the reference condition, no correction |
 
 Only dangle models `0` and `2` are supported: ViennaRNA partition-function calculations
 do not consistently implement `1` and `3`. Parameter file paths and arbitrary model
@@ -728,3 +730,8 @@ reference release, and selection policy. Authentication is required.
 `params.target_gene.gene_id`). `POST /api/design` accepts `gene_id` as its exclusive
 input source. Sequences and provenance are frozen when the run is submitted. All four
 organisms support DE, direct, and gene input; DE accepts CSV, TSV, TXT, and XLSX.
+
+The engine-only `closure_set` axis is deliberately not accepted by the public API,
+alongside `stem_order` and `stems_per_pair`: these control one family's sampling
+budget, not a validated cross-family biological constraint. Requests containing
+`constraints.closure_set` receive 422. Exposing it requires a separate API decision.

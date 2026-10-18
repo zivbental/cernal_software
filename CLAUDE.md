@@ -206,7 +206,7 @@ repo's naming — a pipeline step, not the person who ports it, identifies the r
 | Circuit Design (stage 4) | `src/engine/stages/circuits.py` | `CircuitDesigner`, `ConfusionEvaluator` | `design` and `enumerate_expressions` are **built** (conjunctions up to `Constraints.max_circuit_gates`); `evaluate(expression, counts, threshold) -> ConfusionMatrix` is still a stub, blocked on there being no count matrix in this product |
 | Plasmid Construction (stage 5) | `src/engine/stages/plasmids.py` | `PlasmidBuilder` | `build(circuit, outcome) -> PlasmidDesign`; `payload_segment(outcome) -> Segment` |
 | Compiler's Output (stage 6, S14) | `src/engine/stages/reporting.py` | `StructureRenderer`, `ReportBuilder` | `render_structure(design, output_dir)`; `render_circuit(circuit, output_dir)`; `build(circuits, plasmids, output_dir) -> list[ArtifactRef]` |
-| Antisense / CRISPR gates (unassigned) | `src/engine/gates/antisense.py`, `crispr.py` | `AntisenseNotGate`, `CrisprGate` | both `available = False` today; flipping it is a deliberate declaration |
+| Antisense / CRISPR gates (unassigned) | `src/engine/gates/antisense.py`, `crispr.py` | `AntisenseNotGate`, `CrisprGate` | **`AntisenseNotGate` and `EukaryoticAntisenseNotGate` are `available = True`** — only `CrisprGate` is `False`. This row said both were `False`; the source wins. Their metrics reach `engine.scoring`, so a defect there ranks real candidates |
 | Folding tool (S2, S4 — shared) | `src/engine/gates/tools/folding.py` | `FoldEngine` | `partition`, `ensemble_defect`, `base_pair_probabilities`, `suboptimal`, `versions`; `structure_match()`. **Highest fan-in in the repo — build first** |
 
 DE parsing already lives in `src/engine/inputs.py`; reference resolution lives in

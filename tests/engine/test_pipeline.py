@@ -489,28 +489,25 @@ def test_requesting_only_antisense_fails_cleanly_naming_q11(direct_request, alwa
     assert "antisense" in result.error.lower() or "payload" in result.error.lower()
 
 
-def test_requesting_only_toehold_and_fails_cleanly_not_a_crash(direct_request, always_continue):
-    """ToeholdAndGate.available is inherited True, but generate_designs is an
-    unconditional NotImplementedError. Dormant with one trigger (arity always rejects
-    first); a scanned paste (docs/triggers.md E2b) can produce real 2-input trigger
-    sets that would otherwise reach it. Must fail as data, never propagate raw
-    (docs/triggers.md, blocking bug found during review)."""
-    result = LocalEngine().run(direct_request(gate_families=["toehold_and"]), always_continue)
-    assert result.status == "failed"
-    assert "toehold_and" in result.error.lower() or "and" in result.error.lower()
-
-
-def test_a_long_paste_with_unsupported_family_is_rejected_before_folding(
-    direct_request, always_continue
+@pytest.mark.parametrize("family", ["toehold_and", "prokaryotic_toehold_and"])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_research_and_family_is_rejected_before_folding(
+    direct_request, always_continue, monkeypatch, family, mixed
 ):
+    """Offline generators do not imply an integrated application capability."""
+
+    def unexpected_build(*args, **kwargs):
+        pytest.fail("unsupported family reached folding tool construction")
+
+    monkeypatch.setattr("engine.pipeline.build_tools", unexpected_build)
+    families = ["toehold", family] if mixed else [family]
     result = LocalEngine().run(
-        direct_request(
-            trigger_sequence=CLEAN_TRIGGER * 2, gate_families=["toehold", "toehold_and"]
-        ),
+        direct_request(trigger_sequence=CLEAN_TRIGGER * 2, gate_families=families),
         always_continue,
     )
     assert result.status == FAILED
-    assert "toehold_and" in result.error
+    assert family in result.error
+    assert result.candidates == []
 
 
 def test_cancellation_before_the_run_starts(direct_request):
@@ -558,7 +555,11 @@ def test_long_direct_scan_rejects_non_exact_footprints(
     assert result.status == "failed"
     assert result.error is not None
     assert "trigger_lengths" in result.error
-    assert "30, 33, and 36" in result.error
+    # The offending length is named; the supported set is derived from
+    # `TriggerScorer.FOOTPRINT_TO_TOEHOLD` rather than spelled out in the message, so
+    # this does not have to be edited every time a chemistry adds a footprint.
+    assert "31" in result.error
+    assert "exact supported footprints" in result.error
 
 
 @pytest.mark.parametrize("trigger_lengths", [[31], [30, 31, 33]])
@@ -570,7 +571,11 @@ def test_de_scan_rejects_non_exact_footprints(trigger_lengths, de_request, alway
     assert result.status == "failed"
     assert result.error is not None
     assert "trigger_lengths" in result.error
-    assert "30, 33, and 36" in result.error
+    # The offending length is named; the supported set is derived from
+    # `TriggerScorer.FOOTPRINT_TO_TOEHOLD` rather than spelled out in the message, so
+    # this does not have to be edited every time a chemistry adds a footprint.
+    assert "31" in result.error
+    assert "exact supported footprints" in result.error
 
 
 def test_manual_direct_trigger_retains_legacy_fitting_variant_sweep(
@@ -849,7 +854,7 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
 
 def test_human_construction_bumps_engine_version():
     # Explicit folding models are the next engine revision after human construction.
-    assert LocalEngine.ENGINE_VERSION.startswith("local-0.12.0")
+    assert LocalEngine.ENGINE_VERSION.startswith("local-0.13.0")
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(

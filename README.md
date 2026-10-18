@@ -21,8 +21,11 @@ before assuming a registry entry or notebook is a supported application workflow
 - Direct RNA/DNA, named reference genes, and DE tables for E. coli, yeast, Human and
   C. acnes. DE uploads accept CSV, TSV, TXT and XLSX; raw-count inference is not provided.
 - Production submissions support **one input and one gate**, using supported
-  single-input toehold families; GFP and custom coding sequences are supported outputs.
-  Physical AND circuits, antisense and CRISPR workbenches are not production integrations.
+  single-input toehold families, plus **one two-input gate**: the eukaryotic AND
+  (`eukaryotic_toehold_and`, Human and yeast), which takes its two genes from a DE table
+  ([docs/and-gate.md](docs/and-gate.md)). GFP and custom coding sequences are supported
+  outputs. Other AND chemistries, antisense and CRISPR workbenches are not production
+  integrations.
 - Human references use pinned Ensembl release 116 mature cDNA/noncoding transcripts.
   Human assembly uses CMV/hGH parts with an uploaded backbone or a bare expression cassette.
 - Runs retain configuration, metrics, rejection reasons and artifacts. Sequence release

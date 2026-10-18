@@ -54,7 +54,9 @@ import dataclasses
 import json
 import math
 import os
+import random
 import re
+import statistics
 from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
@@ -76,6 +78,7 @@ from engine.contract import (
     MetricValue,
 )
 from engine.domain import (
+    AndGateSettings,
     AssemblyStandard,
     BooleanExpression,
     CircuitCandidate,
@@ -99,6 +102,7 @@ from engine.domain import (
 from engine.errors import ChecksumMismatchError, InputValidationError, JobCancelled
 from engine.gates.base import GateFamily
 from engine.gates.registry import get_family
+from engine.gates.toehold import EukaryoticToeholdAndGate
 from engine.gates.tools.ais_china import AisChinaCodons
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
@@ -168,19 +172,74 @@ _UNBUILDABLE_FAMILIES: dict[str, str] = {
         "EukaryoticAntisenseNotGate cannot be constructed without one. Request a "
         "toehold family instead."
     ),
-    # available=True is inherited from ToeholdGate, but generate_designs is an
-    # unconditional NotImplementedError (docs/triggers.md E2b) — dormant while a
-    # direct run only ever supplies one trigger (is_compatible's arity check rejects
-    # every attempt first), but trigger scanning (E2b) can now produce real 2-input
-    # trigger sets, which would reach generate_designs and crash the run uncaught.
-    "toehold_and": "the two-input AND construction is not yet implemented for this chemistry.",
+    # Research generators exist, but their application workflow is not validated.
+    "toehold_and": "the research AND generator is not integrated with the application workflow.",
     "prokaryotic_toehold_and": (
-        "the two-input AND construction is not yet implemented for this chemistry."
-    ),
-    "eukaryotic_toehold_and": (
-        "the two-input AND construction is not yet implemented for this chemistry."
+        "the research AND generator is not integrated with the application workflow."
     ),
 }
+
+
+#: Salt of an AND run when the submission names none: 0.1 M monovalent, no magnesium. The
+#: ViennaRNA library default (1.021 M) is the standard-state condition, not a cell
+#: (notebooks/toehold_and/eu_and_v3_spec.md, "Parameters").
+AND_DEFAULT_SALT_MOLAR = 0.1
+
+#: Number of mismatched-trigger windows drawn from the host's reference transcriptome for the
+#: AND gate's controls, and how many nucleotides each keeps.
+_AND_CONTROL_POOL_SIZE = 60
+
+
+def _is_and_run(gate_families: list[str]) -> bool:
+    """True when any requested family takes more than one input (a two-input AND run)."""
+    return any(get_family(name).max_inputs > 1 for name in gate_families or [])
+
+
+def _and_gene_pair(params: dict) -> tuple[str, str] | None:
+    """``params["and_inputs"]`` as ``(gene_a, gene_b)``, or ``None`` when it is absent."""
+    inputs = params.get("and_inputs")
+    if inputs is None:
+        return None
+    if (
+        not isinstance(inputs, dict)
+        or set(inputs) != {"gene_a", "gene_b"}
+        or not all(isinstance(inputs[key], str) and inputs[key].strip() for key in inputs)
+    ):
+        raise InputValidationError(
+            "and_inputs must be an object with exactly gene_a and gene_b, each a gene identifier."
+        )
+    return inputs["gene_a"].strip(), inputs["gene_b"].strip()
+
+
+def _folding_params(params: dict, *, is_and: bool) -> dict:
+    """``params["folding"]``, with the AND run's 0.1 M default salt when none is given."""
+    folding = params.get("folding", {})
+    if not isinstance(folding, dict):
+        return folding  # FoldingConfig.from_mapping rejects it by name, as before
+    folding = dict(folding)
+    if is_and:
+        folding.setdefault("salt_molar", AND_DEFAULT_SALT_MOLAR)
+    return folding
+
+
+def _and_control_pool(host: Host, seed: int, exclude_gene_ids: set[str]) -> tuple[str, ...]:
+    """Windows of other transcripts of the host, the source of the AND gate's mismatched
+    triggers: ``_AND_CONTROL_POOL_SIZE`` windows of ``EukaryoticToeholdAndGate.CONTROL_WINDOW`` nt,
+    from genes other than the chosen inputs, drawn with the run's seed (same seed, same pool)."""
+    window = EukaryoticToeholdAndGate.CONTROL_WINDOW
+    transcriptome = load_transcriptome(host)
+    rng = random.Random(f"and-controls:{seed}")
+    gene_ids = sorted(
+        gene
+        for gene, sequence in transcriptome.items()
+        if gene not in exclude_gene_ids and len(sequence) >= window
+    )
+    pool = []
+    for gene in rng.sample(gene_ids, min(len(gene_ids), _AND_CONTROL_POOL_SIZE)):
+        sequence = transcriptome[gene]
+        start = rng.randrange(0, len(sequence) - window + 1)
+        pool.append(sequence[start : start + window])
+    return tuple(pool)
 
 
 def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
@@ -216,8 +275,10 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         specificity is consequently never *measured* on this path, only defaulted —
         the warning below says so, so a 0.0 penalty is never mistaken for a clean scan.
     """
+    is_and = _is_and_run(request.gate_families)
     try:
-        folding_config = FoldingConfig.from_mapping(request.params.get("folding", {}))
+        folding_config = FoldingConfig.from_mapping(_folding_params(request.params, is_and=is_and))
+        and_settings = AndGateSettings.from_mapping(request.params.get("and_gate"))
     except ValueError as exc:
         raise InputValidationError(str(exc)) from exc
     folder = FoldEngine(config=folding_config)
@@ -290,7 +351,66 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
             warnings.append(f"Skipped gate family '{name}': not available for {host.value}.")
             continue
 
+        if issubclass(family_class, EukaryoticToeholdAndGate):
+            gene_pair = _and_gene_pair(request.params)
+            resolved_pair = (
+                tuple(resolve_gene_id(host, gene) for gene in gene_pair) if gene_pair else None
+            )
+            seed = request.seed if request.seed is not None else 0
+            families.append(
+                family_class(
+                    host,
+                    folder,
+                    tools["translation"],
+                    tools["codons"],
+                    settings=and_settings,
+                    control_pool=_and_control_pool(host, seed, set(resolved_pair or ())),
+                    gene_pair=resolved_pair,
+                    seed=seed,
+                )
+            )
+            continue
         families.append(family_class(host, folder, tools["translation"], tools["codons"]))
+
+    # Gate-aware trigger lengths. A two-input family can use NONE of the one-input
+    # footprints: `ToeholdAndGate.role_footprints()` wants 36 nt for trigger A and 50 for
+    # trigger B, and measured on real pairs, 0 of 40 reach a design at 36 nt while 38 of
+    # 40 do at 50. Widening the `Constraints` DEFAULT instead would rescan every one-input
+    # run and move its top-K shortlist, so the footprints are added here, only for the
+    # families actually requested, and reported rather than applied silently.
+    wanted: set[int] = set()
+    for family in families:
+        if isinstance(family, EukaryoticToeholdAndGate):
+            continue  # Its single-switch generator uses the configured eukaryotic windows.
+        role_footprints = getattr(family, "role_footprints", None)
+        if callable(role_footprints):
+            wanted.update(role_footprints())
+    missing = sorted(wanted - set(constraints.trigger_lengths))
+    scannable = [n for n in missing if n in TriggerScorer.ALLOWED_SCANNED_LENGTHS]
+    unscannable = [n for n in missing if n not in TriggerScorer.ALLOWED_SCANNED_LENGTHS]
+    if scannable:
+        constraints = dataclasses.replace(
+            constraints,
+            trigger_lengths=tuple(sorted(set(constraints.trigger_lengths) | set(scannable))),
+        )
+        tools["constraints"] = constraints
+        warnings.append(
+            "Added trigger window length(s) "
+            + ", ".join(f"{n} nt" for n in scannable)
+            + " because a requested gate family needs them as an exact footprint; "
+            "without them every trigger pair is rejected before a design is attempted."
+        )
+    if unscannable:
+        # Never silently: a family whose footprint the scanner cannot rank is a real gap,
+        # and `None`/a warning is the honest answer rather than a window scored by a
+        # toehold length guessed for it.
+        warnings.append(
+            "Gate family footprint(s) "
+            + ", ".join(f"{n} nt" for n in unscannable)
+            + " are not scannable (no entry in TriggerScorer.FOOTPRINT_TO_TOEHOLD), so no "
+            "candidate of that length will be produced and designs needing one cannot be "
+            "built from a scanned run."
+        )
 
     tools["families"] = families
     tools["warnings"] = warnings
@@ -344,6 +464,14 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         raise InputValidationError(str(exc)) from exc
     host = _resolve_host(request)
     tools = build_tools(request, host)
+    is_and = _is_and_run(request.gate_families)
+    and_settings = AndGateSettings.from_mapping(request.params.get("and_gate"))
+    and_genes = _and_gene_pair(request.params) if is_and else None
+    if is_and and (request.input_mode != INPUT_DE or and_genes is None):
+        raise InputValidationError(
+            "A two-input AND run needs a differential-expression table and the two input genes "
+            "(params.and_inputs.gene_a and gene_b)."
+        )
     constraints: Constraints = tools["constraints"]
     families: list = tools["families"]
     warnings: list[str] = list(tools["warnings"])
@@ -406,6 +534,8 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             constraints,
             host,
             on_progress,
+            and_genes=and_genes,
+            windows_per_gene=and_settings.windows_per_gene,
         )
     else:
         if not on_progress(*_pct("Scoring triggers")):
@@ -537,9 +667,22 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             raw = family.evaluate_design(evaluated_design)
             metrics = build_metrics(raw, profile)
             breach = failed_filter(raw, profile)
-            trigger = design.trigger_set.activators[0]
+            # Optional hook: a family with nothing beyond its scored metrics need not define it
+            # (GateFamily.diagnostics returns {} by default). Passed only when there is something
+            # to record, so the single-input call is exactly what it always was.
+            diagnostics = (
+                family.diagnostics(evaluated_design) if hasattr(family, "diagnostics") else None
+            )
             candidate = _candidate_result(
-                store, evaluated_design, family, trigger, metrics, breach, plasmid, outcome
+                store,
+                evaluated_design,
+                family,
+                design.trigger_set.activators,
+                metrics,
+                breach,
+                plasmid,
+                outcome,
+                **({"diagnostics": diagnostics} if diagnostics else {}),
             )
             plasmids[candidate.ref] = plasmid
             score = None if candidate.is_rejected else weighted_score(metrics, profile)
@@ -565,21 +708,47 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     candidates = [
         dataclasses.replace(c, rank=ranks.get(c.ref), overall_score=score) for c, score in scored
     ]
+    and_summary: dict | None = None
+    if is_and:
+        candidates, and_summary = _annotate_and_ties(candidates, and_settings)
+        warnings.append(
+            "Two-input AND designs are computational predictions: ON and OFF are the joint opening "
+            "of the two hairpin stems in sampled equilibrium structures, a structural proxy for "
+            "translation. No AND construct has been experimentally validated."
+        )
 
-    if not candidates and trigger_candidates:
-        # trigger_candidates was non-empty, so the loop above genuinely tried and
-        # failed — report why, rather than the old one-size-fits-all message. When
-        # trigger_candidates is already empty, _direct_trigger's own warning (above)
-        # already explains it; adding this too would double-report the same failure.
+    if trigger_candidates:
         summary = _summarize_rejections(incompatible_counts, incompatible_examples, "trigger set")
         summary += _summarize_rejections(invalid_counts, invalid_examples, "generated design")
-        if summary:
-            warnings.append("No candidate designs passed validation." + summary)
-        else:
+        if not candidates:
             warnings.append(
-                "No candidate designs passed validation for this trigger — see "
+                "No candidate designs passed validation." + summary
+                if summary
+                else "No candidate designs passed validation for this trigger — see "
                 "docs/smoke-run.md §5 for why a validated design is not guaranteed."
             )
+        else:
+            # **A requested family that produced NOTHING, while another produced
+            # something.** This branch used to not exist: the summary fired only when the
+            # whole run was empty, so a run asking for a working family alongside one that
+            # rejects every trigger set reported the first family's candidates and said
+            # nothing whatsoever about the second. Measured on `["toehold",
+            # "toehold_and"]` over a 330-nt paste: 6 toehold candidates, and not one word
+            # about the AND family building none -- although the same request for the AND
+            # family alone explained it in full. CLAUDE.md §3 bans exactly that.
+            produced = {candidate.gate_family for candidate in candidates}
+            silent = [family.kind for family in families if family.kind not in produced]
+            if silent:
+                warnings.append(
+                    "Gate family "
+                    + ", ".join(f"'{kind}'" for kind in silent)
+                    + " produced no designs, while other requested families did."
+                    + (
+                        summary
+                        or " No rejection reason was recorded, which is itself a defect — "
+                        "a family that builds nothing should say why."
+                    )
+                )
 
     if not on_progress(*_pct("Writing report")):
         raise JobCancelled("Writing report")
@@ -634,8 +803,101 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                 "truncated": design_budget_exhausted,
                 "selection": "deterministic_generator_order",
             },
+            **({"and_gate": and_summary} if and_summary is not None else {}),
         },
     )
+
+
+def _annotate_and_ties(
+    candidates: list[CandidateResult], settings: AndGateSettings
+) -> tuple[list[CandidateResult], dict]:
+    """Mark the AND candidates that cannot be told apart from the best, and summarise the run.
+
+    A second sampling with another seed gives each candidate a seed-to-seed change of
+    ``ON - OFF``; its 95th percentile over the run is the noise band. Accepted candidates within
+    that band of the best ``ON - OFF`` form the **tied group**, ordered inside it by ``dG`` (more
+    negative first) -- the rule of ``notebooks/toehold_and/eu_and_v3_spec.md``. Without the noise
+    check the group is undefined (``None``), never guessed. The ranking itself is unchanged:
+    ``engine.scoring``'s weighted score orders the candidates, and the group is reported beside it.
+    """
+    from engine.gates.tools.stem_opening import percentile_95
+
+    evaluated = [c for c in candidates if c.design.get("and_gate")]
+    accepted = [c for c in evaluated if not c.is_rejected]
+
+    def diag(c: CandidateResult) -> dict:
+        return c.design["and_gate"]
+
+    changes = [diag(c).get("noise", {}).get("seed_to_seed_change_pp") for c in evaluated]
+    measured_changes = [x for x in changes if x is not None]
+    noise_median = statistics.median(abs(x) for x in measured_changes) if measured_changes else None
+    noise_p95 = percentile_95(measured_changes)
+    scored_diffs = [
+        diag(c)["on_minus_off_pp"] for c in accepted if diag(c).get("on_minus_off_pp") is not None
+    ]
+    best = max(scored_diffs) if scored_diffs else None
+
+    tied_refs: list[str] = []
+    marked: list[CandidateResult] = []
+    for candidate in candidates:
+        info = candidate.design.get("and_gate")
+        if not info:
+            marked.append(candidate)
+            continue
+        diff = info.get("on_minus_off_pp")
+        if candidate.is_rejected or best is None or noise_p95 is None or diff is None:
+            tied = None if (noise_p95 is None or best is None) else False
+        else:
+            tied = diff >= best - noise_p95
+        if tied:
+            tied_refs.append(candidate.ref)
+        marked.append(
+            dataclasses.replace(
+                candidate,
+                design={
+                    **candidate.design,
+                    "and_gate": {**info, "tied_group": tied, "best_on_minus_off_pp": best},
+                },
+            )
+        )
+    tied_refs.sort(
+        key=lambda ref: next(
+            c.design["and_gate"].get("delta_g_kcal_per_mol", math.inf)
+            for c in marked
+            if c.ref == ref
+        )
+    )
+    checks = [
+        verified
+        for c in evaluated
+        for verified in (s["verified"] for s in diag(c)["states"].values())
+    ]
+    summary = {
+        "schema": "cernal-and-gate-provenance-v1",
+        "definition": diag(evaluated[0])["definition"] if evaluated else None,
+        "settings": settings.to_dict(),
+        "candidates_evaluated": len(evaluated),
+        "candidates_accepted": len(accepted),
+        "best_on_minus_off_pp": best,
+        "noise_median_pp": noise_median,
+        "noise_p95_pp": noise_p95,
+        "tied_group": tied_refs if noise_p95 is not None and best is not None else None,
+        "tied_group_order": "delta_g_kcal_per_mol ascending",
+        "sampler_checks": {
+            "states_checked": len(checks),
+            "states_verified": sum(checks),
+            "candidates_with_a_failed_state": [
+                c.ref
+                for c in evaluated
+                if not all(state["verified"] for state in diag(c)["states"].values())
+            ],
+        },
+        "ranking": (
+            "engine.scoring weighted score over the profile's metrics; "
+            "tied group reported separately"
+        ),
+    }
+    return marked, summary
 
 
 def _pct(stage: str) -> tuple[int, str]:
@@ -767,6 +1029,29 @@ def _build_constraints(params: dict) -> Constraints:
                 raise InputValidationError("Every forbidden motif must contain only A/C/G/T/U.")
             normalized.append(sq.to_dna(sq.to_rna(motif)))
         raw["forbidden_motifs"] = tuple(dict.fromkeys(normalized))
+    if "overlap_range" in raw:
+        band = raw["overlap_range"]
+        # The bound is ARCHITECTURAL, not a taste. `MIN_OVERLAP` is 4 because below four
+        # contiguous nucleotides there is no nucleation site -- the same criterion a knockout
+        # has to defeat. The ceiling is the secondary arm trigger B invades, which is 18 for
+        # the naive geometry and **17** for Kim's, whose arm is 20 but which B invades only 17
+        # of. This function runs before a family is chosen, so it validates the widest
+        # architectural window and each family clamps its own ceiling in `_overlap_lengths`.
+        # Validating against a bare 18 would admit len_x=18 and yield zero pairs in one of the
+        # two geometries with nothing to say why.
+        if (
+            not isinstance(band, (list, tuple))
+            or len(band) != 2
+            or any(isinstance(v, bool) or not isinstance(v, int) for v in band)
+            or not 4 <= band[0] <= band[1] <= 18
+        ):
+            raise InputValidationError(
+                "overlap_range must be [low, high] integers within 4-18 with low <= high. "
+                "4 is the shortest run that can nucleate; 18 is the longest secondary arm "
+                "any geometry has, and Kim's geometry clamps itself to 17 because trigger B "
+                "invades only 17 of its 20-nt arm."
+            )
+        raw["overlap_range"] = tuple(band)
     if "trigger_gc_range" in raw:
         band = raw["trigger_gc_range"]
         if (
@@ -897,7 +1182,11 @@ def _validate_scanned_trigger_lengths(constraints: Constraints) -> None:
     if unsupported:
         raise InputValidationError(
             "trigger_lengths for transcript scanning may contain only the exact supported "
-            "footprints 30, 33, and 36 nt; unsupported: " + ", ".join(map(str, unsupported)) + "."
+            "footprints "
+            + ", ".join(str(n) for n in sorted(TriggerScorer.ALLOWED_SCANNED_LENGTHS))
+            + " nt; unsupported: "
+            + ", ".join(map(str, unsupported))
+            + "."
         )
 
 
@@ -1032,7 +1321,9 @@ def _direct_trigger(
     return candidates, [
         f"The pasted sequence is {len(sequence)} nt, longer than one trigger window "
         f"(up to {max_window} nt) — scanned {windows_considered} window(s) and kept "
-        f"{len(candidates)} candidate(s) after screening. Exact 30/33/36-nt footprints "
+        f"{len(candidates)} candidate(s) after screening. Exact "
+        + "/".join(str(n) for n in sorted(constraints.trigger_lengths))
+        + "-nt footprints "
         "were ranked within footprint buckets by selected joint P8, then RNAplfold "
         "terminal-20 opening energy and mean marginal openness; buckets were unioned "
         "round-robin."
@@ -1048,6 +1339,9 @@ def _de_trigger(
     constraints: Constraints,
     host: Host,
     on_progress: ProgressFn | None = None,
+    *,
+    and_genes: tuple[str, str] | None = None,
+    windows_per_gene: int = 3,
 ) -> tuple[list[TriggerCandidate], list[str]]:
     """Resolve trigger candidates for a `de` submission (docs/genes.md, docs/ROADMAP.md
     Q1's first answer) — a scoped first cut, not the full `de` pipeline docs/ROADMAP.md
@@ -1073,6 +1367,13 @@ def _de_trigger(
            still becomes its own one-gene circuit downstream (this module's own
            docstring) — selecting several genes here is not a multi-gene Boolean
            circuit, just several independent single-input switches to choose from.
+
+    Two-input AND runs (``and_genes``): only the two chosen genes are offered to stage 1, which
+    still applies every filter and reports why a gene failed; both must survive it (and be
+    up-regulated, since an activating input cannot invert a DOWN signature), and each keeps its
+    best ``windows_per_gene`` distinct trigger windows. A window containing ``AUG`` or ``CAU`` is
+    skipped at scan time: the hairpin is built from the window and from its reverse complement,
+    so either puts a second start codon into the switch and every design on it is rejected.
 
     Returns:
         The candidate trigger(s), ranked best first, and warnings describing how they
@@ -1121,6 +1422,20 @@ def _de_trigger(
         resolved_rows.append(dataclasses.replace(row, gene_id=canonical_id))
     dge = dataclasses.replace(dge, rows=tuple(resolved_rows))
 
+    chosen: tuple[str, ...] = ()
+    canonical_inputs: tuple[str, ...] = ()
+    if and_genes is not None:
+        canonical_inputs = tuple(resolve_gene_id(host, gene) for gene in and_genes)
+        chosen = tuple(dict.fromkeys(canonical_inputs))
+        present = {row.gene_id for row in dge.rows}
+        missing = [gene for gene in chosen if gene not in present]
+        if missing:
+            raise InputValidationError(
+                f"AND input gene(s) {', '.join(missing)} are not in the submitted "
+                "differential-expression table."
+            )
+        dge = dataclasses.replace(dge, rows=tuple(row for row in dge.rows if row.gene_id in chosen))
+
     warnings: list[str] = []
     selector = GeneSelector(constraints, screener)
 
@@ -1158,9 +1473,28 @@ def _de_trigger(
             "transcript compute limit and were not folded."
         )
     genes = [g for g in genes if len(transcriptome[g.gene_id]) <= MAX_TRIGGER_LENGTH]
+    if chosen:
+        kept = {g.gene_id for g in genes}
+        lost = [gene for gene in chosen if gene not in kept]
+        if lost:
+            raise InputValidationError(
+                f"AND input gene(s) {', '.join(lost)} cannot be used: each must pass gene "
+                "selection, be up-regulated in the table, and have a transcript within the "
+                "compute limit. Stage 1 reported: " + (" ".join(warnings) or "no further detail.")
+            )
     if not genes:
         return [], warnings
-    scorer = TriggerScorer(profiler, screener, folder)
+    scan_screener = screener
+    if chosen:
+        scan_screener = MotifScreener(
+            constraints.standard,
+            extra_motifs={
+                **{f"user-{i + 1}": motif for i, motif in enumerate(constraints.forbidden_motifs)},
+                "start-codon": "ATG",
+                "start-codon-reverse-complement": "CAT",
+            },
+        )
+    scorer = TriggerScorer(profiler, scan_screener, folder)
     scored = []
     for index, gene in enumerate(genes):
         if on_progress is not None and not on_progress(
@@ -1183,6 +1517,31 @@ def _de_trigger(
         )
         for c in scored
     ]
+
+    if chosen:
+        # One gene given twice supplies both inputs, so it needs twice the windows.
+        kept_windows = []
+        for gene in chosen:
+            wanted = windows_per_gene * canonical_inputs.count(gene)
+            taken: list[TriggerCandidate] = []
+            for c in (c for c in candidates if c.gene_id == gene):
+                end = c.start_index + len(c.sequence)
+                if any(
+                    c.start_index < t.start_index + len(t.sequence) and t.start_index < end
+                    for t in taken
+                ):
+                    continue  # overlapping windows cannot both be bound
+                taken.append(c)
+                if len(taken) == wanted:
+                    break
+            kept_windows.extend(taken)
+        candidates = kept_windows
+        short = [gene for gene in chosen if not any(c.gene_id == gene for c in candidates)]
+        if short:
+            raise InputValidationError(
+                f"AND input gene(s) {', '.join(short)} produced no trigger window that survived "
+                "screening (restriction sites, homopolymers or extreme GC content)."
+            )
 
     if not candidates:
         return [], [
@@ -1229,7 +1588,14 @@ def _build_plasmid(
         # this function returns. In particular ConfusionMatrix(0, 0, 0, 0) must never
         # be read as a measured separation of -1.0 (docs/plasmids.md §3) — it is not,
         # because nothing downstream of this call ever looks at it.
-        expression=BooleanExpression.gene(design.trigger_set.activators[0].symbol),
+        expression=(
+            BooleanExpression.gene(design.trigger_set.activators[0].symbol)
+            if design.trigger_set.arity == 1
+            else BooleanExpression(
+                LogicOperator.AND,
+                tuple(t.symbol for t in design.trigger_set.activators),
+            )
+        ),
         logic_graph=LogicGraph(
             genes=(),
             mid_gate=LogicOperator.IDENTITY,
@@ -1539,11 +1905,12 @@ def _candidate_result(
     store: CandidateStore,
     design: GateDesign,
     family: GateFamily,
-    trigger: TriggerCandidate,
+    triggers: Sequence[TriggerCandidate],
     metrics: list[MetricValue],
     breach: HardFilter | None,
     plasmid: PlasmidDesign,
     outcome: DesiredOutcome,
+    diagnostics: dict | None = None,
 ) -> CandidateResult:
     """One validated ``GateDesign`` plus its measured metrics and its plasmid
     (docs/plasmids.md, E5a), shaped as a ``CandidateResult`` the Platform can import.
@@ -1555,25 +1922,34 @@ def _candidate_result(
     candidate warning, never silently dropped (docs/plasmids.md §9) — a violation is
     a fact about the construct, not a reason to reject the switch design itself.
     """
+    triggers = (triggers,) if isinstance(triggers, TriggerCandidate) else tuple(triggers)
+    trigger = triggers[0]
+    labels = [t.symbol or t.gene_id for t in triggers]
     logic_graph = {
         "genes": [
             {
-                "name": "A",
-                "role": trigger.symbol or trigger.gene_id,
+                "name": "AB"[index],
+                "role": labels[index],
                 "state": "OFF"
-                if trigger.log2_fold_change is not None and trigger.log2_fold_change < 0
+                if t.log2_fold_change is not None and t.log2_fold_change < 0
                 else "ON",
                 "direction": "down"
-                if trigger.log2_fold_change is not None and trigger.log2_fold_change < 0
+                if t.log2_fold_change is not None and t.log2_fold_change < 0
                 else "up",
             }
+            for index, t in enumerate(triggers)
         ],
         "mid_gate": "AND",
         "outer_gate": "AND",
         "invert": False,
         "output": outcome.display_name,
-        "caption": f"IF {trigger.symbol} -> {outcome.display_name}",
+        "caption": f"IF {' AND '.join(labels)} -> {outcome.display_name}",
     }
+    maturity = (
+        "computational_single_input_compiled_experimental_unvalidated"
+        if len(triggers) == 1
+        else "computational_two_input_and_compiled_experimental_unvalidated"
+    )
     plasmid_segments = [
         {"kind": segment.kind.value, "name": segment.name, "length_bp": segment.length_bp}
         for segment in plasmid.plasmid.segments
@@ -1585,7 +1961,7 @@ def _candidate_result(
         overall_score=None,
         gate_family=family.name,
         logic_type=design.trigger_set.logic_type,
-        triggers={"features": [_trigger_feature(trigger)]},
+        triggers={"features": [_trigger_feature(t) for t in triggers]},
         design={
             "switch_sequence": design.sequence,
             "structure": design.dot_bracket,
@@ -1619,7 +1995,7 @@ def _candidate_result(
             "structure_kind": "intended_target",
             "structure_deviation": design.structure_deviation,
             "structural_rule_version": "syntax-and-ensemble-v1-no-functional-threshold",
-            "maturity": "computational_single_input_compiled_experimental_unvalidated",
+            "maturity": maturity,
             "orthogonality_status": "unmeasured",
             "payload_optimization": json.loads(plasmid.payload_optimization)
             if plasmid.payload_optimization
@@ -1649,10 +2025,20 @@ def _candidate_result(
             "plasmid_segments": plasmid_segments,
             "logic_graph": logic_graph,
             "trigger_start_index": trigger.start_index,
+            "trigger_start_indexes": [t.start_index for t in triggers],
+            **({"and_gate": diagnostics} if diagnostics else {}),
         },
-        summary=f"{design.trigger_set.logic_type} {family.name} gate on {trigger.symbol}",
+        summary=(
+            f"{design.trigger_set.logic_type} {family.name} gate on {' and '.join(labels)}"
+            if len(triggers) > 1
+            else f"{design.trigger_set.logic_type} {family.name} gate on {trigger.symbol}"
+        ),
         metrics=metrics,
-        warnings=[*[f"Plasmid: {v}" for v in plasmid.violations], *plasmid.assembly_notes],
+        warnings=[
+            *[f"Plasmid: {v}" for v in plasmid.violations],
+            *plasmid.assembly_notes,
+            *((diagnostics or {}).get("warnings", [])),
+        ],
         is_rejected=breach is not None or bool(plasmid.eligibility_violations),
         rejection_reason=breach.reason if breach else "; ".join(plasmid.eligibility_violations),
     )
