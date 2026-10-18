@@ -1,4 +1,37 @@
-# AND integration revision — local review, 18 October 2026
+# AND integration revision and PR evidence — 18 October 2026
+
+## PR-readiness integration checkpoint
+
+The author approved updating the engine PR after the Wiki publication. Refinement
+commit `2483c91` records the selected defaults and audit export. Merge `5971b8a`
+integrates `origin/main` at `ca4e3b0`; the engine branch is no longer behind that
+main revision. Engine main itself was not changed.
+
+Two conflicts were resolved: regenerate `docs/api-surface.md` from the combined
+source, and retain both the AND candidate-audit export and upstream final-sequence
+screening in `pipeline.py`. The upstream screening/release-record block was checked
+byte-for-byte against `origin/main`. A regression now verifies that the AND audit
+survives a sequence hold while full switch/construct sequences reach screening
+and held sequence-bearing exports remain absent. Synthetic observables in that
+test exercise the integration contract; they do not establish biological yield.
+
+Full Ruff lint/format, Django system/migration checks, frontend contracts/build,
+generated API reference and the 18-quantity Wiki consistency check passed on the
+combined source. Combined AND/API/screening regressions and fresh GitHub CI are
+reported in [PR #84](https://github.com/zivbental/cernal_software/pull/84).
+The native 20-design run below predates this merge and remains the current
+search-yield evidence; it was not relabeled as a new merged-branch experiment.
+
+All 12 compact evidence archives pass compressed/uncompressed SHA-256 and byte
+length verification. Two older index entries had used uncompressed lengths in
+the `bytes` field; the index now distinguishes compressed and uncompressed sizes.
+Archive bytes and both digests are unchanged.
+
+The following sections preserve the preceding review checkpoints. Their older
+branch, approval and test statements are superseded by this integration record
+and the exact final-head checks attached to the PR.
+
+## Previous local refinement checkpoint
 
 At the previous checkpoint, the Wiki changes were on `offer/prokaryotic-and-integration`.
 The user subsequently integrated those Wiki
@@ -241,7 +274,7 @@ the whole study or this local revision is reproducible from `main`.
 - Greater accuracy from mandatory full-output folding. The declared model remains
   the complete switch through its linker, excluding all output CDS.
 
-## E. Validation and Git state
+## E. Earlier checkpoint validation and Git state
 
 - Focused AND integration plus house/boundary rules: **913 passed**, 79.55 s.
 - Final AND integration, production/helper/inventory, scoring and pipeline set:
@@ -267,7 +300,7 @@ the whole study or this local revision is reproducible from `main`.
 - Only read-only Git inspection and local workspace writes were performed.
   No commit, push, merge or deployment.
 
-## F. Remaining work
+## F. Earlier checkpoint recommendations
 
 **Ready for supervisor review:** local Wiki preview, explicit algorithm defaults,
 ranking explanation, matched historical analysis, numerical provenance and scoped
@@ -286,4 +319,5 @@ ignored `var/` logs/previews stay local and compact evidence remains reviewable.
 an equilibrium baseline and labeled barrier-challenge panel, with matched sequence
 contexts where possible. Evaluate whether path estimates add predictive value.
 
-Publishing/committing/merging awaits approval of these concrete local changes.
+The author subsequently approved Wiki publication and engine PR preparation;
+the current integration checkpoint is recorded at the top of this report.
