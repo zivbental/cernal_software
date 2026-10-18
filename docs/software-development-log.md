@@ -5,6 +5,7 @@ This notebook is CERNAL's contest-ready, evidence-first record of meaningful sof
 ## 2026-10-18 — Integrate bounded bacterial AND equilibrium compilation
 
 - **AI assistance:** OpenAI Codex implementation, verification and documentation, acting on the maintainer's instructions; human review remains pending.
+- **Task / PR:** [Draft PR #84](https://github.com/zivbental/cernal_software/pull/84).
 - **Commits:** core [`a939ae2`](https://github.com/zivbental/cernal_software/commit/a939ae2769ebb389470affc6e8fbc9e2cd4ca3b9), application [`3bd9648`](https://github.com/zivbental/cernal_software/commit/3bd96487fc3e9212e147ba6e0367721e123f44cc), evidence and generators [`679ea32`](https://github.com/zivbental/cernal_software/commit/679ea320ffef20617de8b3c902c505db59d47489).
 - **Status:** Implemented on `offer/a0-to-cernal`; independent PR review remains pending. Main `66a6d26` was merged into the branch before implementation. No main merge or deployment has occurred.
 - **Companion Wiki:** [Draft MR !3](https://gitlab.igem.org/2026/tau-israel/-/merge_requests/3), based on the newer teammate main `7637a0b`. The broader editorial review remains with the supervisor.
