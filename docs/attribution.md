@@ -44,6 +44,7 @@ contributors**, and that the team can explain and has verified the output.
 |---|---|---|
 | [Lovable](https://lovable.dev) | The original React/TypeScript design and component library — visual language, layout, the shadcn/ui + Tailwind component set | `frontend/`, via the export preserved in [design-reference/](design-reference/). See [ADR 0005](decisions/0005-static-spa-not-tanstack-start.md) for what was stripped and rewritten by hand |
 | AI coding assistant | `TODO` — name the tool(s) and describe the scope: which of the backend, engine scaffold, tests and documentation were AI-assisted | Repository-wide |
+| OpenAI Codex | Bacterial AND compiler/application integration, tests, measured development probes and matching algorithm documentation, directed by the maintainer; human review pending | Engine/application changes and evidence recorded in [the 18 October development entry](software-development-log.md#2026-10-18--integrate-bounded-bacterial-and-equilibrium-compilation); companion [Wiki draft MR !3](https://gitlab.igem.org/2026/tau-israel/-/merge_requests/3) |
 
 ### What the team must be able to state
 

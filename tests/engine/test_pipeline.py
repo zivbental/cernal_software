@@ -173,7 +173,7 @@ def test_a_de_run_against_real_yeast_genes_completes_with_real_candidates(
 
 
 def test_engine_version_names_the_partial_scope():
-    assert "scientific-qa" in LocalEngine.ENGINE_VERSION
+    assert "prokaryotic-and-equilibrium" in LocalEngine.ENGINE_VERSION
 
 
 def test_accepted_candidates_carry_the_real_metric_names(direct_request, always_continue):
@@ -489,12 +489,19 @@ def test_requesting_only_antisense_fails_cleanly_naming_q11(direct_request, alwa
     assert "antisense" in result.error.lower() or "payload" in result.error.lower()
 
 
-@pytest.mark.parametrize("family", ["toehold_and", "prokaryotic_toehold_and"])
-@pytest.mark.parametrize("mixed", [False, True])
-def test_research_and_family_is_rejected_before_folding(
-    direct_request, always_continue, monkeypatch, family, mixed
+@pytest.mark.parametrize(
+    ("family", "mixed", "reason"),
+    [
+        ("toehold_and", False, "toehold_and"),
+        ("toehold_and", True, "toehold_and"),
+        ("prokaryotic_toehold_and", False, "exactly 2 inputs"),
+        ("prokaryotic_toehold_and", True, "on its own"),
+    ],
+)
+def test_unsupported_or_invalid_and_submission_is_rejected_before_folding(
+    direct_request, always_continue, monkeypatch, family, mixed, reason
 ):
-    """Offline generators do not imply an integrated application capability."""
+    """The research alias stays blocked; bacterial AND requires its two-input contract."""
 
     def unexpected_build(*args, **kwargs):
         pytest.fail("unsupported family reached folding tool construction")
@@ -506,7 +513,7 @@ def test_research_and_family_is_rejected_before_folding(
         always_continue,
     )
     assert result.status == FAILED
-    assert family in result.error
+    assert reason in result.error
     assert result.candidates == []
 
 
@@ -852,9 +859,9 @@ def test_run_pipeline_raises_rather_than_returning_a_result_on_failure(
         run_pipeline(direct_request(trigger_sequence="BAD_SEQUENCE"), always_continue)
 
 
-def test_human_construction_bumps_engine_version():
-    # Explicit folding models are the next engine revision after human construction.
-    assert LocalEngine.ENGINE_VERSION.startswith("local-0.13.0")
+def test_bacterial_and_integration_bumps_engine_version():
+    # Bacterial equilibrium compilation follows the explicit-model 0.13 revision.
+    assert LocalEngine.ENGINE_VERSION.startswith("local-0.14.0")
 
 
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(

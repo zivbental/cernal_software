@@ -157,13 +157,16 @@ def test_capabilities_advertise_only_runnable_host_family_pairs():
     capabilities = LocalEngine().capabilities()
     assert "antisense" not in capabilities.available_families
     and_families = sorted(name for name in capabilities.available_families if "and" in name)
-    assert and_families == ["eukaryotic_toehold_and"]
+    assert and_families == ["eukaryotic_toehold_and", "prokaryotic_toehold_and"]
     assert set(capabilities.family_hosts) == set(capabilities.available_families)
     assert set(capabilities.family_inputs) == set(capabilities.available_families)
     assert set(capabilities.family_input_modes) == set(capabilities.available_families)
     assert capabilities.family_hosts["eukaryotic_toehold_and"] == ["human", "yeast"]
     assert capabilities.family_inputs["eukaryotic_toehold_and"] == 2
     assert capabilities.family_input_modes["eukaryotic_toehold_and"] == ["de"]
+    assert capabilities.family_hosts["prokaryotic_toehold_and"] == ["ecoli"]
+    assert capabilities.family_inputs["prokaryotic_toehold_and"] == 2
+    assert capabilities.family_input_modes["prokaryotic_toehold_and"] == ["de"]
     for name, hosts in capabilities.family_hosts.items():
         for host in hosts:
             if capabilities.family_inputs[name] == 1:
@@ -171,10 +174,15 @@ def test_capabilities_advertise_only_runnable_host_family_pairs():
                     {}, [name], "default", "direct", "AUGC", host
                 )
             else:
+                inputs = {
+                    "ecoli": {"gene_a": "b3447", "gene_b": "b1748"},
+                    "yeast": {"gene_a": "YDR281C", "gene_b": "YER085C"},
+                    "human": {"gene_a": "SELE", "gene_b": "ICAM1"},
+                }[host]
                 normalized = validate_job_configuration(
                     {
                         "constraints": {"max_triggers": 2},
-                        "and_inputs": {"gene_a": "SELE", "gene_b": "ICAM1"},
+                        "and_inputs": inputs,
                     },
                     [name],
                     "default",
@@ -495,6 +503,6 @@ def test_eukaryotic_and_tool_wiring_does_not_inherit_prokaryotic_footprints(make
     assert not any("footprint" in warning.lower() for warning in tools["warnings"])
 
 
-@pytest.mark.parametrize("family", ["toehold_and", "prokaryotic_toehold_and"])
+@pytest.mark.parametrize("family", ["toehold_and"])
 def test_research_and_generators_are_not_advertised_until_workflow_is_validated(family):
     assert family not in LocalEngine().capabilities().available_families
