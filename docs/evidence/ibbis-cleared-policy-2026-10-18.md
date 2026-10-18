@@ -17,7 +17,8 @@ unresolved concerns. The original real benchmark demonstrated this distinction
 with a known reporter match.
 
 The correction validates aggregate, primary-stage and hit statuses together.
-Cleared acceptance requires both primary and low-concern supporting hits;
+Cleared acceptance requires both taxonomy and overlapping low-concern supporting
+hits. Biorisk must be Pass, because the pinned tool never clears biorisk hits;
 malformed metadata/coordinates, unknown steps/statuses, incomplete or inconsistent
 records do not authorize release. Unresolved Flag/Warning, including mixed
 cleared/unresolved findings, remain blocked. Native search thresholds, full-query
@@ -37,7 +38,10 @@ The isolated implementation includes current main
 `66a6d265577810e8943709f3e5bb21bffdab212c` merged into the IBBIS branch in
 `a91cfb2`. Exact executed application file hashes are in
 [`real-run.json`](ibbis-cleared-policy-2026-10-18/real-run.json); these were verified
-against the worktree after execution. The operator manifest was created only for
+against the worktree after execution at correction commit `b581b2a`. Subsequent
+review tightened impossible cleared-biorisk and unrelated-region handling; the
+real native result is also revalidated by the final parser regression suite.
+The operator manifest was created only for
 the explicit benchmark child process and was not installed into any service.
 
 Used the same real cached BV-BRC catalog `ecoli__138294__67644164`, MG1655
@@ -104,11 +108,16 @@ above; retain the database/software read-only mounts. The script refuses to
 overwrite an output directory. The supplied installation inventories must cover
 the full environment/database; reducing them is not a supported speed option.
 
-Focused regression run: **224 passed**, covering parser, SafetyGate, process
+Initial focused regression run: **224 passed**, covering parser, SafetyGate, process
 cleanup and API release disclosure. Includes the original native output, 18
-cleared status/stage combinations, inconsistent and mixed-result negative cases,
+status/stage combinations (subsequent review correctly makes the six impossible
+cleared-biorisk combinations negative cases), inconsistent and mixed-result negative cases,
 annotation digest binding and prior-policy rejection. Same-length placeholders
 in parser unit tests are not represented as biologically screened inputs.
+After the final upstream-consistency review, the expanded focused suite passed
+**227 tests**, including rejection of cleared biorisk, nonoverlapping clearing
+support and malformed numeric evidence, plus shared low-concern support for
+cleared taxonomy flags and warnings.
 
 Ruff lint/format, generated API documentation check and Django system check passed.
 Frontend production build and full `npm run check` passed, including 39 screening

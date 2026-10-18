@@ -89,7 +89,12 @@ def test_consistent_cleared_status_combinations(real_cleared_report, cleared, pr
     result = SafetyGate().evaluate(
         submissions[1], adapter.parse_result(report, submissions)[1], now=datetime.now(UTC)
     )
-    assert result.decision == Decision.PASS
+    if primary == "Biorisk Search":
+        # Native v2.1.0 explicitly does not clear biorisk hits.
+        assert result.decision == Decision.HOLD_SYSTEM
+        assert not result.release_allowed
+    else:
+        assert result.decision == Decision.PASS
 
 
 @pytest.mark.parametrize(
@@ -117,7 +122,9 @@ def test_consistent_cleared_status_combinations(real_cleared_report, cleared, pr
         lambda q: q["hits"][1]["region"].update(query_start=0),
         lambda q: q["hits"][1]["region"].update(query_end=959),
         lambda q: q["hits"][1]["region"].update(query_start=True),
+        lambda q: q["hits"][1]["region"].update(query_start=1, query_end=50),
         lambda q: q["hits"][1]["region"].update(e_value=float("nan")),
+        lambda q: q["hits"][1]["region"].update(e_value=10**400),
         lambda q: q["hits"][1].update(name=""),
         lambda q: q["hits"][1].update(annotations=[]),
     ],
@@ -150,6 +157,20 @@ def test_mixed_cleared_and_unresolved_stays_blocked(real_cleared_report, unresol
     assert result.decision == Decision.BLOCK
     assert not result.release_allowed
     assert result.audit_manifest()["native_screening"] == q
+
+
+def test_shared_low_concern_hit_can_support_cleared_flag_and_warning(real_cleared_report):
+    from engine.safety import SafetyGate
+
+    adapter, report, submissions = real_cleared_report
+    q = report["queries"]["q000001"]
+    warning = copy.deepcopy(q["hits"][0])
+    warning["recommendation"]["status"] = "Warning (Cleared)"
+    q["hits"].append(warning)
+    result = SafetyGate().evaluate(
+        submissions[1], adapter.parse_result(report, submissions)[1], now=datetime.now(UTC)
+    )
+    assert result.decision == Decision.PASS
 
 
 @pytest.fixture

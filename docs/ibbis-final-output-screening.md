@@ -42,7 +42,10 @@ to disclose sequences.
 The policy accepts internally consistent `Pass`, `Flag (Cleared)` and
 `Warning (Cleared)` results. Each primary stage must agree with its hit outcomes;
 cleared outcomes require both a cleared primary hit and a low-concern supporting
-hit, with the aggregate and low-concern status matching the worst resolved outcome.
+hit on an overlapping query region, with the aggregate and low-concern status
+matching the worst resolved outcome. Biorisk must remain Pass: the pinned native
+tool explicitly excludes biorisk hits from clearing. A shared low-concern hit may
+support multiple cleared taxonomy hits; native coverage thresholds are not changed.
 Unknown steps, malformed hit metadata/coordinates, inconsistent components, or a
 cleared aggregate containing an unresolved hit hold release. Native conditional
 nucleotide `Skip` is permitted only without nucleotide hits; low-concern `Skip`

@@ -61,6 +61,10 @@ def _resolved_query(query: dict) -> bool:
     Conditional nucleotide Skip is permitted only without nucleotide hits.
     """
     status = query["status"]
+    # Pinned check_low_concern._update_low_concern_data_for_query explicitly
+    # excludes Biorisk Search from clearing. A cleared biorisk state is invalid.
+    if status["biorisk"] != "Pass":
+        return False
     grouped = {name: [] for name in set(_HIT_STEPS.values())}
     for hit in query["hits"]:
         recommendation = hit["recommendation"]
@@ -102,6 +106,30 @@ def _resolved_query(query: dict) -> bool:
         return status["low_concern"] in {"Pass", "Skip"} and not (
             status["low_concern"] == "Skip" and grouped["low_concern"]
         )
+    # Native clearing concerns overlapping query regions. Do not accept an
+    # unrelated low-concern hit as corroboration, or invent a new coverage cutoff.
+    primary_hits = [
+        hit
+        for hit in query["hits"]
+        if _HIT_STEPS[hit["recommendation"]["from_step"]] != "low_concern"
+        and hit["recommendation"]["status"] != "Pass"
+    ]
+    low_hits = [
+        hit
+        for hit in query["hits"]
+        if _HIT_STEPS[hit["recommendation"]["from_step"]] == "low_concern"
+        and hit["recommendation"]["status"] != "Pass"
+    ]
+    for hit in primary_hits:
+        start, end = sorted((hit["region"]["query_start"], hit["region"]["query_end"]))
+        if not any(
+            _RESOLVED_ORDER[support["recommendation"]["status"]]
+            >= _RESOLVED_ORDER[hit["recommendation"]["status"]]
+            and min(support["region"]["query_start"], support["region"]["query_end"]) <= end
+            and max(support["region"]["query_start"], support["region"]["query_end"]) >= start
+            for support in low_hits
+        ):
+            return False
     return (
         status["low_concern"] == aggregate
         and worst(primary) == aggregate
@@ -417,7 +445,7 @@ class CommonMechanismAdapter:
                         )
                     )
             return tuple(results)
-        except (ValueError, TypeError, KeyError, AttributeError):
+        except (ValueError, TypeError, KeyError, AttributeError, OverflowError):
             return held(AdapterStatus.INCONCLUSIVE)
 
 
