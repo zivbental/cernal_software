@@ -61,6 +61,7 @@ import statistics
 from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
+from time import monotonic
 
 from engine import sequences as sq
 from engine.artifacts import sha256_bytes, write_artifact
@@ -256,7 +257,9 @@ def _and_control_pool(host: Host, seed: int, exclude_gene_ids: set[str]) -> tupl
     return tuple(pool)
 
 
-def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
+def build_tools(
+    request: JobRequest, host: Host, *, should_stop: Callable[[], bool] | None = None
+) -> dict[str, object]:
     """Construct every tool **once** per run, and hand them back for wiring.
 
     Args:
@@ -388,6 +391,7 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
                     else None,
                     max_secondary_assignments=prok_settings.max_stem_assignments,
                     seed=request.seed if request.seed is not None else 0,
+                    should_stop=should_stop,
                 )
                 for variant in variants
             )
@@ -495,7 +499,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     if request.input_mode not in (INPUT_DIRECT, INPUT_DE, INPUT_GENE):
         raise InputValidationError(f"Unrecognised input mode {request.input_mode!r}.")
 
-    from engine.client import normalize_trigger_sequence, validate_job_configuration
+    from engine.client import LocalEngine, normalize_trigger_sequence, validate_job_configuration
 
     try:
         validate_job_configuration(
@@ -513,13 +517,25 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     except ValueError as exc:
         raise InputValidationError(str(exc)) from exc
     host = _resolve_host(request)
-    tools = build_tools(request, host)
     is_and = _is_and_run(request.gate_families)
     is_prok_and = _is_prokaryotic_and_run(request.gate_families)
+    runtime_limit = (request.params.get("budget") or {}).get("max_runtime_seconds")
+    search_started = monotonic()
+    runtime_exhausted = False
+
+    def search_should_stop() -> bool:
+        nonlocal runtime_exhausted
+        if is_prok_and and runtime_limit is not None:
+            runtime_exhausted |= monotonic() - search_started >= runtime_limit
+        return runtime_exhausted
+
+    tools = build_tools(
+        request, host, **({"should_stop": search_should_stop} if is_prok_and else {})
+    )
     and_settings = AndGateSettings.from_mapping(request.params.get("and_gate"))
     prok_settings = ProkaryoticAndSettings.from_mapping(request.params.get("prokaryotic_and"))
     and_genes = _and_gene_pair(request.params) if is_and else None
-    if is_and and (request.input_mode != INPUT_DE or and_genes is None):
+    if is_and and (request.input_mode != INPUT_DE or (and_genes is None and not is_prok_and)):
         raise InputValidationError(
             "A two-input AND run needs a differential-expression table and the two input genes "
             "(params.and_inputs.gene_a and gene_b)."
@@ -592,6 +608,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             windows_per_gene=and_settings.windows_per_gene,
             pair_families=families if is_prok_and else None,
             pair_settings=prok_settings if is_prok_and else None,
+            should_stop=search_should_stop if is_prok_and else None,
         )
         if is_prok_and:
             trigger_candidates, trigger_warnings, pair_plan, prok_search = de_result
@@ -676,7 +693,6 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
 
     scored: list[tuple[CandidateResult, float | None]] = []
     plasmids: dict[str, PlasmidDesign] = {}
-    evaluated_designs: dict[str, GateDesign] = {}
     #: Accepted one-gate designs with their raw metrics and score, for stage 4 to
     #: combine. Rejected designs are excluded: a circuit built on a switch that
     #: already breached a hard filter is not a circuit worth proposing.
@@ -708,6 +724,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             on_progress=report_switch_progress,
             on_attempt=record_attempt,
             on_incompatible=_on_incompatible,
+            should_stop=search_should_stop,
         )
         if is_prok_and
         else designer.design(
@@ -722,6 +739,8 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     design_budget_exhausted = False
     evaluated_gate_designs = 0
     for index, design in enumerate(designs):
+        if search_should_stop():
+            break
         if index >= max_designs:
             design_budget_exhausted = True
             warnings.append(
@@ -752,12 +771,8 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             )
             evaluation_context = "full_switch_plus_payload_cds_no_promoter_or_terminator"
             if is_prok_and:
-                # Same junction-prefix convention as ToeholdGate.PAYLOAD_HEAD_LENGTH;
-                # an explicit bounded model, not a claim that distal CDS cannot pair.
-                transcript = transcript[: len(design.sequence) + prok_settings.payload_context_nt]
-                evaluation_context = (
-                    f"switch_plus_first_{prok_settings.payload_context_nt}_payload_nt"
-                )
+                transcript = design.sequence
+                evaluation_context = "switch_through_linker_excluding_output"
             evaluated_design = dataclasses.replace(
                 design,
                 architecture={
@@ -803,16 +818,8 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                 **({"diagnostics": diagnostics} if diagnostics else {}),
             )
             plasmids[candidate.ref] = plasmid
-            if is_prok_and:
-                evaluated_designs[candidate.ref] = evaluated_design
             score = None if candidate.is_rejected else weighted_score(metrics, profile)
             scored.append((candidate, score))
-
-    full_context_summary = {}
-    if is_prok_and:
-        scored, full_context_summary = _verify_prokaryotic_finalists(
-            scored, evaluated_designs, plasmids, families, prok_settings, profile, on_progress
-        )
 
     if not on_progress(*_pct("Designing circuits")):
         raise JobCancelled("Designing circuits")
@@ -847,7 +854,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             "method": "prokaryotic_equilibrium",
             "seed": request.seed if request.seed is not None else 0,
             "settings": prok_settings.to_dict(),
-            "full_context": full_context_summary,
+            "folding_context": "switch_through_linker_excluding_output",
             "family_versions": {family.geometry_name: family.version for family in families},
             "reference_transcripts": prok_search.get("reference_transcripts", {}),
             "search": {
@@ -858,13 +865,14 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                 ),
                 "evaluated_gate_designs": evaluated_gate_designs,
                 "feasible_candidates": sum(
-                    c.design["and_gate"].get("full_context_status") == "evaluated"
-                    and not c.design["and_gate"]["feasibility"]["violations"]
-                    for c in candidates
+                    not c.design["and_gate"]["feasibility"]["violations"] for c in candidates
                 ),
                 "accepted_candidates": sum(not c.is_rejected for c in candidates),
                 "attempt_limit_reached": len(attempted_designs) >= prok_settings.max_attempts,
                 "evaluation_limit_reached": design_budget_exhausted,
+                "runtime_limit_seconds": runtime_limit,
+                "runtime_limit_reached": runtime_exhausted,
+                "search_elapsed_seconds": monotonic() - search_started,
             },
             "barrier_computed": False,
             "feasibility_checks": len(families[0].THRESHOLDS),
@@ -877,15 +885,19 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             "experimentally calibrated protein-expression prediction is used."
         )
         warnings.append(
-            f"Screening folds include up to {prok_settings.payload_context_nt} payload-tail bases. "
-            f"At most {prok_settings.full_context_finalists} passing finalists are then checked "
-            "with the full switch-plus-output CDS before final ranking. Promoter and terminator "
-            "interactions are not modeled. All sequences retain the full construct."
+            "Equilibrium folding ends at the switch linker; output CDS, promoter and terminator "
+            "interactions are outside this declared model. "
+            "Exported constructs retain the full output."
         )
+        if runtime_exhausted:
+            warnings.append(
+                "AND search time budget reached at a cooperative checkpoint; completed candidates "
+                "were retained. A native folding call may finish after the requested limit."
+            )
         if prok_search.get("discovery_truncated"):
             warnings.append(
-                "Compatible-pair discovery reached max_pair_candidates; "
-                "the searched prefix is recorded."
+                "Compatible-pair discovery stopped within the declared count/time limits; "
+                "the searched scope is recorded."
             )
         if len(attempted_designs) >= prok_settings.max_attempts:
             warnings.append(
@@ -960,7 +972,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             candidates,
             warnings,
             request.output_dir,
-            engine_version="local-0.12.0-scientific-qa-folding-model",
+            engine_version=LocalEngine.ENGINE_VERSION,
             profile_version=profile.version,
         )
     )
@@ -1001,116 +1013,6 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             **({"and_gate": and_summary} if and_summary is not None else {}),
         },
     )
-
-
-def _verify_prokaryotic_finalists(
-    scored: list[tuple[CandidateResult, float | None]],
-    designs: dict[str, GateDesign],
-    plasmids: dict[str, PlasmidDesign],
-    families: list,
-    settings: ProkaryoticAndSettings,
-    profile: ScoringProfile,
-    on_progress: ProgressFn,
-) -> tuple[list[tuple[CandidateResult, float | None]], dict]:
-    """Use the cheap context to shortlist, then admit only full-CDS verified results.
-
-    The screen is a computational approximation, never the final feasibility result.
-    The expensive verification is bounded by count and uses the same measurements,
-    22 checks and shared scoring profile. No threshold is relaxed to fill the list.
-    """
-    order = rank_candidates(
-        [(c.ref, score) for c, score in scored if not c.is_rejected],
-        raw_values={c.ref: {m.name: m.raw_value for m in c.metrics} for c, _ in scored},
-        profile=profile,
-    )
-    finalists = {ref for ref, rank in order.items() if rank <= settings.full_context_finalists}
-    output = []
-    checked = 0
-    for candidate, _screen_score in scored:
-        screen = candidate.design["and_gate"]
-        if candidate.ref not in finalists:
-            status = "screen_failed" if candidate.is_rejected else "not_evaluated_budget"
-            reason = candidate.rejection_reason or (
-                "Not ranked: full payload context was not evaluated within the finalist budget."
-            )
-            output.append(
-                (
-                    dataclasses.replace(
-                        candidate,
-                        rank=None,
-                        overall_score=None,
-                        is_rejected=True,
-                        rejection_reason=reason,
-                        design={
-                            **candidate.design,
-                            "and_gate": {**screen, "full_context_status": status},
-                        },
-                    ),
-                    None,
-                )
-            )
-            continue
-        if not on_progress(76, "Checking full output context"):
-            raise JobCancelled("Checking full output context")
-        design = designs[candidate.ref]
-        full_sequence = sq.to_rna(
-            "".join(
-                segment.sequence
-                for segment in plasmids[candidate.ref].plasmid.segments
-                if segment.kind in (SegmentKind.SWITCH, SegmentKind.PAYLOAD)
-            )
-        )
-        full_design = dataclasses.replace(
-            design,
-            architecture={
-                **design.architecture,
-                "evaluation_sequence": full_sequence,
-                "evaluation_context": "full_switch_plus_payload_cds_no_promoter_or_terminator",
-            },
-        )
-        family = next(f for f in families if f.geometry_name == design.architecture["geometry"])
-        measured = family.measure_design(
-            full_design, on_ceiling=settings.on_ceiling, compute_barrier=False
-        )
-        raw = family.metrics_from_measurement(full_design, measured)
-        diagnostics = family.diagnostics_from_measurement(full_design, measured)
-        diagnostics.update(full_context_status="evaluated", screening=screen)
-        breach = failed_filter(raw, profile)
-        reasons = ([breach.reason] if breach else []) + diagnostics["feasibility"]["violations"]
-        if measured.get("skipped"):
-            reasons.insert(0, f"Full-context ON-state screen: {measured['skipped']}")
-        metrics = build_metrics(raw, profile)
-        design_data = {
-            **candidate.design,
-            "architecture": {
-                **candidate.design["architecture"],
-                "evaluation_context": full_design.architecture["evaluation_context"],
-            },
-            "evaluation_context": full_design.architecture["evaluation_context"],
-            "evaluation_sequence_sha256": sha256_bytes(full_sequence.encode()),
-            "and_gate": diagnostics,
-        }
-        updated = dataclasses.replace(
-            candidate,
-            design=design_data,
-            metrics=metrics,
-            warnings=[*candidate.warnings, *diagnostics.get("warnings", [])],
-            is_rejected=bool(reasons),
-            rejection_reason="; ".join(reasons),
-        )
-        output.append((updated, None if reasons else weighted_score(metrics, profile)))
-        checked += 1
-        if not on_progress(76, "Checking full output context"):
-            raise JobCancelled("Checking full output context")
-    return output, {
-        "screen_passed": len(order),
-        "finalist_budget": settings.full_context_finalists,
-        "evaluated": checked,
-        "accepted": sum(not c.is_rejected for c, _ in output),
-        "not_evaluated_budget": max(0, len(order) - checked),
-        "selection": "shared_scoring_profile_of_prefix_screen_survivors",
-        "context": "full_switch_plus_payload_cds_no_promoter_or_terminator",
-    }
 
 
 def _annotate_and_ties(
@@ -1649,6 +1551,7 @@ def _de_trigger(
     windows_per_gene: int = 3,
     pair_families: list | None = None,
     pair_settings: ProkaryoticAndSettings | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> tuple:
     """Resolve trigger candidates for a `de` submission (docs/genes.md, docs/ROADMAP.md
     Q1's first answer) — a scoped first cut, not the full `de` pipeline docs/ROADMAP.md
@@ -1681,6 +1584,11 @@ def _de_trigger(
     best ``windows_per_gene`` distinct trigger windows. A window containing ``AUG`` or ``CAU`` is
     skipped at scan time: the hairpin is built from the window and from its reverse complement,
     so either puts a second start codon into the switch and every design on it is rejected.
+
+    Bacterial AND (``pair_families``) consumes the ordinary stage-2 shortlist as
+    accessible regions, derives complete cross-gene AND footprints around overlaps
+    within those regions, and rescores adjusted intervals with the same TriggerScorer.
+    ``and_genes`` is optional for that family. The generic eukaryotic path below is unchanged.
 
     Returns:
         The candidate trigger(s), ranked best first, and warnings describing how they
@@ -1734,6 +1642,8 @@ def _de_trigger(
     canonical_inputs: tuple[str, ...] = ()
     if and_genes is not None:
         canonical_inputs = tuple(resolve_gene_id(host, gene) for gene in and_genes)
+        if pair_families is not None and len(set(canonical_inputs)) != 2:
+            raise InputValidationError("The bacterial AND gate requires two different input genes.")
         chosen = tuple(dict.fromkeys(canonical_inputs))
         present = {row.gene_id for row in dge.rows}
         missing = [gene for gene in chosen if gene not in present]
@@ -1756,7 +1666,7 @@ def _de_trigger(
         on_warning=warnings.append,
         on_progress=selection_progress,
     )
-    if not genes:
+    if not genes and pair_families is None:
         if chosen:
             raise InputValidationError(
                 "Neither chosen AND gene passed stage 1: " + " ".join(warnings)
@@ -1794,10 +1704,21 @@ def _de_trigger(
                 "selection, be up-regulated in the table, and have a transcript within the "
                 "compute limit. Stage 1 reported: " + (" ".join(warnings) or "no further detail.")
             )
-    if not genes:
+    if not genes and pair_families is None:
         return [], warnings
     if pair_families is not None:
         scorer = TriggerScorer(profiler, screener, folder)
+        # Consume stage 2's ordinary shortlist; overlap discovery cannot broaden it
+        # to the rest of a transcript. Only the derived complete footprints can extend.
+        input_windows = []
+        for gene in genes:
+            if on_progress is not None and not on_progress(7, "Scoring triggers"):
+                raise JobCancelled("Scoring triggers")
+            if should_stop is not None and should_stop():
+                break
+            input_windows.extend(
+                scorer.score([gene], transcriptome, constraints, should_stop=should_stop)
+            )
         last_pair_pct = 7
 
         def pair_progress(index: int, total: int) -> bool:
@@ -1806,13 +1727,14 @@ def _de_trigger(
             return on_progress is None or on_progress(last_pair_pct, "Scoring triggers")
 
         plan, summary = scorer.compatible_pairs(
-            genes,
+            input_windows,
             transcriptome,
             pair_families,
             pair_settings,
             constraints,
             seed=request.seed if request.seed is not None else 0,
             on_progress=pair_progress,
+            should_stop=should_stop,
         )
         references = {gene.gene_id: gene_reference(host, gene.gene_id) for gene in genes}
         summary["reference_transcripts"] = {
@@ -2469,7 +2391,7 @@ def _write_artifacts(
             "lower3",
             "stem_index",
             "and_method",
-            "and_full_context_status",
+            "and_evaluated_nt",
             "and_checks_passed",
             "and_checks_total",
             "and_violations",
@@ -2514,7 +2436,7 @@ def _write_artifacts(
             row.update(
                 {
                     "and_method": info.get("method"),
-                    "and_full_context_status": info.get("full_context_status"),
+                    "and_evaluated_nt": info.get("evaluated_nt"),
                     "and_checks_passed": info.get("feasibility", {}).get("passed"),
                     "and_checks_total": info.get("feasibility", {}).get("total"),
                     "and_violations": "; ".join(info.get("feasibility", {}).get("violations", [])),

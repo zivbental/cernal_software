@@ -9,6 +9,7 @@ import json
 import math
 import random
 from collections.abc import Callable, Iterator
+from itertools import combinations
 
 from engine import sequences as sq
 from engine.domain import (
@@ -19,7 +20,6 @@ from engine.domain import (
     TriggerCandidate,
     TriggerSet,
 )
-from engine.errors import JobCancelled
 from engine.gates.tools.folding import FoldEngine
 from engine.stages.folding import FoldProfiler
 from engine.stages.motifs import MotifScreener
@@ -69,7 +69,7 @@ class TriggerScorer:
 
     def compatible_pairs(
         self,
-        genes: list[SelectedGene],
+        windows: list[TriggerCandidate],
         sequences: dict[str, str],
         families: list,
         settings: ProkaryoticAndSettings,
@@ -77,74 +77,113 @@ class TriggerScorer:
         *,
         seed: int,
         on_progress: Callable[[int, int], bool] | None = None,
+        should_stop: Callable[[], bool] | None = None,
     ) -> tuple[list[tuple[str, TriggerSet]], dict]:
-        """Find the architecture's overlap before shortlisting whole pairs.
+        """Find overlaps only inside CERNAL's nominated accessible regions.
 
-        Pair ordering uses the lower of the two window MEAN marginal unpaired
-        probabilities. Candidate ``accessibility`` separately retains the MINIMUM
-        marginal probability, as it does for single-input scanning. Neither is an
-        experimentally calibrated probability of AND function. No independent top-K
-        window filter is applied: that can erase the overlap this chemistry needs.
+        Maximal reverse-complementary runs (>= MIN_OVERLAP) nominate new role-specific
+        footprints, which may extend outside those regions but must fit the transcript.
+        Rescore those exact intervals with the upstream gate-aware scoring method.
+        Pair order uses the lower of the two trigger scores; percentile sampling is a
+        declared search policy, not a biological feasibility threshold.
         """
-        by_id = {gene.gene_id: gene for gene in genes}
-        ids = list(by_id)
-        profiles = {gene: self.profiler.profile(sequences[gene]) for gene in ids}
+        by_gene: dict[str, list[TriggerCandidate]] = {}
+        for window in windows:
+            transcript = sequences[window.gene_id]
+            start, end = window.start_index, window.start_index + len(window.sequence)
+            if transcript[start:end] != window.sequence:
+                raise ValueError("Upstream trigger coordinates do not match the transcript.")
+            by_gene.setdefault(window.gene_id, []).append(window)
+        regions = {
+            gene: tuple((w.start_index, w.start_index + len(w.sequence)) for w in pool)
+            for gene, pool in by_gene.items()
+        }
+        cache = {}
+        profiles = {}
+        originals = {
+            (w.gene_id, w.start_index, w.start_index + len(w.sequence), w.gate_toehold_length): w
+            for w in windows
+        }
+
+        def candidate(gene_id, start, end, toehold_length):
+            key = gene_id, start, end, toehold_length
+            if key in originals:
+                return originals[key]
+            if key not in cache:
+                if gene_id not in profiles:
+                    profiles[gene_id] = self.profiler.profile(sequences[gene_id])
+                cache[key] = self.score_window(
+                    by_gene[gene_id][0],
+                    sequences[gene_id],
+                    start,
+                    end,
+                    profile=profiles[gene_id],
+                    toehold_length=toehold_length,
+                )
+            return cache[key]
+
         rows = []
-        discovered = 0
-        screened = 0
-        discovery_truncated = False
-        seed_matches = 0
-        discovery_scopes = {}
-        # The chosen gene pair is a single search; roles are emitted by the family.
-        first, second = ids[0], ids[-1]
-        for family in families:
-            remaining = settings.max_pair_seed_matches - seed_matches
-            if remaining <= 0:
-                discovery_truncated = True
+        seen = set()
+        discovered = screened = seed_matches = 0
+        truncated = False
+        scopes = []
+        stop = should_stop or (lambda: False)
+        for first, second in combinations(sorted(by_gene), 2):
+            if stop() or truncated:
                 break
-            finder_options = {"max_matches": remaining, "on_progress": on_progress}
-            source = (
-                family.find_trigger_pairs(sequences[first], **finder_options)
-                if first == second
-                else family.find_cross_gene_pairs(
-                    first, sequences[first], second, sequences[second], **finder_options
-                )
-            )
-            for pair in source:
-                if discovered >= settings.max_pair_candidates:
-                    discovery_truncated = True
+            for family in families:
+                remaining = settings.max_pair_seed_matches - seed_matches
+                if remaining <= 0 or stop():
+                    truncated = True
                     break
-                discovered += 1
-                if discovered % 128 == 1 and on_progress is not None:
-                    if not on_progress(discovered, settings.max_pair_candidates):
-                        raise JobCancelled("Finding compatible trigger pairs")
-                if not constraints.overlap_range[0] <= pair.len_x <= constraints.overlap_range[1]:
-                    screened += 1
-                    continue
-                gene_a = getattr(pair, "gene_a", first)
-                gene_b = getattr(pair, "gene_b", second)
-                a0, a1 = pair.window_a()
-                b0, b1 = pair.window_b()
-                windows = (sequences[gene_a][a0:a1], sequences[gene_b][b0:b1])
-                if any(self.screener.violations(window) for window in windows):
-                    screened += 1
-                    continue
-                a_profile, b_profile = profiles[gene_a][a0:a1], profiles[gene_b][b0:b1]
-                a_mean, b_mean = sum(a_profile) / len(a_profile), sum(b_profile) / len(b_profile)
-                rows.append(
-                    (min(a_mean, b_mean), family.geometry_name, gene_a, a0, a1, gene_b, b0, b1)
+                source = family.find_cross_gene_pairs(
+                    first,
+                    sequences[first],
+                    second,
+                    sequences[second],
+                    regions_a=regions[first],
+                    regions_b=regions[second],
+                    max_matches=remaining,
+                    on_progress=on_progress,
                 )
-            scope = dict(family.last_pair_search)
-            discovery_scopes[family.geometry_name] = scope
-            seed_matches += scope["seed_matches_considered"]
-            discovery_truncated |= scope["discovery_truncated"]
-            if discovery_truncated:
-                break
-        rows.sort(key=lambda row: (-row[0], *row[1:]))
+                for pair in source:
+                    if discovered >= settings.max_pair_candidates or stop():
+                        truncated = True
+                        break
+                    ga, gb = pair.gene_a, pair.gene_b
+                    a0, a1 = pair.window_a()
+                    b0, b1 = pair.window_b()
+                    key = family.geometry_name, ga, a0, a1, gb, b0, b1
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    discovered += 1
+                    if (
+                        not constraints.overlap_range[0]
+                        <= pair.len_x
+                        <= constraints.overlap_range[1]
+                    ):
+                        screened += 1
+                        continue
+                    if any(
+                        self.screener.violations(sequences[g][lo:hi])
+                        for g, lo, hi in ((ga, a0, a1), (gb, b0, b1))
+                    ):
+                        screened += 1
+                        continue
+                    a = candidate(ga, a0, a1, family.SECONDARY_INVASION_LEN)
+                    b = candidate(gb, b0, b1, family.TOEHOLD_B_LEN)
+                    rows.append((min(a.score, b.score), key, a, b))
+                scope = dict(family.last_pair_search)
+                seed_matches += scope["seed_matches_considered"]
+                scopes.append({"genes": [first, second], "geometry": family.geometry_name, **scope})
+                truncated |= scope["discovery_truncated"]
+                if truncated:
+                    break
+        rows.sort(key=lambda row: (-row[0], row[1]))
+        cutoff = None
         eligible = rows
         if settings.pair_selection == "percentile_sample" and rows:
-            # Nearest-rank percentile: an explicit relative sampling rule, not a
-            # new biological gate. Sampling without replacement uses the job seed.
             ascending = sorted(row[0] for row in rows)
             index = min(
                 len(rows) - 1,
@@ -153,57 +192,26 @@ class TriggerScorer:
             cutoff = ascending[index]
             eligible = [row for row in rows if row[0] >= cutoff]
             taken = random.Random(seed).sample(eligible, min(settings.max_pairs, len(eligible)))
-            taken.sort(key=lambda row: (-row[0], *row[1:]))
+            taken.sort(key=lambda row: (-row[0], row[1]))
         else:
-            cutoff = None
-            taken = eligible[: settings.max_pairs]
-
-        cache: dict[tuple[str, int, int], TriggerCandidate] = {}
-
-        def candidate(gene_id: str, start: int, end: int) -> TriggerCandidate:
-            key = gene_id, start, end
-            if key not in cache:
-                gene = by_id[gene_id]
-                sequence = sequences[gene_id][start:end]
-                values = profiles[gene_id][start:end]
-                cache[key] = TriggerCandidate(
-                    trigger_id=f"pair-{gene_id}-{start}-{end}",
-                    gene_id=gene_id,
-                    symbol=gene.symbol,
-                    sequence=sequence,
-                    start_index=start,
-                    openness=sum(values) / len(values),
-                    accessibility=min(values),
-                    mfe=self.folder.mfe(sequence).energy,
-                    gc_content=sq.gc_content(sequence),
-                    log2_fold_change=gene.log2_fold_change,
-                    aug_indexes=sq.find_augs(sequence),
-                    stop_indexes=sq.find_stops(sequence),
-                    score=sum(values) / len(values),
-                    rnaplfold_version=self.profiler.provenance(sequences[gene_id])[
-                        "viennarna_version"
-                    ],
-                    rnaplfold_window=self.profiler.window,
-                    rnaplfold_max_span=self.profiler.max_span,
-                    rnaplfold_unpaired=self.profiler.unpaired,
-                    rnaplfold_temperature_celsius=self.profiler.temperature_celsius,
-                )
-            return cache[key]
-
-        plan = [
-            (family, TriggerSet(activators=(candidate(ga, a0, a1), candidate(gb, b0, b1))))
-            for _, family, ga, a0, a1, gb, b0, b1 in taken
-        ]
+            taken = rows[: settings.max_pairs]
+        plan = [(key[0], TriggerSet(activators=(a, b))) for _, key, a, b in taken]
         return plan, {
-            "pair_ranking": "min_of_two_window_mean_marginal_unpaired_probabilities",
+            "input_regions": len(windows),
+            "input_genes": len(by_gene),
+            "input_region_coordinates": {gene: list(spans) for gene, spans in regions.items()},
+            "search_scope": "overlaps_within_upstream_regions_footprints_within_transcripts",
+            "pair_ranking": "min_of_two_cernal_gate_aware_trigger_scores",
+            "trigger_selection_method": self.SELECTION_METHOD,
             "candidate_accessibility": "minimum_per_base_marginal_unpaired_probability",
+            "rescored_footprints": len(cache),
             "discovered_pairs": discovered,
             "screened_pairs": screened,
             "eligible_pairs": len(eligible),
             "selected_pairs": len(plan),
-            "discovery_truncated": discovery_truncated,
+            "discovery_truncated": truncated or stop(),
             "seed_matches_considered": seed_matches,
-            "discovery_scopes": discovery_scopes,
+            "discovery_scopes": scopes,
             "pair_selection": settings.pair_selection,
             "accessibility_percentile": settings.accessibility_percentile,
             "percentile_cutoff": cutoff,
@@ -214,6 +222,8 @@ class TriggerScorer:
         genes: list[SelectedGene],
         sequences: dict[str, str],
         constraints: Constraints,
+        *,
+        should_stop: Callable[[], bool] | None = None,
     ) -> Iterator[TriggerCandidate]:
         """Yield a stable per-gene shortlist across all configured footprint buckets."""
         joint_probability = getattr(self.profiler, "joint_probability", None)
@@ -240,33 +250,12 @@ class TriggerScorer:
 
             for length in constraints.trigger_lengths:
                 for start, window in sq.windows(transcript, length):
+                    if should_stop is not None and should_stop():
+                        return
                     if self.screener.violations(window):
                         continue
-                    end = start + length
-                    local_profile = profile[start:end]
-                    openness = sum(local_profile) / length
-                    accessibility = min(local_profile)
-
-                    gate_evidence = self._gate_evidence(transcript, profile, start, end)
-                    score = gate_evidence.get("selected_seed_probability", openness)
                     buckets[length].append(
-                        TriggerCandidate(
-                            trigger_id=f"trig-{gene.gene_id}-{start}-{length}",
-                            gene_id=gene.gene_id,
-                            symbol=gene.symbol,
-                            sequence=window,
-                            start_index=start,
-                            openness=openness,
-                            accessibility=accessibility,
-                            mfe=self.folder.mfe(window).energy,
-                            gc_content=sq.gc_content(window),
-                            # The gene's, not the window's — read, never recomputed.
-                            log2_fold_change=gene.log2_fold_change,
-                            aug_indexes=sq.find_augs(window),
-                            stop_indexes=sq.find_stops(window),
-                            score=score,
-                            **gate_evidence,
-                        )
+                        self.score_window(gene, transcript, start, start + length, profile=profile)
                     )
 
             gate_aware = any(
@@ -278,11 +267,61 @@ class TriggerScorer:
                 candidates.sort(key=self._gate_rank_key if gate_aware else self._legacy_rank_key)
             yield from self._allocate_buckets(buckets, constraints.trigger_lengths)
 
+    def score_window(
+        self,
+        gene: SelectedGene | TriggerCandidate,
+        transcript: str,
+        start: int,
+        end: int,
+        *,
+        profile: list[float] | None = None,
+        toehold_length: int | None = None,
+    ) -> TriggerCandidate:
+        """Score one exact footprint with the same method as upstream selection.
+
+        AND footprints can extend beyond the region that nominated their overlap.
+        They are new intervals, so their accessibility must be measured in transcript
+        context rather than copied from the upstream region. Existing intervals retain
+        their upstream records in the pair planner.
+        """
+        if not 0 <= start < end <= len(transcript):
+            raise ValueError("Trigger footprint lies outside its transcript.")
+        profile = self.profiler.profile(transcript) if profile is None else profile
+        window = transcript[start:end]
+        values = profile[start:end]
+        openness = sum(values) / len(values)
+        evidence = self._gate_evidence(
+            transcript, profile, start, end, toehold_length=toehold_length
+        )
+        return TriggerCandidate(
+            trigger_id=f"trig-{gene.gene_id}-{start}-{end - start}",
+            gene_id=gene.gene_id,
+            symbol=gene.symbol,
+            sequence=window,
+            start_index=start,
+            openness=openness,
+            accessibility=min(values),
+            mfe=self.folder.mfe(window).energy,
+            gc_content=sq.gc_content(window),
+            log2_fold_change=gene.log2_fold_change,
+            aug_indexes=sq.find_augs(window),
+            stop_indexes=sq.find_stops(window),
+            score=evidence.get("selected_seed_probability", openness),
+            **evidence,
+        )
+
     def _gate_evidence(
-        self, transcript: str, profile: list[float], start: int, end: int
+        self,
+        transcript: str,
+        profile: list[float],
+        start: int,
+        end: int,
+        *,
+        toehold_length: int | None = None,
     ) -> dict[str, object]:
         length = end - start
-        toehold_length = self.FOOTPRINT_TO_TOEHOLD.get(length)
+        if toehold_length is None:
+            toehold_length = self.FOOTPRINT_TO_TOEHOLD.get(length)
         if toehold_length is None or not callable(
             getattr(self.profiler, "joint_probability", None)
         ):

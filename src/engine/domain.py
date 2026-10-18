@@ -735,8 +735,6 @@ class ProkaryoticAndSettings:
     closure_set: str = "chosen"
     upper3_set: str = "compact"
     on_ceiling: float = 7.2
-    payload_context_nt: int = 30
-    full_context_finalists: int = 2
 
     @classmethod
     def from_mapping(cls, raw: dict | None) -> "ProkaryoticAndSettings":
@@ -756,8 +754,6 @@ class ProkaryoticAndSettings:
             ("stems_per_pair", 1, 12),
             ("max_stem_assignments", 1, 19683),
             ("max_attempts", 1, 10000),
-            ("payload_context_nt", 30, 120),
-            ("full_context_finalists", 1, 10),
         ):
             item = getattr(value, name)
             if type(item) is not int or not low <= item <= high:

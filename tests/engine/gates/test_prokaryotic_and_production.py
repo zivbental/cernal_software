@@ -92,6 +92,24 @@ def test_generated_record_and_named_states_use_the_constructed_trigger_roles(pro
     assert b.sequence == TRIGGER_B[-length_b:]
 
 
+def test_a_anchored_label_does_not_reject_an_otherwise_constructible_stem(production, monkeypatch):
+    gate, design = production
+    a, b = design.trigger_set.activators
+    stems = gate.secondary_stems(a.sequence, b.sequence, design.architecture["len_x"])
+    stem = next(stem for stem in stems if stem.lock_energy <= 0)
+    # Change only the classification label's assignments, retaining a constructible
+    # stem's sequence/energies. Eligibility must depend on checks, never this label.
+    labelled = replace(stem, states=("lockA",))
+    monkeypatch.setattr(gate, "secondary_stems", lambda *_: [labelled])
+    candidates = list(
+        gate.generate_designs(
+            design.trigger_set, Constraints(stems_per_pair=1, closure_set="chosen")
+        )
+    )
+    assert candidates
+    assert all(candidate.architecture["scheme"] == "A-anchored" for candidate in candidates)
+
+
 def test_context_preserves_domain_coordinates_and_extends_the_target(production, measured):
     gate, original = production
     contextual, _raw, defects, matrices = measured

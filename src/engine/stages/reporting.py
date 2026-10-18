@@ -290,17 +290,19 @@ class ReportBuilder:
 
         payload_head = escape(str(info.get("payload_head_nt", "unrecorded")))
         evaluated_nt = escape(str(info.get("evaluated_nt", "unrecorded")))
+        context = (
+            f"<p>Folding context: complete switch through its linker ({evaluated_nt} nt), "
+            "excluding the output CDS. Exported constructs retain the complete output. "
+            "Output interactions are outside this declared equilibrium model.</p>"
+            if info.get("evaluation_context") == "switch_through_linker_excluding_output"
+            else f"<p>Historical folding context: switch plus {payload_head} nt of payload tail "
+            f"({evaluated_nt} nt total).</p>"
+        )
         parts = [
             "<section data-and-method='prokaryotic_equilibrium'>",
             "<h4>Bacterial AND equilibrium evidence</h4>",
-            "<p>Full output context status: "
-            f"{escape(str(info.get('full_context_status', 'unrecorded')))}.</p>",
             f"<p>{escape(str(info.get('definition') or 'Whole initiation-window opening'))}</p>",
-            f"<p>Folding context: switch plus {payload_head} "
-            f"nt of payload tail ({evaluated_nt} nt total). "
-            "The exported construct retains its complete payload. Whole-construct folding can "
-            "change these predictions; promoter and terminator interactions "
-            "are outside this model.</p>",
+            context,
             f"<p>ON {pct(info.get('on_pct'))}; OFF {pct(info.get('off_pct'))} "
             f"(state {escape(str(info.get('worst_off_state') or 'unmeasured'))}).</p>",
             "<table><tr><th>State</th><th>Entire initiation window open</th>"

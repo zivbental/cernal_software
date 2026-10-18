@@ -39,8 +39,8 @@ so that convention is the only rule there is.
 | --- | ---: |
 | Modules | 117 |
 | Public classes | 120 |
-| Public callables (excluding `__init__`) | 650 |
-| — `BUILT` | 638 |
+| Public callables (excluding `__init__`) | 651 |
+| — `BUILT` | 639 |
 | — `STUB` | 4 |
 | — `ABSTRACT` | 5 |
 | — `PROTOCOL` | 3 |
@@ -159,7 +159,7 @@ layers above it, never the ones below.
 | stages | `engine.stages.quality` | S15 | 1 | 0 | S15 — input quality control. |
 | stages | `engine.stages.reporting` |  | 4 | 0 | Stage 6 — the compiler's output. |
 | stages | `engine.stages.switches` |  | 5 | 0 | Stage 3 — switch design and validation. |
-| stages | `engine.stages.triggers` |  | 2 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
+| stages | `engine.stages.triggers` |  | 3 | 0 | Stage 2 — gate-aware trigger selection in transcript context. |
 | top | `engine` |  | 0 | 0 |  |
 | top | `engine.artifacts` |  | 3 | 0 | Writing engine output files. |
 | top | `engine.client` |  | 13 | 0 | The Platform-facing engine interface. |
@@ -524,8 +524,6 @@ Declared search budgets for the bacterial equilibrium compiler.
 | `closure_set` | `str` | `'chosen'` |
 | `upper3_set` | `str` | `'compact'` |
 | `on_ceiling` | `float` | `7.2` |
-| `payload_context_nt` | `int` | `30` |
-| `full_context_finalists` | `int` | `2` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -1623,7 +1621,7 @@ Two-input AND toehold.
 | Attribute | Type | Default |
 | --- | --- | --- |
 | `name` |  | `'toehold_and'` |
-| `version` |  | `'0.9.0'` |
+| `version` |  | `'0.10.0-accessible-region-and'` |
 | `kind` |  | `GateKind.TOEHOLD_AND` |
 | `label` |  | `'AND Toehold'` |
 | `description` |  | `'Two-input translational AND'` |
@@ -1660,8 +1658,8 @@ Two-input AND toehold.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer, *, kozak_layouts: tuple[str, ...] \| None = None, payload: str \| None = None, compute_barrier: bool = True, balanced_grid: bool = False, upper3_levels: tuple[str, ...] \| None = None, max_secondary_assignments: int \| None = None, seed: int = 0) -> None` |  |
-| `BUILT` | `def find_cross_gene_pairs(self, gene_a: str, transcript_a: str, gene_b: str, transcript_b: str, *, max_matches: int \| None = None, on_progress: Callable[[int, int], bool] \| None = None) -> Iterator['_CrossGenePair']` | Every maximal reverse-complementary run shared by two transcripts, both roles. |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer, *, kozak_layouts: tuple[str, ...] \| None = None, payload: str \| None = None, compute_barrier: bool = True, balanced_grid: bool = False, upper3_levels: tuple[str, ...] \| None = None, max_secondary_assignments: int \| None = None, seed: int = 0, should_stop: Callable[[], bool] \| None = None) -> None` |  |
+| `BUILT` | `def find_cross_gene_pairs(self, gene_a: str, transcript_a: str, gene_b: str, transcript_b: str, *, max_matches: int \| None = None, on_progress: Callable[[int, int], bool] \| None = None, regions_a: tuple[tuple[int, int], ...] \| None = None, regions_b: tuple[tuple[int, int], ...] \| None = None) -> Iterator['_CrossGenePair']` | Every maximal reverse-complementary run shared by two transcripts, both roles. |
 | `BUILT` | `def screen_trigger_window(self, window_a: str, main_pre: str \| None = None) -> tuple[str, ...]` | Sequence restrictions on ONE trigger window. Empty means clean. |
 | `BUILT` | `def stop_rescue_cost(self, main_pre: str) -> int \| None` | Wobble substitutions needed to clear every in-frame stop in ``main_pre``. |
 | `BUILT` | `def screen_trigger_pair(self, window_a: str, window_b: str, main_pre: str) -> tuple[str, ...]` | What is wrong with a trigger pair that can be known from the windows alone. |
@@ -1757,7 +1755,7 @@ A0 with a shortened toehold, for testing whether a shorter ``r2*`` binds better.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `version` |  | `'trimmed-toehold-3'` |
+| `version` |  | `'trimmed-toehold-4'` |
 | `TOEHOLD_TRIM` | `ClassVar[int]` | `8` |
 
 #### `class KimSecondaryArmToeholdAndGate(ProkaryoticToeholdAndGate)`
@@ -1766,7 +1764,7 @@ A0 with Kim 2019's verified inhibitory geometry on the secondary hairpin.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `version` |  | `'kim-secondary-3'` |
+| `version` |  | `'kim-secondary-4'` |
 | `SECONDARY_ARM_LEN` | `ClassVar[int]` | `20` |
 | `SECONDARY_INVASION_LEN` | `ClassVar[int]` | `17` |
 | `SECONDARY_CAP` | `ClassVar[str]` | `'AUA'` |
@@ -3568,7 +3566,7 @@ Dispatches trigger sets to the gate families that can realise them.
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, families: list, validator: 'SwitchValidator', host: Host) -> None` |  |
 | `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
-| `BUILT` | `def design_pairs(self, pair_plan: list[tuple[str, TriggerSet]], constraints: Constraints, *, max_attempts: int, on_progress: Callable[[int, int], bool], on_attempt: Callable[[GateDesign, ValidationResult], None], on_incompatible: Callable[[str], None]) -> Iterator[GateDesign]` | Interleave explicitly compatible pairs, bounding invalid attempts too. |
+| `BUILT` | `def design_pairs(self, pair_plan: list[tuple[str, TriggerSet]], constraints: Constraints, *, max_attempts: int, on_progress: Callable[[int, int], bool], on_attempt: Callable[[GateDesign, ValidationResult], None], on_incompatible: Callable[[str], None], should_stop: Callable[[], bool] \| None = None) -> Iterator[GateDesign]` | Interleave explicitly compatible pairs, bounding invalid attempts too. |
 | `BUILT` | `def build_trigger_sets(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[TriggerSet]` | Combine individual triggers into the input sets a circuit can use. |
 
 #### `class SwitchValidator`
@@ -3606,8 +3604,9 @@ Scan transcripts and deterministically shortlist candidates per gate footprint.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, profiler: FoldProfiler, screener: MotifScreener, folder: FoldEngine) -> None` |  |
-| `BUILT` | `def compatible_pairs(self, genes: list[SelectedGene], sequences: dict[str, str], families: list, settings: ProkaryoticAndSettings, constraints: Constraints, *, seed: int, on_progress: Callable[[int, int], bool] \| None = None) -> tuple[list[tuple[str, TriggerSet]], dict]` | Find the architecture's overlap before shortlisting whole pairs. |
-| `BUILT` | `def score(self, genes: list[SelectedGene], sequences: dict[str, str], constraints: Constraints) -> Iterator[TriggerCandidate]` | Yield a stable per-gene shortlist across all configured footprint buckets. |
+| `BUILT` | `def compatible_pairs(self, windows: list[TriggerCandidate], sequences: dict[str, str], families: list, settings: ProkaryoticAndSettings, constraints: Constraints, *, seed: int, on_progress: Callable[[int, int], bool] \| None = None, should_stop: Callable[[], bool] \| None = None) -> tuple[list[tuple[str, TriggerSet]], dict]` | Find overlaps only inside CERNAL's nominated accessible regions. |
+| `BUILT` | `def score(self, genes: list[SelectedGene], sequences: dict[str, str], constraints: Constraints, *, should_stop: Callable[[], bool] \| None = None) -> Iterator[TriggerCandidate]` | Yield a stable per-gene shortlist across all configured footprint buckets. |
+| `BUILT` | `def score_window(self, gene: SelectedGene \| TriggerCandidate, transcript: str, start: int, end: int, *, profile: list[float] \| None = None, toehold_length: int \| None = None) -> TriggerCandidate` | Score one exact footprint with the same method as upstream selection. |
 
 ## Layer 7 · Top level — contract, errors, composition
 
@@ -3670,7 +3669,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.14.0-prokaryotic-and-equilibrium'` |
+| `ENGINE_VERSION` |  | `'local-0.15.0-prokaryotic-and-equilibrium'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -3929,7 +3928,7 @@ The real scientific pipeline.
 
 | Status | Function | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def build_tools(request: JobRequest, host: Host) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
+| `BUILT` | `def build_tools(request: JobRequest, host: Host, *, should_stop: Callable[[], bool] \| None = None) -> dict[str, object]` | Construct every tool **once** per run, and hand them back for wiring. |
 | `BUILT` | `def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult` | Execute a direct, differential-expression, or reference-gene job. |
 | `BUILT` | `def run_crispr_workbench(config: dict, on_progress = None) -> dict` | Composition entry point for the explicit-input CRISPR research workbench. |
 

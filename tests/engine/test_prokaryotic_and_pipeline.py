@@ -156,7 +156,7 @@ def test_two_gene_run_delivers_four_state_diagnostics_and_candidate_csv(
     assert result.status == "succeeded", result.error
     assert result.candidates
     assert len(result.candidates) <= 2
-    assert len(seen) == 2 * len(result.candidates)
+    assert len(seen) == len(result.candidates)
     for candidate in result.candidates:
         assert candidate.logic_type == "AND"
         assert candidate.gate_family == "prokaryotic_toehold_and"
@@ -173,7 +173,8 @@ def test_two_gene_run_delivers_four_state_diagnostics_and_candidate_csv(
         assert candidate.rank is not None
     for design, kwargs in seen:
         assert kwargs.get("compute_barrier") is False
-        assert len(design.architecture["evaluation_sequence"]) > len(design.sequence)
+        assert design.architecture["evaluation_sequence"] == design.sequence
+        assert design.architecture["evaluation_context"] == "switch_through_linker_excluding_output"
     with open(f"{request.output_dir}/candidates.csv", newline="") as handle:
         rows = list(csv.DictReader(handle))
     assert len(rows) == len(result.candidates)
@@ -192,42 +193,66 @@ def test_missing_structural_measurement_is_retained_as_rejected_without_rank(
     assert all("xstar_engA_10" in candidate.rejection_reason for candidate in result.candidates)
 
 
-def test_prefix_success_does_not_hide_full_output_failure(bacterial_request, synthetic_equilibrium):
+def test_output_length_does_not_change_the_declared_switch_folding_boundary(
+    bacterial_request, synthetic_equilibrium
+):
     seen, mode = synthetic_equilibrium
-    mode["full_failure"] = True
-    result = LocalEngine().run(bacterial_request(), lambda *_: True)
+    mode["full_failure"] = True  # The retired full-CDS stage must never be called.
+    result = LocalEngine().run(
+        bacterial_request(payload={"outputs": ["gfp", "mcherry"]}), lambda *_: True
+    )
     assert result.status == "succeeded", result.error
     assert result.candidates
-    assert all(c.is_rejected and c.rank is None for c in result.candidates)
-    assert all("A_M_11" in c.rejection_reason for c in result.candidates)
-    assert all(
-        c.design["and_gate"]["screening"]["feasibility"]["violations"] == []
-        for c in result.candidates
-    )
-    assert all(
-        c.design["and_gate"]["full_context_status"] == "evaluated" for c in result.candidates
-    )
-    assert result.scientific_provenance["and_gate"]["full_context"]["accepted"] == 0
-    assert len(seen) == 2 * len(result.candidates)
+    assert all(c.rank is not None for c in result.candidates)
+    assert all(d.architecture["evaluation_sequence"] == d.sequence for d, _ in seen)
+    assert "full_context" not in result.scientific_provenance["and_gate"]
 
 
-def test_only_full_context_finalists_receive_ranks(bacterial_request, synthetic_equilibrium):
-    request = bacterial_request(
-        prokaryotic_and={
-            "max_pairs": 2,
-            "stems_per_pair": 1,
-            "max_stem_assignments": 81,
-            "max_attempts": 40,
-            "full_context_finalists": 1,
-        }
+def test_automatic_gene_pool_does_not_require_two_manually_picked_genes(
+    bacterial_request, synthetic_equilibrium
+):
+    import dataclasses
+
+    request = bacterial_request()
+    request = dataclasses.replace(
+        request, params={k: v for k, v in request.params.items() if k != "and_inputs"}
     )
     result = LocalEngine().run(request, lambda *_: True)
     assert result.status == "succeeded", result.error
-    assert len(result.candidates) == 2
-    assert len([c for c in result.candidates if c.rank is not None]) == 1
-    incomplete = next(c for c in result.candidates if c.rank is None)
-    assert incomplete.design["and_gate"]["full_context_status"] == "not_evaluated_budget"
-    assert "not evaluated" in incomplete.rejection_reason
+    assert result.candidates
+    assert result.scientific_provenance["and_gate"]["search"]["input_genes"] == 2
+
+
+def test_time_budget_returns_a_reported_partial_search_instead_of_cancelling(
+    bacterial_request, synthetic_equilibrium, monkeypatch
+):
+    ticks = iter((0.0, 2.0))
+    monkeypatch.setattr(pipeline, "monotonic", lambda: next(ticks, 2.0))
+    result = LocalEngine().run(
+        bacterial_request(
+            budget={"max_designs": 2, "max_runtime_seconds": 1, "on_exceed": "return_partial"}
+        ),
+        lambda *_: True,
+    )
+    assert result.status == "succeeded", result.error
+    search = result.scientific_provenance["and_gate"]["search"]
+    assert search["runtime_limit_reached"] is True
+    assert search["accepted_candidates"] == 0
+    assert any("time budget reached" in warning for warning in result.warnings)
+
+
+def test_completed_candidates_survive_the_time_limit(
+    bacterial_request, synthetic_equilibrium, monkeypatch
+):
+    seen, _mode = synthetic_equilibrium
+    monkeypatch.setattr(pipeline, "monotonic", lambda: 2.0 if seen else 0.0)
+    result = LocalEngine().run(
+        bacterial_request(budget={"max_designs": 2, "max_runtime_seconds": 1}), lambda *_: True
+    )
+    assert result.status == "succeeded", result.error
+    assert len(result.candidates) == 1
+    assert result.candidates[0].rank == 1
+    assert result.scientific_provenance["and_gate"]["search"]["runtime_limit_reached"] is True
 
 
 def test_build_tools_uses_shared_folder_and_explicit_compact_equilibrium_configuration(
@@ -267,12 +292,14 @@ def pair_scorer_fixture():
     ]
     family = SimpleNamespace(
         geometry_name="test",
+        SECONDARY_INVASION_LEN=2,
+        TOEHOLD_B_LEN=2,
         find_cross_gene_pairs=lambda *_args, **_kwargs: iter(pairs),
         last_pair_search={"seed_matches_considered": 2, "discovery_truncated": False},
     )
     genes = [
-        SimpleNamespace(gene_id=gene, symbol=gene.upper(), log2_fold_change=2.0)
-        for gene in sequences
+        TriggerCandidate(gene, gene, gene.upper(), sequence, 0, 0.5, 0.1, -1.0, 50.0)
+        for gene, sequence in sequences.items()
     ]
     scorer = TriggerScorer(
         profiler,
@@ -319,6 +346,74 @@ def test_no_compatible_pairs_are_an_explicit_empty_search_outcome():
     assert plan == []
     assert summary["discovered_pairs"] == summary["selected_pairs"] == 0
     assert summary["discovery_truncated"] is False
+
+
+def test_overlap_at_an_upstream_region_edge_gets_complete_rescored_footprints():
+    from engine import sequences as sq
+
+    transcripts = {
+        "a": "A" * 18 + "GCGC" + "A" * 14,
+        "b": "U" * 14 + "GCGC" + "C" * 32,
+    }
+    # Each supplied region is just the four-base overlap, too short to be either
+    # complete AND trigger. Both complete footprints extend outside those regions.
+    windows = [
+        TriggerCandidate(g, g, g, "GCGC", start, 0.99, 0.99, -1, 100, score=0.99)
+        for g, start in (("a", 18), ("b", 14))
+    ]
+    probabilities = []
+
+    def joint(_sequence, start, end):
+        probabilities.append((start, end))
+        return 0.6 if end - start == 8 else 0.2
+
+    profiler = SimpleNamespace(
+        profile=lambda sequence: [0.4] * len(sequence),
+        joint_probability=joint,
+        provenance=lambda _: {
+            "temperature_celsius": 37.0,
+            "viennarna_version": "test",
+            "window": 200,
+            "max_span": 150,
+            "unpaired": 20,
+        },
+    )
+    scorer = TriggerScorer(
+        profiler,
+        SimpleNamespace(violations=lambda _: ()),
+        SimpleNamespace(mfe=lambda _: SimpleNamespace(energy=-1)),
+    )
+    family = object.__new__(ProkaryoticToeholdAndGate)
+    family.should_stop = None
+    plan, summary = scorer.compatible_pairs(
+        windows, transcripts, [family], ProkaryoticAndSettings(), Constraints(), seed=7
+    )
+    assert len(plan) == 1
+    a, b = plan[0][1].activators
+    assert (a.sequence, b.sequence) == (transcripts["a"], transcripts["b"])
+    assert (a.length, b.length) == (36, 50)
+    assert a.openness == b.openness == pytest.approx(0.4)
+    assert a.score == b.score == 0.6
+    assert (a.gate_toehold_length, b.gate_toehold_length) == (18, 32)
+    assert a.sequence[18:22] == sq.reverse_complement(b.sequence[14:18])
+    assert probabilities and summary["rescored_footprints"] == 2
+    # A complementary run elsewhere in the transcripts must not broaden discovery.
+    unavailable = [
+        TriggerCandidate(g, g, g, seq[:4], 0, 0.99, 0.99, -1, 50) for g, seq in transcripts.items()
+    ]
+    empty, _ = scorer.compatible_pairs(
+        unavailable, transcripts, [family], ProkaryoticAndSettings(), Constraints(), seed=7
+    )
+    assert empty == []
+
+
+def test_pair_planner_never_pairs_regions_from_one_gene():
+    scorer, windows, transcripts, family = pair_scorer_fixture()
+    plan, summary = scorer.compatible_pairs(
+        windows[:1], transcripts, [family], ProkaryoticAndSettings(), Constraints(), seed=0
+    )
+    assert plan == []
+    assert summary["input_genes"] == 1
 
 
 def test_overlap_constraint_filters_before_top_pair_budget():
@@ -392,7 +487,7 @@ def test_pair_generation_can_cancel_while_every_design_is_invalid():
     assert attempts == ["0:0"]
 
 
-def test_real_historical_short_output_example_still_passes_all_structural_checks(
+def test_real_historical_switch_only_example_passes_all_structural_checks(
     bacterial_request,
     monkeypatch,
 ):
@@ -413,7 +508,7 @@ def test_real_historical_short_output_example_still_passes_all_structural_checks
         design,
         architecture={
             **design.architecture,
-            "evaluation_sequence": design.sequence + "GCUGCUUAA",
+            "evaluation_sequence": design.sequence,
         },
     )
     monkeypatch.setattr(tools["folder"], "saddle", lambda *_: pytest.fail("unexpected barrier"))

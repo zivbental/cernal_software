@@ -314,8 +314,16 @@ def validate_job_configuration(
     if "top_n" in params and (type(params["top_n"]) is not int or not 1 <= params["top_n"] <= 1000):
         raise ValueError("top_n must be an integer between 1 and 1000.")
     budget = params.get("budget", {})
-    if not isinstance(budget, dict) or set(budget) - {"max_designs"}:
-        raise ValueError("budget supports only max_designs (integer 1..1000).")
+    allowed_budget = (
+        {"max_designs", "max_runtime_seconds", "on_exceed"} if is_prok_and else {"max_designs"}
+    )
+    if not isinstance(budget, dict) or set(budget) - allowed_budget:
+        raise ValueError(f"budget supports only {sorted(allowed_budget)}.")
+    runtime = budget.get("max_runtime_seconds")
+    if "max_runtime_seconds" in budget and (type(runtime) is not int or not 1 <= runtime <= 259200):
+        raise ValueError("budget.max_runtime_seconds must be an integer between 1 and 259200.")
+    if "on_exceed" in budget and budget["on_exceed"] != "return_partial":
+        raise ValueError("budget.on_exceed must be return_partial.")
     max_designs = budget.get("max_designs", 20)
     if (
         isinstance(max_designs, bool)
@@ -435,10 +443,18 @@ def validate_job_configuration(
         ),
         "constraints": dataclasses.asdict(constraints),
         "folding": dataclasses.asdict(folding),
-        "budget": {"max_designs": max_designs},
+        "budget": {**budget, "max_designs": max_designs},
         **(
             {
-                "and_inputs": {key: value.strip() for key, value in params["and_inputs"].items()},
+                **(
+                    {
+                        "and_inputs": {
+                            key: value.strip() for key, value in params["and_inputs"].items()
+                        }
+                    }
+                    if "and_inputs" in params
+                    else {}
+                ),
                 ("prokaryotic_and" if is_prok_and else "and_gate"): and_settings.to_dict(),
             }
             if is_and
@@ -454,8 +470,10 @@ def _validate_and_run(
     """The submission rules of a two-input AND run (raises ``ValueError`` naming the field).
 
     One gate with ``arity`` inputs: ``max_circuit_gates`` stays 1 and ``max_triggers`` must say
-    how many inputs the gate takes. The two input genes are picked from a differential-expression
-    table, so no other input mode can name them. Returns the validated ``AndGateSettings``.
+    how many inputs the gate takes. Inputs come from a differential-expression table.
+    Eukaryotic AND requires two selected genes; bacterial AND can use the selected
+    upstream pool or an optional restriction to two different genes. Returns the
+    validated family-specific settings.
     """
     from engine.domain import AndGateSettings, ProkaryoticAndSettings
     from engine.pipeline import _and_gene_pair
@@ -479,9 +497,11 @@ def _validate_and_run(
         genes = _and_gene_pair(params)
     except EngineError as exc:
         raise ValueError(str(exc)) from exc
-    if genes is None:
+    if genes is None and not prokaryotic:
         raise ValueError("Name the two input genes: params.and_inputs.gene_a and gene_b.")
     if prokaryotic:
+        if genes is not None and genes[0] == genes[1]:
+            raise ValueError("The bacterial AND gate requires two different input genes.")
         if "and_gate" in params:
             raise ValueError("params.and_gate is eukaryotic; use params.prokaryotic_and.")
         return ProkaryoticAndSettings.from_mapping(params.get("prokaryotic_and"))
@@ -588,7 +608,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.14.0-prokaryotic-and-equilibrium"
+    ENGINE_VERSION = "local-0.15.0-prokaryotic-and-equilibrium"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

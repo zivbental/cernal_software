@@ -155,6 +155,7 @@ class SwitchDesigner:
         on_progress: Callable[[int, int], bool],
         on_attempt: Callable[[GateDesign, ValidationResult], None],
         on_incompatible: Callable[[str], None],
+        should_stop: Callable[[], bool] | None = None,
     ) -> Iterator[GateDesign]:
         """Interleave explicitly compatible pairs, bounding invalid attempts too.
 
@@ -178,6 +179,8 @@ class SwitchDesigner:
         while streams and attempted < max_attempts:
             active = []
             for stream in streams:
+                if should_stop is not None and should_stop():
+                    return
                 if attempted >= max_attempts:
                     return
                 if not on_progress(attempted, max_attempts):

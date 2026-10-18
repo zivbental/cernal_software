@@ -15,6 +15,26 @@ TABLE = "gene_id,log2fc,padj\nb3447,3.4,0.0001\nb3846,2.6,0.0004\n"
 FAMILY = "prokaryotic_toehold_and"
 
 
+def test_and_search_budget_uses_deployed_limits_without_changing_other_families(settings):
+    from apps.analyses.services import queued_and_budget
+
+    settings.Q_CLUSTER = {"timeout": 120}
+    settings.RUN_EXECUTION_TIMEOUT = 150
+    assert queued_and_budget({}, [FAMILY])["budget"] == {
+        "max_runtime_seconds": 108,
+        "on_exceed": "return_partial",
+    }
+    assert (
+        queued_and_budget({"budget": {"max_runtime_seconds": 20}}, [FAMILY])["budget"][
+            "max_runtime_seconds"
+        ]
+        == 20
+    )
+    with pytest.raises(ValueError, match="at most 108 seconds"):
+        queued_and_budget({"budget": {"max_runtime_seconds": 121}}, [FAMILY])
+    assert queued_and_budget({}, ["eukaryotic_toehold_and"]) == {}
+
+
 @pytest.mark.parametrize("endpoint", ["runs", "design"])
 def test_misspelled_bacterial_setting_is_rejected_by_name(
     auth_client, csv_upload, media_root, endpoint
@@ -63,7 +83,6 @@ def test_bacterial_dry_run_echoes_effective_search_without_creating_a_run(auth_c
                 "prokaryotic_and": {
                     "max_pairs": 2,
                     "pair_selection": "percentile_sample",
-                    "full_context_finalists": 1,
                 },
                 "seed": 11,
             }
@@ -75,7 +94,9 @@ def test_bacterial_dry_run_echoes_effective_search_without_creating_a_run(auth_c
     assert resolved["and_inputs"] == {"gene_a": "b3447", "gene_b": "b3846"}
     assert resolved["prokaryotic_and"]["max_pairs"] == 2
     assert resolved["prokaryotic_and"]["pair_selection"] == "percentile_sample"
-    assert resolved["prokaryotic_and"]["full_context_finalists"] == 1
+    assert "full_context_finalists" not in resolved["prokaryotic_and"]
+    assert resolved["budget"]["max_runtime_seconds"] > 0
+    assert resolved["budget"]["on_exceed"] == "return_partial"
     assert "n_samples" not in resolved["prokaryotic_and"]
     assert AnalysisRun.objects.count() == 0
 
@@ -159,7 +180,6 @@ def test_bacterial_task_persists_the_actual_bounded_search_and_exports(
                             "stems_per_pair": 1,
                             "max_stem_assignments": 243,
                             "max_attempts": 20,
-                            "full_context_finalists": 1,
                         },
                         "budget": {"max_designs": 1},
                         "payload": {"outputs": ["other"], "custom_sequence": "ATGGCTGCTTAA"},
@@ -194,8 +214,11 @@ def test_bacterial_task_persists_the_actual_bounded_search_and_exports(
     assert evidence["settings"] == run.params_snapshot["prokaryotic_and"]
     assert evidence["search"]["evaluated_gate_designs"] <= 1
     assert evidence["search"]["attempted_designs"] <= 20
-    assert evidence["full_context"]["evaluated"] <= 1
-    assert evidence["full_context"]["finalist_budget"] == 1
+    assert evidence["folding_context"] == "switch_through_linker_excluding_output"
+    assert (
+        evidence["search"]["runtime_limit_seconds"]
+        == run.params_snapshot["budget"]["max_runtime_seconds"]
+    )
 
     search_artifact = run.artifacts.get(kind="search_provenance")
     with search_artifact.file.open("rb") as stream:
@@ -231,28 +254,17 @@ def test_bacterial_task_persists_the_actual_bounded_search_and_exports(
         info = detail["design"]["and_gate"]
         assert info["method"] == "prokaryotic_equilibrium"
         assert info["barrier_computed"] is False
-        assert info["full_context_status"] in {"evaluated", "screen_failed", "not_evaluated_budget"}
-        if info["full_context_status"] == "evaluated":
-            assert (
-                info["evaluation_context"]
-                == "full_switch_plus_payload_cds_no_promoter_or_terminator"
-            )
-            assert info["screening"]["method"] == "prokaryotic_equilibrium"
-        else:
-            assert (
-                info["payload_head_nt"]
-                <= run.params_snapshot["prokaryotic_and"]["payload_context_nt"]
-            )
-            assert saved["is_rejected"] and saved["rank"] is None
+        assert info["evaluation_context"] == "switch_through_linker_excluding_output"
+        assert info["payload_head_nt"] == 0
+        assert info["evaluated_nt"] >= 161
         if saved["rank"] is not None:
-            assert info["full_context_status"] == "evaluated"
             assert info["feasibility"]["passed"] == info["feasibility"]["total"]
         assert set(info["states"]) == {"00", "10", "01", "11"}
         assert detail["design"]["switch_sequence"] == ""
         assert detail["design"]["sequence_release"]["release_allowed"] is False
         row = next(row for row in csv_rows if row["candidate"] == saved["engine_ref"])
         assert row["and_method"] == info["method"]
-        assert row["and_full_context_status"] == info["full_context_status"]
+        assert row["and_full_context_status"] == ""
         assert row["and_evaluation_context"] == info["evaluation_context"]
         assert int(row["and_evaluated_nt"]) == info["evaluated_nt"]
         assert row["and_sampler_checks_failed"] == ""

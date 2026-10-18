@@ -1013,7 +1013,7 @@ class ToeholdAndGate(ToeholdGate):
     #: include the assembled payload context, and production can request equilibrium-only
     #: measurement and an explicit bounded secondary-arm search. Research defaults retain
     #: the full arm enumeration, upper3 grid and barrier measurement.
-    version = "0.9.0"
+    version = "0.10.0-accessible-region-and"
     kind = GateKind.TOEHOLD_AND
     label = "AND Toehold"
     description = "Two-input translational AND"
@@ -1033,6 +1033,7 @@ class ToeholdAndGate(ToeholdGate):
         upper3_levels: tuple[str, ...] | None = None,
         max_secondary_assignments: int | None = None,
         seed: int = 0,
+        should_stop: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(
             host, folder, translation, codons, kozak_layouts=kozak_layouts, payload=payload
@@ -1062,6 +1063,7 @@ class ToeholdAndGate(ToeholdGate):
         self.upper3_levels = upper3_levels
         self.max_secondary_assignments = max_secondary_assignments
         self.seed = seed
+        self.should_stop = should_stop
         self._diagnostics: dict[str, dict] = {}
         self.last_pair_search: dict = {}
 
@@ -1198,6 +1200,8 @@ class ToeholdAndGate(ToeholdGate):
         *,
         max_matches: int | None,
         on_progress: Callable[[int, int], bool] | None,
+        regions_a: tuple[tuple[int, int], ...] | None = None,
+        regions_b: tuple[tuple[int, int], ...] | None = None,
     ) -> list[tuple[int, int, int]]:
         """Extend matching seeds, bounding work before growing the overlap set.
 
@@ -1227,16 +1231,34 @@ class ToeholdAndGate(ToeholdGate):
                 raise JobCancelled("Finding compatible trigger pairs")
 
         checkpoint()
-        index: dict[str, list[int]] = {}
-        for j in range(n_b - k + 1):
+
+        def positions(length, regions):
+            # Merge overlapping/adjacent accessible regions; never bridge a gap.
+            merged = []
+            for start, end in sorted(regions if regions is not None else ((0, length),)):
+                if not 0 <= start < end <= length:
+                    raise ValueError("Accessible region lies outside its transcript.")
+                if merged and start <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+                else:
+                    merged.append((start, end))
+            for start, end in merged:
+                for position in range(start, end - k + 1):
+                    yield position, start, end
+
+        index: dict[str, list[tuple[int, int, int]]] = {}
+        for j, lo_b, hi_b in positions(n_b, regions_b):
             if j % 128 == 0:
                 checkpoint()
-            index.setdefault(rna_b[j : j + k], []).append(j)
+            index.setdefault(rna_b[j : j + k], []).append((j, lo_b, hi_b))
         seen: set[tuple[int, int, int]] = set()
-        for i in range(n_a - k + 1):
+        for i, lo_a, hi_a in positions(n_a, regions_a):
+            if self.should_stop is not None and self.should_stop():
+                truncated = True
+                break
             if i % 128 == 0:
                 checkpoint()
-            for j in index.get(sq.reverse_complement(rna_a[i : i + k]), ()):
+            for j, lo_b, hi_b in index.get(sq.reverse_complement(rna_a[i : i + k]), ()):
                 if max_matches is not None and considered >= max_matches:
                     truncated = True
                     break
@@ -1246,16 +1268,16 @@ class ToeholdAndGate(ToeholdGate):
                 start_x, start_xs, length = i, j, k
                 while (
                     length < self.SECONDARY_INVASION_LEN
-                    and start_x + length < n_a
-                    and start_xs > 0
+                    and start_x + length < hi_a
+                    and start_xs > lo_b
                     and rna_b[start_xs - 1] == sq.reverse_complement(rna_a[start_x + length])
                 ):
                     start_xs -= 1
                     length += 1
                 while (
                     length < self.SECONDARY_INVASION_LEN
-                    and start_x > 0
-                    and start_xs + length < n_b
+                    and start_x > lo_a
+                    and start_xs + length < hi_b
                     and rna_b[start_xs + length] == sq.reverse_complement(rna_a[start_x - 1])
                 ):
                     start_x -= 1
@@ -1281,6 +1303,8 @@ class ToeholdAndGate(ToeholdGate):
         *,
         max_matches: int | None = None,
         on_progress: Callable[[int, int], bool] | None = None,
+        regions_a: tuple[tuple[int, int], ...] | None = None,
+        regions_b: tuple[tuple[int, int], ...] | None = None,
     ) -> Iterator["_CrossGenePair"]:
         """Every maximal reverse-complementary run shared by two transcripts, both roles.
 
@@ -1301,6 +1325,9 @@ class ToeholdAndGate(ToeholdGate):
             max_matches: Optional cap on matching seeds considered before extension and
                 deduplication. The searched prefix is recorded in ``last_pair_search``.
             on_progress: Optional cancellation checkpoint during indexing and seed scans.
+            regions_a, regions_b: Optional upstream accessible intervals, 0-based and
+                half-open. Seeds and run extension stay inside their union. Derived
+                full trigger footprints may extend beyond a region, within the transcript.
 
         Yields:
             Two records per run -- one per role assignment, the second from ``swapped()``.
@@ -1323,7 +1350,16 @@ class ToeholdAndGate(ToeholdGate):
         """
         rna_a, rna_b = sq.to_rna(transcript_a), sq.to_rna(transcript_b)
         n_a, n_b = len(rna_a), len(rna_b)
-        runs = self._overlap_runs(rna_a, rna_b, max_matches=max_matches, on_progress=on_progress)
+        if gene_a == gene_b:
+            raise ValueError("Cross-gene AND discovery requires two different genes.")
+        runs = self._overlap_runs(
+            rna_a,
+            rna_b,
+            max_matches=max_matches,
+            on_progress=on_progress,
+            regions_a=regions_a,
+            regions_b=regions_b,
+        )
         for start_x, start_xs, length in runs:
             pair = _CrossGenePair(
                 gene_a=gene_a,
@@ -2847,9 +2883,10 @@ class ToeholdAndGate(ToeholdGate):
                 injected seed; full enumeration does not use randomness.
 
         Returns:
-            The non-dominated stems, in enumeration order. Empty if no assignment satisfies
-            R6 — a real outcome for a pair whose extension fights its partner everywhere,
-            and the caller's signal to move on rather than to relax the rule.
+            The non-dominated stems among the evaluated assignments. Empty if none
+            survives the construction checks. With a sampled assignment budget, this
+            does not prove that unsearched assignments cannot work. A time stop also
+            returns no stems; the run records that its time budget was exhausted.
         """
         cap = self.SECONDARY_CAP
         if self.SECONDARY_INVASION_LEN + len(cap) != self.SECONDARY_ARM_LEN:
@@ -2889,6 +2926,9 @@ class ToeholdAndGate(ToeholdGate):
         stems: list[_SecondaryStem] = []
         objectives: list[tuple[float, float, float]] = []
         for combination in assignments:
+            if self.should_stop is not None and self.should_stop():
+                # Do not mislabel a time-truncated assignment set as exhaustive.
+                return []
             states = dict(zip(conflicts, combination, strict=True))
             k2_star, secondary_z = _build_arms(ext, k2, states)
             if not _invasion_runs_ok(ext, k2, k2_star, self.MAX_INVASION_STALL):
@@ -4046,7 +4086,7 @@ class ToeholdAndGate(ToeholdGate):
     def _overlap_lengths(
         self, trigger_a: str, trigger_b: str, constraints: Constraints | None = None
     ) -> tuple[int, ...]:
-        """Overlap lengths at which these two triggers actually share a duplex, longest first.
+        """The one maximal compatible overlap of these triggers, or an empty tuple.
 
         **The overlap has to be re-derived here, and this is the only place it can be.**
         ``find_trigger_pairs`` discovers it while scanning ONE transcript and reports it as
@@ -4179,8 +4219,8 @@ class ToeholdAndGate(ToeholdGate):
         )
         assembled = {}
         for stem_index, stem, (closure, upper3, lower3) in jobs:
-            if stem.scheme not in ("B-anchored", "mixed"):
-                continue
+            if self.should_stop is not None and self.should_stop():
+                return
             if stem_index not in assembled:
                 assembled[stem_index] = self.assemble(trigger_a, trigger_b, len_x, stem)
             base = assembled[stem_index]
@@ -5052,7 +5092,7 @@ class TrimmedToeholdAndGate(ProkaryoticToeholdAndGate):
     ``vista_metrics`` derives its spans from a real assembly rather than listing them.
     """
 
-    version = "trimmed-toehold-3"
+    version = "trimmed-toehold-4"
     TOEHOLD_TRIM: ClassVar[int] = 8
 
 
@@ -5079,7 +5119,7 @@ class KimSecondaryArmToeholdAndGate(ProkaryoticToeholdAndGate):
     ``vista_metrics`` verifies its own against a real assembly instead of trusting them.
     """
 
-    version = "kim-secondary-3"
+    version = "kim-secondary-4"
 
     SECONDARY_ARM_LEN: ClassVar[int] = 20
     SECONDARY_INVASION_LEN: ClassVar[int] = 17

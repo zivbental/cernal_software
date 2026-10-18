@@ -69,8 +69,6 @@ PROKARYOTIC_AND_KEYS = {
     "closure_set",
     "upper3_set",
     "on_ceiling",
-    "payload_context_nt",
-    "full_context_finalists",
 }
 
 

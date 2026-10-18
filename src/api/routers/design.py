@@ -43,7 +43,13 @@ from api.schemas import (
 from api.security import TooManyActiveRuns, require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
-from apps.analyses.services import RunError, RunQuotaExceeded, SubmissionConflict, submit_run
+from apps.analyses.services import (
+    RunError,
+    RunQuotaExceeded,
+    SubmissionConflict,
+    queued_and_budget,
+    submit_run,
+)
 from apps.analyses.worker import worker_available
 from apps.datasets.models import Dataset
 from apps.datasets.services import (
@@ -258,6 +264,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         elif input_mode == InputMode.GENE:
             reference = lookup_reference_gene(body.organism, body.gene_id)
             sequence = reference["sequence"]
+        params = queued_and_budget(params, gate_families)
         params = validate_job_configuration(
             params,
             gate_families,
