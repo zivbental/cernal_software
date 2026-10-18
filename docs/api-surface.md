@@ -3670,7 +3670,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.15.1-prokaryotic-and-equilibrium-strong-lock-row'` |
+| `ENGINE_VERSION` |  | `'local-0.15.1-prokaryotic-and-equilibrium'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |

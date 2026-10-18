@@ -19,6 +19,11 @@ Full Ruff lint/format, Django system/migration checks, frontend contracts/build,
 generated API reference and the 18-quantity Wiki consistency check passed on the
 combined source. Combined AND/API/screening regressions and fresh GitHub CI are
 reported in [PR #84](https://github.com/zivbental/cernal_software/pull/84).
+The full Linux run exposed one API compatibility issue: the descriptive engine
+version exceeded the existing 50-character stored/API field. The identifier is
+now `local-0.15.1-prokaryotic-and-equilibrium`; gate-family and selection metadata
+still identify the strong-lock policy. The API/model limit was preserved, and
+both end-to-end workflow tests passed locally after the correction (21.07 s).
 The native 20-design run below predates this merge and remains the current
 search-yield evidence; it was not relabeled as a new merged-branch experiment.
 
