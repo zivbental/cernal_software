@@ -1,9 +1,11 @@
 /** Keep the shared SPA artifact far below the coordinator's rejected data archive. */
 import assert from 'node:assert/strict';
-import { readdir, stat } from 'node:fs/promises';
+import { lstat, readdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '../src/static/app');
+const rootInfo = await lstat(root);
+assert(rootInfo.isDirectory() && !rootInfo.isSymbolicLink(), 'Artifact root must be a real directory');
 assert((await stat(resolve(root, 'index.html'))).isFile(), 'Missing built SPA');
 let bytes = 0;
 let files = 0;
