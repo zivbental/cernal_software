@@ -53,10 +53,11 @@ function DashboardPage() {
               key={run.id}
               to="/runs/$runId"
               params={{ runId: run.id }}
-              className="flex items-center gap-4 border-b border-border bg-card px-5 py-3 last:border-b-0 hover:bg-surface"
+              className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-3 last:border-b-0 hover:bg-surface"
             >
-              <span className="font-mono text-xs text-muted-foreground">
-                {run.id.slice(0, 8)}
+              <span className="min-w-0 basis-full break-words text-sm font-medium sm:basis-64" title={run.name || `Run ${run.id.slice(0, 8)}`}>
+                {run.name || `Run ${run.id.slice(0, 8)}`}
+                {run.name && <span className="ml-2 font-mono text-xs text-muted-foreground">{run.id.slice(0, 8)}</span>}
               </span>
               <RunStatusBadge status={run.status} />
               <span className="flex-1 truncate text-sm text-foreground">

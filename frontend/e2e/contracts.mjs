@@ -84,6 +84,7 @@ await page.route('**/api/**', async route=>{
 try {
  await page.goto(origin+'/compile');
  await page.getByRole('heading',{name:'Biological Compiler'}).waitFor();
+ await page.getByLabel('Run name (optional)').fill('  GFP response — submission 1  ');
  await page.getByRole('button',{name:'Direct Trigger mRNA'}).click();
  const sequence=page.getByRole('textbox',{name:'Trigger sequence'});
  await sequence.fill('>ACTG header\nACGUNNNNACGU');
@@ -99,6 +100,7 @@ try {
  await page.getByRole('alert').filter({hasText:'Failed to fetch'}).waitFor();
  assert.equal(await sequence.inputValue(),'>record\nAACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA');
  assert.deepEqual(submissions.at(-1).params.budget,{max_designs:20});
+ assert.equal(submissions.at(-1).name,'GFP response — submission 1');
  assert.equal(submissions.at(-1).params.top_n,25);
  await page.getByRole('button',{name:'Advanced Options',exact:true}).click();
  const maxDesigns=page.getByLabel('Evaluation budget (validated gate designs)',{exact:true});
@@ -175,6 +177,7 @@ try {
  await page.getByText('UNIQUE_CANDIDATE_WARNING').waitFor();
  await page.getByText('Sequence withheld pending release approval.',{exact:false}).waitFor();
  assert.equal(await page.getByText('ACGU',{exact:true}).count(),0);
+ await page.getByText('Choose files and review release information',{exact:true}).click();
  await page.getByText('Some artifacts are withheld pending sequence release approval.',{exact:false}).waitFor();
  assert.equal(await page.getByText('Download everything (.zip)',{exact:true}).getAttribute('href'),null);
  await page.getByRole('button',{name:/Gate & switch sequences/}).click();

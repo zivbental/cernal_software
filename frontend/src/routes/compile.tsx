@@ -52,6 +52,7 @@ function CompilePage() {
   const submit = useSubmitRun();
 
   const [config, setConfig] = useState<CompileConfig>(DEFAULT_CONFIG);
+  const [name, setName] = useState("");
   const [idempotencyKey] = useState(newIdempotencyKey);
   const patch = (p: Partial<CompileConfig>) => setConfig((c) => {
     const next = { ...c, ...p };
@@ -198,6 +199,7 @@ function CompilePage() {
 
     try {
     const run = await submit.mutateAsync({
+      name: name.trim(),
       input_mode: submittedInputMode,
       dataset_id: submittedInputMode === "de" ? config.datasetId : null,
       trigger_sequence: submittedInputMode === "direct" ? parseSequence(config.triggerSequence).sequence : "",
@@ -233,6 +235,13 @@ function CompilePage() {
       </div>
 
       <div className="space-y-6">
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <label htmlFor="run-name" className="block text-sm font-medium">Run name (optional)</label>
+          <input id="run-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={120}
+            aria-describedby="run-name-help" placeholder="e.g. GFP response — trial 1"
+            className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm" />
+          <p id="run-name-help" className="mt-2 text-xs text-muted-foreground">Up to 120 characters. You can rename this run later; its configuration stays frozen.</p>
+        </div>
         <StepInputs
           config={config}
           patch={patch}

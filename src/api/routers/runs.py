@@ -17,7 +17,7 @@ from api.params import (
     check_known_keys,
     check_scoring_block,
 )
-from api.schemas import CancelOut, RunCounts, RunIn, RunOut, RunStatusOut
+from api.schemas import CancelOut, RunCounts, RunIn, RunNameIn, RunOut, RunStatusOut
 from api.security import TooManyActiveRuns, require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
@@ -26,6 +26,7 @@ from apps.analyses.services import (
     RunQuotaExceeded,
     SubmissionConflict,
     cancel_run,
+    normalize_run_name,
     submit_run,
 )
 from apps.analyses.worker import worker_available
@@ -97,6 +98,7 @@ def create_run(request, payload: RunIn):
             params = {**params, "target_gene": {"gene_id": payload.gene_id}}
         run, _created = submit_run(
             user=request.user,
+            name=payload.name,
             dataset=dataset,
             input_mode=payload.input_mode,
             trigger_sequence=payload.trigger_sequence,
@@ -127,6 +129,7 @@ def get_run_status(request, run_id: UUID):
 
     return RunStatusOut(
         id=run.id,
+        name=run.name,
         status=run.status,
         stage=run.stage,
         progress_pct=run.progress_pct,
@@ -147,6 +150,19 @@ def get_run_status(request, run_id: UUID):
 def get_run(request, run_id: UUID):
     """The full run record, including its immutable configuration snapshot."""
     return get_owned(AnalysisRun, run_id, request.user)
+
+
+@router.patch("/runs/{run_id}", response=RunOut)
+def rename_run(request, run_id: UUID, payload: RunNameIn):
+    """Edit display metadata without changing the frozen submission or lifecycle."""
+    require_scope(request, ApiKeyScope.DESIGN)
+    run = get_owned(AnalysisRun, run_id, request.user)
+    try:
+        run.name = normalize_run_name(payload.name)
+    except RunError as exc:
+        raise ValidationFailed(str(exc)) from None
+    run.save(update_fields=["name", "updated_at"])
+    return run
 
 
 @router.post("/runs/{run_id}/cancel", response=CancelOut)

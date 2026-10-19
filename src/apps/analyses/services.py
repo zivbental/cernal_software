@@ -73,10 +73,20 @@ class _ImportCancelled(RunError):
 # --- Submission -------------------------------------------------------------------
 
 
+def normalize_run_name(name: str) -> str:
+    """Names are editable display metadata, never engine inputs or file paths."""
+    if not isinstance(name, str) or len(name) > 120:
+        raise RunError("Run name must contain at most 120 characters.")
+    if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in name):
+        raise RunError("Run name must not contain control characters.")
+    return name.strip()
+
+
 @transaction.atomic
 def submit_run(
     *,
     user,
+    name: str = "",
     dataset=None,
     input_mode: str = InputMode.DE,
     trigger_sequence: str = "",
@@ -94,6 +104,7 @@ def submit_run(
     returned for a repeated idempotency key — a retried submission must never launch a
     second expensive computation.
     """
+    name = normalize_run_name(name)
     trigger_sequence = _clean_trigger(trigger_sequence) if input_mode == InputMode.DIRECT else ""
 
     if input_mode == InputMode.DE:
@@ -157,6 +168,7 @@ def submit_run(
     users.select_for_update().get(pk=user.pk)
     existing = AnalysisRun.objects.filter(created_by=user, idempotency_key=key).first()
     if existing is not None:
+        # Display names are mutable metadata. A retry must not overwrite a later rename.
         existing_checksum = existing.dataset.checksum_sha256 if existing.dataset_id else None
         incoming_checksum = dataset.checksum_sha256 if dataset else None
         identity = (
@@ -197,6 +209,7 @@ def submit_run(
         )
 
     run = AnalysisRun.objects.create(
+        name=name,
         input_mode=input_mode,
         dataset=dataset,
         trigger_sequence=trigger_sequence,

@@ -216,9 +216,17 @@ Each run stands on its own — there is no project to organize it under.
 | `POST /api/runs` | **202 Accepted** |
 | `GET /api/runs/{id}` | **The polling endpoint** |
 | `GET /api/runs/{id}/detail` | Full record incl. the immutable snapshot |
+| `PATCH /api/runs/{id}` | Rename with `{"name": "GFP trial 1"}`; owner/staff and design scope required |
 | `POST /api/runs/{id}/cancel` | |
 
 ### Submitting
+
+`POST /api/runs` accepts an optional `name` (default empty). Names are trimmed,
+limited to 120 characters, and reject control characters. The list, detail and
+polling responses include `name`. An empty name uses the run ID in the dashboard.
+`PATCH /api/runs/{id}` edits only the name, in any lifecycle state; it cannot change
+the frozen inputs or release authorization. Submission retries return the existing
+run and preserve any later rename.
 
 ```json
 {
