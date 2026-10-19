@@ -65,6 +65,7 @@ from engine import sequences as sq
 from engine.artifacts import sha256_bytes, write_artifact
 from engine.common_mechanism import configured_final_screens
 from engine.contract import (
+    FAILED,
     HIGHER_BETTER,
     INPUT_DE,
     INPUT_DIRECT,
@@ -99,7 +100,7 @@ from engine.domain import (
     SelectedGene,
     TriggerCandidate,
 )
-from engine.errors import ChecksumMismatchError, InputValidationError, JobCancelled
+from engine.errors import ChecksumMismatchError, EngineError, InputValidationError, JobCancelled
 from engine.gates.base import GateFamily
 from engine.gates.registry import get_family
 from engine.gates.toehold import EukaryoticToeholdAndGate
@@ -625,18 +626,25 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         switch_progress[0] = 32 + 44 * completed // max(total, 1)
         return on_progress(switch_progress[0], "Designing switches")
 
+    validation_counts = Counter()
+
+    def record_validation(valid: bool) -> None:
+        validation_counts["generated"] += 1
+        validation_counts["valid" if valid else "invalid"] += 1
+
     designs = designer.design(
         trigger_candidates,
         constraints,
         on_incompatible=_on_incompatible,
         on_invalid=_on_invalid,
         on_progress=report_switch_progress,
+        on_validated=record_validation,
     )
     max_designs = (request.params.get("budget") or {}).get("max_designs", 20)
     design_budget_exhausted = False
     evaluated_gate_designs = 0
     for index, design in enumerate(designs):
-        if index >= max_designs:
+        if max_designs is not None and index >= max_designs:
             design_budget_exhausted = True
             warnings.append(
                 f"Design compute budget reached: {max_designs} validated gate designs "
@@ -664,7 +672,36 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                 design,
                 architecture={**design.architecture, "evaluation_sequence": sq.to_rna(transcript)},
             )
-            raw = family.evaluate_design(evaluated_design)
+            try:
+                raw = family.evaluate_design(evaluated_design)
+            except JobCancelled:
+                raise
+            except EngineError as exc:
+                return JobResult(
+                    schema_version=SCHEMA_VERSION,
+                    engine_version="",
+                    status=FAILED,
+                    error=f"Evaluation incomplete; no complete ranking was produced: {exc}",
+                    params=request.params,
+                    input_checksum=request.input_checksum,
+                    warnings=[
+                        f"Incomplete evaluation: {validation_counts['generated']} generated gates, "
+                        f"{validation_counts['invalid']} invalid gates, {len(scored)} evaluated "
+                        "candidates, 1 failed evaluation. Remaining pool size is unknown."
+                    ],
+                    scientific_provenance={
+                        "scoring_profile": profile.name,
+                        "scoring_profile_version": profile.version,
+                        "evaluation": {
+                            "complete": False,
+                            "generated_gate_designs": validation_counts["generated"],
+                            "invalid_gate_designs": validation_counts["invalid"],
+                            "valid_gate_designs": validation_counts["valid"],
+                            "evaluated_candidates": len(scored),
+                            "failed_evaluations": 1,
+                        },
+                    },
+                )
             metrics = build_metrics(raw, profile)
             breach = failed_filter(raw, profile)
             # Optional hook: a family with nothing beyond its scored metrics need not define it
@@ -797,6 +834,14 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             "experimental_validation": "unavailable",
             "output_semantics": "alternative_single_payload_constructs_cross_product",
             "off_target_screen": "unmeasured",
+            "evaluation": {
+                "complete": not design_budget_exhausted,
+                "generated_gate_designs": validation_counts["generated"],
+                "invalid_gate_designs": validation_counts["invalid"],
+                "valid_gate_designs": validation_counts["valid"],
+                "evaluated_candidates": len(scored),
+                "failed_evaluations": 0,
+            },
             "design_budget": {
                 "max_designs": max_designs,
                 "evaluated_gate_designs": evaluated_gate_designs,

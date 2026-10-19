@@ -342,3 +342,18 @@ def test_resolve_profile_with_overrides_derives():
 def test_resolve_profile_unknown_base_still_raises():
     with pytest.raises(ScoringProfileError, match="Available profiles"):
         resolve_profile("nope", {"weights": {"gc_content": 1.0}})
+
+
+def test_ranking_profile_preserves_scores_without_quality_rejection():
+    from engine.scoring.profiles import RANKING_V1, get_profile
+
+    profile = get_profile("ranking")
+    assert profile.label == "ranking-v1"
+    assert profile.metrics == DEFAULT_V1.metrics
+    assert profile.tie_breakers == DEFAULT_V1.tie_breakers
+    raw = {"predicted_leakage": 0.95, "state_separation": 0.1, "gate_folding_energy": -5.0}
+    assert failed_filter(raw, DEFAULT_V1) is not None
+    assert failed_filter(raw, RANKING_V1) is None
+    metrics = build_metrics(raw, profile)
+    assert weighted_score(metrics, profile) == weighted_score(metrics, DEFAULT_V1)
+    assert weighted_score(metrics, profile) is not None

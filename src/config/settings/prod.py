@@ -4,8 +4,10 @@ Required secrets are read from the environment and raise at import time if missi
 A silently-insecure production default is not acceptable (docs/architecture.md §12).
 """
 
+from config.runtime import ensure_runtime_directories
+
 from .base import *  # noqa: F403
-from .base import VAR_DIR, env
+from .base import MEDIA_ROOT, STATIC_ROOT, VAR_DIR, env
 
 DEBUG = False
 
@@ -35,6 +37,8 @@ STORAGES = {
 }
 
 # --- Logging --------------------------------------------------------------------
+ensure_runtime_directories(VAR_DIR, MEDIA_ROOT, STATIC_ROOT)
+
 LOGGING["handlers"]["file"] = {  # noqa: F405
     "class": "logging.handlers.RotatingFileHandler",
     "filename": VAR_DIR / "logs" / "cernal.log",

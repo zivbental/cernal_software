@@ -28,7 +28,7 @@ const submissions=[];
 const families=['toehold','prokaryotic_toehold','eukaryotic_toehold','toehold_and','crispr'];
 const version={app_version:'test', engine:'LocalEngine', engine_version:'test', reviewer_login_enabled:false,
  gate_families:families.map(name=>({name,label:name,description:name,available:!['toehold_and','crispr'].includes(name)})),
- supported_hosts:['ecoli','yeast','human','c_acnes'],family_hosts:{toehold:['ecoli','c_acnes'],prokaryotic_toehold:['ecoli','c_acnes'],eukaryotic_toehold:['human','yeast']},supported_outputs:['gfp','mcherry','luciferase','ampr','kanr','other'],output_hosts:{gfp:['ecoli','yeast','human','c_acnes'],mcherry:['ecoli','yeast','human','c_acnes'],luciferase:['ecoli','yeast','human','c_acnes'],other:['ecoli','yeast','human','c_acnes'],ampr:['ecoli'],kanr:['ecoli']},backbone_hosts:{psb1c3:['ecoli']},input_modes:['de','direct','gene'],limits:{},constraints:{},scoring_profiles:['default'],available_backbones:[{key:'psb1c3',name:'pSB1C3',length_bp:2070}]};
+ supported_hosts:['ecoli','yeast','human','c_acnes'],family_hosts:{toehold:['ecoli','c_acnes'],prokaryotic_toehold:['ecoli','c_acnes'],eukaryotic_toehold:['human','yeast']},supported_outputs:['gfp','mcherry','luciferase','ampr','kanr','other'],output_hosts:{gfp:['ecoli','yeast','human','c_acnes'],mcherry:['ecoli','yeast','human','c_acnes'],luciferase:['ecoli','yeast','human','c_acnes'],other:['ecoli','yeast','human','c_acnes'],ampr:['ecoli'],kanr:['ecoli']},backbone_hosts:{psb1c3:['ecoli']},input_modes:['de','direct','gene'],limits:{},constraints:{},scoring_profiles:['default','ranking'],available_backbones:[{key:'psb1c3',name:'pSB1C3',length_bp:2070}]};
 const run={id:'mock-run',status:'COMPLETED',organism:'Human',engine_version:'test',seed:42,
  params_snapshot:{payload:{outputs:['gfp','other']}},warnings:['UNIQUE_RUN_WARNING: exports held'],counts:{candidates:7907,artifacts:0}};
 const otherRun={...run,id:'other-run',params_snapshot:{top_n:10,payload:{outputs:['gfp']}}};
@@ -112,22 +112,21 @@ try {
  await page.getByRole('button',{name:'Compile & Optimize'}).click();
  await page.getByRole('alert').filter({hasText:'Failed to fetch'}).waitFor();
  assert.equal(await sequence.inputValue(),'>record\nAACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA');
- assert.deepEqual(submissions.at(-1).params.budget,{max_designs:20});
+ assert.deepEqual(submissions.at(-1).params.budget,{max_designs:null});
  assert.equal(submissions.at(-1).name,'GFP response — submission 1');
- assert.equal(submissions.at(-1).params.top_n,25);
+ assert.equal(submissions.at(-1).params.top_n,20);
  const initialSubmission=submissions.at(-1);
  assert.equal(initialSubmission.params.constraints.max_circuit_gates,1);
- assert.deepEqual(initialSubmission.params.scoring.hard_filters.map(({metric,maximum})=>({metric,maximum})),[
-   {metric:'predicted_leakage',maximum:0.08},{metric:'gate_folding_energy',maximum:-32},
- ]);
+ assert.equal(initialSubmission.scoring_profile,'ranking');
+ assert.equal(initialSubmission.params.scoring,undefined);
  assert.equal(await page.getByRole('button',{name:'Advanced Options',exact:true}).count(),0);
  for(const status of [401,403,404,422,429,500]) {
    submitStatus=status;
    await page.getByRole('button',{name:'Compile & Optimize'}).click();
    await page.getByRole('alert').filter({hasText:`Injected submission ${status}`}).waitFor();
  }
- assert.equal(submissions.at(-1).params.budget.max_designs,20);
- assert.equal(submissions.at(-1).params.top_n,25);
+ assert.equal(submissions.at(-1).params.budget.max_designs,null);
+ assert.equal(submissions.at(-1).params.top_n,20);
  for(const submission of submissions) assert.deepEqual(submission,initialSubmission,'Retries must retain input, name, fixed defaults and idempotency key');
  submitStatus=null;
  await sequence.fill('>one\nACGU\n>two\nACGU');
@@ -217,6 +216,15 @@ try {
    assert.equal(await page.getByLabel('Result view',{exact:true}).inputValue(),'all');
    assert(!queries.at(-1).has('top_n'));
  }
+ // New Circuit's top 20 is a display view; the full retained pool stays accessible.
+ run.params_snapshot.top_n=20;
+ await page.reload();
+ await page.getByText('cand-20',{exact:true}).waitFor();
+ assert.equal(await page.getByText('cand-21',{exact:true}).count(),0);
+ assert.equal(queries.at(-1).get('top_n'),'20');
+ await page.getByLabel('Result view',{exact:true}).selectOption('all');
+ await page.getByText('Page 1 of 159',{exact:true}).waitFor();
+ assert(!queries.at(-1).has('top_n'));
  // A configured display cap is global, even with server-side filters and sorting.
  run.params_snapshot.top_n=75;
  let releaseDetail;

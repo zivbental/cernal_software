@@ -42,20 +42,11 @@ export interface CompileConfig {
   customPayload: string;
   optimizePayloadCodons: boolean;
   /**
-   * Configured defaults for a per-run override of the scoring profile's hard filters
-   * (engine.scoring.profiles X7) — routes/compile.tsx's onSubmit turns these into
-   * params.scoring.hard_filters. Not search constraints (those are
-   * engine.domain.Constraints, a different concept the wizard does not expose today).
-   */
-  maxLeakage: number;
-  minGateStability: number;
-  /**
    * `engine.domain.Constraints.max_circuit_gates` — how many gates one circuit may
    * combine. Kept at the configured single-gate limit in this wizard.
    */
   maxCircuitGates: number;
   /** Preserve the configured defaults and submission validation without UI controls. */
-  maxDesigns: string;
   topN: string;
   /**
    * The plasmid vector to assemble onto (docs/plasmids.md Q13) — a catalog key from
@@ -84,12 +75,9 @@ export const DEFAULT_CONFIG: CompileConfig = {
   outputs: ["gfp"],
   customPayload: "",
   optimizePayloadCodons: false,
-  maxLeakage: 0.08,
-  minGateStability: -32,
   // Physical multi-gate constructs require reviewed integration; production uses one gate.
   maxCircuitGates: 1,
-  maxDesigns: "20",
-  topN: "25",
+  topN: "20",
   // A real backbone by default, not "none" — the whole point of this feature is a
   // researcher who just clicks through getting an orderable plasmid, not a bare
   // four-segment construct (docs/plasmids.md §13 note on this being a deliberate

@@ -382,3 +382,18 @@ def test_closure_set_is_withheld_from_public_api(auth_client, dataset, value):
     )
     assert response.status_code == 422
     assert "closure_set" in response.content.decode()
+
+
+def test_ranking_only_submission_records_profile_and_display_limit(auth_client, dataset):
+    response = _submit(
+        auth_client,
+        dataset_id=dataset.id,
+        scoring_profile="ranking",
+        params={"top_n": 20, "budget": {"max_designs": None}},
+    )
+    assert response.status_code == 202, response.content
+    run = AnalysisRun.objects.get(pk=response.json()["id"])
+    assert run.params_snapshot["budget"]["max_designs"] is None
+    assert run.scoring_profile == "ranking"
+    assert run.params_snapshot["top_n"] == 20
+    assert not run.params_snapshot.get("scoring", {}).get("hard_filters")

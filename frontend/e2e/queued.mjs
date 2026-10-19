@@ -55,24 +55,21 @@ try {
  const response=await submitted;
  assert.equal(response.status(),202,await response.text());
  const run=await response.json();
- assert.deepEqual(run.params_snapshot.budget,{max_designs:20});
- assert.equal(run.params_snapshot.top_n,25);
+ assert.deepEqual(run.params_snapshot.budget,{max_designs:null});
+ assert.equal(run.params_snapshot.top_n,20);
  assert.equal(run.params_snapshot.constraints.max_circuit_gates,1);
- assert.deepEqual(run.params_snapshot.scoring.hard_filters.map(({metric,maximum})=>({metric,maximum})),[
-  {metric:'predicted_leakage',maximum:0.08},{metric:'gate_folding_energy',maximum:-32},
- ]);
+ assert.equal(response.request().postDataJSON().scoring_profile,'ranking');
+ assert.equal(run.params_snapshot.scoring,undefined);
  assert(['QUEUED','RUNNING'].includes(run.status),`Must genuinely enqueue, got ${run.status}`);
  await page.waitForURL('**/runs/*');
  await page.getByRole('heading',{name:'Computational Design Results'}).waitFor({timeout:180000});
  const state=await page.request.get(origin+`/api/runs/${run.id}`);
  const terminal=await state.json();
  assert.equal(terminal.status,'COMPLETED');
+ const candidates=await (await page.request.get(origin+`/api/runs/${run.id}/candidates?top_n=20`)).json();
+ assert.equal(candidates.count,terminal.counts.candidates);
+ assert(candidates.items.every(candidate=>candidate.rank && !candidate.is_rejected));
  assert(terminal.counts.candidates>0,'The verified productive real fixture must produce candidates');
- // Keep the real configured filters: rejected candidates still count as stored results.
- // Inspect them through the existing results controls instead of weakening submission filters.
- await page.getByRole('button',{name:'Precision Filters',exact:true}).click();
- await page.getByRole('checkbox',{name:/Show rejected candidates/}).focus();
- await page.keyboard.press('Space');
  await page.getByText('Score decomposition',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);
  console.log(`Real queued browser lane passed: ${run.id}, ${terminal.counts.candidates} candidates; HTTP login/submission, database queue, separate qcluster, real LocalEngine. Release adapter remains unconfigured/held.`);

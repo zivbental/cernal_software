@@ -12,6 +12,10 @@ Start with [the documentation index](docs/README.md), [architecture](docs/archit
 and [current limitations](docs/ROADMAP.md). Signed-in help lives at `/use-cases`, `/guide`
 and `/faq`; [the maintainer map](docs/user-help.md) connects those pages to source.
 
+For production preparation, configuration, preflight and recovery, use the
+[authoritative operations runbook](docs/operations.md). `./do production --help`
+lists the preparation commands; service activation is a separate operator step.
+
 ## Current application capabilities
 
 `GET /api/version` is the installed build's capability contract. It exposes supported

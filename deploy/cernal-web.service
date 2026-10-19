@@ -4,12 +4,12 @@ After=network.target
 
 [Service]
 Type=simple
-User=cernal
-Group=cernal
-WorkingDirectory=/opt/cernal
-EnvironmentFile=/etc/cernal/cernal.env
-Environment=PYTHONPATH=/opt/cernal/src
-ExecStart=/opt/cernal/.venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 2 --timeout 120 --access-logfile - --error-logfile -
+User=@@USER@@
+Group=@@GROUP@@
+WorkingDirectory=@@ROOT@@
+EnvironmentFile=@@ENV@@
+Environment=PYTHONPATH=@@ROOT@@/src
+ExecStart=@@ROOT@@/.venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 2 --timeout 120 --access-logfile - --error-logfile -
 Restart=on-failure
 RestartSec=5
 UMask=0077
@@ -17,7 +17,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/cernal/var
+ReadWritePaths=@@VAR@@
 
 [Install]
 WantedBy=multi-user.target

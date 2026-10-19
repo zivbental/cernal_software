@@ -308,14 +308,17 @@ def validate_job_configuration(
         raise ValueError("top_n must be an integer between 1 and 1000.")
     budget = params.get("budget", {})
     if not isinstance(budget, dict) or set(budget) - {"max_designs"}:
-        raise ValueError("budget supports only max_designs (integer 1..1000).")
+        raise ValueError("budget supports only max_designs (null for all, or integer 1..1000).")
     max_designs = budget.get("max_designs", 20)
-    if (
+    if max_designs is not None and (
         isinstance(max_designs, bool)
         or not isinstance(max_designs, int)
         or not 1 <= max_designs <= 1000
     ):
-        raise ValueError("budget.max_designs must be an integer between 1 and 1000.")
+        raise ValueError(
+            "budget.max_designs must be null (all generated designs) "
+            "or an integer between 1 and 1000."
+        )
     selections = [organism, *(params[key] for key in ("host", "organism") if key in params)]
     if any(not isinstance(value, str) for value in selections):
         raise ValueError("organism/host selections must be strings.")
