@@ -555,7 +555,7 @@ class DesignEstimateOut(Schema):
     designs: int
     seconds: float | None = Field(default=None, description="Unknown until runtime calibration.")
     runtime_calibrated: bool = False
-    candidate_upper_bound: int
+    candidate_upper_bound: int | None
     confidence: str = Field(description='"rough" or "very rough" — never a guarantee.')
 
 

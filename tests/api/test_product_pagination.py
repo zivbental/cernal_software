@@ -128,3 +128,25 @@ def test_top_n_selects_global_ranks_before_filter_sort_and_pagination(auth_clien
 def test_paginated_candidates_reject_invalid_top_n(auth_client, run, value):
     response = auth_client.get(f"/api/runs/{run.id}/candidates?top_n={value}")
     assert response.status_code == 422, response.content
+
+
+@pytest.mark.parametrize("size", [7, 25])
+def test_top_twenty_is_ranked_before_truncation_and_preserves_full_pool(auth_client, run, size):
+    Candidate.objects.bulk_create(
+        [
+            Candidate(
+                run=run,
+                engine_ref=f"reverse-{size - rank:03d}",
+                rank=rank,
+                overall_score=1 - rank / 100,
+                gate_family="toehold",
+            )
+            for rank in range(size, 0, -1)
+        ]
+    )
+    url = f"/api/runs/{run.id}/candidates"
+    body = auth_client.get(f"{url}?top_n=20&limit=100").json()
+    assert [c["rank"] for c in body["items"]] == list(range(1, min(size, 20) + 1))
+    assert body["count"] == min(size, 20)
+    assert auth_client.get(f"{url}?limit=100").json()["count"] == size
+    assert Candidate.objects.filter(run=run).count() == size

@@ -1065,3 +1065,128 @@ def test_configured_folding_model_reaches_run_and_candidate_provenance(
         json.loads(json.dumps(dataclasses.asdict(result)))["scientific_provenance"]["folding_model"]
         == provenance
     )
+
+
+def test_ranking_only_retains_real_designs_that_old_wizard_thresholds_rejected(
+    direct_request, always_continue
+):
+    from engine.scoring.normalize import failed_filter
+    from engine.scoring.profiles import DEFAULT_V1, derive_profile
+
+    old_wizard = derive_profile(
+        DEFAULT_V1,
+        hard_filters=[
+            {"metric": "predicted_leakage", "maximum": 0.08, "reason": "Old wizard leakage"},
+            {"metric": "gate_folding_energy", "maximum": -32, "reason": "Old wizard MFE"},
+        ],
+    )
+    result = LocalEngine().run(direct_request(scoring_profile="ranking"), always_continue)
+    assert result.status == SUCCEEDED, result.error
+    assert result.candidates
+    formerly_rejected = [
+        c
+        for c in result.candidates
+        if failed_filter({m.name: m.raw_value for m in c.metrics}, old_wizard)
+    ]
+    assert formerly_rejected, "Fixture must exercise the removed quality thresholds"
+    assert all(
+        not c.is_rejected and c.rank and c.overall_score is not None for c in formerly_rejected
+    )
+    ranked = sorted(result.candidates, key=lambda c: c.rank)
+    assert [c.overall_score for c in ranked] == sorted(
+        [c.overall_score for c in ranked], reverse=True
+    )
+    blocked = LocalEngine().run(
+        direct_request(
+            scoring_profile="ranking", params={"constraints": {"forbidden_motifs": [CLEAN_TRIGGER]}}
+        ),
+        always_continue,
+    )
+    assert not blocked.candidates, "Ranking-only must not bypass sequence/input validity"
+
+
+@pytest.mark.parametrize("size", [0, 7, 25])
+def test_complete_ranking_evaluates_past_twenty_and_keeps_quality_outliers(
+    direct_request, always_continue, monkeypatch, size
+):
+    import dataclasses
+
+    from engine.gates.toehold import ToeholdGate
+
+    original = ToeholdGate.generate_designs
+
+    def generated(self, trigger_set, constraints):
+        first = next(iter(original(self, trigger_set, constraints)))
+        for index in range(size):
+            yield dataclasses.replace(
+                first,
+                design_id=f"fixture-{index}",
+                architecture={**first.architecture, "fixture_index": index},
+            )
+
+    def evaluate(self, design):
+        return {
+            "state_separation": 0.1,
+            "predicted_leakage": 0.95,
+            "gate_folding_energy": -5.0,
+            "trigger_accessibility": design.architecture["fixture_index"] / max(size, 1),
+        }
+
+    monkeypatch.setattr(ToeholdGate, "generate_designs", generated)
+    monkeypatch.setattr(ToeholdGate, "evaluate_design", evaluate)
+    result = LocalEngine().run(
+        direct_request(
+            scoring_profile="ranking",
+            params={
+                "budget": {"max_designs": None},
+                "top_n": 20,
+            },
+        ),
+        always_continue,
+    )
+    assert result.status == SUCCEEDED, result.error
+    assert len(result.candidates) == size
+    assert all(not c.is_rejected and c.rank for c in result.candidates)
+    if size:
+        assert result.candidates[-1].rank == 1, "Best design is last generated, beyond index 20"
+    provenance = result.scientific_provenance
+    assert provenance["scoring_profile"] == "ranking"
+    assert provenance["evaluation"]["complete"] is True
+    assert provenance["evaluation"]["generated_gate_designs"] == size
+    assert provenance["evaluation"]["evaluated_candidates"] == size
+    assert provenance["design_budget"]["truncated"] is False
+    assert not [a for a in result.artifacts if a.kind in {"sequence_fasta", "genbank", "sbol"}]
+
+
+def test_complete_ranking_evaluation_failure_never_publishes_partial_success(
+    direct_request, always_continue, monkeypatch
+):
+    from engine.errors import EngineError
+    from engine.gates.toehold import ToeholdGate
+
+    calls = 0
+    original = ToeholdGate.evaluate_design
+
+    def fail_second(self, design):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise EngineError("Synthetic measurement failure")
+        return original(self, design)
+
+    monkeypatch.setattr(ToeholdGate, "evaluate_design", fail_second)
+    result = LocalEngine().run(
+        direct_request(
+            scoring_profile="ranking",
+            params={
+                "budget": {"max_designs": None},
+            },
+        ),
+        always_continue,
+    )
+    assert result.status == FAILED
+    assert "Evaluation incomplete" in result.error
+    assert not result.candidates
+    assert result.scientific_provenance["evaluation"]["complete"] is False
+    assert result.scientific_provenance["evaluation"]["evaluated_candidates"] == 1
+    assert result.scientific_provenance["evaluation"]["failed_evaluations"] == 1

@@ -1,7 +1,7 @@
 /** Built SPA browser contracts with isolated HTTP fixtures; no user records. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { chromium } from 'playwright';
 const root = resolve(import.meta.dirname, '../../src/static/app');
@@ -28,7 +28,7 @@ const submissions=[];
 const families=['toehold','prokaryotic_toehold','eukaryotic_toehold','toehold_and','crispr'];
 const version={app_version:'test', engine:'LocalEngine', engine_version:'test', reviewer_login_enabled:false,
  gate_families:families.map(name=>({name,label:name,description:name,available:!['toehold_and','crispr'].includes(name)})),
- supported_hosts:['ecoli','yeast','human','c_acnes'],family_hosts:{toehold:['ecoli','c_acnes'],prokaryotic_toehold:['ecoli','c_acnes'],eukaryotic_toehold:['human','yeast']},supported_outputs:['gfp','mcherry','luciferase','ampr','kanr','other'],output_hosts:{gfp:['ecoli','yeast','human','c_acnes'],mcherry:['ecoli','yeast','human','c_acnes'],luciferase:['ecoli','yeast','human','c_acnes'],other:['ecoli','yeast','human','c_acnes'],ampr:['ecoli'],kanr:['ecoli']},backbone_hosts:{psb1c3:['ecoli']},input_modes:['de','direct','gene'],limits:{},constraints:{},scoring_profiles:['default'],available_backbones:[{key:'psb1c3',name:'pSB1C3',length_bp:2070}]};
+ supported_hosts:['ecoli','yeast','human','c_acnes'],family_hosts:{toehold:['ecoli','c_acnes'],prokaryotic_toehold:['ecoli','c_acnes'],eukaryotic_toehold:['human','yeast']},supported_outputs:['gfp','mcherry','luciferase','ampr','kanr','other'],output_hosts:{gfp:['ecoli','yeast','human','c_acnes'],mcherry:['ecoli','yeast','human','c_acnes'],luciferase:['ecoli','yeast','human','c_acnes'],other:['ecoli','yeast','human','c_acnes'],ampr:['ecoli'],kanr:['ecoli']},backbone_hosts:{psb1c3:['ecoli']},input_modes:['de','direct','gene'],limits:{},constraints:{},scoring_profiles:['default','ranking'],available_backbones:[{key:'psb1c3',name:'pSB1C3',length_bp:2070}]};
 const run={id:'mock-run',status:'COMPLETED',organism:'Human',engine_version:'test',seed:42,
  params_snapshot:{payload:{outputs:['gfp','other']}},warnings:['UNIQUE_RUN_WARNING: exports held'],counts:{candidates:7907,artifacts:0}};
 const otherRun={...run,id:'other-run',params_snapshot:{top_n:10,payload:{outputs:['gfp']}}};
@@ -84,6 +84,19 @@ await page.route('**/api/**', async route=>{
 try {
  await page.goto(origin+'/compile');
  await page.getByRole('heading',{name:'Biological Compiler'}).waitFor();
+ const shots=resolve(import.meta.dirname,'../test-results/new-circuit');
+ await mkdir(shots,{recursive:true});
+ for(const width of [1440,390]) {
+   await page.setViewportSize({width,height:1000});
+   for(const label of ['Advanced Options','Off-State Leakage Limit','Minimum Gate Stability (MFE ceiling)','Evaluation budget (validated gate designs)','Results to display (top ranked)','Max Gates Per Circuit']) {
+     assert.equal(await page.getByText(label,{exact:true}).count(),0,`${label} must be removed at ${width}px`);
+   }
+   assert.equal(await page.locator('#max-designs, #top-n, #max-designs-help, #top-n-help').count(),0);
+   await page.getByRole('button',{name:'Direct Trigger mRNA'}).click();
+   await page.evaluate(()=>window.scrollTo(0,0));
+   await page.screenshot({path:resolve(shots,`new-circuit-${width}.png`),fullPage:true});
+ }
+ await page.setViewportSize({width:1440,height:1000});
  await page.getByLabel('Run name (optional)').fill('  GFP response — submission 1  ');
  await page.getByRole('button',{name:'Direct Trigger mRNA'}).click();
  const sequence=page.getByRole('textbox',{name:'Trigger sequence'});
@@ -99,34 +112,22 @@ try {
  await page.getByRole('button',{name:'Compile & Optimize'}).click();
  await page.getByRole('alert').filter({hasText:'Failed to fetch'}).waitFor();
  assert.equal(await sequence.inputValue(),'>record\nAACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA');
- assert.deepEqual(submissions.at(-1).params.budget,{max_designs:20});
+ assert.deepEqual(submissions.at(-1).params.budget,{max_designs:null});
  assert.equal(submissions.at(-1).name,'GFP response — submission 1');
- assert.equal(submissions.at(-1).params.top_n,25);
- await page.getByRole('button',{name:'Advanced Options',exact:true}).click();
- const maxDesigns=page.getByLabel('Evaluation budget (validated gate designs)',{exact:true});
- const topN=page.getByLabel('Results to display (top ranked)',{exact:true});
- assert.equal(await maxDesigns.inputValue(),'20');
- assert.equal(await topN.inputValue(),'25');
- for(const [input,normal] of [[maxDesigns,'20'],[topN,'25']]) {
-   for(const invalid of ['', '0', '-1', '1.5', '1001']) {
-     await input.fill(invalid);
-     assert(await page.getByRole('button',{name:'Compile & Optimize'}).isDisabled(),`Invalid limit ${invalid} must block submission`);
-   }
-   for(const boundary of ['1','1000']) {
-     await input.fill(boundary);
-     assert(!(await page.getByRole('button',{name:'Compile & Optimize'}).isDisabled()),`Boundary ${boundary} must be accepted`);
-   }
-   await input.fill(normal);
- }
- await maxDesigns.fill('13');
- await topN.fill('7');
+ assert.equal(submissions.at(-1).params.top_n,20);
+ const initialSubmission=submissions.at(-1);
+ assert.equal(initialSubmission.params.constraints.max_circuit_gates,1);
+ assert.equal(initialSubmission.scoring_profile,'ranking');
+ assert.equal(initialSubmission.params.scoring,undefined);
+ assert.equal(await page.getByRole('button',{name:'Advanced Options',exact:true}).count(),0);
  for(const status of [401,403,404,422,429,500]) {
    submitStatus=status;
    await page.getByRole('button',{name:'Compile & Optimize'}).click();
    await page.getByRole('alert').filter({hasText:`Injected submission ${status}`}).waitFor();
  }
- assert.equal(submissions.at(-1).params.budget.max_designs,13);
- assert.equal(submissions.at(-1).params.top_n,7);
+ assert.equal(submissions.at(-1).params.budget.max_designs,null);
+ assert.equal(submissions.at(-1).params.top_n,20);
+ for(const submission of submissions) assert.deepEqual(submission,initialSubmission,'Retries must retain input, name, fixed defaults and idempotency key');
  submitStatus=null;
  await sequence.fill('>one\nACGU\n>two\nACGU');
  await page.getByText('Paste one FASTA record at a time.',{exact:true}).waitFor();
@@ -215,6 +216,15 @@ try {
    assert.equal(await page.getByLabel('Result view',{exact:true}).inputValue(),'all');
    assert(!queries.at(-1).has('top_n'));
  }
+ // New Circuit's top 20 is a display view; the full retained pool stays accessible.
+ run.params_snapshot.top_n=20;
+ await page.reload();
+ await page.getByText('cand-20',{exact:true}).waitFor();
+ assert.equal(await page.getByText('cand-21',{exact:true}).count(),0);
+ assert.equal(queries.at(-1).get('top_n'),'20');
+ await page.getByLabel('Result view',{exact:true}).selectOption('all');
+ await page.getByText('Page 1 of 159',{exact:true}).waitFor();
+ assert(!queries.at(-1).has('top_n'));
  // A configured display cap is global, even with server-side filters and sorting.
  run.params_snapshot.top_n=75;
  let releaseDetail;
@@ -307,7 +317,7 @@ try {
  await page.goto(origin+'/dashboard');
  await page.getByRole('alert').filter({hasText:'Could not load run history'}).waitFor();
  assert.deepEqual(errors,[]);
- console.log('Browser contracts passed: paste integrity, capability rejection, offline retry, four-host/three-mode wizard readiness, HTTP401/403/404/422/429/500, catalog empty, custom vector insertion boundary, review save/delete, warning/proxy labels, evaluation/display defaults and validation, independent payload limits, global top-N paging/filtering/sorting, full/rejected/legacy access, candidate 201/7907, global output filter, empty completion and history error.');
+ console.log('Browser contracts passed: paste integrity, capability rejection, offline retry, four-host/three-mode wizard readiness, HTTP401/403/404/422/429/500, catalog empty, custom vector insertion boundary, review save/delete, warning/proxy labels, fixed evaluation/display defaults, independent payload limits, global top-N paging/filtering/sorting, full/rejected/legacy access, candidate 201/7907, global output filter, empty completion and history error.');
 } catch(error) {
  // These contracts contain only isolated synthetic fixtures, never user records.
  console.error('Browser contract failure URL:',page.url());

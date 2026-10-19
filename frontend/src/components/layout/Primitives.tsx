@@ -2,8 +2,7 @@
  * Layout primitives shared by every screen, lifted from the Lovable design.
  */
 
-import { CheckCircle2, ChevronDown, ChevronRight, Settings } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, ChevronRight } from "lucide-react";
 
 /**
  * The wizard's five steps.
@@ -79,30 +78,6 @@ export function Panel({ children, className = "" }: { children: React.ReactNode;
     <section className={`rounded-2xl border border-border bg-card p-8 shadow-clinical ${className}`}>
       {children}
     </section>
-  );
-}
-
-export function AdvancedOptions({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mt-6 overflow-hidden rounded-xl border border-border bg-surface-2">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-5 py-3 text-left transition hover:bg-surface"
-      >
-        <div className="flex items-center gap-2">
-          <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-            Advanced Options
-          </span>
-        </div>
-        <ChevronDown
-          className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open && <div className="border-t border-border p-5">{children}</div>}
-    </div>
   );
 }
 

@@ -941,7 +941,8 @@ Versioned scoring profiles.
 | `TREAT_AS_WORST` |  | `'worst'` |
 | `SKIP` |  | `'skip'` |
 | `DEFAULT_V1` |  | `ScoringProfile(name='default', version='v3-computational-proxies', metrics=[MetricSpec(…` |
-| `PROFILES` | `dict[str, ScoringProfile]` | `{DEFAULT_V1.name: DEFAULT_V1}` |
+| `RANKING_V1` |  | `replace(DEFAULT_V1, name='ranking', version='v1', hard_filters=[], metrics=list(DEFAULT…` |
+| `PROFILES` | `dict[str, ScoringProfile]` | `{DEFAULT_V1.name: DEFAULT_V1, RANKING_V1.name: RANKING_V1}` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
@@ -3535,7 +3536,7 @@ Dispatches trigger sets to the gate families that can realise them.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, families: list, validator: 'SwitchValidator', host: Host) -> None` |  |
-| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
+| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None, on_validated: Callable[[bool], None] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
 | `BUILT` | `def build_trigger_sets(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[TriggerSet]` | Combine individual triggers into the input sets a circuit can use. |
 
 #### `class SwitchValidator`
