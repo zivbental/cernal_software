@@ -35,6 +35,11 @@ ensure_frontend_deps() {
 
 case "${1:-help}" in
 
+  production)     # Prepare/install/preflight production; never installs services
+    shift
+    uv run --no-project --python 3.13 python tools/production.py "$@"
+    ;;
+
   install)        # Install locked Python dependencies and verified runtime data
     uv sync --locked --extra dev
     uv run --locked python tools/install_data.py
@@ -164,6 +169,7 @@ CERNAL task runner
 Usage: ./do <command>
 
   install          Install locked Python dependencies and verified runtime data
+  production       Safe production prepare/install/status (see docs/operations.md)
   install-data     Install runtime data (--offline / --check supported)
   dev [port]       Run the development server (default :8000)
   frontend         Vite dev server on :5173, proxying /api to :8000
