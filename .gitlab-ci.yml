@@ -11,7 +11,7 @@
 # Note: if gitlab.igem.org's shared runners require an explicit tag, add a `tags:` key
 # to each job. Nothing else here is iGEM-specific.
 
-stages: [check]
+stages: [prepare, check, verify]
 
 # Linux backup integrity also runs in the full backend suite. GitHub's dedicated
 # backup-integrity workflow additionally covers Windows (no Windows GitLab runner).
@@ -25,25 +25,69 @@ variables:
   UV_CACHE_DIR: .uv-cache
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
-# Backend: lint, format, Django system checks and the full pytest suite.
-# Runs against LocalEngine, the only engine, so the scientific stack is required.
-backend:
+# Download only checksum-pinned test data once. GitLab's optional cache is not
+# relied upon: shards receive this dedicated artifact and verify every byte offline.
+backend-data:
+  stage: prepare
+  image: python:3.13-slim
+  script:
+    - python tools/install_data.py --profile test --cache-dir .ci-data-cache
+  artifacts:
+    paths: [.ci-data-cache/]
+    expire_in: 1 day
+
+.backend-environment:
   stage: check
   image: python:3.13-slim
+  needs:
+    - job: backend-data
+      artifacts: true
   cache:
     key: uv-$CI_COMMIT_REF_SLUG
     paths: [.uv-cache]
+    policy: pull
   before_script:
+    # Checkout conversion tests and provenance checks use Git.
+    - apt-get update && apt-get install -y --no-install-recommends git
     - pip install --quiet uv
     - uv sync --locked --extra dev
-    - uv run python tools/install_data.py --profile test
+    - uv run python tools/install_data.py --profile test --cache-dir .ci-data-cache --offline
+
+backend-checks:
+  extends: .backend-environment
   script:
     - uv run ruff check .
     - uv run ruff format --check .
     - uv run python manage.py check
     - uv run python manage.py makemigrations --check --dry-run
     - uv run python tools/gen_api_surface.py --check
-    - uv run pytest -q
+
+# Competition runner #67 has a hard ten-minute maximum; YAML cannot raise it.
+# Timed, deterministic shards retain the full real-engine suite. Every shard is
+# required, and the final coverage audit rejects omitted/duplicated tests.
+backend:
+  extends: .backend-environment
+  parallel: 16
+  script:
+    - uv run python tools/ci_test_shards.py run --index "$CI_NODE_INDEX" --total "$CI_NODE_TOTAL"
+  artifacts:
+    name: backend-$CI_NODE_INDEX
+    when: always
+    paths: [test-results/backend/]
+    reports:
+      junit: test-results/backend/junit-*.xml
+    expire_in: 1 week
+
+backend-coverage:
+  stage: verify
+  image: python:3.13-slim
+  needs:
+    - job: backend
+      artifacts: true
+    - job: backend-checks
+      artifacts: false
+  script:
+    - python tools/ci_test_shards.py verify test-results/backend/shard-*.json
 
 # Python client conformance (docs/public-api.md §11.4): submits
 # clients/fixtures/design_request.json against a real, running LocalEngine server
@@ -53,6 +97,7 @@ backend:
 # ephemeral overlay — the main project never depends on requests.
 client-python:
   stage: check
+  dependencies: []
   image: python:3.13-slim
   cache:
     key: uv-$CI_COMMIT_REF_SLUG
@@ -69,11 +114,14 @@ client-python:
 # headlessly via esbuild + react-dom/server — no browser download required.
 frontend:
   stage: check
+  dependencies: []
   image: node:22-slim
   cache:
     key: npm-$CI_COMMIT_REF_SLUG
     paths: [frontend/node_modules]
   before_script:
+    # Help-link checks verify source targets against the tracked checkout.
+    - apt-get update && apt-get install -y --no-install-recommends git
     - cd frontend
     - npm ci
   script:
@@ -88,6 +136,7 @@ frontend:
 
 browser-queued:
   stage: check
+  dependencies: []
   image: node:22-bookworm
   before_script:
     - apt-get update && apt-get install -y python3 python3-pip curl
