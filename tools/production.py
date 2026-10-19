@@ -12,6 +12,9 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 PLACEHOLDER = "REPLACE_WITH_A_RANDOM_SECRET"
+sys.path.insert(0, str(ROOT / "src"))
+
+from config.runtime import ensure_runtime_directories, reject_symlink_path  # noqa: E402
 
 
 def domain_name(value):
@@ -38,6 +41,7 @@ def deployment_path(value):
 
 
 def read_config(path):
+    reject_symlink_path(path)
     values = {}
     for number, line in enumerate(Path(path).read_text().splitlines(), 1):
         if not line.strip() or line.lstrip().startswith("#"):
@@ -68,6 +72,8 @@ def write_new(path, text):
 def prepare(root, output, domain, user, group, dataset_mb):
     root = Path(deployment_path(root))
     output = Path(deployment_path(output))
+    reject_symlink_path(root)
+    reject_symlink_path(output)
     if not (root / "manage.py").is_file():
         raise ValueError("Deployment root must be a CERNAL checkout containing manage.py")
     domain = domain_name(domain)
@@ -102,6 +108,7 @@ def prepare(root, output, domain, user, group, dataset_mb):
     # Check every conflict before writing anything. Never reset a secret on rerun.
     for name, text in rendered.items():
         destination = output / name
+        reject_symlink_path(destination)
         if destination.is_symlink():
             raise ValueError(f"Configuration conflict: symlink {destination}")
         if destination.exists():
@@ -129,13 +136,10 @@ def prepare(root, output, domain, user, group, dataset_mb):
                     )
             elif destination.read_text() != text:
                 raise ValueError(f"Template conflict: {destination}; preserve and review manually")
+    ensure_runtime_directories(root / "var", root / "var/media", root / "var/staticfiles")
     for name, text in rendered.items():
         if not (output / name).exists():
             write_new(output / name, text)
-    sys.path.insert(0, str(ROOT / "src"))
-    from config.runtime import ensure_runtime_directories
-
-    ensure_runtime_directories(root / "var", root / "var/media", root / "var/staticfiles")
     print(f"Prepared {output}. Existing files preserved. Supply SECRET_KEY before install.")
 
 
@@ -154,12 +158,16 @@ def environment(config):
         raise ValueError("CSRF origin must match the HTTPS hostname")
     upload_limits(int(values.get("MAX_DATASET_MB", "100")))
     var = Path(deployment_path(values.get("CERNAL_VAR_DIR", "")))
+    for path in (var, var / "cernal.db", var / "media", var / "logs", var / "logs/cernal.log"):
+        reject_symlink_path(path)
     if values.get("DATABASE_URL") != f"sqlite:///{var}/cernal.db" or values.get(
         "MEDIA_ROOT"
     ) != str(var / "media"):
         raise ValueError("Supported preparation requires SQLite and media under CERNAL_VAR_DIR")
     result = dict(os.environ)
     result.update(values)
+    # Override inherited variables and prevent Django's .env fallback from enabling login.
+    result["REVIEWER_LOGIN_ENABLED"] = "False"
     return result
 
 
@@ -177,12 +185,17 @@ def run(command, root, env):
 
 
 def install(root, config, initialize=False, admin=False):
+    reject_symlink_path(root)
+    reject_symlink_path(root / ".venv")
+    reject_symlink_path(root / ".venv/cernal-install-root")
+    reject_symlink_path(root / ".env")
     env = environment(config)
     if root.resolve() != ROOT.resolve():
         raise ValueError("Run the entrypoint from the target checkout after relocation")
     if env["CERNAL_VAR_DIR"] != str(root / "var"):
         raise ValueError("Configuration belongs to another checkout; review relocation paths first")
     database = Path(env["CERNAL_VAR_DIR"]) / "cernal.db"
+    ensure_runtime_directories(root / "var", root / "var/media", root / "var/staticfiles")
     if not database.exists() and not initialize:
         raise ValueError(
             "Database absent: choose --initialize-database for fresh setup, or restore separately"
@@ -245,8 +258,11 @@ def status(root, config):
             with urlopen(
                 "https://" + env["ALLOWED_HOSTS"] + "/api/" + endpoint, timeout=10
             ) as response:
+                payload = json.load(response)
                 checks[name] = (
-                    "ok" if json.load(response).get("status") == expected else "unavailable"
+                    "ok"
+                    if isinstance(payload, dict) and payload.get("status") == expected
+                    else "unavailable"
                 )
         except (OSError, ValueError):
             checks[name] = "unavailable"
