@@ -52,6 +52,12 @@ rules, configure DNS/TLS, restore a backup, or provision IBBIS.
    Generated files are mode 0600. Review them; existing files and secrets are preserved.
    A conflicting domain/path/upload limit or edited unit/Caddyfile stops preparation
    before files are written. Reconcile such changes manually or render to a new directory.
+   Managed checkout, configuration, output and runtime paths must not contain symlinks,
+   including dangling links or linked ancestors. Database and log destinations are
+   checked before preparation or migration. If a system uses a linked path (for example
+   an alias for a mounted disk), supply its literal canonical location instead; the
+   tool deliberately refuses to guess the intended target. Keep these directories
+   operator-controlled and do not change paths concurrently with preparation.
 3. In `var/deployment/cernal.env`, replace `SECRET_KEY` with an operator-managed random
    secret of at least 50 characters, preserving it across upgrades/restores. No default
    admin account/password or real secret is generated. Keep reviewer login disabled.
@@ -108,6 +114,21 @@ consume the 2 MiB margin and receive HTTP 413; it does not increase the file all
 Keep proxy and application values together when reconfiguring. Validate the generated
 request-body directive against the installed Caddy version before activating it;
 see the [official Caddy request_body documentation](https://caddyserver.com/docs/caddyfile/directives/request_body).
+
+The proxy regression test runs the official executable's `adapt --validate` command,
+which provisions configuration for validation without starting listeners. It uses
+temporary HOME/XDG directories and checks the parsed hostname, upstream and exact
+request-body limit for the substituted template and generated configurations at
+1, 100 and 1024 MiB, including alternate installation paths/domains. Run it with:
+
+```sh
+CADDY_BIN=/absolute/path/to/caddy uv run pytest tests/test_production_setup.py -k caddy -q
+```
+
+The test skips when Caddy is unavailable; providing `CADDY_BIN` makes a missing or
+invalid binary fail. Caddy 2.11.7 passed these checks using the official Linux amd64
+release archive (SHA256 `727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b`).
+This verifies configuration loading, not TLS issuance or live HTTP upload behavior.
 
 Do not run `manage.py runserver` or the development supervisor under these units. The
 systemd units own their subprocesses and restart failed services. The worker's stop
