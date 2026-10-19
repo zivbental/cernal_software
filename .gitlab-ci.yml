@@ -103,9 +103,6 @@ frontend:
   stage: check
   dependencies: []
   image: node:22-slim
-  cache:
-    key: npm-$CI_COMMIT_REF_SLUG
-    paths: [frontend/node_modules]
   before_script:
     # Help-link checks verify source targets against the tracked checkout.
     - apt-get update && apt-get install -y --no-install-recommends git
@@ -114,11 +111,33 @@ frontend:
   script:
     - npm run test:clean-build
     - npm run check
-    - npx playwright install --with-deps chromium
-    - RNA_VIEWER_SCREENSHOT_DIR=test-results/rna-viewer npm run test:browser
+    # Bound the complete uncompressed transfer, not just an estimated ZIP size.
+    - node ../tools/check_frontend_artifact.mjs
   artifacts:
+    paths: [src/static/app/]
+    expire_in: 1 week
+
+# Each suite gets its own 600-second runner budget. Use the exact successful build
+# above; never transfer node_modules, browser binaries, or reference data.
+frontend-browser:
+  stage: verify
+  image: node:22-slim
+  needs:
+    - job: frontend
+      artifacts: true
+  parallel:
+    matrix:
+      - BROWSER_SUITE: [contracts, rna-viewer-browser, screening-browser, run-usability]
+  before_script:
+    - cd frontend
+    - npm ci
+    - npx playwright install --with-deps chromium
+  script:
+    - RNA_VIEWER_SCREENSHOT_DIR=test-results/rna-viewer node "e2e/$BROWSER_SUITE.mjs"
+  artifacts:
+    name: frontend-$BROWSER_SUITE
     when: always
-    paths: [src/static/app/, frontend/test-results/rna-viewer/]
+    paths: [frontend/test-results/]
     expire_in: 1 week
 
 browser-queued:
