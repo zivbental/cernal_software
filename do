@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CERNAL task runner. Zero dependencies — see docs/development.md
+# CERNAL task runner. Requires Bash and uv; frontend commands need Node/npm.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 export PATH="$HOME/.local/bin:$PATH"
 
 # nvm is not loaded in non-interactive shells; source it so node/npm resolve to the
-# Linux install rather than the Windows one on /mnt/c (docs/software-design.md §15).
+# Linux install rather than the Windows one on /mnt/c (docs/architecture.md §15).
 if [ -s "$HOME/.nvm/nvm.sh" ]; then
   # shellcheck disable=SC1091
   . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1 || true
@@ -26,40 +26,51 @@ require_node() {
     echo "  nvm install --lts" >&2
     exit 1
   }
-  [ -d frontend/node_modules ] || (cd frontend && npm install)
+}
+
+ensure_frontend_deps() {
+  require_node
+  [ -d frontend/node_modules ] || (cd frontend && npm ci)
 }
 
 case "${1:-help}" in
 
-  install)        # Create the venv and install all dependencies
-    uv sync --extra dev
+  install)        # Install locked Python dependencies and verified runtime data
+    uv sync --locked --extra dev
+    uv run --locked python tools/install_data.py
+    ;;
+
+  install-data)   # Install or verify runtime data: ./do install-data --check
+    shift || true
+    uv run --locked python tools/install_data.py "$@"
     ;;
 
   dev)            # Run the development server on :8000
     [ -f src/static/app/index.html ] || {
+      ensure_frontend_deps
       echo "Frontend not built yet — building it once..."
-      (cd frontend && npm run build:fast)
+      (cd frontend && npm run build)
     }
     uv run python manage.py devserver "${2:-8000}"
     ;;
 
   build-frontend) # Build the React app into src/static/app/
-    require_node
+    ensure_frontend_deps
     (cd frontend && npm run build)
     ;;
 
   frontend)       # Run the Vite dev server on :5173 (proxies /api to :8000)
-    require_node
+    ensure_frontend_deps
     (cd frontend && npm run dev)
     ;;
 
   install-frontend) # Install frontend dependencies
     require_node
-    (cd frontend && npm install)
+    (cd frontend && npm ci)
     ;;
 
-  smoke)          # Browser smoke test (needs ./do dev + ./do worker running)
-    require_node
+  smoke)          # Browser smoke test (needs ./do dev running)
+    ensure_frontend_deps
     if [ -z "${RUN_ID:-}" ]; then
       echo "note: set RUN_ID=<a completed run id> to also check the results screen" >&2
     fi
@@ -152,11 +163,12 @@ CERNAL task runner
 
 Usage: ./do <command>
 
-  install          Create the venv and install all dependencies
+  install          Install locked Python dependencies and verified runtime data
+  install-data     Install runtime data (--offline / --check supported)
   dev [port]       Run the development server (default :8000)
   frontend         Vite dev server on :5173, proxying /api to :8000
   build-frontend   Build the React app into src/static/app/
-  install-frontend Install frontend dependencies
+  install-frontend Install frontend dependencies from package-lock.json (npm ci)
   smoke            Browser smoke test against a running dev server
   worker           Run the background task worker (needed for analysis runs)
   test [args...]   Run the test suite

@@ -1,0 +1,771 @@
+{
+  "source_commit": "ca4e3b0d90d43f494ef3647b0098795f804fc2ba",
+  "note": "Historical generated outputs retained in Git history, not downloaded by installation. Small summaries and fixtures remain in source.",
+  "files": [
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1sub_cheap.csv",
+      "size": 3910474,
+      "sha256": "6f511cf32663ee957324ab49b79a5eeec1ae15b56b3d1ccf957404868da2d3a3"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1sub_folded_0.csv",
+      "size": 210724,
+      "sha256": "b5c9ef4842a338b7d01ecf15b55ae3d56ccd3dcfb3221c6a6812712fda9c3fc6"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1sub_folded_1.csv",
+      "size": 211285,
+      "sha256": "3ddfcd65f9502ff85cd1cf009b1691423f860ae9b7374ef44816589d513c5685"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1sub_folded_2.csv",
+      "size": 211887,
+      "sha256": "2344fb0f0651982bc66682f369968cbf85e9c3b5d8784d228eedd10dabf966eb"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1sub_folded_3.csv",
+      "size": 200474,
+      "sha256": "eaf75a9097aeffa3596f026a5ef865c8b03b60e450dc14f972bfb5bdffd426e9"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1sub_folded_4.csv",
+      "size": 206436,
+      "sha256": "5839886a4d9e760fd94943ec1d4e0f3d4aa369797c8dd16b4a91ce3ea662daca"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1top_folded_0.csv",
+      "size": 1068344,
+      "sha256": "f0ccfbe0ec9be1616b7f1a64efa4eb60b06f533795e0eaea23e00c39198e3c5b"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1top_folded_1.csv",
+      "size": 1062010,
+      "sha256": "9ad58802fa02fafb0d3c79fe5ccabf58f74cbbd1163406a45e39444d1744a663"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1top_folded_2.csv",
+      "size": 1064995,
+      "sha256": "6897160b277619863691241be7e9f2724eb0aa1128a899c0b13727c08cece9a3"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1top_folded_3.csv",
+      "size": 1058718,
+      "sha256": "80ef66dd58929f2fbe407bbe442ba4808ba3f68ebf10fe20a632fa89848db284"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1top_folded_4.csv",
+      "size": 994883,
+      "sha256": "8832ef517a1f8b663a642215bb4215b7b1a31f5a589ed940edfab69eab81d5cd"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/a1top_folded_5.csv",
+      "size": 999191,
+      "sha256": "fcc4c8b7f77eaeeb3a24899f8206f9bbd9435002798fec3b8cbd8d47253e6743"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/accessibility.csv",
+      "size": 1627397,
+      "sha256": "264185ee097d9ddeb6dafac96b32b875f55960a0f67ab670b436c69caf3f299f"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_0.csv",
+      "size": 649246,
+      "sha256": "4b75f4f123a1b3b7cb82915d336e0397d4cb11ec4527f0e6bf93cb3e909d364d"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_0_0.csv",
+      "size": 1301961,
+      "sha256": "26356103debc82239c0b4ab4e7cad64f524510dba09b1bff79b09ef1b71b1bea"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_1.csv",
+      "size": 648927,
+      "sha256": "d62193a874eac63315e7e26b4dbc519804d064aab5f746e47c929011d2490ada"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_1_1.csv",
+      "size": 1304241,
+      "sha256": "5a9593568eb5c0a67ce8a94b9bd1b489edc156bc8e62ad75d24d8638073d0f4b"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_2.csv",
+      "size": 648979,
+      "sha256": "35d013dfc20ec29be79a1c352ad592d9342759be675434152b9d6c85018bea12"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_2_2.csv",
+      "size": 1300487,
+      "sha256": "4624c92f06bf151cc57a5f9e688ea0276122cc241f181263bcd856e5fb1aedb5"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_3.csv",
+      "size": 648472,
+      "sha256": "7baf059fca21c8049f46f93e08cc26a1c796b1c2dc09a8fda1aee6a2c1c8edcd"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_3_3.csv",
+      "size": 1295577,
+      "sha256": "cd22f1e2bad3dfd8d74ff09918c3a87dd33ad0a0f4b73f02fcd7d402d01e90de"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_4.csv",
+      "size": 649100,
+      "sha256": "63366483f0086dbd9f9300967b1da3d3bb426d28f7dce904245990971106929a"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_4_4.csv",
+      "size": 1301249,
+      "sha256": "590780ca60fc6f24fcc6f19d73b5da9079fb93bf86f41750f90d559497cccde0"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_5.csv",
+      "size": 648642,
+      "sha256": "7a803c068a69891a1f19f5df3a6a4ae41f104ba37a9797b21cfca44de5ded8f6"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_5_5.csv",
+      "size": 1301369,
+      "sha256": "6cd8f890916d9c86c7dc705f36c9cb253777ffe00bf30779af481e0ede003932"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_ied_0.csv",
+      "size": 304663,
+      "sha256": "e648f4f2e1730b2e65fd570b97071eea61f115cbf90765312e71db57ddb283b9"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_ied_1.csv",
+      "size": 304879,
+      "sha256": "2bd99c36de540d84c8c3488c30c0ead8eff07d33948834ce3b9a18569c720f4d"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_ied_2.csv",
+      "size": 304640,
+      "sha256": "3f52b89fcb4eeb477249cc0a76ce5a87aa74e47c2fc34f1432c63fe5a3f7b0ed"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_ied_3.csv",
+      "size": 304556,
+      "sha256": "888289788c5bd492b9acaf1e311565b4e5a894253d2b07a301181a8d3bb81688"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_ied_4.csv",
+      "size": 304366,
+      "sha256": "a264821864592e670933c4b8808fe8496750e37c89ffff15d81ecef4341da1a8"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completions_ied_5.csv",
+      "size": 304125,
+      "sha256": "23c6c6ffd6e0ab84f26c904784ecbcb7cc7dca88824701e6edcd63497fff1f35"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsall_0.csv",
+      "size": 503178,
+      "sha256": "724f0e9b2e24c279a8ccfe8ebae9d55e33c2600868c60267598127d4414e370c"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsall_1.csv",
+      "size": 503390,
+      "sha256": "242f43a7c745b4a7e474effdc62edd080c6fc6a5f633e262a621e11a28d28cbe"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsall_2.csv",
+      "size": 502860,
+      "sha256": "b3f09fc4aaa6257de6f8bc230465292b6bf2a5696337228120c64dad7a84f821"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsall_3.csv",
+      "size": 502965,
+      "sha256": "f2e432ba92b52042ae685578f3a390c479fe0b085441686634038cccd3bb4768"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsall_4.csv",
+      "size": 502663,
+      "sha256": "97f3b8a9d9dd9e4dc62e29ae814ad4ddf36940c99d968cae7c7e1b57b2e2f96f"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsall_5.csv",
+      "size": 502551,
+      "sha256": "81e7d435980ab0e386698c148152294f3b50db110583d1a69b7c8a5c785f08c0"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsfresh_0.csv",
+      "size": 319278,
+      "sha256": "32a74cda728f0923044d44806da9d1f845ffac43e2c96e2c096650fd9814dc21"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsfresh_1.csv",
+      "size": 319246,
+      "sha256": "9c16ddfc1529712163bdc5cbc960f59b104c61fbe224692a544ab5c06ab3dce5"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsfresh_2.csv",
+      "size": 319016,
+      "sha256": "bbcb7504d5541bb9b6908a2531a5abf9d6eb97a7ef2a3e09e0e6d96152c578d0"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsfresh_3.csv",
+      "size": 318912,
+      "sha256": "bdf8002637c4a252f366462b44e21864736ba440bc052b8ef52ca12e6fc2569f"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsfresh_4.csv",
+      "size": 318759,
+      "sha256": "2b4058ff2cd4ad773ff990fc89234b58daa1ca3e0327dfda4d9b0768e0c3b279"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionsfresh_5.csv",
+      "size": 318526,
+      "sha256": "af94cee59e9b95c4047e8544e1529bfb8b4f0bce21348ef2637fccb318ae1f79"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionswin_0.csv",
+      "size": 399590,
+      "sha256": "b36dfc72eb6f549c27eaee057a1c368217c29f0ad71dad4f95505a2e4f8f7dfb"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionswin_1.csv",
+      "size": 399872,
+      "sha256": "1b35ccefb6a55149031cd615baaa658321d79e3c9b068006e1724e866e1833fd"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionswin_2.csv",
+      "size": 399328,
+      "sha256": "333659ce1b850b0c4d97e26bf6ea25cefbef450f5c6a822b851c4c5f1899f5f1"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionswin_3.csv",
+      "size": 399461,
+      "sha256": "02be17175c9bf32d4e2c7b4e4a540b969bf2baa249ddb634cbecb6f951718cd8"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionswin_4.csv",
+      "size": 399274,
+      "sha256": "5cd56ec5860a759fc4a482917267d1b0a3900f5cbea8a4dd3fa60085ca0190f4"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/completionswin_5.csv",
+      "size": 398917,
+      "sha256": "08c378a8948c75b73c45d29a59c1bd9a4e8673dd0e3b5965d3e3c044ae1a7e2a"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/drift_fixed.csv",
+      "size": 440742,
+      "sha256": "67b88cffe0e11d199967088da519fcfbc0d59d0c464535580686f38f505df770"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/drift_folded_0.csv",
+      "size": 270473,
+      "sha256": "6b8218c0246f87ca1125ad4a56fb5e099730acdf93f571da0aec681309630ca0"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/drift_regen_folded_0.csv",
+      "size": 400600,
+      "sha256": "6099f5d97c4dc91b0e5790eb9d64b377a26e7d1731ae1b7978f52988400308c3"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/fourstate_x260_state11.svg",
+      "size": 104698,
+      "sha256": "0e7264b2e7f0cba36c89d1a256720f67f3c183d89e348253e4062fbc3a700eaa"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/locked_x260_state11.svg",
+      "size": 104775,
+      "sha256": "f7b463eed26da6e4d88e72d7c2f93a054825facbcf8ec1852180fb49f18d2aa4"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/modifications_v2.csv",
+      "size": 143810,
+      "sha256": "3d66f4ca5ca56486955f93162948661860eafad9790da05c18f639352cb45aa5"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_a1top_default.csv",
+      "size": 1602059,
+      "sha256": "12dc8b05a866978b8370180c7d5e6d467d70f7a2bd5c8faa4a203badd6775a3e"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_drift.csv",
+      "size": 256167,
+      "sha256": "a2a56b9dbf0b82d552b5af490cf02d3140fba5c006be8d43d29d40a373ee7ac2"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_drift_regen.csv",
+      "size": 253439,
+      "sha256": "d5a3386c6a76eb06e6b8e445cfb1bf68841ce931122b10fa49889cb92b8a66bc"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_k1_0.csv",
+      "size": 4466319,
+      "sha256": "194c1404b51842f8b95886925e22a949e6af0a6a3a5167082a68b8d1fc69fe2a"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_k1_1.csv",
+      "size": 4457687,
+      "sha256": "3100df13c6f782629757af4cf47737d44b3dbf8fa0dd0ac7a7df983b0d645d45"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_k1_2.csv",
+      "size": 4457550,
+      "sha256": "1ca75442723d89b91646c85ace21f129efaf9b8386e5af93580544f433db09f8"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_k1_3.csv",
+      "size": 4464372,
+      "sha256": "a6cecdc84d07c49544b1818dc4a1bcec62317fcf95b471246864075301529133"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_k1_4.csv",
+      "size": 4468447,
+      "sha256": "8b1fcd63c34131dc29253a3ddce56bb561a2d9bd77cec0b86623074962142c70"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p1_0.csv",
+      "size": 1887611,
+      "sha256": "9ab29bd4176bdd5f3b6d071b41c1ce18c1b78c63f001865e8c44fe43d1e81ac8"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p1_1.csv",
+      "size": 1887360,
+      "sha256": "7d4543add7b618540c119f02ceb6841555b0dfd22cc71abfd4a324d6e3f4f49a"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p1_2.csv",
+      "size": 1893904,
+      "sha256": "e21a57d52f178a764b27635f6c02c0bf715cfc1b9a8745076f4a539d8f555b49"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p1_3.csv",
+      "size": 1892439,
+      "sha256": "715033176091bc575319f36d07b798ce6341ea776db7879dbf4373348abba679"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p1_4.csv",
+      "size": 1894170,
+      "sha256": "df717a8c2fc119d7582d761552ff78bd7fa254b2d2961a459c3fe0311f779a66"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p2_0.csv",
+      "size": 1125600,
+      "sha256": "fc3947550a5ec3e2ed0c9a68cdd21ba5b84d04a54a89b20fe97735123bfb97a2"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p2_1.csv",
+      "size": 1127770,
+      "sha256": "f7cffb9b9eacbc2ca41c0d7cd2396a96d3e3c5dd714c4018f47fd1e266e9fa25"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p2_2.csv",
+      "size": 1127599,
+      "sha256": "9507d60074c02f2a0f06f119d30ba5c2e28febe41eb87159d4afa423fc23d8c9"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p2_3.csv",
+      "size": 1127307,
+      "sha256": "6567147b85363704851c75a236929e3435bb001342e55385813693623fb56aad"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p2_4.csv",
+      "size": 1131205,
+      "sha256": "cb5b7269230696f25beb3c96a185025a5bf09c7183d876cb10e20341d6a29398"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p3_0.csv",
+      "size": 3298611,
+      "sha256": "95f5037123f9774fd97cecccff710b0e35422fdb58b7e19bc2cb3e2bee500102"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p3_1.csv",
+      "size": 3276354,
+      "sha256": "0bbeb9a330424b3f4ae73b4d9655cbb2333e1b0a82b682ab23cc31045bcb2fd2"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p3_2.csv",
+      "size": 3270567,
+      "sha256": "0bf998180996509fab2f0ba3a78fda3da63f588489ad7dea2e98dae4b7a1d1d3"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p3_3.csv",
+      "size": 3302186,
+      "sha256": "7e7884f7886836ec9300061ba64e08ba8b51caf272cb21b52d7e1eb37cb72aa2"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_p3_4.csv",
+      "size": 3293593,
+      "sha256": "e92be4c920287e0ace6e3aef4a671112427fb0cb9bfae750dffb5d8be0ec4230"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_wob_0.csv",
+      "size": 260211,
+      "sha256": "d616671b2f9b8b12e5b89ead223509b6a61c88408eb217f65684e283f89d9fe2"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_wob_1.csv",
+      "size": 263990,
+      "sha256": "0291e8b7e371fc7e22144419e22c89b21f14e43091c06a8b39cfa84111cec8c2"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_wob_2.csv",
+      "size": 264366,
+      "sha256": "96aca8b3478d23396a439cb996f6eb72519b3241c3ce7f619fce42c42623488e"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_wob_3.csv",
+      "size": 262596,
+      "sha256": "952842ba4f9a56deac5ea97ec74c6a96661fc0bafb1da07d7c84f7ad97e52117"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_full_wob_4.csv",
+      "size": 261459,
+      "sha256": "eb20d1dced8cdd760daee0f301c24f38e6739ac69b7e13bffc4597182e8d469b"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_k1_kim.csv",
+      "size": 1035290,
+      "sha256": "58d186809a574a09b2c4906121073c1ad4b1b549e36f14d3aed8f21cb45c3a33"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_p1_default.csv",
+      "size": 1023860,
+      "sha256": "9c0f597ec0e00eddf9438dee97b7114629b35dc481f582f57333336fa039ab53"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/obj_p3_deep.csv",
+      "size": 680930,
+      "sha256": "efaac14ebf9618e743fd9fd0030e05a518338d29f514f44a54de2c0d2b9a6673"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/objective_energy.csv",
+      "size": 2877739,
+      "sha256": "fcc6d9e570fc7b09bcc272e939c279e85a77089d515bf36b0b4e3c0ee3a783bc"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_all4_x328_xs542.csv",
+      "size": 216595,
+      "sha256": "7ca16d71f1b7cbd511daf44a64a930c7cba7ac2d113280cab8b61e018734e5b6"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_all4_x508_xs283.csv",
+      "size": 208738,
+      "sha256": "a75df02045cdc3d446e6b07cc639a589ab88f3128441bc6e3e740ca704b76716"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_all_x328_xs542.csv",
+      "size": 216595,
+      "sha256": "641284fa9c5322dd18893512dce856673de0fbc8686ecff9f088dc5f850d1b9a"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_all_x508_xs283.csv",
+      "size": 208738,
+      "sha256": "9bea841475f4af99767701eeb1ef0c3e6090997ed8ea0eab83c0ff8b891e2135"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_all_x79_xs285.csv",
+      "size": 212223,
+      "sha256": "8b997998883780e292fc97faba9b1503d2eed5bea3419952329504a48d4b78fd"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_fix_x525_xs84.csv",
+      "size": 210494,
+      "sha256": "ed0bab054da980a0f2f8c86212d2c2de3d0e4bfa08a6d08bc82e1308ac5aa425"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_k1_x118_xs359.csv",
+      "size": 209982,
+      "sha256": "642eba4d59faa2c92aa5f9161be3efc80b0469537aecbf0169a88801f09dfc2e"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_k1_x525_xs224.csv",
+      "size": 209652,
+      "sha256": "e91ed336038ead4c344ddc783bfd02caa09aaab96d54f9e9e0f623fb54711cf3"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_k1_x525_xs84.csv",
+      "size": 210496,
+      "sha256": "eb92c2dcaa5c3a38395f21d398f78ac18042d132f287046da11ad5ee2a3de278"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_obj2_x434_xs209.csv",
+      "size": 215277,
+      "sha256": "839ec432d6c03793ea2ad63230ffb48731491459306c8cb731675af3d5e93633"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_obj2_x474_xs596.csv",
+      "size": 161607,
+      "sha256": "3752ba0e9ec65d3e26ba91a138daf458eab08633c00329db6ae54dbf87179d12"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_obj3_x434_xs209.csv",
+      "size": 215277,
+      "sha256": "8e34e9711356245ae90650ecc587c9d9521c43e1ed2b6052b2c26891d663d9a9"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_obj3_x474_xs596.csv",
+      "size": 161557,
+      "sha256": "b1a3b725e7f1f7575ef2fee9cdb8578b5934428739f0115a11677b67765837b8"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_report4_x434_xs209.csv",
+      "size": 214941,
+      "sha256": "802255fe3f993e9b31f09865b1764c8ca72cc5ee62cf69e32121bb8af23de297"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_report4_x435_xs640.csv",
+      "size": 216624,
+      "sha256": "6e8e740cac3e9c893222fe3b3e2ee96c6c5ea61c557a92db7781cadc70954628"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_report4_x559_xs446.csv",
+      "size": 160230,
+      "sha256": "9fb658f18ea4a430afcf5d975b02165b58cf68b64e103c7bb27171d5b941716b"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_report4_x591_xs463.csv",
+      "size": 212228,
+      "sha256": "1895caca2d2e0a8f00067a30baa5873f039d1e61be259cc13079eaea47fc4998"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v10_x111_xs672.csv",
+      "size": 221667,
+      "sha256": "452a2a6225753ff17d3e7e4229ce971ddaaa2dd9d61c8f70baefbae4a6d84f82"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v10_x269_xs631.csv",
+      "size": 219911,
+      "sha256": "ec024bcc2c41ceabb449ed3fabf7de5198d3b490ada7df33e113652ae17338c4"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v10_x328_xs597.csv",
+      "size": 514400,
+      "sha256": "223d1cc7d371185492cef6d5e3c82586aff50e92d912e53c00c1b4f0b1fdcc74"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v10_x630_xs403.csv",
+      "size": 218004,
+      "sha256": "cc6198fef4794413cff3f9d2d5d56b2036ba41eb93411af05b88c3d7c166a969"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v11_x111_xs672.csv",
+      "size": 221839,
+      "sha256": "5af6b1d2f366865bc23ce3d6fe37a6d4963f20d07f73e05e66a7e09afea6edaa"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v11_x269_xs631.csv",
+      "size": 220173,
+      "sha256": "60232b5fad8cf8fd2a04b99daa5d7c6c94446a3b1e6511ebfcf0d9a96d98cb59"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v11_x328_xs597.csv",
+      "size": 514948,
+      "sha256": "b8cc2d060851648de0a039a7ef75a3db2837038f525545fb2139eb79b559cd0f"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v11_x630_xs403.csv",
+      "size": 218150,
+      "sha256": "4ba528a6551543b1baa5429ecbbf750bea192336a4d440337acf0109d0f7086b"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v12_x111_xs672.csv",
+      "size": 221641,
+      "sha256": "f0299044e37781cf2b450740ce1bd18b45526775811b71d5d72e74dfafa00297"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v12_x269_xs631.csv",
+      "size": 219425,
+      "sha256": "a6fda8fd327bac6bb6ecd013b712683aad4a4b7b3ce9f72ae55e932a4f62db52"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v12_x328_xs597.csv",
+      "size": 514679,
+      "sha256": "90ee8ab8afcb6e0d1fa46973bf4feb4777ae063f386a2379fa1face9d2c104d7"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v12_x630_xs403.csv",
+      "size": 218150,
+      "sha256": "eaa2000c345bd6a2cee3deadf5ee4b9eeff5a1edea7a2aa161ff95e8b80d644a"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v13_x111_xs672.csv",
+      "size": 221641,
+      "sha256": "f1325a3ce52ea27d747b20aa8590e1dc8ddfede31ffa763d85cb4594483b9085"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v13_x269_xs631.csv",
+      "size": 219425,
+      "sha256": "1845ad2e341669dad5a4b404d04345fa25b5d91b02ba46f9c993c2b94e3795a0"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v13_x328_xs597.csv",
+      "size": 514641,
+      "sha256": "6a7961da02941bfc61cb48ca44d526415eb93b487402ccf9d2db16de1058a802"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v13_x630_xs403.csv",
+      "size": 218150,
+      "sha256": "f3cdb0849e67a269cc8d37236c99fb22a4acc0cebf0592811ea40378595818f1"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v6_x434_xs209.csv",
+      "size": 215292,
+      "sha256": "f4b5b59a34124de7706618424726188063715182068f5ea96afce7777bc62c68"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v6_x435_xs640.csv",
+      "size": 216974,
+      "sha256": "f3d17bbd9acc1689b78a83f765b47cd063531a8d1717e801ab3c17f26c982561"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v6_x474_xs596.csv",
+      "size": 161572,
+      "sha256": "7eebec9686f5582ae9c0f3e7dba9deed0f2b8eff0594a916adf40db838140e71"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v6_x591_xs463.csv",
+      "size": 212553,
+      "sha256": "c1e6afbaffaedc53caabff0e37b9007aadabe4d048deb74760b6faf4dc24770f"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v7_x434_xs209.csv",
+      "size": 215504,
+      "sha256": "fcf4dd675532590ea850665396f71ce5efbe1bcb3844a41a5a87bf3dceb3eff3"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v7_x435_xs640.csv",
+      "size": 217196,
+      "sha256": "801b5991ad2083b6606d8bcde01ed855f252d53c1318665146fccfdcc9086d46"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v7_x474_xs596.csv",
+      "size": 161768,
+      "sha256": "989ceb2c8402752c4bc2597e5070281762f3707c8d76abe1e8dfd54b95561d70"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v7_x591_xs463.csv",
+      "size": 212776,
+      "sha256": "95383dfce016a5af877f661f2a74d340a49e388c214b1b9741beba5c62aa90c8"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v8_x328_xs597.csv",
+      "size": 512186,
+      "sha256": "3506ce4ebeef4f6e8f12269ffd150bcdc5f063d489c1b2d70003eeb378ec65ae"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v8_x434_xs209.csv",
+      "size": 215524,
+      "sha256": "d27785ed36ad982eed5cf7cf3039b8aa5294881776d3c5790063952c9c4af3a1"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v8_x435_xs640.csv",
+      "size": 217207,
+      "sha256": "238d9f975743afcc8a0818770fc82593a9835427be8131f2bd648dedba894b7c"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v8_x591_xs463.csv",
+      "size": 212776,
+      "sha256": "41883907a907536cfdd471a7af606a2d1109e7fb124a1057310099f949c8b5c8"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v9_x111_xs672.csv",
+      "size": 220961,
+      "sha256": "3c00a94c09896105fbc7939a5995e106605271cdee76b94576f2260ef5723b35"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v9_x269_xs631.csv",
+      "size": 218905,
+      "sha256": "bdd1748e97a7c7c0523c1abfc4564323f264dff66b50a282363a720e1b719732"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v9_x328_xs597.csv",
+      "size": 512186,
+      "sha256": "6f21099ad2308ffe2eb71b76cf119d1d5841bd8b79e25d30c97de3ff6cbbbbf4"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/panel_v9_x630_xs403.csv",
+      "size": 217349,
+      "sha256": "30ae11d5735be4325fbcf985e57eff00b45f187553a5326bc35a2719ba9bbb98"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/prev_cheap.csv",
+      "size": 1956738,
+      "sha256": "e8965450743abcb427f6a84dc2e8e3b8329f1c14ff102596ba1155ea4fee2842"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/prev_folded_2.csv",
+      "size": 117513,
+      "sha256": "9f5a48a9849e38080c177453cfa2381f0cefa0ee55970ddc07874bd39b4865db"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/prev_folded_3.csv",
+      "size": 149591,
+      "sha256": "dbf7f44547debc57f32a273350e096c476a0c44c3f14246744d5dbedd06283f0"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/report.html",
+      "size": 759596,
+      "sha256": "f7588d6fe950dfcb1274e286cf412a1cd067db4dd4648d2a6859f9b28da13447"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/report_x448_aug_paired_state11.svg",
+      "size": 104069,
+      "sha256": "e66157c59eb62ead1edae4e8890203bc8f1b920f50e36ad56168fcf5314245c7"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/report_x448_baseline_state11.svg",
+      "size": 104303,
+      "sha256": "894cc5b20a665f3240c146ccd498d0a91830f4e11c72e498a6886d57aae9063f"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/rescued_cheap_0.csv",
+      "size": 10094349,
+      "sha256": "5d6d2a4af3c9ac241ce3ea91dbf54b6900e26e575fd0e07e479a7e96099ab15a"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/rescued_cheap_1.csv",
+      "size": 9927933,
+      "sha256": "8c2a876a66e86d01cdf79473bf48006e2916816122f54b536cbe899c3274a70b"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/rescued_cheap_2.csv",
+      "size": 10088621,
+      "sha256": "d2f25174fafa140ef4dcece91dd2401d2ce95e7aa2115866c61a6c80eb0e0200"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/rescued_cheap_3.csv",
+      "size": 9922205,
+      "sha256": "26c31ec8d7b75ced7d243ae7e5d2a79d009b31c8e2caad4b3bcf4e84870e8cad"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/rescued_cheap_4.csv",
+      "size": 10092717,
+      "sha256": "dd36827c792734b9c98662e5c29ea28194c9b10848780c7f2654f593910a98e8"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/rescued_cheap_5.csv",
+      "size": 9926301,
+      "sha256": "f2d35d930a33d2eb5a3c3c8f36cf916c10a1abf04dff703f192ed90d39d65646"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/stem_opens_mfe.csv",
+      "size": 486063,
+      "sha256": "05eed53a26e365c2bea980702e8a9fbf3ebc09b1d8c12bcae78271388e6db725"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/variant_leak.csv",
+      "size": 321637,
+      "sha256": "4a6181ccad2829b7226def322f7d32a4298d49a732428fa530db4f9e670fbe1f"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/vista.csv",
+      "size": 104465,
+      "sha256": "99aca01c09d821540e2501dc77049a98b0a016b1166c88e96b6510590a4a8230"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/vista2.csv",
+      "size": 111348,
+      "sha256": "1a94b29e52307976dd88fac8d8c75c04a946d25d4a43c549d844628edc1bf82a"
+    },
+    {
+      "path": "src/engine/gates/notebooks/toehold_and/results/vista_trim.csv",
+      "size": 111171,
+      "sha256": "71ddb4af129efcdd181a8cfc49249397954b4a648dbc410e2619f30fd9ea48a9"
+    }
+  ]
+}

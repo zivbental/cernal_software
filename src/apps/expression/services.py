@@ -6,6 +6,7 @@ itself (``apps/expression/catalog/``) is read-only at request time — see
 ``apps/expression/providers/__init__.py`` for why nothing here ever calls a provider.
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -100,11 +101,17 @@ def materialize_public_dataset(*, user, comparison_key: str) -> Dataset:
             f"'{comparison_key}' is in the catalog but its data file is missing from this install."
         )
 
+    content = csv_path.read_bytes()
+    expected = entry.get("provider_metadata", {}).get("csv_sha256")
+    if not expected or hashlib.sha256(content).hexdigest() != expected:
+        raise DatasetValidationError(
+            f"'{comparison_key}' has missing or invalid provenance/data checksum. "
+            "Run python tools/install_data.py; no replacement dataset was used."
+        )
+
     name = f"{entry['experiment_title']} — {entry['comparison_label']}"[:200]
     dataset = create_dataset(
-        uploaded_file=SimpleUploadedFile(
-            f"{comparison_key}.csv", csv_path.read_bytes(), content_type="text/csv"
-        ),
+        uploaded_file=SimpleUploadedFile(f"{comparison_key}.csv", content, content_type="text/csv"),
         user=user,
         name=name,
     )

@@ -36,6 +36,7 @@ backend:
   before_script:
     - pip install --quiet uv
     - uv sync --locked --extra dev
+    - uv run python tools/install_data.py --profile test
   script:
     - uv run ruff check .
     - uv run ruff format --check .
@@ -59,6 +60,7 @@ client-python:
   before_script:
     - pip install --quiet uv
     - uv sync --locked --extra dev
+    - uv run python tools/install_data.py --profile test
   script:
     - uv run --with requests --with 'cernal @ ./clients/python' pytest clients/python/tests -c clients/python/tests/pytest.ini -q
 
@@ -92,6 +94,7 @@ browser-queued:
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
     - uv sync --locked --extra dev
+    - uv run python tools/install_data.py --profile test
     - npm --prefix frontend ci
     - npm --prefix frontend run build:fast
     - cd frontend && npx playwright install --with-deps chromium && cd ..
