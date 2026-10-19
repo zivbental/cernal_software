@@ -151,8 +151,11 @@ def environment(config):
         raise ValueError(
             "Supply an operator-owned SECRET_KEY of at least 50 characters; no default is generated"
         )
-    if values.get("REVIEWER_LOGIN_ENABLED", "False").lower() not in ("false", "0", "no"):
-        raise ValueError("Production preparation requires reviewer login disabled")
+    if values.get("REVIEWER_LOGIN_ENABLED", "").lower() != "false":
+        raise ValueError(
+            "Configuration must explicitly set REVIEWER_LOGIN_ENABLED=False; "
+            "missing or enabled values are rejected without rewriting the file"
+        )
     domain = domain_name(values.get("ALLOWED_HOSTS", ""))
     if values.get("CSRF_TRUSTED_ORIGINS") != "https://" + domain:
         raise ValueError("CSRF origin must match the HTTPS hostname")
