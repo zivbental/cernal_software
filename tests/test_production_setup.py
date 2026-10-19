@@ -220,11 +220,27 @@ def test_status_non_object_json_is_unavailable(prepared, monkeypatch, capsys, pa
     assert report["web"] == report["worker"] == "unavailable"
 
 
-def test_reviewer_login_cannot_be_inherited_or_reintroduced(prepared, monkeypatch):
+def test_missing_reviewer_setting_rejected_without_rewriting(prepared, monkeypatch):
     root, _, config = prepared
     config.write_text(config.read_text().replace("REVIEWER_LOGIN_ENABLED=False\n", ""))
     monkeypatch.setenv("REVIEWER_LOGIN_ENABLED", "True")
+    (root / ".env").write_text("REVIEWER_LOGIN_ENABLED=True\n")
+    before = config.read_bytes()
+    with pytest.raises(ValueError, match="explicitly set REVIEWER_LOGIN_ENABLED=False"):
+        production.environment(config)
+    assert config.read_bytes() == before
+
+
+@pytest.mark.parametrize("service_style", [False, True])
+def test_explicit_reviewer_setting_matches_service_environment(
+    prepared, monkeypatch, service_style
+):
+    root, _, config = prepared
+    monkeypatch.setenv("REVIEWER_LOGIN_ENABLED", "True")
     env = production.environment(config)
+    if service_style:
+        # systemd EnvironmentFile overrides the inherited environment, without installer changes.
+        env = dict(os.environ, **production.read_config(config))
     assert env["REVIEWER_LOGIN_ENABLED"] == "False"
     # Exercise the actual settings plus django-environ's fallback behavior.
     (root / ".env").write_text("REVIEWER_LOGIN_ENABLED=True\n")
