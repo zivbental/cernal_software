@@ -1,6 +1,6 @@
 """Local development settings. Never used on the VPS."""
 
-from pathlib import Path
+from config.runtime import ensure_runtime_directories
 
 from .base import *  # noqa: F403
 from .base import MEDIA_ROOT, STATIC_ROOT, VAR_DIR, env
@@ -20,12 +20,4 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 REVIEWER_LOGIN_ENABLED = env.bool("REVIEWER_LOGIN_ENABLED", default=True)
 
 # Create the runtime directories so a fresh clone works without manual setup.
-for _path in (
-    VAR_DIR,
-    VAR_DIR / "logs",
-    STATIC_ROOT,
-    MEDIA_ROOT,
-    Path(MEDIA_ROOT) / "datasets",
-    Path(MEDIA_ROOT) / "artifacts",
-):
-    Path(_path).mkdir(parents=True, exist_ok=True)
+ensure_runtime_directories(VAR_DIR, MEDIA_ROOT, STATIC_ROOT)

@@ -1,6 +1,9 @@
 # Replace the hostname and provision DNS before starting Caddy.
-cernal.example.org {
+@@DOMAIN@@ {
     encode zstd gzip
+    request_body {
+        max_size @@BODY_BYTES@@
+    }
     # All media downloads pass through Django authorization.
     reverse_proxy 127.0.0.1:8000 {
         header_up X-Cernal-Client-IP {remote_host}
