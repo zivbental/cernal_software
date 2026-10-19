@@ -60,7 +60,10 @@ rules, configure DNS/TLS, restore a backup, or provision IBBIS.
    operator-controlled and do not change paths concurrently with preparation.
 3. In `var/deployment/cernal.env`, replace `SECRET_KEY` with an operator-managed random
    secret of at least 50 characters, preserving it across upgrades/restores. No default
-   admin account/password or real secret is generated. Keep reviewer login disabled.
+   admin account/password or real secret is generated. The configuration file must
+   explicitly contain `REVIEWER_LOGIN_ENABLED=False`; omission is rejected without
+   rewriting the file. This keeps systemd services and preparation aligned even if
+   the caller environment or checkout `.env` enables reviewer login.
    Values are literal dotenv entries (quote values containing spaces); no shell code,
    command substitution or environment expansion is evaluated. Do not commit this file.
 4. For a genuinely new database only:
