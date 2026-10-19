@@ -1,8 +1,10 @@
 """Production preparation uses isolated directories and never controls real services."""
 
 import importlib.util
+import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -208,6 +210,77 @@ def test_status_never_calls_missing_database_ready(prepared, monkeypatch, capsys
         assert report[name] == "unavailable"
 
 
+@pytest.mark.parametrize("payload", ["[]", "null", '"ok"', "42"])
+def test_status_non_object_json_is_unavailable(prepared, monkeypatch, capsys, payload):
+    root, _, config = prepared
+    monkeypatch.setattr(production.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0))
+    monkeypatch.setattr(production, "urlopen", lambda *a, **k: io.StringIO(payload))
+    assert production.status(root, config) == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["web"] == report["worker"] == "unavailable"
+
+
+def test_reviewer_login_cannot_be_inherited_or_reintroduced(prepared, monkeypatch):
+    root, _, config = prepared
+    config.write_text(config.read_text().replace("REVIEWER_LOGIN_ENABLED=False\n", ""))
+    monkeypatch.setenv("REVIEWER_LOGIN_ENABLED", "True")
+    env = production.environment(config)
+    assert env["REVIEWER_LOGIN_ENABLED"] == "False"
+    # Exercise the actual settings plus django-environ's fallback behavior.
+    (root / ".env").write_text("REVIEWER_LOGIN_ENABLED=True\n")
+    env["PYTHONPATH"] = str(ROOT / "src")
+    code = (
+        "import environ; environ.Env.read_env('.env'); "
+        "from config.settings import prod; assert prod.REVIEWER_LOGIN_ENABLED is False"
+    )
+    result = subprocess.run([sys.executable, "-c", code], cwd=root, env=env, capture_output=True)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("dangling", [False, True])
+def test_linked_database_is_rejected_before_install(prepared, monkeypatch, tmp_path, dangling):
+    root, _, config = prepared
+    target = tmp_path / "outside.db"
+    if not dangling:
+        target.write_bytes(b"preserve outside database")
+    (root / "var/cernal.db").symlink_to(target)
+    monkeypatch.setattr(production, "ROOT", root)
+    monkeypatch.setattr(production, "run", lambda *a: pytest.fail("must reject before commands"))
+    with pytest.raises(RuntimeError, match="symlink"):
+        production.install(root, config, initialize=dangling)
+    assert not target.exists() if dangling else target.read_bytes() == b"preserve outside database"
+
+
+@pytest.mark.parametrize("managed", ["root", "output", "runtime", "config", "ancestor"])
+def test_managed_symlinks_rejected_without_writing_outside(prepared, tmp_path, managed):
+    root, output, config = prepared
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    before = config.read_bytes()
+    if managed == "root":
+        linked = tmp_path / "linked-root"
+        linked.symlink_to(root, target_is_directory=True)
+        root = linked
+    elif managed == "output":
+        output = tmp_path / "linked-output"
+        output.symlink_to(outside, target_is_directory=True)
+    elif managed == "runtime":
+        (root / "var/logs").rmdir()
+        (root / "var/logs").symlink_to(outside, target_is_directory=True)
+    elif managed == "config":
+        config.unlink()
+        config.symlink_to(outside / "missing.env")
+    else:
+        linked = tmp_path / "linked-ancestor"
+        linked.symlink_to(outside, target_is_directory=True)
+        output = linked / "nested/config"
+    with pytest.raises(RuntimeError, match="symlink"):
+        production.prepare(root, output, "app.example.org", "appuser", "appgroup", 100)
+    assert list(outside.iterdir()) == []
+    if managed != "config":
+        assert config.read_bytes() == before
+
+
 @pytest.mark.django_db
 def test_dataset_file_boundary_remains_application_enforced(user, settings, tmp_path):
     from django.core.files.uploadedfile import SimpleUploadedFile
@@ -222,3 +295,79 @@ def test_dataset_file_boundary_remains_application_enforced(user, settings, tmp_
         over_limit = SimpleUploadedFile("over.csv", b"x" * (1024 * 1024 + 1))
         with pytest.raises(DatasetValidationError, match="larger"):
             create_dataset(uploaded_file=over_limit, user=user)
+
+
+@pytest.mark.parametrize(
+    ("source", "domain", "dataset_mib", "location"),
+    [
+        ("template", "cernal.example.org", 100, "template"),
+        ("generated", "cernal.example.org", 100, "opt/cernal"),
+        ("generated", "alternate.example.net", 1, "srv/research/cernal-v2"),
+        ("generated", "uploads.example.org", 1024, "srv/cernal-large"),
+    ],
+)
+def test_caddy_adapts_and_validates_upload_configuration(
+    tmp_path, source, domain, dataset_mib, location
+):
+    """Opt-in real parser/provisioning check: never starts Caddy or obtains certificates."""
+    binary = os.environ.get("CADDY_BIN") or shutil.which("caddy")
+    if not binary:
+        pytest.skip("Set CADDY_BIN to an official Caddy executable for proxy validation")
+    if source == "generated" and os.name == "nt":
+        pytest.skip("Generated production paths target Linux; run in WSL/Linux")
+    root = tmp_path / location
+    root.mkdir(parents=True)
+    (root / "manage.py").touch()
+    output = tmp_path / "rendered"
+    body_bytes = (dataset_mib + 2) * 1024 * 1024
+    if source == "template":
+        output.mkdir()
+        template = (ROOT / "deploy/Caddyfile").read_text()
+        (output / "Caddyfile").write_text(
+            template.replace("@@DOMAIN@@", domain).replace("@@BODY_BYTES@@", str(body_bytes))
+        )
+    else:
+        production.prepare(root, output, domain, "appuser", "appgroup", dataset_mib)
+    isolated = tmp_path / "caddy-state"
+    isolated.mkdir()
+    env = dict(os.environ)
+    env.update(
+        HOME=str(isolated),
+        XDG_DATA_HOME=str(isolated / "data"),
+        XDG_CONFIG_HOME=str(isolated / "config"),
+    )
+    result = subprocess.run(
+        [
+            binary,
+            "adapt",
+            "--adapter",
+            "caddyfile",
+            "--config",
+            str(output / "Caddyfile"),
+            "--validate",
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    adapted = json.loads(result.stdout)
+
+    def objects(value):
+        if isinstance(value, dict):
+            yield value
+            for child in value.values():
+                yield from objects(child)
+        elif isinstance(value, list):
+            for child in value:
+                yield from objects(child)
+
+    nodes = list(objects(adapted))
+    assert any(n.get("host") == [domain] for n in nodes)
+    assert [n["max_size"] for n in nodes if n.get("handler") == "request_body"] == [body_bytes]
+    assert any(n.get("dial") == "127.0.0.1:8000" for n in nodes)
+    assert not any(n.get("handler") == "file_server" for n in nodes)
+    assert not list(isolated.rglob("*.key"))
+    assert not list(isolated.rglob("*.crt"))
