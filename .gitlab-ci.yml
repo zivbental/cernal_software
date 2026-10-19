@@ -34,6 +34,8 @@ backend:
     key: uv-$CI_COMMIT_REF_SLUG
     paths: [.uv-cache]
   before_script:
+    # Catalog checkout tests exercise Git conversion and provenance checks use Git.
+    - apt-get update && apt-get install -y --no-install-recommends git
     - pip install --quiet uv
     - uv sync --locked --extra dev
     - uv run python tools/install_data.py --profile test
@@ -74,6 +76,8 @@ frontend:
     key: npm-$CI_COMMIT_REF_SLUG
     paths: [frontend/node_modules]
   before_script:
+    # Help-link checks verify source targets against the tracked checkout.
+    - apt-get update && apt-get install -y --no-install-recommends git
     - cd frontend
     - npm ci
   script:
