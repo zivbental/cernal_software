@@ -10,8 +10,8 @@ import { useRef } from "react";
 
 import type { Backbone, Dataset, ExampleDataset, GateFamily } from "@/api/types";
 import { BacteriaIcon, HumanIcon, YeastIcon } from "@/components/icons/BioIcons";
-import { Panel, SectionHeading, AdvancedOptions } from "@/components/layout/Primitives";
-import { Check, SliderRow } from "@/components/compile/Bits";
+import { Panel, SectionHeading } from "@/components/layout/Primitives";
+import { Check } from "@/components/compile/Bits";
 import { ExpressionPreview } from "@/components/compile/ExpressionPreview";
 import { PublicDatasetPicker } from "@/components/compile/PublicDatasetPicker";
 import { parseSequence } from "@/components/compile/sequence";
@@ -42,7 +42,7 @@ export interface CompileConfig {
   customPayload: string;
   optimizePayloadCodons: boolean;
   /**
-   * UI-friendly sliders for a per-run override of the scoring profile's hard filters
+   * Configured defaults for a per-run override of the scoring profile's hard filters
    * (engine.scoring.profiles X7) — routes/compile.tsx's onSubmit turns these into
    * params.scoring.hard_filters. Not search constraints (those are
    * engine.domain.Constraints, a different concept the wizard does not expose today).
@@ -51,11 +51,10 @@ export interface CompileConfig {
   minGateStability: number;
   /**
    * `engine.domain.Constraints.max_circuit_gates` — how many gates one circuit may
-   * combine. The one search constraint the wizard exposes, because it is the one that
-   * changes what the researcher gets back rather than only how it is filtered.
+   * combine. Kept at the configured single-gate limit in this wizard.
    */
   maxCircuitGates: number;
-  /** Editable strings preserve empty/invalid values until submission validation. */
+  /** Preserve the configured defaults and submission validation without UI controls. */
   maxDesigns: string;
   topN: string;
   /**
@@ -99,11 +98,6 @@ export const DEFAULT_CONFIG: CompileConfig = {
   customBackboneGenbank: "",
   customBackboneInsertion: "",
 };
-
-/** engine.scoring.profiles.DEFAULT_V1's own predicted_leakage hard-filter ceiling
- * (CLAUDE.md §2) — the wizard's slider must not be able to submit a run that loosens
- * this scoring threshold, only tighten it. */
-const MAX_PROFILE_LEAKAGE = 0.85;
 
 /** Collaboration credit shown at the point of use, not only on a credits page.
  *
@@ -717,60 +711,6 @@ export function StepLogic({
         />
       )}
 
-      <AdvancedOptions>
-        <div className="grid gap-4 md:grid-cols-2">
-          <SliderRow
-            label="Off-State Leakage Limit"
-            value={config.maxLeakage}
-            min={0}
-            // The scoring profile's own predicted_leakage ceiling (CLAUDE.md §2) — this
-            // control can only tighten it, never submit a run that loosens a documented
-            // safety filter.
-            max={MAX_PROFILE_LEAKAGE}
-            step={0.01}
-            onChange={(v) => patch({ maxLeakage: v })}
-          />
-          <SliderRow
-            label="Minimum Gate Stability (MFE ceiling)"
-            value={config.minGateStability}
-            min={-60}
-            max={0}
-            unit=" kcal/mol"
-            onChange={(v) => patch({ minGateStability: v })}
-          />
-          <div>
-            <label htmlFor="max-designs" className="mb-1.5 block text-xs text-foreground">Evaluation budget (validated gate designs)</label>
-            <input id="max-designs" type="number" min={1} max={1000} step={1}
-              value={config.maxDesigns} onChange={(event) => patch({ maxDesigns: event.target.value })}
-              aria-describedby="max-designs-help"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" />
-            <p id="max-designs-help" className="mt-2 text-xs text-muted-foreground">
-              Evaluate up to this many validated gate designs (1–1,000; default 20).
-              Every selected output is evaluated separately for each retained gate design.
-              A larger budget can increase runtime; this is not a cap on generated candidates or final results.
-            </p>
-          </div>
-          <div>
-            <label htmlFor="top-n" className="mb-1.5 block text-xs text-foreground">Results to display (top ranked)</label>
-            <input id="top-n" type="number" min={1} max={1000} step={1}
-              value={config.topN} onChange={(event) => patch({ topN: event.target.value })}
-              aria-describedby="top-n-help"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" />
-            <p id="top-n-help" className="mt-2 text-xs text-muted-foreground">
-              Initially show up to this many accepted results after ranking (1–1,000; default 25).
-              This does not reduce computation. All evaluated results remain stored and available in the full results view and exports.
-            </p>
-          </div>
-          <SliderRow
-            label="Max Gates Per Circuit"
-            value={config.maxCircuitGates}
-            min={1}
-            max={1}
-            step={1}
-            // Fixed until a physically specified multi-gate compiler is integrated.
-          />
-        </div>
-      </AdvancedOptions>
     </Panel>
   );
 }

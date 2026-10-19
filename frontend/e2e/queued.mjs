@@ -49,20 +49,18 @@ try {
  await page.getByRole('button',{name:'Direct Trigger mRNA'}).click();
  await page.getByRole('textbox',{name:'Trigger sequence'}).fill('AACUUGUUGGCCCAGUGUGAAUCGCUUAAGGGUUAA');
  await page.getByRole('button',{name:'None',exact:false}).last().click();
- await page.getByRole('button',{name:/Advanced/}).click();
- for(const [label,value] of [['Off-State Leakage Limit', '0.85'],['Minimum Gate Stability (MFE ceiling)','0']]) {
-  const input=page.getByRole('slider',{name:label});
-  await input.evaluate((element,value)=>{
-   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(element,value);
-   element.dispatchEvent(new Event('input',{bubbles:true}));
-   element.dispatchEvent(new Event('change',{bubbles:true}));
-  },value);
- }
+ assert.equal(await page.getByRole('button',{name:/Advanced Options/}).count(),0);
  const submitted=page.waitForResponse(response=>response.url().endsWith('/api/runs')&&response.request().method()==='POST');
  await page.getByRole('button',{name:'Compile & Optimize'}).click();
  const response=await submitted;
  assert.equal(response.status(),202,await response.text());
  const run=await response.json();
+ assert.deepEqual(run.params_snapshot.budget,{max_designs:20});
+ assert.equal(run.params_snapshot.top_n,25);
+ assert.equal(run.params_snapshot.constraints.max_circuit_gates,1);
+ assert.deepEqual(run.params_snapshot.scoring.hard_filters.map(({metric,maximum})=>({metric,maximum})),[
+  {metric:'predicted_leakage',maximum:0.08},{metric:'gate_folding_energy',maximum:-32},
+ ]);
  assert(['QUEUED','RUNNING'].includes(run.status),`Must genuinely enqueue, got ${run.status}`);
  await page.waitForURL('**/runs/*');
  await page.getByRole('heading',{name:'Computational Design Results'}).waitFor({timeout:180000});
@@ -70,6 +68,11 @@ try {
  const terminal=await state.json();
  assert.equal(terminal.status,'COMPLETED');
  assert(terminal.counts.candidates>0,'The verified productive real fixture must produce candidates');
+ // Keep the real configured filters: rejected candidates still count as stored results.
+ // Inspect them through the existing results controls instead of weakening submission filters.
+ await page.getByRole('button',{name:'Precision Filters',exact:true}).click();
+ await page.getByRole('checkbox',{name:/Show rejected candidates/}).focus();
+ await page.keyboard.press('Space');
  await page.getByText('Score decomposition',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);
  console.log(`Real queued browser lane passed: ${run.id}, ${terminal.counts.candidates} candidates; HTTP login/submission, database queue, separate qcluster, real LocalEngine. Release adapter remains unconfigured/held.`);

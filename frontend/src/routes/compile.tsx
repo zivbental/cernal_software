@@ -155,7 +155,7 @@ function CompilePage() {
       // stability" is a `maximum`, not a `minimum` — using minimum here would
       // reject exactly the most stable designs. `reason` is required by the API
       // (api/params.py check_scoring_block) — it becomes the rejected candidate's
-      // recorded rejection_reason, so a researcher can see why their own slider
+      // recorded rejection_reason, so a researcher can see why the configured limit
       // rejected a design.
       // engine.domain.Constraints, unlike `scoring` above — see RunParams.
       constraints: {
@@ -168,12 +168,12 @@ function CompilePage() {
           {
             metric: "predicted_leakage",
             maximum: config.maxLeakage,
-            reason: `Off-state leakage above the researcher-set limit (${config.maxLeakage}).`,
+            reason: `Off-state leakage above the configured limit (${config.maxLeakage}).`,
           },
           {
             metric: "gate_folding_energy",
             maximum: config.minGateStability,
-            reason: `Gate folding energy above the researcher-set stability floor (${config.minGateStability} kcal/mol).`,
+            reason: `Gate folding energy above the configured stability floor (${config.minGateStability} kcal/mol).`,
           },
         ],
       },

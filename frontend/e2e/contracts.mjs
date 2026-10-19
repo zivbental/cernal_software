@@ -1,7 +1,7 @@
 /** Built SPA browser contracts with isolated HTTP fixtures; no user records. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { chromium } from 'playwright';
 const root = resolve(import.meta.dirname, '../../src/static/app');
@@ -84,6 +84,19 @@ await page.route('**/api/**', async route=>{
 try {
  await page.goto(origin+'/compile');
  await page.getByRole('heading',{name:'Biological Compiler'}).waitFor();
+ const shots=resolve(import.meta.dirname,'../test-results/new-circuit');
+ await mkdir(shots,{recursive:true});
+ for(const width of [1440,390]) {
+   await page.setViewportSize({width,height:1000});
+   for(const label of ['Advanced Options','Off-State Leakage Limit','Minimum Gate Stability (MFE ceiling)','Evaluation budget (validated gate designs)','Results to display (top ranked)','Max Gates Per Circuit']) {
+     assert.equal(await page.getByText(label,{exact:true}).count(),0,`${label} must be removed at ${width}px`);
+   }
+   assert.equal(await page.locator('#max-designs, #top-n, #max-designs-help, #top-n-help').count(),0);
+   await page.getByRole('button',{name:'Direct Trigger mRNA'}).click();
+   await page.evaluate(()=>window.scrollTo(0,0));
+   await page.screenshot({path:resolve(shots,`new-circuit-${width}.png`),fullPage:true});
+ }
+ await page.setViewportSize({width:1440,height:1000});
  await page.getByLabel('Run name (optional)').fill('  GFP response — submission 1  ');
  await page.getByRole('button',{name:'Direct Trigger mRNA'}).click();
  const sequence=page.getByRole('textbox',{name:'Trigger sequence'});
@@ -102,31 +115,20 @@ try {
  assert.deepEqual(submissions.at(-1).params.budget,{max_designs:20});
  assert.equal(submissions.at(-1).name,'GFP response — submission 1');
  assert.equal(submissions.at(-1).params.top_n,25);
- await page.getByRole('button',{name:'Advanced Options',exact:true}).click();
- const maxDesigns=page.getByLabel('Evaluation budget (validated gate designs)',{exact:true});
- const topN=page.getByLabel('Results to display (top ranked)',{exact:true});
- assert.equal(await maxDesigns.inputValue(),'20');
- assert.equal(await topN.inputValue(),'25');
- for(const [input,normal] of [[maxDesigns,'20'],[topN,'25']]) {
-   for(const invalid of ['', '0', '-1', '1.5', '1001']) {
-     await input.fill(invalid);
-     assert(await page.getByRole('button',{name:'Compile & Optimize'}).isDisabled(),`Invalid limit ${invalid} must block submission`);
-   }
-   for(const boundary of ['1','1000']) {
-     await input.fill(boundary);
-     assert(!(await page.getByRole('button',{name:'Compile & Optimize'}).isDisabled()),`Boundary ${boundary} must be accepted`);
-   }
-   await input.fill(normal);
- }
- await maxDesigns.fill('13');
- await topN.fill('7');
+ const initialSubmission=submissions.at(-1);
+ assert.equal(initialSubmission.params.constraints.max_circuit_gates,1);
+ assert.deepEqual(initialSubmission.params.scoring.hard_filters.map(({metric,maximum})=>({metric,maximum})),[
+   {metric:'predicted_leakage',maximum:0.08},{metric:'gate_folding_energy',maximum:-32},
+ ]);
+ assert.equal(await page.getByRole('button',{name:'Advanced Options',exact:true}).count(),0);
  for(const status of [401,403,404,422,429,500]) {
    submitStatus=status;
    await page.getByRole('button',{name:'Compile & Optimize'}).click();
    await page.getByRole('alert').filter({hasText:`Injected submission ${status}`}).waitFor();
  }
- assert.equal(submissions.at(-1).params.budget.max_designs,13);
- assert.equal(submissions.at(-1).params.top_n,7);
+ assert.equal(submissions.at(-1).params.budget.max_designs,20);
+ assert.equal(submissions.at(-1).params.top_n,25);
+ for(const submission of submissions) assert.deepEqual(submission,initialSubmission,'Retries must retain input, name, fixed defaults and idempotency key');
  submitStatus=null;
  await sequence.fill('>one\nACGU\n>two\nACGU');
  await page.getByText('Paste one FASTA record at a time.',{exact:true}).waitFor();
@@ -307,7 +309,7 @@ try {
  await page.goto(origin+'/dashboard');
  await page.getByRole('alert').filter({hasText:'Could not load run history'}).waitFor();
  assert.deepEqual(errors,[]);
- console.log('Browser contracts passed: paste integrity, capability rejection, offline retry, four-host/three-mode wizard readiness, HTTP401/403/404/422/429/500, catalog empty, custom vector insertion boundary, review save/delete, warning/proxy labels, evaluation/display defaults and validation, independent payload limits, global top-N paging/filtering/sorting, full/rejected/legacy access, candidate 201/7907, global output filter, empty completion and history error.');
+ console.log('Browser contracts passed: paste integrity, capability rejection, offline retry, four-host/three-mode wizard readiness, HTTP401/403/404/422/429/500, catalog empty, custom vector insertion boundary, review save/delete, warning/proxy labels, fixed evaluation/display defaults, independent payload limits, global top-N paging/filtering/sorting, full/rejected/legacy access, candidate 201/7907, global output filter, empty completion and history error.');
 } catch(error) {
  // These contracts contain only isolated synthetic fixtures, never user records.
  console.error('Browser contract failure URL:',page.url());
