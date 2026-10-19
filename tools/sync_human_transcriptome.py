@@ -2,13 +2,15 @@
 
 Prefer MANE Select, then Ensembl canonical, then the longest annotated transcript.
 All sequences come from spliced cDNA, including noncoding genes; never genomic DNA.
-Run offline once: .venv/bin/python tools/sync_human_transcriptome.py
+Maintainer-only rebuild: uv run python tools/sync_human_transcriptome.py
+Normal setup installs the exact published bytes with tools/install_data.py instead.
 """
 
 import gzip
 import hashlib
 import json
 import re
+import tempfile
 from pathlib import Path
 
 import requests
@@ -23,21 +25,58 @@ SOURCES = {
     "ncrna": BASE + "/fasta/homo_sapiens/ncrna/Homo_sapiens.GRCh38.ncrna.fa.gz",
     "gtf": BASE + "/gtf/homo_sapiens/Homo_sapiens.GRCh38.116.gtf.gz",
 }
+# Checksums recorded with the original, reviewed release-116 reference. Keep these
+# independent of generated human.json: a corrupt download must never become a pin.
+SOURCE_SHA256 = {
+    "cdna": "683eb19310c40bf1396e4718f45afa2ce86755717c0990f47a171f535d248ea1",
+    "ncrna": "7f03bb303e939517b322f7887a74c1ee15bbb82a6affbb54f0be84e82f89cff1",
+    "gtf": "ed992f0eac7197d9627bda618f8f831ba355c95bd5d0796af785387d462828b6",
+}
 
 
-def download(url: str) -> Path:
+def download(url: str, expected_sha256: str) -> Path:
+    for directory in (CACHE, *CACHE.parents):
+        if directory.is_symlink():
+            raise ValueError(f"Unsafe reference cache directory: {directory} is a symlink.")
+    if CACHE.exists() and not CACHE.is_dir():
+        raise ValueError(f"Unsafe reference cache path: {CACHE} is not a directory.")
     CACHE.mkdir(parents=True, exist_ok=True)
     target = CACHE / url.rsplit("/", 1)[1]
-    if target.is_file():
+    if target.is_symlink() or (target.exists() and not target.is_file()):
+        raise ValueError(f"Unsafe cached reference: {target} must be a regular file.")
+    if target.exists():
+        with target.open("rb") as handle:
+            actual = hashlib.file_digest(handle, "sha256").hexdigest()
+        if actual != expected_sha256:
+            raise ValueError(
+                f"Cached reference {target} failed SHA-256 verification: "
+                f"expected {expected_sha256}, got {actual}. "
+                "Remove this cache file and retry the download."
+            )
         return target
-    partial = target.with_suffix(".partial")
+    partial = None
     print(f"Downloading {url}", flush=True)
-    with requests.get(url, stream=True, timeout=(30, 180)) as response:
-        response.raise_for_status()
-        with partial.open("wb") as handle:
-            for chunk in response.iter_content(1024 * 1024):
-                handle.write(chunk)
-    partial.replace(target)
+    try:
+        digest = hashlib.sha256()
+        with requests.get(url, stream=True, timeout=(30, 180)) as response:
+            response.raise_for_status()
+            with tempfile.NamedTemporaryFile(
+                mode="wb", prefix=f".{target.name}.", suffix=".partial", dir=CACHE, delete=False
+            ) as handle:
+                partial = Path(handle.name)
+                for chunk in response.iter_content(1024 * 1024):
+                    handle.write(chunk)
+                    digest.update(chunk)
+        actual = digest.hexdigest()
+        if actual != expected_sha256:
+            raise ValueError(
+                f"Downloaded reference {url} failed SHA-256 verification: "
+                f"expected {expected_sha256}, got {actual}."
+            )
+        partial.replace(target)
+    finally:
+        if partial is not None:
+            partial.unlink(missing_ok=True)
     return target
 
 
@@ -65,7 +104,7 @@ def transcript_annotations(path: Path) -> dict:
 
 
 def main():
-    files = {key: download(url) for key, url in SOURCES.items()}
+    files = {key: download(url, SOURCE_SHA256[key]) for key, url in SOURCES.items()}
     print("Reading transcript annotations", flush=True)
     annotations = transcript_annotations(files["gtf"])
     selected = {}

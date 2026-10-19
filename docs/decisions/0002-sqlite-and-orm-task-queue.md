@@ -28,8 +28,9 @@ with rotating members and no on-call rotation.
 **Given up.** One writer at a time; no concurrent analyses; no multi-machine workers.
 Postgres-specific features are unavailable.
 
-**Reversal.** Postgres is a one-line `DATABASE_URL` change plus running migrations. A
-Redis broker is a `Q_CLUSTER` change.
+**Reversal.** Postgres requires a provisioned server/database and a compatible psycopg
+driver (not included in the locked dependencies), then a `DATABASE_URL` change and
+migrations. A Redis broker is a `Q_CLUSTER` change.
 
 **Revisit when** write contention appears in the logs, or more than one analysis needs
 to run at a time.

@@ -116,8 +116,8 @@ def test_clean_checkout_preserves_catalog_checksums(tmp_path, autocrlf):
         return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True).stdout
 
     git("init", "--quiet")
-    # Test the proposed rules, with authoritative committed CSV bytes. Reading
-    # the existing worktree would hide or perpetuate checkout conversion damage.
+    # Installed assets are no longer tracked. Validate their pinned manifest digest
+    # before exercising checkout conversion for catalog maintainers.
     (source / ".gitattributes").write_bytes((repo / ".gitattributes").read_bytes())
     catalog_path = CATALOG_DIR.relative_to(repo).as_posix()
     manifest = json.loads((CATALOG_DIR / "manifest.json").read_text())
@@ -125,7 +125,9 @@ def test_clean_checkout_preserves_catalog_checksums(tmp_path, autocrlf):
         relative = f"{catalog_path}/{entry['csv_path']}"
         path = source / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(git("show", f"HEAD:{relative}", cwd=repo))
+        content = (repo / relative).read_bytes()
+        assert hashlib.sha256(content).hexdigest() == entry["provider_metadata"]["csv_sha256"]
+        path.write_bytes(content)
     git("-c", "core.autocrlf=false", "add", ".")
     git(
         "-c",

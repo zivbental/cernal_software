@@ -20,4 +20,5 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --locked --extra dev
+      - run: uv run python tools/install_data.py --profile test
       - run: uv run pytest tests/engine/test_pipeline_matrix.py -q

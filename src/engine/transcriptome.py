@@ -7,9 +7,14 @@ FASTA files; running applications never need a provider request to resolve a gen
 """
 
 import gzip
+import hashlib
+import io
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
+from typing import BinaryIO
 
 from Bio import SeqIO
 
@@ -18,6 +23,8 @@ from engine.domain import Host
 from engine.errors import InputValidationError
 
 _DATA_DIR = Path(__file__).resolve().parent / "data" / "transcriptomes"
+_MANIFEST_PATH = Path(__file__).resolve().parents[2] / "data" / "manifest.json"
+_REFERENCE_PREFIX = "src/engine/data/transcriptomes"
 
 #: Host -> bundled FASTA filename. Extend this, and re-run
 #: ``tools/sync_transcriptome.py``, to add another organism — nothing else changes.
@@ -35,6 +42,54 @@ _FILES: dict[Host, str] = {
     # two are byte-identical, so the copy cannot drift when the vendored tree is updated.
     Host.C_ACNES: "c_acnes.fasta",
 }
+
+
+def _reference_error(host: Host, filename: str, reason: str) -> InputValidationError:
+    return InputValidationError(
+        f"The {host.value} reference file {filename} is missing or corrupt ({reason}). "
+        "Run python tools/install_data.py from the repository root to install "
+        "the pinned reference data."
+    )
+
+
+@contextmanager
+def _verified_reference_file(path: Path, host: Host) -> Iterator[BinaryIO]:
+    """Verify the installed bytes, then parse through the same open file handle."""
+    try:
+        manifest = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
+        entries = manifest["files"]
+        if not isinstance(entries, list):
+            raise ValueError("manifest files must be a list")
+        key = f"{_REFERENCE_PREFIX}/{path.name}"
+        matches = [
+            entry for entry in entries if isinstance(entry, dict) and entry.get("path") == key
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"manifest must contain exactly one entry for {key}")
+        entry = matches[0]
+        expected_hash, expected_size = entry["sha256"], entry["size"]
+        if (
+            not isinstance(expected_hash, str)
+            or len(expected_hash) != 64
+            or any(char not in "0123456789abcdef" for char in expected_hash)
+            or type(expected_size) is not int
+            or expected_size < 0
+        ):
+            raise ValueError(f"invalid manifest checksum or size for {key}")
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError) as exc:
+        raise _reference_error(host, path.name, "reference manifest is missing or invalid") from exc
+
+    try:
+        with path.open("rb") as handle:
+            if handle.seek(0, io.SEEK_END) != expected_size:
+                raise _reference_error(host, path.name, "size does not match data/manifest.json")
+            handle.seek(0)
+            if hashlib.file_digest(handle, "sha256").hexdigest() != expected_hash:
+                raise _reference_error(host, path.name, "SHA-256 does not match data/manifest.json")
+            handle.seek(0)
+            yield handle
+    except (OSError, EOFError, UnicodeError, ValueError) as exc:
+        raise _reference_error(host, path.name, "file is missing or unreadable") from exc
 
 
 @cache
@@ -55,7 +110,7 @@ def load_transcriptome(host: Host) -> dict[str, str]:
         hosts currently use CDS sequences without UTRs.
 
     Raises:
-        InputValidationError: no reference transcriptome is bundled for ``host``.
+        InputValidationError: the reference is unavailable or fails integrity checks.
     """
     filename = _FILES.get(host)
     if filename is None:
@@ -64,23 +119,26 @@ def load_transcriptome(host: Host) -> dict[str, str]:
             f"{', '.join(sorted(h.value for h in _FILES))} today (docs/ROADMAP.md Q1)."
         )
     path = _DATA_DIR / filename
-    opener = gzip.open if path.suffix == ".gz" else open
-    try:
-        with opener(path, "rt") as handle:
+    with _verified_reference_file(path, host) as raw:
+        handle = (
+            gzip.open(raw, "rt", encoding="utf-8")
+            if path.suffix == ".gz"
+            else io.TextIOWrapper(raw, encoding="utf-8")
+        )
+        with handle:
             return {
                 record.id: sq.to_rna(str(record.seq)) for record in SeqIO.parse(handle, "fasta")
             }
-    except (OSError, EOFError) as exc:
-        raise InputValidationError(
-            f"The {host.value} reference transcriptome is missing or unreadable. "
-            "Run the reference sync tool during setup."
-        ) from exc
 
 
 @cache
 def reference_metadata(host: Host) -> dict:
     path = _DATA_DIR / f"{host.value}.json"
-    return json.loads(path.read_text()) if path.is_file() else {}
+    with _verified_reference_file(path, host) as handle:
+        metadata = json.load(handle)
+        if not isinstance(metadata, dict):
+            raise _reference_error(host, path.name, "metadata must be a JSON object")
+        return metadata
 
 
 def resolve_gene_id(host: Host, identifier: str) -> str:

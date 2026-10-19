@@ -111,3 +111,20 @@ def test_every_curated_comparison_materializes_and_previews(comparison_key, user
     preview = preview_expression_rows(dataset)
     assert preview["total_rows"] > 0
     assert preview["rows"][0]["gene_id"]
+
+
+def test_corrupt_catalog_fails_before_materialization(user, tmp_path, monkeypatch):
+    import json
+
+    from apps.expression import services
+
+    manifest = services._load_manifest()
+    entry = manifest[ECOLI_COMPARISON_KEY]
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest))
+    csv = tmp_path / entry["csv_path"]
+    csv.parent.mkdir(parents=True)
+    csv.write_text("gene_id,log2fc\nb0002,2\n")
+    monkeypatch.setattr(services, "CATALOG_DIR", tmp_path)
+    with pytest.raises(DatasetValidationError, match="checksum"):
+        services.materialize_public_dataset(user=user, comparison_key=ECOLI_COMPARISON_KEY)
+    assert not Dataset.objects.filter(uploaded_by=user).exists()
