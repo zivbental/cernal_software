@@ -508,25 +508,10 @@ auditable at this team size. Automate it when someone forgets a step, not before
 
 ## 11. The VPS runbook
 
-> **Stub — written in Step 6.** Provision → deploy → migrate → restart →
-> restore-from-backup, for the always-on VM.
-
-What it will contain:
-
-- `deploy/Caddyfile` — automatic TLS.
-- `deploy/cernal-web.service` — gunicorn under systemd.
-- `deploy/cernal-worker.service` — `qcluster` under systemd.
-- `deploy/backup.sh` — `sqlite3 .backup` plus a `var/media/` archive, on a nightly cron.
-- `config/settings/prod.py` — `DEBUG=False`, real `ALLOWED_HOSTS`, `SECURE_*` headers,
-  HSTS, file logging with rotation.
-- Optionally at this point: `DATABASE_URL` → Postgres. One variable.
-
-**Done when** the app is live over HTTPS, both services restart on boot, a nightly backup
-exists, **and a restore has been tested at least once.**
-
-**This is independent of everything else in this document** and can happen first. The
-mock-engine version could ship this week and let people use it, then switch `CERNAL_ENGINE`
-when the science lands — no downtime, no user-visible change.
+The implemented single-VM production procedure is maintained only in
+[operations.md](operations.md). Use its production preparation, configuration,
+preflight, backup/restore and separate service-activation steps. The cloud architecture
+elsewhere in this document remains historical design, not an installation guide.
 
 ---
 
