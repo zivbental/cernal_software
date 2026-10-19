@@ -57,7 +57,10 @@ class AnalysisRun(UUIDModel, TimestampedModel):
     cannot be changed after the fact (rule 7). Status changes happen only in
     ``apps/analyses/services.py`` (rule 5). Runs are not organized into projects — each
     stands on its own, scoped only to the user who submitted it (``created_by``).
+    ``name`` is editable display metadata, outside the frozen computation inputs.
     """
+
+    name = models.CharField(max_length=120, blank=True, default="")
 
     organism = models.CharField(
         max_length=100,

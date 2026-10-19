@@ -187,6 +187,7 @@ export interface RunCounts {
 /** The polling response. Deliberately cheap — no joins across candidates. */
 export interface RunStatusResponse {
   id: string;
+  name: string;
   status: RunStatus;
   stage: string;
   progress_pct: number;
@@ -201,6 +202,7 @@ export interface RunStatusResponse {
 
 export interface Run {
   id: string;
+  name: string;
   dataset_id: string | null;
   status: RunStatus;
   stage: string;

@@ -223,6 +223,7 @@ export function useMaterializePublicDataset() {
 /* ---------- runs ---------- */
 
 export interface SubmitRunBody {
+  name?: string;
   input_mode: "de" | "direct" | "gene";
   dataset_id?: string | null;
   trigger_sequence?: string;
@@ -239,6 +240,18 @@ export function useSubmitRun() {
   return useMutation({
     mutationFn: (body: SubmitRunBody) => api.post<Run>("/runs", body),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: keys.recentRuns });
+    },
+  });
+}
+
+export function useRenameRun(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.patch<Run>(`/runs/${id}`, { name }),
+    onSuccess: (run) => {
+      queryClient.setQueryData(keys.run(id), run);
+      queryClient.invalidateQueries({ queryKey: keys.runStatus(id) });
       queryClient.invalidateQueries({ queryKey: keys.recentRuns });
     },
   });

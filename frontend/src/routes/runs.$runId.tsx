@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Ban, CircuitBoard, Dna, Loader2, FileText } from "lucide-react";
 
 import { api } from "@/api/client";
-import { useCancelRun, useCandidate, useCandidates, useRun, useRunStatus } from "@/api/queries";
+import { useCancelRun, useCandidate, useCandidates, useRenameRun, useRun, useRunStatus } from "@/api/queries";
 import type { Candidate, RunStatusResponse } from "@/api/types";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
@@ -56,7 +56,7 @@ function RunPage() {
             <span className="font-mono normal-case tracking-normal">{runId.slice(0, 8)}</span>
           </>
         }
-        title={done ? "Computational Design Results" : status.data.status === "FAILED" ? "Run failed" : status.data.status === "CANCELLED" ? "Run cancelled" : "Compiling your circuit"}
+        title={run.data?.name || status.data.name || (done ? "Computational Design Results" : status.data.status === "FAILED" ? "Run failed" : status.data.status === "CANCELLED" ? "Run cancelled" : "Compiling your circuit")}
         description={
           done
             ? "Candidates ranked using provisional folding and accessibility models. Off-target specificity is unmeasured; computation completion does not authorize sequence release."
@@ -65,6 +65,7 @@ function RunPage() {
         actions={<RunStatusBadge status={status.data.status} />}
       />
 
+      {run.data && <RunNameEditor key={runId} runId={runId} name={run.data.name || ""} />}
       <WarningList title="Run warnings" warnings={status.data.warnings ?? []} />
       {run.isError && <p role="alert">Could not load the frozen run configuration. <button onClick={() => run.refetch()}>Retry</button></p>}
       {run.data && <details className="mb-4 rounded-xl border border-border p-4"><summary>Run provenance and frozen configuration</summary><p>Engine {run.data.engine_version || "pending"} · Seed {run.data.seed ?? "unspecified"} · Host {run.data.organism}</p><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(run.data.params_snapshot, null, 2)}</pre></details>}
@@ -76,6 +77,29 @@ function RunPage() {
 }
 
 /* ---------- progress, failure, cancellation ---------- */
+
+function RunNameEditor({ runId, name }: { runId: string; name: string }) {
+  const rename = useRenameRun(runId);
+  const [draft, setDraft] = useState(name);
+  return (
+    <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={async (event) => {
+      event.preventDefault();
+      try { const saved = await rename.mutateAsync(draft); setDraft(saved.name); } catch { /* Keep draft for retry. */ }
+    }}>
+      <div className="min-w-0 flex-1 basis-64">
+        <label htmlFor="edit-run-name" className="block text-xs font-medium">Run name</label>
+        <input id="edit-run-name" value={draft} onChange={(event) => { setDraft(event.target.value); rename.reset(); }}
+          maxLength={120} disabled={rename.isPending} aria-describedby="edit-run-name-help"
+          className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm" />
+      </div>
+      <button type="submit" disabled={rename.isPending || draft === name}
+        className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50">{rename.isPending ? "Saving…" : "Save name"}</button>
+      <p id="edit-run-name-help" className="basis-full text-xs text-muted-foreground">Up to 120 characters. Leave blank to use the run ID. Renaming does not change the configuration.</p>
+      {rename.isError && <p role="alert" className="basis-full text-sm text-destructive">{rename.error.message}</p>}
+      {rename.isSuccess && <p role="status" className="basis-full text-sm">Run name saved.</p>}
+    </form>
+  );
+}
 
 function RunProgress({ runId, status }: { runId: string; status: RunStatusResponse }) {
   const cancel = useCancelRun(runId);
@@ -215,6 +239,7 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
 
   return (
     <div className="space-y-6">
+      <ArtifactDownloads runId={runId} />
       <Panel className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 grid-clinical opacity-60" />
         <div className="relative">
@@ -389,7 +414,6 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
       </Panel>
 
       <a className="inline-block text-sm underline" href={api.url(`/runs/${runId}/review.json`)}>Export researcher notes and decisions (JSON)</a>
-      <ArtifactDownloads runId={runId} />
     </div>
   );
 }

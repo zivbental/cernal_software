@@ -290,6 +290,7 @@ def test_the_polling_endpoint_returns_the_documented_shape(auth_client, run):
 
     assert set(body) == {
         "id",
+        "name",
         "status",
         "stage",
         "progress_pct",
