@@ -11,7 +11,7 @@
 # Note: if gitlab.igem.org's shared runners require an explicit tag, add a `tags:` key
 # to each job. Nothing else here is iGEM-specific.
 
-stages: [prepare, check, verify]
+stages: [check, verify]
 
 # Linux backup integrity also runs in the full backend suite. GitHub's dedicated
 # backup-integrity workflow additionally covers Windows (no Windows GitLab runner).
@@ -25,23 +25,10 @@ variables:
   UV_CACHE_DIR: .uv-cache
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
-# Download only checksum-pinned test data once. GitLab's optional cache is not
-# relied upon: shards receive this dedicated artifact and verify every byte offline.
-backend-data:
-  stage: prepare
-  image: python:3.13-slim
-  script:
-    - python tools/install_data.py --profile test --cache-dir .ci-data-cache
-  artifacts:
-    paths: [.ci-data-cache/]
-    expire_in: 1 day
-
+# Each backend job downloads and verifies pinned data directly; no large artifact transfer.
 .backend-environment:
   stage: check
   image: python:3.13-slim
-  needs:
-    - job: backend-data
-      artifacts: true
   cache:
     key: uv-$CI_COMMIT_REF_SLUG
     paths: [.uv-cache]
@@ -51,7 +38,7 @@ backend-data:
     - apt-get update && apt-get install -y --no-install-recommends git
     - pip install --quiet uv
     - uv sync --locked --extra dev
-    - uv run python tools/install_data.py --profile test --cache-dir .ci-data-cache --offline
+    - uv run python tools/install_data.py --profile test
 
 backend-checks:
   extends: .backend-environment

@@ -7,16 +7,13 @@ longer. No tests or biological calculations are disabled to fit this limit.
 
 ## Required jobs
 
-- `backend-data` downloads the 81 immutable, SHA-256-pinned test-profile assets
-  once with the existing data installer. Only `.ci-data-cache/` is uploaded:
-  82,601,858 bytes of public reference assets before artifact compression. No
-  application data, whole `var/` tree, environment, or credentials are included.
 - `backend-checks` retains Ruff lint/format, Django checks, migration freshness,
   and API-surface freshness checks.
 - `backend` runs 16 required pytest shards. Each installs locked dependencies,
-  restores the data artifact, and verifies/installs it with `--offline`. Missing
-  or corrupt assets fail closed. The optional uv cache is pull-only; successful
-  cache restoration is not required.
+  then downloads and verifies all 81 immutable test-profile assets with the existing
+  data installer. `backend-checks` uses the same setup. Missing or corrupt assets
+  fail closed; pinned URLs, byte counts and SHA-256 checks remain unchanged.
+  The optional uv cache is pull-only; successful cache restoration is not required.
 - `backend-coverage` depends on every shard and the backend checks. It verifies
   all shard indices are present, every shard exited successfully, every selected
   test started execution, and the disjoint union matches the full collection's
@@ -25,6 +22,16 @@ longer. No tests or biological calculations are disabled to fit this limit.
 - Frontend and client/browser checks remain required and unchanged. Git is
   explicitly installed in slim images that need it for source-link tracking,
   checkout-conversion tests, or provenance.
+
+Reference data is deliberately not passed between jobs as an artifact. In
+[pipeline 770346](https://gitlab.igem.org/2026/software/tau-israel/cernal/-/pipelines/770346),
+the preparation job verified all 82,601,858 data bytes but the coordinator rejected
+the cache archive with HTTP 413 (`Request Entity Too Large`). Downloading the pinned
+data in each backend job avoids that artifact limit without changing the data or
+requiring cache permissions. This repeats network transfer across jobs and therefore
+requires the immutable download source to remain available. Only compact shard
+coverage JSON and JUnit reports are transferred to the final audit; the data cache,
+environment and application data are not included in backend artifacts.
 
 ## Partitioning and timing
 
@@ -46,8 +53,8 @@ was 79.8 seconds. After splitting expensive function-scoped modules, the
 16-shard estimates are approximately 86–88 seconds each on that host.
 
 These measurements are not a guarantee of competition-runner speed. Its earlier
-cold setup took about 52 seconds, but CPU load, package downloads, and artifact
-transfer vary. Each shard publishes JUnit timings and the slowest 20 durations
+cold setup took about 52 seconds, but CPU load, package and reference-data downloads,
+and report transfer vary. Each shard publishes JUnit timings and the slowest 20 durations
 for tuning from actual runner evidence. If a shard still reaches the hard cap,
 rebalance measured groups or inspect an individually slow test; never remove
 coverage or replace real calculations merely to turn CI green.
