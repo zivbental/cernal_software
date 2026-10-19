@@ -14,6 +14,7 @@ VAR_DIR = BASE_DIR / "var"
 
 env = environ.Env()
 environ.Env.read_env(BASE_DIR / ".env")
+VAR_DIR = Path(env.str("CERNAL_VAR_DIR", default=str(VAR_DIR))).expanduser().resolve()
 
 # --- Applications ---------------------------------------------------------------
 
