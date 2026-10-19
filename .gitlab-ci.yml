@@ -29,6 +29,9 @@ variables:
 # Runs against LocalEngine, the only engine, so the scientific stack is required.
 backend:
   stage: check
+  # Real folding tests take longer than the observed ten-minute project/job budget.
+  # This overrides the project timeout, but a lower runner maximum still applies.
+  timeout: 45 minutes
   image: python:3.13-slim
   cache:
     key: uv-$CI_COMMIT_REF_SLUG
