@@ -69,7 +69,7 @@ export const DEFAULT_CONFIG: CompileConfig = {
   datasetId: null,
   triggerSequence: "",
   targetGene: null,
-  mechanism: "toehold",
+  mechanism: "prokaryotic_toehold",
   andGenes: { a: "", b: "" },
   outputs: ["gfp"],
   customPayload: "",
@@ -196,7 +196,7 @@ export function StepInputs({
                 aria-pressed={selected}
                 onClick={() => patch(o.key === "human"
                   ? { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: "none", mechanism: "eukaryotic_toehold" }
-                  : { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
+                  : { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "prokaryotic_toehold" })}
                 className={`group relative flex items-center gap-2 rounded-md px-5 py-2.5 text-sm transition ${
                   credit
                     ? selected
