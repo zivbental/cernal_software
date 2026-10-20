@@ -151,11 +151,6 @@ def environment(config):
         raise ValueError(
             "Supply an operator-owned SECRET_KEY of at least 50 characters; no default is generated"
         )
-    if values.get("REVIEWER_LOGIN_ENABLED", "").lower() != "false":
-        raise ValueError(
-            "Configuration must explicitly set REVIEWER_LOGIN_ENABLED=False; "
-            "missing or enabled values are rejected without rewriting the file"
-        )
     domain = domain_name(values.get("ALLOWED_HOSTS", ""))
     if values.get("CSRF_TRUSTED_ORIGINS") != "https://" + domain:
         raise ValueError("CSRF origin must match the HTTPS hostname")
@@ -169,8 +164,6 @@ def environment(config):
         raise ValueError("Supported preparation requires SQLite and media under CERNAL_VAR_DIR")
     result = dict(os.environ)
     result.update(values)
-    # Override inherited variables and prevent Django's .env fallback from enabling login.
-    result["REVIEWER_LOGIN_ENABLED"] = "False"
     return result
 
 

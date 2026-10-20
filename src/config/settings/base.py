@@ -176,13 +176,13 @@ RUN_STAGING_ROOT = VAR_DIR / "result-staging"
 
 # --- Reviewer instant login ------------------------------------------------------
 
-# Off unless explicitly turned on. When set, the login page offers a button that signs
+# On unless explicitly disabled. The login page offers a button that signs
 # in as a shared, unprivileged, passwordless account — for iGEM judges trying the
-# product without registering and waiting for approval. Never turn this on against a
-# deployment holding real user data: it is an intentional, unauthenticated way to get
-# a session. dev.py defaults it to on for local convenience; prod.py takes whatever
-# the operator sets, off by default.
-REVIEWER_LOGIN_ENABLED = env.bool("REVIEWER_LOGIN_ENABLED", default=False)
+# product without registering and waiting for approval. Set REVIEWER_LOGIN_ENABLED=False
+# for deployments holding private data: this is an intentional, unauthenticated way
+# to get a session. Disabling new reviewer logins does not revoke existing sessions
+# or API keys. Development and production share this default.
+REVIEWER_LOGIN_ENABLED = env.bool("REVIEWER_LOGIN_ENABLED", default=True)
 
 # --- Logging --------------------------------------------------------------------
 

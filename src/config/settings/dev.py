@@ -16,8 +16,5 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "[:
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
-# On by default locally — there is no real user data on a dev machine to protect.
-REVIEWER_LOGIN_ENABLED = env.bool("REVIEWER_LOGIN_ENABLED", default=True)
-
 # Create the runtime directories so a fresh clone works without manual setup.
 ensure_runtime_directories(VAR_DIR, MEDIA_ROOT, STATIC_ROOT)
