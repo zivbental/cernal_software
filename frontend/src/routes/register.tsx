@@ -124,7 +124,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="grid min-h-screen place-items-center bg-background px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <img src={cernalLogo} alt="CERNAL" className="h-11 w-auto" />
+          <img src={cernalLogo} alt="CERNAL" className="block h-[57px] w-[210px] max-w-full object-contain object-left" />
           <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
             Compiler-like Engine for RNA Logic
           </p>

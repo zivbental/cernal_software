@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Users } from "lucide-react";
+import { GitBranch, Github, Mail, Users } from "lucide-react";
 
 import cernalLogo from "@/assets/cernal-logo-animated.svg";
 import { useVersion } from "@/api/queries";
@@ -34,7 +34,7 @@ function AboutPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Panel>
-          <img src={cernalLogo} alt="CERNAL" className="h-12 w-auto" />
+          <img src={cernalLogo} alt="CERNAL" className="mb-2 block h-[68px] w-[250px] max-w-full object-contain object-left" />
           <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
             CERNAL turns transcriptomic signals into manufacturable synthetic gene
             circuits. Researchers define activation conditions as constraints; CERNAL
@@ -50,14 +50,38 @@ function AboutPage() {
             Built by a multidisciplinary student team at Tel Aviv University spanning dry
             lab, wet lab and human practices.
           </p>
-          <a
-            href="https://2026.igem.wiki/tau-israel/"
-            target="_blank"
-            rel="noreferrer"
-            className="mt-6 inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"
-          >
-            Full project documentation on the iGEM wiki
-          </a>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <a
+              href="https://2026.igem.wiki/tau-israel/"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"
+            >
+              Full project documentation
+            </a>
+            <a
+              href="https://github.com/zivbental/cernal_software"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"
+            >
+              <Github className="h-4 w-4" /> GitHub
+            </a>
+            <a
+              href="https://gitlab.igem.org/2026/software/tau-israel/cernal"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"
+            >
+              <GitBranch className="h-4 w-4" /> GitLab
+            </a>
+            <a
+              href="mailto:igem.tau.2026@gmail.com?subject=CERNAL%20feedback"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"
+            >
+              <Mail className="h-4 w-4" /> Contact the team
+            </a>
+          </div>
         </Panel>
 
         <Panel>
@@ -84,13 +108,16 @@ function AboutPage() {
             ))}
           </dl>
 
-          <p className="mt-5 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+          <div className="mt-5 rounded-lg border border-border bg-surface p-3">
+            <h3 className="text-xs font-semibold text-foreground">Current research scope</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
             Every number here is computed by the real pipeline, but the pipeline is
             incomplete. Off-target specificity is not measured yet, and two declared
             metrics — state separation and orthogonality — are not computed by any gate
             family, so they are reported blank rather than guessed. Treat candidates as
             designs to test at the bench, not as validated predictions.
-          </p>
+            </p>
+          </div>
         </Panel>
       </div>
     </>

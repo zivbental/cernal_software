@@ -51,7 +51,7 @@ function LoginPage() {
     <div className="grid min-h-screen place-items-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <img src={cernalLogo} alt="CERNAL" className="h-11 w-auto" />
+          <img src={cernalLogo} alt="CERNAL" className="block h-[57px] w-[210px] max-w-full object-contain object-left" />
           <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
             Compiler-like Engine for RNA Logic
           </p>
@@ -97,9 +97,9 @@ function LoginPage() {
           {pending && (
             <div
               role="status"
-              className="mt-4 flex items-start gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2.5"
+              className="mt-4 flex items-start gap-2.5 rounded-md border border-border bg-surface px-3 py-2.5"
             >
-              <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="text-sm">
                 <div className="font-medium text-foreground">Awaiting approval</div>
                 <p className="mt-0.5 text-muted-foreground">{pending}</p>

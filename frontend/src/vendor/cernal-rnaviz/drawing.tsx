@@ -1,5 +1,5 @@
 /**
- * Adapted from cernal-rnaviz render/{single,common}.js, utils.js and CSS.
+ * Adapted from the GitLab cernal-rnaviz render/{single,common}.js, utils.js and CSS.
  * Copyright 2026 iGEM TAU 2026 Team, Tel Aviv University. Apache-2.0.
  * Modified for a read-only React viewer; see PROVENANCE.md and NOTICE.
  */
@@ -14,7 +14,7 @@ export const BASE_COLORS: Record<string, string> = {
 };
 const NODE_RADIUS = 6;
 const END_LABEL_OFFSET = 14;
-const SINGLE_FOLD_PADDING = 24;
+const SINGLE_FOLD_PADDING = 20;
 
 function boundingBox(points: RnaBase[]) {
   const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
@@ -62,9 +62,9 @@ function endLabelPosition(terminal: RnaBase, neighbour: RnaBase | undefined, fal
  * Upstream single-strand drawing: backbone, dashed pairs, colored bases and ends.
  * React escapes all labels; data is validated before reaching the renderer.
  */
-export function RnaDrawing({ bases, links, regions, rotation, zoom, selected, onSelect, title }: {
-  bases: RnaBase[]; links: RnaLink[]; regions: RnaRegion[]; rotation: number; zoom: number;
-  selected: number | null; onSelect: (index: number) => void; title: string;
+export function RnaDrawing({ bases, links, regions, rotation, scale, selected, onSelect, title }: {
+  bases: RnaBase[]; links: RnaLink[]; regions: RnaRegion[]; rotation: number;
+  scale: number; selected: number | null; onSelect: (index: number) => void; title: string;
 }) {
   const id = useId();
   const canvas = computeCanvas(bases, rotation);
@@ -77,8 +77,8 @@ export function RnaDrawing({ bases, links, regions, rotation, zoom, selected, on
       className="rna-structure-svg"
       role="group" aria-roledescription="RNA structure diagram" aria-labelledby={`${id}-title ${id}-description`}
       viewBox={`0 0 ${canvas.width} ${canvas.height}`}
-      width={`${zoom * 100}%`} height={380 * zoom}
-      style={{ minWidth: `${zoom * 100}%`, maxWidth: "none" }}
+      width={canvas.width * scale} height={canvas.height * scale}
+      style={{ display: "block" }}
       xmlns="http://www.w3.org/2000/svg"
     >
       <title id={`${id}-title`}>{title}</title>

@@ -147,7 +147,7 @@ function CompilePage() {
       payload: {
         outputs: config.outputs,
         custom_sequence: parseSequence(config.customPayload).sequence || null,
-        optimize_codons: config.optimizePayloadCodons,
+        optimize_codons: true,
       },
       // Architecture limits remain independent of quality ranking.
       constraints: {

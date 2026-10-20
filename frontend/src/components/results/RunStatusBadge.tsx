@@ -2,7 +2,7 @@ import type { RunStatus } from "@/api/types";
 
 const STYLES: Record<RunStatus, string> = {
   DRAFT: "bg-secondary text-muted-foreground",
-  QUEUED: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  QUEUED: "bg-secondary text-muted-foreground",
   RUNNING: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
   COMPLETED: "bg-mint/10 text-mint",
   FAILED: "bg-destructive/10 text-destructive",

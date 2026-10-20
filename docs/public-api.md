@@ -74,6 +74,7 @@ built and tested; call them.
 | Rate limiting primitives | `ninja.throttling` — `BaseThrottle`, `SimpleRateThrottle`, `UserRateThrottle` | django-ninja 1.6.3, installed |
 | API-key auth primitives | `ninja.security.APIKeyHeader` | same |
 | Flat candidate × metric export | `GET /api/runs/{id}/export.csv` | [`api/routers/results.py`](../src/api/routers/results.py) |
+| Sequence-free run summary PDF | `GET /api/runs/{id}/export.pdf` | [`api/routers/results.py`](../src/api/routers/results.py) |
 
 **Verified, and it decides the whole design:** in django-ninja, CSRF is a property of
 `APIKeyCookie.__init__(csrf=True)` — *not* of `AuthBase` and *not* of `APIKeyHeader`.

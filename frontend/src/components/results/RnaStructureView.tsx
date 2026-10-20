@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 
 import { useCandidateStructure } from "@/api/queries";
 import type { CandidateDetail, CandidateStructure } from "@/api/types";
 import { getGateRegions, getPrimarySwitchNotice, getStructureProvenanceLabel } from "@/lib/rna-structure";
-import { BASE_COLORS, RnaDrawing } from "@/vendor/cernal-rnaviz/drawing";
+import { BASE_COLORS, computeCanvas, RnaDrawing } from "@/vendor/cernal-rnaviz/drawing";
 
 /** A persisted record or API response may predate the current data contract. */
 function drawable(data: CandidateStructure, candidate: CandidateDetail) {
@@ -37,6 +37,8 @@ export function RnaStructureView({ candidate }: { candidate: CandidateDetail }) 
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ width: 320, height: 360 });
   const annotations = useMemo(() => getGateRegions(
     candidate.gate_family, candidate.design.switch_sequence, candidate.design.architecture,
   ), [candidate.gate_family, candidate.design.switch_sequence, candidate.design.architecture]);
@@ -44,10 +46,25 @@ export function RnaStructureView({ candidate }: { candidate: CandidateDetail }) 
   const title = getStructureProvenanceLabel(candidate.design.structure_kind);
   const buttonClass = "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-xs hover:bg-secondary disabled:opacity-40";
 
+  useEffect(() => {
+    const container = canvasRef.current;
+    if (!container) return;
+    const measure = () => {
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      setViewport((current) => current.width === width && current.height === height
+        ? current
+        : { width, height });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [candidate.id, query.data?.status]);
+
   if (candidate.design.sequence_release?.release_allowed !== true) return <div role="status"
     className="rounded-xl border border-dashed border-border p-6 text-sm">
-    <p className="font-medium">RNA structure withheld pending sequence release approval</p>
-    <p className="mt-2 text-muted-foreground">Computational scores and ranking remain available. A release hold is not a failed fold or biological validation.</p>
+    <p className="font-medium">RNA structure unavailable.</p>
   </div>;
 
   if (query.isPending) return <p role="status" className="py-12 text-center text-sm text-muted-foreground">Loading saved RNA structure…</p>;
@@ -63,7 +80,6 @@ export function RnaStructureView({ candidate }: { candidate: CandidateDetail }) 
     className="rounded-xl border border-dashed border-border p-6 text-sm">
     <p className="font-medium">{data.status === "invalid" ? "Saved RNA structure is invalid" : data.status === "error" ? "RNA drawing could not be generated" : "RNA structure unavailable"}</p>
     <p className="mt-2 text-muted-foreground">{data.reason || "No drawable structure was saved for this candidate."}</p>
-    <p className="mt-2 text-muted-foreground">A missing structure is not evidence that the RNA is unpaired.</p>
     {data.status === "error" && <button className={`${buttonClass} mt-3`} onClick={() => query.refetch()}>Retry structure</button>}
   </div>;
   if (!drawable(data, candidate)) return <p role="alert" className="rounded-lg border border-border p-5 text-sm">
@@ -71,6 +87,12 @@ export function RnaStructureView({ candidate }: { candidate: CandidateDetail }) 
   </p>;
 
   const selectedBase = selected === null ? null : data.bases[selected];
+  const canvas = computeCanvas(data.bases, rotation);
+  const fitScale = Math.max(0.1, Math.min(
+    (viewport.width - 24) / canvas.width,
+    (viewport.height - 24) / canvas.height,
+    1,
+  ));
   const selectedRegion = selected === null ? null : annotations.regions.find((region) => selected >= region.start && selected < region.end);
   const paired = selected === null ? null : data.links.find((link) => link.source === selected || link.target === selected);
   const partner = paired ? (paired.source === selected ? paired.target : paired.source) : null;
@@ -82,12 +104,7 @@ export function RnaStructureView({ candidate }: { candidate: CandidateDetail }) 
 
   return <section aria-label="Candidate RNA structure" className="w-full min-w-0">
     <h3 className="text-sm font-semibold">{title}</h3>
-    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-      {candidate.design.structure_kind === "intended_target"
-        ? "The designed pairing pattern for the saved switch. This is not a predicted OFF/ON fold or experimental evidence."
-        : "Pairing as saved with this candidate. Its provenance is unspecified; no predicted OFF/ON state is inferred."}
-    </p>
-    {primaryNotice && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{primaryNotice}</p>}
+    {primaryNotice && <p className="mt-2 text-xs text-muted-foreground">{primaryNotice}</p>}
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
       <span className="font-mono text-[11px] text-muted-foreground">{data.sequence.length} nt · {data.links.length} base pairs</span>
       <div role="group" aria-label="RNA drawing controls" className="flex flex-wrap gap-1">
@@ -98,9 +115,9 @@ export function RnaStructureView({ candidate }: { candidate: CandidateDetail }) 
         <button className={buttonClass} aria-label="Rotate RNA right" onClick={() => setRotation((value) => (value + 90) % 360)}><RotateCw className="h-3.5 w-3.5" /></button>
       </div>
     </div>
-    <div className="mt-3 h-[400px] w-full overflow-auto rounded-xl border border-slate-700 bg-slate-900 p-2" data-testid="rna-canvas">
+    <div ref={canvasRef} className="mt-3 grid h-[min(400px,50vh)] min-h-[280px] w-full min-w-0 grid-cols-1 grid-rows-1 overflow-auto rounded-xl border border-slate-700 bg-slate-900 p-2" style={{ placeItems: zoom > 1 ? "start" : "center" }} data-testid="rna-canvas">
       <RnaDrawing bases={data.bases} links={data.links} regions={annotations.regions}
-        rotation={rotation} zoom={zoom} selected={selected} onSelect={setSelected}
+        rotation={rotation} scale={fitScale * zoom} selected={selected} onSelect={setSelected}
         title={`${candidate.engine_ref}: ${title}`} />
     </div>
     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground" aria-label="RNA drawing legend">
@@ -120,6 +137,6 @@ export function RnaStructureView({ candidate }: { candidate: CandidateDetail }) 
     {annotations.notice && <p className="mt-2 text-xs text-muted-foreground">{annotations.notice}</p>}
     {triggerLabels.length > 0 && <p className="mt-3 text-xs text-muted-foreground">Input{triggerLabels.length === 1 ? "" : "s"}: {[...new Set(triggerLabels)].join(", ")}. Trigger-bound pairing is not part of this saved drawing.</p>}
     <details className="mt-3 text-xs"><summary className="cursor-pointer text-muted-foreground">Stored dot-bracket structure</summary><pre className="mt-2 whitespace-pre-wrap break-all font-mono">{data.structure}</pre></details>
-    <p className="mt-3 text-[10px] text-muted-foreground">Visualization adapted from cernal-rnaviz · local stored-structure layout · positions are 1-based</p>
+    <p className="mt-3 text-[10px] text-muted-foreground">Visualized with <a className="underline underline-offset-2 hover:text-foreground" href="https://gitlab.igem.org/2026/software/tau-israel/rna-vizualizer" target="_blank" rel="noreferrer">cernal-rnaviz</a> · positions are 1-based</p>
   </section>;
 }

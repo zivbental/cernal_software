@@ -1,13 +1,5 @@
 import type { ReactNode } from "react";
 
-export function Caveat({ children }: { children: ReactNode }) {
-  return (
-    <aside className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-foreground">
-      {children}
-    </aside>
-  );
-}
-
 export function HelpLink({
   href,
   children,

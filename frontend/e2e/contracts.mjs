@@ -180,7 +180,7 @@ try {
  assert.equal(await page.getByText('ACGU',{exact:true}).count(),0);
  await page.getByText('Choose files and review release information',{exact:true}).click();
  await page.getByText('Some artifacts are withheld pending sequence release approval.',{exact:false}).waitFor();
- assert.equal(await page.getByText('Download everything (.zip)',{exact:true}).getAttribute('href'),null);
+ assert.match(await page.getByText('Download available files (.zip)',{exact:true}).getAttribute('href'),/available_only=true/);
  await page.getByRole('button',{name:/Gate & switch sequences/}).click();
  assert.equal(await page.getByRole('button',{name:'Select held.fasta'}).isDisabled(),true);
  assert.equal(await page.getByTitle('Download held.fasta',{exact:true}).getAttribute('href'),null);

@@ -4,7 +4,7 @@
  * ON is the joint opening of both hairpin stems with both triggers present; OFF is the largest
  * joint opening in any state that should stay shut. Every sampled state carries its sampler
  * check against the exact base-pair probabilities, and a failed check is shown as failed, not
- * hidden: the value stays and so does the warning. A value that could not be measured reads
+ * hidden: the value stays and so does its failed check. A value that could not be measured reads
  * "unmeasured", never 0. Nothing here is a sequence, so it is shown even while sequences are held.
  */
 

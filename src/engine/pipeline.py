@@ -2225,6 +2225,25 @@ def _write_artifacts(
                 candidate_ref=candidate.ref,
             )
         )
+        plasmid_sequence = plasmid.plasmid.sequence
+        plasmid_fasta = (
+            f">{candidate.ref} full_plasmid rank={candidate.rank} length={len(plasmid_sequence)}\n"
+            + "\n".join(
+                plasmid_sequence[index : index + 70]
+                for index in range(0, len(plasmid_sequence), 70)
+            )
+            + "\n"
+        )
+        artifacts.append(
+            write_artifact(
+                output_dir,
+                f"plasmids/{candidate.ref}.fasta",
+                plasmid_fasta,
+                kind="plasmid_fasta",
+                media_type="text/x-fasta",
+                candidate_ref=candidate.ref,
+            )
+        )
         artifacts.append(
             write_artifact(
                 output_dir,

@@ -366,13 +366,23 @@ export function useArtifacts(runId: string, enabled = true) {
  */
 export function artifactsZipUrl(
   runId: string,
-  selection: { category: string } | { ids: string[] } | Record<string, never> = {},
+  selection: {
+    category?: string;
+    ids?: string[];
+    availableOnly?: boolean;
+  } = {},
 ): string {
   const params = new URLSearchParams();
-  if ("category" in selection) params.set("category", selection.category);
-  if ("ids" in selection) params.set("ids", selection.ids.join(","));
+  if (selection.category) params.set("category", selection.category);
+  if (selection.ids) params.set("ids", selection.ids.join(","));
+  if (selection.availableOnly) params.set("available_only", "true");
   const query = params.toString();
   return api.url(`/runs/${runId}/artifacts/download${query ? `?${query}` : ""}`);
+}
+
+/** The human-readable, sequence-free PDF overview for a run. */
+export function runSummaryPdfUrl(runId: string): string {
+  return api.url(`/runs/${runId}/export.pdf`);
 }
 
 /* ---------- annotations ---------- */
