@@ -211,6 +211,82 @@ def _enzyme_sites_present(dna: str, patterns: dict[str, re.Pattern[str]]) -> lis
     ]
 
 
+def _repair_homopolymers(
+    dna: str,
+    max_homopolymer: int,
+    gc_range: tuple[float, float],
+    gc_window: int,
+    enzyme_names: Sequence[str],
+) -> tuple[str, str | None]:
+    """Use DNAChisel to resolve existing long runs without breaking other hard rules.
+
+    ESO 0.1.2 does not expose a general custom-constraint parameter, so the adapter adds
+    this focused DNAChisel pass after ESO. AvoidPattern locations are expanded to codon
+    boundaries because DNAChisel can fail when a pattern's mutable region is out of frame.
+    New runs created while resolving the first set are picked up on the next pass.
+    """
+    import dnachisel
+    from dnachisel.DnaOptimizationProblem import NoSolutionError
+
+    patterns = tuple(base * (max_homopolymer + 1) for base in "ACGT")
+    current = dna
+    for _ in range(10):
+        runs = list(re.finditer(rf"([ACGT])\1{{{max_homopolymer},}}", current))
+        if not runs:
+            return current, None
+
+        spans = []
+        for run in runs:
+            start = max(0, run.start() - max_homopolymer)
+            end = min(len(current), run.end() + max_homopolymer)
+            start -= start % 3
+            end = min(len(current), end + (-end % 3))
+            if spans and start <= spans[-1][1]:
+                spans[-1] = (spans[-1][0], max(spans[-1][1], end))
+            else:
+                spans.append((start, end))
+
+        low, high = gc_range[0] / 100.0, gc_range[1] / 100.0
+        constraints = [
+            dnachisel.EnforceGCContent(
+                mini=low, maxi=high, window=min(gc_window, len(current))
+            ),
+            dnachisel.EnforceTranslation(location=(0, len(current))),
+            *(
+                dnachisel.AvoidPattern(
+                    dnachisel.EnzymeSitePattern(name), strand="both"
+                )
+                for name in enzyme_names
+            ),
+            *(
+                dnachisel.AvoidPattern(pattern, location=span, strand="both")
+                for span in spans
+                for pattern in patterns
+            ),
+        ]
+        problem = dnachisel.DnaOptimizationProblem(
+            sequence=current, constraints=constraints, objectives=[]
+        )
+        try:
+            problem.resolve_constraints()
+        except NoSolutionError:
+            return current, (
+                f"could not satisfy the maximum homopolymer length of {max_homopolymer} nt "
+                "with the configured translation, GC, and enzyme constraints"
+            )
+        updated = str(problem.sequence).upper()
+        if updated == current:
+            break
+        current = updated
+
+    if re.search(rf"([ACGT])\1{{{max_homopolymer},}}", current):
+        return current, (
+            f"homopolymer repair did not converge within 10 passes "
+            f"(maximum {max_homopolymer} nt)"
+        )
+    return current, None
+
+
 class CodonOptimizer:
     """Synonymous-codon search and translation scoring for one host.
 
@@ -336,6 +412,7 @@ class CodonOptimizer:
         *,
         count: int = 4,
         avoid_enzymes: Sequence[str] = (),
+        max_homopolymer: int | None = None,
         acceptable: Callable[[str], bool] | None = None,
         on_rejected: Callable[[str, tuple[str, ...]], None] | None = None,
         gc_range: tuple[float, float] = (30.0, 70.0),
@@ -363,11 +440,12 @@ class CodonOptimizer:
             avoid_enzymes: Restriction enzyme names (DNAChisel's spelling, e.g.
                 ``"EcoRI"``, ``"BsaI"``) whose sites must not appear on either strand.
                 A calling stage derives these from the assembly standard it screens with.
+            max_homopolymer: Longest permitted run of one DNA base. When supplied, a
+                DNAChisel ``AvoidPattern`` constraint is applied during codon repair.
             acceptable: Predicate over a candidate (RNA), ``False`` rejecting it. **This
                 is how the stage's ``MotifScreener`` is applied** without this module
                 importing upward: bind ``screener.is_compliant`` in the caller. It also
-                catches what ``avoid_enzymes`` cannot — homopolymer runs and the team's
-                extra forbidden motifs.
+                catches the team's extra forbidden motifs.
             on_rejected: Called as ``on_rejected(sequence, reasons)`` for every candidate
                 *not* returned. When omitted, a rejection raises a ``UserWarning``
                 instead — a candidate never vanishes without a trace.
@@ -391,16 +469,16 @@ class CodonOptimizer:
                 enzyme, a bad ``count`` or GC range).
 
         Rejected (never returned, always reported): a candidate that encodes a different
-        protein or length, that contains a listed enzyme site, that falls outside
-        ``gc_range`` in any window, or that ``acceptable`` refuses. ESO is expected to
-        honour all four and sometimes does not, so each is re-verified here rather than
-        trusted.
+        protein or length, that contains a listed enzyme site or a homopolymer longer than
+        ``max_homopolymer``, that falls outside ``gc_range`` in any window, or that
+        ``acceptable`` refuses. Each is re-verified here rather than trusted.
 
         Returned but flagged (``unresolved``): hypermutable sites ESO could not remove.
         These are reported, not hidden, and not fatal.
 
         Reproducibility:
-            Each ESO run is seeded from ``self.seed``, the host, ``cds``,
+            Each ESO run and any DNAChisel homopolymer repair are seeded from
+            ``self.seed``, the host, ``cds``,
             ``target_pairing`` and the run's index — so the same call returns the same
             list, in the same order, in any process and under any ``PYTHONHASHSEED``.
             It does *not* depend on what was called before it.
@@ -408,8 +486,8 @@ class CodonOptimizer:
         Layering:
             The old docstring told this method to screen with ``MotifScreener``. That
             class lives in ``engine.stages``, which this module may not import (imports
-            point downward only), so the stage passes ``acceptable`` and ``avoid_enzymes``
-            instead.
+            point downward only), so the stage passes ``acceptable``, ``avoid_enzymes``
+            and ``max_homopolymer`` instead.
         """
         rna = to_rna(cds)
         if not is_valid_rna(rna):
@@ -428,6 +506,14 @@ class CodonOptimizer:
             )
         if gc_window < 1:
             raise ValueError(f"gc_window must be positive, got {gc_window}")
+        if max_homopolymer is not None and (
+            isinstance(max_homopolymer, bool)
+            or not isinstance(max_homopolymer, int)
+            or max_homopolymer < 1
+        ):
+            raise ValueError(
+                f"max_homopolymer must be a positive integer or None, got {max_homopolymer!r}"
+            )
         if target_pairing is not None:
             self._check_pairing(rna, target_pairing)
         enzymes = _enzyme_expressions(avoid_enzymes)
@@ -444,20 +530,42 @@ class CodonOptimizer:
         results: dict[str, CodonVariant] = {}
 
         # The input itself, when it is already acceptable. Always assessed without ESO.
-        failures = self._hard_failures(rna, rna, protein, enzymes, acceptable, gc_range, gc_window)
+        failures = self._hard_failures(
+            rna,
+            rna,
+            protein,
+            enzymes,
+            max_homopolymer,
+            acceptable,
+            gc_range,
+            gc_window,
+        )
         if not failures and not self._remaining_sites(rna):
             results[rna] = self._record(rna, rna, target_pairing, (), None)
 
         for index in range(count):
             seed = self._derive_seed(rna, target_pairing, index)
             dna, notes = self._run_eso(
-                to_dna(rna), target_pairing, enzymes, gc_range, gc_window, seed
+                to_dna(rna),
+                target_pairing,
+                enzymes,
+                max_homopolymer,
+                gc_range,
+                gc_window,
+                seed,
             )
             candidate = to_rna(dna)
             if candidate in results:
                 continue
             failures = self._hard_failures(
-                candidate, rna, protein, enzymes, acceptable, gc_range, gc_window
+                candidate,
+                rna,
+                protein,
+                enzymes,
+                max_homopolymer,
+                acceptable,
+                gc_range,
+                gc_window,
             )
             if failures:
                 reject(candidate, tuple(failures))
@@ -547,6 +655,7 @@ class CodonOptimizer:
         dna: str,
         target_pairing: str | None,
         enzymes: dict[str, re.Pattern[str]],
+        max_homopolymer: int | None,
         gc_range: tuple[float, float],
         gc_window: int,
         seed: int,
@@ -566,6 +675,7 @@ class CodonOptimizer:
         window = min(gc_window, len(dna))
         score_fn, organism = self._objective(target_pairing)
         names = tuple(enzymes)
+        homopolymer_notes: list[str] = []
 
         with _deterministic(seed) as caught:
             first, _, _ = optimization_engine(
@@ -579,30 +689,43 @@ class CodonOptimizer:
                 avoid_enzymes=names,
                 avoid_hairpins=False,  # structure is FoldEngine's alone
             )
-            final, _, _, _, _ = reoptimize_until_stable(
-                first,
-                False,
-                _REPORT_SITES,
-                None,
-                None,
-                RECOMBINATION_MODE,
-                SLIPPAGE_MODE,
-                low,
-                high,
-                _ESO_METHOD,
-                organism,
-                score_fn,
-                False,
-                avoid_hairpins=False,
-                avoid_enzymes=names,
-            )
+            final = first
+            for _ in range(5):
+                final, _, _, _, _ = reoptimize_until_stable(
+                    final,
+                    False,
+                    _REPORT_SITES,
+                    None,
+                    None,
+                    RECOMBINATION_MODE,
+                    SLIPPAGE_MODE,
+                    low,
+                    high,
+                    _ESO_METHOD,
+                    organism,
+                    score_fn,
+                    False,
+                    avoid_hairpins=False,
+                    avoid_enzymes=names,
+                )
+                if max_homopolymer is None:
+                    break
+                repaired, note = _repair_homopolymers(
+                    final, max_homopolymer, gc_range, window, names
+                )
+                if note is not None:
+                    homopolymer_notes.append(note)
+                    break
+                if repaired == final:
+                    break
+                final = repaired
         notes = [
             str(w.message).split(_DROPPED_CONSTRAINT_SPLIT)[0]
             for w in caught
             if issubclass(w.category, UserWarning)
             and not str(w.message).startswith(_ESO_PERFORMANCE_NOTICE)
         ]
-        return final, list(dict.fromkeys(notes))
+        return final, list(dict.fromkeys([*notes, *homopolymer_notes]))
 
     def _objective(self, target_pairing: str | None) -> tuple[Callable[[str], float] | None, str]:
         """ESO's ``custom_score_fn`` and ``organism_name`` for this call.
@@ -638,6 +761,7 @@ class CodonOptimizer:
         original: str,
         protein: str,
         enzymes: dict[str, re.Pattern[str]],
+        max_homopolymer: int | None,
         acceptable: Callable[[str], bool] | None,
         gc_range: tuple[float, float],
         gc_window: int,
@@ -651,6 +775,13 @@ class CodonOptimizer:
         present = _enzyme_sites_present(to_dna(candidate), enzymes)
         if present:
             failures.append(f"contains a site for {', '.join(present)}")
+        if max_homopolymer is not None:
+            run = re.search(rf"([ACGT])\1{{{max_homopolymer},}}", to_dna(candidate))
+            if run:
+                failures.append(
+                    f"contains a {run.group(1)} homopolymer of at least {len(run.group())} nt "
+                    f"(maximum {max_homopolymer})"
+                )
         size = min(gc_window, len(candidate))
         outside = [
             start
@@ -829,3 +960,4 @@ def _relative_adaptiveness(usage_table: dict[str, float]) -> dict[str, float]:
         for codon in members:
             adaptiveness[codon] = usage_table[codon] / best
     return adaptiveness
+
