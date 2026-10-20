@@ -220,34 +220,50 @@ def test_status_non_object_json_is_unavailable(prepared, monkeypatch, capsys, pa
     assert report["web"] == report["worker"] == "unavailable"
 
 
-def test_missing_reviewer_setting_rejected_without_rewriting(prepared, monkeypatch):
+@pytest.mark.parametrize("settings_module", ["base", "dev", "prod"])
+def test_missing_reviewer_setting_defaults_enabled(prepared, monkeypatch, settings_module):
     root, _, config = prepared
-    config.write_text(config.read_text().replace("REVIEWER_LOGIN_ENABLED=False\n", ""))
-    monkeypatch.setenv("REVIEWER_LOGIN_ENABLED", "True")
-    (root / ".env").write_text("REVIEWER_LOGIN_ENABLED=True\n")
+    assert "REVIEWER_LOGIN_ENABLED=True\n" in config.read_text()
+    config.write_text(config.read_text().replace("REVIEWER_LOGIN_ENABLED=True\n", ""))
+    monkeypatch.delenv("REVIEWER_LOGIN_ENABLED", raising=False)
     before = config.read_bytes()
-    with pytest.raises(ValueError, match="explicitly set REVIEWER_LOGIN_ENABLED=False"):
-        production.environment(config)
+    env = production.environment(config)
     assert config.read_bytes() == before
+    env["PYTHONPATH"] = str(ROOT / "src")
+    code = (
+        f"from config.settings import {settings_module} as settings; "
+        "assert settings.REVIEWER_LOGIN_ENABLED is True"
+    )
+    result = subprocess.run([sys.executable, "-c", code], cwd=root, env=env, capture_output=True)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize("service_style", [False, True])
+@pytest.mark.parametrize("enabled", ["False", "True"])
+@pytest.mark.parametrize("settings_module", ["dev", "prod"])
 def test_explicit_reviewer_setting_matches_service_environment(
-    prepared, monkeypatch, service_style
+    prepared, monkeypatch, service_style, enabled, settings_module
 ):
     root, _, config = prepared
-    monkeypatch.setenv("REVIEWER_LOGIN_ENABLED", "True")
+    config.write_text(
+        config.read_text().replace(
+            "REVIEWER_LOGIN_ENABLED=True", f"REVIEWER_LOGIN_ENABLED={enabled}"
+        )
+    )
+    opposite = "True" if enabled == "False" else "False"
+    monkeypatch.setenv("REVIEWER_LOGIN_ENABLED", opposite)
     env = production.environment(config)
     if service_style:
         # systemd EnvironmentFile overrides the inherited environment, without installer changes.
         env = dict(os.environ, **production.read_config(config))
-    assert env["REVIEWER_LOGIN_ENABLED"] == "False"
+    assert env["REVIEWER_LOGIN_ENABLED"] == enabled
     # Exercise the actual settings plus django-environ's fallback behavior.
-    (root / ".env").write_text("REVIEWER_LOGIN_ENABLED=True\n")
+    (root / ".env").write_text(f"REVIEWER_LOGIN_ENABLED={opposite}\n")
     env["PYTHONPATH"] = str(ROOT / "src")
     code = (
         "import environ; environ.Env.read_env('.env'); "
-        "from config.settings import prod; assert prod.REVIEWER_LOGIN_ENABLED is False"
+        f"from config.settings import {settings_module} as settings; "
+        f"assert settings.REVIEWER_LOGIN_ENABLED is {enabled}"
     )
     result = subprocess.run([sys.executable, "-c", code], cwd=root, env=env, capture_output=True)
     assert result.returncode == 0, result.stderr
