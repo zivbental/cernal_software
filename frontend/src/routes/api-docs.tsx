@@ -203,8 +203,9 @@ const PARAMETERS: ParamRow[] = [
   { field: "payload", type: "object", default: "{}", notes: "What the circuit expresses — every field explained below." },
   { field: "backbone", type: "object", default: "{}", notes: "Use catalog_key, or custom_genbank plus insertion_index (a zero-based boundary between vector bases). Omit for a cassette. The engine rejects protected feature disruption; no cloning protocol is inferred." },
   { field: "top_n", type: "integer", default: "25", notes: "Default number of accepted results displayed after ranking (1–1,000). Does not reduce evaluation or stored/exported results." },
-  { field: "and_inputs", type: "object", default: "{}", notes: 'Two-input AND only: {"gene_a": ..., "gene_b": ...}, both from the submitted DE table (the same gene twice is allowed). Required for eukaryotic_toehold_and, rejected otherwise. DE input only.' },
-  { field: "and_gate", type: "object", default: "{}", notes: "Two-input AND only: optional sampling settings (n_samples, n_controls, noise_check, ...). Unknown or out-of-range values are rejected by name." },
+  { field: "and_inputs", type: "object", default: "{}", notes: 'Two-input AND only: {"gene_a": ..., "gene_b": ...}, both up-regulated in the submitted DE table (the same gene twice uses two non-overlapping windows). Required for eukaryotic AND; optional restriction to two different genes for bacterial AND, which otherwise searches the selected gene pool. DE input only.' },
+  { field: "and_gate", type: "object", default: "{}", notes: "Eukaryotic AND only: optional sampling settings (n_samples, n_controls, noise_check, ...). Unknown or out-of-range values are rejected by name." },
+  { field: "prokaryotic_and", type: "object", default: "{}", notes: "Bacterial equilibrium AND only (E. coli): max_pair_seed_matches, max_pair_candidates, max_pairs, pair_selection (top or percentile_sample), accessibility_percentile, stems_per_pair (default 3; one per occupied A-site bin in the strongest lock row), max_stem_assignments (compute cap, default 2187), max_attempts, geometry (naive, kim or both), closure_set (chosen or full), upper3_set (aua_only by default, compact or full), on_ceiling. Lower3 adds a wobble variant only when it strengthens the lower arm. Search reverse-complementary overlaps of at least 4 nt within upstream accessible regions, derive complete AND trigger footprints and rescore them with CERNAL. Fold the switch through its linker, excluding the output CDS. Accepts budget.max_runtime_seconds (1..259200) with cooperative return_partial stopping; the worker deployment timeout is separate. The manifest records effective settings, check status and context; no kinetic prediction." },
   { field: "include_rejected", type: "boolean", default: "false", notes: "Include candidates a hard filter disqualified, with their reason." },
   { field: "include_metrics", type: "boolean", default: "true", notes: "Embed the full metric decomposition per candidate." },
   { field: "include_artifacts", type: "string[]", default: "[]", notes: 'Artifact kinds to embed, e.g. ["fasta", "structure_svg"].' },
@@ -215,7 +216,7 @@ const PARAMETERS: ParamRow[] = [
 ];
 
 const CONSTRAINTS_FIELDS: ParamRow[] = [
-  { field: "max_triggers", type: "integer", default: "1", notes: "Inputs of the one physical gate: 1 for a single-input switch, 2 for the two-input AND (eukaryotic_toehold_and), which requires exactly 2. See GET /api/version family_inputs." },
+  { field: "max_triggers", type: "integer", default: "1", notes: "Inputs of the one physical gate: 1 for a single-input switch, exactly 2 for a supported two-input AND family. See GET /api/version family_inputs." },
   { field: "max_circuit_gates", type: "integer", default: "1", notes: "One gate per circuit. Requests above 1 require an unavailable reviewed physical compiler and are rejected; the AND is one gate with two inputs, not two gates." },
   { field: "min_separation", type: "float", default: "0.5", notes: "Minimum |log2 fold change| for a gene to be considered usable." },
   { field: "max_p_adj", type: "float", default: "0.05", notes: "Adjusted p-value significance threshold." },

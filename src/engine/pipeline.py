@@ -50,7 +50,9 @@ editing something under ``gates/``.
 """
 
 import copy
+import csv
 import dataclasses
+import io
 import json
 import math
 import os
@@ -60,6 +62,7 @@ import statistics
 from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
+from time import monotonic
 
 from engine import sequences as sq
 from engine.artifacts import sha256_bytes, write_artifact
@@ -93,6 +96,7 @@ from engine.domain import (
     LogicGraph,
     LogicOperator,
     PlasmidDesign,
+    ProkaryoticAndSettings,
     Regulation,
     SampleMetadata,
     Segment,
@@ -103,7 +107,11 @@ from engine.domain import (
 from engine.errors import ChecksumMismatchError, EngineError, InputValidationError, JobCancelled
 from engine.gates.base import GateFamily
 from engine.gates.registry import get_family
-from engine.gates.toehold import EukaryoticToeholdAndGate
+from engine.gates.toehold import (
+    EukaryoticToeholdAndGate,
+    KimSecondaryArmToeholdAndGate,
+    ProkaryoticToeholdAndGate,
+)
 from engine.gates.tools.ais_china import AisChinaCodons
 from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
@@ -175,9 +183,6 @@ _UNBUILDABLE_FAMILIES: dict[str, str] = {
     ),
     # Research generators exist, but their application workflow is not validated.
     "toehold_and": "the research AND generator is not integrated with the application workflow.",
-    "prokaryotic_toehold_and": (
-        "the research AND generator is not integrated with the application workflow."
-    ),
 }
 
 
@@ -194,6 +199,18 @@ _AND_CONTROL_POOL_SIZE = 60
 def _is_and_run(gate_families: list[str]) -> bool:
     """True when any requested family takes more than one input (a two-input AND run)."""
     return any(get_family(name).max_inputs > 1 for name in gate_families or [])
+
+
+def _is_prokaryotic_and_run(gate_families: list[str]) -> bool:
+    """The explicitly supported bacterial production family, not the generic alias."""
+    return "prokaryotic_toehold_and" in (gate_families or [])
+
+
+def _production_hosts(name: str) -> frozenset[Host]:
+    """Validated application hosts may be narrower than research family support."""
+    if name == "prokaryotic_toehold_and":
+        return frozenset({Host.ECOLI})
+    return get_family(name).supported_hosts
 
 
 def _and_gene_pair(params: dict) -> tuple[str, str] | None:
@@ -243,7 +260,9 @@ def _and_control_pool(host: Host, seed: int, exclude_gene_ids: set[str]) -> tupl
     return tuple(pool)
 
 
-def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
+def build_tools(
+    request: JobRequest, host: Host, *, should_stop: Callable[[], bool] | None = None
+) -> dict[str, object]:
     """Construct every tool **once** per run, and hand them back for wiring.
 
     Args:
@@ -277,9 +296,13 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
         the warning below says so, so a 0.0 penalty is never mistaken for a clean scan.
     """
     is_and = _is_and_run(request.gate_families)
+    is_prok_and = _is_prokaryotic_and_run(request.gate_families)
     try:
-        folding_config = FoldingConfig.from_mapping(_folding_params(request.params, is_and=is_and))
+        folding_config = FoldingConfig.from_mapping(
+            _folding_params(request.params, is_and=is_and and not is_prok_and)
+        )
         and_settings = AndGateSettings.from_mapping(request.params.get("and_gate"))
+        prok_settings = ProkaryoticAndSettings.from_mapping(request.params.get("prokaryotic_and"))
     except ValueError as exc:
         raise InputValidationError(str(exc)) from exc
     folder = FoldEngine(config=folding_config)
@@ -348,10 +371,45 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
             continue
 
         family_class = get_family(name)
-        if not (family_class.available and host in family_class.supported_hosts):
+        if not (family_class.available and host in _production_hosts(name)):
             warnings.append(f"Skipped gate family '{name}': not available for {host.value}.")
             continue
 
+        if name == "prokaryotic_toehold_and":
+            variants = {
+                "naive": (ProkaryoticToeholdAndGate,),
+                "kim": (KimSecondaryArmToeholdAndGate,),
+                "both": (ProkaryoticToeholdAndGate, KimSecondaryArmToeholdAndGate),
+            }[prok_settings.geometry]
+            families.extend(
+                variant(
+                    host,
+                    folder,
+                    tools["translation"],
+                    tools["codons"],
+                    compute_barrier=False,
+                    balanced_grid=True,
+                    upper3_levels={
+                        "aua_only": ("WWW_AUA",),
+                        "compact": ("trigger_derived", "WWW_AUA"),
+                        "full": None,
+                    }[prok_settings.upper3_set],
+                    strengthen_lower3_only=True,
+                    max_secondary_assignments=prok_settings.max_stem_assignments,
+                    max_variable_conflicts=prok_settings.max_variable_conflicts,
+                    seed=request.seed if request.seed is not None else 0,
+                    should_stop=should_stop,
+                )
+                for variant in variants
+            )
+            constraints = dataclasses.replace(
+                constraints,
+                stems_per_pair=prok_settings.stems_per_pair,
+                stem_order="strong_lock_row",
+                closure_set=prok_settings.closure_set,
+            )
+            tools["constraints"] = constraints
+            continue
         if issubclass(family_class, EukaryoticToeholdAndGate):
             gene_pair = _and_gene_pair(request.params)
             resolved_pair = (
@@ -381,6 +439,8 @@ def build_tools(request: JobRequest, host: Host) -> dict[str, object]:
     # families actually requested, and reported rather than applied silently.
     wanted: set[int] = set()
     for family in families:
+        if is_prok_and:
+            continue  # Pair-aware discovery does not use the single-window scanner.
         if isinstance(family, EukaryoticToeholdAndGate):
             continue  # Its single-switch generator uses the configured eukaryotic windows.
         role_footprints = getattr(family, "role_footprints", None)
@@ -446,7 +506,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     if request.input_mode not in (INPUT_DIRECT, INPUT_DE, INPUT_GENE):
         raise InputValidationError(f"Unrecognised input mode {request.input_mode!r}.")
 
-    from engine.client import normalize_trigger_sequence, validate_job_configuration
+    from engine.client import LocalEngine, normalize_trigger_sequence, validate_job_configuration
 
     try:
         validate_job_configuration(
@@ -464,11 +524,25 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     except ValueError as exc:
         raise InputValidationError(str(exc)) from exc
     host = _resolve_host(request)
-    tools = build_tools(request, host)
     is_and = _is_and_run(request.gate_families)
+    is_prok_and = _is_prokaryotic_and_run(request.gate_families)
+    runtime_limit = (request.params.get("budget") or {}).get("max_runtime_seconds")
+    search_started = monotonic()
+    runtime_exhausted = False
+
+    def search_should_stop() -> bool:
+        nonlocal runtime_exhausted
+        if is_prok_and and runtime_limit is not None:
+            runtime_exhausted |= monotonic() - search_started >= runtime_limit
+        return runtime_exhausted
+
+    tools = build_tools(
+        request, host, **({"should_stop": search_should_stop} if is_prok_and else {})
+    )
     and_settings = AndGateSettings.from_mapping(request.params.get("and_gate"))
+    prok_settings = ProkaryoticAndSettings.from_mapping(request.params.get("prokaryotic_and"))
     and_genes = _and_gene_pair(request.params) if is_and else None
-    if is_and and (request.input_mode != INPUT_DE or and_genes is None):
+    if is_and and (request.input_mode != INPUT_DE or (and_genes is None and not is_prok_and)):
         raise InputValidationError(
             "A two-input AND run needs a differential-expression table and the two input genes "
             "(params.and_inputs.gene_a and gene_b)."
@@ -523,10 +597,12 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     profile = resolve_profile(request.scoring_profile, request.params.get("scoring"))
     store = CandidateStore(request.output_dir, request.run_id)
 
+    pair_plan = []
+    prok_search = {}
     if request.input_mode == INPUT_DE:
         if not on_progress(*_pct("Selecting genes")):
             raise JobCancelled("Selecting genes")
-        trigger_candidates, trigger_warnings = _de_trigger(
+        de_result = _de_trigger(
             request,
             store,
             tools["profiler"],
@@ -537,7 +613,14 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             on_progress,
             and_genes=and_genes,
             windows_per_gene=and_settings.windows_per_gene,
+            pair_families=families if is_prok_and else None,
+            pair_settings=prok_settings if is_prok_and else None,
+            should_stop=search_should_stop if is_prok_and else None,
         )
+        if is_prok_and:
+            trigger_candidates, trigger_warnings, pair_plan, prok_search = de_result
+        else:
+            trigger_candidates, trigger_warnings = de_result
     else:
         if not on_progress(*_pct("Scoring triggers")):
             raise JobCancelled("Scoring triggers")
@@ -632,18 +715,47 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         validation_counts["generated"] += 1
         validation_counts["valid" if valid else "invalid"] += 1
 
-    designs = designer.design(
-        trigger_candidates,
-        constraints,
-        on_incompatible=_on_incompatible,
-        on_invalid=_on_invalid,
-        on_progress=report_switch_progress,
-        on_validated=record_validation,
+    attempted_designs = []
+
+    def record_attempt(design, validation) -> None:
+        record_validation(validation.ok)
+        attempted_designs.append(
+            {
+                "design_id": design.design_id,
+                "geometry": design.architecture.get("geometry"),
+                "trigger_ids": [t.trigger_id for t in design.trigger_set.activators],
+                "validation_violations": list(validation.violations),
+            }
+        )
+        for violation in validation.violations:
+            _on_invalid(violation)
+
+    designs = (
+        designer.design_pairs(
+            pair_plan,
+            constraints,
+            max_attempts=prok_settings.max_attempts,
+            on_progress=report_switch_progress,
+            on_attempt=record_attempt,
+            on_incompatible=_on_incompatible,
+            should_stop=search_should_stop,
+        )
+        if is_prok_and
+        else designer.design(
+            trigger_candidates,
+            constraints,
+            on_incompatible=_on_incompatible,
+            on_invalid=_on_invalid,
+            on_progress=report_switch_progress,
+            on_validated=record_validation,
+        )
     )
     max_designs = (request.params.get("budget") or {}).get("max_designs", 20)
     design_budget_exhausted = False
     evaluated_gate_designs = 0
     for index, design in enumerate(designs):
+        if search_should_stop():
+            break
         if max_designs is not None and index >= max_designs:
             design_budget_exhausted = True
             warnings.append(
@@ -656,7 +768,11 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         if index % 5 == 0 and not on_progress(switch_progress[0], "Designing switches"):
             raise JobCancelled("Designing switches")
 
-        family = families_by_kind[design.gate_kind]
+        family = (
+            next(f for f in families if f.geometry_name == design.architecture["geometry"])
+            if is_prok_and
+            else families_by_kind[design.gate_kind]
+        )
         for outcome in outcomes:
             if not on_progress(switch_progress[0], "Evaluating payload context"):
                 raise JobCancelled("Evaluating payload context")
@@ -668,12 +784,35 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                 for segment in plasmid.plasmid.segments
                 if segment.kind in (SegmentKind.SWITCH, SegmentKind.PAYLOAD)
             )
+            evaluation_context = "full_switch_plus_payload_cds_no_promoter_or_terminator"
+            if is_prok_and:
+                transcript = design.sequence
+                evaluation_context = "switch_through_linker_excluding_output"
             evaluated_design = dataclasses.replace(
                 design,
-                architecture={**design.architecture, "evaluation_sequence": sq.to_rna(transcript)},
+                architecture={
+                    **design.architecture,
+                    "evaluation_sequence": sq.to_rna(transcript),
+                    "evaluation_context": evaluation_context,
+                },
             )
             try:
-                raw = family.evaluate_design(evaluated_design)
+                if is_prok_and:
+                    measured = family.measure_design(
+                        evaluated_design,
+                        on_ceiling=prok_settings.on_ceiling,
+                        compute_barrier=False,
+                    )
+                    raw = family.metrics_from_measurement(evaluated_design, measured)
+                    diagnostics = family.diagnostics_from_measurement(evaluated_design, measured)
+                    diagnostics["ranking_profile"] = dataclasses.asdict(profile)
+                else:
+                    raw = family.evaluate_design(evaluated_design)
+                    diagnostics = (
+                        family.diagnostics(evaluated_design)
+                        if hasattr(family, "diagnostics")
+                        else None
+                    )
             except JobCancelled:
                 raise
             except EngineError as exc:
@@ -704,12 +843,16 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                 )
             metrics = build_metrics(raw, profile)
             breach = failed_filter(raw, profile)
+            if is_prok_and:
+                violations = diagnostics["feasibility"]["violations"]
+                reasons = ([breach.reason] if breach else []) + list(violations)
+                if measured.get("skipped"):
+                    reasons.insert(0, f"ON-state screen: {measured['skipped']}")
+                if reasons:
+                    breach = HardFilter("prokaryotic_and_feasibility", reason="; ".join(reasons))
             # Optional hook: a family with nothing beyond its scored metrics need not define it
             # (GateFamily.diagnostics returns {} by default). Passed only when there is something
             # to record, so the single-input call is exactly what it always was.
-            diagnostics = (
-                family.diagnostics(evaluated_design) if hasattr(family, "diagnostics") else None
-            )
             candidate = _candidate_result(
                 store,
                 evaluated_design,
@@ -746,13 +889,74 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         dataclasses.replace(c, rank=ranks.get(c.ref), overall_score=score) for c, score in scored
     ]
     and_summary: dict | None = None
-    if is_and:
+    if is_and and not is_prok_and:
         candidates, and_summary = _annotate_and_ties(candidates, and_settings)
         warnings.append(
             "Two-input AND designs are computational predictions: ON and OFF are the joint opening "
             "of the two hairpin stems in sampled equilibrium structures, a structural proxy for "
             "translation. No AND construct has been experimentally validated."
         )
+    elif is_prok_and:
+        and_summary = {
+            "method": "prokaryotic_equilibrium",
+            "seed": request.seed if request.seed is not None else 0,
+            "settings": prok_settings.to_dict(),
+            "folding_context": "switch_through_linker_excluding_output",
+            "family_versions": {family.geometry_name: family.version for family in families},
+            "reference_transcripts": prok_search.get("reference_transcripts", {}),
+            "search": {
+                **prok_search,
+                "attempted_designs": len(attempted_designs),
+                "validation_rejected": sum(
+                    bool(r["validation_violations"]) for r in attempted_designs
+                ),
+                "evaluated_gate_designs": evaluated_gate_designs,
+                "feasible_candidates": sum(
+                    not c.design["and_gate"]["feasibility"]["violations"] for c in candidates
+                ),
+                "accepted_candidates": sum(not c.is_rejected for c in candidates),
+                "attempt_limit_reached": len(attempted_designs) >= prok_settings.max_attempts,
+                "evaluation_limit_reached": design_budget_exhausted,
+                "runtime_limit_seconds": runtime_limit,
+                "runtime_limit_reached": runtime_exhausted,
+                "search_elapsed_seconds": monotonic() - search_started,
+            },
+            "barrier_computed": False,
+            "feasibility_checks": len(families[0].THRESHOLDS),
+            "ranking": "shared_scoring_profile_after_all_feasibility_and_construct_checks",
+            "design_order": "round_robin_pairs_rotated_balanced_grid_interleaved_stems_v1",
+            "secondary_selection": "strongest_lock_tertile_one_per_global_a_site_tertile",
+            "lower3_policy": "strengthen_only_with_lower_arm_energy_gain",
+        }
+        warnings.append(
+            "Bacterial AND: four-state equilibrium structural predictions, with all declared "
+            "feasibility checks applied before shared scoring. No barrier calculation or "
+            "experimentally calibrated protein-expression prediction is used."
+        )
+        warnings.append(
+            "Equilibrium folding ends at the switch linker; output CDS, promoter and terminator "
+            "interactions are outside this declared model. "
+            "Exported constructs retain the full output."
+        )
+        if runtime_exhausted:
+            warnings.append(
+                "AND search time budget reached at a cooperative checkpoint; completed candidates "
+                "were retained. A native folding call may finish after the requested limit."
+            )
+        if prok_search.get("discovery_truncated"):
+            warnings.append(
+                "Compatible-pair discovery stopped within the declared count/time limits; "
+                "the searched scope is recorded."
+            )
+        if len(attempted_designs) >= prok_settings.max_attempts:
+            warnings.append(
+                "Assembly attempt budget reached; remaining combinations were not generated."
+            )
+        if not any(not c.is_rejected for c in candidates):
+            warnings.append(
+                "No switch passed every feasibility, scoring and construct check "
+                "in this bounded search."
+            )
 
     if trigger_candidates:
         summary = _summarize_rejections(incompatible_counts, incompatible_examples, "trigger set")
@@ -797,6 +1001,19 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     artifacts.extend(
         _write_artifacts(request.output_dir, candidates, plasmids, on_progress=on_progress)
     )
+    if is_prok_and:
+        artifacts.append(
+            write_artifact(
+                request.output_dir,
+                "and-search.json",
+                json.dumps(
+                    {"summary": and_summary, "assembly_attempts": attempted_designs}, indent=2
+                ),
+                kind="search_provenance",
+                media_type="application/json",
+                sequence_free=True,
+            )
+        )
     from engine.stages.reporting import ReportBuilder, StructureRenderer
 
     artifacts.append(
@@ -804,7 +1021,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             candidates,
             warnings,
             request.output_dir,
-            engine_version="local-0.12.0-scientific-qa-folding-model",
+            engine_version=LocalEngine.ENGINE_VERSION,
             profile_version=profile.version,
         )
     )
@@ -846,7 +1063,9 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                 "max_designs": max_designs,
                 "evaluated_gate_designs": evaluated_gate_designs,
                 "truncated": design_budget_exhausted,
-                "selection": "deterministic_generator_order",
+                "selection": "round_robin_compatible_pairs"
+                if is_prok_and
+                else "deterministic_generator_order",
             },
             **({"and_gate": and_summary} if and_summary is not None else {}),
         },
@@ -1387,7 +1606,10 @@ def _de_trigger(
     *,
     and_genes: tuple[str, str] | None = None,
     windows_per_gene: int = 3,
-) -> tuple[list[TriggerCandidate], list[str]]:
+    pair_families: list | None = None,
+    pair_settings: ProkaryoticAndSettings | None = None,
+    should_stop: Callable[[], bool] | None = None,
+) -> tuple:
     """Resolve trigger candidates for a `de` submission (docs/genes.md, docs/ROADMAP.md
     Q1's first answer) — a scoped first cut, not the full `de` pipeline docs/ROADMAP.md
     E2 describes. Reuses everything already built for `direct` mode rather than adding a
@@ -1420,6 +1642,11 @@ def _de_trigger(
     skipped at scan time: the hairpin is built from the window and from its reverse complement,
     so either puts a second start codon into the switch and every design on it is rejected.
 
+    Bacterial AND (``pair_families``) consumes the ordinary stage-2 shortlist as
+    accessible regions, derives complete cross-gene AND footprints around overlaps
+    within those regions, and rescores adjusted intervals with the same TriggerScorer.
+    ``and_genes`` is optional for that family. The generic eukaryotic path below is unchanged.
+
     Returns:
         The candidate trigger(s), ranked best first, and warnings describing how they
         were chosen — mirroring ``_direct_trigger``'s "empty candidates with a
@@ -1433,7 +1660,8 @@ def _de_trigger(
         ChecksumMismatchError: the dataset file does not match the checksum recorded at
             submission time.
     """
-    _validate_scanned_trigger_lengths(constraints)
+    if pair_families is None:
+        _validate_scanned_trigger_lengths(constraints)
     if host not in available_hosts():
         raise InputValidationError(
             f"Differential-expression input is only supported for "
@@ -1471,6 +1699,8 @@ def _de_trigger(
     canonical_inputs: tuple[str, ...] = ()
     if and_genes is not None:
         canonical_inputs = tuple(resolve_gene_id(host, gene) for gene in and_genes)
+        if pair_families is not None and len(set(canonical_inputs)) != 2:
+            raise InputValidationError("The bacterial AND gate requires two different input genes.")
         chosen = tuple(dict.fromkeys(canonical_inputs))
         present = {row.gene_id for row in dge.rows}
         missing = [gene for gene in chosen if gene not in present]
@@ -1493,7 +1723,11 @@ def _de_trigger(
         on_warning=warnings.append,
         on_progress=selection_progress,
     )
-    if not genes:
+    if not genes and pair_families is None:
+        if chosen:
+            raise InputValidationError(
+                "Neither chosen AND gene passed stage 1: " + " ".join(warnings)
+            )
         return [], [
             *warnings,
             "No gene passed stage 1's filters — nothing to design a switch against.",
@@ -1527,8 +1761,84 @@ def _de_trigger(
                 "selection, be up-regulated in the table, and have a transcript within the "
                 "compute limit. Stage 1 reported: " + (" ".join(warnings) or "no further detail.")
             )
-    if not genes:
+    if not genes and pair_families is None:
         return [], warnings
+    if pair_families is not None:
+        scorer = TriggerScorer(profiler, screener, folder)
+        # Consume stage 2's ordinary shortlist; overlap discovery cannot broaden it
+        # to the rest of a transcript. Only the derived complete footprints can extend.
+        input_windows = []
+        for gene in genes:
+            if on_progress is not None and not on_progress(7, "Scoring triggers"):
+                raise JobCancelled("Scoring triggers")
+            if should_stop is not None and should_stop():
+                break
+            input_windows.extend(
+                scorer.score([gene], transcriptome, constraints, should_stop=should_stop)
+            )
+        last_pair_pct = 7
+
+        def pair_progress(index: int, total: int) -> bool:
+            nonlocal last_pair_pct
+            last_pair_pct = max(last_pair_pct, 7 + 24 * index // max(total, 1))
+            return on_progress is None or on_progress(last_pair_pct, "Scoring triggers")
+
+        plan, summary = scorer.compatible_pairs(
+            input_windows,
+            transcriptome,
+            pair_families,
+            pair_settings,
+            constraints,
+            seed=request.seed if request.seed is not None else 0,
+            on_progress=pair_progress,
+            should_stop=should_stop,
+        )
+        references = {gene.gene_id: gene_reference(host, gene.gene_id) for gene in genes}
+        summary["reference_transcripts"] = {
+            gene.gene_id: {
+                "transcript_id": references[gene.gene_id]["transcript_id"],
+                "sha256": sha256_bytes(transcriptome[gene.gene_id].encode()),
+            }
+            for gene in genes
+        }
+        unique = {}
+        for _, trigger_set in plan:
+            for candidate in trigger_set.activators:
+                if candidate.trigger_id in unique:
+                    continue
+                ref = references[candidate.gene_id]
+                unique[candidate.trigger_id] = dataclasses.replace(
+                    candidate,
+                    trigger_id=store.mint_id("trig"),
+                    transcript_id=ref["transcript_id"],
+                    reference_accession=ref.get("reference_accession", ""),
+                    reference_selection_method=ref["selection_method"],
+                    transcript_sequence_sha256=sha256_bytes(
+                        transcriptome[candidate.gene_id].encode()
+                    ),
+                    rnaplfold_model=json.dumps(
+                        profiler.provenance(transcriptome[candidate.gene_id])["folding_model"]
+                    ),
+                )
+        from engine.domain import TriggerSet
+
+        plan = [
+            (geometry, TriggerSet(activators=tuple(unique[t.trigger_id] for t in group.activators)))
+            for geometry, group in plan
+        ]
+        return (
+            list(unique.values()),
+            [
+                *warnings,
+                f"Found {summary['discovered_pairs']} compatible ordered pairs; selected "
+                f"{summary['selected_pairs']} pairs using {summary['pair_ranking']} "
+                f"and policy {summary['pair_selection']}. Accessibility predicts reachability, "
+                "not AND discrimination.",
+            ],
+            plan,
+            summary,
+        )
+
     scan_screener = screener
     if chosen:
         scan_screener = MotifScreener(
@@ -1885,6 +2195,7 @@ def _trigger_feature(trigger: TriggerCandidate) -> dict:
     identically — a circuit's features list is this, once per member gene.
     """
     return {
+        "trigger_id": trigger.trigger_id,
         "feature_id": trigger.gene_id,
         "gene_id": trigger.gene_id,
         "gene_symbol": trigger.symbol,
@@ -1943,6 +2254,8 @@ def _trigger_feature(trigger: TriggerCandidate) -> dict:
         # otherwise. Makes a chosen window inspectable rather than a
         # black box when more than one was considered.
         "start_index": trigger.start_index,
+        "end_index": trigger.start_index + len(trigger.sequence),
+        "length": len(trigger.sequence),
     }
 
 
@@ -2016,7 +2329,9 @@ def _candidate_result(
                 for key, value in design.architecture.items()
                 if key != "evaluation_sequence"
             },
-            "evaluation_context": "full_switch_plus_payload_cds_no_promoter_or_terminator",
+            "evaluation_context": design.architecture.get(
+                "evaluation_context", "full_switch_plus_payload_cds_no_promoter_or_terminator"
+            ),
             "evaluation_sequence_sha256": sha256_bytes(
                 design.architecture.get("evaluation_sequence", design.sequence).encode()
             ),
@@ -2106,34 +2421,224 @@ def _write_artifacts(
     ``candidates`` — every accepted candidate has an entry (``_build_plasmid`` never
     raises once ``_resolve_outputs`` has confirmed the outcome is buildable).
     """
-    header = "ref,rank,gate_family,logic_type,overall_score,rejected,rejection_reason"
-    rows = [header]
+    columns = [
+        "ref",
+        "rank",
+        "gate_family",
+        "logic_type",
+        "overall_score",
+        "rejected",
+        "rejection_reason",
+    ]
+    bacterial = any(
+        c.design.get("and_gate", {}).get("method") == "prokaryotic_equilibrium" for c in candidates
+    )
+    if bacterial:
+        columns += [
+            "gene_a",
+            "start_a",
+            "end_a",
+            "gene_b",
+            "start_b",
+            "end_b",
+            "geometry",
+            "closure",
+            "upper3",
+            "lower3",
+            "stem_index",
+            "and_method",
+            "and_evaluated_nt",
+            "and_checks_passed",
+            "and_checks_total",
+            "and_violations",
+            "evaluation_context",
+            "evaluation_sequence_sha256",
+            "switch_sequence_sha256",
+            "and_on_minus_off",
+            "and_raw_on_off_ratio",
+            *[
+                f"metric_{name}"
+                for name in (
+                    "state_separation",
+                    "trigger_accessibility",
+                    "gate_folding_energy",
+                    "predicted_leakage",
+                    "dynamic_range",
+                    "gc_content",
+                    "orthogonality",
+                    "predicted_success_rate",
+                    "circuit_complexity",
+                )
+            ],
+            *[f"and_p_open_{state}" for state in ("00", "10", "01", "11")],
+            *[f"and_dg_open_{state}_kcal_per_mol" for state in ("00", "10", "01", "11")],
+        ]
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=columns, lineterminator="\n")
+    writer.writeheader()
     for candidate in sorted(candidates, key=lambda c: c.ref):
         score = "" if candidate.overall_score is None else f"{candidate.overall_score:.4f}"
-        rows.append(
-            ",".join(
-                [
-                    candidate.ref,
-                    "" if candidate.rank is None else str(candidate.rank),
-                    candidate.gate_family,
-                    candidate.logic_type,
-                    score,
-                    "yes" if candidate.is_rejected else "no",
-                    f'"{candidate.rejection_reason}"',
-                ]
+        row = {
+            "ref": candidate.ref,
+            "rank": candidate.rank,
+            "gate_family": candidate.gate_family,
+            "logic_type": candidate.logic_type,
+            "overall_score": score,
+            "rejected": "yes" if candidate.is_rejected else "no",
+            "rejection_reason": candidate.rejection_reason,
+        }
+        if bacterial:
+            info = candidate.design.get("and_gate", {})
+            architecture = candidate.design.get("architecture", {})
+            features = candidate.triggers.get("features", [])
+            for role, feature in zip(("a", "b"), features, strict=False):
+                row.update(
+                    {
+                        f"gene_{role}": feature["gene_id"],
+                        f"start_{role}": feature["start_index"],
+                        f"end_{role}": feature["start_index"] + len(feature.get("sequence", "")),
+                    }
+                )
+            row.update(
+                {
+                    key: architecture.get(key)
+                    for key in ("geometry", "closure", "upper3", "lower3", "stem_index")
+                }
             )
-        )
+            row.update(
+                {
+                    "and_method": info.get("method"),
+                    "and_evaluated_nt": info.get("evaluated_nt"),
+                    "and_checks_passed": info.get("feasibility", {}).get("passed"),
+                    "and_checks_total": info.get("feasibility", {}).get("total"),
+                    "and_violations": "; ".join(info.get("feasibility", {}).get("violations", [])),
+                    "evaluation_context": candidate.design.get("evaluation_context"),
+                    "evaluation_sequence_sha256": candidate.design.get(
+                        "evaluation_sequence_sha256"
+                    ),
+                    "switch_sequence_sha256": sha256_bytes(
+                        candidate.design["switch_sequence"].encode()
+                    ),
+                }
+            )
+            for state, values in info.get("states", {}).items():
+                row[f"and_p_open_{state}"] = values.get("open_probability")
+                row[f"and_dg_open_{state}_kcal_per_mol"] = values.get("opening_energy_kcal_per_mol")
+            row["and_on_minus_off"] = info.get("ranking_measures", {}).get("on_minus_off")
+            row["and_raw_on_off_ratio"] = info.get("ranking_measures", {}).get("raw_on_off_ratio")
+            row.update({f"metric_{metric.name}": metric.raw_value for metric in candidate.metrics})
+        writer.writerow(row)
 
     artifacts = [
         write_artifact(
             output_dir,
             "candidates.csv",
-            "\n".join(rows) + "\n",
+            output.getvalue(),
             kind="design_table",
             media_type="text/csv",
             sequence_free=True,
         )
     ]
+
+    if bacterial:
+        # Existing CandidateResult remains the inter-stage contract. This sequence-free
+        # export makes its AND-specific checks and ranking definitions inspectable without
+        # bypassing the sequence-release policy below.
+        records = []
+        for candidate in sorted(candidates, key=lambda c: (c.rank is None, c.rank or 0, c.ref)):
+            info = candidate.design.get("and_gate", {})
+            architecture = candidate.design.get("architecture", {})
+            records.append(
+                {
+                    "ref": candidate.ref,
+                    "rank": candidate.rank,
+                    "overall_score": candidate.overall_score,
+                    "rejected": candidate.is_rejected,
+                    "rejection_reason": candidate.rejection_reason,
+                    "inputs": [
+                        {
+                            **{
+                                key: feature.get(key)
+                                for key in (
+                                    "gene_id",
+                                    "gene_symbol",
+                                    "start_index",
+                                    "reference_accession",
+                                    "transcript_sequence_sha256",
+                                    "sequence_sha256",
+                                    "selection_score",
+                                )
+                            },
+                            "role": role,
+                            "length": len(feature.get("sequence", "")),
+                            "end_index": feature["start_index"] + len(feature.get("sequence", "")),
+                        }
+                        for role, feature in zip(
+                            ("A", "B"), candidate.triggers.get("features", []), strict=False
+                        )
+                    ],
+                    "parameters": {
+                        key: architecture.get(key)
+                        for key in (
+                            "gene_a",
+                            "gene_b",
+                            "geometry",
+                            "len_x",
+                            "stem_index",
+                            "closure",
+                            "upper3",
+                            "lower3",
+                            "secondary_search",
+                            "secondary_selection",
+                            "domain_map",
+                            "lock_energy",
+                            "a_site_energy",
+                            "b_site_energy",
+                            "lock_minus_a_site",
+                            "ddg_pref",
+                            "closure_natural",
+                            "closure_changed",
+                            "upper3_natural",
+                            "upper3_changed",
+                            "lower3_strong_before",
+                            "wobble_applied",
+                            "lower3_energy_before",
+                            "lower3_energy_after",
+                            "lower3_strong_after",
+                        )
+                    },
+                    "switch_sequence_sha256": sha256_bytes(
+                        candidate.design["switch_sequence"].encode()
+                    ),
+                    "family_version": candidate.design.get("family_version"),
+                    "tool_versions": candidate.design.get("tool_versions"),
+                    "folding_model": candidate.design.get("folding_model"),
+                    "metrics": [dataclasses.asdict(metric) for metric in candidate.metrics],
+                    "equilibrium": info,
+                }
+            )
+        artifacts.append(
+            write_artifact(
+                output_dir,
+                "and-candidates.json",
+                json.dumps(
+                    {
+                        "schema_version": "and-candidate-audit-v1",
+                        "sequence_policy": (
+                            "Full sequences remain in internal CandidateResult; "
+                            "released exports require screening."
+                        ),
+                        "candidates": records,
+                    },
+                    indent=2,
+                    allow_nan=False,
+                )
+                + "\n",
+                kind="design_table",
+                media_type="application/json",
+                sequence_free=True,
+            )
+        )
 
     accepted = sorted((c for c in candidates if not c.is_rejected), key=lambda c: c.ref)
     screened = {}

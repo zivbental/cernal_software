@@ -28,8 +28,16 @@ historical summaries:
   `src/api/routers/results.py`
 - wizard modes and blockers: `frontend/src/routes/compile.tsx` and
   `frontend/src/components/compile/`
+- two-input family hosts/modes: engine capabilities (`family_hosts`, `family_inputs`,
+  `family_input_modes`); the bacterial equilibrium settings live in `params.prokaryotic_and`,
+  separate from eukaryotic `params.and_gate`
 - result filters, failures, and downloads: `frontend/src/routes/runs.$runId.tsx` and
   `frontend/src/components/results/`
+- four-state AND evidence: `frontend/src/components/results/AndGateEvidence.tsx` dispatches
+  on `design.and_gate.method`; bacterial whole-window equilibrium probabilities and opening
+  costs must not inherit eukaryotic sampler, control, tie or noise labels
+- bacterial `full_context_status` distinguishes the initial screen from full output-CDS
+  evaluation; passing a prefix screen alone does not permit a final rank
 - RNA Structure tab, saved-target labels, region mapping and primary-switch limit:
   `frontend/src/components/results/RnaStructureView.tsx`, `frontend/src/lib/rna-structure.ts`,
   and `GET /api/candidates/{candidate_id}/structure` in `src/api/routers/results.py`

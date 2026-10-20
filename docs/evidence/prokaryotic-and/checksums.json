@@ -1,0 +1,164 @@
+{
+  "schema": "cernal-and-development-evidence-v1",
+  "files": [
+    {
+      "file": "prokaryotic-and-contexts.json.gz",
+      "sha256": "c2dccf6b34f5da7353a0521c5d005b1f7ede49ff21f694d6af2fc1864ad6595f",
+      "uncompressed_sha256": "05fc6fcdac63b6af7bdfda5dc5d7bad5254402f749343c22a1667e4fcc603607",
+      "bytes": 7092,
+      "producer_revision": "e7d675e03d16f7526fc75164ac970d1c2f6c0d25",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "tools\\pair_budget_on_pfas.py": "b0fe6db9c94ff10c9b791ba9576b276eabf0117f8bcfbac5f76feaf2b47d8433",
+        "src\\engine\\gates\\toehold.py": "40a153ab04f5f146b77dc0322884490b09328c19ab19c70afe4a69a72edd8e17"
+      }
+    },
+    {
+      "file": "prokaryotic-and-mean-pilot.json.gz",
+      "sha256": "6fc5ea0620be7dda90278ccb91ec11e1097df625dd8ca8f0e35acf0097969665",
+      "uncompressed_sha256": "3836b3b9afb5bdba2da6dde87bfd02632312921ccc18ba2f72a7e00ebe9a4ba6",
+      "bytes": 113608,
+      "producer_revision": "e7d675e03d16f7526fc75164ac970d1c2f6c0d25",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "tools\\pair_budget_on_pfas.py": "b0fe6db9c94ff10c9b791ba9576b276eabf0117f8bcfbac5f76feaf2b47d8433",
+        "src\\engine\\gates\\toehold.py": "40a153ab04f5f146b77dc0322884490b09328c19ab19c70afe4a69a72edd8e17"
+      }
+    },
+    {
+      "file": "prokaryotic-and-pair-discovery.json.gz",
+      "sha256": "320d6f240787fa55869470202315cd265adf4b3dfad2940bcd00b0d31c98158e",
+      "uncompressed_sha256": "23eb14ac20cdee4cde9c7f8edc460ffdb805cf97c18cec8e3d2209df9ac277b9",
+      "bytes": 1559,
+      "producer_revision": "e7d675e03d16f7526fc75164ac970d1c2f6c0d25",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {}
+    },
+    {
+      "file": "prokaryotic-and-pilot.json.gz",
+      "sha256": "5e8b58ceca2d5f5c3c3e51f219c1433a9588f929ec4af6b319a75a1774c6c1a0",
+      "uncompressed_sha256": "944b1a8ef512cb1e23424bf923b0ed9f6d4bb289b2a6147011d15d42186d5b80",
+      "bytes": 58597,
+      "producer_revision": "e7d675e03d16f7526fc75164ac970d1c2f6c0d25",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {}
+    },
+    {
+      "file": "window-audit.json.gz",
+      "sha256": "92d0ea760aaddef779d6e06797584b9a35e1113ffed564a083a7424179d032ce",
+      "uncompressed_sha256": "02168025c0602e0f6ada8ee4e41a34ee5e99ef831e027c51c5341e3fc9b852d8",
+      "bytes": 13019,
+      "producer_revision": null,
+      "working_tree_changes_may_be_present": null,
+      "producer_code_checksums": {}
+    },
+    {
+      "file": "prokaryotic-and-compiler-custom.json.gz",
+      "sha256": "7181fbc1c1e56c2da93f7c6f5e13cba69c06eddc5270aa00fb237cd0f47ce187",
+      "uncompressed_sha256": "0e04d79d0b01d6fec44ec26243d3abc82a14f4f9b067b4172583615e15eb6f2f",
+      "bytes": 12605,
+      "producer_revision": null,
+      "working_tree_changes_may_be_present": null,
+      "producer_code_checksums": {
+        "src\\engine\\pipeline.py": "c1f1b8f154cc7d26e5f069bf89a43c6d067ca093821e80e4e01e9084cae0f893",
+        "src\\engine\\gates\\toehold.py": "f497c547b1a0adc4403d98c604c10cd597714afa65e73d847857ee8fd742548d",
+        "src\\engine\\stages\\triggers.py": "53e918ddd5891fc93ead0ca9ab3f165388b3232efb847c1ff07fea5652ea29fc"
+      }
+    },
+    {
+      "file": "prokaryotic-and-compiler-rotated-custom.json.gz",
+      "sha256": "b302b8dd8c695b73385e0d8e3a49896bf87e460a056e27ffe59de955894b7deb",
+      "uncompressed_sha256": "ebce54c840eb595d3422e80f71c5a16682449bd600e12957ced02e36642573b7",
+      "bytes": 13205,
+      "producer_revision": "e7d675e03d16f7526fc75164ac970d1c2f6c0d25",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "src\\engine\\pipeline.py": "0993f11c6d3a3855087600c9ac8edecdb7cefbe86d799bda663fc841ec0c83f1",
+        "src\\engine\\gates\\toehold.py": "f497c547b1a0adc4403d98c604c10cd597714afa65e73d847857ee8fd742548d",
+        "src\\engine\\stages\\triggers.py": "53e918ddd5891fc93ead0ca9ab3f165388b3232efb847c1ff07fea5652ea29fc"
+      }
+    },
+    {
+      "file": "prokaryotic-and-compiler-rotated-gfp.json.gz",
+      "sha256": "cc766c91f516dd8aa3febb71b7fc2ce7bce52cb2ae61e50c9adb5652c0f39f24",
+      "uncompressed_sha256": "a5afc85e05e752ebea3f73e8a4644aa9f35d2fd0844f9270328983005a8c7f1c",
+      "bytes": 13173,
+      "producer_revision": "e7d675e03d16f7526fc75164ac970d1c2f6c0d25",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "src\\engine\\pipeline.py": "0993f11c6d3a3855087600c9ac8edecdb7cefbe86d799bda663fc841ec0c83f1",
+        "src\\engine\\domain.py": "a0f6c1d93cf3e7c97d0e8fd2a423db32ba993dedaa4bb3f9dfcc55d8a078f360",
+        "src\\engine\\client.py": "ad7197a812b75dd91bc244d57420f797204e06838d928dfe4f33a66ea4e1d6f8",
+        "src\\engine\\gates\\toehold.py": "f497c547b1a0adc4403d98c604c10cd597714afa65e73d847857ee8fd742548d",
+        "src\\engine\\stages\\switches.py": "0c98a899b9946bce3b251c7e8ede5f748b7d879fab88b42fc8ef8527f8a099c8",
+        "src\\engine\\stages\\triggers.py": "53e918ddd5891fc93ead0ca9ab3f165388b3232efb847c1ff07fea5652ea29fc"
+      }
+    },
+    {
+      "file": "region-input-gfp-20.json.gz",
+      "sha256": "99aaa8382325603b7aaf4764769cd7bed04a641aa2be9fe9f13b2b5d633f8206",
+      "uncompressed_sha256": "8aa21153c99aa81cbe9a3fbbe8a2953d7a1c5046f35e819f6ff59ca33317bc9f",
+      "bytes": 11121,
+      "uncompressed_bytes": 108010,
+      "producer_revision": "b029687c8ccd6df007c397019929ad8700c2b59e",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "src\\engine\\pipeline.py": "7532f27227482f340ef02e26410753c012c20995c5ac7b5c4ebc8454ddaeb43a",
+        "src\\engine\\domain.py": "334cacb7fb00b9a5fd6072711c3e1b2a5681a1ba9dc331a204fef8c6850b63bb",
+        "src\\engine\\client.py": "a6e1a6e8b65abf7b2ec09d9da0005a7ff7b6f8bb8bd933d648458d2a52f1282a",
+        "src\\engine\\gates\\toehold.py": "93b959cf2fae3889b7a1929a52050621fc5f9d7a79a982ee504cadd74aedaed8",
+        "src\\engine\\stages\\switches.py": "38c8c03d68aa11378c014fac31aabf49666fc3b483af3330dda5e7550fc7f118",
+        "src\\engine\\stages\\triggers.py": "59cfe363d6968e5b18926f59e1398e198cb893e160f93c6e5e7c88e916900633"
+      }
+    },
+    {
+      "file": "region-input-gfp-160.json.gz",
+      "sha256": "58a8cc781f5eb46e4ce17dac5367943f51ca184e7a6aefc3e00b984f85415bfa",
+      "uncompressed_sha256": "6056dc57af9976bc7a33de5aaab7b63755628e55ef9b591b352f503ab0b3dcda",
+      "bytes": 39768,
+      "uncompressed_bytes": 644316,
+      "producer_revision": "b029687c8ccd6df007c397019929ad8700c2b59e",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "src\\engine\\pipeline.py": "f7f47bfb03a0656bf71410c7ee11207cc10b36a103902b69fca0489d687065f9",
+        "src\\engine\\domain.py": "334cacb7fb00b9a5fd6072711c3e1b2a5681a1ba9dc331a204fef8c6850b63bb",
+        "src\\engine\\client.py": "a6e1a6e8b65abf7b2ec09d9da0005a7ff7b6f8bb8bd933d648458d2a52f1282a",
+        "src\\engine\\gates\\toehold.py": "93b959cf2fae3889b7a1929a52050621fc5f9d7a79a982ee504cadd74aedaed8",
+        "src\\engine\\stages\\switches.py": "38c8c03d68aa11378c014fac31aabf49666fc3b483af3330dda5e7550fc7f118",
+        "src\\engine\\stages\\triggers.py": "59cfe363d6968e5b18926f59e1398e198cb893e160f93c6e5e7c88e916900633"
+      }
+    },
+    {
+      "file": "revision-export-gfp-20.json.gz",
+      "sha256": "b627cbf6ba4b3fa2e85c002388e9be2184eedc78007b536acf06d2642a3452d3",
+      "uncompressed_sha256": "040a6bd5dc9cc209eb6942c8728303ea09b906e5ad00e4e197fe10c85c66393a",
+      "bytes": 48375,
+      "producer_revision": "d32703eb33c6c90dc7a2578bc8ba4641fc31a1c0",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "src/engine/gates/toehold.py": "53931224cd6d91d5eed89615052f0d4328456062587ca0b738ea73bc69681f2c",
+        "src/engine/pipeline.py": "61577e6e3e1313b5bba76634eed9bd5d4b9e3585928a390fc4911b657be5c8bb",
+        "src/engine/scoring/profiles.py": "7cae9f6e0e98e18a171edc30ec8ff57310d351ffe68abe7a61bac035bcd45d68",
+        "src/engine/scoring/normalize.py": "771d6a3ed694cb85cb4557a150ba5f1ee770dc3fc13d79ce0f8e84331b61a58f",
+        "tools/pair_budget_on_pfas.py": "e830faa235971278aca8dc23536f741039a799219b470046377d2b1d11afec28",
+        "uv.lock": "1d49be013468721626a45319e933a733d9a2b3ae8488f485e71c53a0b0563aad"
+      }
+    },
+    {
+      "file": "refinement-export-gfp-20.json.gz",
+      "sha256": "386341b6882183f160d17ebbe93dc05ed563495d97c01603b22e8420db784370",
+      "uncompressed_sha256": "3b89a489ac9b7ac3c02b5bb857aa5a563125715636d62d54d317e35e84376841",
+      "bytes": 57070,
+      "producer_revision": "d32703eb33c6c90dc7a2578bc8ba4641fc31a1c0",
+      "working_tree_changes_may_be_present": true,
+      "producer_code_checksums": {
+        "src\\engine\\pipeline.py": "e9790b8fbed9fb89102987c030816e82f0d004d918dd59109e40fc1dab3180cb",
+        "src\\engine\\domain.py": "0eaec58fae7e391747a413a36158a56235edc86988a05437ae7730b96faa479d",
+        "src\\engine\\client.py": "664e4151364a29688db4e05d2028ce739e54916b190a69175a87586b3b289198",
+        "src\\engine\\gates\\toehold.py": "a8d17493491fd316851f18ef21f258f415f187736962bc562acbe7d4fb945288",
+        "src\\engine\\stages\\switches.py": "38c8c03d68aa11378c014fac31aabf49666fc3b483af3330dda5e7550fc7f118",
+        "src\\engine\\stages\\triggers.py": "59cfe363d6968e5b18926f59e1398e198cb893e160f93c6e5e7c88e916900633"
+      }
+    }
+  ]
+}

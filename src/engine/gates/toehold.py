@@ -43,6 +43,7 @@ from engine.domain import (
     TriggerCandidate,
     TriggerSet,
 )
+from engine.errors import JobCancelled
 from engine.gates.base import GateFamily
 from engine.gates.tools.binding import (
     alignment_pairs,
@@ -958,16 +959,11 @@ class ToeholdAndGate(ToeholdGate):
     Both triggers may come from the same gene: the pipeline map is explicit that "2
     inputs can be of the same gene or trigger", so nothing here may deduplicate.
 
-    **Not ported.** ``generate_designs`` below is unchanged (still ``NotImplementedError``)
-    — the source generator this file ports (see the module docstring) only builds
-    single-input switches; it has no serial/two-hairpin construction to port. ``ToeholdGate``'s
-    ``is_compatible`` is inherited unchanged and generalises correctly (it already reads
-    ``self.max_inputs``), but ``evaluate_design`` is also inherited unchanged and only
-    folds against a single activator (``trigger_set.activators[0]``) — a real two-input
-    evaluation needs both triggers, and per this method's own docstring below, the two
-    single-trigger intermediate states as well. Whoever implements this class's
-    ``generate_designs`` should override ``evaluate_design`` too rather than rely on the
-    inherited one. See the port's open questions.
+    This family implements the coupled main/secondary hairpin architecture, its overlap-
+    aware pair discovery, and the four equilibrium states. The application selects its
+    own declared search budget; research callers retain the exhaustive secondary-arm
+    enumeration and optional path heuristic. Application availability is reported by the
+    pipeline rather than inferred from registration alone.
     """
 
     name = "toehold_and"
@@ -1013,17 +1009,75 @@ class ToeholdAndGate(ToeholdGate):
     #: 97.7% of cells (median rank correlation old against new 0.22, as low as -0.92). Any
     #: conclusion that rested on `ied_gain` has to be re-derived; nothing that rested on the
     #: other three terms moves at all.
-    version = "0.8.0"
+    #: 0.9.0: role-swapped designs carry their actual A/B trigger order, evaluation can
+    #: include the assembled payload context, and production can request equilibrium-only
+    #: measurement and an explicit bounded secondary-arm search. Research defaults retain
+    #: the full arm enumeration, upper3 grid and barrier measurement.
+    # 0.11: production selects the strongest lock row, AUA only, and beneficial
+    # lower3 strengthening. Historical research settings remain available explicitly.
+    version = "0.11.0-strong-lock-row-and"
     kind = GateKind.TOEHOLD_AND
     label = "AND Toehold"
     description = "Two-input translational AND"
     max_inputs = 2
-    # NOTE: `available` is still inherited as True from ToeholdGate while
-    # `generate_designs` below raises, so a submission naming this family validates and
-    # then fails part-way through a run. Re-declaring it False here is the documented fix,
-    # but it unregisters the family and three tests in tests/engine/gates/test_toehold.py
-    # assert it is registered, so the flip belongs with the commit that gives
-    # `generate_designs` a body rather than to this one.
+
+    def __init__(
+        self,
+        host: Host,
+        folder: FoldEngine,
+        translation: TranslationScorer,
+        codons: CodonOptimizer,
+        *,
+        kozak_layouts: tuple[str, ...] | None = None,
+        payload: str | None = None,
+        compute_barrier: bool = True,
+        balanced_grid: bool = False,
+        upper3_levels: tuple[str, ...] | None = None,
+        strengthen_lower3_only: bool = False,
+        max_secondary_assignments: int | None = None,
+        max_variable_conflicts: int | None = None,
+        seed: int = 0,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> None:
+        super().__init__(
+            host, folder, translation, codons, kozak_layouts=kozak_layouts, payload=payload
+        )
+        if not isinstance(compute_barrier, bool):
+            raise ValueError("compute_barrier must be a boolean.")
+        known_upper3 = {name for name, _ in self.UPPER3}
+        if upper3_levels is not None and (
+            not isinstance(upper3_levels, tuple)
+            or not upper3_levels
+            or any(
+                not isinstance(level, str) or level not in known_upper3 for level in upper3_levels
+            )
+            or len(set(upper3_levels)) != len(upper3_levels)
+        ):
+            raise ValueError("upper3_levels must name a nonempty tuple of distinct upper3 levels.")
+        if max_secondary_assignments is not None and (
+            type(max_secondary_assignments) is not int or max_secondary_assignments < 1
+        ):
+            raise ValueError("max_secondary_assignments must be a positive integer or None.")
+        if type(seed) is not int:
+            raise ValueError("seed must be an integer.")
+        if type(balanced_grid) is not bool:
+            raise ValueError("balanced_grid must be a boolean.")
+        if type(strengthen_lower3_only) is not bool:
+            raise ValueError("strengthen_lower3_only must be a boolean.")
+        self.balanced_grid = balanced_grid
+        self.strengthen_lower3_only = strengthen_lower3_only
+        self.compute_barrier = compute_barrier
+        self.upper3_levels = upper3_levels
+        self.max_secondary_assignments = max_secondary_assignments
+        if max_variable_conflicts is not None and (
+            type(max_variable_conflicts) is not int or max_variable_conflicts < 0
+        ):
+            raise ValueError("max_variable_conflicts must be a nonnegative integer or None.")
+        self.max_variable_conflicts = max_variable_conflicts
+        self.seed = seed
+        self.should_stop = should_stop
+        self._diagnostics: dict[str, dict] = {}
+        self.last_pair_search: dict = {}
 
     #: Trigger B's toehold: the one domain the architecture leaves permanently free, so
     #: it can be matched to B at no cost to the lock. Fixes trigger B's window at
@@ -1151,12 +1205,118 @@ class ToeholdAndGate(ToeholdGate):
     #: switch, so screening on it rejects a third of the population and measures nothing.
     RBS_CORE: ClassVar[str] = "AGGAGA"
 
+    def _overlap_runs(
+        self,
+        rna_a: str,
+        rna_b: str,
+        *,
+        max_matches: int | None,
+        on_progress: Callable[[int, int], bool] | None,
+        regions_a: tuple[tuple[int, int], ...] | None = None,
+        regions_b: tuple[tuple[int, int], ...] | None = None,
+    ) -> list[tuple[int, int, int]]:
+        """Extend matching seeds, bounding work before growing the overlap set.
+
+        The optional budget counts raw matching seeds, including seeds extending to an
+        already seen run. Thus repetitive inputs cannot allocate an unbounded set before
+        the caller receives its first pair. Uncapped research searches retain their full
+        sorted overlap list. A bounded search explicitly represents a scan prefix.
+        """
+        if max_matches is not None and (type(max_matches) is not int or max_matches < 1):
+            raise ValueError("max_matches must be a positive integer or None.")
+        n_a, n_b, k = len(rna_a), len(rna_b), self.MIN_OVERLAP
+        progress_total = max_matches if max_matches is not None else max(1, n_a * n_b)
+        considered = 0
+        truncated = False
+        self.last_pair_search = {
+            "max_matches": max_matches,
+            "seed_matches_considered": 0,
+            "unique_overlaps": 0,
+            "pairs_emitted": 0,
+            "discovery_truncated": False,
+            "exhaustive": False,
+            "selection": "exhaustive" if max_matches is None else "deterministic_seed_scan_prefix",
+        }
+
+        def checkpoint() -> None:
+            if on_progress is not None and not on_progress(considered, progress_total):
+                raise JobCancelled("Finding compatible trigger pairs")
+
+        checkpoint()
+
+        def positions(length, regions):
+            # Merge overlapping/adjacent accessible regions; never bridge a gap.
+            merged = []
+            for start, end in sorted(regions if regions is not None else ((0, length),)):
+                if not 0 <= start < end <= length:
+                    raise ValueError("Accessible region lies outside its transcript.")
+                if merged and start <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+                else:
+                    merged.append((start, end))
+            for start, end in merged:
+                for position in range(start, end - k + 1):
+                    yield position, start, end
+
+        index: dict[str, list[tuple[int, int, int]]] = {}
+        for j, lo_b, hi_b in positions(n_b, regions_b):
+            if j % 128 == 0:
+                checkpoint()
+            index.setdefault(rna_b[j : j + k], []).append((j, lo_b, hi_b))
+        seen: set[tuple[int, int, int]] = set()
+        for i, lo_a, hi_a in positions(n_a, regions_a):
+            if self.should_stop is not None and self.should_stop():
+                truncated = True
+                break
+            if i % 128 == 0:
+                checkpoint()
+            for j, lo_b, hi_b in index.get(sq.reverse_complement(rna_a[i : i + k]), ()):
+                if max_matches is not None and considered >= max_matches:
+                    truncated = True
+                    break
+                considered += 1
+                if considered % 128 == 0:
+                    checkpoint()
+                start_x, start_xs, length = i, j, k
+                while (
+                    length < self.SECONDARY_INVASION_LEN
+                    and start_x + length < hi_a
+                    and start_xs > lo_b
+                    and rna_b[start_xs - 1] == sq.reverse_complement(rna_a[start_x + length])
+                ):
+                    start_xs -= 1
+                    length += 1
+                while (
+                    length < self.SECONDARY_INVASION_LEN
+                    and start_x > lo_a
+                    and start_xs + length < hi_b
+                    and rna_b[start_xs + length] == sq.reverse_complement(rna_a[start_x - 1])
+                ):
+                    start_x -= 1
+                    length += 1
+                seen.add((start_x, start_xs, length))
+            if truncated:
+                break
+        self.last_pair_search.update(
+            seed_matches_considered=considered,
+            unique_overlaps=len(seen),
+            discovery_truncated=truncated,
+            exhaustive=not truncated,
+        )
+        checkpoint()
+        return sorted(seen)
+
     def find_cross_gene_pairs(
         self,
         gene_a: str,
         transcript_a: str,
         gene_b: str,
         transcript_b: str,
+        *,
+        max_matches: int | None = None,
+        on_progress: Callable[[int, int], bool] | None = None,
+        regions_a: tuple[tuple[int, int], ...] | None = None,
+        regions_b: tuple[tuple[int, int], ...] | None = None,
     ) -> Iterator["_CrossGenePair"]:
         """Every maximal reverse-complementary run shared by two transcripts, both roles.
 
@@ -1174,6 +1334,12 @@ class ToeholdAndGate(ToeholdGate):
         Args:
             gene_a, transcript_a: The gene whose run is read as ``x``. RNA uppercase.
             gene_b, transcript_b: The gene whose run is read as ``x*``.
+            max_matches: Optional cap on matching seeds considered before extension and
+                deduplication. The searched prefix is recorded in ``last_pair_search``.
+            on_progress: Optional cancellation checkpoint during indexing and seed scans.
+            regions_a, regions_b: Optional upstream accessible intervals, 0-based and
+                half-open. Seeds and run extension stay inside their union. Derived
+                full trigger footprints may extend beyond a region, within the transcript.
 
         Yields:
             Two records per run -- one per role assignment, the second from ``swapped()``.
@@ -1190,42 +1356,23 @@ class ToeholdAndGate(ToeholdGate):
         Note:
             **Motif screening is not applied here**, exactly as in ``find_trigger_pairs``:
             this is geometry, and a screen needs ``screen_trigger_pair``. One scan is
-            ``O(n_a + n_b)``, so a caller enumerating genes needs only ``j > i`` -- scanning
-            the other order finds the same runs and both assignments already come out of
-            this one.
+            indexed by the shared seeds, so a caller enumerating genes needs only
+            ``j > i`` -- scanning the other order finds the same runs and both assignments
+            already come out of this one.
         """
         rna_a, rna_b = sq.to_rna(transcript_a), sq.to_rna(transcript_b)
         n_a, n_b = len(rna_a), len(rna_b)
-        k = self.MIN_OVERLAP
-
-        index: dict[str, list[int]] = {}
-        for j in range(n_b - k + 1):
-            index.setdefault(rna_b[j : j + k], []).append(j)
-
-        seen: set[tuple[int, int, int]] = set()
-        for i in range(n_a - k + 1):
-            for j in index.get(sq.reverse_complement(rna_a[i : i + k]), ()):
-                start_x, start_xs, length = i, j, k
-                # Extending x 3'-ward in A walks its partner 5'-ward in B: antiparallel.
-                while (
-                    length < self.SECONDARY_INVASION_LEN
-                    and start_x + length < n_a
-                    and start_xs > 0
-                    and rna_b[start_xs - 1] == sq.reverse_complement(rna_a[start_x + length])
-                ):
-                    start_xs -= 1
-                    length += 1
-                while (
-                    length < self.SECONDARY_INVASION_LEN
-                    and start_x > 0
-                    and start_xs + length < n_b
-                    and rna_b[start_xs + length] == sq.reverse_complement(rna_a[start_x - 1])
-                ):
-                    start_x -= 1
-                    length += 1
-                seen.add((start_x, start_xs, length))
-
-        for start_x, start_xs, length in sorted(seen):
+        if gene_a == gene_b:
+            raise ValueError("Cross-gene AND discovery requires two different genes.")
+        runs = self._overlap_runs(
+            rna_a,
+            rna_b,
+            max_matches=max_matches,
+            on_progress=on_progress,
+            regions_a=regions_a,
+            regions_b=regions_b,
+        )
+        for start_x, start_xs, length in runs:
             pair = _CrossGenePair(
                 gene_a=gene_a,
                 gene_b=gene_b,
@@ -1237,9 +1384,11 @@ class ToeholdAndGate(ToeholdGate):
                 toehold_b_len=self.TOEHOLD_B_LEN,
             )
             if pair.fits(n_a, n_b):
+                self.last_pair_search["pairs_emitted"] += 1
                 yield pair
             flipped = pair.swapped()
             if flipped.fits(n_b, n_a):
+                self.last_pair_search["pairs_emitted"] += 1
                 yield flipped
 
     def screen_trigger_window(self, window_a: str, main_pre: str | None = None) -> tuple[str, ...]:
@@ -2124,7 +2273,7 @@ class ToeholdAndGate(ToeholdGate):
             # inline it was one measurement with two definitions, and the second copy
             # (`notebooks/.../candidates.py`) was free to disagree about the None case.
             observables[f"ied_rbs_linker_{state}"] = unpaired_defect(matrix, *rbs_linker)
-            # The same 31-nt ribosome footprint `dG_open_{state}` prices in energy, as a
+            # The same 30-nt ribosome footprint `dG_open_{state}` prices in energy, as a
             # probability instead. Two statistics over one window, which is the only way to tell
             # whether a window's edge comes from the window or from the statistic.
             observables[f"meanW_{state}"] = _mean_unpaired(matrix, *rank)
@@ -2611,7 +2760,12 @@ class ToeholdAndGate(ToeholdGate):
         )
 
     def find_trigger_pairs(
-        self, transcript: str, *, min_window_gap: int | None = None
+        self,
+        transcript: str,
+        *,
+        min_window_gap: int | None = None,
+        max_matches: int | None = None,
+        on_progress: Callable[[int, int], bool] | None = None,
     ) -> Iterator["_TriggerPair"]:
         """Every pair of windows in one transcript that can serve as triggers A and B.
 
@@ -2638,6 +2792,9 @@ class ToeholdAndGate(ToeholdGate):
             min_window_gap: Nucleotides required between the two windows; defaults to
                 ``MIN_WINDOW_GAP``. Passed explicitly so the cutoff is visible at the call
                 site rather than applied invisibly.
+            max_matches: Optional matching-seed work cap before extension/deduplication.
+                ``last_pair_search`` records the searched prefix and truncation.
+            on_progress: Optional cancellation checkpoint during indexing and seed scans.
 
         Yields:
             Pairs whose full footprints fit inside the transcript, do not collide, and are
@@ -2650,34 +2807,8 @@ class ToeholdAndGate(ToeholdGate):
         rna = sq.to_rna(transcript)
         n = len(rna)
 
-        index: dict[str, list[int]] = {}
-        for j in range(n - self.MIN_OVERLAP + 1):
-            index.setdefault(rna[j : j + self.MIN_OVERLAP], []).append(j)
-
-        seen: set[tuple[int, int, int]] = set()
-        for i in range(n - self.MIN_OVERLAP + 1):
-            for j in index.get(sq.reverse_complement(rna[i : i + self.MIN_OVERLAP]), ()):
-                start_x, start_xs, length = i, j, self.MIN_OVERLAP
-                # Extending x 3'-ward walks its partner 5'-ward: they pair antiparallel.
-                while (
-                    length < self.SECONDARY_INVASION_LEN
-                    and start_x + length < n
-                    and start_xs > 0
-                    and rna[start_xs - 1] == sq.reverse_complement(rna[start_x + length])
-                ):
-                    start_xs -= 1
-                    length += 1
-                while (
-                    length < self.SECONDARY_INVASION_LEN
-                    and start_x > 0
-                    and start_xs + length < n
-                    and rna[start_xs + length] == sq.reverse_complement(rna[start_x - 1])
-                ):
-                    start_x -= 1
-                    length += 1
-                seen.add((start_x, start_xs, length))
-
-        for start_x, start_xs, length in sorted(seen):
+        runs = self._overlap_runs(rna, rna, max_matches=max_matches, on_progress=on_progress)
+        for start_x, start_xs, length in runs:
             pair = _TriggerPair(
                 start_x,
                 start_xs,
@@ -2687,6 +2818,7 @@ class ToeholdAndGate(ToeholdGate):
                 self.SECONDARY_INVASION_LEN,
             )
             if pair.fits(n) and pair.disjoint() and pair.gap() >= gap:
+                self.last_pair_search["pairs_emitted"] += 1
                 yield pair
 
     #: Both stem arms span 18 nt (R1), so ``len_k2 = ARM_LEN - len_x``: every nucleotide
@@ -2725,7 +2857,15 @@ class ToeholdAndGate(ToeholdGate):
     #: rejected. Three in a row is enough to stall branch migration.
     MAX_INVASION_STALL: ClassVar[int] = 2
 
-    def secondary_stems(self, trigger_a: str, trigger_b: str, len_x: int) -> list["_SecondaryStem"]:
+    def secondary_stems(
+        self,
+        trigger_a: str,
+        trigger_b: str,
+        len_x: int,
+        *,
+        max_assignments: int | None = None,
+        seed: int | None = None,
+    ) -> list["_SecondaryStem"]:
         """Every secondary stem worth folding, for one trigger pair and overlap length.
 
         Enumerates the per-position assignment of §5.2's three states, keeps what satisfies
@@ -2736,22 +2876,29 @@ class ToeholdAndGate(ToeholdGate):
         roughly half of the frontier is mixed, meaning neither global strategy can express
         it.
 
-        The Pareto step is what makes the downstream folding affordable. The front grows
-        roughly linearly in the number of conflicts while ``3^n`` grows exponentially —
-        11, 29, 88 and 99 builds at n = 4, 6, 8 and 9 — so it reduces the work by three
-        orders of magnitude without discarding anything a later stage might have preferred.
-        Nothing is ranked here: a build is dropped only when another is at least as good on
-        all three claims and better on one.
+        Pareto pruning reduces subsequent whole-switch folds; enumerating assignments
+        still costs ``3^n``. With ``max_variable_conflicts`` set, vary only that many
+        conflicts nearest x and hold farther ones at lock+B. Energies and the invasion
+        screen still use the complete aligned regions. This restricted front describes
+        that declared design space, not the unrestricted front or guaranteed gate activity.
 
         Args:
             trigger_a: Trigger A, RNA uppercase, reading ``k1 · bulge · main_pre · xA · extA``.
             trigger_b: Trigger B, RNA uppercase, reading ``k2 · xB · r2``.
             len_x: Length of the perfect reverse-complementary overlap the pair shares.
+            max_assignments: Optional cap before energy evaluation and Pareto pruning.
+                Defaults to the family's declared cap; an uncapped family enumerates the
+                full product within the variable positions. A capped search returns the
+                front of its sampled subset,
+                not a claim to the exhaustive front.
+            seed: Seed for uniform sampling without replacement. Defaults to the run's
+                injected seed; full enumeration does not use randomness.
 
         Returns:
-            The non-dominated stems, in enumeration order. Empty if no assignment satisfies
-            R6 — a real outcome for a pair whose extension fights its partner everywhere,
-            and the caller's signal to move on rather than to relax the rule.
+            The non-dominated stems among the evaluated assignments. Empty if none
+            survives the construction checks. With a sampled assignment budget, this
+            does not prove that unsearched assignments cannot work. A time stop also
+            returns no stems; the run records that its time budget was exhausted.
         """
         cap = self.SECONDARY_CAP
         if self.SECONDARY_INVASION_LEN + len(cap) != self.SECONDARY_ARM_LEN:
@@ -2765,11 +2912,39 @@ class ToeholdAndGate(ToeholdGate):
         )
         x = trigger_a[self.ARM_LEN : self.ARM_LEN + len_x]
         conflicts = _arm_conflicts(ext, k2)
+        limit = self.max_secondary_assignments if max_assignments is None else max_assignments
+        if limit is not None and (type(limit) is not int or limit < 1):
+            raise ValueError("max_assignments must be a positive integer or None.")
+        search_seed = self.seed if seed is None else seed
+        if type(search_seed) is not int:
+            raise ValueError("seed must be an integer.")
+        # ext[0] and k2_star[0] are next to x. Increasing positions run toward the loop.
+        variable = conflicts[: self.max_variable_conflicts]
+        fixed = dict.fromkeys(conflicts[len(variable) :], "lockB")
+        total = len(_ARM_STATES) ** len(variable)
+        assignments = product(_ARM_STATES, repeat=len(variable))
+        if limit is not None and limit < total:
+            # Draw indices rather than constructing 3**n tuples merely to sample them.
+            # Sorted indices retain the historical enumeration order within the subset.
+            rng = random.Random(f"{search_seed}:{trigger_a}:{trigger_b}:{len_x}")
+            selected = sorted(rng.sample(range(total), limit))
+
+            def decode(index: int) -> tuple[str, ...]:
+                states = []
+                for _ in variable:
+                    index, digit = divmod(index, len(_ARM_STATES))
+                    states.append(_ARM_STATES[digit])
+                return tuple(reversed(states))
+
+            assignments = (decode(index) for index in selected)
 
         stems: list[_SecondaryStem] = []
         objectives: list[tuple[float, float, float]] = []
-        for combination in product(_ARM_STATES, repeat=len(conflicts)):
-            states = dict(zip(conflicts, combination, strict=True))
+        for combination in assignments:
+            if self.should_stop is not None and self.should_stop():
+                # Do not mislabel a time-truncated assignment set as exhaustive.
+                return []
+            states = {**fixed, **dict(zip(variable, combination, strict=True))}
             k2_star, secondary_z = _build_arms(ext, k2, states)
             if not _invasion_runs_ok(ext, k2, k2_star, self.MAX_INVASION_STALL):
                 continue
@@ -2798,7 +2973,7 @@ class ToeholdAndGate(ToeholdGate):
                 _SecondaryStem(
                     k2_star=k2_star,
                     secondary_z=secondary_z,
-                    states=combination,
+                    states=tuple(states[position] for position in conflicts),
                     ddg_pref=ddg_pref,
                     lock_energy=lock,
                     a_site_energy=a_site,
@@ -2821,11 +2996,20 @@ class ToeholdAndGate(ToeholdGate):
         itself returned, stored at generation time precisely so that no later stage has to
         re-derive it from the string. Rebuilding beats re-assembling because the axis
         patches (closure, upper3, lower3) are applied AFTER assembly -- re-running assemble
-        would hand back the unpatched switch and measure a design nobody asked for.
+        would hand back the unpatched switch and measure a design nobody asked for. When
+        assembly supplies a downstream payload context, its unchanged switch prefix keeps
+        every domain coordinate valid and the intended target is extended with unpaired
+        payload positions. The payload is still free to pair in the evaluated ensemble.
         """
+        sequence = sq.to_rna(design.architecture.get("evaluation_sequence", design.sequence))
+        original = sq.to_rna(design.sequence)
+        if not sq.is_valid_rna(sequence) or not sequence.startswith(original):
+            raise ValueError("evaluation_sequence must start with the unchanged switch sequence.")
+        if len(design.dot_bracket) != len(original):
+            raise ValueError("switch structure length must match its sequence length.")
         return _AssembledSwitch(
-            sequence=design.sequence,
-            dot_bracket=design.dot_bracket,
+            sequence=sequence,
+            dot_bracket=design.dot_bracket + "." * (len(sequence) - len(original)),
             domains={name: tuple(span) for name, span in design.architecture["domain_map"].items()},
             len_x=design.architecture["len_x"],
         )
@@ -2888,6 +3072,15 @@ class ToeholdAndGate(ToeholdGate):
         "main_z_repaired",
         "rare_codons_after_aug",
         "codons_after_aug",
+    )
+
+    #: Additional provenance when the caller declares a bounded production search.
+    PRODUCTION_GENERATION_KEYS: ClassVar[tuple[str, ...]] = (
+        "secondary_search",
+        "secondary_selection",
+        "lower3_energy_before",
+        "lower3_energy_after",
+        "lower3_strong_after",
     )
 
     #: Every key ``measure_design`` returns, declared once so a reader never keeps its own list.
@@ -2998,6 +3191,7 @@ class ToeholdAndGate(ToeholdGate):
         transcript: str | None = None,
         site_a: tuple[int, int] | None = None,
         site_b: tuple[int, int] | None = None,
+        compute_barrier: bool | None = None,
     ) -> dict[str, float | None]:
         """Every raw measurement this family can make on one design, in one pass.
 
@@ -3012,13 +3206,16 @@ class ToeholdAndGate(ToeholdGate):
         Args:
             design: A design from ``generate_designs``, carrying the coordinate sets it
                 stored at generation time.
-            on_ceiling: Stop after the ON tube when its opening cost exceeds this, and say
-                so in ``skipped``. A ``None`` beside a ``skipped`` reason means **not
+            on_ceiling: Stop after the ON tube and A-only partner probes when the ON
+                opening cost exceeds this, and say so in ``skipped``. A ``None`` beside
+                a ``skipped`` reason means **not
                 attempted**, which is a different thing from a measurement that failed --
                 the two must not be confused, which is why the key exists.
             transcript, site_a, site_b: The endogenous context. Given all three, the two
                 accessibility terms are priced from the transcript; otherwise they are
                 ``None``, and nothing downstream may read them as zero.
+            compute_barrier: Override the family's barrier setting. ``False`` never calls
+                the path heuristic; ``barrier`` is then unmeasured (``None``).
 
         Returns:
             Raw measurements, each in the unit its own analysis quotes it in. A measurement
@@ -3030,10 +3227,13 @@ class ToeholdAndGate(ToeholdGate):
 
         Order:
             Cheapest first, which is worth a measured 5.2-5.7x and is not cosmetic. Free
-            string measures, then the ON tube (whose ceiling rejects 88% of designs), then
-            the three OFF tubes, then the four-tube ensemble set, and the refolding barrier
+            string measures, then the ON tube and A-only partner probes, then the other
+            OFF-state measurements, then the four-tube ensemble set, and the refolding barrier
             last because it alone is 52% of the cost of a fully measured design.
         """
+        include_barrier = self.compute_barrier if compute_barrier is None else compute_barrier
+        if not isinstance(include_barrier, bool):
+            raise ValueError("compute_barrier must be a boolean or None.")
         switch = self._switch_from_design(design)
         arms = tuple(tuple(span) for span in design.architecture["main_stem_arms"])
         role_a, role_b = design.trigger_set.activators
@@ -3070,6 +3270,8 @@ class ToeholdAndGate(ToeholdGate):
         out["dG_open_11"] = self.folder.open_penalty(
             on_strands, (tuple(design.architecture["w_rank"]),)
         )
+        on_cost = out["dG_open_11"]
+        out["P_open_11"] = None if on_cost is None else math.exp(-on_cost / self.folder.rt)
         # ---- the state-10 leak, BEFORE the ceiling decides ----------------------------
         # These two were produced only for designs that pass, so no stored row carried them for
         # a rejected one -- 0 of 2,408 in the sample -- and asking what the rejected designs
@@ -3141,30 +3343,32 @@ class ToeholdAndGate(ToeholdGate):
         # explicitly rather than recomputed by each reader from the energy.
         for state in ("00", "01", "10", "11"):
             cost = out.get(f"dG_open_{state}")
-            out[f"P_open_{state}"] = None if cost is None else math.exp(-cost / self.RT_KCAL)
+            out[f"P_open_{state}"] = None if cost is None else math.exp(-cost / self.folder.rt)
 
         # ---- the refolding barrier, LAST: 52% of the cost of a measured design --------
         # OFF structure -> the same structure with the main stem's arms released. `saddle`
         # takes one strand, so this is the switch's own refolding cost rather than the
         # trigger-bound path: the wall the molecule clears once the trigger has committed,
         # and an upper bound on it.
-        folded = self.folder.mfe(switch.sequence)
-        target = list(folded.structure)
-        partner: dict[int, int] = {}
-        stack: list[int] = []
-        for index, char in enumerate(folded.structure):
-            if char == "(":
-                stack.append(index)
-            elif char == ")":
-                opened = stack.pop()
-                partner[index] = opened
-                partner[opened] = index
-        for lo, hi in arms:
-            for index in range(lo, min(hi, len(target))):
-                if index in partner:
-                    target[partner[index]] = "."
-                target[index] = "."
-        out["barrier"] = self.folder.saddle(switch.sequence, folded.structure, "".join(target))
+        out["barrier"] = None
+        if include_barrier:
+            folded = self.folder.mfe(switch.sequence)
+            target = list(folded.structure)
+            partner: dict[int, int] = {}
+            stack: list[int] = []
+            for index, char in enumerate(folded.structure):
+                if char == "(":
+                    stack.append(index)
+                elif char == ")":
+                    opened = stack.pop()
+                    partner[index] = opened
+                    partner[opened] = index
+            for lo, hi in arms:
+                for index in range(lo, min(hi, len(target))):
+                    if index in partner:
+                        target[partner[index]] = "."
+                    target[index] = "."
+            out["barrier"] = self.folder.saddle(switch.sequence, folded.structure, "".join(target))
 
         # ---- the endogenous context, when it was supplied -----------------------------
         if transcript is not None and site_a is not None and site_b is not None:
@@ -3228,20 +3432,31 @@ class ToeholdAndGate(ToeholdGate):
               then symmetry is the honest state. See the handover note.
         """
         raw = self.measure_design(design)
+        self._diagnostics[design.design_id] = self.diagnostics_from_measurement(design, raw)
+        return self.metrics_from_measurement(design, raw)
+
+    def metrics_from_measurement(
+        self, design: GateDesign, raw: dict[str, float | None]
+    ) -> dict[str, float | None]:
+        """Project an existing equilibrium pass onto the shared profile's raw metrics.
+
+        The pipeline can check feasibility and persist the full observables from that same
+        pass. No four-state or barrier calculation is repeated here.
+        """
         role_a, role_b = design.trigger_set.activators
 
         separation = raw.get("separation")
         p_on = raw.get("P_open_11")
         worst_off = [raw.get(f"P_open_{state}") for state in ("00", "01", "10")]
         leakage = None if any(v is None for v in worst_off) else max(worst_off)
+        evaluated_sequence = self._switch_from_design(design).sequence
 
         return {
-            # The OFF hairpin's MFE. Cached, so this is the same fold `measure_design`
-            # already took for the barrier rather than a second one.
-            "gate_folding_energy": self.folder.mfe(design.sequence).energy,
+            # MFE in the declared evaluation context; the shared folder caches it.
+            "gate_folding_energy": self.folder.mfe(evaluated_sequence).energy,
             "predicted_leakage": leakage,
             "state_separation": (
-                None if separation is None else separation / (self.RT_KCAL * math.log(2.0))
+                None if separation is None else separation / (self.folder.rt * math.log(2.0))
             ),
             "dynamic_range": (
                 None if p_on is None or leakage is None or leakage <= 0.0 else p_on / leakage
@@ -3252,6 +3467,99 @@ class ToeholdAndGate(ToeholdGate):
             "predicted_success_rate": None,
             "circuit_complexity": None,
         }
+
+    def diagnostics_from_measurement(
+        self, design: GateDesign, raw: dict[str, float | None]
+    ) -> dict:
+        """Persist the measurement definitions and feasibility without folding again."""
+        violations = self.gate_violations(raw)
+        off_values = {state: raw.get(f"P_open_{state}") for state in ("00", "01", "10")}
+        complete_off = all(value is not None for value in off_values.values())
+        worst = max(off_values, key=off_values.get) if complete_off else None
+        on = raw.get("P_open_11")
+        off = off_values[worst] if worst is not None else None
+        evaluated_sequence = self._switch_from_design(design).sequence
+        warnings = []
+        if raw.get("skipped"):
+            warnings.append(
+                f"Measurement stopped at {raw['skipped']}; later values are unmeasured."
+            )
+        return {
+            "schema_version": "and-equilibrium-diagnostics-v2",
+            "method": "prokaryotic_equilibrium",
+            "definition": (
+                "Joint probability that the 30-nt ribosome footprint (-17 through +13, "
+                "with no zero coordinate) is unpaired in each equilibrium state. "
+                "00 = switch alone; 10 = trigger A; 01 = trigger B; 11 = both triggers. "
+                "A structural proxy for initiation, not measured translation or kinetics."
+            ),
+            "states": {
+                state: {
+                    "open_probability": raw.get(f"P_open_{state}"),
+                    "opening_energy_kcal_per_mol": raw.get(f"dG_open_{state}"),
+                }
+                for state in ("00", "01", "10", "11")
+            },
+            "worst_off_state": worst,
+            "on_pct": None if on is None else 100.0 * on,
+            "off_pct": None if off is None else 100.0 * off,
+            "on_minus_off_pp": None if on is None or off is None else 100.0 * (on - off),
+            "ranking_measures": {
+                "on_probability": on,
+                "worst_off_probability": off,
+                "on_minus_off": None if on is None or off is None else on - off,
+                "raw_on_off_ratio": (None if on is None or off is None or off <= 0.0 else on / off),
+                "denominator_floor": None,
+                "direction": "maximize ON and ON-minus-OFF/ratio; minimize worst OFF",
+                "status": "provisional within-model comparisons; no protein calibration",
+                "cross_architecture_comparability": (
+                    "Not established: gate families use different observables, spans and "
+                    "missing-metric patterns. Shared field names do not calibrate biology."
+                ),
+            },
+            "observables": dict(raw),
+            "checks": [
+                {
+                    "observable": name,
+                    "comparison": comparison,
+                    "threshold": threshold,
+                    "value": raw.get(name),
+                    "measured": raw.get(name) is not None,
+                    "passed": not self.gate_violations(
+                        raw, thresholds=((name, comparison, threshold),)
+                    ),
+                }
+                for name, comparison, threshold in self.THRESHOLDS
+            ],
+            "feasibility": {
+                "passed": len(self.THRESHOLDS) - len(violations),
+                "total": len(self.THRESHOLDS),
+                "violations": list(violations),
+            },
+            "barrier_computed": raw.get("barrier") is not None,
+            "evaluation_context": design.architecture.get(
+                "evaluation_context",
+                "full_switch_plus_payload_cds_no_promoter_or_terminator"
+                if "evaluation_sequence" in design.architecture
+                else "switch_only",
+            ),
+            "evaluated_nt": len(evaluated_sequence),
+            "payload_head_nt": len(evaluated_sequence) - len(design.sequence),
+            "upper3_levels": list(self.upper3_levels or (name for name, _ in self.UPPER3)),
+            "lower3_policy": (
+                "strengthen_only_with_lower_arm_energy_gain"
+                if self.strengthen_lower3_only
+                else "historical_2s1w_target"
+            ),
+            "secondary_search": dict(design.architecture.get("secondary_search", {})),
+            "ribosome_footprint": list(design.architecture["w_rank"]),
+            "coordinate_convention": "0-based half-open within the evaluated transcript",
+            "warnings": warnings,
+        }
+
+    def diagnostics(self, design: GateDesign) -> dict:
+        """The stored observables from ``evaluate_design``; never an extra folding pass."""
+        return dict(self._diagnostics.get(design.design_id, {}))
 
     def role_footprints(self) -> tuple[int, int]:
         """The minimum length of trigger A and of trigger B, in that order.
@@ -3324,12 +3632,15 @@ class ToeholdAndGate(ToeholdGate):
         # ranking single windows by accessibility does nothing to arrange that. Pure string
         # work, no folding, so it is free to ask.
         if not any(
-            self._overlap_lengths(sq.to_rna(role_a.sequence), sq.to_rna(role_b.sequence))
+            self._overlap_lengths(
+                sq.to_rna(role_a.sequence), sq.to_rna(role_b.sequence), constraints
+            )
             for role_a, role_b in ((first, second), (second, first))
         ):
             return Compatibility.no(
                 f"{first.trigger_id} and {second.trigger_id} share no reverse-complementary "
-                f"run of at least {self.MIN_OVERLAP} nt at the offsets {self.label} binds "
+                f"run within overlap_range {constraints.overlap_range[0]}-"
+                f"{constraints.overlap_range[1]} nt at the offsets {self.label} binds "
                 f"at (trigger A's x begins at {self.ARM_LEN}, trigger B's x* at "
                 f"{self.SECONDARY_INVASION_LEN} - len_x), so there is no secondary stem to "
                 f"build. Use `find_trigger_pairs` on the transcript to enumerate the "
@@ -3355,13 +3666,16 @@ class ToeholdAndGate(ToeholdGate):
         return Compatibility.yes()
 
     def generate_designs(
-        self, trigger_set: TriggerSet, constraints: Constraints
+        self, trigger_set: TriggerSet, constraints: Constraints, *, grid_offset: int = 0
     ) -> Iterator[GateDesign]:
         """Build a switch that opens only when **both** triggers are present.
 
         Args:
             trigger_set: Exactly two activators. They may come from the same gene.
             constraints: As for the single-input case.
+            grid_offset: Deterministic rotation of the balanced production grid. Different
+                pairs can start at different axis choices under a short shared budget.
+                Historical enumeration ignores this offset.
 
         Yields:
             ``GateDesign`` per architecture variant.
@@ -3388,6 +3702,8 @@ class ToeholdAndGate(ToeholdGate):
             Both triggers may come from one gene. Nothing here may deduplicate by
             ``gene_id`` — the pipeline map calls this out explicitly.
         """
+        if type(grid_offset) is not int:
+            raise ValueError("grid_offset must be an integer.")
         if len(trigger_set.activators) != 2 or trigger_set.repressors:
             # `is_compatible` checks arity first and the designer calls it first, so this is
             # a guard against a direct caller rather than a path the pipeline takes.
@@ -3402,7 +3718,14 @@ class ToeholdAndGate(ToeholdGate):
             trigger_a, trigger_b = sq.to_rna(role_a.sequence), sq.to_rna(role_b.sequence)
             for len_x in self._overlap_lengths(trigger_a, trigger_b, constraints):
                 yield from self._designs_for_overlap(
-                    trigger_set, role_a, role_b, trigger_a, trigger_b, len_x, constraints
+                    trigger_set,
+                    role_a,
+                    role_b,
+                    trigger_a,
+                    trigger_b,
+                    len_x,
+                    constraints,
+                    grid_offset=grid_offset,
                 )
 
     #: Cycle 2's chosen closure set: **one representative per d**, plus the control. The
@@ -3421,10 +3744,11 @@ class ToeholdAndGate(ToeholdGate):
     #:                   energy to be in the middle of
     #:
     #: **``AUG`` fills d = 0 on external evidence instead.** It is the most common bulge in
-    #: Green's measured library -- 62.5% of the 176 located structurally in his Table S1, median
-    #: ON/OFF 86.5 on n = 102 -- and it was never one of our sixteen. Its rivals there are not
-    #: distinguishable from it (``AUA`` p = 0.91, ``GUG`` p = 0.33) or have single-digit n, so it
-    #: is the only d = 0 choice that is not a sample of one.
+    #: Green's measured 168-switch set (102 AUG motifs, measured ON/OFF median 18.0
+    #: in the source workbook recheck). It was never one of our sixteen. This is a
+    #: well-represented external reference, not evidence that AUG outperforms all
+    #: other motifs; several alternatives have much smaller samples. Earlier comment
+    #: values 86.5 and pairwise p-values were not reproduced and are not used here.
     #:
     #: **Why d and not energy, measured.** The set's three real rungs are 1.80, 3.20 and 3.40 --
     #: ``AUG``'s 0.00 is a sentinel, since ``fixed_alignment_energy`` returns 0.0 by contract
@@ -3540,8 +3864,25 @@ class ToeholdAndGate(ToeholdGate):
         unreproducible.
         """
         closures = self.CLOSURES_CHOSEN if closure_set == "chosen" else self.CLOSURES
+        upper_levels = (
+            self.UPPER3
+            if self.upper3_levels is None
+            else tuple(
+                next(level for level in self.UPPER3 if level[0] == name)
+                for name in self.upper3_levels
+            )
+        )
+        if self.balanced_grid:
+            for cycle in range(len(upper_levels) * len(self.LOWER3)):
+                for index, closure in enumerate(closures):
+                    upper3 = upper_levels[(cycle + index) % len(upper_levels)]
+                    lower3 = self.LOWER3[
+                        (cycle // len(upper_levels) + index // len(upper_levels)) % len(self.LOWER3)
+                    ]
+                    yield closure, upper3, lower3
+            return
         for closure in closures:
-            for upper3 in self.UPPER3:
+            for upper3 in upper_levels:
                 for lower3 in self.LOWER3:
                     yield closure, upper3, lower3
 
@@ -3642,6 +3983,12 @@ class ToeholdAndGate(ToeholdGate):
         over 12 pair-stems WSS opened 59 times against SSW's 28 at the same leak, so forcing
         a position would convert away from the arrangement that opens most.
 
+        The reduced production policy, ``strengthen_lower3_only``, never converts
+        GC to AU. It considers eligible AU-to-GC changes only below the target and
+        retains them only if the shared fixed-alignment energy of the complete
+        lower arm decreases. Missing/non-improving energies leave the control alone.
+        This is a construction preference, not a new four-state feasibility cutoff.
+
         **And this is where a stem lever can cost a design its reading frame.** The writes
         land in ``main_pre_star`` and, pairing with them, in ``main_pre`` -- nine coding
         nucleotides immediately after the AUG, exactly three codons in frame. All three
@@ -3669,6 +4016,8 @@ class ToeholdAndGate(ToeholdGate):
         star_start = base.domains["main_pre_star"][0]
         pre_end = base.domains["main_pre"][1]
         strong = sum(1 for i in range(3) if sequence[star_start + i] in "GC")
+        if self.strengthen_lower3_only and strong >= 2:
+            return {"wobble_applied": 0, "wobble_skip_reason": "already_at_or_above_2s1w"}
         # Which positions CAN move, and to what. Only star A (trigger U) and star C
         # (trigger G) have a G-U to reach for; star G and star U are left alone rather than
         # forced into a mismatch.
@@ -3680,7 +4029,14 @@ class ToeholdAndGate(ToeholdGate):
             elif strong > 2 and here == "C":
                 movable.append((offset, "U", "A", -1))
         if not movable or strong == 2:
-            return {"wobble_applied": 0}
+            return {
+                "wobble_applied": 0,
+                **(
+                    {"wobble_skip_reason": "no_eligible_strengthening_position"}
+                    if self.strengthen_lower3_only
+                    else {}
+                ),
+            }
 
         need = 2 - strong
         want = abs(need)
@@ -3691,12 +4047,43 @@ class ToeholdAndGate(ToeholdGate):
             if size == want
         ] or [tuple(movable[:1])]
 
-        def codon_after(subset) -> str:
+        def sequence_after(subset) -> list[str]:
             trial = list(sequence)
             for offset, star_base, pre_base, _ in subset:
                 trial[star_start + offset] = star_base
                 trial[pre_end - 1 - offset] = pre_base
-            return "".join(trial[pre_end - 3 : pre_end])
+            return trial
+
+        def codon_after(subset) -> str:
+            return "".join(sequence_after(subset)[pre_end - 3 : pre_end])
+
+        def lower_arm_energy(trial) -> float | None:
+            star_lo, star_hi = base.domains["main_pre_star"]
+            pre_lo, pre_hi = base.domains["main_pre"]
+            return fixed_alignment_energy(
+                "".join(trial[star_lo:star_hi]), "".join(trial[pre_lo:pre_hi]), self.folder
+            )
+
+        energies = {}
+        before_energy = None
+        if self.strengthen_lower3_only:
+            before_energy = lower_arm_energy(sequence)
+            for subset in choices:
+                energy = lower_arm_energy(sequence_after(subset))
+                if (
+                    before_energy is not None
+                    and energy is not None
+                    and math.isfinite(before_energy)
+                    and math.isfinite(energy)
+                    and energy < before_energy
+                ):
+                    energies[subset] = energy
+            choices = [subset for subset in choices if subset in energies]
+            if not choices:
+                return {
+                    "wobble_applied": 0,
+                    "wobble_skip_reason": "no_modeled_lower_arm_energy_gain",
+                }
 
         ranked = sorted(
             choices,
@@ -3713,6 +4100,15 @@ class ToeholdAndGate(ToeholdGate):
             sequence[pre_end - 1 - offset] = pre_base
         return {
             "wobble_applied": len(best),
+            **(
+                {
+                    "lower3_energy_before": before_energy,
+                    "lower3_energy_after": energies[best],
+                    "lower3_strong_after": strong + sum(delta for *_, delta in best),
+                }
+                if self.strengthen_lower3_only
+                else {}
+            ),
             "wobble_codon": codon,
             "wobble_made_stop": codon in self.STOP_CODONS,
             "wobble_made_rare": codon in self.RARE_CODONS,
@@ -3799,7 +4195,7 @@ class ToeholdAndGate(ToeholdGate):
     def _overlap_lengths(
         self, trigger_a: str, trigger_b: str, constraints: Constraints | None = None
     ) -> tuple[int, ...]:
-        """Overlap lengths at which these two triggers actually share a duplex, longest first.
+        """The one maximal compatible overlap of these triggers, or an empty tuple.
 
         **The overlap has to be re-derived here, and this is the only place it can be.**
         ``find_trigger_pairs`` discovers it while scanning ONE transcript and reports it as
@@ -3877,8 +4273,39 @@ class ToeholdAndGate(ToeholdGate):
         trigger_b: str,
         len_x: int,
         constraints: Constraints,
+        *,
+        grid_offset: int = 0,
     ) -> Iterator[GateDesign]:
         """Every architecture variant for one role assignment at one overlap length."""
+        search_scope = {}
+        if self.max_secondary_assignments is not None or self.max_variable_conflicts is not None:
+            ext, k2 = _secondary_domains(
+                trigger_a, trigger_b, len_x, self.ARM_LEN, self.SECONDARY_INVASION_LEN
+            )
+            conflicts = _arm_conflicts(ext, k2)
+            variable = conflicts[: self.max_variable_conflicts]
+            total = len(_ARM_STATES) ** len(variable)
+            searched = min(total, self.max_secondary_assignments or total)
+            search_scope = {
+                "secondary_search": {
+                    "assignments_total": total,
+                    "unrestricted_assignments_total": len(_ARM_STATES) ** len(conflicts),
+                    "assignments_considered": searched,
+                    "conflict_positions_from_x_zero_based": list(conflicts),
+                    "variable_positions_from_x_zero_based": list(variable),
+                    "fixed_lock_b_positions_from_x_zero_based": list(conflicts[len(variable) :]),
+                    "exhaustive": searched == total and len(variable) == len(conflicts),
+                    "restricted_space_exhaustive": searched == total,
+                    "selection": (
+                        "seeded_uniform_without_replacement"
+                        if searched < total
+                        else "nearest_x_conflicts_farther_lock_b"
+                        if len(variable) < len(conflicts)
+                        else "exhaustive"
+                    ),
+                    "seed": self.seed,
+                }
+            }
         stems = [
             stem
             for stem in self.secondary_stems(trigger_a, trigger_b, len_x)
@@ -3901,104 +4328,127 @@ class ToeholdAndGate(ToeholdGate):
         # Widening this is a budget decision: every usable stem on every PFAS pair is 612M
         # designs. Carried as a declared cap rather than silently, and this is what it costs.
         selected = _select_stems(stems, constraints.stems_per_pair, constraints.stem_order)
-        for stem_index, stem in enumerate(selected):
-            # Only the schemes that gate. A-anchored is measured dead -- 0 of 4,330 ever
-            # gated, with opening SEP identically 0.000 and an A_M ratio of exactly 1.000
-            # across all 392 that pass every other test, which is a trigger pair that does
-            # not change the switch at all. `unlocked` cannot gate by construction.
-            if stem.scheme not in ("B-anchored", "mixed"):
+        if constraints.stem_order == "strong_lock_row":
+            search_scope["secondary_selection"] = {
+                "policy": constraints.stem_order,
+                "requested": constraints.stems_per_pair,
+                "selected": len(selected),
+                "front_size": len(stems),
+                "bins": "global_front_tertiles_lock_by_a_site",
+            }
+        grid = tuple(self._axis_grid(constraints.closure_set))
+        if self.balanced_grid and grid:
+            offset = grid_offset % len(grid)
+            grid = grid[offset:] + grid[:offset]
+        jobs = (
+            ((i, stem, axes) for axes in grid for i, stem in enumerate(selected))
+            if self.balanced_grid
+            else ((i, stem, axes) for i, stem in enumerate(selected) for axes in grid)
+        )
+        assembled = {}
+        for stem_index, stem, (closure, upper3, lower3) in jobs:
+            if self.should_stop is not None and self.should_stop():
+                return
+            if stem_index not in assembled:
+                assembled[stem_index] = self.assemble(trigger_a, trigger_b, len_x, stem)
+            base = assembled[stem_index]
+            built = self._apply_axes(base, closure, upper3, lower3)
+            if built is None:
                 continue
-            base = self.assemble(trigger_a, trigger_b, len_x, stem)
-            for closure, upper3, lower3 in self._axis_grid(constraints.closure_set):
-                built = self._apply_axes(base, closure, upper3, lower3)
-                if built is None:
-                    continue
-                switch, notes = built
-                # `assembly_violations` had no caller anywhere in the engine until now, so
-                # three switch-level checks it implements -- an upstream AUG, an in-frame
-                # stop, a frame shift -- were written, tested and never run. It is also
-                # where the motif screen moved to, so this is the one place the finished
-                # molecule is read.
-                faults = self.assembly_violations(switch)
-                if faults:
-                    notes = {**notes, "assembly_violations": faults}
-                rbs_start = switch.domains["rbs_loop"][0]
-                aug_end = switch.domains["aug"][1]
-                outside = [i for i in sq.find_augs(switch.sequence) if not rbs_start <= i < aug_end]
-                augs_outside = len(outside)
-                augs_upstream = sum(1 for i in outside if i < rbs_start)
-                architecture = {
-                    "geometry": self.geometry_name,
-                    "scheme": stem.scheme,
-                    "len_x": len_x,
-                    "stem_index": stem_index,
-                    "closure": closure[0],
-                    "upper3": upper3[0],
-                    "lower3": lower3[0],
-                    "trigger_a_id": role_a.trigger_id,
-                    "trigger_b_id": role_b.trigger_id,
-                    "gene_a": role_a.gene_id,
-                    "gene_b": role_b.gene_id,
-                    # `SwitchValidator.validate` reads this and SILENTLY SKIPS the
-                    # exactly-one-AUG and in-frame-stop checks when it is absent, so it is
-                    # not optional -- a design without it loses two checks with no sign.
-                    "aug_index": switch.domains["aug"][0],
-                    # **Where the ribosome loads.** Everything downstream of this is
-                    # scanned for a competing start codon; everything upstream of it is
-                    # 5' of the Shine-Dalgarno sequence, where prokaryotic initiation does
-                    # not occur. The three domains up there (`main_pre_star`, `k1_star`,
-                    # `bulge_star`) are a reverse complement of the sensed gene and are not
-                    # ours to edit, so an AUG landing in one of them is a property of the
-                    # target rather than a design choice -- measured, 3,716 of them across
-                    # 2,176 designs, none of them reachable.
-                    "rbs_span": switch.domains["rbs_loop"],
-                    # The motif that must appear ONLY inside that loop. Named here because
-                    # which sequence counts as a ribosome binding site is the family's
-                    # knowledge, not the shared validator's -- the eukaryotic track would
-                    # name a Kozak instead.
-                    "rbs_core_motif": self.RBS_CORE,
-                    # Counted, not dropped: see `rbs_span` above.
-                    "augs_outside_window": augs_outside,
-                    "augs_upstream_of_rbs": augs_upstream,
-                    # The real domain map, as `assemble` built it. See this patch's note:
-                    # the notebook re-derives it from the string, 3'-anchored, which is a
-                    # second definition of the same thing.
-                    "domain_map": {name: tuple(span) for name, span in switch.domains.items()},
-                    # The two opening windows, named apart because they measure different
-                    # things: the stem's arms, and the ribosome's footprint.
-                    "main_stem_arms": (switch.domains["main_z"], switch.domains["main_pre"]),
-                    "w_rank": switch.span(-17, 13),
-                    "w_flank": switch.span(-24, 13),
-                    "lock_energy": stem.lock_energy,
-                    "ddg_pref": stem.ddg_pref,
-                    "a_site_energy": stem.a_site_energy,
-                    "b_site_energy": stem.b_site_energy,
-                    # The symmetric partner of `ddg_pref`, which already IS
-                    # `lock_energy - b_site_energy` and is therefore not repeated under a second
-                    # name. That difference asks whether trigger B can displace the switch's own
-                    # copy, and `>= 0` is required (R6). This one asks the same question for
-                    # trigger A on the secondary arm -- and no threshold is applied, because
-                    # there is no measured distribution to set one from yet. Carried, nothing
-                    # reads it. Measured on this branch's own designs the margin runs to a median
-                    # of -4.36 with a maximum of +2.66, against Kim's working +3.86, so the
-                    # direction the data points in is that we are too stingy to A, not too
-                    # generous -- which is exactly why the threshold waits for the distribution.
-                    "lock_minus_a_site": stem.lock_energy - stem.a_site_energy,
-                    **notes,
-                }
-                yield GateDesign(
-                    design_id=(
-                        f"{self.design_prefix}-{role_a.trigger_id}-{role_b.trigger_id}"
-                        f"-x{len_x}-s{stem_index}"
-                        f"-{closure[0]}-{upper3[0]}-{lower3[0]}"
-                    ),
-                    gate_kind=self.kind,
-                    host=self.host,
-                    trigger_set=trigger_set,
-                    sequence=switch.sequence,
-                    dot_bracket=switch.dot_bracket,
-                    architecture=architecture,
-                )
+            switch, notes = built
+            if (
+                self.strengthen_lower3_only
+                and lower3[1] == self.LOWER3_WOBBLE
+                and not notes["wobble_applied"]
+            ):
+                # An inapplicable optional lever creates no second copy of the control.
+                continue
+            # `assembly_violations` had no caller anywhere in the engine until now, so
+            # three switch-level checks it implements -- an upstream AUG, an in-frame
+            # stop, a frame shift -- were written, tested and never run. It is also
+            # where the motif screen moved to, so this is the one place the finished
+            # molecule is read.
+            faults = self.assembly_violations(switch)
+            if faults:
+                notes = {**notes, "assembly_violations": faults}
+            rbs_start = switch.domains["rbs_loop"][0]
+            aug_end = switch.domains["aug"][1]
+            outside = [i for i in sq.find_augs(switch.sequence) if not rbs_start <= i < aug_end]
+            augs_outside = len(outside)
+            augs_upstream = sum(1 for i in outside if i < rbs_start)
+            architecture = {
+                "geometry": self.geometry_name,
+                "scheme": stem.scheme,
+                "len_x": len_x,
+                "stem_index": stem_index,
+                "closure": closure[0],
+                "upper3": upper3[0],
+                "lower3": lower3[0],
+                "trigger_a_id": role_a.trigger_id,
+                "trigger_b_id": role_b.trigger_id,
+                "gene_a": role_a.gene_id,
+                "gene_b": role_b.gene_id,
+                # `SwitchValidator.validate` reads this and SILENTLY SKIPS the
+                # exactly-one-AUG and in-frame-stop checks when it is absent, so it is
+                # not optional -- a design without it loses two checks with no sign.
+                "aug_index": switch.domains["aug"][0],
+                # **Where the ribosome loads.** Everything downstream of this is
+                # scanned for a competing start codon; everything upstream of it is
+                # 5' of the Shine-Dalgarno sequence, where prokaryotic initiation does
+                # not occur. The three domains up there (`main_pre_star`, `k1_star`,
+                # `bulge_star`) are a reverse complement of the sensed gene and are not
+                # ours to edit, so an AUG landing in one of them is a property of the
+                # target rather than a design choice -- measured, 3,716 of them across
+                # 2,176 designs, none of them reachable.
+                "rbs_span": switch.domains["rbs_loop"],
+                # The motif that must appear ONLY inside that loop. Named here because
+                # which sequence counts as a ribosome binding site is the family's
+                # knowledge, not the shared validator's -- the eukaryotic track would
+                # name a Kozak instead.
+                "rbs_core_motif": self.RBS_CORE,
+                # Counted, not dropped: see `rbs_span` above.
+                "augs_outside_window": augs_outside,
+                "augs_upstream_of_rbs": augs_upstream,
+                # The real domain map, as `assemble` built it. See this patch's note:
+                # the notebook re-derives it from the string, 3'-anchored, which is a
+                # second definition of the same thing.
+                "domain_map": {name: tuple(span) for name, span in switch.domains.items()},
+                # The two opening windows, named apart because they measure different
+                # things: the stem's arms, and the ribosome's footprint.
+                "main_stem_arms": (switch.domains["main_z"], switch.domains["main_pre"]),
+                "w_rank": switch.span(-17, 13),
+                "w_flank": switch.span(-24, 13),
+                "lock_energy": stem.lock_energy,
+                "ddg_pref": stem.ddg_pref,
+                "a_site_energy": stem.a_site_energy,
+                "b_site_energy": stem.b_site_energy,
+                # The symmetric partner of `ddg_pref`, which already IS
+                # `lock_energy - b_site_energy` and is therefore not repeated under a second
+                # name. That difference asks whether trigger B can displace the switch's own
+                # copy, and `>= 0` is required (R6). This one asks the same question for
+                # trigger A on the secondary arm -- and no threshold is applied, because
+                # there is no measured distribution to set one from yet. Carried, nothing
+                # reads it. Measured on this branch's own designs the margin runs to a median
+                # of -4.36 with a maximum of +2.66, against Kim's working +3.86, so the
+                # direction the data points in is that we are too stingy to A, not too
+                # generous -- which is exactly why the threshold waits for the distribution.
+                "lock_minus_a_site": stem.lock_energy - stem.a_site_energy,
+                **search_scope,
+                **notes,
+            }
+            yield GateDesign(
+                design_id=(
+                    f"{self.design_prefix}-{role_a.trigger_id}-{role_b.trigger_id}"
+                    f"-x{len_x}-s{stem_index}"
+                    f"-{closure[0]}-{upper3[0]}-{lower3[0]}"
+                ),
+                gate_kind=self.kind,
+                host=self.host,
+                trigger_set=TriggerSet(activators=(role_a, role_b)),
+                sequence=switch.sequence,
+                dot_bracket=switch.dot_bracket,
+                architecture=architecture,
+            )
 
 
 class ProkaryoticToeholdGate(ToeholdGate):
@@ -4777,7 +5227,7 @@ class TrimmedToeholdAndGate(ProkaryoticToeholdAndGate):
     ``vista_metrics`` derives its spans from a real assembly rather than listing them.
     """
 
-    version = "trimmed-toehold-2"
+    version = "trimmed-toehold-5-near-x"
     TOEHOLD_TRIM: ClassVar[int] = 8
 
 
@@ -4804,7 +5254,7 @@ class KimSecondaryArmToeholdAndGate(ProkaryoticToeholdAndGate):
     ``vista_metrics`` verifies its own against a real assembly instead of trusting them.
     """
 
-    version = "kim-secondary-2"
+    version = "kim-secondary-6-near-x"
 
     SECONDARY_ARM_LEN: ClassVar[int] = 20
     SECONDARY_INVASION_LEN: ClassVar[int] = 17
@@ -5154,6 +5604,11 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
     rather than its corner. Bins are visited in a fixed order and any budget left over goes to
     the lock-sorted remainder, so the result is deterministic and a resumed run rebuilds it.
 
+    ``"strong_lock_row"`` keeps only the strongest lock tertile of that SAME 3x3
+    board and takes a representative nearest the mean of each occupied A-site bin.
+    Empty cells stay empty; it never fills them with a weaker lock or repartitions
+    the A-site axis. The budget is an upper bound, with at most three representatives.
+
     ``"front_tops"`` is ``"front"`` without the quota, plus the third axis:
 
     * one stem per **non-empty** square of the 3x3 board, nearest that square's centre. An empty
@@ -5179,7 +5634,7 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
     if budget <= 0 or not stems:
         return []
     by_lock = sorted(stems, key=lambda stem: stem.lock_energy)
-    if order not in ("front", "front_tops"):
+    if order not in ("front", "front_tops", "strong_lock_row"):
         return by_lock[:budget]
     if order == "front" and len(stems) <= budget:
         return by_lock[:budget]
@@ -5193,7 +5648,12 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
     sites = sorted(stem.a_site_energy for stem in stems)
 
     def edges(values: list[float]) -> list[float]:
-        return [values[int(len(values) * (i + 1) / bins) - 1] for i in range(bins - 1)]
+        return [
+            values[max(0, int(len(values) * (i + 1) / bins) - 1)]
+            if order == "strong_lock_row"
+            else values[int(len(values) * (i + 1) / bins) - 1]
+            for i in range(bins - 1)
+        ]
 
     def which(value: float, cuts: list[float]) -> int:
         for i, cut in enumerate(cuts):
@@ -5209,6 +5669,8 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
 
     chosen: list[_SecondaryStem] = []
     for key in sorted(buckets):
+        if order == "strong_lock_row" and key[0] != 0:
+            continue
         group = buckets[key]
         mid_lock = sum(stem.lock_energy for stem in group) / len(group)
         mid_site = sum(stem.a_site_energy for stem in group) / len(group)
@@ -5221,8 +5683,12 @@ def _select_stems(stems: list["_SecondaryStem"], budget: int, order: str) -> lis
                 ),
             )
         )
-        if order == "front" and len(chosen) >= budget:
+        if order in ("front", "strong_lock_row") and len(chosen) >= budget:
             return chosen[:budget]
+
+    if order == "strong_lock_row":
+        # Empty A-site bins stay empty; never fill them from a weaker lock row.
+        return chosen[:budget]
 
     taken = {id(stem) for stem in chosen}
     if order == "front_tops":

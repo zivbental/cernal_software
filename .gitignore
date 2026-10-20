@@ -271,6 +271,7 @@ docs/assets/axes_*/rows.csv
 
 # Local agent checkouts are not project submodules.
 .claude/worktrees/
+.claude/settings.local.json
 
 # The split copies of the sweep output: derived from axes_*.csv by tools/split_mixed_schema.py,
 # same size as the originals, and regenerable in a minute.
@@ -278,11 +279,16 @@ src/engine/gates/notebooks/toehold_and/results/axes_*_v1_*.csv
 src/engine/gates/notebooks/toehold_and/results/axes_*_v2_*.csv
 src/engine/gates/notebooks/toehold_and/results/axes_*_odd_*.csv
 
-# the overnight barrier shards: results, not source. barrier_superseded holds the run
-# made before the barrier was computed from the path; its README says why it is kept.
-docs/assets/barrier/landing_*.csv
-docs/assets/barrier/designs_*.csv
-docs/assets/barrier/best_*.csv
+# The corrected barrier run is TRACKED, in docs/assets/barrier/. It was ignored here as
+# "results, not source", which is the right rule for a 600 MB sweep and the wrong one for
+# this: 16 files and 668 KB in total, produced by an overnight run nobody is going to
+# repeat casually, and the only copy of the rows behind Figure 7.5, the comparison table
+# in section 7.6 and the contrast in section 9.6. Ignored, they existed on one desktop.
+# docs/assets/barrier/README.md records what produced them and their checksums.
+#
+# barrier_superseded/ stays ignored: it is the run made before the barrier was taken from
+# the path rather than from path_findpath_saddle, it is wrong, and its README -- which is
+# tracked -- says so. Keeping the wrong numbers out of the repository is the point of it.
 docs/assets/barrier_superseded/landing_*.csv
 docs/assets/barrier_superseded/designs_*.csv
 docs/assets/barrier_superseded/best_*.csv

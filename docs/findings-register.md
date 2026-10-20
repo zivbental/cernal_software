@@ -16,6 +16,16 @@ across datasets** — see `no-metric-holds-sign` below before carrying any of th
 
 ---
 
+## 2026-10-18 correction to the historical window description
+
+The historical rows below describe the gate's initiation window as 31 nt and the
+7.2 kcal/mol ceiling as its calibrated maximum. The implemented `span(-17,13)`
+contains **30 nt**, with no zero coordinate. The legacy external calibration used
+a **31-nt** slice. The new [coordinate audit](evidence/prokaryotic-and/README.md)
+records both measurements and their source checksum. The threshold stays at 7.2;
+the old rows remain as a record of the earlier interpretation, not the current
+window definition. The audit does not validate an AND construct or full output CDS.
+
 ## How to read the dataset column
 
 | label | what it means |

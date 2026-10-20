@@ -39,12 +39,14 @@ def test_readme_documents_the_configured_engine_and_installed_folding_backend():
     assert "uv sync --locked --extra dev" in readme
 
 
-def test_published_metric_help_does_not_broaden_the_bacterial_window():
+def test_published_metric_help_distinguishes_single_input_and_bacterial_and_windows():
     capabilities = LocalEngine().capabilities()
     metrics = {metric.name: metric for metric in capabilities.metrics}
     leakage = metrics["predicted_leakage"].description
     assert "AUG-only (three bases)" in leakage
-    assert "Not a wider bacterial initiation footprint" in leakage
+    assert "Single-input toehold" in leakage
+    assert "Bacterial AND" in leakage and "30-nt window" in leakage
+    assert "joint opening probability" in leakage
     assert "0.001" in metrics["dynamic_range"].description
     assert "Not a success probability" in metrics["predicted_success_rate"].description
 
@@ -55,9 +57,12 @@ def test_documented_application_scope_matches_capabilities():
     assert set(capabilities.supported_hosts) == {"ecoli", "yeast", "human", "c_acnes"}
     assert capabilities.limits["max_circuit_gates"] == 1
     assert capabilities.limits["max_triggers"] == 1  # the single-input default
-    # One two-input gate is integrated (docs/and-gate.md); no other AND chemistry is advertised.
+    # Each documented two-input chemistry has its own host and measurement contract.
     assert [name for name in capabilities.family_hosts if "and" in name] == [
-        "eukaryotic_toehold_and"
+        "eukaryotic_toehold_and",
+        "prokaryotic_toehold_and",
     ]
     assert capabilities.family_inputs["eukaryotic_toehold_and"] == 2
+    assert capabilities.family_inputs["prokaryotic_toehold_and"] == 2
+    assert capabilities.family_hosts["prokaryotic_toehold_and"] == ["ecoli"]
     assert capabilities.limits["max_gate_inputs"] == 2

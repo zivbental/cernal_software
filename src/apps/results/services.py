@@ -584,8 +584,8 @@ def _serialize_pdf_pages(pages: list[list[str]]) -> bytes:
     return bytes(output)
 
 
-#: Added to the candidates table for a two-input AND run. Percentages are of each hairpin's own
-#: stem (100 = both stems fully open together); an unmeasured value is an empty cell, never 0.
+#: AND exports carry their method: eukaryotic percentages describe joint stem opening;
+#: bacterial values describe whole-window equilibrium opening. Missing values stay blank.
 AND_CSV_COLUMNS = [
     "and_on_pct",
     "and_off_pct",
@@ -595,6 +595,15 @@ AND_CSV_COLUMNS = [
     "and_delta_g_kcal_per_mol",
     "and_sampler_checks_failed",
     "and_controls_found",
+    "and_method",
+    "and_full_context_status",
+    "and_evaluation_context",
+    "and_evaluated_nt",
+    "and_payload_head_nt",
+    "and_equilibrium_feasible",
+    "and_feasibility_violations",
+    *[f"and_p_open_{state}" for state in ("00", "10", "01", "11")],
+    *[f"and_dg_open_{state}_kcal_per_mol" for state in ("00", "10", "01", "11")],
 ]
 
 
@@ -604,17 +613,38 @@ def _and_csv_cells(candidate) -> list:
     if not info:
         return [""] * len(AND_CSV_COLUMNS)
     states = info.get("states") or {}
+    equilibrium = info.get("method") == "prokaryotic_equilibrium"
+    feasibility = info.get("feasibility") or {}
     failed = sum(1 for state in states.values() if state.get("verified") is False)
     tied = info.get("tied_group")
     return [
         _csv_number(info.get("on_pct")),
         _csv_number(info.get("off_pct")),
-        _csv_number(info.get("off_source")),
+        _csv_number(info.get("worst_off_state") if equilibrium else info.get("off_source")),
         _csv_number(info.get("on_minus_off_pp")),
         "" if tied is None else ("yes" if tied else "no"),
         _csv_number(info.get("delta_g_kcal_per_mol")),
-        failed if states else "",
+        failed if states and not equilibrium else "",
         _csv_number((info.get("controls") or {}).get("found")),
+        info.get("method") or "eukaryotic_stem_sampling",
+        info.get("full_context_status", "") if equilibrium else "",
+        info.get("evaluation_context", "") if equilibrium else "",
+        _csv_number(info.get("evaluated_nt")) if equilibrium else "",
+        _csv_number(info.get("payload_head_nt")) if equilibrium else "",
+        ("yes" if feasibility.get("passed") == feasibility.get("total") else "no")
+        if equilibrium and feasibility
+        else "",
+        "; ".join((info.get("feasibility") or {}).get("violations") or []),
+        *[
+            _csv_number((states.get(state) or {}).get("open_probability")) if equilibrium else ""
+            for state in ("00", "10", "01", "11")
+        ],
+        *[
+            _csv_number((states.get(state) or {}).get("opening_energy_kcal_per_mol"))
+            if equilibrium
+            else ""
+            for state in ("00", "10", "01", "11")
+        ],
     ]
 
 

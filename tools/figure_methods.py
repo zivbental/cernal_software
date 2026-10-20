@@ -17,7 +17,8 @@ and every sentence lives in the page's caption; and the panels are laid out in d
 bands rather than by eye, because judging a 1,500-unit figure in a browser is how the
 first version shipped with labels on top of each other.
 
-**The numbers are measured, not illustrative.** The overlap histogram is every candidate
+The compiler and experimental-track diagrams are procedural schematics, not measured
+data. **The numerical plots use measured inputs.** The overlap histogram is every candidate
 the pair finder returns on the three gene pairs (53,530 of them). The conflict figure and
 the lever figure are one real ``ggt`` x ``fadB`` pair carried through the production path,
 and its ``len_x`` is 4 -- the modal overlap, not a convenient one. The one thing chosen
@@ -31,6 +32,7 @@ from __future__ import annotations
 import argparse
 import math
 import pathlib
+from html import escape
 
 WIDTH = 900
 
@@ -126,37 +128,60 @@ def _text(x, y, s, cls, anchor="start") -> str:
 
 
 def triggers() -> str:
-    """Which domain of each trigger pairs with which domain of the switch."""
-    row_b, row_switch, row_a = 70, 170, 270
+    """Which domain of each trigger pairs with which domain of the switch.
+
+    The triggers are drawn 3' to 5' while the switch is drawn 5' to 3', which is what
+    antiparallel binding looks like on paper. Drawn all three the same way round the tie
+    lines cross, and a reader has to untangle the drawing before reading it; drawn this
+    way every tie is a straight drop onto the domain underneath.
+
+    Three things beyond the domains are on the figure because leaving them off misleads.
+    A trigger is a window inside a transcript that continues past it in both directions,
+    so each strip runs out into the rest of its mRNA rather than ending. The switch
+    continues into the gene it controls, so the linker is followed by the output. And no
+    block is ever narrower than the name written in it: widths here are schematic
+    already, and a label spilling past its box is a worse lie than a box a few pixels
+    too wide.
+    """
+    row_b, row_switch, row_a = 86, 196, 306
     # Widths are schematic, not to scale: a 161-nt switch at any honest scale is wider
     # than the figure, and what this figure is for is which domain meets which.
-    scale = 0.84
+    scale = 0.62
+    #: 12px monospace, measured: enough that a label never reaches its box's edge.
+    CHAR, PAD = 7.3, 10
 
-    def w(n: int) -> float:
-        return round(n * scale, 1)
+    def w(n: int, label: str) -> float:
+        """A block's width: its length, or its label plus room, whichever is wider."""
+        return round(max(n * scale, len(label) * CHAR + PAD), 1)
 
-    blocks = [("k2", w(70), "b"), ("x*", w(46), "shared"), ("r2", w(150), "b")]
+    def block(label: str, n: int, kind: str) -> tuple:
+        return (label, w(n, label), kind)
+
+    # Each trigger is written 5' to 3' here, then drawn reversed, so that the sequence
+    # order stays the one the domain equations in the text use.
+    trigger_b = [block("k2", 70, "b"), block("x*", 46, "shared"), block("r2", 150, "b")]
     switch = [
-        ("r2*", w(150), "b"),
-        ("x", w(46), "shared"),
-        ("k2*", w(70), "stem"),
-        ("loop", w(62), "const"),
-        ("Sec_z", w(70), "stem"),
-        ("x*", w(46), "shared"),
-        ("Main_pre*", w(74), "a"),
-        ("bulge", w(36), "a"),
-        ("k1*", w(54), "a"),
-        ("RBS", w(86), "const"),
-        ("k1", w(54), "a"),
-        ("AUG", w(36), "start"),
-        ("Main_pre", w(74), "a"),
-        ("linker", w(70), "const"),
+        block("r2*", 150, "b"),
+        block("x", 46, "shared"),
+        block("k2*", 70, "stem"),
+        block("loop", 62, "const"),
+        block("Sec_z", 70, "stem"),
+        block("x*", 46, "shared"),
+        block("Main_pre*", 74, "a"),
+        block("bulge*", 36, "a"),
+        block("k1*", 54, "a"),
+        block("RBS", 86, "const"),
+        block("k1", 54, "a"),
+        block("AUG", 36, "start"),
+        block("Main_pre", 74, "a"),
+        block("linker", 70, "const"),
+        block("output gene", 96, "out"),
     ]
     trigger_a = [
-        ("k1", w(54), "a"),
-        ("bulge", w(36), "a"),
-        ("Main_pre", w(74), "a"),
-        ("x", w(46), "shared"),
+        block("k1", 54, "a"),
+        block("bulge", 36, "a"),
+        block("Main_pre", 74, "a"),
+        block("x", 46, "shared"),
     ]
 
     out = [
@@ -164,30 +189,53 @@ def triggers() -> str:
         _text(
             8,
             48,
-            "Each trigger binds antiparallel: its 5&#8242; end pairs with the "
-            "3&#8242;-most domain of its footprint.",
+            "Binding is antiparallel, so the triggers are drawn 3&#8242; to 5&#8242; "
+            "and the switch 5&#8242; to 3&#8242;. Every tie then drops straight down.",
             "mt-caption",
         ),
     ]
 
-    def strip(items, y, x0, tag):
+    def strip(items, y, x0, tag, flip=False, mrna=False):
+        """One row of domains. flip draws it 3' to 5'; mrna runs it out into a transcript."""
+        drawn = list(reversed(items)) if flip else items
+        left_end, right_end = ("3&#8242;", "5&#8242;") if flip else ("5&#8242;", "3&#8242;")
         x = x0
-        parts = [_text(x0 - 10, y + 23, "5&#8242;", "mt-end", "end")]
-        for label, width, kind in items:
+        parts = []
+        for label, width, kind in drawn:
             parts.append(
                 f'<rect class="mt-box mt-fill-{kind}" x="{x:.1f}" y="{y}" '
                 f'width="{width}" height="34" />'
             )
             parts.append(_text(x + width / 2, y + 23, label, "mt-dom", "middle"))
             x += width
-        parts.append(_text(x + 10, y + 23, "3&#8242;", "mt-end"))
+        parts.append(_text(x0 - 10, y + 23, left_end, "mt-end", "end"))
+        parts.append(_text(x + 10, y + 23, right_end, "mt-end"))
         parts.append(_text(x0, y - 10, tag, "mt-row"))
+        if mrna:
+            # The window is a stretch of a transcript that keeps going past it. Each
+            # side gets a short run of mRNA and nothing is implied about its length.
+            parts.append(_wave(x0 - 48, x0 - 16, y + 17))
+            parts.append(_wave(x + 26, x + 58, y + 17))
         return "\n    ".join(parts), x
 
-    # trigger B sits over the 5' half of the switch; trigger A over the 3' half.
-    switch_x0 = 48
-    b_svg, _ = strip(blocks, row_b, switch_x0, "Trigger B &#8212; 50 nt, from gene B")
-    s_svg, _switch_end = strip(switch, row_switch, switch_x0, "The switch, 5&#8242; to 3&#8242;")
+    def _wave(x0: float, x1: float, y: float) -> str:
+        """A few turns of backbone, so a strip reads as cut out of something longer."""
+        step = (x1 - x0) / 4
+        d = [f"M {x0:.1f} {y:.1f}"]
+        for _ in range(4):
+            d.append(f"q {step / 4:.1f} -4 {step / 2:.1f} 0 q {step / 4:.1f} 4 {step / 2:.1f} 0")
+        return f'<path class="mt-mrna" d="{" ".join(d)}" />'
+
+    switch_x0 = 60
+    b_svg, _ = strip(
+        trigger_b,
+        row_b,
+        switch_x0,
+        "Trigger B &#8212; 50 nt, a window in gene B&#8217;s mRNA",
+        flip=True,
+        mrna=True,
+    )
+    s_svg, switch_end = strip(switch, row_switch, switch_x0, "The switch RNA, 5&#8242; to 3&#8242;")
 
     # trigger A binds the contiguous run x* .. k1*, so centre it under that run
     def span(items, x0, first, last):
@@ -203,13 +251,22 @@ def triggers() -> str:
     a_from, a_to = span(switch, switch_x0, "x*", "k1*")
     a_width = sum(width for _, width, _ in trigger_a)
     a_x0 = (a_from + a_to) / 2 - a_width / 2
-    a_svg, _ = strip(trigger_a, row_a, a_x0, "Trigger A &#8212; 36 nt, from gene A")
+    a_svg, _ = strip(
+        trigger_a,
+        row_a,
+        a_x0,
+        "Trigger A &#8212; 36 nt, a window in gene A&#8217;s mRNA",
+        flip=True,
+        mrna=True,
+    )
     out += [b_svg, s_svg, a_svg]
 
-    # tie lines: each trigger domain to the switch domain it pairs with.
-    def centre(items, x0, name, nth=0):
+    # tie lines: each trigger domain to the switch domain it pairs with. With the
+    # triggers reversed these are vertical, so they are drawn as straight drops.
+    def centre(items, x0, name, nth=0, flip=False):
+        drawn = list(reversed(items)) if flip else items
         x, seen = x0, 0
-        for label, width, _ in items:
+        for label, width, _ in drawn:
             if label == name:
                 if seen == nth:
                     return x + width / 2
@@ -217,43 +274,56 @@ def triggers() -> str:
             x += width
         raise KeyError(name)
 
-    ties = [
-        (centre(blocks, switch_x0, "k2"), centre(switch, switch_x0, "k2*"), "b"),
-        (centre(blocks, switch_x0, "x*"), centre(switch, switch_x0, "x"), "shared"),
-        (centre(blocks, switch_x0, "r2"), centre(switch, switch_x0, "r2*"), "b"),
-        (centre(trigger_a, a_x0, "k1"), centre(switch, switch_x0, "k1*"), "a"),
-        (centre(trigger_a, a_x0, "bulge"), centre(switch, switch_x0, "bulge"), "a"),
-        (centre(trigger_a, a_x0, "Main_pre"), centre(switch, switch_x0, "Main_pre*"), "a"),
-        (centre(trigger_a, a_x0, "x"), centre(switch, switch_x0, "x*"), "shared"),
-    ]
-    for x_from, x_to, kind in ties[:3]:
+    def cb(n):
+        return centre(trigger_b, switch_x0, n, flip=True)
+
+    def ca(n):
+        return centre(trigger_a, a_x0, n, flip=True)
+
+    def cs(n):
+        return centre(switch, switch_x0, n)
+
+    for x_from, x_to, kind in (
+        (cb("k2"), cs("k2*"), "b"),
+        (cb("x*"), cs("x"), "shared"),
+        (cb("r2"), cs("r2*"), "b"),
+    ):
         out.append(
             f'<path class="mt-tie mt-tie--{kind}" d="M {x_from:.1f} {row_b + 34} '
-            f"C {x_from:.1f} {row_b + 66} {x_to:.1f} {row_switch - 32} "
-            f'{x_to:.1f} {row_switch}" />'
+            f'L {x_to:.1f} {row_switch}" />'
         )
-    for x_from, x_to, kind in ties[3:]:
+    for x_from, x_to, kind in (
+        (ca("k1"), cs("k1*"), "a"),
+        (ca("bulge"), cs("bulge*"), "a"),
+        (ca("Main_pre"), cs("Main_pre*"), "a"),
+        (ca("x"), cs("x*"), "shared"),
+    ):
         out.append(
             f'<path class="mt-tie mt-tie--{kind}" d="M {x_from:.1f} {row_a} '
-            f"C {x_from:.1f} {row_a - 32} {x_to:.1f} {row_switch + 66} "
-            f'{x_to:.1f} {row_switch + 34}" />'
+            f'L {x_to:.1f} {row_switch + 34}" />'
         )
 
     out.append(
         _text(
             8,
-            338,
-            "A star is the reverse complement. The shared domain "
-            "x appears twice on the switch and once in each trigger.",
+            382,
+            "A star is the reverse complement. The shared domain x appears twice on "
+            "the switch and once in each trigger. A wave is the rest of that mRNA.",
             "mt-note",
         )
     )
+
+    rightmost = max(switch_end + 58, a_x0 + a_width + 58)
+    if rightmost > WIDTH - 8:
+        raise SystemExit(f"triggers(): drawing reaches x={rightmost:.0f}, past {WIDTH - 8}")
     return _svg(
         out,
-        360,
+        404,
         "Which domain of each trigger pairs with which domain of the "
-        "switch. Trigger B binds the 5 prime half, trigger A the 3 prime "
-        "half, and the shared overlap x couples them.",
+        "switch. The switch is drawn 5 prime to 3 prime and both triggers 3 prime to "
+        "5 prime, so each tie line drops straight down onto the domain it pairs with. "
+        "Trigger B binds the 5 prime half, trigger A the 3 prime half, the shared "
+        "overlap x couples them, and the switch continues into the output gene.",
     )
 
 
@@ -289,30 +359,6 @@ def overlaps() -> str:
     )
     out.append(_text(8, base_y + 22, "overlap", "mt-axis"))
 
-    # Green's shortest first-generation toehold, for scale.
-    marker = left + 5 * (bar_w + gap) + bar_w + 10
-    out.append(
-        f'<line class="mt-marker" x1="{marker}" y1="{base_y - height - 40}" '
-        f'x2="{marker}" y2="{base_y}" />'
-    )
-    out.append(
-        _text(
-            marker - 10,
-            base_y - height - 26,
-            "12 nt &#8212; Green&#8217;s shortest first-generation",
-            "mt-marker-text",
-            "end",
-        )
-    )
-    out.append(
-        _text(
-            marker - 10,
-            base_y - height - 8,
-            "toehold. 4 candidates of 53,530 reach it.",
-            "mt-marker-text",
-            "end",
-        )
-    )
     out.append(
         _text(
             8,
@@ -643,7 +689,9 @@ def windows() -> str:
     scale, left, mid = 16, 150, 176
 
     def at(pos):
-        return left + (pos + 20) * scale
+        # +1 immediately follows -1; there is no nucleotide at coordinate zero.
+        offset = pos if pos < 0 else pos - 1
+        return left + (offset + 20) * scale
 
     out = [
         _text(8, 28, "Two windows, one inside the other", "mt-title"),
@@ -670,8 +718,8 @@ def windows() -> str:
             mid - 70,
             -17,
             13,
-            "the ribosome&#8217;s window, 31 nt",
-            "what Green&#8217;s 3.64 kcal/mol is measured over",
+            "the ribosome&#8217;s window, 30 nt",
+            "the declared W_rank, with no zero coordinate",
             "wide",
         ),
         (
@@ -679,13 +727,13 @@ def windows() -> str:
             -6,
             9,
             "the main stem&#8217;s arms, 15 nt",
-            "what the ON-state ceiling filters",
+            "a diagnostic span, not the ON-state ceiling",
             "narrow",
         ),
     ):
         out.append(
             f'<rect class="mt-span mt-span--{kind}" x="{at(lo)}" y="{y - 14}" '
-            f'width="{(hi - lo + 1) * scale}" height="28" rx="3" />'
+            f'width="{at(hi + 1) - at(lo)}" height="28" rx="3" />'
         )
         out.append(_text(at(lo) + 10, y + 5, label, "mt-dom"))
         # Under the bar, not beside it: the wide span reaches x=678 and its note is
@@ -699,10 +747,10 @@ def windows() -> str:
     base = mid + 116
     for offset, line in enumerate(
         (
-            "The ON-state ceiling is read over the WIDE span, which is the one an initiating "
-            "30S subunit occupies and the one",
-            "Green&#8217;s published ON costs are measured over. 7.2 kcal/mol is the highest "
-            "cost among his switches above 20-fold ON/OFF.",
+            "The ON-state ceiling is read over the WIDE span: 30 nucleotides from -17 to +13, "
+            "with no zero coordinate.",
+            "The retained 7.2 kcal/mol ceiling came from a 31-nt single-input calibration; "
+            "the coordinate audit is reported in Methods.",
             "The narrow span is recorded for every design and decides nothing. The two are "
             "not interchangeable: measured on all 219,808",
             "designs they differ by a median of 0.83 and by up to 7.90 kcal/mol, so every "
@@ -713,7 +761,7 @@ def windows() -> str:
     return _svg(
         out,
         base + 96,
-        "The ribosome's 31-nucleotide window drawn above the main stem's "
+        "The ribosome's 30-nucleotide window drawn above the main stem's "
         "15-nucleotide arms, showing the narrow span lying entirely inside "
         "the wide one.",
     )
@@ -726,6 +774,125 @@ def _svg(parts: list[str], height: int, aria: str) -> str:
     )
 
 
+def compiler_flow() -> str:
+    """Production contract, distinct from historical population figures."""
+    rows = (
+        ("CERNAL upstream", "Selected genes + accessible regions + pinned reference transcripts"),
+        (
+            "1. Locate the overlap",
+            "Reverse-complementary runs >= 4 nt inside regions; different genes",
+        ),
+        (
+            "2. Define AND triggers",
+            "Build full A/B footprints around each maximal compatible overlap",
+        ),
+        (
+            "3. Reuse CERNAL scoring",
+            "Score adjusted footprints; carry top K pairs or a seeded percentile sample",
+        ),
+        ("4. Build a declared grid", "Secondary stem / closure / upper3 / lower3 / architecture"),
+        (
+            "5. Evaluate equilibrium",
+            "Switch through linker only; states 00, 10, 01, 11; 22 feasibility checks",
+        ),
+        (
+            "CERNAL downstream",
+            "Candidate records + rejection reasons + shared ranks + reproducible exports",
+        ),
+    )
+    parts = [
+        _text(20, 25, "AND gate compilation: one input pool, one candidate interface", "mt-title")
+    ]
+    for index, (title, detail) in enumerate(rows):
+        y = 48 + index * 88
+        if index:
+            parts.append(
+                f'<path d="M450 {y - 20} v14 l-5 -6 m5 6 l5 -6" '
+                'fill="none" stroke="currentColor" />'
+            )
+        parts.append(
+            f'<rect x="20" y="{y}" width="860" height="66" rx="6" class="mt-box mt-fill-b" />'
+        )
+        parts.append(_text(38, y + 25, escape(title), "mt-title"))
+        parts.append(_text(38, y + 49, escape(detail), "mt-caption"))
+    parts.append(
+        _text(
+            20,
+            685,
+            "Count/time limits stop search; completed candidates are saved. No path barrier.",
+            "mt-caption",
+        )
+    )
+    return _svg(
+        parts,
+        705,
+        "CERNAL supplies accessible regions; AND overlap discovery derives and "
+        "rescores complete triggers, builds switches, evaluates equilibrium through the "
+        "linker and returns candidate records under declared compute limits.",
+    )
+
+
+def experimental_tracks() -> str:
+    """Existing proposed experiments, without implying measured rates or a new panel."""
+    parts = [_text(20, 28, "Two proposed experimental tracks", "mt-title")]
+    panels = (
+        (
+            20,
+            "A. Equilibrium baseline",
+            (
+                "Pass the current feasibility checks",
+                "Rank within the feasible set",
+                "Keep diverse input pairs and designs",
+            ),
+        ),
+        (
+            470,
+            "B. Barrier challenge",
+            (
+                "Include labeled A-only equilibrium rejects",
+                "Contrast lower / higher path estimates",
+                "A heuristic energy is not a measured rate",
+            ),
+        ),
+    )
+    for x, title, lines in panels:
+        parts.append(
+            f'<rect x="{x}" y="55" width="410" height="154" rx="6" class="mt-box mt-fill-b" />'
+        )
+        parts.append(_text(x + 16, 84, title, "mt-title"))
+        for index, line in enumerate(lines):
+            parts.append(_text(x + 16, 117 + index * 29, line, "mt-caption"))
+        parts.append(
+            f'<path d="M{x + 205} 211 V240 H450 V255" fill="none" stroke="currentColor" />'
+        )
+    parts.append('<rect x="150" y="257" width="600" height="89" rx="6" class="mt-box mt-fill-a" />')
+    parts.append(
+        _text(170, 286, "Measure reporter output over time in all four input states", "mt-title")
+    )
+    parts.append(
+        _text(
+            170,
+            317,
+            "Compare predictions; control trigger availability and pair identity",
+            "mt-caption",
+        )
+    )
+    parts.append(
+        _text(
+            20,
+            384,
+            "Experimental proposal only: no tested panel, kinetic threshold or validated winner.",
+            "mt-caption",
+        )
+    )
+    return _svg(
+        parts,
+        407,
+        "Proposed equilibrium baseline and separately labeled barrier challenge "
+        "converge on four-state reporter time courses; neither track is a completed experiment.",
+    )
+
+
 FIGURES = {
     "methods-triggers.svg": triggers,
     "methods-funnel.svg": funnel,
@@ -734,6 +901,8 @@ FIGURES = {
     "methods-overlaps.svg": overlaps,
     "methods-conflicts.svg": conflicts,
     "methods-levers.svg": levers,
+    "methods-compiler.svg": compiler_flow,
+    "discussion-tracks.svg": experimental_tracks,
 }
 
 

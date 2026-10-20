@@ -133,7 +133,10 @@ DEFAULT_V1 = ScoringProfile(
             direction=HIGHER_BETTER,
             weight=3.0,
             valid_range=(0.0, 10.0),
-            description="Differential expression between base and target state (log2 fold).",
+            description=(
+                "Family-specific target/base separation (log2 fold); bacterial AND uses "
+                "ON/worst-OFF whole-window equilibrium opening."
+            ),
             unit="log2 fold",
             # A property of the gene, from the DGE table. A `direct` submission pasted a
             # transcript and made no differential-expression comparison at all, so this
@@ -165,9 +168,12 @@ DEFAULT_V1 = ScoringProfile(
             weight=2.5,
             valid_range=(0.0, 1.0),
             description=(
-                "OFF-state mean marginal unpaired probability: AUG-only (three bases) "
+                "Single-input toehold OFF-state mean marginal unpaired probability: "
+                "AUG-only (three bases) "
                 "for loop layouts, toehold-plus-stem for trailing layouts. "
-                "Not a wider bacterial initiation footprint or calibrated leakage rate."
+                "Bacterial AND instead uses the largest joint opening probability of its "
+                "30-nt window over states 00, 10 and 01. Eukaryotic AND uses sampled "
+                "joint-stem opening. None is a calibrated leakage rate."
             ),
             unit="fraction 0-1",
         ),
@@ -204,8 +210,9 @@ DEFAULT_V1 = ScoringProfile(
             weight=2.0,
             valid_range=(1.0, 500.0),
             description=(
-                "ON/OFF marginal initiation-accessibility ratio; denominator "
-                "floored at 0.001. Not measured expression."
+                "Structural ON/OFF accessibility ratio. Single-input toeholds floor the "
+                "denominator at 0.001; bacterial AND uses ON/worst-OFF joint window opening "
+                "and leaves a zero-denominator result missing. Not measured expression."
             ),
             unit="accessibility ratio",
         ),

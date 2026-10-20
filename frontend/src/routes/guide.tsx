@@ -179,14 +179,24 @@ export function GuideContent() {
 
         <GuideSection id="configure" title="2. Validate and configure logic">
           <p>
-            Confirm the chosen dataset or transcript. The current LocalEngine
-            builds a single-trigger path. The A/B fields illustrate future
-            logic; arbitrary A AND NOT B and multi-gene Boolean design are not
-            implemented.
+            Confirm the chosen dataset or transcript. For a two-input AND gate,
+            choose DE input and two up-regulated genes from that table. The bacterial
+            family supports E. coli and evaluates equilibrium opening of the initiation
+            window; the eukaryotic family supports Human and yeast and samples joint
+            hairpin opening. Arbitrary A AND NOT B and multi-gene Boolean design remain
+            unavailable.
           </p>
           <p>
             Choose only mechanisms reported available. Capability availability
             does not imply a complete scientific pipeline.
+          </p>
+          <p>
+            Bacterial AND uses a bounded search rather than the historical research sweep.
+            Its saved configuration records trigger-pair selection and the stem, closure,
+            upper/lower stem and architecture choices. The declared folding model includes the complete switch through its linker and excludes
+            the output CDS. Candidates passing feasibility and construct checks may receive a rank. The result shows all four
+            input states, the folding context, and feasibility failures. Barrier kinetics remain
+            a research question.
           </p>
         </GuideSection>
 

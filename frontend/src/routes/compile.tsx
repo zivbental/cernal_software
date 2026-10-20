@@ -100,8 +100,12 @@ function CompilePage() {
       const chosen = datasets.data?.find((d) => d.id === config.datasetId);
       if (chosen && chosen.validation_status !== "VALID")
         return "That dataset did not pass validation.";
-      if (gateInputs > 1 && (!config.andGenes.a || !config.andGenes.b))
+      const bacterialAnd = config.mechanism === "prokaryotic_toehold_and";
+      if (gateInputs > 1 && (!config.andGenes.a || !config.andGenes.b)
+        && (!bacterialAnd || config.andGenes.a || config.andGenes.b))
         return "Pick both input genes for the AND gate from your dataset.";
+      if (bacterialAnd && config.andGenes.a && config.andGenes.a === config.andGenes.b)
+        return "Choose two different genes for the bacterial AND gate.";
     } else if (config.inputMode === "gene") {
       if (!config.targetGene || config.targetGene.organism !== config.organism)
         return "Resolve a gene ID or symbol to its reference transcript.";
@@ -164,7 +168,7 @@ function CompilePage() {
       params.backbone = { catalog_key: config.backbone };
     }
 
-    if (gateInputs > 1) {
+    if (gateInputs > 1 && config.andGenes.a && config.andGenes.b) {
       params.and_inputs = { gene_a: config.andGenes.a, gene_b: config.andGenes.b };
     }
 

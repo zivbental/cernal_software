@@ -514,6 +514,8 @@ class Constraints:
             ``a_site_energy`` independently and takes one stem per occupied bin, nearest its
             centre, so both axes are spanned at the same budget. Deterministic, so a resumed
             run picks the same stems.
+            ``"strong_lock_row"`` uses that same global 3x3 partition but only
+            its strongest-lock row; empty A-site bins are not backfilled.
         stems_per_pair: How many secondary stems a two-input family may take per trigger
             pair, chosen by ``stem_order``. **A budget, and it has to be declared here rather
             than chosen inside a gate family.** The axis grid is 16 closures x 3 upper3 x 2
@@ -712,6 +714,76 @@ class AndGateSettings:
             for name in self.__dataclass_fields__
             if not name.startswith("_")
         }
+
+
+@dataclass(frozen=True, slots=True)
+class ProkaryoticAndSettings:
+    """Declared search budgets for the bacterial equilibrium compiler.
+
+    These limit computation, not biological feasibility. Historical characterisation
+    sweeps keep their own exhaustive settings. Defaults are conservative pilot budgets;
+    the measured comparison and exact levels are recorded with each production run.
+    """
+
+    max_pairs: int = 8
+    max_pair_candidates: int = 50000
+    max_pair_seed_matches: int = 50000
+    pair_selection: str = "overlap_stratified"
+    accessibility_percentile: float = 50.0
+    stems_per_pair: int = 3
+    # Vary the conflicts nearest x; hold all farther conflicts at lock+B.
+    max_variable_conflicts: int = 7
+    # Optional tighter assignment cap within that restricted search space.
+    max_stem_assignments: int = 2187
+    max_attempts: int = 160
+    geometry: str = "naive"
+    closure_set: str = "chosen"
+    upper3_set: str = "aua_only"
+    on_ceiling: float = 7.2
+
+    @classmethod
+    def from_mapping(cls, raw: dict | None) -> "ProkaryoticAndSettings":
+        """Reject unknown fields and unbounded work before a worker starts."""
+        if raw is None:
+            raw = {}
+        if not isinstance(raw, dict):
+            raise ValueError("prokaryotic_and must be an object.")
+        unknown = sorted(set(raw) - set(cls.__dataclass_fields__))
+        if unknown:
+            raise ValueError(f"prokaryotic_and.{unknown[0]} is not a recognised setting.")
+        value = cls(**raw)
+        for name, low, high in (
+            ("max_pairs", 1, 100),
+            ("max_pair_candidates", 1, 200000),
+            ("max_pair_seed_matches", 1, 200000),
+            ("stems_per_pair", 1, 12),
+            ("max_stem_assignments", 1, 19683),
+            ("max_variable_conflicts", 0, 18),
+            ("max_attempts", 1, 10000),
+        ):
+            item = getattr(value, name)
+            if type(item) is not int or not low <= item <= high:
+                raise ValueError(f"prokaryotic_and.{name} must be an integer {low}..{high}.")
+        for name, choices in (
+            ("pair_selection", ("overlap_stratified", "top", "percentile_sample")),
+            ("geometry", ("naive", "kim", "both")),
+            ("closure_set", ("chosen", "full")),
+            ("upper3_set", ("aua_only", "compact", "full")),
+        ):
+            if getattr(value, name) not in choices:
+                raise ValueError(f"prokaryotic_and.{name} must be one of {choices}.")
+        for name, low, high in (
+            ("accessibility_percentile", 0.0, 100.0),
+            ("on_ceiling", 0.0, 20.0),
+        ):
+            item = getattr(value, name)
+            if type(item) not in (int, float) or not low <= item <= high:
+                raise ValueError(f"prokaryotic_and.{name} must be a number {low}..{high}.")
+        return value
+
+    def to_dict(self) -> dict:
+        """JSON-ready values, preserved in configuration and provenance."""
+        return {name: getattr(self, name) for name in self.__dataclass_fields__}
 
 
 @dataclass(frozen=True, slots=True)

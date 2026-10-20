@@ -54,6 +54,45 @@ class RunError(Exception):
     """A run could not be submitted or acted upon."""
 
 
+def queued_and_budget(params: dict, gate_families: list[str]) -> dict:
+    """Pass the deployed worker's time ceiling to the bacterial AND search.
+
+    Reserve up to one minute for finishing the active native call and saving results.
+    This is cooperative stopping, not a hard timeout guarantee. Long local-engine
+    jobs do not go through this queue-specific adapter.
+    """
+    if gate_families != ["prokaryotic_toehold_and"]:
+        return params
+    limits = [
+        limit
+        for limit in (settings.Q_CLUSTER.get("timeout"), settings.RUN_EXECUTION_TIMEOUT)
+        if type(limit) is int and limit > 0
+    ]
+    if not limits:
+        return params
+    ceiling = min(limits)
+    reserve = min(60, max(1, ceiling // 10))
+    available = max(1, ceiling - reserve)
+    budget = params.get("budget", {})
+    if not isinstance(budget, dict):
+        return params  # The common engine validator reports the malformed block.
+    requested = budget.get("max_runtime_seconds", available)
+    if type(requested) is int and requested > available:
+        raise ValueError(
+            f"This worker allows an AND search of at most {available} seconds, reserving "
+            f"{reserve} seconds before its timeout. Use a local engine or ask the platform "
+            "owner to configure a longer worker for longer searches."
+        )
+    return {
+        **params,
+        "budget": {
+            **budget,
+            "max_runtime_seconds": requested,
+            "on_exceed": budget.get("on_exceed", "return_partial"),
+        },
+    }
+
+
 class SubmissionConflict(RunError):
     """An idempotency key was reused with different immutable inputs."""
 
@@ -138,6 +177,7 @@ def submit_run(
     if configured_host and organism and configured_host != organism:
         raise RunError("The organism and params host/organism must agree.")
     try:
+        params = queued_and_budget(params or {}, gate_families or ["toehold"])
         params = validate_job_configuration(
             params or {},
             gate_families or ["toehold"],

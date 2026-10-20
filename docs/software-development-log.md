@@ -2,6 +2,109 @@
 
 This notebook is CERNAL's contest-ready, evidence-first record of meaningful software development. It complements the roadmap (future work), ADRs (decisions), tests, CI, and pull requests; it does not replace them.
 
+## 2026-10-18 — Align AND compilation with upstream regions and the declared model
+
+The maintainer clarified the production contract: CERNAL nominates accessible
+regions, the AND module locates reverse-complementary runs of at least 4 nt within
+them, derives complete cross-gene A/B footprints and uses CERNAL's shared scoring
+method for those adjusted intervals. Gene-pool selection is automatic unless an
+optional pair of different genes is supplied. `TriggerScorer.score_window` is also
+used by normal upstream scanning, preserving one accessibility implementation.
+
+The previous assistant-added output-prefix/full-CDS eligibility stages were removed.
+Equilibrium folding ends at the switch linker, excluding the output CDS. Exported
+constructs retain the complete output. The direct A-anchored label rejection was
+removed; those stems face the normal construction and feasibility checks. The
+maximal-overlap rule is retained, without enumerating sub-overlaps. Family/engine
+versions were bumped. Earlier context probes remain historical development evidence;
+they do not establish that full-CDS folding is more accurate.
+
+The module accepts count limits and a cooperative runtime limit, saves completed
+candidates on budget exhaustion, and distinguishes that outcome from cancellation.
+A small platform adapter passes the deployed worker ceiling into queued AND jobs,
+reserving up to 60 seconds for completion/saving. It does not change deployment
+timeouts or other gate families. Longer queued searches need platform-owner review;
+local-engine requests can specify up to three days.
+
+The API, input picker, reports and method documentation describe the same boundary.
+The companion Wiki replaces the duplicated historical/production algorithms with a
+production Algorithm 1, a parameter-table introduction and generated compiler-flow
+diagram. It retains SecondaryStems, historical results and the experimental roadmap,
+adding a responsibility table and a diagram of the existing two-track proposal.
+This remains [PR #84](https://github.com/zivbental/cernal_software/pull/84) and
+[Wiki MR !3](https://gitlab.igem.org/2026/tau-israel/-/merge_requests/3), pending review.
+
+Local verification:
+
+- Core integration, shared trigger scoring and house rules: 763 passed.
+- API, architecture boundary and house rules: 914 passed.
+- Final focused submission/input/budget/AND checks: 203 passed.
+- Non-AND pipeline and evaluation-budget regression rerun: 98 passed. Four call-shape
+  failures found by the broader run were fixed by passing the new stop callback only
+  to bacterial AND; the required engine-version expectation was updated.
+- Broad engine run: 1,980 passed, 9 failed, 110 passing subtests. After the focused
+  fixes above, the remaining four failures are the unchanged Windows eukaryotic
+  notebook harness's `unicodeescape` path error, previously reproduced on main.
+  No notebook/harness changes were made; Linux CI must independently verify the head.
+- Full Ruff lint/format, generated API reference and Django system checks passed.
+- Frontend check/build, result-display and browser regressions passed.
+- Wiki freeze, internal anchors/IDs, 18-quantity consistency, exact generated SVG
+  matches, desktop/mobile overflow and print expansion checks passed. The two new
+  diagrams are procedural schematics, not experimental plots.
+
+Raw native runs and browser artifacts are ignored under `var/`; preserved small
+sequence-free evidence records keep model/input/source hashes and search results.
+Historical barrier archives and broader supervisor-review editorial work are unchanged.
+The corrected native `ggt`/`astC` GFP examples evaluated 20 and 145 switches, accepting
+none within the top-8-pair searches. They retained every rejection and its reasons.
+These checks verify integration and honest empty outcomes, not useful design yield.
+The compact sampling policy still needs scientific review; no threshold was relaxed
+or extra search performed to force a positive result. Exact settings, hashes and
+timing limitations are in [the evidence archive index](evidence/prokaryotic-and/README.md).
+
+## 2026-10-18 — Earlier development integration (superseded modeling scope)
+
+- **AI assistance:** OpenAI Codex implementation, verification and documentation, acting on the maintainer's instructions; human review remains pending.
+- **Task / PR:** [Draft PR #84](https://github.com/zivbental/cernal_software/pull/84).
+- **Commits:** core [`a939ae2`](https://github.com/zivbental/cernal_software/commit/a939ae2769ebb389470affc6e8fbc9e2cd4ca3b9), application [`3bd9648`](https://github.com/zivbental/cernal_software/commit/3bd96487fc3e9212e147ba6e0367721e123f44cc), evidence and generators [`679ea32`](https://github.com/zivbental/cernal_software/commit/679ea320ffef20617de8b3c902c505db59d47489).
+- **Status:** Implemented on `offer/a0-to-cernal`; independent PR review remains pending. Main `66a6d26` was merged into the branch before implementation. No main merge or deployment has occurred.
+- **Companion Wiki:** [Draft MR !3](https://gitlab.igem.org/2026/tau-israel/-/merge_requests/3), based on the newer teammate main `7637a0b`. The broader editorial review remains with the supervisor.
+
+The E. coli `prokaryotic_toehold_and` application path now accepts a DE table, two
+selected genes and the usual output/backbone settings. It discovers compatible
+pairs before shortlisting, limits seed matching, pair storage, stem assignments,
+assembly attempts and evaluated designs, then screens the switch plus an output
+prefix. A few passing finalists receive complete switch-plus-output-CDS equilibrium
+checks. Only full-context passers can rank; failed and unchecked records keep their
+status and reasons. All 22 structural checks and the existing shared scoring and
+sequence-release rules remain active. No barrier calculation enters this path.
+
+The API, capability-driven input picker, results panel, CSV, report and provenance
+artifacts expose this method separately from the eukaryotic AND sampler. Shared
+folding, scoring, sequence, assembly and artifact functions are reused. The figure
+and documentation now distinguish the actual 30-nt gate window from the historical
+31-nt external calibration; the 7.2 kcal/mol ceiling is retained.
+
+Verification performed with locked Python 3.13 dependencies:
+
+- `uv run --locked --extra dev --offline pytest tests/engine/test_prokaryotic_and_pipeline.py -q`: 24 passed.
+- `uv run --locked --extra dev --offline pytest tests/api/test_prokaryotic_and_submission.py -q`: 6 passed, including a real bounded worker-task run and persisted checksummed outputs.
+- Full `uv run --locked --extra dev --offline pytest -q`: 3,056 passed, 11 failed, 1 skipped (Linux/WSL worker acceptance), with 110 passing subtests in 1,718.53 s. Seven failures were old capability/version expectations; these were updated for the new bacterial integration. The focused capability/version, metric, scoring, pipeline and API regression rerun passed all 82 tests in 50.94 s.
+- The four remaining failures are a Windows `unicodeescape` error in the eukaryotic notebook test harness. Both notebook and harness are unchanged from `origin/main`; compiling the baseline's substituted parameter cell reproduces the same error before folding. Those files remain outside this integration. This local result is not a claim that the full suite passed; Linux CI remains required.
+- Ruff lint/format, Django system/migration checks and generated API-surface check: passed.
+- Frontend `npm run check`, `npm run build`, `npm run test:clean-build` and `npm run test:browser`: passed. Browser checks cover contracts, RNA viewing and screening; these are not a claim of a new queued bacterial browser run.
+- Wiki freeze, internal anchors/IDs, 18-quantity consistency and desktop/mobile/print inspection: passed. All 8 small evidence archives pass compressed and decompressed checksums; corrected historical barrier files retain their existing checksums.
+
+[Measured complete-pipeline runs](evidence/prokaryotic-and-pipeline-2026-10-18.md)
+returned one fully checked candidate for a minimal custom test CDS in 47.909 s.
+The GFP run took 86.654 s and accepted none: its one full-context finalist failed
+the existing ON ceiling; two other screen survivors stayed unverified and unranked.
+The custom CDS is a software fixture, not a functional reporter. Finite search and
+prefix rejection limit recall, count budgets do not guarantee wall-clock runtime,
+and these computations do not establish biological function. Historical sweep
+input/provenance gaps remain explicit; the engine's withheld-results snapshot is
+preserved. Independent scientific review, remote CI and approval remain pending.
+
 ## 2026-10-12 — Audit F5: current documentation and scientific interpretation
 
 - **Change:** Replaced obsolete mock-engine/planned-folding claims with LocalEngine

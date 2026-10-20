@@ -284,13 +284,19 @@ def validate_job_configuration(
         raise ValueError("scientific_provenance is engine-generated metadata, not a parameter.")
     if input_mode not in ("direct", "de", "gene"):
         raise ValueError("input_mode must be direct, de, or gene.")
-    from engine.pipeline import _folding_params, _is_and_run
+    from engine.pipeline import (
+        _folding_params,
+        _is_and_run,
+        _is_prokaryotic_and_run,
+        _production_hosts,
+    )
 
     try:
         is_and = _is_and_run(gate_families or ["toehold"])
     except EngineError:
         is_and = False  # an unknown family name is reported, by name, further down
-    folding = FoldingConfig.from_mapping(_folding_params(params, is_and=is_and))
+    is_prok_and = _is_prokaryotic_and_run(gate_families)
+    folding = FoldingConfig.from_mapping(_folding_params(params, is_and=is_and and not is_prok_and))
     for block in (
         "constraints",
         "payload",
@@ -300,6 +306,7 @@ def validate_job_configuration(
         "target_gene",
         "and_inputs",
         "and_gate",
+        "prokaryotic_and",
     ):
         if block in params and not isinstance(params[block], dict):
             raise ValueError(f"params.{block} must be an object.")
@@ -307,8 +314,16 @@ def validate_job_configuration(
     if "top_n" in params and (type(params["top_n"]) is not int or not 1 <= params["top_n"] <= 1000):
         raise ValueError("top_n must be an integer between 1 and 1000.")
     budget = params.get("budget", {})
-    if not isinstance(budget, dict) or set(budget) - {"max_designs"}:
-        raise ValueError("budget supports only max_designs (null for all, or integer 1..1000).")
+    allowed_budget = (
+        {"max_designs", "max_runtime_seconds", "on_exceed"} if is_prok_and else {"max_designs"}
+    )
+    if not isinstance(budget, dict) or set(budget) - allowed_budget:
+        raise ValueError(f"budget supports only {sorted(allowed_budget)}.")
+    runtime = budget.get("max_runtime_seconds")
+    if "max_runtime_seconds" in budget and (type(runtime) is not int or not 1 <= runtime <= 259200):
+        raise ValueError("budget.max_runtime_seconds must be an integer between 1 and 259200.")
+    if "on_exceed" in budget and budget["on_exceed"] != "return_partial":
+        raise ValueError("budget.on_exceed must be return_partial.")
     max_designs = budget.get("max_designs", 20)
     if max_designs is not None and (
         isinstance(max_designs, bool)
@@ -363,7 +378,7 @@ def validate_job_configuration(
             if (
                 name in _UNBUILDABLE_FAMILIES
                 or not family.available
-                or host not in family.supported_hosts
+                or host not in _production_hosts(name)
             ):
                 raise ValueError(
                     f"Gate family {name!r} is not production supported for {host.value}."
@@ -371,6 +386,8 @@ def validate_job_configuration(
         # Every family is runnable here (the loop above refused the rest by name), so the arity
         # rules can read the inputs each takes: one input and one gate, or one two-input gate.
         arities = {get_family(name).max_inputs for name in families}
+        if is_prok_and and families != ["prokaryotic_toehold_and"]:
+            raise ValueError("Submit the prokaryotic AND family on its own.")
         if len(arities) > 1:
             raise ValueError(
                 "A two-input AND run cannot be combined with single-input gate families; "
@@ -382,11 +399,13 @@ def validate_job_configuration(
                 raise ValueError(
                     "Unsupported physical circuit: production supports one input and one gate."
                 )
-            for block in ("and_inputs", "and_gate"):
+            for block in ("and_inputs", "and_gate", "prokaryotic_and"):
                 if block in params:
                     raise ValueError(f"params.{block} applies only to a two-input AND gate.")
         else:
-            and_settings = _validate_and_run(params, constraints, input_mode, arity)
+            and_settings = _validate_and_run(
+                params, constraints, input_mode, arity, prokaryotic=is_prok_and
+            )
         outputs, warnings = _resolve_outputs(params, host)
         if warnings or not outputs:
             raise ValueError("; ".join(warnings) or "No supported output requested.")
@@ -427,11 +446,19 @@ def validate_job_configuration(
         ),
         "constraints": dataclasses.asdict(constraints),
         "folding": dataclasses.asdict(folding),
-        "budget": {"max_designs": max_designs},
+        "budget": {**budget, "max_designs": max_designs},
         **(
             {
-                "and_inputs": {key: value.strip() for key, value in params["and_inputs"].items()},
-                "and_gate": and_settings.to_dict(),
+                **(
+                    {
+                        "and_inputs": {
+                            key: value.strip() for key, value in params["and_inputs"].items()
+                        }
+                    }
+                    if "and_inputs" in params
+                    else {}
+                ),
+                ("prokaryotic_and" if is_prok_and else "and_gate"): and_settings.to_dict(),
             }
             if is_and
             else {}
@@ -440,14 +467,18 @@ def validate_job_configuration(
     return copy.deepcopy(normalized)
 
 
-def _validate_and_run(params: dict, constraints, input_mode: str, arity: int):
+def _validate_and_run(
+    params: dict, constraints, input_mode: str, arity: int, *, prokaryotic: bool = False
+):
     """The submission rules of a two-input AND run (raises ``ValueError`` naming the field).
 
     One gate with ``arity`` inputs: ``max_circuit_gates`` stays 1 and ``max_triggers`` must say
-    how many inputs the gate takes. The two input genes are picked from a differential-expression
-    table, so no other input mode can name them. Returns the validated ``AndGateSettings``.
+    how many inputs the gate takes. Inputs come from a differential-expression table.
+    Eukaryotic AND requires two selected genes; bacterial AND can use the selected
+    upstream pool or an optional restriction to two different genes. Returns the
+    validated family-specific settings.
     """
-    from engine.domain import AndGateSettings
+    from engine.domain import AndGateSettings, ProkaryoticAndSettings
     from engine.pipeline import _and_gene_pair
 
     if constraints.max_circuit_gates > 1:
@@ -469,8 +500,16 @@ def _validate_and_run(params: dict, constraints, input_mode: str, arity: int):
         genes = _and_gene_pair(params)
     except EngineError as exc:
         raise ValueError(str(exc)) from exc
-    if genes is None:
+    if genes is None and not prokaryotic:
         raise ValueError("Name the two input genes: params.and_inputs.gene_a and gene_b.")
+    if prokaryotic:
+        if genes is not None and genes[0] == genes[1]:
+            raise ValueError("The bacterial AND gate requires two different input genes.")
+        if "and_gate" in params:
+            raise ValueError("params.and_gate is eukaryotic; use params.prokaryotic_and.")
+        return ProkaryoticAndSettings.from_mapping(params.get("prokaryotic_and"))
+    if "prokaryotic_and" in params:
+        raise ValueError("params.prokaryotic_and applies only to the prokaryotic AND family.")
     return AndGateSettings.from_mapping(params.get("and_gate"))
 
 
@@ -478,7 +517,7 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
     """Read the registries. Engine-internal, so importing them here is fine."""
     from engine.domain import Constraints, Host
     from engine.gates.registry import describe_families, get_family
-    from engine.pipeline import _UNBUILDABLE_FAMILIES, MAX_TRIGGER_LENGTH
+    from engine.pipeline import _UNBUILDABLE_FAMILIES, MAX_TRIGGER_LENGTH, _production_hosts
     from engine.scoring.profiles import DEFAULT_V1, available_profiles
     from engine.stages.plasmids import BACKBONES, PAYLOAD_HOSTS
 
@@ -491,7 +530,7 @@ def _installed_capabilities(engine_version: str) -> EngineCapabilities:
         ],
         supported_hosts=[host.value for host in Host],
         family_hosts={
-            f.name: sorted(host.value for host in get_family(f.name).supported_hosts)
+            f.name: sorted(host.value for host in _production_hosts(f.name))
             for f in describe_families()
             if f.available and f.name not in _UNBUILDABLE_FAMILIES
         },
@@ -572,7 +611,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.13.0-scientific-qa-trigger-footprints"
+    ENGINE_VERSION = "local-0.15.2-prokaryotic-and-equilibrium"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

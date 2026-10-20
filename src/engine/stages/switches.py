@@ -152,6 +152,58 @@ class SwitchDesigner:
                         for violation in result.violations:
                             on_invalid(violation)
 
+    def design_pairs(
+        self,
+        pair_plan: list[tuple[str, TriggerSet]],
+        constraints: Constraints,
+        *,
+        max_attempts: int,
+        on_progress: Callable[[int, int], bool],
+        on_attempt: Callable[[GateDesign, ValidationResult], None],
+        on_incompatible: Callable[[str], None],
+        should_stop: Callable[[], bool] | None = None,
+    ) -> Iterator[GateDesign]:
+        """Interleave explicitly compatible pairs, bounding invalid attempts too.
+
+        The independent-window Cartesian product is deliberately bypassed for a
+        chemistry whose overlap was already established in stage 2. Round-robin
+        generation prevents a small evaluation budget being spent on just the first
+        pair. Validation remains shared with every other chemistry.
+        """
+        families = {family.geometry_name: family for family in self.families}
+        streams = []
+        for pair_index, (geometry, trigger_set) in enumerate(pair_plan):
+            family = families[geometry]
+            compatibility = family.is_compatible(trigger_set, constraints)
+            if not compatibility.ok:
+                on_incompatible(compatibility.reason)
+                continue
+            streams.append(
+                iter(family.generate_designs(trigger_set, constraints, grid_offset=pair_index))
+            )
+        attempted = 0
+        while streams and attempted < max_attempts:
+            active = []
+            for stream in streams:
+                if should_stop is not None and should_stop():
+                    return
+                if attempted >= max_attempts:
+                    return
+                if not on_progress(attempted, max_attempts):
+                    raise JobCancelled("Designing switches")
+                design = next(stream, None)
+                if design is None:
+                    continue
+                active.append(stream)
+                attempted += 1
+                result = self.validator.validate(design)
+                on_attempt(design, result)
+                if result.ok:
+                    yield dataclasses.replace(
+                        design, structure_deviation=result.structure_deviation
+                    )
+            streams = active
+
     def build_trigger_sets(
         self, triggers: Iterable[TriggerCandidate], constraints: Constraints
     ) -> Iterator[TriggerSet]:
@@ -307,6 +359,9 @@ class SwitchValidator:
         threshold is asserted because switching efficacy has not been calibrated.
         """
         violations: list[str] = []
+        violations.extend(
+            str(fault) for fault in design.architecture.get("assembly_violations", ())
+        )
 
         if len(design.sequence) > self.constraints.max_switch_length:
             violations.append(

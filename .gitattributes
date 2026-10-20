@@ -37,6 +37,16 @@ manage.py   text eol=lf
 # on checkout, including when Git for Windows enables core.autocrlf=true.
 src/apps/expression/catalog/**/*.csv text eol=lf
 
+# --- The barrier run: LF in the working copy too --------------------------------------
+#
+# docs/assets/barrier/README.md records a SHA-256 per file so a reader can tell the
+# tracked rows from a local re-run. `* text=auto` stores LF and checks out CRLF on
+# Windows, which would make every one of those digests fail on a Windows clone while the
+# repository is perfectly intact -- the same failure the expression catalog below hit,
+# where 3,001 CRLF made an undamaged file hash wrong. Pinning the checkout is what makes
+# a recorded digest mean the same thing on every machine.
+docs/assets/barrier/*.csv text eol=lf
+
 # --- Binary: never touch these, and never try to merge them ---------------------------
 # Without this, an unlucky auto-detection could rewrite bytes inside an image or a PDF.
 *.png       binary

@@ -28,6 +28,7 @@ from api.params import (
     BUDGET_KEYS,
     CONSTRAINT_KEYS,
     PAYLOAD_KEYS,
+    PROKARYOTIC_AND_KEYS,
     SCORING_KEYS,
     check_known_keys,
     check_scoring_block,
@@ -42,7 +43,13 @@ from api.schemas import (
 from api.security import TooManyActiveRuns, require_scope
 from apps.accounts.models import ApiKeyScope
 from apps.analyses.models import AnalysisRun, InputMode, RunStatus
-from apps.analyses.services import RunError, RunQuotaExceeded, SubmissionConflict, submit_run
+from apps.analyses.services import (
+    RunError,
+    RunQuotaExceeded,
+    SubmissionConflict,
+    queued_and_budget,
+    submit_run,
+)
 from apps.analyses.worker import worker_available
 from apps.datasets.models import Dataset
 from apps.datasets.services import (
@@ -179,6 +186,11 @@ def _resolved(run: AnalysisRun) -> dict:
         "budget": run.params_snapshot.get("budget", {}),
         "payload": run.params_snapshot.get("payload", {}),
         "backbone": run.params_snapshot.get("backbone", {}),
+        **{
+            key: run.params_snapshot[key]
+            for key in ("and_inputs", "and_gate", "prokaryotic_and")
+            if key in run.params_snapshot
+        },
     }
 
 
@@ -222,6 +234,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         check_known_keys(body.backbone, BACKBONE_KEYS, "backbone field")
         check_known_keys(body.and_inputs, AND_INPUT_KEYS, "and_inputs field")
         check_known_keys(body.and_gate, AND_GATE_KEYS, "and_gate field")
+        check_known_keys(body.prokaryotic_and, PROKARYOTIC_AND_KEYS, "prokaryotic_and field")
 
     params = {
         "constraints": body.constraints,
@@ -238,6 +251,8 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         params["and_inputs"] = body.and_inputs
     if body.and_gate:
         params["and_gate"] = body.and_gate
+    if body.prokaryotic_and:
+        params["prokaryotic_and"] = body.prokaryotic_and
     if input_mode == InputMode.GENE:
         params["target_gene"] = {"gene_id": body.gene_id}
     try:
@@ -249,6 +264,7 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
         elif input_mode == InputMode.GENE:
             reference = lookup_reference_gene(body.organism, body.gene_id)
             sequence = reference["sequence"]
+        params = queued_and_budget(params, gate_families)
         params = validate_job_configuration(
             params,
             gate_families,
@@ -279,14 +295,11 @@ def create_design(request, body: DesignIn, wait: float = 0, dry_run: bool = Fals
                     "budget": params.get("budget", {}),
                     "payload": params.get("payload", {}),
                     "backbone": params.get("backbone", {}),
-                    **(
-                        {
-                            "and_inputs": params["and_inputs"],
-                            "and_gate": params["and_gate"],
-                        }
-                        if "and_inputs" in params
-                        else {}
-                    ),
+                    **{
+                        key: params[key]
+                        for key in ("and_inputs", "and_gate", "prokaryotic_and")
+                        if key in params
+                    },
                 },
                 "estimate": estimate,
                 # The shared engine validator enforces the supported design-count budget.

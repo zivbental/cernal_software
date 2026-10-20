@@ -35,6 +35,14 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BARRIERS = ROOT / "docs/assets/barrier"
+
+#: The ON-state cost for the designs that carry a barrier reading, 3,419 rows, tracked
+#: beside them. The full sweep it was cut from is 643 MB and cannot be in a repository
+#: GitHub caps at 100 MB a file, so this is what makes the contrast reproducible from a
+#: clone. See docs/assets/barrier/README.md.
+JOIN = BARRIERS / "on_state_cost.csv"
+#: The sweep itself, if a local run has produced one. Preferred when present, because it
+#: carries every design rather than the subset with a barrier.
 GRID = ROOT / "docs/assets/axes_c8/rows.csv"
 
 #: Above this the equilibrium is saying the same thing about both members of a pair.
@@ -42,10 +50,18 @@ LEAKY = 0.99
 
 
 def grid_on_state() -> dict[tuple, float]:
-    """The ON-state cost of opening the ribosome's window, per design."""
+    """The ON-state cost of opening the ribosome's window, per design.
+
+    Reads the full sweep when a local run has left one, and the tracked subset otherwise.
+    The two give the same answer for every design that has a barrier, which is the only
+    kind this tool pairs; the sweep additionally covers designs that have none.
+    """
     csv.field_size_limit(min(sys.maxsize, 2**31 - 1))
+    source = GRID if GRID.exists() else JOIN
+    if not source.exists():
+        raise SystemExit(f"no ON-state costs: expected {JOIN} to be tracked")
     out: dict[tuple, float] = {}
-    with GRID.open(newline="", encoding="utf-8") as handle:
+    with source.open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             value = row.get("dG_open_11")
             if value in (None, "", "None"):

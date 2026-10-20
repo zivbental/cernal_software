@@ -1,4 +1,181 @@
-# The eukaryotic two-input AND gate
+# Two-input AND gates
+
+The application has two distinct two-input chemistries. Select one family per run:
+`prokaryotic_toehold_and` for the E. coli equilibrium model below, or
+`eukaryotic_toehold_and` for the Human/yeast joint-stem sampler described afterward.
+Their probabilities, state definitions and search settings are not interchangeable.
+
+## Bacterial equilibrium AND (E. coli)
+
+Choose **E. coli**, a **DE dataset**, and `prokaryotic_toehold_and`. The normal
+CERNAL stages select genes and accessible trigger windows. The gate-specific search
+consumes that shortlist; it does not discover overlaps elsewhere in the transcripts.
+Only pairs from **different genes** are considered. `and_inputs` is an optional
+restriction to two selected up-regulated genes, not a required manual selection.
+Direct-sequence and Specific Gene modes cannot provide this input pool.
+
+Set `constraints.max_triggers` to 2 and `max_circuit_gates` to 1. Family options go
+in `prokaryotic_and`, distinct from the eukaryotic `and_gate` block.
+
+1. Find reverse-complementary runs of at least 4 nt inside the upstream regions.
+   Keep maximal runs within the architecture's invasion limit; consider both roles.
+2. Derive complete A/B footprints around the overlap, including when it lies at an
+   upstream window edge. These footprints may extend outside a nominated region,
+   but must fit their reference transcript: A/B are 36/50 nt (naive) or 35/49 nt (Kim).
+3. Score each adjusted footprint using `TriggerScorer.score_window`, also used by
+   upstream scanning. This uses the existing RNAplfold gate-aware joint P8 method,
+   terminal-20 diagnostics and model provenance. Reuse unchanged upstream records.
+   The AND pair order uses the lower of the two trigger scores. This reduction to
+   a pair score is a declared selection policy, not a calibrated AND success probability.
+4. By default, group complete pair/role/geometry records by maximal overlap length.
+   Reserve one slot per observed length when K permits, then fill remaining slots toward
+   proportional quotas from the eligible pool. Within each length, prefer higher minimum
+   partner accessibility. If K is smaller than the number of lengths, represent the lengths
+   with the best available pair scores. Record both length distributions and whether all
+   lengths were represented. `top` and seeded `percentile_sample` remain explicit alternatives.
+   Discovery limits make these distributions properties of the discovered eligible pool.
+5. Vary only the seven secondary-stem conflicts nearest x; fix farther conflicts to lock+B.
+   Enumerate all 3**min(n,7) assignments unless an explicitly tighter cap requests a sample.
+   Evaluate full binding-region energies and B's full invasion alignment, including fixed
+   positions and any scaffold cap in the lock. Explore the declared lever grid, rotating
+   grid starts and interleaving pairs/stems. A-anchored stems face the same checks as
+   other stems; their label never directly excludes them. An empty sampled stem set
+   means none was found within that sample, not proof that the pair is unbuildable.
+6. Validate assemblies, measure equilibrium states and collect all 22 feasibility
+   violations. Apply shared scoring/construct checks and rank survivors. Missing
+   measurements are None, never zero. Retain rejected records with their reasons.
+
+**Folding boundary:** the complete generated switch through the linker, **excluding
+all output CDS**. The historical base scaffolds are 161/165 nt; architecture and
+sequence choices can change the actual generated length, which is recorded. There
+is no output-prefix screen or mandatory full-CDS finalist stage. The assembled and
+exported constructs still contain the complete requested output. This deliberate
+model scope does not establish that distal output interactions are absent.
+
+| Option | Meaning / pilot default |
+|---|---|
+| `max_pair_candidates`, `max_pair_seed_matches` | Discovery/storage caps, both 50,000; record truncation before sorting |
+| `max_pairs` | Whole compatible pairs carried, 8 |
+| `pair_selection`, `accessibility_percentile` | `overlap_stratified` by default; `top` or seeded `percentile_sample` (50th percentile boundary) are explicit alternatives |
+| `max_variable_conflicts` | 7 conflicts nearest x; all farther conflicts fixed at lock+B |
+| `stems_per_pair`, `max_stem_assignments` | Up to 3 selected stems; at most 2,187 assignments per pair/geometry before Pareto pruning |
+| `max_attempts` | 160 attempted assemblies, including invalid ones |
+| `geometry` | `naive` (default), `kim`, or `both` |
+| `closure_set`, `upper3_set` | `chosen` / `aua_only`: five closures, AUA upper3, original lower3 plus an eligible strengthening variant; at most 10 points per stem. `compact` and `full` retain comparison grids |
+| `on_ceiling` | 7.2 kcal/mol ON-state screen; not a kinetic threshold |
+| `budget.max_designs` | Validated gate designs evaluated, default 20, ceiling 1,000 |
+| `budget.max_runtime_seconds`, `on_exceed` | Optional cooperative search deadline, integer 1..259,200 seconds, `return_partial`; count budgets remain active |
+
+Use small count/time limits for demonstrations and larger explicit limits for full
+searches. Hours to a few days are acceptable when the chosen search and execution
+environment permit them; no seconds-only performance target is imposed.
+
+The assignment cap 2,187 = 3^7 was an initial engineering budget, not a model-derived
+conflict count or a validated optimum. A pair with n conflicts has 3^n assignments.
+The cap does not mean 2,187 hairpins are carried to four-state folding; if it samples
+the restricted space, the resulting Pareto front describes only those sampled assignments.
+Search evidence records the complete conflict list, variable and fixed positions (zero-based,
+from x toward the loop), unrestricted and restricted assignment counts, and whether the
+restricted space was enumerated completely. This distinguishes restricted enumeration
+from an exhaustive search over all conflicts. Research constructors keep
+`max_variable_conflicts=None` by default, preserving historical unrestricted sweeps.
+
+The default length coverage and three strong-lock-row A-site bins retain alternatives
+whose performance ordering has not been validated experimentally. Proportions are
+approximated subject to minimum coverage; rare lengths can be deliberately overrepresented.
+No preference for long overlaps or a particular A-site bin is asserted.
+
+
+Production selection keeps the strongest-lock row (most negative lock tertile) of
+the existing global 3x3 lock/A-site-energy grid. One representative nearest each
+occupied cell's mean is selected, up to three. Empty cells are not filled using
+weaker lock rows or by repartitioning the A-site axis. The exact selected count and
+front size are stored under `secondary_selection`.
+
+The five closures already implement one control plus four closure-depth classes:
+original, AUG (0 paired positions), AAC (1), AGU (2), CGU (3). AAC/AGU/CGU have the
+fixed-alignment energy nearest their class mean against AUG, at the correct
+antiparallel register. The zero-pair class has no distinct energetic centre, so
+AUG is a well-represented external Green reference. It is not a demonstrated
+best-performing choice. Current production uses AUA upper3 only. Lower3 considers
+eligible AU-to-GC substitutions below the existing 2S1W target and keeps a wobble
+variant only if the complete lower arm's shared fixed-alignment energy decreases;
+GC-to-AU weakening and no-op duplicate designs are omitted. The 22 four-state
+checks and common ranking profile remain unchanged.
+
+Queued submissions automatically receive a search deadline derived from the deployed
+worker timeout and execution timeout, reserving up to 60 seconds for finishing and
+saving results (currently 3,540 seconds against the 3,600-second worker). Both API
+submission paths and dry-run resolution enforce the same ceiling; requests above it
+are refused explicitly. Longer searches can use `LocalEngine` outside that queue, or
+require the platform owner to configure longer worker limits. This change does not
+raise deployment timeouts. Checkpoints occur during region discovery, footprint
+scoring, stem assignment and generation, and between complete equilibrium evaluations.
+A native folding call is not preempted; this is not a hard wall-clock guarantee.
+Completed candidates survive a search deadline; user cancellation remains cancellation.
+
+The normal frozen `TriggerCandidate`, `TriggerSet`, `GateDesign` and candidate records
+are the inter-stage interface. CSV is an export. `candidates.csv`, `and-search.json`
+and the run manifest retain coordinates, design axes, context length/hash, all four
+states, checks, rejection reasons, counts, seed, settings and reference/model versions.
+Four-state diagnostics use `prokaryotic_equilibrium`: 00 alone, 10 A, 01 B, 11 both.
+ON/OFF values are joint equilibrium opening probabilities of the 30-nt initiation
+window and opening costs; OFF is the worst of all three OFF states. They are structural
+proxies, not measured translation or kinetic rates. Historical barrier investigations
+remain separate. Sequence downloads retain existing release checks. Physical
+multi-gate circuit assembly remains outside this one-gate production path.
+
+### Bacterial candidate audit and ranking
+
+`and-candidates.json` (`and-candidate-audit-v1`) is a sequence-free export of the
+existing `CandidateResult` records, sorted by rank then stable reference, with
+unranked rejects last. It includes explicit A/B roles, transcript intervals and
+reference/sequence hashes, domain coordinates, stem energies, lever settings,
+four-state observations, all 22 individual check values/thresholds/statuses, and
+raw/normalized metric decomposition. Each candidate's `equilibrium.ranking_profile`
+records the actual resolved profile, including request overrides, missing-value
+rules, normalization ranges, hard filters and tie-breakers. The run manifest and
+`and-search.json` supply input/seed/budget/search-scope provenance. Full sequences
+stay in the internal candidate record; released sequence downloads retain the
+existing screening requirements. CSV adds the nine raw shared metrics, ON-minus-OFF
+and raw ON/OFF ratio. Blank/null means unmeasured; rejected records have no rank.
+
+The default is `default-v3-computational-proxies`: a weighted mean of metrics
+clamped/normalized to declared ranges, with lower-is-better terms inverted.
+For bacterial AND, OFF is max(P00, P10, P01); `predicted_leakage` is OFF,
+`dynamic_range` is P11/OFF, and `state_separation` is its log2 equivalent from
+opening energies. No ratio floor is applied; a zero/missing OFF gives a missing
+ratio. `ranking_measures.on_minus_off` is diagnostic, not a new scored metric.
+The existing shared filters (leakage <= 0.85; separation >= 0.5) are additional to
+the 22 structural checks. This revision does not change them or introduce a new
+feasibility gate. Changing those shared rules requires a separate scoring decision.
+
+The common schema permits downstream consumption, but **does not establish
+cross-architecture biological comparability**. Single-input AUG marginal opening,
+bacterial AND joint-window opening, and eukaryotic joint-stem sampling describe
+different events. AND also leaves uncalibrated success/complexity metrics missing,
+which the default profile penalizes. Keep family identity, raw states and score
+decomposition visible; do not interpret the aggregate as calibrated protein output.
+An ON/worst-OFF Pareto comparison is a proposed supplementary baseline, not an
+implemented replacement for the shared rank.
+
+For the scientific revision, current yield limitation and reproducible local audit,
+see [the review report](evidence/prokaryotic-and-revision-2026-10-18.md).
+
+### Off-target research and compiler boundary
+
+[`off_target_scan.py`](../src/engine/gates/notebooks/toehold_and/off_target_scan.py)
+implements two historical same-transcript questions: can another window fire the gate
+(`Q_false`), or block activation by its intended inputs (`Q_fail`)? It searches repeated
+recognition sequences outside the intended window, then optionally compares switch+decoy
+with switch alone and switch+A+B+decoy with switch+A+B. The folded second pass uses one
+baseline construction per pair; its verdict must not be copied to every lever variant.
+This research driver is not called by the production compiler and is not a genome-wide
+screen of the PFOA input genes. Production continues to report `off_target_screen=unmeasured`;
+no missing measurement becomes a clean result or an additional feasibility filter.
+
+
+## Eukaryotic joint-stem AND
 
 `eukaryotic_toehold_and` designs a **two-hairpin toehold construct** that is meant to make its
 payload only when **two** chosen RNAs are both present. It is the first gate with two inputs that

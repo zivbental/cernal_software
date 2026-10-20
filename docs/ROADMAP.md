@@ -22,7 +22,7 @@ scientific models, not an experimentally validated circuit compiler. The dated
 |---|---|---|
 | Inputs and reference resolution | Direct sequence, named gene and DE table input for E. coli, yeast, Human and C. acnes; CSV/TSV/TXT/XLSX DE parser | Reference mapping completeness and intended contrasts need stewardship; counts/metadata inference is not provided |
 | Scientific tools | ViennaRNA folding, RNAplfold profiling, gene/trigger selection, single-input toehold generation, scoring, construct assembly; CircuitDesigner and CodonOptimizer components exist | Component existence does not establish production integration, physical multigate logic, specificity or experimental efficacy |
-| Capabilities | `GET /api/version` identifies production families, their hosts, outputs and constraints | GFP/custom coding sequences are the supported payloads; the eukaryotic two-input AND is integrated (docs/and-gate.md), while the prokaryotic AND, antisense and CRISPR remain separate integration tasks |
+| Capabilities | `GET /api/version` identifies production families, their hosts, outputs and constraints | GFP/custom coding sequences are the supported payloads; the eukaryotic two-input AND is integrated. The explicit E. coli equilibrium AND extension is implemented under review as of 18 October (docs/and-gate.md); antisense and CRISPR remain separate integration tasks |
 | Results and release | Computational ranks, stored warnings and frozen configuration; available artifact downloads | Uncalibrated accessibility/binding quantities are proxies. Sequence release is a separate fail-closed policy decision; an unconfigured adapter holds exports |
 | Product and clients | Wizard, progress, paged results/history, notes/review tags, Python/R/MATLAB source clients | Synthesis ordering has no funded/integrated partner. R and MATLAB execution require their runtimes and have not been verified locally |
 | Delivery | Locked Python 3.13 dependencies, frontend build/check and test lanes | Deployment, screening operations, backup recovery, human data governance and supported-runtime verification remain release acceptance work |
@@ -51,6 +51,13 @@ Only Offer and Ziv merge approved changes into `main`. Deployment, package
 publication and ordering require their own explicit authorization.
 
 ### Done · the ON ceiling reads the ribosome's window
+
+**Coordinate correction, 18 October 2026:** the historical account below called the
+gate footprint 31 nt. Its actual `span(-17,13)` is 30 nt because the coordinate
+system has no zero base; the external Green calibration used a 31-nt slice.
+The retained 7.2 ceiling is therefore not the exact maximum of the 30-nt recheck.
+See the [measured audit](evidence/prokaryotic-and/README.md). No threshold or
+historical result has been changed by this correction.
 
 `measure_design` gated on `open_11`, the main stem's arms (15 nt), while the value it
 stands for is measured over the ribosome's window (31 nt). Two earlier versions of this
@@ -923,7 +930,12 @@ not evidence of biological function.
 The quantitative model page is explicitly withheld until corrected barrier CSVs and
 axes_c8 row-level inputs are versioned with producer provenance. The portable audit
 checks this withholding snapshot only; it does not validate historical summary metrics.
-The prokaryotic/generic AND research generators remain available for engine research,
-but are not advertised through the application: their application workflow has not
-been validated alongside the eukaryotic stem-opening integration. No sequence-release
-activation or biological validation is implied.
+The generic AND alias remains research-only. The explicit E. coli bacterial AND
+integration now has pair-aware discovery, declared search budgets, equilibrium-only
+screening and complete output-CDS verification of a small finalist cohort. Only
+full-context candidates passing the 22 structural checks, shared scoring filters
+and construct checks can rank. This implementation is under review; see
+[measured integration evidence](evidence/prokaryotic-and-pipeline-2026-10-18.md).
+Remaining work includes broader input/output coverage and review of model/selection
+limits; neither a prefix screen nor a finite search proves global optimality.
+No sequence-release activation, deployment or biological validation is implied.

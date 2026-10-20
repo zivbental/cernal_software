@@ -497,20 +497,28 @@ class DesignIn(Schema):
     # --- search constraints: engine.domain.Constraints, field for field ---
     constraints: dict = Field(default_factory=dict)
 
-    # --- two-input AND gate (family "eukaryotic_toehold_and") ---
+    # --- explicit input genes shared by the supported two-input AND families ---
     and_inputs: dict = Field(
         default_factory=dict,
         description=(
             '{"gene_a": ..., "gene_b": ...}: the two input genes, both from the submitted '
-            "differential-expression table (the same gene twice is allowed: two windows of "
-            "one transcript). Required for a two-input AND gate, rejected otherwise."
+            "differential-expression table. The same gene twice permits two non-overlapping "
+            "windows of one transcript. Required for a "
+            "two-input AND gate, rejected otherwise."
         ),
     )
     and_gate: dict = Field(
         default_factory=dict,
         description=(
-            "Optional AND-gate settings (n_samples, n_controls, noise_check, ...). Unknown "
+            "Optional eukaryotic AND settings (n_samples, n_controls, noise_check, ...). Unknown "
             "fields and invalid values are rejected."
+        ),
+    )
+    prokaryotic_and: dict = Field(
+        default_factory=dict,
+        description=(
+            "Optional bacterial equilibrium AND search settings. Separate from the "
+            "eukaryotic and_gate sampler; unknown fields and invalid values are rejected."
         ),
     )
 
@@ -574,6 +582,7 @@ class DesignResolvedOut(Schema):
     backbone: dict = Field(default_factory=dict)
     and_inputs: dict = Field(default_factory=dict)
     and_gate: dict = Field(default_factory=dict)
+    prokaryotic_and: dict = Field(default_factory=dict)
 
 
 class DesignAcceptedOut(Schema):

@@ -50,6 +50,17 @@ const USE_CASES = [
     link: "Prepare a comparison",
   },
   {
+    id: "two-input-and",
+    audience: "For two-input RNA gate designers",
+    title: "Design one gate for two chosen input genes",
+    summary: "Find switches intended to activate when both selected RNA inputs are present.",
+    input: "A differential-expression table and two up-regulated genes. Bacterial AND uses E. coli; eukaryotic AND supports Human and yeast.",
+    output: "Ranked candidates, four-state structural diagnostics, rejection reasons and available sequence exports.",
+    limit: "Bacterial AND models the complete switch through its linker. The exported construct includes the output CDS; predicted AND behavior requires experimental testing.",
+    href: "/compile",
+    link: "Configure a two-input gate",
+  },
+  {
     id: "api-runs",
     audience: "For developers and platform teams",
     title: "Automate repeat runs with the API",

@@ -709,6 +709,7 @@ export function StepLogic({
           datasetId={config.datasetId}
           value={config.andGenes}
           onChange={(andGenes) => patch({ andGenes })}
+          bacterial={config.mechanism === "prokaryotic_toehold_and"}
         />
       )}
 

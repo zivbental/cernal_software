@@ -76,6 +76,75 @@ const CASES = {
     has: ["80.00%", "unavailable"],
     lacks: ["NaN", "undefined"],
   },
+  "bacterial equilibrium does not inherit sampler or kinetic claims": {
+    info: {
+      method: "prokaryotic_equilibrium",
+      full_context_status: "screen_failed",
+      definition: "Joint equilibrium opening of the declared 30-nt initiation window.",
+      payload_head_nt: 9,
+      evaluated_nt: 170,
+      on_pct: 40,
+      off_pct: 5,
+      worst_off_state: "10",
+      on_minus_off_pp: 35,
+      states: {
+        "00": { open_probability: 0.001, opening_energy_kcal_per_mol: 4.2 },
+        "10": { open_probability: 0.05, opening_energy_kcal_per_mol: 1.8 },
+        "01": { open_probability: null, opening_energy_kcal_per_mol: null },
+        "11": { open_probability: 0.4, opening_energy_kcal_per_mol: 0.6 },
+      },
+      feasibility: { passed: 21, total: 22, violations: ["A-only equilibrium check failed"] },
+    },
+    has: ["Bacterial AND", "declared 30-nt initiation window", "170 nt total", "not run because the initial screen failed; no final rank", "40.00%", "5.00%", "0.10%", "4.20 kcal/mol", "unmeasured", "<strong>failed</strong>", "21/22 declared checks", "A-only equilibrium check failed", "not measured translation or a kinetic rate"],
+    lacks: ["Sampler check", "Draws", "Mismatched-trigger controls", "Tied with the best", "Seed-to-seed", "NaN", "undefined"],
+  },
+  "current bacterial candidates use only the switch through the linker": {
+    info: {
+      method: "prokaryotic_equilibrium",
+      evaluation_context: "switch_through_linker_excluding_output",
+      evaluated_nt: 161, payload_head_nt: 0,
+      on_pct: 40, off_pct: 5, on_minus_off_pp: 35,
+      feasibility: { passed: 22, total: 22, violations: [] },
+    },
+    has: ["complete switch through its linker", "excluding the output CDS", "161 nt total", "<strong>passed</strong>"],
+    lacks: ["Full switch-plus-CDS equilibrium check", "initial screen with switch plus", "Only candidates passing the full"],
+  },
+  "a full-CDS finalist shows its final measurement context": {
+    info: {
+      method: "prokaryotic_equilibrium",
+      full_context_status: "evaluated",
+      evaluated_nt: 878,
+      payload_head_nt: 717,
+      on_pct: 40,
+      off_pct: 5,
+      on_minus_off_pp: 35,
+      feasibility: { passed: 22, total: 22, violations: [] },
+      screening: {
+        method: "prokaryotic_equilibrium", on_pct: 60, off_pct: 2, on_minus_off_pp: 58,
+        feasibility: { passed: 22, total: 22, violations: [] },
+      },
+    },
+    has: ["complete switch plus full output CDS", "878 nt total", "completed; see full-context feasibility", "Full-context", "<strong>passed</strong>", "22/22 declared checks", "Compare initial screen with full CDS", "Initial payload-prefix screen", "60.00%"],
+    lacks: ["no final rank", "initial screen with switch plus", "not run within the finalist budget"],
+  },
+  "a passing screen outside the finalist budget has no final rank": {
+    info: {
+      method: "prokaryotic_equilibrium",
+      full_context_status: "not_evaluated_budget",
+      payload_head_nt: 30,
+      on_pct: 40,
+      off_pct: 5,
+      on_minus_off_pp: 35,
+      feasibility: { passed: 22, total: 22, violations: [] },
+    },
+    has: ["initial screen with switch plus 30 nt", "not run within the finalist budget; no final rank", "Screen", "<strong>passed</strong>"],
+    lacks: ["completed; see full-context feasibility", "complete switch plus full output CDS"],
+  },
+  "missing full-context status does not invent a budget outcome": {
+    info: { method: "prokaryotic_equilibrium", on_pct: null, off_pct: null, on_minus_off_pp: null },
+    has: ["not recorded", "unmeasured"],
+    lacks: ["not run within the finalist budget", "not run because the initial screen failed", "completed; see"],
+  },
 };
 
 let failures = 0;
