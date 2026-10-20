@@ -186,7 +186,7 @@ export function PublicDatasetPicker({
                 onClick={() =>
                   materialize.mutate(comparisonKey, { onSuccess: (dataset) => onLoaded(dataset.id) })
                 }
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-gradient-mint px-4 py-2.5 text-sm font-medium text-mint-foreground shadow-mint disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 {materialize.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

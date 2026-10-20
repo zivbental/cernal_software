@@ -36,12 +36,12 @@ const CATEGORY_META: Record<
   },
   sequences: {
     label: "Gate & switch sequences",
-    description: "One FASTA per accepted candidate's switch.",
+    description: "FASTA files for accepted candidate switch sequences.",
     Icon: Dna,
   },
   plasmids: {
     label: "Plasmid sequences",
-    description: "Full construct sequences, GenBank format.",
+    description: "Full construct sequences as FASTA and annotated GenBank files.",
     Icon: CircleDot,
   },
   diagrams: {
@@ -76,6 +76,22 @@ function groupByCategory(artifacts: Artifact[]): Map<ArtifactCategory, Artifact[
     else map.set(artifact.category, [artifact]);
   }
   return map;
+}
+
+export function DownloadAllButton({ runId }: { runId: string }) {
+  const artifacts = useArtifacts(runId);
+  if (artifacts.isLoading || artifacts.isError) return null;
+  const items = artifacts.data ?? [];
+  const availableCount = items.filter((artifact) => artifact.download_available === true).length;
+
+  return (
+    <a
+      href={artifactsZipUrl(runId, { availableOnly: availableCount !== items.length })}
+      className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:border-mint"
+    >
+      <Archive className="h-4 w-4" /> Download all
+    </a>
+  );
 }
 
 export function ArtifactDownloads({ runId }: { runId: string }) {
@@ -147,18 +163,8 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
         </div>
       </div>
 
-      {items.some((artifact) => artifact.download_available !== true) && (
-        <p role="status" className="mb-4 text-sm text-muted-foreground">
-          Some artifacts are withheld pending sequence release approval. The ZIP includes all currently available files; held files stay excluded. Select individual files below to make a smaller archive.
-        </p>
-      )}
-      <p className="mb-4 rounded-lg border border-border p-3 text-xs">
-        Screening context: candidate screening covers only the saved switch sequence, not these files or the full construct.
-        A downloadable artifact, completed run or ranking score does not establish screening clearance or authorize release.
-        Screening evidence is not currently embedded in these exports; retain the applicable identity and provenance separately.
-      </p>
       <details>
-      <summary className="mb-4 cursor-pointer text-sm">Choose files and review release information</summary>
+      <summary className="mb-4 cursor-pointer text-sm">Choose files</summary>
 
       {items.length === 0 && <p className="mb-4 text-sm text-muted-foreground">No additional run files are available. The PDF summary can still be downloaded above.</p>}
 
@@ -266,7 +272,7 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
                           {artifact.name}
                         </div>
                         <div className="truncate text-[11px] text-muted-foreground">
-                          {artifact.label}{artifact.download_available !== true ? " — withheld pending release approval" : ""}
+                          {artifact.label}
                         </div>
                       </div>
                       <div className="shrink-0 font-mono text-[11px] text-muted-foreground">

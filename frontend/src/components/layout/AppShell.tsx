@@ -56,7 +56,7 @@ function Nav() {
             <img
               src={cernalLogo}
               alt="CERNAL — Compiler-like Engine for RNA Logic"
-              className="h-9 w-auto"
+              className="block h-[46px] w-[170px] shrink-0 object-contain"
             />
           </Link>
           <nav aria-label="Primary navigation" className="hidden min-w-0 flex-wrap items-center gap-1 lg:flex">

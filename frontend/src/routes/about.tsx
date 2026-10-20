@@ -34,7 +34,7 @@ function AboutPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Panel>
-          <img src={cernalLogo} alt="CERNAL" className="h-12 w-auto" />
+          <img src={cernalLogo} alt="CERNAL" className="mb-2 block h-[68px] w-[250px] max-w-full object-contain object-left" />
           <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
             CERNAL turns transcriptomic signals into manufacturable synthetic gene
             circuits. Researchers define activation conditions as constraints; CERNAL

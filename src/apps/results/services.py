@@ -46,7 +46,7 @@ def artifact_release_allowed(artifact) -> bool:
         return bool(candidates) and all(candidate_release_allowed(c.design) for c in candidates)
     return bool(
         artifact.candidate_id
-        and artifact.kind in {"sequence_fasta", "genbank", "sbol", "structure_plot"}
+        and artifact.kind in {"sequence_fasta", "plasmid_fasta", "genbank", "sbol", "structure_plot"}
         and candidate_release_allowed(artifact.candidate.design)
     )
 
@@ -400,14 +400,14 @@ def build_candidates_csv(run) -> str:
 
 
 def build_run_summary_pdf(run) -> bytes:
-    """Build a compact, sequence-free PDF summary from a run's stored results."""
+    """Build a designed, sequence-free PDF summary from a run's stored results."""
     candidates = Candidate.objects.filter(run=run)
     candidate_count = candidates.count()
     ranked_count = candidates.filter(rank__isnull=False).count()
     ranked_candidates = list(
         candidates.filter(rank__isnull=False)
         .order_by("rank")
-        .values_list("rank", "overall_score")[:20]
+        .values_list("rank", "engine_ref", "overall_score")[:20]
     )
     organism_names = {
         "ecoli": "E. coli",
@@ -415,61 +415,140 @@ def build_run_summary_pdf(run) -> bytes:
         "human": "Human",
         "c_acnes": "C. acnes",
     }
-    submitted = run.submitted_at.isoformat(timespec="minutes") if run.submitted_at else "Unknown"
-    lines = [
-        "CERNAL - Run summary",
-        f"Run ID: {run.id}",
-        f"Name: {run.name or 'Unnamed run'}",
-        f"Organism: {organism_names.get(run.organism, run.organism or 'Unknown')}",
-        f"Input: {run.get_input_mode_display()}",
-        f"Submitted: {submitted}",
-        f"Candidates: {candidate_count} total; {ranked_count} included in ranking",
-        "",
-        "Results are computational rankings for research follow-up, not experimental validation.",
-        "Sequence-bearing downloads are available only after release review.",
-        "",
-        "Top ranked candidates",
-    ]
-    if not ranked_candidates:
-        lines.append("No ranked candidates were produced.")
-    for rank, overall_score in ranked_candidates:
-        score = "not available" if overall_score is None else f"{overall_score * 100:.1f}%"
-        lines.append(f"Candidate #{rank} - relative ranking score: {score}")
-        lines.append("")
-    return _build_simple_pdf(lines)
+    submitted = timezone.localtime(run.submitted_at).strftime("%Y-%m-%d %H:%M %Z") if run.submitted_at else "Not recorded"
+    organism = organism_names.get(run.organism, run.organism or "Unknown")
+    input_mode = run.get_input_mode_display() if hasattr(run, "get_input_mode_display") else run.input_mode
+    return _build_run_summary_pdf(
+        run=run,
+        candidate_count=candidate_count,
+        ranked_count=ranked_count,
+        ranked_candidates=ranked_candidates,
+        organism=organism,
+        input_mode=input_mode,
+        submitted=submitted,
+    )
 
 
-def _build_simple_pdf(lines: list[str]) -> bytes:
-    """Serialize plain text into a small PDF using only the Python standard library."""
-    wrapped_lines = [
-        wrapped
-        for line in lines
-        for wrapped in (textwrap.wrap(line, width=88) or [""])
-    ]
-    page_lines = [wrapped_lines[index : index + 52] for index in range(0, len(wrapped_lines), 52)] or [[]]
+def _build_run_summary_pdf(*, run, candidate_count, ranked_count, ranked_candidates, organism, input_mode, submitted):
+    """Draw a compact two-page-or-less report with a clear score overview."""
+    page_size = 9
+    page_count = max(1, math.ceil(len(ranked_candidates) / page_size))
+    pages = []
+    for page_index in range(page_count):
+        commands = []
+        _pdf_rect(commands, 0, 0, 595, 842, (1.0, 1.0, 1.0))
+        _pdf_rect(commands, 0, 740, 595, 102, (0.13, 0.11, 0.11))
+        _pdf_rect(commands, 0, 740, 7, 102, (0.76, 0.13, 0.17))
+        _pdf_text(commands, 42, 815, "CERNAL  /  RNA LOGIC DESIGN", 8, bold=True, color=(0.96, 0.78, 0.78))
+        _pdf_text(commands, 42, 783, "Run summary", 23, bold=True, color=(1.0, 1.0, 1.0))
+        _pdf_text(commands, 42, 760, f"Run: {run.name or 'Unnamed run'}", 9, color=(0.88, 0.87, 0.87), max_chars=48)
+        _pdf_text(commands, 440, 812, "RUN ID", 7, bold=True, color=(0.79, 0.77, 0.77))
+        _pdf_text(commands, 440, 794, str(run.id)[:12], 10, bold=True, color=(1.0, 1.0, 1.0))
+
+        if page_index == 0:
+            cards = [
+                ("ORGANISM", organism),
+                ("INPUT", input_mode),
+                ("RANKED", str(ranked_count)),
+                ("ENGINE", run.engine_version or "Not recorded"),
+            ]
+            for index, (label, value) in enumerate(cards):
+                x = 40 + index * 130
+                _pdf_card(commands, x, 650, 122, 64)
+                _pdf_text(commands, x + 11, 697, label, 7, bold=True, color=(0.49, 0.45, 0.45))
+                _pdf_text(commands, x + 11, 675, value, 10, bold=True, color=(0.15, 0.13, 0.13), max_chars=17)
+            _pdf_text(commands, 40, 612, "Candidate overview", 16, bold=True, color=(0.14, 0.12, 0.12))
+            _pdf_text(commands, 40, 594, f"{candidate_count} designs produced / {ranked_count} included in the ranking", 9, color=(0.43, 0.40, 0.40))
+            section_y = 556
+        else:
+            _pdf_text(commands, 40, 690, "Candidate overview  /  continued", 16, bold=True, color=(0.14, 0.12, 0.12))
+            section_y = 654
+
+        _pdf_text(commands, 50, section_y, "RANK", 7, bold=True, color=(0.49, 0.45, 0.45))
+        _pdf_text(commands, 100, section_y, "CANDIDATE", 7, bold=True, color=(0.49, 0.45, 0.45))
+        _pdf_text(commands, 482, section_y, "SCORE", 7, bold=True, color=(0.49, 0.45, 0.45))
+        start = page_index * page_size
+        page_candidates = ranked_candidates[start : start + page_size]
+        if not page_candidates:
+            _pdf_card(commands, 40, section_y - 75, 515, 54)
+            _pdf_text(commands, 55, section_y - 52, "No ranked candidates were produced for this run.", 10, color=(0.43, 0.40, 0.40))
+        for row_index, (rank, engine_ref, overall_score) in enumerate(page_candidates):
+            y = section_y - 34 - row_index * 31
+            _pdf_rect(commands, 40, y - 9, 515, 27, (0.98, 0.97, 0.97) if row_index % 2 == 0 else (1.0, 1.0, 1.0))
+            _pdf_rect(commands, 40, y - 9, 31, 27, (0.76, 0.13, 0.17))
+            _pdf_text(commands, 48, y, str(rank), 9, bold=True, color=(1.0, 1.0, 1.0))
+            _pdf_text(commands, 84, y, engine_ref, 9, color=(0.15, 0.13, 0.13), max_chars=34)
+            bar_x, bar_width = 354, 94
+            _pdf_rect(commands, bar_x, y - 1, bar_width, 5, (0.89, 0.87, 0.87))
+            if overall_score is not None:
+                _pdf_rect(commands, bar_x, y - 1, bar_width * min(1.0, max(0.0, float(overall_score))), 5, (0.76, 0.13, 0.17))
+                score_label = f"{overall_score * 100:.1f}%"
+            else:
+                score_label = "Unmeasured"
+            _pdf_text(commands, 468, y, score_label, 9, bold=True, color=(0.15, 0.13, 0.13))
+
+        if page_index == 0:
+            _pdf_card(commands, 40, 112, 515, 65, fill=(0.98, 0.96, 0.96))
+            _pdf_text(commands, 54, 155, "SEQUENCE FILES", 7, bold=True, color=(0.66, 0.12, 0.16))
+            _pdf_text(commands, 54, 136, "Available sequence exports: switch FASTA, full-plasmid FASTA and annotated GenBank.", 9, color=(0.20, 0.18, 0.18), max_chars=91)
+        _pdf_line(commands, 40, 54, 555, 54, (0.89, 0.87, 0.87))
+        _pdf_text(commands, 40, 37, f"Submitted: {submitted}", 7, color=(0.49, 0.45, 0.45), max_chars=58)
+        _pdf_text(commands, 482, 37, f"{page_index + 1} / {page_count}", 7, color=(0.49, 0.45, 0.45))
+        pages.append(commands)
+
+    return _serialize_pdf_pages(pages)
+
+
+def _pdf_safe(text, max_chars=None):
+    value = unicodedata.normalize("NFKD", str(text)).encode("ascii", "replace").decode("ascii")
+    if max_chars is not None:
+        value = textwrap.shorten(value, width=max_chars, placeholder="...")
+    return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").replace("\n", " ")
+
+
+def _pdf_text(commands, x, y, text, size, *, bold=False, color=(0.15, 0.13, 0.13), max_chars=None):
+    font = "F2" if bold else "F1"
+    red, green, blue = color
+    safe = _pdf_safe(text, max_chars=max_chars)
+    commands.append(
+        f"BT /{font} {size} Tf {red:.3f} {green:.3f} {blue:.3f} rg 1 0 0 1 {x:.2f} {y:.2f} Tm ({safe}) Tj ET"
+    )
+
+
+def _pdf_rect(commands, x, y, width, height, fill, *, stroke=(0.90, 0.88, 0.88)):
+    red, green, blue = fill
+    stroke_red, stroke_green, stroke_blue = stroke
+    commands.append(
+        f"q {red:.3f} {green:.3f} {blue:.3f} rg {stroke_red:.3f} {stroke_green:.3f} {stroke_blue:.3f} RG 0.6 w {x:.2f} {y:.2f} {width:.2f} {height:.2f} re B Q"
+    )
+
+
+def _pdf_card(commands, x, y, width, height, *, fill=(0.98, 0.97, 0.97)):
+    _pdf_rect(commands, x, y, width, height, fill)
+
+
+def _pdf_line(commands, x1, y1, x2, y2, color):
+    red, green, blue = color
+    commands.append(f"q {red:.3f} {green:.3f} {blue:.3f} RG 0.7 w {x1:.2f} {y1:.2f} m {x2:.2f} {y2:.2f} l S Q")
+
+
+def _serialize_pdf_pages(pages: list[list[str]]) -> bytes:
+    """Serialize vector PDF pages using only the Python standard library."""
     objects: list[bytes] = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"",  # Filled after the page objects have been numbered.
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
     ]
     page_refs = []
-    for page_index, content_lines in enumerate(page_lines, start=1):
-        page_number = 4 + (page_index - 1) * 2
+    for page_index, commands in enumerate(pages, start=1):
+        page_number = 5 + (page_index - 1) * 2
         content_number = page_number + 1
         page_refs.append(f"{page_number} 0 R")
-        commands = ["BT", "/F1 10 Tf", "48 794 Td", "14 TL"]
-        if page_index > 1:
-            content_lines = ["CERNAL - Run summary (continued)", "", *content_lines]
-        for line in content_lines:
-            safe = unicodedata.normalize("NFKD", line).encode("ascii", "replace").decode("ascii")
-            escaped = safe.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-            commands.append(f"({escaped}) Tj")
-            commands.append("T*")
-        commands.append("ET")
         stream = "\n".join(commands).encode("ascii")
         objects.append(
             f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_number} 0 R >>".encode("ascii")
+            f"/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {content_number} 0 R >>".encode("ascii")
         )
         objects.append(
             f"<< /Length {len(stream)} >>\nstream\n".encode("ascii")

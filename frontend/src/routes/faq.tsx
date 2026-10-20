@@ -368,9 +368,9 @@ export function FaqContent() {
         ))}
       </nav>
       <div className="space-y-3">
-        {GROUPS.map((group, index) => (
+        {GROUPS.map((group) => (
           <Panel key={group.id} className="!p-0">
-            <details id={group.id} open={index === 0} className="group scroll-mt-24">
+            <details id={group.id} className="group scroll-mt-24">
               <summary className="flex cursor-pointer list-none items-center gap-4 rounded-xl p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint [&::-webkit-details-marker]:hidden">
                 <h2
                   id={`${group.id}-heading`}

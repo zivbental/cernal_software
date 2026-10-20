@@ -40,7 +40,6 @@ export interface CompileConfig {
   /** Downstream outputs, all equivalent. Each selected one gets its own plasmids. */
   outputs: string[];
   customPayload: string;
-  optimizePayloadCodons: boolean;
   /**
    * `engine.domain.Constraints.max_circuit_gates` — how many gates one circuit may
    * combine. Kept at the configured single-gate limit in this wizard.
@@ -74,7 +73,6 @@ export const DEFAULT_CONFIG: CompileConfig = {
   andGenes: { a: "", b: "" },
   outputs: ["gfp"],
   customPayload: "",
-  optimizePayloadCodons: false,
   // Physical multi-gate constructs require reviewed integration; production uses one gate.
   maxCircuitGates: 1,
   topN: "20",
@@ -861,12 +859,10 @@ export function StepPayload({ config, patch, supportedOutputs }: { config: Compi
         </div>
       )}
 
-      <label className="mt-5 flex items-center gap-2 text-sm text-foreground">
-        <input type="checkbox" checked={config.optimizePayloadCodons}
-          onChange={(e) => patch({ optimizePayloadCodons: e.target.checked })} />
-        Optimize payload codons for the selected host (optional)
-      </label>
-      <p className="mt-2 text-xs text-muted-foreground">Off by default to preserve the pinned coding sequence. Optimization preserves the encoded protein and records sequence provenance. Reporter performance with the switch fusion remains experimentally unvalidated.</p>
+      <p className="mt-5 flex items-center gap-2 text-sm text-foreground">
+        <span aria-hidden="true" className="grid h-5 w-5 place-items-center rounded-full bg-mint/10 text-mint">✓</span>
+        Codon optimization is always enabled for the selected host.
+      </p>
       <p className="mt-6 rounded-lg border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground">
         {count === 0
           ? "Select at least one output."
