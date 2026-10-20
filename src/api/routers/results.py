@@ -167,10 +167,16 @@ def download_artifacts_zip(
     run_id: UUID,
     category: str | None = Query(default=None),
     ids: str | None = Query(default=None, description="Comma-separated artifact ids."),
+    available_only: bool = Query(
+        default=False,
+        description="Include only artifacts currently approved for download.",
+    ),
 ):
-    """Everything, one category, or a hand-picked set — always as a single .zip.
+    """Everything, one category, available artifacts, or a hand-picked set as one .zip.
 
     ``ids`` wins if both are given. Neither given means every artifact this run has.
+    ``available_only`` removes artifacts held pending release approval, so a partial
+    archive can still be downloaded without exposing held files.
     Entries are filed under ``<category>/<display name>`` inside the archive, so the
     zip is organized the same way the download UI is, regardless of engine storage
     paths.
@@ -195,6 +201,10 @@ def download_artifacts_zip(
         label = category
 
     artifacts = list(queryset)
+    if available_only:
+        artifacts = [artifact for artifact in artifacts if artifact_release_allowed(artifact)]
+        if not ids and not category:
+            label = "available"
     if not artifacts:
         raise NotFound("No matching artifacts were found for this run.")
 
