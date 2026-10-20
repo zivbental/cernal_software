@@ -69,7 +69,7 @@ export const DEFAULT_CONFIG: CompileConfig = {
   datasetId: null,
   triggerSequence: "",
   targetGene: null,
-  mechanism: "toehold",
+  mechanism: "prokaryotic_toehold",
   andGenes: { a: "", b: "" },
   outputs: ["gfp"],
   customPayload: "",
@@ -178,7 +178,7 @@ export function StepInputs({
       <SectionHeading
         kicker="Step 01 · Inputs"
         title="Define Transcriptomic Inputs"
-        desc="Upload your differential expression results, or skip discovery and provide the exact trigger mRNA sequence directly."
+        desc="Upload your differential expression results, or skip discovery and provide the exact trigger RNA sequence directly."
       />
 
       <div className="mb-6">
@@ -196,7 +196,7 @@ export function StepInputs({
                 aria-pressed={selected}
                 onClick={() => patch(o.key === "human"
                   ? { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: "none", mechanism: "eukaryotic_toehold" }
-                  : { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
+                  : { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "prokaryotic_toehold" })}
                 className={`group relative flex items-center gap-2 rounded-md px-5 py-2.5 text-sm transition ${
                   credit
                     ? selected
@@ -337,7 +337,7 @@ export function StepInputs({
             }`}
           >
             <Dna className="h-3.5 w-3.5" />
-            Direct Trigger mRNA
+            Direct Trigger RNA
           </button>
           <button
             type="button"
@@ -358,7 +358,7 @@ export function StepInputs({
           {config.inputMode === "de" &&
             "Browse a real public dataset or upload your own differential expression results — CERNAL assumes fold change is calculated as target / control."}
           {config.inputMode === "direct" &&
-            "Skip discovery — provide the exact mRNA sequence you want to act as the trigger."}
+            "Skip discovery — provide the exact RNA sequence you want to act as the trigger."}
           {config.inputMode === "gene" &&
             "Already know which transcript you want the circuit to respond to? Resolve its reference transcript here; its identity and sequence are frozen at submission."}
           {twoInputGate &&
@@ -525,7 +525,7 @@ export function StepInputs({
               <Dna className="h-5 w-5 text-mint-foreground" />
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-base font-semibold text-foreground">Trigger mRNA Sequence</h3>
+              <h3 className="text-base font-semibold text-foreground">Trigger RNA Sequence</h3>
               {config.targetGene && (
                 <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-mint/10 px-2.5 py-1 font-mono text-[11px] text-mint">
                   Target gene: {config.targetGene.geneSymbol || config.targetGene.geneId} (
@@ -533,7 +533,7 @@ export function StepInputs({
                 </div>
               )}
               <p className="mt-1 text-sm text-muted-foreground">
-                Paste the mRNA transcript that should activate the riboswitch. DNA is
+                Paste the RNA sequence that should activate the riboswitch. DNA is
                 accepted and converted automatically.
               </p>
               <textarea

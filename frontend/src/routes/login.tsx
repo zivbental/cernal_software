@@ -39,12 +39,12 @@ function LoginPage() {
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     try { await login.mutateAsync({ username, password });
-    navigate({ to: redirect ?? "/dashboard" }); } catch { /* error is visible */ }
+    navigate({ to: redirect ?? "/", replace: true }); } catch { /* error is visible */ }
   }
 
   async function onReviewerLogin() {
     try { await reviewerLogin.mutateAsync();
-    navigate({ to: redirect ?? "/dashboard" }); } catch { /* error is visible */ }
+    navigate({ to: "/", replace: true }); } catch { /* error is visible */ }
   }
 
   return (

@@ -241,7 +241,15 @@ function CompilePage() {
           twoInputGate={gateInputs > 1}
         />
 
-        <StepLogic config={config} patch={patch} familyInputs={version.data?.family_inputs} families={families.map((family) => ({ ...family, available: family.available && (version.data?.family_hosts[family.name] ?? []).includes(config.organism) }))} />
+        <StepLogic
+          config={config}
+          patch={patch}
+          familyInputs={version.data?.family_inputs}
+          families={families.filter((family) =>
+            family.name !== "toehold" && family.available &&
+            (version.data?.family_hosts[family.name] ?? []).includes(config.organism),
+          )}
+        />
 
         <StepPayload config={config} patch={patch} supportedOutputs={supportedOutputs} />
 
