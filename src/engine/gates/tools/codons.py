@@ -960,4 +960,3 @@ def _relative_adaptiveness(usage_table: dict[str, float]) -> dict[str, float]:
         for codon in members:
             adaptiveness[codon] = usage_table[codon] / best
     return adaptiveness
-
