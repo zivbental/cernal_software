@@ -89,7 +89,11 @@ export function useLogin() {
 export function useReviewerLogin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<User>("/auth/reviewer-login"),
+    mutationFn: async () => {
+      await api.post<User>("/auth/reviewer-login");
+      // Confirm the session cookie is active before the router enters an authenticated page.
+      return api.get<User>("/auth/me");
+    },
     onSuccess: (user) => {
       queryClient.setQueryData(keys.me, user);
     },

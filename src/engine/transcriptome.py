@@ -149,20 +149,73 @@ def resolve_gene_id(host: Host, identifier: str) -> str:
     if identifier in reference:
         return identifier
     # Versions refer to the same stable Ensembl gene; never truncate arbitrary symbols.
-    if identifier.startswith("ENSG") and identifier.split(".")[0] in reference:
-        return identifier.split(".")[0]
+    versionless_id = identifier.split(".")[0]
+    if versionless_id.startswith("ENSG") and versionless_id in reference:
+        return versionless_id
+    if versionless_id.casefold().startswith("ensg"):
+        versioned_matches = _casefolded_reference_ids(host).get(
+            versionless_id.casefold(), set()
+        )
+        if len(versioned_matches) == 1:
+            return next(iter(versioned_matches))
     metadata = reference_metadata(host)
-    if identifier in metadata.get("ambiguous_aliases", []):
+    folded_identifier = identifier.casefold()
+    if folded_identifier in _casefolded_ambiguous_aliases(host):
         raise InputValidationError(
             f"Gene symbol {identifier!r} is ambiguous; use a stable gene ID."
         )
     resolved = metadata.get("aliases", {}).get(identifier)
     if resolved in reference:
         return resolved
+    folded_aliases = _casefolded_aliases(host)
+    matches = folded_aliases.get(folded_identifier, set())
+    if len(matches) == 1:
+        resolved = next(iter(matches))
+        if resolved in reference:
+            return resolved
+    elif len(matches) > 1:
+        raise InputValidationError(
+            f"Gene symbol {identifier!r} is ambiguous; use a stable gene ID."
+        )
+
+    folded_ids = _casefolded_reference_ids(host)
+    id_matches = folded_ids.get(folded_identifier, set())
+    if len(id_matches) == 1:
+        return next(iter(id_matches))
+    if len(id_matches) > 1:
+        raise InputValidationError(
+            f"Gene identifier {identifier!r} is ambiguous; use its exact stable ID."
+        )
     raise InputValidationError(
         f"Gene {identifier!r} was not found in the {host.value} reference. "
         "Use a reference gene ID or an unambiguous gene symbol."
     )
+
+
+@cache
+def _casefolded_aliases(host: Host) -> dict[str, set[str]]:
+    aliases: dict[str, set[str]] = {}
+    for alias, gene_id in reference_metadata(host).get("aliases", {}).items():
+        if isinstance(alias, str) and isinstance(gene_id, str):
+            aliases.setdefault(alias.casefold(), set()).add(gene_id)
+    return aliases
+
+
+@cache
+def _casefolded_ambiguous_aliases(host: Host) -> set[str]:
+    return {
+        alias.casefold()
+        for alias in reference_metadata(host).get("ambiguous_aliases", [])
+        if isinstance(alias, str)
+    }
+
+
+@cache
+def _casefolded_reference_ids(host: Host) -> dict[str, set[str]]:
+    ids: dict[str, set[str]] = {}
+    for gene_id in load_transcriptome(host):
+        ids.setdefault(gene_id.casefold(), set()).add(gene_id)
+    return ids
 
 
 def gene_reference(host: Host, identifier: str) -> dict:
