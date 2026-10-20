@@ -1198,4 +1198,3 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
         )
     document.add(construct)
     return document.write_string(sbol3.SORTED_NTRIPLES).encode("utf-8")
-
