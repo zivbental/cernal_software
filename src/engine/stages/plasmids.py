@@ -608,6 +608,7 @@ class PlasmidBuilder:
                     avoid_enzymes=tuple(
                         name for name in self.screener.sites if not name.endswith("_rc")
                     ),
+                    max_homopolymer=self.screener.max_homopolymer,
                     acceptable=self.screener.is_compliant,
                     on_rejected=lambda _sequence, reasons: rejected.extend(reasons),
                 )
@@ -1197,3 +1198,4 @@ def to_sbol3(design: PlasmidDesign) -> bytes:
         )
     document.add(construct)
     return document.write_string(sbol3.SORTED_NTRIPLES).encode("utf-8")
+
