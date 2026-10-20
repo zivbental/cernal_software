@@ -31,7 +31,7 @@ so it costs milliseconds and can run in CI.
 **What a row in the output means.** A name in "notebook only" is a quantity we have analysed and
 the pipeline cannot produce. That is not automatically a bug: some are objective aggregates that
 belong to whoever is ranking rather than to a measurement (``f2``, ``f5``, ``score``), and
-CLAUDE.md §3 is explicit that a family must not emit those. But every one of them needs a
+The shared scoring layer owns those aggregates. But every one of them needs a
 *decision*, and the point is that the list is visible instead of being rediscovered.
 """
 
@@ -91,7 +91,7 @@ NOT_A_MEASUREMENT = frozenset(
         "b_start",
         "b_end",
         # driver bookkeeping: `score` and `skipped` are decisions, not measurements, and
-        # CLAUDE.md §3 forbids a family emitting a total at all
+        # the shared scoring layer owns aggregate scores
         "score",
         "skipped",
         "reason",
@@ -178,8 +178,8 @@ NEEDS_A_FOLD = frozenset(
 
 #: Off this path by decision. `offtarget*` needs the transcriptome scanner main removed.
 #: `drift_repaired` and the `_before`/`_after` columns belong to repair EXPERIMENTS, not to a
-#: measurement pass, and `f2_*` are readings of an objective aggregate -- which CLAUDE.md section 3
-#: forbids a family from emitting at all.
+#: measurement pass, and `f2_*` are readings of an objective aggregate, whose ownership stays
+#: in the scoring layer rather than the gate family.
 OFF_THIS_PATH = frozenset(
     {
         "offtarget",
@@ -301,7 +301,7 @@ def main() -> int:
         print("\n    Nothing unexplained: every gap has a recorded reason.")
     print(
         "\n  Each needs a DECISION, not a fix by default: an objective aggregate belongs to\n"
-        "  whoever is ranking (CLAUDE.md section 3 forbids a family emitting a total), while a\n"
+        "  the shared scoring layer rather than the gate family, while a\n"
         "  real measurement belongs in `measure_design` and `MEASURED_KEYS`. What is not\n"
         "  acceptable is the status quo, where the only thing noticing is somebody's memory."
     )

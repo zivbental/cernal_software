@@ -4,7 +4,7 @@ Step 1 answers WHICH pairs exist. Step 2 builds a switch from a pair, and this p
 construction so it can be CHECKED rather than believed:
 
   * the pair's two windows, with their coordinates in their own transcripts
-  * the assertion CLAUDE.md section 6 asks for: transcript[start:end] == the window
+  * the coordinate consistency assertion: transcript[start:end] == the window
   * every domain of the assembled switch, with its span and its bases
   * for each domain, WHERE those bases come from -- a transcript slice, the reverse
     complement of one, or a fixed constant
@@ -17,7 +17,7 @@ Nothing here is a new measurement; it reads the engine's own `find_cross_gene_pa
 import sys
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\Dell\source\repos\cernal_software")
+ROOT = Path(__file__).resolve().parents[6]
 sys.path.insert(0, str(ROOT / "src"))
 
 from engine import sequences as sq  # noqa: E402

@@ -29,6 +29,7 @@ probabilities that small is all tail, and an energy difference is bounded and re
 
 import argparse
 import csv
+import os
 import statistics as st
 import sys
 from pathlib import Path
@@ -43,8 +44,12 @@ from window_vs_green import window_separation  # noqa: E402
 
 from engine.gates.tools.folding import FoldEngine  # noqa: E402
 
-GREEN_2014 = Path(r"C:\Users\Dell\OneDrive - mail.tau.ac.il\IGEM\Toehold\Green 2014")
-GREEN_2026 = Path(r"C:\Users\Dell\OneDrive - mail.tau.ac.il\IGEM\Toehold\Green 2026")
+GREEN_2014 = Path(
+    os.environ.get("CERNAL_AND_GREEN_2014", NB.parents[4] / "var/and-inputs/green2014")
+)
+GREEN_2026 = Path(
+    os.environ.get("CERNAL_AND_VISTA_2026", NB.parents[4] / "var/and-inputs/vista2026")
+)
 
 #: Each library: its calibration CSV, where its sequences come from, and how to load them.
 #:

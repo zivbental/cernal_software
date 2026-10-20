@@ -38,7 +38,9 @@ from proposal_validation import WEIGHTS, score_s2, score_s6  # noqa: E402
 
 from engine.gates.tools.folding import FoldEngine  # noqa: E402
 
-GREEN_2014 = Path(r"C:\Users\Dell\OneDrive - mail.tau.ac.il\IGEM\Toehold\Green 2014")
+GREEN_2014 = Path(
+    os.environ.get("CERNAL_AND_GREEN_2014", NB.parents[4] / "var/and-inputs/green2014")
+)
 
 #: Green's 11-nt prokaryotic RBS, which locates the loop and therefore the stem arms.
 RBS = "AACAGAGGAGA"

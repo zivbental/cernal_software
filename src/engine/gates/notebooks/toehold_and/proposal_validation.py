@@ -31,6 +31,7 @@ fixed linker -- scanning 8 would scan constant sequence. Both are reported.
 import argparse
 import csv
 import math
+import os
 import statistics as st
 import sys
 from pathlib import Path
@@ -45,7 +46,9 @@ from metric_correlations import pearson, ranks, spearman  # noqa: E402
 from engine import sequences as sq  # noqa: E402
 from engine.gates.tools.folding import FoldEngine  # noqa: E402
 
-DEFAULT_DATA = Path(r"C:\Users\Dell\OneDrive - mail.tau.ac.il\IGEM\Toehold\Green 2026")
+DEFAULT_DATA = Path(
+    os.environ.get("CERNAL_AND_VISTA_2026", NB.parents[4] / "var/and-inputs/vista2026")
+)
 
 #: The proposal's weights, verbatim.
 WEIGHTS = {

@@ -1,7 +1,9 @@
-# The iGEM model page — standing brief
+# Historical editorial brief — iGEM model page
 
-Everything the wiki page has to satisfy, in one place, so none of it has to be re-explained.
-Written down because it was given once and the page will be built over many sittings.
+Original writing requirements retained for provenance. Paths, section names and
+recommendations below describe the earlier draft; they are not current editing
+instructions. The live source is `wiki/pages/and-gate-model.html` in the separate
+Wiki repository. See the [code and reproduction map](prokaryotic-and-reproducibility.md).
 
 ---
 
@@ -14,12 +16,9 @@ Written down because it was given once and the page will be built over many sitt
 | rule | **touch no other page.** Adopt the existing visual language and style from the start rather than adding ours later |
 | last year's, as the style reference | `https://2025.igem.wiki/tau-israel/model` |
 
-Two drafts already exist and either can be continued:
-- model page: `https://claude.ai/artifact/FRiqiH6mWd3DNrKZFqFcQn`
-- judge-book research: `https://claude.ai/artifact/1ZdFUA3CaEBZztvQiUZEVs`
-- threshold evidence, the supplementary candidate: `https://claude.ai/artifact/D46u14hLnq1BL7tsJj7hk3`
-
-A tracked Markdown mirror lives at `docs/igem-model-page.md`.
+A tracked historical draft remains at [`igem-model-page.md`](igem-model-page.md).
+The [official AND model page](https://2026.igem.wiki/tau-israel/and-gate-model)
+is the published presentation.
 
 ---
 

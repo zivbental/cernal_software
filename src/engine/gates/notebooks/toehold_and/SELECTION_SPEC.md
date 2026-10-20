@@ -1,5 +1,8 @@
 # Selection specification — what the pipeline ranks on, and what it refuses to rank on
 
+> Historical research specification, not CERNAL's current ranking contract.
+> See the [runtime and reproduction map](../../../../../docs/prokaryotic-and-reproducibility.md).
+
 Written 2026-09-20, for review before the full sweep is built. Every number quoted is
 measured and reproducible from the drivers beside this file; nothing here is fitted.
 

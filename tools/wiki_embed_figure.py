@@ -3,10 +3,13 @@
 Run either way::
 
     uv run python tools/wiki_embed_figure.py --generator figure_and_gate_states \\
-        --select ag-fig--states
+        --select ag-fig--states --page /path/to/wiki/wiki/pages/and-gate-model.html
     uv run python tools/figure_methods.py --out-dir build
     uv run python tools/wiki_embed_figure.py --svg build/methods-triggers.svg \\
-        --select "which domain of each trigger"
+        --select "which domain of each trigger" --page /path/to/page.html
+
+Publication helper for the separate Wiki checkout, not a CERNAL runtime module.
+The target page must be provided explicitly; no personal filesystem path is assumed.
 
 Figures are inlined in the page rather than linked, so every regeneration has to be
 carried across by hand, and doing that by hand is how a page ends up showing a figure
@@ -28,7 +31,6 @@ import subprocess
 import sys
 import tempfile
 
-PAGE = pathlib.Path(r"C:\dev\tau-israel\wiki\pages\and-gate-model.html")
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
 
@@ -44,6 +46,7 @@ def _generate(generator: str) -> str:
 
 
 def embed(svg: str, select: str, page: pathlib.Path) -> str:
+    """Replace one uniquely selected inline SVG while retaining its caption and page."""
     text = page.read_text(encoding="utf-8")
     blocks = [
         (m.start(), text.index("</figure>", m.start())) for m in re.finditer(r"<figure\b", text)
@@ -62,12 +65,13 @@ def embed(svg: str, select: str, page: pathlib.Path) -> str:
 
 
 def main(argv=None) -> int:
+    """Generate or read an SVG and embed it in the explicitly selected page."""
     parser = argparse.ArgumentParser(description="Re-embed a generated figure.")
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--generator", help="module under tools/, without the .py")
     source.add_argument("--svg", type=pathlib.Path, help="an already-generated SVG")
     parser.add_argument("--select", required=True, help="text unique to the target figure")
-    parser.add_argument("--page", default=PAGE, type=pathlib.Path)
+    parser.add_argument("--page", required=True, type=pathlib.Path)
     args = parser.parse_args(argv)
 
     svg = (

@@ -1,5 +1,8 @@
 # A0 AND gate — state, open problems, proposed solutions
 
+> Historical status from 2026-09-16. Later code and observations supersede parts
+> of this record. Start with the [runtime and reproduction map](../../../../../docs/prokaryotic-and-reproducibility.md).
+
 Written 2026-09-16. Code lives in `ToeholdAndGate` (`src/engine/gates/toehold.py`) with
 runnable drivers beside this file. Design documents are in the separate
 `Prokaryotic-And-Gate` repo and are reference-only.

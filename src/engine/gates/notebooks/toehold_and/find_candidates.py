@@ -1,5 +1,8 @@
 """Stage 1 for the A0 two-input AND gate: find usable trigger pairs in one transcript.
 
+Historical single-transcript research driver, not CERNAL's accessible-region input
+adapter. See ``docs/prokaryotic-and-reproducibility.md`` for that distinction.
+
 Run it::
 
     uv run python src/engine/gates/notebooks/toehold_and/find_candidates.py \\
@@ -11,11 +14,13 @@ same answers this script prints. This file only reads a FASTA, calls those metho
 order, and reports the count at each step — which is what makes the three numbers below
 comparable with the validated reference.
 
-On mCherry the ladder is 1,443 pairs whose windows fit and are disjoint, 1,036 also
+In the earlier gate revision the recorded mCherry ladder was 1,443 pairs whose windows fit
+and are disjoint, 1,036 also
 motif-clean and 50 nt apart, and 867 that can additionally have either trigger disabled by
 synonymous substitution. The 169 dropped at the last step are the point of checking it
 here: discovering after choosing a pair that its negative control cannot be built wastes a
-design cycle.
+design cycle. These historical counts are not assertions about the current revision;
+the command reports its own counts from the supplied transcript and current gate settings.
 """
 
 import argparse
@@ -56,6 +61,7 @@ def read_fasta(path: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Report the historical pair-selection funnel and optionally export its survivors."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--fasta", required=True, help="the transcript both triggers come from")
     parser.add_argument("--min-gap", type=int, default=None, help="default: the gate's own 50")

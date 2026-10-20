@@ -1,28 +1,22 @@
-# Handoff — Results and Discussion for the two-input AND gate
+# Historical analysis notes — bacterial AND Results and Discussion
 
-Written by the cloud session that analysed the `axes_c8` characterisation run, for the local
-agent that built the engine and wrote the earlier chapters of the model page. Everything below
-is checkable from the repo; where I could not see something, I say so instead of guessing.
+Archived analysis and editorial recommendations from the `axes_c8` study. These
+notes predate the live Wiki and later model corrections; they are not current
+compiler requirements. The original filename is retained for existing references.
+Start with the [current code and reproduction map](../prokaryotic-and-reproducibility.md).
 
 ---
 
-## 1. What I had, and what I did not
+## 1. Evidence available to the original analysis
 
 **Had:** the repo, `docs/assets/axes_c8/` (the committed tidy tables), and the numbers Offer ran
 on his machine against the 301,440-row `axes_c8_{0..5}.csv` tables.
 
-**Did not have:** the 301,440-row tables themselves (they are gitignored and live only on the
-Windows machine, so every number on the page came from a command Offer ran and pasted back);
-the live Claude Doc behind `docs/igem-model-page.md` — I read the Markdown mirror at revision 52,
-which ends at §1.6, so **I have not seen any chapter written after that**; the GitLab wiki repo;
-and the two OneDrive style references the brief names (`dsx049.pdf`,
-`prokaryotic_and_gate_two_toeholds_1.svg`).
-
-**Could not push.** `git push` returns 403 — the Claude GitHub App is not installed on
-`zivbental/cernal_software`. Three commits exist in the cloud container and will be lost with it.
-Their content reached the Windows clone as zips, so the **working tree is current and the git
-history is not**. Whoever picks this up should commit the working tree with its own message; the
-reasoning that was in those commit messages is in this file and in `docs/findings-register.md`.
+**Not directly available:** the 301,440-row tables themselves. They were ignored
+local outputs, so the original analysis used reported command results and retained
+summary tables. The available model draft was revision 52, ending at §1.6; the
+live Wiki and later chapters were not part of that assessment. These limitations
+remain relevant when deciding which claims can be independently reproduced.
 
 ---
 

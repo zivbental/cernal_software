@@ -1,18 +1,17 @@
 """Clear the yellow review marks from the iGEM model page.
 
-Run at the START of a writing pass, so that the marks left at the end of it show that
-pass's work and nothing else::
+Historical publication helper; not part of CERNAL or scientific validation.
+Select the page explicitly; this command changes it unless ``--count`` is used::
 
-    uv run python tools/wiki_clear_marks.py
-    uv run python tools/wiki_clear_marks.py --count      # how many are set, change nothing
+    uv run python tools/wiki_clear_marks.py --page /path/to/wiki/wiki/pages/and-gate-model.html
+    uv run python tools/wiki_clear_marks.py --page /path/to/page.html --count
 
 The page marks everything added or changed in the most recent pass with the CSS class
 ``ag-new`` (defined in ``static/and-gate-model.css`` as review scaffolding, to be removed
 with it before publication). A mark that survives into the next pass is worse than no mark
 at all, because it says "new" about text the reviewer has already read and approved.
 
-The page lives in the wiki repository, which is a separate clone:
-``C:\\dev\\tau-israel``. Pass ``--page`` if it is somewhere else.
+The page lives in the separate Wiki repository. No checkout location is assumed.
 
 The class is removed in all three forms it can take, and nothing else is touched:
 
@@ -27,8 +26,6 @@ import argparse
 import pathlib
 import re
 import sys
-
-DEFAULT_PAGE = pathlib.Path(r"C:\dev\tau-israel\wiki\pages\and-gate-model.html")
 
 #: Matches one class attribute and captures its token list.
 CLASS_ATTR = re.compile(r'\sclass="([^"]*)"')
@@ -54,8 +51,9 @@ def strip(html: str) -> tuple[str, int]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Count or remove review classes from the explicitly selected Wiki page."""
     parser = argparse.ArgumentParser(description="Clear the page's yellow review marks.")
-    parser.add_argument("--page", type=pathlib.Path, default=DEFAULT_PAGE)
+    parser.add_argument("--page", type=pathlib.Path, required=True)
     parser.add_argument(
         "--count",
         action="store_true",
