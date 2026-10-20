@@ -3,7 +3,7 @@
     uv run --with openpyxl python \\
         src/engine/gates/notebooks/toehold_and/ensemble_vs_mfe.py
 
-CLAUDE.md and the A0 spec both say a scored observable should be an **ensemble** quantity, and two
+The A0 research specification calls for **ensemble** observables, and two
 of the metrics in play are not: ``dG_rbs_linker`` is the MFE of a subsequence and ``dG_OFF`` the MFE
 of the switch. The obvious repair is to use ``-RT ln Q`` over the same span instead -- the ensemble
 free energy, which ``FoldEngine.partition`` returns.
@@ -37,7 +37,9 @@ from metric_correlations import pearson, spearman  # noqa: E402
 
 from engine.gates.tools.folding import FoldEngine  # noqa: E402
 
-GREEN_2014 = Path(r"C:\Users\Dell\OneDrive - mail.tau.ac.il\IGEM\Toehold\Green 2014")
+GREEN_2014 = Path(
+    os.environ.get("CERNAL_AND_GREEN_2014", NB.parents[4] / "var/and-inputs/green2014")
+)
 RBS = "AACAGAGGAGA"
 LINKER_AFTER_AUG = 9
 

@@ -1,8 +1,9 @@
 # Findings register — every measured number, and what reproduces it
 
 One row per finding: the number, the file that holds its reasoning, and the command that
-reproduces it. This exists so a finding survives a context reset, a new contributor or a different
-agent: the reasoning lives in docstrings beside the code, and this is the index into them.
+reproduces it. The reasoning lives in docstrings beside the code; this is the index
+into them. For dataset availability, historical revisions and the distinction between
+research and compiler code, read the [reproduction map](prokaryotic-and-reproducibility.md).
 
 **Rules for this file.** A row is added only when the number has been measured and the reproduction
 command has been run. Where a later measurement contradicts an earlier one, both rows stay and the

@@ -6,8 +6,10 @@
 tool, and ``tests/engine/test_house_rules.py`` forbids any file under ``gates/`` from referencing
 it -- both as an upward import (layer 4 from layer 3) and as a gate family reaching for a
 stage tool. The notebook's exemption covers the shared-tool rule only; every other house rule still
-applies to it. ``accessibility_local.py`` is here for exactly the same reason. I put this under
-``review/`` first and the test caught it, which is the test doing its job.
+applies to it. ``accessibility_local.py`` is here for exactly the same reason.
+
+This is a research budget analysis, not an application entry point. See
+``docs/prokaryotic-and-reproducibility.md`` for runtime and research responsibilities.
 
 The question is whether every pair can be carried. The answer has to come from the pair count at
 each accessibility threshold, because the grid behind each pair is fixed and the pair count is the
@@ -23,7 +25,7 @@ import statistics as st
 import sys
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\Dell\source\repos\cernal_software")
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from engine import sequences as sq  # noqa: E402

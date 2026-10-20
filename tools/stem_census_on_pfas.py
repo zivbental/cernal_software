@@ -1,5 +1,9 @@
 """How many secondary stems a trigger pair actually offers, and what capping at 2 throws away.
 
+Historical research comparison of an earlier two-stem policy, including its former
+scheme filter. It does not define the accessible-region integration's selection rule.
+See docs/prokaryotic-and-reproducibility.md for the production/research source map.
+
 `stems_per_pair = 2` takes the two lowest `lock_energy` stems and discards the rest. The question
 is what the rest are: how many there are, how they split by scheme, and how much of the lock-energy
 range sits outside the cap. Measured on a sample of the real PFAS pairs rather than on one.
@@ -12,7 +16,7 @@ import statistics as st
 import sys
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\Dell\source\repos\cernal_software")
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from engine import sequences as sq  # noqa: E402
@@ -67,6 +71,7 @@ for p in sample:
 
 
 def spread(label, values):
+    """Print descriptive statistics for one sampled stem-count or energy distribution."""
     if not values:
         print(f"  {label}: none")
         return

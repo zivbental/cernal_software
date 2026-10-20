@@ -50,6 +50,7 @@ permitted where fitting is not.
 import argparse
 import csv
 import math
+import os
 import re
 import sys
 from pathlib import Path
@@ -62,11 +63,18 @@ from engine import sequences as sq  # noqa: E402
 from engine.gates.toehold import _mean_unpaired  # noqa: E402
 from engine.gates.tools.folding import FoldEngine  # noqa: E402
 
-TABLE_S1 = (
-    "C:/Users/Dell/OneDrive - mail.tau.ac.il/IGEM/Toehold/Prokaryotic And Gate/"
-    "Prokaryotic-And-Gate/Docs/Green 2014/Table S1. Sequence and Performance Information "
-    "for First-Generation Toehold Switches, Related Systems, and PCR Primers, Related to "
-    "Figures 1 and S1.xlsx"
+TABLE_S1 = str(
+    Path(
+        os.environ.get(
+            "CERNAL_AND_GREEN_2014",
+            Path(__file__).resolve().parents[5] / "var/and-inputs/green2014",
+        )
+    )
+    / (
+        "Table S1. Sequence and Performance Information "
+        "for First-Generation Toehold Switches, Related Systems, and PCR Primers, Related to "
+        "Figures 1 and S1.xlsx"
+    )
 )
 RBS = "AGAGGAGA"
 #: Green holds the RBS-to-start spacing at 6 nt, the same as ours, so the start codon is a

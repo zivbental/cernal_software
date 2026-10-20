@@ -1,5 +1,8 @@
 """Stages 3-5 for the A0 AND gate: assemble, fold four tubes, gate, and rank.
 
+Historical A0 research objective and ranking. Its population-relative score is not
+CERNAL's shared ``engine.scoring`` score. See ``docs/prokaryotic-and-reproducibility.md``.
+
 Run it after ``find_candidates.py``::
 
     uv run python src/engine/gates/notebooks/toehold_and/rank_candidates.py \\
@@ -58,11 +61,13 @@ DEFAULT_W = 0.5
 
 
 def read_fasta(path: str) -> str:
+    """Read the research transcript without changing the engine's sequence rules."""
     lines = Path(path).read_text().splitlines()
     return sq.to_rna("".join(line.strip() for line in lines if not line.startswith(">")))
 
 
 def build_gate() -> ProkaryoticToeholdAndGate:
+    """Construct an isolated research gate and its tools, outside the application."""
     return ProkaryoticToeholdAndGate(
         Host.ECOLI,
         FoldEngine(temperature=37.0),
@@ -176,6 +181,7 @@ def score(survivors, w=DEFAULT_W):
 
 
 def main(argv=None) -> int:
+    """Measure the requested research candidates and export raw survivor measurements."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--fasta", required=True)
     parser.add_argument("--limit", type=int, default=25, help="candidates to evaluate (0 = all)")

@@ -1,5 +1,9 @@
 """The kinetic barrier to trigger A landing on x*, with and without trigger B.
 
+Historical exploratory implementation; use ``tools/barrier_designs.py`` and
+``docs/assets/barrier/`` for the corrected path-energy analysis. These heuristic
+path energies are not measured reaction rates or an application selection criterion.
+
 The architecture's central claim is a kinetic one that nothing on the page measures
 kinetically: trigger A cannot reach x* until trigger B has freed it. Every observable we
 report is an equilibrium property, and the one barrier we had is the switch strand folding
@@ -38,7 +42,7 @@ import pathlib
 import sys
 import time
 
-REPO = pathlib.Path("C:/Users/Dell/source/repos/cernal_software")
+REPO = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
 import RNA  # noqa: E402

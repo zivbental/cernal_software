@@ -1,12 +1,11 @@
 # Run logs — the provenance behind the quoted numbers
 
-These 29 files were sitting loose in the repository root. They are **ours, not CERNAL's**: the
-console output of the A0 sweep's sharded runs, written by the `run_*.ps1` wrappers. None was ever
-tracked by git, so nothing had been committed and nothing was lost by moving them — but they are
-not disposable either, because several numbers this work quotes are only recorded here. iGEM asks
-that a reader be able to re-run any statistic we state, and that starts with knowing what was run.
-
-They are tracked from here on, at 134 KB in total.
+This record describes 29 historical console logs from the A0 research sweeps,
+written by the `run_*.ps1` wrappers. They are research provenance, not CERNAL runtime
+inputs. **Only this README is tracked in this directory on the assessed main
+revision.** The former statement that all 29 logs were committed was incorrect.
+The logs cannot be recovered from this directory in a fresh clone; do not treat
+their quoted excerpts as independently available raw evidence.
 
 | family | n | what it recorded |
 |---|---|---|
@@ -18,7 +17,7 @@ They are tracked from here on, at 134 KB in total.
 
 ## What they are evidence for
 
-Read `shard_0.log` for the shape of a sweep run:
+The following retained excerpt describes the shape of a `shard_0.log` run:
 
 ```
   transcript 711 nt from mCherry_original.txt
@@ -40,7 +39,10 @@ Two things only these files hold:
 
 ## Reproducing rather than trusting them
 
-A log is a record, not a result. Everything in them is regenerable from `results/` by the drivers
-in the directory above; the point of keeping them is that a number quoted in the write-up can be
-traced to the run that produced it. Where a log and a current run disagree, the current run wins
-and the log says what changed.
+A log records one run's configuration and execution. It cannot be reconstructed
+exactly from a later CSV or a later run. Some generated CSVs are recoverable through
+the pinned research archive; other local outputs are not. See the
+[reproduction map](../../../../../../../docs/prokaryotic-and-reproducibility.md)
+for recovery commands and evidence that remains unavailable. A fresh run must
+record its own revision, inputs and settings rather than silently replacing the
+historical record.

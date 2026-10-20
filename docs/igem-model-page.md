@@ -1,10 +1,7 @@
-<!-- MIRROR of the live Claude Docs page, exported with the Claude Docs connector.
-     Source of truth: https://claude.ai/artifact/FRiqiH6mWd3DNrKZFqFcQn
-     (its artifact slug is 74d39392-1233-4bbc-98f0-1a7cd671593f -- the SAME document,
-     not a second one.)  Tab 9e975698-e181, revision 52.
-     Refresh with: Claude Docs `export` format=markdown, then overwrite this file.
-     Edit the DOC, not this file; an edit here is lost on the next refresh.
-     One embedded widget (the architecture diagram) exports as a text placeholder. -->
+> Historical model draft, exported at revision 52 on 2026-10-05. It is retained
+> for research provenance, not as the live page or current compiler specification.
+> The live source is in the [Wiki repository](https://gitlab.igem.org/2026/tau-israel/-/blob/main/wiki/pages/and-gate-model.html).
+> Start with the [code and reproduction map](prokaryotic-and-reproducibility.md).
 
 # CERNAL — iGEM Model Page
 

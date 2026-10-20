@@ -189,8 +189,7 @@ def main(argv=None) -> int:
     parser.add_argument("--pairs", type=int, default=40, help="pairs to score, 0 for all")
     parser.add_argument(
         "--codon-table",
-        default="C:/Users/Dell/OneDrive - mail.tau.ac.il/IGEM/Toehold/Prokaryotic And Gate/"
-        "vista/toehold-VISTA/ecoli_codon_usage_table.csv",
+        default=str(Path(__file__).resolve().parent / "data/ecoli_codon_usage_table.csv"),
         help="CSV with Codon and Fraction columns; VISTA ships one for E. coli",
     )
     parser.add_argument("--out", default="accessibility", help="CSV prefix, into results/")

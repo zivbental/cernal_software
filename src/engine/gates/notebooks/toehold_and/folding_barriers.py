@@ -1,4 +1,8 @@
-"""Real refolding barriers, from ViennaRNA's findpath, for the step kinetics turns on.
+"""Historical findpath exploration of opening trigger A's nucleation site.
+
+This earlier research driver is retained for provenance. Use
+``tools/barrier_designs.py`` and ``docs/assets/barrier/`` for the corrected
+path-energy analysis. Heuristic path energies do not establish kinetic rates.
 
     uv run python src/engine/gates/notebooks/toehold_and/folding_barriers.py \\
         --fasta "path/to/mCherry original.txt" --pairs 4 --out barriers
@@ -29,8 +33,8 @@ The difference between those two barriers is what trigger B buys trigger A, in k
 a real pathway rather than as an end-state ratio. An end-state model cannot produce it at all.
 
 **Units.** ``path_findpath_saddle`` returns **dekacal/mol** as an integer — 320 means
-3.20 kcal/mol. Reporting it unconverted is the exact trap CLAUDE.md warns about for
-``subopt``'s energy window, and it is divided by 100 here.
+3.20 kcal/mol. Converting the energy units is separate from specifying the search width.
+The later corrected analysis reads the maximum along the returned path explicitly.
 
 **Not scored.** Reported beside the equilibrium numbers, like every other kinetic quantity in
 this project.

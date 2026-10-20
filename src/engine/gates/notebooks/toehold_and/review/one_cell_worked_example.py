@@ -21,7 +21,7 @@ Every arm key is oriented so LOWER is better, which is why the winner is a minim
 import sys
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\Dell\source\repos\cernal_software")
+ROOT = Path(__file__).resolve().parents[6]
 NB = ROOT / "src/engine/gates/notebooks/toehold_and"
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(NB))

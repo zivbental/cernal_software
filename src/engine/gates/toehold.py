@@ -958,16 +958,15 @@ class ToeholdAndGate(ToeholdGate):
     Both triggers may come from the same gene: the pipeline map is explicit that "2
     inputs can be of the same gene or trigger", so nothing here may deduplicate.
 
-    **Not ported.** ``generate_designs`` below is unchanged (still ``NotImplementedError``)
-    — the source generator this file ports (see the module docstring) only builds
-    single-input switches; it has no serial/two-hairpin construction to port. ``ToeholdGate``'s
-    ``is_compatible`` is inherited unchanged and generalises correctly (it already reads
-    ``self.max_inputs``), but ``evaluate_design`` is also inherited unchanged and only
-    folds against a single activator (``trigger_set.activators[0]``) — a real two-input
-    evaluation needs both triggers, and per this method's own docstring below, the two
-    single-trigger intermediate states as well. Whoever implements this class's
-    ``generate_designs`` should override ``evaluate_design`` too rather than rely on the
-    inherited one. See the port's open questions.
+    ``generate_designs`` builds two-hairpin variants from two supplied trigger windows,
+    trying both assignments of the main-stem and secondary-lock roles. ``measure_design``
+    evaluates states 00, 01, 10 and 11; ``evaluate_design`` projects those measurements
+    into the shared scoring vocabulary. Generation and four-state evaluation are
+    implemented here, independently of the research drivers under ``notebooks/``.
+
+    A registered family is not necessarily an enabled application workflow. See
+    ``docs/prokaryotic-and-reproducibility.md`` for the source map and the separate
+    accessible-region integration revision.
     """
 
     name = "toehold_and"
@@ -1018,12 +1017,8 @@ class ToeholdAndGate(ToeholdGate):
     label = "AND Toehold"
     description = "Two-input translational AND"
     max_inputs = 2
-    # NOTE: `available` is still inherited as True from ToeholdGate while
-    # `generate_designs` below raises, so a submission naming this family validates and
-    # then fails part-way through a run. Re-declaring it False here is the documented fix,
-    # but it unregisters the family and three tests in tests/engine/gates/test_toehold.py
-    # assert it is registered, so the flip belongs with the commit that gives
-    # `generate_designs` a body rather than to this one.
+    # Registry availability is inherited from ToeholdGate; application workflow support
+    # is declared separately by the client capability contract.
 
     #: Trigger B's toehold: the one domain the architecture leaves permanently free, so
     #: it can be matched to B at no cost to the lock. Fixes trigger B's window at
@@ -3181,9 +3176,8 @@ class ToeholdAndGate(ToeholdGate):
 
         ``ToeholdGate``'s version folds against ``trigger_set.activators[0]`` only, which
         is a one-input evaluation of a two-input gate: it would score this family on a
-        single trigger and never look at the second, so the AND behaviour -- the whole
-        point of the chemistry -- would not appear in any number it returned. The class
-        docstring says whoever fills ``generate_designs`` must override this too.
+        single trigger and never look at the second. This override uses the four-state
+        measurement pass so both single-trigger OFF states contribute to the metrics.
 
         Returns:
             Only the names in ``DEFAULT_V1``, raw. ``None`` for anything unmeasurable; a
@@ -3193,8 +3187,7 @@ class ToeholdAndGate(ToeholdGate):
             design, and the folds are shared through ``FoldEngine``'s instance cache.
 
         What each name means for THIS chemistry:
-            * ``predicted_leakage`` -- CLAUDE.md §6 requires a family to state which
-              biological event it means by this name. Here it is **the probability that the
+            * ``predicted_leakage`` -- for this chemistry, **the probability that the
               ribosome footprint is open in the WORST of the three OFF states**: any OFF
               state that opens is a leak for an AND gate, so the worst one is the honest
               summary rather than a mean over the three. Measured, that worst state is
@@ -3207,13 +3200,12 @@ class ToeholdAndGate(ToeholdGate):
               declares (1.0-500.0). ``state_separation`` immediately above it is log2 of
               the same comparison, and handing the log to this one costs a hundredfold.
             * ``trigger_accessibility`` -- the bottleneck of the two triggers, **read off
-              the candidates** and never recomputed (CLAUDE.md §5): a second measurement
+              the candidates** and never recomputed: a second measurement
               with a slightly different window produces two numbers for one quantity and
               both get persisted.
             * ``orthogonality`` -- ``None``. It is independence from the OTHER gates in a
               circuit, which is not a property of one design; computing it from whatever
-              designs happen to share a batch is the batch-relative scoring CLAUDE.md §3
-              bans outright.
+              designs happen to share a batch would make the metric depend on that batch.
             * ``predicted_success_rate`` -- ``None``. ``TranslationScorer.score`` still
               raises ``NotImplementedError``, so there is nothing to report and a guess
               would be indistinguishable from a measurement.
@@ -3284,7 +3276,7 @@ class ToeholdAndGate(ToeholdGate):
         the 36 and 50 nt two inputs need, so a pair of 30-nt windows passed it and then
         raised ``ValueError: fixed alignment needs equal lengths, got 10 and 4`` from inside
         ``secondary_stems``. That is the failure this override exists to turn back into a
-        reported reason -- CLAUDE.md §3: a family rejects a trigger set with
+        reported reason: a family rejects a trigger set with
         ``Compatibility.no(reason)``, and a silent drop or a traceback is not that.
 
         **Either role assignment is enough.** ``generate_designs`` tries both orders, so a
@@ -3318,7 +3310,7 @@ class ToeholdAndGate(ToeholdGate):
         # **The shared overlap, asked here so that its absence is a REPORTED reason.**
         # A pair can clear the footprints and still share no complementary run at the
         # offsets this architecture binds at, and then `generate_designs` yields nothing:
-        # a silent drop, which CLAUDE.md §3 bans. For two windows picked independently it
+        # a silent drop instead of a compatibility reason. For two windows picked independently it
         # is also the common outcome rather than a rare one -- the two triggers have to be
         # reverse-complementary over at least `MIN_OVERLAP` positions at fixed offsets, and
         # ranking single windows by accessibility does nothing to arrange that. Pure string
