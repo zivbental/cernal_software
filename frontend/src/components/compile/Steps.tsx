@@ -859,10 +859,6 @@ export function StepPayload({ config, patch, supportedOutputs }: { config: Compi
         </div>
       )}
 
-      <p className="mt-5 flex items-center gap-2 text-sm text-foreground">
-        <span aria-hidden="true" className="grid h-5 w-5 place-items-center rounded-full bg-mint/10 text-mint">✓</span>
-        Codon optimization is always enabled for the selected host.
-      </p>
       <p className="mt-6 rounded-lg border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground">
         {count === 0
           ? "Select at least one output."
