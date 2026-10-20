@@ -160,13 +160,17 @@ def resolve_gene_id(host: Host, identifier: str) -> str:
             return next(iter(versioned_matches))
     metadata = reference_metadata(host)
     folded_identifier = identifier.casefold()
-    if folded_identifier in _casefolded_ambiguous_aliases(host):
+    if identifier in metadata.get("ambiguous_aliases", []):
         raise InputValidationError(
             f"Gene symbol {identifier!r} is ambiguous; use a stable gene ID."
         )
     resolved = metadata.get("aliases", {}).get(identifier)
     if resolved in reference:
         return resolved
+    if folded_identifier in _casefolded_ambiguous_aliases(host):
+        raise InputValidationError(
+            f"Gene symbol {identifier!r} is ambiguous; use a stable gene ID."
+        )
     folded_aliases = _casefolded_aliases(host)
     matches = folded_aliases.get(folded_identifier, set())
     if len(matches) == 1:

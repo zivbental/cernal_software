@@ -53,7 +53,9 @@ export function GenePicker({ organism, targetGene, onSetGene, onContinue }: {
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold">I already know my target gene</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Look up a stable gene ID or an unambiguous symbol in the bundled {ORGANISM_LABELS[organism]} reference. Human genes use a mature transcript, preferring MANE Select and then Ensembl canonical transcripts.
+            Look up a stable gene ID or an unambiguous symbol in the bundled {ORGANISM_LABELS[organism]} reference. {organism === "human"
+              ? "Human genes use a mature transcript, preferring MANE Select and then Ensembl canonical transcripts."
+              : "This organism uses coding sequences from its bundled reference."}
           </p>
           <label className="mt-4 block">
             <span className="mb-1.5 block text-sm">Gene ID or symbol</span>
