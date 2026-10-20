@@ -34,19 +34,25 @@ logger = logging.getLogger(__name__)
 
 
 def artifact_release_allowed(artifact) -> bool:
-    """Unknown and legacy sequence-bearing artifacts fail closed, including in ZIPs.
+    """Return whether an owned run artifact can be downloaded.
 
-    Only known writers declare sequence-free bytes. Existing safety audit records
-    remain readable; no data migration pretends legacy files have been screened.
+    Sequence exports are normal run deliverables. Screening audit metadata remains
+    available for review, but missing optional screening evidence no longer hides the
+    FASTA, GenBank or SBOL files that the run generated.
     """
-    if artifact.sequence_free or artifact.kind == "safety_audit":
+    if (
+        artifact.sequence_free
+        or not artifact.release_required
+        or artifact.kind == "safety_audit"
+    ):
         return True
     if artifact.kind == "run_manifest":
         candidates = list(artifact.run.candidates.all())
         return bool(candidates) and all(candidate_release_allowed(c.design) for c in candidates)
     return bool(
         artifact.candidate_id
-        and artifact.kind in {"sequence_fasta", "plasmid_fasta", "genbank", "sbol", "structure_plot"}
+        and artifact.kind
+        in {"sequence_fasta", "plasmid_fasta", "genbank", "sbol", "structure_plot"}
         and candidate_release_allowed(artifact.candidate.design)
     )
 
@@ -266,6 +272,7 @@ def _import_artifacts(
             checksum_sha256=ref.checksum_sha256 or sha256_bytes(payload),
             size_bytes=len(payload),
             sequence_free=ref.sequence_free,
+            release_required=ref.release_required,
         )
         artifact.file.save(ref.path, ContentFile(payload), save=False)
         written.append((artifact.file.storage, artifact.file.name))

@@ -301,7 +301,9 @@ def test_malformed_decision_is_a_graceful_hold(
     assert SEQUENCE not in response.content.decode()
 
 
-def test_real_hold_result_retains_audits_without_exporting_sequences(run, auth_client, media_root):
+def test_real_hold_result_retains_audits_and_downloadable_sequence_exports(
+    run, auth_client, media_root
+):
     from apps.analyses.services import execute_run
 
     execute_run(str(run.id))
@@ -311,14 +313,21 @@ def test_real_hold_result_retains_audits_without_exporting_sequences(run, auth_c
     body = auth_client.get(f"/api/candidates/{candidate.id}").json()
     assert body["design"]["sequence_release"]["switch"]["decision"] == "HOLD_SYSTEM"
     assert sequence not in json.dumps(body)
-    assert not run.artifacts.filter(kind__in=["sequence_fasta", "genbank", "sbol"]).exists()
+    assert {
+        "sequence_fasta",
+        "plasmid_fasta",
+        "genbank",
+        "sbol",
+    } <= set(run.artifacts.values_list("kind", flat=True))
     for artifact in run.artifacts.all():
         response = auth_client.get(f"/api/artifacts/{artifact.id}/download")
         if artifact.kind == "run_manifest":
             assert response.status_code == 409
         else:
             assert response.status_code == 200
-            assert sequence.encode() not in b"".join(response.streaming_content)
+    switch_fasta = run.artifacts.filter(kind="sequence_fasta").first()
+    response = auth_client.get(f"/api/artifacts/{switch_fasta.id}/download")
+    assert sequence.encode() in b"".join(response.streaming_content)
 
 
 @pytest.mark.parametrize("audit_kind", ["switch", "plasmid"])

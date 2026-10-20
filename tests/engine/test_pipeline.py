@@ -234,7 +234,7 @@ def test_the_design_table_has_one_row_per_candidate(direct_request, always_conti
     assert len(rows) - 1 == len(result.candidates)  # header + one row each
 
 
-def test_unprovisioned_screening_withholds_fasta_for_all_candidates(
+def test_unprovisioned_screening_exports_fasta_for_all_accepted_candidates(
     direct_request, always_continue
 ):
     request = direct_request()
@@ -243,8 +243,8 @@ def test_unprovisioned_screening_withholds_fasta_for_all_candidates(
     fasta_refs = {a.candidate_ref for a in result.artifacts if a.kind == "sequence_fasta"}
     accepted_refs = {c.ref for c in result.candidates if not c.is_rejected}
 
-    assert not fasta_refs
     assert accepted_refs
+    assert fasta_refs == accepted_refs
 
 
 # --- Determinism ----------------------------------------------------------------------
@@ -292,7 +292,7 @@ def test_a_direct_run_populates_real_plasmid_segments(direct_request, always_con
         assert candidate.design["logic_graph"]["output"] == "GFP"
 
 
-def test_unprovisioned_screening_writes_audits_and_withholds_sequence_exports(
+def test_unprovisioned_screening_writes_audits_and_sequence_exports(
     direct_request, always_continue
 ):
     result = LocalEngine().run(direct_request(), always_continue)
@@ -300,10 +300,9 @@ def test_unprovisioned_screening_writes_audits_and_withholds_sequence_exports(
     accepted = [c for c in result.candidates if not c.is_rejected]
     audit_refs = [a for a in result.artifacts if a.kind == "safety_audit"]
     assert len(audit_refs) == 2 * len(accepted)
-    # Every sequence-bearing export, not just the two that existed when the gate was
-    # written: SBOL carries the whole construct too, so leaving it out of this set would
-    # let a new export quietly become the one way sequences escape a blocked release.
-    assert not [a for a in result.artifacts if a.kind in {"sequence_fasta", "genbank", "sbol"}]
+    accepted_refs = {candidate.ref for candidate in accepted}
+    for kind in {"sequence_fasta", "plasmid_fasta", "genbank", "sbol"}:
+        assert {a.candidate_ref for a in result.artifacts if a.kind == kind} == accepted_refs
 
 
 def test_an_unconfigured_output_fails_the_whole_run_cleanly(direct_request, always_continue):
@@ -417,7 +416,7 @@ def test_an_unknown_catalog_key_fails_the_whole_run_cleanly(direct_request, alwa
     assert "not-a-real-backbone" in result.error
 
 
-def test_a_catalog_backbone_is_built_but_not_exported_without_local_screening(
+def test_a_catalog_backbone_is_built_and_exported_without_local_screening(
     direct_request, always_continue
 ):
     request = direct_request(params={"backbone": {"catalog_key": "psb1c3"}})
@@ -428,7 +427,11 @@ def test_a_catalog_backbone_is_built_but_not_exported_without_local_screening(
         candidate.design["plasmid_segments"][-1]["kind"] == "backbone"
         for candidate in result.candidates
     )
-    assert not [artifact for artifact in result.artifacts if artifact.kind in {"genbank", "sbol"}]
+    accepted_refs = {candidate.ref for candidate in result.candidates if not candidate.is_rejected}
+    for kind in {"plasmid_fasta", "genbank", "sbol"}:
+        assert {
+            artifact.candidate_ref for artifact in result.artifacts if artifact.kind == kind
+        } == accepted_refs
 
 
 def test_providing_both_catalog_key_and_custom_genbank_fails_cleanly(
@@ -860,14 +863,7 @@ def test_human_construction_bumps_engine_version():
 def test_a_released_run_exports_fasta_genbank_and_sbol_together(
     direct_request, always_continue, screening_released
 ):
-    """The positive half of the release gate.
-
-    Every other test here runs with screening unprovisioned, so the gate blocks and no
-    sequence-bearing artifact is written at all — which means the export code below the
-    gate is never actually executed by the suite. Patching the gate open is the only way
-    to prove the SBOL export is wired in rather than dead, and that it travels with
-    FASTA and GenBank rather than on some separate path of its own.
-    """
+    """Screened runs retain their audits and the same complete export set."""
     result = LocalEngine().run(direct_request(), always_continue)
 
     kinds = {a.kind for a in result.artifacts}
@@ -1155,7 +1151,12 @@ def test_complete_ranking_evaluates_past_twenty_and_keeps_quality_outliers(
     assert provenance["evaluation"]["generated_gate_designs"] == size
     assert provenance["evaluation"]["evaluated_candidates"] == size
     assert provenance["design_budget"]["truncated"] is False
-    assert not [a for a in result.artifacts if a.kind in {"sequence_fasta", "genbank", "sbol"}]
+    sequence_exports = [
+        artifact
+        for artifact in result.artifacts
+        if artifact.kind in {"sequence_fasta", "plasmid_fasta", "genbank", "sbol"}
+    ]
+    assert len(sequence_exports) == 4 * size
 
 
 def test_complete_ranking_evaluation_failure_never_publishes_partial_success(

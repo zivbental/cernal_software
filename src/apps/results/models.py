@@ -201,6 +201,7 @@ class Artifact(UUIDModel, CreatedAtModel):
     checksum_sha256 = models.CharField(max_length=64, editable=False)
     size_bytes = models.BigIntegerField(editable=False, default=0)
     sequence_free = models.BooleanField(default=False, editable=False)
+    release_required = models.BooleanField(default=True, editable=False)
 
     class Meta:
         ordering = ["kind", "id"]
