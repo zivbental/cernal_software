@@ -20,7 +20,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 
-import { artifactsZipUrl, useArtifacts } from "@/api/queries";
+import { artifactsZipUrl, runSummaryPdfUrl, useArtifacts } from "@/api/queries";
 import type { Artifact, ArtifactCategory } from "@/api/types";
 import { Check } from "@/components/compile/Bits";
 import { Panel, SectionHeading } from "@/components/layout/Primitives";
@@ -87,16 +87,12 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
   const items = artifacts.data ?? [];
   const availableItems = items.filter((artifact) => artifact.download_available === true);
   const allItemsAvailable = availableItems.length === items.length;
-  const allZipUrl = availableItems.length === 0
-    ? undefined
-    : allItemsAvailable
-      ? artifactsZipUrl(runId)
-      : artifactsZipUrl(runId, { availableOnly: true });
+  const allZipUrl = allItemsAvailable
+    ? artifactsZipUrl(runId)
+    : artifactsZipUrl(runId, { availableOnly: true });
 
   if (artifacts.isLoading) return <p>Loading artifacts…</p>;
   if (artifacts.isError) return <p role="alert">Could not load artifacts. <button onClick={() => artifacts.refetch()}>Retry</button></p>;
-  if (items.length === 0) return <p>No downloadable artifacts are available. Sequence release may be held; inspect run warnings.</p>;
-
   const totalSize = items.reduce((sum, a) => sum + a.size_bytes, 0);
 
   function toggleExpanded(category: ArtifactCategory) {
@@ -121,27 +117,34 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
     <Panel>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <SectionHeading
-          kicker="Artifacts"
+          kicker="Run files"
           title="Downloads"
-          desc={`${items.length} file${items.length === 1 ? "" : "s"} generated, ${formatBytes(totalSize)} total.`}
+          desc={`${items.length} additional file${items.length === 1 ? "" : "s"} generated${items.length ? `, ${formatBytes(totalSize)} total` : ""}.`}
         />
-        {allZipUrl ? (
+        <div className="flex shrink-0 flex-wrap gap-2">
           <a
-            href={allZipUrl}
-            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-gradient-deep px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-clinical transition hover:opacity-95"
+            href={runSummaryPdfUrl(runId)}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-mint"
           >
-            <Archive className="h-4 w-4" />
-            {allItemsAvailable ? "Download everything (.zip)" : "Download available files (.zip)"}
+            <FileText className="h-4 w-4" /> Download PDF summary
           </a>
-        ) : (
-          <span
-            aria-disabled="true"
-            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-muted px-4 py-2.5 text-sm font-semibold text-muted-foreground"
-          >
-            <Archive className="h-4 w-4" />
-            No downloadable files
-          </span>
-        )}
+          {allZipUrl ? (
+            <a
+              href={allZipUrl}
+              className="inline-flex items-center gap-2 rounded-lg bg-gradient-deep px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-clinical transition hover:opacity-95"
+            >
+              <Archive className="h-4 w-4" />
+              {allItemsAvailable ? "Download ZIP (.zip)" : "Download available ZIP (.zip)"}
+            </a>
+          ) : (
+            <span
+              aria-disabled="true"
+              className="inline-flex items-center gap-2 rounded-lg bg-muted px-4 py-2.5 text-sm font-semibold text-muted-foreground"
+            >
+              <Archive className="h-4 w-4" /> No files for ZIP
+            </span>
+          )}
+        </div>
       </div>
 
       {items.some((artifact) => artifact.download_available !== true) && (
@@ -156,6 +159,8 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
       </p>
       <details>
       <summary className="mb-4 cursor-pointer text-sm">Choose files and review release information</summary>
+
+      {items.length === 0 && <p className="mb-4 text-sm text-muted-foreground">No additional run files are available. The PDF summary can still be downloaded above.</p>}
 
       {selected.size > 0 && (
         <div className="mb-4 flex items-center justify-between rounded-lg border border-mint/40 bg-mint/5 px-4 py-2.5">

@@ -14,6 +14,8 @@ import json
 import logging
 import math
 import re
+import textwrap
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -395,6 +397,105 @@ def build_candidates_csv(run) -> str:
         )
 
     return buffer.getvalue()
+
+
+def build_run_summary_pdf(run) -> bytes:
+    """Build a compact, sequence-free PDF summary from a run's stored results."""
+    candidates = Candidate.objects.filter(run=run)
+    candidate_count = candidates.count()
+    ranked_count = candidates.filter(rank__isnull=False).count()
+    ranked_candidates = list(
+        candidates.filter(rank__isnull=False)
+        .order_by("rank")
+        .values_list("rank", "overall_score")[:20]
+    )
+    organism_names = {
+        "ecoli": "E. coli",
+        "yeast": "Yeast",
+        "human": "Human",
+        "c_acnes": "C. acnes",
+    }
+    submitted = run.submitted_at.isoformat(timespec="minutes") if run.submitted_at else "Unknown"
+    lines = [
+        "CERNAL - Run summary",
+        f"Run ID: {run.id}",
+        f"Name: {run.name or 'Unnamed run'}",
+        f"Organism: {organism_names.get(run.organism, run.organism or 'Unknown')}",
+        f"Input: {run.get_input_mode_display()}",
+        f"Submitted: {submitted}",
+        f"Candidates: {candidate_count} total; {ranked_count} included in ranking",
+        "",
+        "Results are computational rankings for research follow-up, not experimental validation.",
+        "Sequence-bearing downloads are available only after release review.",
+        "",
+        "Top ranked candidates",
+    ]
+    if not ranked_candidates:
+        lines.append("No ranked candidates were produced.")
+    for rank, overall_score in ranked_candidates:
+        score = "not available" if overall_score is None else f"{overall_score * 100:.1f}%"
+        lines.append(f"Candidate #{rank} - relative ranking score: {score}")
+        lines.append("")
+    return _build_simple_pdf(lines)
+
+
+def _build_simple_pdf(lines: list[str]) -> bytes:
+    """Serialize plain text into a small PDF using only the Python standard library."""
+    wrapped_lines = [
+        wrapped
+        for line in lines
+        for wrapped in (textwrap.wrap(line, width=88) or [""])
+    ]
+    page_lines = [wrapped_lines[index : index + 52] for index in range(0, len(wrapped_lines), 52)] or [[]]
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"",  # Filled after the page objects have been numbered.
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    ]
+    page_refs = []
+    for page_index, content_lines in enumerate(page_lines, start=1):
+        page_number = 4 + (page_index - 1) * 2
+        content_number = page_number + 1
+        page_refs.append(f"{page_number} 0 R")
+        commands = ["BT", "/F1 10 Tf", "48 794 Td", "14 TL"]
+        if page_index > 1:
+            content_lines = ["CERNAL - Run summary (continued)", "", *content_lines]
+        for line in content_lines:
+            safe = unicodedata.normalize("NFKD", line).encode("ascii", "replace").decode("ascii")
+            escaped = safe.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+            commands.append(f"({escaped}) Tj")
+            commands.append("T*")
+        commands.append("ET")
+        stream = "\n".join(commands).encode("ascii")
+        objects.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_number} 0 R >>".encode("ascii")
+        )
+        objects.append(
+            f"<< /Length {len(stream)} >>\nstream\n".encode("ascii")
+            + stream
+            + b"\nendstream"
+        )
+    objects[1] = (
+        f"<< /Type /Pages /Kids [{' '.join(page_refs)}] /Count {len(page_refs)} >>".encode("ascii")
+    )
+
+    output = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(output))
+        output.extend(f"{number} 0 obj\n".encode("ascii"))
+        output.extend(body)
+        output.extend(b"\nendobj\n")
+    xref_offset = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.extend(
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode("ascii")
+    )
+    return bytes(output)
 
 
 #: Added to the candidates table for a two-input AND run. Percentages are of each hairpin's own

@@ -3,7 +3,7 @@ import { BookOpen } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CodeBlock } from "@/components/docs/CodeBlock";
-import { Caveat, HelpLink } from "@/components/docs/HelpNav";
+import { HelpLink } from "@/components/docs/HelpNav";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
 import { Panel } from "@/components/layout/Primitives";
@@ -108,7 +108,7 @@ export function GuideContent() {
             approval email is sent. Ask the administrator directly, then sign
             in.
           </p>
-          <Caveat>
+          <p className="rounded-lg border border-border bg-surface p-4">
             The only engine is <strong>LocalEngine</strong>, which reports real
             measurements from an incomplete pipeline — never simulated numbers.
             Check{" "}
@@ -117,7 +117,7 @@ export function GuideContent() {
             listings show availability—not scientific completeness. A family can
             be listed as available and still refuse to build for want of a
             payload library.
-          </Caveat>
+          </p>
           <p>
             See the repository&apos;s{" "}
             <HelpLink href={`${BASE}/docs/development.md`}>
@@ -163,12 +163,12 @@ export function GuideContent() {
             <strong>Specific Gene:</strong> resolve a stable gene ID or an unambiguous
             symbol to its bundled reference transcript, then submit directly.
           </p>
-          <Caveat>
+          <p className="rounded-lg border border-border bg-surface p-4">
             Upload validation accepts <code>.csv</code>, <code>.tsv</code>,{" "}
             <code>.txt</code>, and <code>.xlsx</code>, and all four formats are read by the engine. The default upload
             limit is 100 MB and is configurable with <code>MAX_DATASET_MB</code>
             . A “VALID” upload is shallow file validation.
-          </Caveat>
+          </p>
           <p>
             Include a recognized gene identifier and fold-change column.{" "}
             <code>FC</code> and <code>fold_change</code> are treated as
@@ -199,7 +199,7 @@ export function GuideContent() {
             engine for separate output-specific candidates; it does not create
             one fused, multi-output plasmid. “Other” requires a custom coding
             sequence. A displayed output can still be unbuildable for the chosen
-            host; inspect warnings or the failure summary rather than assuming every
+            host; check the run status and failure summary rather than assuming every
             UI selection is supported by LocalEngine.
           </p>
           <p>
@@ -239,8 +239,8 @@ export function GuideContent() {
             success. Missing metrics mean “not measured,” not zero. In Precision
             Filters, enable <strong>Show rejected candidates</strong> to see
             stored rejected rows and their reasons. Trigger windows filtered or
-            skipped before candidate creation may instead be summarized in run
-            warnings.
+            skipped before candidate creation may instead be summarized in the
+            run's processing notes.
           </p>
           <p>
             For bacterial toeholds, leakage is AUG-only mean marginal
@@ -253,8 +253,7 @@ export function GuideContent() {
             off-target or wet-lab validation.
           </p>
           <p>
-            The results page currently does not render run-level warnings.
-            Inspect them in <code>GET /api/runs/{"{run_id}"}</code> through the{" "}
+            Processing notes remain available in <code>GET /api/runs/{"{run_id}"}</code> through the{" "}
             <HelpLink href="/api-docs">API Reference</HelpLink>, or download{" "}
             <code>manifest.json</code>. Inspect the frozen configuration through{" "}
             <code>GET /api/runs/{"{run_id}"}/detail</code>.
@@ -267,18 +266,16 @@ export function GuideContent() {
             accepted switch candidates. Those sequence files appear only once the
             safety screen releases a sequence; with no screening adapter
             provisioned the gate holds every one, leaving the candidate table and
-            per-candidate safety audits. ZIP downloads package the existing
-            artifacts. The current
-            LocalEngine does not generate PDF, structure-figure, or circuit-diagram
-            artifacts; the in-app schematic views are separate. Partner ordering
-            is disabled.
+            per-candidate safety audits. ZIP downloads include a sequence-free PDF
+            summary and the available artifacts. Structure figures and circuit diagrams
+            remain in-app views. Partner ordering is disabled.
           </p>
         </GuideSection>
 
         <GuideSection id="record" title="6. Keep a reproducibility record">
           <p>
             The manifest records parameters, engine version, scoring-profile
-            label, seed, warnings, timestamps, candidate count, and the input
+            label, seed, processing notes, timestamps, candidate count, and the input
             mode plus trigger sequence or dataset name. It is useful provenance,
             but not the whole reproducibility record.
           </p>

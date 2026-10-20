@@ -380,6 +380,11 @@ export function artifactsZipUrl(
   return api.url(`/runs/${runId}/artifacts/download${query ? `?${query}` : ""}`);
 }
 
+/** The human-readable, sequence-free PDF overview for a run. */
+export function runSummaryPdfUrl(runId: string): string {
+  return api.url(`/runs/${runId}/export.pdf`);
+}
+
 /* ---------- annotations ---------- */
 
 export function useAnnotations(candidateId: string | null) {

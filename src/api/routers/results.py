@@ -33,7 +33,7 @@ from apps.results.models import (
     DecisionTag,
     filter_by_category,
 )
-from apps.results.services import artifact_release_allowed, build_candidates_csv
+from apps.results.services import artifact_release_allowed, build_candidates_csv, build_run_summary_pdf
 from engine.client import candidate_release_allowed, layout_stored_structure
 
 router = Router()
@@ -161,6 +161,18 @@ def export_candidates_csv(request, run_id: UUID):
     return response
 
 
+@router.get("/runs/{run_id}/export.pdf", url_name="export_run_summary_pdf")
+def export_run_summary_pdf(request, run_id: UUID):
+    """Download a sequence-free PDF overview for any completed run."""
+    run = get_owned(AnalysisRun, run_id, request.user)
+    response = HttpResponse(build_run_summary_pdf(run), content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'attachment; filename="run-{str(run.id)[:8]}-summary.pdf"'
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @router.get("/runs/{run_id}/artifacts/download", url_name="artifacts_download_zip")
 def download_artifacts_zip(
     request,
@@ -205,7 +217,8 @@ def download_artifacts_zip(
         artifacts = [artifact for artifact in artifacts if artifact_release_allowed(artifact)]
         if not ids and not category:
             label = "available"
-    if not artifacts:
+    include_summary_pdf = not ids and category in (None, ArtifactCategory.REPORTS)
+    if not artifacts and not include_summary_pdf:
         raise NotFound("No matching artifacts were found for this run.")
 
     withheld = [artifact for artifact in artifacts if not artifact_release_allowed(artifact)]
@@ -238,6 +251,11 @@ def download_artifacts_zip(
                     archive.open(arcname, "w", force_zip64=True) as entry,
                 ):
                     shutil.copyfileobj(handle, entry, length=1024 * 1024)
+            if include_summary_pdf:
+                archive.writestr(
+                    _unique_arcname("reports/run-summary.pdf", used_names),
+                    build_run_summary_pdf(run),
+                )
         if any(not artifact_release_allowed(artifact) for artifact in artifacts):
             raise Conflict("Sequence release approval expired while preparing this archive.")
         buffer.seek(0)

@@ -228,6 +228,21 @@ export function StepInputs({
           })}
         </div>
 
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-surface px-4 py-3">
+          <div>
+            <div className="text-sm font-medium text-foreground">Your organism — coming soon</div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              The current engine supports the organisms listed above. Other organisms need a validated reference and design pipeline.
+            </p>
+          </div>
+          <a
+            href="mailto:igem.tau.2026@gmail.com?subject=CERNAL%20organism%20support"
+            className="shrink-0 text-sm font-medium text-mint underline-offset-4 hover:underline"
+          >
+            Other organisms? Contact us
+          </a>
+        </div>
+
         {ORGANISMS.map((o) =>
           "credit" in o && config.organism === o.key ? (
             <section

@@ -87,7 +87,7 @@ export function RnaStructureView({ candidate }: { candidate: CandidateDetail }) 
         ? "The designed pairing pattern for the saved switch. This is not a predicted OFF/ON fold or experimental evidence."
         : "Pairing as saved with this candidate. Its provenance is unspecified; no predicted OFF/ON state is inferred."}
     </p>
-    {primaryNotice && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{primaryNotice}</p>}
+    {primaryNotice && <p className="mt-2 text-xs text-muted-foreground">{primaryNotice}</p>}
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
       <span className="font-mono text-[11px] text-muted-foreground">{data.sequence.length} nt · {data.links.length} base pairs</span>
       <div role="group" aria-label="RNA drawing controls" className="flex flex-wrap gap-1">

@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { AlertTriangle, Ban, CircuitBoard, Dna, Loader2, FileText } from "lucide-react";
+import { AlertTriangle, Ban, CircuitBoard, ChevronDown, Dna, Loader2, FileText } from "lucide-react";
 
 import { api } from "@/api/client";
 import { useCancelRun, useCandidate, useCandidates, useRenameRun, useRun, useRunStatus } from "@/api/queries";
-import type { Candidate, RunStatusResponse } from "@/api/types";
+import type { Candidate, Run, RunStatusResponse } from "@/api/types";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
 import { Panel, SectionHeading } from "@/components/layout/Primitives";
@@ -19,6 +19,7 @@ import { RunStatusBadge } from "@/components/results/RunStatusBadge";
 import { SequenceScreening } from "@/components/results/SequenceScreening";
 import { PrecisionFilters, type Filters, DEFAULT_FILTERS } from "@/components/results/PrecisionFilters";
 import { Loading } from "@/components/layout/Loading";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const Route = createFileRoute("/runs/$runId")({
   component: () => (
@@ -59,16 +60,15 @@ function RunPage() {
         title={run.data?.name || status.data.name || (done ? "Computational Design Results" : status.data.status === "FAILED" ? "Run failed" : status.data.status === "CANCELLED" ? "Run cancelled" : "Compiling your circuit")}
         description={
           done
-            ? "Candidates ranked using provisional folding and accessibility models. Off-target specificity is unmeasured; computation completion does not authorize sequence release."
+            ? "Compare design candidates and download the run summary and available files. Sequence files appear only after release review."
             : "The engine is working. This page updates by itself — you can leave and come back."
         }
         actions={<RunStatusBadge status={status.data.status} />}
       />
 
       {run.data && <RunNameEditor key={runId} runId={runId} name={run.data.name || ""} />}
-      <WarningList title="Run warnings" warnings={status.data.warnings ?? []} />
       {run.isError && <p role="alert">Could not load the frozen run configuration. <button onClick={() => run.refetch()}>Retry</button></p>}
-      {run.data && <details className="mb-4 rounded-xl border border-border p-4"><summary>Run provenance and frozen configuration</summary><p>Engine {run.data.engine_version || "pending"} · Seed {run.data.seed ?? "unspecified"} · Host {run.data.organism}</p><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(run.data.params_snapshot, null, 2)}</pre></details>}
+      {run.data && <RunSettingsSummary run={run.data} />}
       {done ? (
         run.data ? <Results key={runId} topN={run.data.params_snapshot.top_n} runId={runId} outputs={run.data.params_snapshot.payload?.outputs ?? []} /> : run.isLoading ? <Loading /> : null
       ) : <RunProgress runId={runId} status={status.data} />}
@@ -98,6 +98,77 @@ function RunNameEditor({ runId, name }: { runId: string; name: string }) {
       {rename.isError && <p role="alert" className="basis-full text-sm text-destructive">{rename.error.message}</p>}
       {rename.isSuccess && <p role="status" className="basis-full text-sm">Run name saved.</p>}
     </form>
+  );
+}
+
+const SETTING_EXPLANATIONS: Record<string, string> = {
+  "Organism": "The cell type the design was prepared for.",
+  "Input": "Whether the run used a transcript sequence, a gene reference, or expression data.",
+  "Switch design": "The RNA switch design family used for this run.",
+  "Outputs": "The output protein or effect selected for the design.",
+  "Plasmid backbone": "The vector chosen to carry the expression cassette. A custom vector is represented by its label here; its sequence is not shown.",
+  "Insertion point": "The boundary in the selected custom vector where the expression cassette was placed.",
+  "Codon optimization": "Whether the selected output sequence was requested to be adapted to the chosen organism.",
+  "Maximum gates": "The maximum number of logic gates permitted in one proposed circuit.",
+  "Results shown": "The number of top-ranked accepted candidates selected for the initial view.",
+  "Scoring profile": "The scoring configuration used to order candidates. A score is a ranking aid, not a probability.",
+};
+
+const OUTPUT_LABELS: Record<string, string> = {
+  gfp: "GFP",
+  mcherry: "mCherry",
+  luciferase: "Luciferase",
+  ampr: "AmpR",
+  apoptosis: "Apoptosis",
+  other: "Custom",
+};
+
+function RunSettingsSummary({ run }: { run: Run }) {
+  const [explain, setExplain] = useState(false);
+  const params = run.params_snapshot;
+  const organismName: Record<string, string> = {
+    ecoli: "E. coli", yeast: "Yeast", human: "Human", c_acnes: "C. acnes",
+  };
+  const mechanismName = params.mechanism?.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const rows: Array<[string, string]> = [
+    ["Organism", organismName[run.organism] ?? run.organism],
+    ["Input", run.input_mode === "de" ? "Expression data" : run.input_mode === "gene" ? "Reference gene" : "Transcript sequence"],
+    ...(mechanismName ? [["Switch design", mechanismName] as [string, string]] : []),
+    ...(params.payload?.outputs?.length ? [["Outputs", params.payload.outputs.map((output) => OUTPUT_LABELS[output] ?? output).join(", ")] as [string, string]] : []),
+    ["Plasmid backbone", params.backbone?.catalog_key ? (params.backbone.catalog_key === "psb1c3" ? "pSB1C3" : params.backbone.catalog_key) : params.backbone?.custom_genbank ? "Custom vector" : "No backbone"],
+    ...(params.backbone?.insertion_index !== undefined ? [["Insertion point", `0-based boundary ${params.backbone.insertion_index}`] as [string, string]] : []),
+    ["Codon optimization", params.payload?.optimize_codons ? "On" : "Off"],
+    ...(params.constraints?.max_circuit_gates !== undefined ? [["Maximum gates", String(params.constraints.max_circuit_gates)] as [string, string]] : []),
+    ...(params.top_n !== undefined ? [["Results shown", String(params.top_n)] as [string, string]] : []),
+    ["Scoring profile", run.scoring_profile],
+  ];
+
+  return (
+    <details className="mb-5 overflow-hidden rounded-xl border border-border bg-surface group">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0 flex-1">
+          <span className="block text-xs font-medium text-mint">Optional details</span>
+          <span className="block text-sm font-semibold text-foreground">Show plasmid settings and run details</span>
+        </div>
+        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-border px-4 py-4">
+        <div className="flex items-start gap-2">
+          <Checkbox id="explain-run-settings" checked={explain} onCheckedChange={(checked) => setExplain(checked === true)} />
+          <label htmlFor="explain-run-settings" className="cursor-pointer text-sm text-foreground">Explain each setting</label>
+        </div>
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          {rows.map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-border bg-card p-3">
+              <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+              <dd className="mt-1 text-sm text-foreground">{value}</dd>
+              {explain && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{SETTING_EXPLANATIONS[label]}</p>}
+            </div>
+          ))}
+        </dl>
+        <p className="mt-4 text-xs text-muted-foreground">Engine {run.engine_version || "pending"} · Seed {run.seed ?? "unspecified"}</p>
+      </div>
+    </details>
   );
 }
 
@@ -296,7 +367,7 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                      {detail.data.engine_ref} ·{" "}
+                      {detail.data.rank ? `Candidate #${detail.data.rank}` : "Candidate details"} ·{" "}
                       {view === "plasmid" ? "Plasmid Map" : view === "logic" ? "Logic Circuit" : "RNA Structure"}
                     </div>
                     <div className="inline-flex flex-wrap rounded-lg border border-border bg-surface p-1">
@@ -345,17 +416,23 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
                     )}
                   </div>
 
-                  <WarningList title="Candidate warnings" warnings={detail.data.warnings ?? []} />
                   <SequenceScreening key={detail.data.id} candidate={detail.data} />
-                  <p className="mt-3 text-xs">{detail.data.is_rejected ? "Rejected from ranking" : "Accepted for computational ranking"}. {detail.data.design.plasmid_segments?.some((segment) => segment.kind === "backbone") ? "Vector-containing construct" : "Bare expression cassette"}. Export release is a separate decision; see warnings and available artifacts.</p>
-                  <details className="mt-3"><summary>Reference identity and model provenance</summary><pre className="overflow-auto text-xs">{JSON.stringify({ triggers: detail.data.triggers, design: detail.data.design }, null, 2)}</pre></details>
+                  <p className="mt-3 text-xs text-muted-foreground">{detail.data.is_rejected ? "Not included in the ranked results." : "Included in the computational ranking."} {detail.data.design.plasmid_segments?.some((segment) => segment.kind === "backbone") ? "Includes a selected vector." : "Shown as an expression cassette without a vector."} Sequence downloads are available only after release review.</p>
+                  <details className="mt-3 rounded-lg border border-border bg-card p-3">
+                    <summary className="cursor-pointer text-sm font-medium">Show technical design labels</summary>
+                    <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                      <div><dt className="text-muted-foreground">Candidate reference</dt><dd className="mt-0.5 font-mono">{detail.data.engine_ref}</dd></div>
+                      <div><dt className="text-muted-foreground">Switch family</dt><dd className="mt-0.5">{detail.data.gate_family.replaceAll("_", " ")}</dd></div>
+                      <div><dt className="text-muted-foreground">Logic type</dt><dd className="mt-0.5">{detail.data.logic_type.replaceAll("_", " ")}</dd></div>
+                      {detail.data.output && <div><dt className="text-muted-foreground">Selected output</dt><dd className="mt-0.5">{detail.data.output}</dd></div>}
+                    </dl>
+                  </details>
                   {detail.data.design.and_gate && <AndGateEvidence info={detail.data.design.and_gate} />}
-                  <div className="mt-6 rounded-xl border border-border bg-card p-4">
-                    <div className="mb-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                      Score decomposition
-                    </div>
-                    <MetricGrid metrics={detail.data.metrics} />
-                  </div>
+                  <details className="mt-4 rounded-xl border border-border bg-card p-4">
+                    <summary className="cursor-pointer text-sm font-medium text-foreground">Why this candidate ranks this way</summary>
+                    <p className="mt-2 text-xs text-muted-foreground">The breakdown below explains how the computational ranking was calculated. It does not estimate experimental success.</p>
+                    <div className="mt-4"><MetricGrid metrics={detail.data.metrics} /></div>
+                  </details>
 
                   <CandidateReview key={detail.data.id} candidateId={detail.data.id} />
                   <div className="mt-4 rounded-xl border border-border bg-card p-3">
@@ -440,10 +517,7 @@ function CandidateRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-mono text-sm font-semibold text-foreground">
-            {candidate.rank ? `#${candidate.rank}` : "—"}
-          </span>
-          <span className="truncate font-mono text-xs text-muted-foreground">
-            {candidate.engine_ref}
+            {candidate.rank ? `Candidate #${candidate.rank}` : "Unranked candidate"}
           </span>
           {output && (
             <span className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
@@ -459,7 +533,9 @@ function CandidateRow({
             </span>
           )}
         </div>
-        <div className="mt-0.5 truncate text-xs text-muted-foreground">{candidate.summary}</div>
+        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+          {candidate.output ? `Output: ${OUTPUT_LABELS[candidate.output] ?? candidate.output}` : "RNA switch design"}
+        </div>
         {candidate.is_rejected && (
           <div className="mt-1 text-[11px] text-destructive">{candidate.rejection_reason}</div>
         )}
@@ -474,7 +550,7 @@ function CandidateRow({
         <div className="font-mono text-lg font-semibold text-foreground">
           {score === null ? "—" : `${Math.round(score * 100)}%`}
         </div>
-        <div className="font-mono text-[10px] text-muted-foreground">score</div>
+        <div className="font-mono text-[10px] text-muted-foreground">ranking</div>
       </div>
     </button>
   );
@@ -500,10 +576,3 @@ function toDesignLogic(graph: import("@/api/types").LogicGraph | undefined) {
 
 /** What a candidate expresses. Resolved by the API from design.logic_graph.output. */
 const outputOf = (candidate: Candidate) => candidate.output;
-
-function WarningList({ title, warnings }: { title: string; warnings: string[] }) {
-  const [offset, setOffset] = useState(0);
-  if (!warnings.length) return null;
-  const start = Math.min(offset, Math.floor((warnings.length - 1) / 50) * 50);
-  return <details className="my-4 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4"><summary>{title} ({warnings.length})</summary><ul className="mt-2 space-y-1 text-sm">{warnings.slice(start, start + 50).map((warning, index) => <li key={start + index}>{warning}</li>)}</ul>{warnings.length > 50 && <nav aria-label={`${title} pages`} className="mt-2 flex justify-between"><button disabled={start === 0} onClick={() => setOffset(Math.max(0, start - 50))}>Previous warnings</button><span>{start + 1}–{Math.min(start + 50, warnings.length)} of {warnings.length}</span><button disabled={start + 50 >= warnings.length} onClick={() => setOffset(start + 50)}>Next warnings</button></nav>}</details>;
-}

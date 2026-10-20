@@ -97,9 +97,9 @@ function LoginPage() {
           {pending && (
             <div
               role="status"
-              className="mt-4 flex items-start gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2.5"
+              className="mt-4 flex items-start gap-2.5 rounded-md border border-border bg-surface px-3 py-2.5"
             >
-              <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="text-sm">
                 <div className="font-medium text-foreground">Awaiting approval</div>
                 <p className="mt-0.5 text-muted-foreground">{pending}</p>

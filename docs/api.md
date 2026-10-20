@@ -476,6 +476,7 @@ purpose.
 | `GET /api/artifacts/{id}/download` | Authorized file serve, one artifact |
 | `GET /api/runs/{id}/artifacts/download` | Everything, available files, one `?category=`, or a hand-picked `?ids=`, as one `.zip` |
 | `GET /api/runs/{id}/export.csv` | Flat candidate × metric table |
+| `GET /api/runs/{id}/export.pdf` | Sequence-free run summary; included in full and report-category ZIP downloads |
 
 ### Listing candidates
 
@@ -569,7 +570,8 @@ from these, never by re-deriving anything from `kind` itself.
 | `?available_only=true` | Only artifacts currently approved for download; can be combined with `category` or `ids` |
 
 Entries inside the archive are filed under `<category>/<name>`, regardless of storage
-layout, so the zip reads the same way the download UI is organized.
+layout, so the zip reads the same way the download UI is organized. Full and
+`?category=reports` archives also contain a generated, sequence-free run summary PDF.
 
 ## Annotations
 

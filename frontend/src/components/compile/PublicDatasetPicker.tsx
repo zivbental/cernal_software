@@ -157,7 +157,7 @@ export function PublicDatasetPicker({
                 )}
               </dl>
 
-              {typeof info.data.provider_metadata?.interpretation_note === "string" && <p role="status" className="mt-3 rounded-md border border-amber-500/40 p-2 text-xs">{info.data.provider_metadata.interpretation_note}</p>}
+              {typeof info.data.provider_metadata?.interpretation_note === "string" && <p role="status" className="mt-3 rounded-md border border-border bg-surface p-2 text-xs text-muted-foreground">{info.data.provider_metadata.interpretation_note}</p>}
               <p className="mt-3 text-xs text-muted-foreground">The selected contrast determines the biological meaning; the study title alone does not imply a disease-versus-control classifier. {info.data.genes_with_adjusted_p_value === 0 && "No adjusted p-values are available; raw p-values are not FDR-corrected."}</p>
               {info.data.provider_metadata?.data_completeness === "historical_subset_source_total_unknown" && <p role="status" className="mt-2 text-xs">This bundled catalog contains a historical subset of tested rows. The original source total was not retained; upload a complete provider table for full analysis.</p>}
               {typeof info.data.provider_metadata?.csv_sha256 === "string" && <details className="mt-2 text-xs"><summary>Catalog integrity and interpretation status</summary><p className="break-all">CSV SHA-256: {info.data.provider_metadata.csv_sha256}</p><p>Biological interpretation review: {String(info.data.provider_metadata.interpretation_review ?? "pending")}</p></details>}
