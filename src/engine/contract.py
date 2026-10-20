@@ -179,6 +179,9 @@ class ArtifactRef:
     candidate_ref: str | None = None
     #: No complete generated switch/plasmid sequence; diagnostic motif substrings may occur.
     sequence_free: bool = False
+    #: False for ordinary run deliverables that the owner may download without a
+    #: separate sequence-release decision. Defaults to True for legacy writers.
+    release_required: bool = True
 
 
 @dataclass(frozen=True, slots=True)

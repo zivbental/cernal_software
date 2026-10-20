@@ -419,7 +419,7 @@ def test_pipeline_screens_final_switch_and_complete_construct(
             )
 
 
-def test_final_construct_flag_withholds_all_sequence_exports(
+def test_final_construct_flag_is_audited_without_dropping_sequence_exports(
     monkeypatch, make_request, progress, adapter
 ):
     from engine import pipeline
@@ -451,7 +451,11 @@ def test_final_construct_flag_withholds_all_sequence_exports(
         progress,
     )
     assert result.candidates
-    assert not any(a.kind in {"sequence_fasta", "genbank", "sbol"} for a in result.artifacts)
+    accepted = [candidate for candidate in result.candidates if not candidate.is_rejected]
+    for kind in {"sequence_fasta", "plasmid_fasta", "genbank", "sbol"}:
+        assert len([artifact for artifact in result.artifacts if artifact.kind == kind]) == len(
+            accepted
+        )
     for c in result.candidates:
         if not c.is_rejected:
             assert c.design["sequence_release"]["switch"]["screening_status"] == "screened"

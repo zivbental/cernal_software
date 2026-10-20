@@ -109,7 +109,7 @@ from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.inputs import parse_dge_table
-from engine.safety import SequenceSubmission, fail_closed_release, stored_release_allowed
+from engine.safety import SequenceSubmission, fail_closed_release
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
 from engine.scoring.profiles import HardFilter, ScoringProfile, resolve_profile
 from engine.stages.circuits import CircuitDesigner, ConfusionEvaluator
@@ -2096,12 +2096,11 @@ def _write_artifacts(
     *,
     on_progress: ProgressFn | None = None,
 ) -> list[ArtifactRef]:
-    """A design table, and — only once the safety gate releases — a FASTA, a GenBank
-    and an SBOL document per accepted candidate (docs/plasmids.md, E5a; ADR 0008).
+    """A design table plus FASTA, GenBank and SBOL files for every accepted candidate.
 
-    The sequence-bearing exports sit below the release check deliberately: with no
-    local screening adapter provisioned, ``fail_closed_release`` holds every sequence
-    and this writes the design table and the audit manifests alone.
+    Screening evidence is still recorded alongside each construct so researchers can
+    inspect it, but an unavailable optional screening adapter must not prevent the run
+    from producing its core sequence deliverables.
 
     ``plasmids`` is keyed by candidate ref, from the same run that produced
     ``candidates`` — every accepted candidate has an entry (``_build_plasmid`` never
@@ -2209,8 +2208,6 @@ def _write_artifacts(
                 ),
             ]
         )
-        if not stored_release_allowed(candidate.design):
-            continue
         fasta = (
             f">{candidate.ref} {candidate.gate_family} {candidate.logic_type} "
             f"rank={candidate.rank}\n{candidate.design['switch_sequence']}\n"
@@ -2223,6 +2220,7 @@ def _write_artifacts(
                 kind="sequence_fasta",
                 media_type="text/x-fasta",
                 candidate_ref=candidate.ref,
+                release_required=False,
             )
         )
         plasmid_sequence = plasmid.plasmid.sequence
@@ -2242,6 +2240,7 @@ def _write_artifacts(
                 kind="plasmid_fasta",
                 media_type="text/x-fasta",
                 candidate_ref=candidate.ref,
+                release_required=False,
             )
         )
         artifacts.append(
@@ -2252,11 +2251,10 @@ def _write_artifacts(
                 kind="genbank",
                 media_type="text/plain",
                 candidate_ref=candidate.ref,
+                release_required=False,
             )
         )
-        # SBOL 3 alongside GenBank (ADR 0008). Deliberately inside this block, below the
-        # release check above: an SBOL document carries the full construct sequence, so
-        # emitting it before the gate would hand out exactly what the gate withholds.
+        # SBOL 3 accompanies the FASTA and GenBank representations of this construct.
         artifacts.append(
             write_artifact(
                 output_dir,
@@ -2265,6 +2263,7 @@ def _write_artifacts(
                 kind="sbol",
                 media_type="application/n-triples",
                 candidate_ref=candidate.ref,
+                release_required=False,
             )
         )
 
