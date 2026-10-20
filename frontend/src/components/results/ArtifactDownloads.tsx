@@ -85,6 +85,13 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
 
   const byCategory = useMemo(() => groupByCategory(artifacts.data ?? []), [artifacts.data]);
   const items = artifacts.data ?? [];
+  const availableItems = items.filter((artifact) => artifact.download_available === true);
+  const allItemsAvailable = availableItems.length === items.length;
+  const allZipUrl = availableItems.length === 0
+    ? undefined
+    : allItemsAvailable
+      ? artifactsZipUrl(runId)
+      : artifactsZipUrl(runId, { availableOnly: true });
 
   if (artifacts.isLoading) return <p>Loading artifacts…</p>;
   if (artifacts.isError) return <p role="alert">Could not load artifacts. <button onClick={() => artifacts.refetch()}>Retry</button></p>;
@@ -118,19 +125,28 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
           title="Downloads"
           desc={`${items.length} file${items.length === 1 ? "" : "s"} generated, ${formatBytes(totalSize)} total.`}
         />
-        <a
-          href={items.every((artifact) => artifact.download_available === true) ? artifactsZipUrl(runId) : undefined}
-          aria-disabled={!items.every((artifact) => artifact.download_available === true)}
-          className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-gradient-deep px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-clinical transition hover:opacity-95"
-        >
-          <Archive className="h-4 w-4" />
-          Download everything (.zip)
-        </a>
+        {allZipUrl ? (
+          <a
+            href={allZipUrl}
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-gradient-deep px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-clinical transition hover:opacity-95"
+          >
+            <Archive className="h-4 w-4" />
+            {allItemsAvailable ? "Download everything (.zip)" : "Download available files (.zip)"}
+          </a>
+        ) : (
+          <span
+            aria-disabled="true"
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-muted px-4 py-2.5 text-sm font-semibold text-muted-foreground"
+          >
+            <Archive className="h-4 w-4" />
+            No downloadable files
+          </span>
+        )}
       </div>
 
       {items.some((artifact) => artifact.download_available !== true) && (
         <p role="status" className="mb-4 text-sm text-muted-foreground">
-          Some artifacts are withheld pending sequence release approval. Select available files to download a partial archive.
+          Some artifacts are withheld pending sequence release approval. The ZIP includes all currently available files; held files stay excluded. Select individual files below to make a smaller archive.
         </p>
       )}
       <p className="mb-4 rounded-lg border border-border p-3 text-xs">
@@ -167,6 +183,13 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
       <div className="space-y-2">
         {CATEGORY_ORDER.filter((category) => byCategory.has(category)).map((category) => {
           const files = byCategory.get(category) ?? [];
+          const availableFiles = files.filter((artifact) => artifact.download_available === true);
+          const allCategoryFilesAvailable = availableFiles.length === files.length;
+          const categoryZipUrl = availableFiles.length === 0
+            ? undefined
+            : allCategoryFilesAvailable
+              ? artifactsZipUrl(runId, { category })
+              : artifactsZipUrl(runId, { category, availableOnly: true });
           const meta = CATEGORY_META[category];
           const isOpen = expanded.has(category);
           const size = files.reduce((sum, a) => sum + a.size_bytes, 0);
@@ -196,14 +219,26 @@ export function ArtifactDownloads({ runId }: { runId: string }) {
                     }`}
                   />
                 </button>
-                <a
-                  href={files.every((artifact) => artifact.download_available === true) ? artifactsZipUrl(runId, { category }) : undefined}
-                  aria-disabled={!files.every((artifact) => artifact.download_available === true)}
-                  title={`Download "${meta.label}" as a .zip`}
-                  className="shrink-0 rounded-md border border-border p-2 text-muted-foreground transition hover:border-mint hover:text-mint"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </a>
+                {categoryZipUrl ? (
+                  <a
+                    href={categoryZipUrl}
+                    title={`Download available "${meta.label}" files as a .zip`}
+                    aria-label={`Download available ${meta.label} files as a .zip`}
+                    className="shrink-0 rounded-md border border-border p-2 text-muted-foreground transition hover:border-mint hover:text-mint"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    title={`No downloadable files in ${meta.label}`}
+                    aria-label={`No downloadable files in ${meta.label}`}
+                    className="shrink-0 cursor-not-allowed rounded-md border border-border p-2 text-muted-foreground opacity-50"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
 
               {isOpen && (
