@@ -136,9 +136,10 @@ class ReportBuilder:
             must be accurate — they drive how the results screen labels each download.
 
         What to produce (Step 5):
-            * **FASTA** per plasmid — ``kind="sequence_fasta"``. The minimum a synthesis
-              order needs.
-            * **GenBank** per plasmid — ``kind="genbank"``. FASTA plus feature
+            * **Switch FASTA** per candidate — ``kind="sequence_fasta"``.
+            * **Plasmid FASTA** per construct — ``kind="plasmid_fasta"``. The minimum a
+              synthesis order needs.
+            * **GenBank** per plasmid — ``kind="genbank"``. Sequence plus feature
               annotations, so the researcher can open it in SnapGene or Benchling and see
               the promoter, switch and payload marked. This is what people actually want.
             * **Candidate table** as CSV — ``kind="design_table"``. Every circuit with its

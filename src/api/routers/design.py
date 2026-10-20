@@ -148,7 +148,7 @@ def _estimate(input_mode: str, rows: int | None, params: dict, gate_families: li
     n_families = max(1, len(gate_families))
     max_designs = params["budget"]["max_designs"]
     outputs = len(params["payload"].get("outputs") or ["gfp"])
-    upper_bound = max_designs * outputs
+    upper_bound = max_designs * outputs if max_designs is not None else None
 
     if input_mode in (InputMode.DIRECT, InputMode.GENE):
         n_lengths = max(1, len(constraints.get("trigger_lengths", (30, 33, 36))))
@@ -162,7 +162,7 @@ def _estimate(input_mode: str, rows: int | None, params: dict, gate_families: li
         confidence = "rough"
 
     return {
-        "designs": min(designs, max_designs) * outputs,
+        "designs": (min(designs, max_designs) if max_designs is not None else designs) * outputs,
         "seconds": None,
         "runtime_calibrated": False,
         "candidate_upper_bound": upper_bound,

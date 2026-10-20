@@ -29,7 +29,7 @@ the header first (cheaper, no CSRF path), then the session cookie.
 
 ```bash
 curl https://your-cernal-host/api/version \
-  -H "X-API-Key: cern_live_7Kd2mQ8vF3xR9wLbN4pT6yH1sJ0aZcVe"
+  -H "X-API-Key: YOUR_CERNAL_API_KEY"
 ```
 
 ### Session cookies (the SPA)
@@ -113,7 +113,7 @@ key with a key, so a leaked key can never become a permanent foothold.
 // 201 — the secret is shown exactly once and is not recoverable afterwards
 {"id": "…", "label": "laptop", "prefix": "cern_live_7Kd2", "scopes": ["read", "design"],
  "max_concurrent_runs": 2, "rate_per_minute": 60, "expires_at": null,
- "secret": "cern_live_7Kd2mQ8vF3xR9wLbN4pT6yH1sJ0aZcVe"}
+ "secret": "YOUR_CERNAL_API_SECRET"}
 ```
 
 Store it now — the server never displays it again and cannot recover it (only its
@@ -138,7 +138,7 @@ Also usable wherever a session works, except the four endpoints above:
 
 ```bash
 curl https://your-cernal-host/api/runs \
-  -H "X-API-Key: cern_live_7Kd2mQ8vF3xR9wLbN4pT6yH1sJ0aZcVe"
+  -H "X-API-Key: YOUR_CERNAL_API_KEY"
 ```
 
 ---
@@ -216,9 +216,17 @@ Each run stands on its own — there is no project to organize it under.
 | `POST /api/runs` | **202 Accepted** |
 | `GET /api/runs/{id}` | **The polling endpoint** |
 | `GET /api/runs/{id}/detail` | Full record incl. the immutable snapshot |
+| `PATCH /api/runs/{id}` | Rename with `{"name": "GFP trial 1"}`; owner/staff and design scope required |
 | `POST /api/runs/{id}/cancel` | |
 
 ### Submitting
+
+`POST /api/runs` accepts an optional `name` (default empty). Names are trimmed,
+limited to 120 characters, and reject control characters. The list, detail and
+polling responses include `name`. An empty name uses the run ID in the dashboard.
+`PATCH /api/runs/{id}` edits only the name, in any lifecycle state; it cannot change
+the frozen inputs or release authorization. Submission retries return the existing
+run and preserve any later rename.
 
 ```json
 {
@@ -323,7 +331,7 @@ transitions.
 
 ```bash
 curl https://your-cernal-host/api/design \
-  -H "X-API-Key: cern_live_…" -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_CERNAL_API_KEY" -H "Content-Type: application/json" \
   -d '{"trigger_sequence": "AUGGCUAAGCUUAACGGAUCCAUGGCUAAGCUUAAC", "organism": "ecoli"}'
 ```
 
@@ -466,8 +474,9 @@ purpose.
 | `GET /api/candidates/{id}/structure` | Read-only layout of the stored primary switch |
 | `GET /api/runs/{id}/artifacts` | |
 | `GET /api/artifacts/{id}/download` | Authorized file serve, one artifact |
-| `GET /api/runs/{id}/artifacts/download` | Everything, one `?category=`, or a hand-picked `?ids=`, as one `.zip` |
+| `GET /api/runs/{id}/artifacts/download` | Everything, available files, one `?category=`, or a hand-picked `?ids=`, as one `.zip` |
 | `GET /api/runs/{id}/export.csv` | Flat candidate × metric table |
+| `GET /api/runs/{id}/export.pdf` | Sequence-free run summary; included in full and report-category ZIP downloads |
 
 ### Listing candidates
 
@@ -558,9 +567,11 @@ from these, never by re-deriving anything from `kind` itself.
 | *(none)* | Every artifact the run has |
 | `?category=sequences` | Only that category |
 | `?ids=<uuid>,<uuid>,…` | Exactly those artifacts — wins if both are given |
+| `?available_only=true` | Only artifacts currently approved for download; can be combined with `category` or `ids` |
 
 Entries inside the archive are filed under `<category>/<name>`, regardless of storage
-layout, so the zip reads the same way the download UI is organized.
+layout, so the zip reads the same way the download UI is organized. Full and
+`?category=reports` archives also contain a generated, sequence-free run summary PDF.
 
 ## Annotations
 
@@ -660,19 +671,19 @@ nothing extra to keep working, since it is the same surface the SPA uses.
 ### `curl` — the client that never breaks
 
 ```bash
-KEY=cern_live_7Kd2mQ8vF3xR9wLbN4pT6yH1sJ0aZcVe
+KEY=YOUR_CERNAL_API_KEY
 HOST=https://your-cernal-host
 
 # submit and wait
-curl -s "$HOST/api/design?wait=60" -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+curl -s "$HOST/api/design?wait=60" -H "X-API-Key: YOUR_CERNAL_API_KEY" -H "Content-Type: application/json" \
   -d '{"trigger_sequence": "AUGGCUAAGCUUAACGGAUCCAUGGCUAAGCUUAAC", "organism": "ecoli"}' \
   | tee response.json
 
 # or poll by hand
 JOB=$(jq -r .job_id response.json)
-curl -s "$HOST/api/design/$JOB" -H "X-API-Key: $KEY"
-curl -s "$HOST/api/design/$JOB/results?top_n=10" -H "X-API-Key: $KEY" | jq '.candidates[0]'
-curl -s "$HOST/api/design/$JOB/results?format=csv" -H "X-API-Key: $KEY" -o candidates.csv
+curl -s "$HOST/api/design/$JOB" -H "X-API-Key: YOUR_CERNAL_API_KEY"
+curl -s "$HOST/api/design/$JOB/results?top_n=10" -H "X-API-Key: YOUR_CERNAL_API_KEY" | jq '.candidates[0]'
+curl -s "$HOST/api/design/$JOB/results?format=csv" -H "X-API-Key: YOUR_CERNAL_API_KEY" -o candidates.csv
 ```
 
 ### Python — `pip install cernal`

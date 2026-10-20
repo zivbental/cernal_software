@@ -187,6 +187,7 @@ export interface RunCounts {
 /** The polling response. Deliberately cheap — no joins across candidates. */
 export interface RunStatusResponse {
   id: string;
+  name: string;
   status: RunStatus;
   stage: string;
   progress_pct: number;
@@ -201,6 +202,7 @@ export interface RunStatusResponse {
 
 export interface Run {
   id: string;
+  name: string;
   dataset_id: string | null;
   status: RunStatus;
   stage: string;
@@ -434,7 +436,7 @@ export interface ApiKeyCreated extends ApiKey {
 /** The wizard's configuration, frozen into params_snapshot at submission. */
 export interface RunParams {
   /** Cap on validated gate designs evaluated; outputs are evaluated separately. */
-  budget?: { max_designs?: number };
+  budget?: { max_designs?: number | null };
   /** Presentation only, after ranking accepted results; stored results stay complete. */
   top_n?: number;
   schema_version?: string;

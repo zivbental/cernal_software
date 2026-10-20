@@ -8,6 +8,7 @@ probabilities.  Mean marginal openness is retained as diagnostic evidence.
 import json
 import math
 import random
+from collections import Counter
 from collections.abc import Callable, Iterator
 from itertools import combinations
 
@@ -173,7 +174,7 @@ class TriggerScorer:
                         continue
                     a = candidate(ga, a0, a1, family.SECONDARY_INVASION_LEN)
                     b = candidate(gb, b0, b1, family.TOEHOLD_B_LEN)
-                    rows.append((min(a.score, b.score), key, a, b))
+                    rows.append((min(a.score, b.score), key, a, b, pair.len_x))
                 scope = dict(family.last_pair_search)
                 seed_matches += scope["seed_matches_considered"]
                 scopes.append({"genes": [first, second], "geometry": family.geometry_name, **scope})
@@ -193,9 +194,11 @@ class TriggerScorer:
             eligible = [row for row in rows if row[0] >= cutoff]
             taken = random.Random(seed).sample(eligible, min(settings.max_pairs, len(eligible)))
             taken.sort(key=lambda row: (-row[0], row[1]))
+        elif settings.pair_selection == "overlap_stratified":
+            taken = self._overlap_stratified_pairs(rows, settings.max_pairs)
         else:
             taken = rows[: settings.max_pairs]
-        plan = [(key[0], TriggerSet(activators=(a, b))) for _, key, a, b in taken]
+        plan = [(key[0], TriggerSet(activators=(a, b))) for _, key, a, b, _length in taken]
         return plan, {
             "input_regions": len(windows),
             "input_genes": len(by_gene),
@@ -213,9 +216,42 @@ class TriggerScorer:
             "seed_matches_considered": seed_matches,
             "discovery_scopes": scopes,
             "pair_selection": settings.pair_selection,
+            "eligible_overlap_distribution": dict(sorted(Counter(r[4] for r in eligible).items())),
+            "selected_overlap_distribution": dict(sorted(Counter(r[4] for r in taken).items())),
+            "overlap_coverage_complete": {r[4] for r in eligible} == {r[4] for r in taken},
             "accessibility_percentile": settings.accessibility_percentile,
             "percentile_cutoff": cutoff,
         }
+
+    @staticmethod
+    def _overlap_stratified_pairs(rows: list, limit: int) -> list:
+        """Retain length coverage and approximate pool proportions, ranking within lengths.
+
+        Rows are already ordered by descending minimum partner score and stable coordinates.
+        Reserve one slot per observed length when possible. Allocate each remaining slot to
+        the largest deficit from its proportional quota; ties use the next pair's rank.
+        If fewer slots than lengths are available, represent the lengths with the best
+        available pairs. Never infer a biological preference from overlap length.
+        """
+        if len(rows) <= limit:
+            return rows
+        groups = {}
+        for rank, row in enumerate(rows):
+            groups.setdefault(row[4], []).append((rank, row))
+        quota = dict.fromkeys(groups, 0)
+        for length in list(groups)[:limit]:
+            quota[length] = 1
+        for _ in range(limit - sum(quota.values())):
+            length = max(
+                (length for length, pool in groups.items() if quota[length] < len(pool)),
+                key=lambda length: (
+                    limit * len(groups[length]) - len(rows) * quota[length],
+                    -groups[length][quota[length]][0],
+                ),
+            )
+            quota[length] += 1
+        selected = [item for length, pool in groups.items() for item in pool[: quota[length]]]
+        return [row for _rank, row in sorted(selected, key=lambda item: item[0])]
 
     def score(
         self,

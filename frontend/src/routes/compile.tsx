@@ -52,6 +52,7 @@ function CompilePage() {
   const submit = useSubmitRun();
 
   const [config, setConfig] = useState<CompileConfig>(DEFAULT_CONFIG);
+  const [name, setName] = useState("");
   const [idempotencyKey] = useState(newIdempotencyKey);
   const patch = (p: Partial<CompileConfig>) => setConfig((c) => {
     const next = { ...c, ...p };
@@ -78,8 +79,8 @@ function CompilePage() {
   const gateInputs = version.data?.family_inputs?.[config.mechanism] ?? 1;
 
   const blocker = useMemo(() => {
-    if (config.maxDesigns.trim() === "" || !Number.isSafeInteger(Number(config.maxDesigns)) || Number(config.maxDesigns) < 1 || Number(config.maxDesigns) > 1000)
-      return "Evaluation budget must be a whole number from 1 to 1,000.";
+    if (version.data && !version.data.scoring_profiles.includes("ranking"))
+      return "Ranking-only scoring is unavailable. Reload before submitting.";
     if (config.topN.trim() === "" || !Number.isSafeInteger(Number(config.topN)) || Number(config.topN) < 1 || Number(config.topN) > 1000)
       return "Results to display must be a whole number from 1 to 1,000.";
     if (!version.data?.family_hosts || !version.data?.supported_outputs)
@@ -145,41 +146,20 @@ function CompilePage() {
       organism: config.organism,
       input_mode: submittedInputMode,
       mechanism: config.mechanism,
-      budget: { max_designs: Number(config.maxDesigns) },
+      budget: { max_designs: null },
       top_n: Number(config.topN),
       payload: {
         outputs: config.outputs,
         custom_sequence: parseSequence(config.customPayload).sequence || null,
-        optimize_codons: config.optimizePayloadCodons,
+        optimize_codons: true,
       },
-      // A per-run override of the scoring profile's hard filters (engine.scoring
-      // X7), not engine.domain.Constraints — see CompileConfig's own docstring.
-      // gate_folding_energy is LOWER_BETTER, so "require at least this much
-      // stability" is a `maximum`, not a `minimum` — using minimum here would
-      // reject exactly the most stable designs. `reason` is required by the API
-      // (api/params.py check_scoring_block) — it becomes the rejected candidate's
-      // recorded rejection_reason, so a researcher can see why their own slider
-      // rejected a design.
-      // engine.domain.Constraints, unlike `scoring` above — see RunParams.
+      // Architecture limits remain independent of quality ranking.
       constraints: {
         max_circuit_gates: config.maxCircuitGates,
         // One gate with N inputs: the engine requires max_triggers to say how many.
         ...(gateInputs > 1 ? { max_triggers: gateInputs } : {}),
       },
-      scoring: {
-        hard_filters: [
-          {
-            metric: "predicted_leakage",
-            maximum: config.maxLeakage,
-            reason: `Off-state leakage above the researcher-set limit (${config.maxLeakage}).`,
-          },
-          {
-            metric: "gate_folding_energy",
-            maximum: config.minGateStability,
-            reason: `Gate folding energy above the researcher-set stability floor (${config.minGateStability} kcal/mol).`,
-          },
-        ],
-      },
+
     };
 
     if (config.backbone === "custom") {
@@ -202,12 +182,13 @@ function CompilePage() {
 
     try {
     const run = await submit.mutateAsync({
+      name: name.trim(),
       input_mode: submittedInputMode,
       dataset_id: submittedInputMode === "de" ? config.datasetId : null,
       trigger_sequence: submittedInputMode === "direct" ? parseSequence(config.triggerSequence).sequence : "",
       organism: config.organism,
       gate_families: [config.mechanism],
-      scoring_profile: version.data?.scoring_profiles[0] ?? "default",
+      scoring_profile: "ranking",
       params,
       idempotency_key: idempotencyKey,
     });
@@ -218,6 +199,7 @@ function CompilePage() {
 
   return (
     <>
+      <p className="mb-4 text-sm text-muted-foreground">Evaluate every generated structurally valid design, then show the top 20 by computational ranking. Quality metrics affect ranking, not eligibility. Scores are predictions, not validated biological function. All evaluated results remain available; sequence release requires safety screening.</p>
       <PageHeader
         kicker={
           <>
@@ -237,6 +219,13 @@ function CompilePage() {
       </div>
 
       <div className="space-y-6">
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <label htmlFor="run-name" className="block text-sm font-medium">Run name (optional)</label>
+          <input id="run-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={120}
+            aria-describedby="run-name-help" placeholder="e.g. GFP response — trial 1"
+            className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm" />
+          <p id="run-name-help" className="mt-2 text-xs text-muted-foreground">Up to 120 characters. You can rename this run later; its configuration stays frozen.</p>
+        </div>
         <StepInputs
           config={config}
           patch={patch}
@@ -256,7 +245,15 @@ function CompilePage() {
           twoInputGate={gateInputs > 1}
         />
 
-        <StepLogic config={config} patch={patch} familyInputs={version.data?.family_inputs} families={families.map((family) => ({ ...family, available: family.available && (version.data?.family_hosts[family.name] ?? []).includes(config.organism) }))} />
+        <StepLogic
+          config={config}
+          patch={patch}
+          familyInputs={version.data?.family_inputs}
+          families={families.filter((family) =>
+            family.name !== "toehold" && family.available &&
+            (version.data?.family_hosts[family.name] ?? []).includes(config.organism),
+          )}
+        />
 
         <StepPayload config={config} patch={patch} supportedOutputs={supportedOutputs} />
 

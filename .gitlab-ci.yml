@@ -11,7 +11,7 @@
 # Note: if gitlab.igem.org's shared runners require an explicit tag, add a `tags:` key
 # to each job. Nothing else here is iGEM-specific.
 
-stages: [check]
+stages: [check, verify]
 
 # Linux backup integrity also runs in the full backend suite. GitHub's dedicated
 # backup-integrity workflow additionally covers Windows (no Windows GitLab runner).
@@ -25,24 +25,56 @@ variables:
   UV_CACHE_DIR: .uv-cache
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
-# Backend: lint, format, Django system checks and the full pytest suite.
-# Runs against LocalEngine, the only engine, so the scientific stack is required.
-backend:
+# Each backend job downloads and verifies pinned data directly; no large artifact transfer.
+.backend-environment:
   stage: check
   image: python:3.13-slim
   cache:
     key: uv-$CI_COMMIT_REF_SLUG
     paths: [.uv-cache]
+    policy: pull
   before_script:
+    # Checkout conversion tests and provenance checks use Git.
+    - apt-get update && apt-get install -y --no-install-recommends git
     - pip install --quiet uv
     - uv sync --locked --extra dev
+    - uv run python tools/install_data.py --profile test
+
+backend-checks:
+  extends: .backend-environment
   script:
     - uv run ruff check .
     - uv run ruff format --check .
     - uv run python manage.py check
     - uv run python manage.py makemigrations --check --dry-run
     - uv run python tools/gen_api_surface.py --check
-    - uv run pytest -q
+
+# Competition runner #67 has a hard ten-minute maximum; YAML cannot raise it.
+# Timed, deterministic shards retain the full real-engine suite. Every shard is
+# required, and the final coverage audit rejects omitted/duplicated tests.
+backend:
+  extends: .backend-environment
+  parallel: 16
+  script:
+    - uv run python tools/ci_test_shards.py run --index "$CI_NODE_INDEX" --total "$CI_NODE_TOTAL"
+  artifacts:
+    name: backend-$CI_NODE_INDEX
+    when: always
+    paths: [test-results/backend/]
+    reports:
+      junit: test-results/backend/junit-*.xml
+    expire_in: 1 week
+
+backend-coverage:
+  stage: verify
+  image: python:3.13-slim
+  needs:
+    - job: backend
+      artifacts: true
+    - job: backend-checks
+      artifacts: false
+  script:
+    - python tools/ci_test_shards.py verify test-results/backend/shard-*.json
 
 # Python client conformance (docs/public-api.md §11.4): submits
 # clients/fixtures/design_request.json against a real, running LocalEngine server
@@ -52,6 +84,7 @@ backend:
 # ephemeral overlay — the main project never depends on requests.
 client-python:
   stage: check
+  dependencies: []
   image: python:3.13-slim
   cache:
     key: uv-$CI_COMMIT_REF_SLUG
@@ -59,6 +92,7 @@ client-python:
   before_script:
     - pip install --quiet uv
     - uv sync --locked --extra dev
+    - uv run python tools/install_data.py --profile test
   script:
     - uv run --with requests --with 'cernal @ ./clients/python' pytest clients/python/tests -c clients/python/tests/pytest.ini -q
 
@@ -67,31 +101,55 @@ client-python:
 # headlessly via esbuild + react-dom/server — no browser download required.
 frontend:
   stage: check
+  dependencies: []
   image: node:22-slim
-  cache:
-    key: npm-$CI_COMMIT_REF_SLUG
-    paths: [frontend/node_modules]
   before_script:
+    # Help-link checks verify source targets against the tracked checkout.
+    - apt-get update && apt-get install -y --no-install-recommends git
     - cd frontend
     - npm ci
   script:
     - npm run test:clean-build
     - npm run check
-    - npx playwright install --with-deps chromium
-    - RNA_VIEWER_SCREENSHOT_DIR=test-results/rna-viewer npm run test:browser
+    # Bound the complete uncompressed transfer, not just an estimated ZIP size.
+    - node ../tools/check_frontend_artifact.mjs
   artifacts:
+    paths: [src/static/app/]
+    expire_in: 1 week
+
+# Each suite gets its own 600-second runner budget. Use the exact successful build
+# above; never transfer node_modules, browser binaries, or reference data.
+frontend-browser:
+  stage: verify
+  image: node:22-slim
+  needs:
+    - job: frontend
+      artifacts: true
+  parallel:
+    matrix:
+      - BROWSER_SUITE: [contracts, rna-viewer-browser, screening-browser, run-usability]
+  before_script:
+    - cd frontend
+    - npm ci
+    - npx playwright install --with-deps chromium
+  script:
+    - RNA_VIEWER_SCREENSHOT_DIR=test-results/rna-viewer node "e2e/$BROWSER_SUITE.mjs"
+  artifacts:
+    name: frontend-$BROWSER_SUITE
     when: always
-    paths: [src/static/app/, frontend/test-results/rna-viewer/]
+    paths: [frontend/test-results/]
     expire_in: 1 week
 
 browser-queued:
   stage: check
+  dependencies: []
   image: node:22-bookworm
   before_script:
     - apt-get update && apt-get install -y python3 python3-pip curl
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
     - uv sync --locked --extra dev
+    - uv run python tools/install_data.py --profile test
     - npm --prefix frontend ci
     - npm --prefix frontend run build:fast
     - cd frontend && npx playwright install --with-deps chromium && cd ..

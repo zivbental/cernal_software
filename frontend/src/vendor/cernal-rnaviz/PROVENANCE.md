@@ -1,18 +1,21 @@
 # cernal-rnaviz drawing integration
 
-Source: https://github.com/talberez/cernal-rnaviz
-Pinned commit: `aa112e17a76941233987bb4287c2c66511c40d13`
+Source: https://gitlab.igem.org/2026/software/tau-israel/rna-vizualizer
+Pinned commit: `cfc0d0811e0a1a02027e483195d77b59ce0b7f06`
 Copyright 2026 iGEM TAU 2026 Team, Tel Aviv University. Apache-2.0.
 The upstream LICENSE and NOTICE are included unchanged in this directory.
 
 `drawing.tsx` adapts the single-strand renderer in
 `src/cernal_rnaviz/web/js/render/{single,common}.js`, the bounding-box and
-outward-vector helpers in `web/js/utils.js`, and constants/styles from
-`web/js/constants.js` and `web/css/{tokens,structure-svg}.css`.
+outward-vector helpers in `src/cernal_rnaviz/web/js/utils.js`, and
+constants/styles from `src/cernal_rnaviz/web/js/constants.js` and
+`src/cernal_rnaviz/web/css/{tokens,structure-svg}.css`.
 
 Changes: typed React elements replace HTML interpolation and global DOM/state;
 rotation, selection and zoom are component-local; known gate regions are passed
 as index ranges; SVG title/description and keyboard selection are accessible.
+The app reuses the upstream canvas fit-to-viewport sizing so large structures
+remain inside the CERNAL candidate panel until users zoom in.
 The palette follows upstream CSS (rather than the differing README legend).
 
 The viewer draws the stored structure using the upstream node/link format. It

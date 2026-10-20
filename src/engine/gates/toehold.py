@@ -1035,6 +1035,7 @@ class ToeholdAndGate(ToeholdGate):
         upper3_levels: tuple[str, ...] | None = None,
         strengthen_lower3_only: bool = False,
         max_secondary_assignments: int | None = None,
+        max_variable_conflicts: int | None = None,
         seed: int = 0,
         should_stop: Callable[[], bool] | None = None,
     ) -> None:
@@ -1068,6 +1069,11 @@ class ToeholdAndGate(ToeholdGate):
         self.compute_barrier = compute_barrier
         self.upper3_levels = upper3_levels
         self.max_secondary_assignments = max_secondary_assignments
+        if max_variable_conflicts is not None and (
+            type(max_variable_conflicts) is not int or max_variable_conflicts < 0
+        ):
+            raise ValueError("max_variable_conflicts must be a nonnegative integer or None.")
+        self.max_variable_conflicts = max_variable_conflicts
         self.seed = seed
         self.should_stop = should_stop
         self._diagnostics: dict[str, dict] = {}
@@ -2870,12 +2876,11 @@ class ToeholdAndGate(ToeholdGate):
         roughly half of the frontier is mixed, meaning neither global strategy can express
         it.
 
-        The Pareto step is what makes the downstream folding affordable. The front grows
-        roughly linearly in the number of conflicts while ``3^n`` grows exponentially —
-        11, 29, 88 and 99 builds at n = 4, 6, 8 and 9 — so it reduces the work by three
-        orders of magnitude without discarding anything a later stage might have preferred.
-        Nothing is ranked here: a build is dropped only when another is at least as good on
-        all three claims and better on one.
+        Pareto pruning reduces subsequent whole-switch folds; enumerating assignments
+        still costs ``3^n``. With ``max_variable_conflicts`` set, vary only that many
+        conflicts nearest x and hold farther ones at lock+B. Energies and the invasion
+        screen still use the complete aligned regions. This restricted front describes
+        that declared design space, not the unrestricted front or guaranteed gate activity.
 
         Args:
             trigger_a: Trigger A, RNA uppercase, reading ``k1 · bulge · main_pre · xA · extA``.
@@ -2883,7 +2888,8 @@ class ToeholdAndGate(ToeholdGate):
             len_x: Length of the perfect reverse-complementary overlap the pair shares.
             max_assignments: Optional cap before energy evaluation and Pareto pruning.
                 Defaults to the family's declared cap; an uncapped family enumerates the
-                full product. A capped search returns the front of its sampled subset,
+                full product within the variable positions. A capped search returns the
+                front of its sampled subset,
                 not a claim to the exhaustive front.
             seed: Seed for uniform sampling without replacement. Defaults to the run's
                 injected seed; full enumeration does not use randomness.
@@ -2912,8 +2918,11 @@ class ToeholdAndGate(ToeholdGate):
         search_seed = self.seed if seed is None else seed
         if type(search_seed) is not int:
             raise ValueError("seed must be an integer.")
-        total = len(_ARM_STATES) ** len(conflicts)
-        assignments = product(_ARM_STATES, repeat=len(conflicts))
+        # ext[0] and k2_star[0] are next to x. Increasing positions run toward the loop.
+        variable = conflicts[: self.max_variable_conflicts]
+        fixed = dict.fromkeys(conflicts[len(variable) :], "lockB")
+        total = len(_ARM_STATES) ** len(variable)
+        assignments = product(_ARM_STATES, repeat=len(variable))
         if limit is not None and limit < total:
             # Draw indices rather than constructing 3**n tuples merely to sample them.
             # Sorted indices retain the historical enumeration order within the subset.
@@ -2922,7 +2931,7 @@ class ToeholdAndGate(ToeholdGate):
 
             def decode(index: int) -> tuple[str, ...]:
                 states = []
-                for _ in conflicts:
+                for _ in variable:
                     index, digit = divmod(index, len(_ARM_STATES))
                     states.append(_ARM_STATES[digit])
                 return tuple(reversed(states))
@@ -2935,7 +2944,7 @@ class ToeholdAndGate(ToeholdGate):
             if self.should_stop is not None and self.should_stop():
                 # Do not mislabel a time-truncated assignment set as exhaustive.
                 return []
-            states = dict(zip(conflicts, combination, strict=True))
+            states = {**fixed, **dict(zip(variable, combination, strict=True))}
             k2_star, secondary_z = _build_arms(ext, k2, states)
             if not _invasion_runs_ok(ext, k2, k2_star, self.MAX_INVASION_STALL):
                 continue
@@ -2964,7 +2973,7 @@ class ToeholdAndGate(ToeholdGate):
                 _SecondaryStem(
                     k2_star=k2_star,
                     secondary_z=secondary_z,
-                    states=combination,
+                    states=tuple(states[position] for position in conflicts),
                     ddg_pref=ddg_pref,
                     lock_energy=lock,
                     a_site_energy=a_site,
@@ -4269,19 +4278,30 @@ class ToeholdAndGate(ToeholdGate):
     ) -> Iterator[GateDesign]:
         """Every architecture variant for one role assignment at one overlap length."""
         search_scope = {}
-        if self.max_secondary_assignments is not None:
+        if self.max_secondary_assignments is not None or self.max_variable_conflicts is not None:
             ext, k2 = _secondary_domains(
                 trigger_a, trigger_b, len_x, self.ARM_LEN, self.SECONDARY_INVASION_LEN
             )
-            total = len(_ARM_STATES) ** len(_arm_conflicts(ext, k2))
-            searched = min(total, self.max_secondary_assignments)
+            conflicts = _arm_conflicts(ext, k2)
+            variable = conflicts[: self.max_variable_conflicts]
+            total = len(_ARM_STATES) ** len(variable)
+            searched = min(total, self.max_secondary_assignments or total)
             search_scope = {
                 "secondary_search": {
                     "assignments_total": total,
+                    "unrestricted_assignments_total": len(_ARM_STATES) ** len(conflicts),
                     "assignments_considered": searched,
-                    "exhaustive": searched == total,
+                    "conflict_positions_from_x_zero_based": list(conflicts),
+                    "variable_positions_from_x_zero_based": list(variable),
+                    "fixed_lock_b_positions_from_x_zero_based": list(conflicts[len(variable) :]),
+                    "exhaustive": searched == total and len(variable) == len(conflicts),
+                    "restricted_space_exhaustive": searched == total,
                     "selection": (
-                        "exhaustive" if searched == total else "seeded_uniform_without_replacement"
+                        "seeded_uniform_without_replacement"
+                        if searched < total
+                        else "nearest_x_conflicts_farther_lock_b"
+                        if len(variable) < len(conflicts)
+                        else "exhaustive"
                     ),
                     "seed": self.seed,
                 }
@@ -5207,7 +5227,7 @@ class TrimmedToeholdAndGate(ProkaryoticToeholdAndGate):
     ``vista_metrics`` derives its spans from a real assembly rather than listing them.
     """
 
-    version = "trimmed-toehold-4"
+    version = "trimmed-toehold-5-near-x"
     TOEHOLD_TRIM: ClassVar[int] = 8
 
 
@@ -5234,7 +5254,7 @@ class KimSecondaryArmToeholdAndGate(ProkaryoticToeholdAndGate):
     ``vista_metrics`` verifies its own against a real assembly instead of trusting them.
     """
 
-    version = "kim-secondary-5-strong-lock-row"
+    version = "kim-secondary-6-near-x"
 
     SECONDARY_ARM_LEN: ClassVar[int] = 20
     SECONDARY_INVASION_LEN: ClassVar[int] = 17

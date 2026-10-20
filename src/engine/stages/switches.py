@@ -58,8 +58,12 @@ class SwitchDesigner:
         on_incompatible: Callable[[str], None] | None = None,
         on_invalid: Callable[[str], None] | None = None,
         on_progress: Callable[[int, int], bool] | None = None,
+        on_validated: Callable[[bool], None] | None = None,
     ) -> Iterator[GateDesign]:
         """Yield validated switch designs.
+
+        ``on_validated`` receives one boolean per generated design, allowing the
+        caller to count valid/invalid designs separately from individual violations.
 
         Args:
             triggers: Stage 2's ranked candidates, already pruned.
@@ -138,6 +142,8 @@ class SwitchDesigner:
 
                 for design in family.generate_designs(trigger_set, constraints):
                     result = self.validator.validate(design)
+                    if on_validated:
+                        on_validated(result.ok)
                     if result.ok:
                         yield dataclasses.replace(
                             design, structure_deviation=result.structure_deviation

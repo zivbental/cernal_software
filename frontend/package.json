@@ -16,7 +16,7 @@
     "test:rna": "node e2e/rna-structure.mjs",
     "test:and": "node e2e/and-gate.mjs",
     "check": "tsc --noEmit && eslint . && node e2e/render-logic.mjs && node e2e/help-content.mjs && node e2e/rna-structure.mjs && node e2e/and-gate.mjs && node e2e/screening.mjs",
-    "test:browser": "node e2e/contracts.mjs && node e2e/rna-viewer-browser.mjs && node e2e/screening-browser.mjs",
+    "test:browser": "node e2e/contracts.mjs && node e2e/rna-viewer-browser.mjs && node e2e/screening-browser.mjs && node e2e/run-usability.mjs",
     "test:smoke": "node e2e/smoke.mjs",
     "test:screening": "node e2e/screening.mjs",
     "test:screening:browser": "node e2e/screening-browser.mjs"

@@ -7,9 +7,14 @@ FASTA files; running applications never need a provider request to resolve a gen
 """
 
 import gzip
+import hashlib
+import io
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
+from typing import BinaryIO
 
 from Bio import SeqIO
 
@@ -18,6 +23,8 @@ from engine.domain import Host
 from engine.errors import InputValidationError
 
 _DATA_DIR = Path(__file__).resolve().parent / "data" / "transcriptomes"
+_MANIFEST_PATH = Path(__file__).resolve().parents[2] / "data" / "manifest.json"
+_REFERENCE_PREFIX = "src/engine/data/transcriptomes"
 
 #: Host -> bundled FASTA filename. Extend this, and re-run
 #: ``tools/sync_transcriptome.py``, to add another organism — nothing else changes.
@@ -35,6 +42,54 @@ _FILES: dict[Host, str] = {
     # two are byte-identical, so the copy cannot drift when the vendored tree is updated.
     Host.C_ACNES: "c_acnes.fasta",
 }
+
+
+def _reference_error(host: Host, filename: str, reason: str) -> InputValidationError:
+    return InputValidationError(
+        f"The {host.value} reference file {filename} is missing or corrupt ({reason}). "
+        "Run python tools/install_data.py from the repository root to install "
+        "the pinned reference data."
+    )
+
+
+@contextmanager
+def _verified_reference_file(path: Path, host: Host) -> Iterator[BinaryIO]:
+    """Verify the installed bytes, then parse through the same open file handle."""
+    try:
+        manifest = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
+        entries = manifest["files"]
+        if not isinstance(entries, list):
+            raise ValueError("manifest files must be a list")
+        key = f"{_REFERENCE_PREFIX}/{path.name}"
+        matches = [
+            entry for entry in entries if isinstance(entry, dict) and entry.get("path") == key
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"manifest must contain exactly one entry for {key}")
+        entry = matches[0]
+        expected_hash, expected_size = entry["sha256"], entry["size"]
+        if (
+            not isinstance(expected_hash, str)
+            or len(expected_hash) != 64
+            or any(char not in "0123456789abcdef" for char in expected_hash)
+            or type(expected_size) is not int
+            or expected_size < 0
+        ):
+            raise ValueError(f"invalid manifest checksum or size for {key}")
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError) as exc:
+        raise _reference_error(host, path.name, "reference manifest is missing or invalid") from exc
+
+    try:
+        with path.open("rb") as handle:
+            if handle.seek(0, io.SEEK_END) != expected_size:
+                raise _reference_error(host, path.name, "size does not match data/manifest.json")
+            handle.seek(0)
+            if hashlib.file_digest(handle, "sha256").hexdigest() != expected_hash:
+                raise _reference_error(host, path.name, "SHA-256 does not match data/manifest.json")
+            handle.seek(0)
+            yield handle
+    except (OSError, EOFError, UnicodeError, ValueError) as exc:
+        raise _reference_error(host, path.name, "file is missing or unreadable") from exc
 
 
 @cache
@@ -55,7 +110,7 @@ def load_transcriptome(host: Host) -> dict[str, str]:
         hosts currently use CDS sequences without UTRs.
 
     Raises:
-        InputValidationError: no reference transcriptome is bundled for ``host``.
+        InputValidationError: the reference is unavailable or fails integrity checks.
     """
     filename = _FILES.get(host)
     if filename is None:
@@ -64,23 +119,26 @@ def load_transcriptome(host: Host) -> dict[str, str]:
             f"{', '.join(sorted(h.value for h in _FILES))} today (docs/ROADMAP.md Q1)."
         )
     path = _DATA_DIR / filename
-    opener = gzip.open if path.suffix == ".gz" else open
-    try:
-        with opener(path, "rt") as handle:
+    with _verified_reference_file(path, host) as raw:
+        handle = (
+            gzip.open(raw, "rt", encoding="utf-8")
+            if path.suffix == ".gz"
+            else io.TextIOWrapper(raw, encoding="utf-8")
+        )
+        with handle:
             return {
                 record.id: sq.to_rna(str(record.seq)) for record in SeqIO.parse(handle, "fasta")
             }
-    except (OSError, EOFError) as exc:
-        raise InputValidationError(
-            f"The {host.value} reference transcriptome is missing or unreadable. "
-            "Run the reference sync tool during setup."
-        ) from exc
 
 
 @cache
 def reference_metadata(host: Host) -> dict:
     path = _DATA_DIR / f"{host.value}.json"
-    return json.loads(path.read_text()) if path.is_file() else {}
+    with _verified_reference_file(path, host) as handle:
+        metadata = json.load(handle)
+        if not isinstance(metadata, dict):
+            raise _reference_error(host, path.name, "metadata must be a JSON object")
+        return metadata
 
 
 def resolve_gene_id(host: Host, identifier: str) -> str:
@@ -91,9 +149,17 @@ def resolve_gene_id(host: Host, identifier: str) -> str:
     if identifier in reference:
         return identifier
     # Versions refer to the same stable Ensembl gene; never truncate arbitrary symbols.
-    if identifier.startswith("ENSG") and identifier.split(".")[0] in reference:
-        return identifier.split(".")[0]
+    versionless_id = identifier.split(".")[0]
+    if versionless_id.startswith("ENSG") and versionless_id in reference:
+        return versionless_id
+    if versionless_id.casefold().startswith("ensg"):
+        versioned_matches = _casefolded_reference_ids(host).get(
+            versionless_id.casefold(), set()
+        )
+        if len(versioned_matches) == 1:
+            return next(iter(versioned_matches))
     metadata = reference_metadata(host)
+    folded_identifier = identifier.casefold()
     if identifier in metadata.get("ambiguous_aliases", []):
         raise InputValidationError(
             f"Gene symbol {identifier!r} is ambiguous; use a stable gene ID."
@@ -101,10 +167,59 @@ def resolve_gene_id(host: Host, identifier: str) -> str:
     resolved = metadata.get("aliases", {}).get(identifier)
     if resolved in reference:
         return resolved
+    if folded_identifier in _casefolded_ambiguous_aliases(host):
+        raise InputValidationError(
+            f"Gene symbol {identifier!r} is ambiguous; use a stable gene ID."
+        )
+    folded_aliases = _casefolded_aliases(host)
+    matches = folded_aliases.get(folded_identifier, set())
+    if len(matches) == 1:
+        resolved = next(iter(matches))
+        if resolved in reference:
+            return resolved
+    elif len(matches) > 1:
+        raise InputValidationError(
+            f"Gene symbol {identifier!r} is ambiguous; use a stable gene ID."
+        )
+
+    folded_ids = _casefolded_reference_ids(host)
+    id_matches = folded_ids.get(folded_identifier, set())
+    if len(id_matches) == 1:
+        return next(iter(id_matches))
+    if len(id_matches) > 1:
+        raise InputValidationError(
+            f"Gene identifier {identifier!r} is ambiguous; use its exact stable ID."
+        )
     raise InputValidationError(
         f"Gene {identifier!r} was not found in the {host.value} reference. "
         "Use a reference gene ID or an unambiguous gene symbol."
     )
+
+
+@cache
+def _casefolded_aliases(host: Host) -> dict[str, set[str]]:
+    aliases: dict[str, set[str]] = {}
+    for alias, gene_id in reference_metadata(host).get("aliases", {}).items():
+        if isinstance(alias, str) and isinstance(gene_id, str):
+            aliases.setdefault(alias.casefold(), set()).add(gene_id)
+    return aliases
+
+
+@cache
+def _casefolded_ambiguous_aliases(host: Host) -> set[str]:
+    return {
+        alias.casefold()
+        for alias in reference_metadata(host).get("ambiguous_aliases", [])
+        if isinstance(alias, str)
+    }
+
+
+@cache
+def _casefolded_reference_ids(host: Host) -> dict[str, set[str]]:
+    ids: dict[str, set[str]] = {}
+    for gene_id in load_transcriptome(host):
+        ids.setdefault(gene_id.casefold(), set()).add(gene_id)
+    return ids
 
 
 def gene_reference(host: Host, identifier: str) -> dict:

@@ -359,30 +359,6 @@ def overlaps() -> str:
     )
     out.append(_text(8, base_y + 22, "overlap", "mt-axis"))
 
-    # Green's shortest first-generation toehold, for scale.
-    marker = left + 5 * (bar_w + gap) + bar_w + 10
-    out.append(
-        f'<line class="mt-marker" x1="{marker}" y1="{base_y - height - 40}" '
-        f'x2="{marker}" y2="{base_y}" />'
-    )
-    out.append(
-        _text(
-            marker - 10,
-            base_y - height - 26,
-            "12 nt &#8212; Green&#8217;s shortest first-generation",
-            "mt-marker-text",
-            "end",
-        )
-    )
-    out.append(
-        _text(
-            marker - 10,
-            base_y - height - 8,
-            "toehold. 4 candidates of 53,530 reach it.",
-            "mt-marker-text",
-            "end",
-        )
-    )
     out.append(
         _text(
             8,

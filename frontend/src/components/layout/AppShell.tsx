@@ -56,7 +56,7 @@ function Nav() {
             <img
               src={cernalLogo}
               alt="CERNAL — Compiler-like Engine for RNA Logic"
-              className="h-9 w-auto"
+              className="block h-[46px] w-[170px] shrink-0 object-contain"
             />
           </Link>
           <nav aria-label="Primary navigation" className="hidden min-w-0 flex-wrap items-center gap-1 lg:flex">
@@ -186,11 +186,11 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-8 flex flex-wrap items-end justify-between gap-6">
-      <div>
+      <div className="min-w-0 max-w-full">
         <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           {kicker}
         </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
+        <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
         {description && (
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
         )}

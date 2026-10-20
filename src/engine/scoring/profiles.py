@@ -251,7 +251,21 @@ DEFAULT_V1 = ScoringProfile(
     tie_breakers=["state_separation", "predicted_leakage"],
 )
 
-PROFILES: dict[str, ScoringProfile] = {DEFAULT_V1.name: DEFAULT_V1}
+# New Circuit ranks computational predictions without quality threshold rejection.
+# Structural validation and sequence-release screening are separate from scoring.
+RANKING_V1 = replace(
+    DEFAULT_V1,
+    name="ranking",
+    version="v1",
+    hard_filters=[],
+    metrics=list(DEFAULT_V1.metrics),
+    tie_breakers=list(DEFAULT_V1.tie_breakers),
+)
+
+PROFILES: dict[str, ScoringProfile] = {
+    DEFAULT_V1.name: DEFAULT_V1,
+    RANKING_V1.name: RANKING_V1,
+}
 
 
 def get_profile(name: str) -> ScoringProfile:

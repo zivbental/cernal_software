@@ -48,6 +48,9 @@ def params(**overrides):
     [
         {"max_pairs": 0},
         {"max_stem_assignments": True},
+        {"max_variable_conflicts": -1},
+        {"max_variable_conflicts": True},
+        {"max_variable_conflicts": 19},
         {"max_attempts": 10001},
         {"accessibility_percentile": float("nan")},
         {"on_ceiling": float("inf")},
@@ -330,6 +333,7 @@ def test_build_tools_uses_shared_folder_and_requested_reduced_search(
     assert family.compute_barrier is False
     assert family.upper3_levels == ("WWW_AUA",)
     assert family.strengthen_lower3_only is True
+    assert family.max_variable_conflicts == 7
     assert len(list(family._axis_grid("chosen"))) == 10
     assert tools["constraints"].stem_order == "strong_lock_row"
     assert ProkaryoticAndSettings().stems_per_pair == 3
@@ -403,6 +407,48 @@ def test_seeded_pair_policy_is_reproducible_and_retains_the_declared_pool():
     assert first == second
     assert first[1]["eligible_pairs"] == 2
     assert first[1]["percentile_cutoff"] == pytest.approx(0.4)
+
+
+def test_stratified_pair_selection_records_available_and_selected_lengths():
+    scorer, genes, sequences, family = pair_scorer_fixture()
+    _plan, summary = scorer.compatible_pairs(
+        genes, sequences, [family], ProkaryoticAndSettings(max_pairs=1), Constraints(), seed=7
+    )
+    assert summary["pair_selection"] == "overlap_stratified"
+    assert summary["eligible_overlap_distribution"] == {4: 1, 5: 1}
+    assert summary["selected_overlap_distribution"] == {5: 1}
+    assert summary["overlap_coverage_complete"] is False
+
+
+def test_stratified_pairs_preserve_rare_lengths_and_best_accessibility_within_lengths():
+    from collections import Counter
+
+    # Scores intentionally put every rare length below the entire 4-nt pool.
+    rows = [
+        (1 - i / 200, (i,), None, None, length)
+        for i, length in enumerate([4] * 90 + [5] * 9 + [12])
+    ]
+    selected = TriggerScorer._overlap_stratified_pairs(rows, 10)
+    assert Counter(row[4] for row in selected) == {4: 8, 5: 1, 12: 1}
+    assert [row[1][0] for row in selected] == [*range(8), 90, 99]
+    # With enough slots, unconstrained proportional quotas can be attained exactly.
+    balanced = [
+        (1 - i / 200, (i,), None, None, length) for i, length in enumerate([4] * 80 + [5] * 20)
+    ]
+    assert Counter(r[4] for r in TriggerScorer._overlap_stratified_pairs(balanced, 10)) == {
+        4: 8,
+        5: 2,
+    }
+
+
+def test_stratified_pairs_report_coverage_limits_without_preferring_long_or_short_lengths():
+    rows = [
+        (score, (i,), None, None, length)
+        for i, (score, length) in enumerate([(0.9, 5), (0.8, 5), (0.7, 12), (0.6, 4)])
+    ]
+    assert [row[4] for row in TriggerScorer._overlap_stratified_pairs(rows, 2)] == [5, 12]
+    assert TriggerScorer._overlap_stratified_pairs(rows, 10) == rows
+    assert TriggerScorer._overlap_stratified_pairs([], 10) == []
 
 
 def test_no_compatible_pairs_are_an_explicit_empty_search_outcome():

@@ -21,10 +21,13 @@ uv python install 3.13
 **2. Keep the repository on the Linux filesystem.** Under `/home/...`, never under
 `/mnt/c/`. Performance and file-watching both degrade badly across the WSL boundary.
 
-Then:
+Install Node **22+** and npm inside WSL as well; do not reuse a Windows Node install.
+Then, from the repository root:
 
 ```bash
 ./do install
+./do install-frontend  # npm ci: installs exactly frontend/package-lock.json
+./do build-frontend
 ./do migrate
 ./do superuser
 ./do dev          # http://localhost:8000
@@ -33,12 +36,26 @@ Then:
 `.env` is optional — every setting has a working development default. Copy
 `.env.example` to `.env` when you need to change one.
 
+`./do install` runs `uv sync --locked --extra dev` and downloads checksum-verified
+runtime data. See [data installation](data-installation.md) for sources, cache/offline
+use and verification. Run `./do install-data --check` to validate installed data, or
+`./do install-data --offline` to install from a populated, verified cache. IBBIS
+screening software/databases and sequence-release authorization require separate
+provisioning; this setup does not provide them.
+
+SQLite needs no extra database service. A Postgres deployment also needs a provisioned
+server/database and a compatible psycopg driver, which is absent from the locked
+Python dependencies. Configure and test those separately before changing
+`DATABASE_URL` and applying migrations; a URL change alone is insufficient.
+
 ## Everyday commands
 
 | Command | What it does |
 |---|---|
+| `./do install` | Install locked Python dependencies and verified runtime data |
+| `./do install-data [args...]` | Install runtime data; `--offline` uses cache, `--check` verifies |
 | `./do dev` | Development server on :8000 |
-| `./do worker` | Background task worker — **required for analysis runs** (Step 3+) |
+| `./do worker` | Separately managed background worker; `./do dev` already starts one |
 | `./do test` | Run the test suite; extra args pass through to pytest |
 | `./do lint` | Check formatting and lint rules |
 | `./do format` | Auto-fix formatting and lint rules |
@@ -77,7 +94,7 @@ The React app lives in `frontend/` and is built into `src/static/app/`, which Dj
 serves same-origin (ADR 0003, ADR 0005).
 
 ```bash
-./do install-frontend    # once
+./do install-frontend    # npm ci; rerun after package-lock.json changes
 ./do build-frontend      # production build, served by ./do dev
 ./do frontend            # Vite dev server on :5173 with hot reload
 ```
@@ -87,8 +104,11 @@ For day-to-day frontend work run two terminals: `./do dev` and
 `/admin` to Django, so the browser still sees one origin and session cookies behave
 exactly as they will in production.
 
-`./do dev` alone serves the last build at :8000 — enough for backend work, and it does
-not need Node.
+`./do dev` serves the last build at :8000. If no build exists, it installs missing
+frontend dependencies with `npm ci` and runs the standard `npm run build` first, so
+that first run requires Node/npm. Once built, backend-only work does not need Node.
+The helper does not detect changes inside an existing `node_modules`: rerun
+`./do install-frontend` after pulling dependency-lock changes, then rebuild.
 
 ### Browser smoke test
 
@@ -101,7 +121,7 @@ sudo npx playwright install-deps chromium
 # or: sudo apt install libnspr4 libnss3 libasound2t64
 ```
 
-Then, with `./do dev` and `./do worker` running:
+Then, with `./do dev` running (it supervises the worker):
 
 ```bash
 ./do smoke                       # screenshots into frontend/e2e/shots/
@@ -160,7 +180,8 @@ Full list at [architecture.md §14](architecture.md). The ones that come up most
 
 **`database is locked`** — something holds a write transaction. WAL and a 10s busy
 timeout are configured (`apps/common/db.py`); if this recurs under normal use it is the
-signal to move to Postgres (ADR 0002).
+signal to evaluate Postgres (ADR 0002). Its server and psycopg driver must be
+provisioned separately; they are not part of the default installation.
 
 **Submitted runs never leave `QUEUED`** — check the worker status on the run screen.
 `./do dev` supervises the local worker; production needs its configured worker service.

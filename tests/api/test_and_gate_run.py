@@ -182,11 +182,22 @@ def test_an_and_run_goes_from_submission_to_saved_results_and_exports(
     assert folding["configuration"]["temperature_celsius"] == 37.0
     assert folding["sampling_model_override"] == {"uniq_ML": 1}
 
-    # The run manifest holds the candidates' sequences, so it is withheld with them.
+    # Sequence files are normal downloadable run outputs even when optional screening
+    # is unavailable. The manifest keeps its separate legacy release rule.
     artifacts = auth_client.get(f"/api/runs/{run_id}/artifacts").json()
     manifest = next(a for a in artifacts if a["kind"] == "run_manifest")
     assert auth_client.get(f"/api/artifacts/{manifest['id']}/download").status_code == 409
-    assert not any(a["kind"] in ("sequence_fasta", "genbank") for a in artifacts)
+    exports = [
+        artifact
+        for artifact in artifacts
+        if artifact["kind"] in ("sequence_fasta", "plasmid_fasta", "genbank")
+    ]
+    assert {artifact["kind"] for artifact in exports} == {
+        "sequence_fasta",
+        "plasmid_fasta",
+        "genbank",
+    }
+    assert all(artifact["download_available"] for artifact in exports)
 
 
 def test_sequences_of_an_and_candidate_are_released_only_through_the_screening_gate(

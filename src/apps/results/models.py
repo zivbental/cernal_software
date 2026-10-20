@@ -145,6 +145,7 @@ _KIND_INFO: dict[str, tuple[str, str]] = {
     "design_table": (ArtifactCategory.SUMMARY, "Candidate list (engine export)"),
     "run_manifest": (ArtifactCategory.SUMMARY, "Run configuration"),
     "sequence_fasta": (ArtifactCategory.SEQUENCES, "Switch sequence (FASTA)"),
+    "plasmid_fasta": (ArtifactCategory.PLASMIDS, "Plasmid sequence (FASTA)"),
     "genbank": (ArtifactCategory.PLASMIDS, "Plasmid sequence (GenBank)"),
     "structure_plot": (ArtifactCategory.DIAGRAMS, "Structure diagram"),
     "logic_graph": (ArtifactCategory.DIAGRAMS, "Logic circuit diagram"),
@@ -190,7 +191,7 @@ class Artifact(UUIDModel, CreatedAtModel):
     kind = models.CharField(
         max_length=50,
         help_text=(
-            "summary_table, design_table, run_manifest, sequence_fasta, genbank, "
+            "summary_table, design_table, run_manifest, sequence_fasta, plasmid_fasta, genbank, "
             "structure_plot, logic_graph, report — see _KIND_INFO for how each is "
             "categorized and labelled for download."
         ),
@@ -200,6 +201,7 @@ class Artifact(UUIDModel, CreatedAtModel):
     checksum_sha256 = models.CharField(max_length=64, editable=False)
     size_bytes = models.BigIntegerField(editable=False, default=0)
     sequence_free = models.BooleanField(default=False, editable=False)
+    release_required = models.BooleanField(default=True, editable=False)
 
     class Meta:
         ordering = ["kind", "id"]

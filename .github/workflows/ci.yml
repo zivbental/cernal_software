@@ -42,8 +42,8 @@ permissions:
 jobs:
   # Backend: lint, format, Django system checks and the full pytest suite.
   # Runs against LocalEngine, the only engine — so the suite needs the scientific
-  # stack, which `uv sync` provides (viennarna ships a prebuilt wheel) and the bundled
-  # reference transcriptomes, which are committed. Real folding makes this slower than
+  # stack, which `uv sync` provides (viennarna ships a prebuilt wheel), plus pinned
+  # reference assets installed from data/manifest.json. Real folding makes this slower than
   # the removed MockEngine was; that is the cost of the suite testing real science.
   backend:
     if: ${{ !inputs.release_only }}
@@ -67,6 +67,7 @@ jobs:
       # seven simultaneous merge conflicts on a 30k-line generated file. If this step
       # fails, run `uv lock` locally and commit the result — do not downgrade the flag.
       - run: uv sync --locked --extra dev
+      - run: uv run python tools/install_data.py --profile test
 
       - run: uv run ruff check .
       - run: uv run ruff format --check .
@@ -91,6 +92,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked --extra dev
+      - run: uv run python tools/install_data.py --profile test
       - run: >
           uv run --with requests --with 'cernal @ ./clients/python'
           pytest clients/python/tests -c clients/python/tests/pytest.ini -q
@@ -144,6 +146,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --locked --extra dev
+      - run: uv run python tools/install_data.py --profile test
       - run: >
           uv run pytest tests/test_worker_supervision.py tests/test_run_lifecycle.py
           tests/test_run_recovery.py
@@ -159,6 +162,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --locked --extra dev
+      - run: uv run python tools/install_data.py --profile test
       - name: Export locked production dependencies
         run: >
           uv export --locked --no-dev --no-emit-project --no-hashes
@@ -195,6 +199,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --locked --extra dev
+      - run: uv run python tools/install_data.py --profile test
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -219,6 +224,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --locked --extra dev
+      - run: uv run python tools/install_data.py --profile test
       - uses: r-lib/actions/setup-r@v2
       - name: R dependency system libraries
         run: sudo apt-get update && sudo apt-get install -y libuv1-dev libcurl4-openssl-dev

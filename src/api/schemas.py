@@ -232,6 +232,7 @@ class MaterializePublicDatasetIn(Schema):
 
 
 class RunIn(Schema):
+    name: str = Field(default="", max_length=120)
     input_mode: str = Field(
         default="de",
         description="de = expression table · direct = trigger mRNA · gene = reference gene",
@@ -260,10 +261,15 @@ class RunCounts(Schema):
     artifacts: int
 
 
+class RunNameIn(Schema):
+    name: str = Field(max_length=120)
+
+
 class RunStatusOut(Schema):
     """The polling response (docs/architecture.md §7.1). Deliberately cheap."""
 
     id: UUID
+    name: str = ""
     status: str
     stage: str
     progress_pct: int
@@ -283,6 +289,7 @@ class RunOut(ModelSchema):
         model = AnalysisRun
         fields = [
             "id",
+            "name",
             "status",
             "stage",
             "progress_pct",
@@ -556,7 +563,7 @@ class DesignEstimateOut(Schema):
     designs: int
     seconds: float | None = Field(default=None, description="Unknown until runtime calibration.")
     runtime_calibrated: bool = False
-    candidate_upper_bound: int
+    candidate_upper_bound: int | None
     confidence: str = Field(description='"rough" or "very rough" — never a guarantee.')
 
 

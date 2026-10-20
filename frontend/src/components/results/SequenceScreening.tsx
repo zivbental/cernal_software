@@ -33,10 +33,9 @@ export function SequenceScreening({ candidate }: { candidate: CandidateDetail })
   }, [candidate]);
   const view = checked?.candidate === candidate ? checked.view : screeningView("checking", "Checking the saved sequence against the reported identity.");
   const evidence = view.evidence;
-  const needsAttention = ["flagged", "error", "stale"].includes(view.state);
   return (
-    <section aria-labelledby={headingId} className={`my-4 rounded-xl border p-4 ${needsAttention ? "border-amber-500/50 bg-amber-500/5" : "border-border bg-card"}`}>
-      <h3 id={headingId} className="text-sm font-semibold">Sequence screening</h3>
+    <section aria-labelledby={headingId} className="my-4 rounded-xl border border-border bg-card p-4">
+      <h3 id={headingId} className="text-sm font-semibold">Sequence release status</h3>
       <p role="status" aria-live="polite" aria-atomic="true" className="mt-2 text-sm font-medium">{view.label}</p>
       <p className="mt-1 text-xs text-muted-foreground">{view.reason}</p>
       <p className="mt-2 text-xs">Switch sequence only. Full construct, payload, backbone and other sequences are not covered by this panel. Screening is not a safety guarantee or release authorization.</p>

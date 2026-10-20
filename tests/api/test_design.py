@@ -527,3 +527,21 @@ def test_top_n_requires_a_bounded_integer_before_submission(client, design_key, 
 def test_design_results_reject_invalid_top_n(auth_client, run, value):
     response = auth_client.get(f"/api/design/{run.id}/results?top_n={value}")
     assert response.status_code == 422, response.content
+
+
+def test_complete_evaluation_estimate_does_not_invent_an_upper_bound(client, design_key):
+    response = _post(
+        client,
+        design_key,
+        {
+            "trigger_sequence": TRIGGER,
+            "organism": "ecoli",
+            "budget": {"max_designs": None},
+            "scoring": {"base": "ranking"},
+            "top_n": 20,
+        },
+        dry_run="true",
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["estimate"].get("candidate_upper_bound") is None
+    assert response.json()["resolved"]["budget"]["max_designs"] is None

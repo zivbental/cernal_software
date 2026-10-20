@@ -516,9 +516,10 @@ Declared search budgets for the bacterial equilibrium compiler.
 | `max_pairs` | `int` | `8` |
 | `max_pair_candidates` | `int` | `50000` |
 | `max_pair_seed_matches` | `int` | `50000` |
-| `pair_selection` | `str` | `'top'` |
+| `pair_selection` | `str` | `'overlap_stratified'` |
 | `accessibility_percentile` | `float` | `50.0` |
 | `stems_per_pair` | `int` | `3` |
+| `max_variable_conflicts` | `int` | `7` |
 | `max_stem_assignments` | `int` | `2187` |
 | `max_attempts` | `int` | `160` |
 | `geometry` | `str` | `'naive'` |
@@ -967,7 +968,8 @@ Versioned scoring profiles.
 | `TREAT_AS_WORST` |  | `'worst'` |
 | `SKIP` |  | `'skip'` |
 | `DEFAULT_V1` |  | `ScoringProfile(name='default', version='v3-computational-proxies', metrics=[MetricSpec(…` |
-| `PROFILES` | `dict[str, ScoringProfile]` | `{DEFAULT_V1.name: DEFAULT_V1}` |
+| `RANKING_V1` |  | `replace(DEFAULT_V1, name='ranking', version='v1', hard_filters=[], metrics=list(DEFAULT…` |
+| `PROFILES` | `dict[str, ScoringProfile]` | `{DEFAULT_V1.name: DEFAULT_V1, RANKING_V1.name: RANKING_V1}` |
 
 | Status | Function | Purpose |
 | --- | --- | --- |
@@ -1232,7 +1234,7 @@ Synonymous-codon search and translation scoring for one host.
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, host: Host, usage_table: dict[str, float] \| None = None, *, folder: FoldEngine \| None = None, seed: int = 0, aisc: AisChinaCodons \| None = None) -> None` |  |
 | `BUILT` | `def versions(self) -> dict[str, str]` | What this tool's numbers depend on — written into the run's provenance. |
-| `BUILT` | `def variants(self, cds: str, target_pairing: str \| None = None, *, count: int = 4, avoid_enzymes: Sequence[str] = (), acceptable: Callable[[str], bool] \| None = None, on_rejected: Callable[[str, tuple[str, ...]], None] \| None = None, gc_range: tuple[float, float] = (30.0, 70.0), gc_window: int = 50) -> list[CodonVariant]` | Synonymous rewrites of a coding sequence: same protein, different bases. |
+| `BUILT` | `def variants(self, cds: str, target_pairing: str \| None = None, *, count: int = 4, avoid_enzymes: Sequence[str] = (), max_homopolymer: int \| None = None, acceptable: Callable[[str], bool] \| None = None, on_rejected: Callable[[str, tuple[str, ...]], None] \| None = None, gc_range: tuple[float, float] = (30.0, 70.0), gc_window: int = 50) -> list[CodonVariant]` | Synonymous rewrites of a coding sequence: same protein, different bases. |
 | `BUILT` | `def translation_score(self, cds: str) -> float \| None` | How well a sequence's codons suit the host: its Codon Adaptation Index. |
 
 ### `engine.gates.tools.folding` · S2, S4
@@ -1659,7 +1661,7 @@ Two-input AND toehold.
 
 | Status | Method | Purpose |
 | --- | --- | --- |
-| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer, *, kozak_layouts: tuple[str, ...] \| None = None, payload: str \| None = None, compute_barrier: bool = True, balanced_grid: bool = False, upper3_levels: tuple[str, ...] \| None = None, strengthen_lower3_only: bool = False, max_secondary_assignments: int \| None = None, seed: int = 0, should_stop: Callable[[], bool] \| None = None) -> None` |  |
+| `BUILT` | `def __init__(self, host: Host, folder: FoldEngine, translation: TranslationScorer, codons: CodonOptimizer, *, kozak_layouts: tuple[str, ...] \| None = None, payload: str \| None = None, compute_barrier: bool = True, balanced_grid: bool = False, upper3_levels: tuple[str, ...] \| None = None, strengthen_lower3_only: bool = False, max_secondary_assignments: int \| None = None, max_variable_conflicts: int \| None = None, seed: int = 0, should_stop: Callable[[], bool] \| None = None) -> None` |  |
 | `BUILT` | `def find_cross_gene_pairs(self, gene_a: str, transcript_a: str, gene_b: str, transcript_b: str, *, max_matches: int \| None = None, on_progress: Callable[[int, int], bool] \| None = None, regions_a: tuple[tuple[int, int], ...] \| None = None, regions_b: tuple[tuple[int, int], ...] \| None = None) -> Iterator['_CrossGenePair']` | Every maximal reverse-complementary run shared by two transcripts, both roles. |
 | `BUILT` | `def screen_trigger_window(self, window_a: str, main_pre: str \| None = None) -> tuple[str, ...]` | Sequence restrictions on ONE trigger window. Empty means clean. |
 | `BUILT` | `def stop_rescue_cost(self, main_pre: str) -> int \| None` | Wobble substitutions needed to clear every in-frame stop in ``main_pre``. |
@@ -1756,7 +1758,7 @@ A0 with a shortened toehold, for testing whether a shorter ``r2*`` binds better.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `version` |  | `'trimmed-toehold-4'` |
+| `version` |  | `'trimmed-toehold-5-near-x'` |
 | `TOEHOLD_TRIM` | `ClassVar[int]` | `8` |
 
 #### `class KimSecondaryArmToeholdAndGate(ProkaryoticToeholdAndGate)`
@@ -1765,7 +1767,7 @@ A0 with Kim 2019's verified inhibitory geometry on the secondary hairpin.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `version` |  | `'kim-secondary-5-strong-lock-row'` |
+| `version` |  | `'kim-secondary-6-near-x'` |
 | `SECONDARY_ARM_LEN` | `ClassVar[int]` | `20` |
 | `SECONDARY_INVASION_LEN` | `ClassVar[int]` | `17` |
 | `SECONDARY_CAP` | `ClassVar[str]` | `'AUA'` |
@@ -3566,7 +3568,7 @@ Dispatches trigger sets to the gate families that can realise them.
 | Status | Method | Purpose |
 | --- | --- | --- |
 | `BUILT` | `def __init__(self, families: list, validator: 'SwitchValidator', host: Host) -> None` |  |
-| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
+| `BUILT` | `def design(self, triggers: Iterable[TriggerCandidate], constraints: Constraints, *, on_incompatible: Callable[[str], None] \| None = None, on_invalid: Callable[[str], None] \| None = None, on_progress: Callable[[int, int], bool] \| None = None, on_validated: Callable[[bool], None] \| None = None) -> Iterator[GateDesign]` | Yield validated switch designs. |
 | `BUILT` | `def design_pairs(self, pair_plan: list[tuple[str, TriggerSet]], constraints: Constraints, *, max_attempts: int, on_progress: Callable[[int, int], bool], on_attempt: Callable[[GateDesign, ValidationResult], None], on_incompatible: Callable[[str], None], should_stop: Callable[[], bool] \| None = None) -> Iterator[GateDesign]` | Interleave explicitly compatible pairs, bounding invalid attempts too. |
 | `BUILT` | `def build_trigger_sets(self, triggers: Iterable[TriggerCandidate], constraints: Constraints) -> Iterator[TriggerSet]` | Combine individual triggers into the input sets a circuit can use. |
 
@@ -3629,7 +3631,7 @@ Writing engine output files.
 | --- | --- | --- |
 | `BUILT` | `def sha256_file(path: str \| Path) -> str` | Streaming SHA-256 of a file. Never loads the whole file into memory. |
 | `BUILT` | `def sha256_bytes(data: bytes) -> str` | SHA-256 of an in-memory payload, for content already held as bytes. |
-| `BUILT` | `def write_artifact(output_dir: str \| Path, name: str, content: str \| bytes, *, kind: str, media_type: str, candidate_ref: str \| None = None, sequence_free: bool = False) -> ArtifactRef` | Write one artifact and return its reference. |
+| `BUILT` | `def write_artifact(output_dir: str \| Path, name: str, content: str \| bytes, *, kind: str, media_type: str, candidate_ref: str \| None = None, sequence_free: bool = False, release_required: bool = True) -> ArtifactRef` | Write one artifact and return its reference. |
 
 ### `engine.client`
 
@@ -3670,7 +3672,7 @@ Runs the real scientific pipeline in-process.
 
 | Attribute | Type | Default |
 | --- | --- | --- |
-| `ENGINE_VERSION` |  | `'local-0.15.1-prokaryotic-and-equilibrium'` |
+| `ENGINE_VERSION` |  | `'local-0.15.2-prokaryotic-and-equilibrium'` |
 
 | Status | Method | Purpose |
 | --- | --- | --- |
@@ -3866,6 +3868,7 @@ A file the engine produced, addressed relative to ``JobRequest.output_dir``.
 | `checksum_sha256` | `str` |  |
 | `candidate_ref` | `str \| None` | `None` |
 | `sequence_free` | `bool` | `False` |
+| `release_required` | `bool` | `True` |
 
 #### `class CandidateResult`
 

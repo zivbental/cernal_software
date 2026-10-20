@@ -128,9 +128,7 @@ def test_a_researcher_completes_the_whole_workflow(
     )
     assert all(c["rejection_reason"] for c in rejected)
 
-    # 11. Download an artifact. Sequence-bearing artifacts exist only because
-    # ``screening_released`` opened the safety gate for this test; unprovisioned, the
-    # run yields the design table and audit manifests alone (pipeline.py).
+    # 11. Download one of the sequence artifacts generated for every accepted design.
     artifacts = client.get(f"/api/runs/{run['id']}/artifacts").json()
     fasta = next(a for a in artifacts if a["kind"] == "sequence_fasta")
     download = client.get(fasta["download_url"])

@@ -64,6 +64,7 @@ PROKARYOTIC_AND_KEYS = {
     "accessibility_percentile",
     "stems_per_pair",
     "max_stem_assignments",
+    "max_variable_conflicts",
     "max_attempts",
     "geometry",
     "closure_set",

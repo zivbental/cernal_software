@@ -74,6 +74,7 @@ built and tested; call them.
 | Rate limiting primitives | `ninja.throttling` — `BaseThrottle`, `SimpleRateThrottle`, `UserRateThrottle` | django-ninja 1.6.3, installed |
 | API-key auth primitives | `ninja.security.APIKeyHeader` | same |
 | Flat candidate × metric export | `GET /api/runs/{id}/export.csv` | [`api/routers/results.py`](../src/api/routers/results.py) |
+| Sequence-free run summary PDF | `GET /api/runs/{id}/export.pdf` | [`api/routers/results.py`](../src/api/routers/results.py) |
 
 **Verified, and it decides the whole design:** in django-ninja, CSRF is a property of
 `APIKeyCookie.__init__(csrf=True)` — *not* of `AuthBase` and *not* of `APIKeyHeader`.
@@ -1066,3 +1067,28 @@ in [hosted Ubuntu CI](https://github.com/zivbental/cernal_software/actions/runs/
 no registry publication is claimed. Scientific scores are uncalibrated proxies, and
 completion is separate from sequence screening/release. See the current roadmap and
 remediation ledger for verified behavior and open acceptance work.
+
+
+### New Circuit ranking-only workflow
+
+New Circuit selects `ranking` (`ranking-v1` in engine provenance). It uses the existing
+nine metric definitions, normalization, missing-value treatment, weights and tie-breakers,
+without quality hard filters. Leakage, folding energy and state separation remain scored
+computational proxies; they do not establish experimentally validated biological function.
+Structural/input validation, architecture constraints and sequence-screening/release gates
+still apply. Existing saved runs and the `default` API profile retain their original policy.
+
+New runs initially display up to 20 ranked evaluated candidates. Ranking precedes display
+truncation; all evaluated results remain stored and accessible through the full results view.
+New Circuit explicitly sends `budget.max_designs: null`: evaluate every generated
+structurally valid gate design with every requested output, then rank the full evaluated
+pool. This does not enumerate every theoretically possible sequence: upstream generation
+and architecture constraints still define the pool. No first-20 evaluation cutoff applies.
+An explicit integer 1..1000 remains available to API callers as a legacy compute budget;
+omitting the budget preserves the API default of 20. A truncated budgeted run records
+`design_budget.truncated` and warns that remaining generated designs were not evaluated.
+
+Successful runs record generated, valid, invalid and evaluated counts, failed evaluations,
+and whether evaluation completed. Evaluation errors produce a failed run, not a partial
+successful ranking; cancelled/worker-interrupted runs must not be interpreted as complete.
+The display limit is independent of computation. Complete evaluation may take longer.

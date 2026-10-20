@@ -42,42 +42,221 @@ staticfiles/
 desktop.ini
 *:Zone.Identifier
 
-# --- A0 full-sweep outputs (regenerable; hundreds of MB) ---
-# The small result files under toehold_and/results/ ARE committed on purpose: they are
-# the evidence behind the report, and all 72 of them come to 4.1 MB. The full sweep is a
-# different kind of object. sweep_cheap.csv is ~450 MB at 707 of 1036 trigger pairs and
-# ~650 MB complete, and git keeps every version of every committed file forever, so
-# adding it once would grow this 21 MB repo roughly thirtyfold and there would be no
-# clean way to take it back. It is regenerable from full_sweep.py plus the FASTA.
-# Listed by exact name rather than as sweep_* so the small, deliberately-pinned
-# sweep_smoke_cheap.csv and sweep_smoke_folded.csv fixtures stay tracked.
-src/engine/gates/notebooks/toehold_and/results/sweep_cheap.csv
-src/engine/gates/notebooks/toehold_and/results/sweep_folded.csv
-# The temporary copy --resume writes while trimming a partial file.
-src/engine/gates/notebooks/toehold_and/results/*.trimmed
-# The compact Parquet copy sweep_analysis.py --build derives from the CSV above.
-src/engine/gates/notebooks/toehold_and/results/*_analysis.parquet
-# Per-phase sweep outputs from run_night.ps1 and its logs. Same reasoning as sweep_*:
-# regenerable, and the folded files run to hundreds of MB across six shards.
-src/engine/gates/notebooks/toehold_and/results/p[0-9]_cheap.csv
-src/engine/gates/notebooks/toehold_and/results/p[0-9]_folded*.csv
-# The same objects under the phase prefixes the rules above never learned about. This gap is why
-# 2,798 MB across 362 files got committed under results/ against the budget stated above: the
-# ignore rules were written for sweep_* and p<digit>_*, and the k1_, a1_ and wob_ phases went in
-# unnoticed. Twelve of those blobs are 109-134 MB, over GitHub's 100 MB per-file limit, which is
-# what makes this branch unpushable.
-#
-# wob_cheap_0..5.csv are BYTE-IDENTICAL to k1_cheap_0..5.csv -- same blob SHAs, 806 MB of tracked
-# paths carrying nothing new.
-src/engine/gates/notebooks/toehold_and/results/k1_cheap_*.csv
-src/engine/gates/notebooks/toehold_and/results/k1_folded_*.csv
-src/engine/gates/notebooks/toehold_and/results/a1_cheap_*.csv
-src/engine/gates/notebooks/toehold_and/results/a1top_cheap.csv
-src/engine/gates/notebooks/toehold_and/results/wob_cheap_*.csv
-src/engine/gates/notebooks/toehold_and/results/wob_folded_*.csv
-src/engine/gates/notebooks/toehold_and/results/logs/
-src/engine/gates/notebooks/toehold_and/results/*_vista*.csv
-src/engine/gates/notebooks/toehold_and/results/toehold.csv
+# Generated research output is opt-in: only the explicit small fixtures/summaries below
+# stay in source. Large historical files are indexed in data/research-archive.json.
+src/engine/gates/notebooks/toehold_and/results/*
+!src/engine/gates/notebooks/toehold_and/results/accessibility_local.csv
+!src/engine/gates/notebooks/toehold_and/results/accessibility_penalty.csv
+!src/engine/gates/notebooks/toehold_and/results/accessibility_s1.csv
+!src/engine/gates/notebooks/toehold_and/results/accessibility_smoke.csv
+!src/engine/gates/notebooks/toehold_and/results/augz_libraries.csv
+!src/engine/gates/notebooks/toehold_and/results/barrier2_log.txt
+!src/engine/gates/notebooks/toehold_and/results/barriers.csv
+!src/engine/gates/notebooks/toehold_and/results/bulge_geometry.csv
+!src/engine/gates/notebooks/toehold_and/results/bulge_log.txt
+!src/engine/gates/notebooks/toehold_and/results/bulge_smoke.csv
+!src/engine/gates/notebooks/toehold_and/results/dgbind_libraries.csv
+!src/engine/gates/notebooks/toehold_and/results/fact_log.txt
+!src/engine/gates/notebooks/toehold_and/results/factorisation.csv
+!src/engine/gates/notebooks/toehold_and/results/fourstate_x260_state00.svg
+!src/engine/gates/notebooks/toehold_and/results/fourstate_x260_state01.svg
+!src/engine/gates/notebooks/toehold_and/results/fourstate_x260_state10.svg
+!src/engine/gates/notebooks/toehold_and/results/g13.csv
+!src/engine/gates/notebooks/toehold_and/results/g13_objectives.csv
+!src/engine/gates/notebooks/toehold_and/results/g168.csv
+!src/engine/gates/notebooks/toehold_and/results/g168_bare.csv
+!src/engine/gates/notebooks/toehold_and/results/green2_log.txt
+!src/engine/gates/notebooks/toehold_and/results/green_calibration.csv
+!src/engine/gates/notebooks/toehold_and/results/green_full.csv
+!src/engine/gates/notebooks/toehold_and/results/green_ied.csv
+!src/engine/gates/notebooks/toehold_and/results/green_log.txt
+!src/engine/gates/notebooks/toehold_and/results/green_log2.txt
+!src/engine/gates/notebooks/toehold_and/results/green_objectives.csv
+!src/engine/gates/notebooks/toehold_and/results/green_s3.csv
+!src/engine/gates/notebooks/toehold_and/results/green_s3b.csv
+!src/engine/gates/notebooks/toehold_and/results/green_smoke.csv
+!src/engine/gates/notebooks/toehold_and/results/green_toe.csv
+!src/engine/gates/notebooks/toehold_and/results/green_v2.csv
+!src/engine/gates/notebooks/toehold_and/results/kin2_log.txt
+!src/engine/gates/notebooks/toehold_and/results/kin_log.txt
+!src/engine/gates/notebooks/toehold_and/results/kinetic.csv
+!src/engine/gates/notebooks/toehold_and/results/kinetic_pathway.csv
+!src/engine/gates/notebooks/toehold_and/results/kinetic_v2.csv
+!src/engine/gates/notebooks/toehold_and/results/kinpath_log.txt
+!src/engine/gates/notebooks/toehold_and/results/locked_x260_state00.svg
+!src/engine/gates/notebooks/toehold_and/results/locked_x260_state01.svg
+!src/engine/gates/notebooks/toehold_and/results/locked_x260_state10.svg
+!src/engine/gates/notebooks/toehold_and/results/metric_correlations.csv
+!src/engine/gates/notebooks/toehold_and/results/mod2_log.txt
+!src/engine/gates/notebooks/toehold_and/results/mod_log.txt
+!src/engine/gates/notebooks/toehold_and/results/mod_smoke.csv
+!src/engine/gates/notebooks/toehold_and/results/modifications.csv
+!src/engine/gates/notebooks/toehold_and/results/nuc_log.txt
+!src/engine/gates/notebooks/toehold_and/results/nucleation.csv
+!src/engine/gates/notebooks/toehold_and/results/obj_full_prev_0.csv
+!src/engine/gates/notebooks/toehold_and/results/obj_full_prev_1.csv
+!src/engine/gates/notebooks/toehold_and/results/obj_full_prev_2.csv
+!src/engine/gates/notebooks/toehold_and/results/obj_full_prev_3.csv
+!src/engine/gates/notebooks/toehold_and/results/obj_full_prev_4.csv
+!src/engine/gates/notebooks/toehold_and/results/obj_rescued_folded_0.csv
+!src/engine/gates/notebooks/toehold_and/results/objective_smoke.csv
+!src/engine/gates/notebooks/toehold_and/results/offtarget.csv
+!src/engine/gates/notebooks/toehold_and/results/offtarget2.csv
+!src/engine/gates/notebooks/toehold_and/results/offtarget_folded.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_acc.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_all.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_all3.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_all4.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_all_2.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_all_3.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_am.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_anygeom.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_assign.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_assign2.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_assign3.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_assign4.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_backoff.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_barrier3.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_bench.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_best.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_both.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_controlled.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_designs.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_distinct.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_diverse.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_energy.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_fix.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_k1.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_kimarm.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_lower3.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_maxam.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_maxam2.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_mixed.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_nine.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_nobackoff.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_obj.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_obj2.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_obj3.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_pinned.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_pinned.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_pinned_2.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_recovered.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_report.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_report4.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_sep3.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_sep3_am.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_sep3_pinned.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_sep_mixed.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_six.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_three.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_today.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_today_2.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_today_3.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_today_4.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_today_5.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_today_6.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_trigderived.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_v10.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_v11.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_v12.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_v13.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_v6.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_v7.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_v8.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_v8_2.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_v9.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_v9_2.txt
+!src/engine/gates/notebooks/toehold_and/results/panel_var.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_wobble.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_works.csv
+!src/engine/gates/notebooks/toehold_and/results/panel_x117_state00.fa
+!src/engine/gates/notebooks/toehold_and/results/panel_x117_state01.fa
+!src/engine/gates/notebooks/toehold_and/results/panel_x117_state10.fa
+!src/engine/gates/notebooks/toehold_and/results/panel_x117_state11.fa
+!src/engine/gates/notebooks/toehold_and/results/panel_x448_state00.fa
+!src/engine/gates/notebooks/toehold_and/results/panel_x448_state01.fa
+!src/engine/gates/notebooks/toehold_and/results/panel_x448_state10.fa
+!src/engine/gates/notebooks/toehold_and/results/panel_x448_state11.fa
+!src/engine/gates/notebooks/toehold_and/results/partial_closure.csv
+!src/engine/gates/notebooks/toehold_and/results/partial_log.txt
+!src/engine/gates/notebooks/toehold_and/results/prev_folded_0.csv
+!src/engine/gates/notebooks/toehold_and/results/prev_folded_1.csv
+!src/engine/gates/notebooks/toehold_and/results/prev_folded_4.csv
+!src/engine/gates/notebooks/toehold_and/results/recode_quality.csv
+!src/engine/gates/notebooks/toehold_and/results/report_x448_aug_paired_state00.svg
+!src/engine/gates/notebooks/toehold_and/results/report_x448_aug_paired_state01.svg
+!src/engine/gates/notebooks/toehold_and/results/report_x448_aug_paired_state10.svg
+!src/engine/gates/notebooks/toehold_and/results/report_x448_baseline_state00.svg
+!src/engine/gates/notebooks/toehold_and/results/report_x448_baseline_state01.svg
+!src/engine/gates/notebooks/toehold_and/results/report_x448_baseline_state10.svg
+!src/engine/gates/notebooks/toehold_and/results/rescued_folded_0.csv
+!src/engine/gates/notebooks/toehold_and/results/role_swap.csv
+!src/engine/gates/notebooks/toehold_and/results/survey_0000.csv
+!src/engine/gates/notebooks/toehold_and/results/survey_0200.csv
+!src/engine/gates/notebooks/toehold_and/results/survey_0400.csv
+!src/engine/gates/notebooks/toehold_and/results/survey_0600.csv
+!src/engine/gates/notebooks/toehold_and/results/survey_0800.csv
+!src/engine/gates/notebooks/toehold_and/results/survey_1000.csv
+!src/engine/gates/notebooks/toehold_and/results/survey_log_0.txt
+!src/engine/gates/notebooks/toehold_and/results/survey_log_1000.txt
+!src/engine/gates/notebooks/toehold_and/results/survey_log_200.txt
+!src/engine/gates/notebooks/toehold_and/results/survey_log_400.txt
+!src/engine/gates/notebooks/toehold_and/results/survey_log_600.txt
+!src/engine/gates/notebooks/toehold_and/results/survey_log_800.txt
+!src/engine/gates/notebooks/toehold_and/results/sweep_smoke_cheap.csv
+!src/engine/gates/notebooks/toehold_and/results/sweep_smoke_folded.csv
+!src/engine/gates/notebooks/toehold_and/results/variants.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_am.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_am_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_anygeom.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_anygeom_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_assign.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_assign2.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_assign2_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_assign3.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_assign3_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_assign4.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_assign4_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_assign_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_backoff.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_backoff_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_bench.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_bench_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_best.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_best_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_diverse.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_diverse_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_kimarm.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_kimarm_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_lower3.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_lower3_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_maxam.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_maxam2.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_maxam2_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_maxam_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_mixed.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_mixed_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_nobackoff.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_nobackoff_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_pinned.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_pinned_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_sep3.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_sep3_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_sep_mixed.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_sep_mixed_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_six.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_three.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_three_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_trigderived.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_trigderived_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_var.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_var_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_wobble.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_wobble_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_works.csv
+!src/engine/gates/notebooks/toehold_and/results/variants_panel_works_transcripts.csv
+!src/engine/gates/notebooks/toehold_and/results/vista_objectives.csv
+!src/engine/gates/notebooks/toehold_and/results/window_candidates.csv
 
 # Report build products: regenerate with report/panel_data.py and report/panel_page.py
 src/engine/gates/notebooks/toehold_and/report/panel_data.json
@@ -115,3 +294,8 @@ docs/assets/barrier_superseded/designs_*.csv
 docs/assets/barrier_superseded/best_*.csv
 docs/assets/barrier_superseded/log_*.txt
 frontend/test-results/
+
+# Installed, byte-pinned reference packages (python tools/install_data.py).
+/src/engine/data/transcriptomes/*
+/vendor/ais-china-codon-optimization-v2/data/
+/src/apps/expression/catalog/**/*.csv

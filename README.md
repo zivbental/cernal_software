@@ -12,6 +12,10 @@ Start with [the documentation index](docs/README.md), [architecture](docs/archit
 and [current limitations](docs/ROADMAP.md). Signed-in help lives at `/use-cases`, `/guide`
 and `/faq`; [the maintainer map](docs/user-help.md) connects those pages to source.
 
+For production preparation, configuration, preflight and recovery, use the
+[authoritative operations runbook](docs/operations.md). `./do production --help`
+lists the preparation commands; service activation is a separate operator step.
+
 ## Current application capabilities
 
 `GET /api/version` is the installed build's capability contract. It exposes supported
@@ -52,20 +56,15 @@ These commands target Linux or Linux inside WSL2. Install Node and uv inside tha
 environment and keep its checkout and dependencies there. Native Windows engine/tests
 support does not imply application-worker support: the locked Django Q2 worker requires
 `fork`. Run the application server and worker inside Linux/WSL2.
-The separately proposed [F1 Windows/WSL worker guide](https://github.com/zivbental/cernal_software/blob/027066db141189cad8eb79bc1344c1a90d01aac4/docs/windows-worker.md)
-provides operational instructions and queued-worker acceptance evidence.
-
-Audit integration order: this quickstart requires the standard clean-build fix in
-[PR 70](https://github.com/zivbental/cernal_software/pull/70); merge it before F5.
-[PR 76](https://github.com/zivbental/cernal_software/pull/76) supplies the Windows/WSL
-operational guide and worker acceptance checks. These are explicit integration
-dependencies, not claims that either change is already on the audit baseline.
+The [Windows/WSL worker guide](docs/windows-worker.md) provides operational
+instructions and a real queued-worker acceptance test.
 
 ```bash
 git clone https://github.com/zivbental/cernal_software.git
 cd cernal_software
 git rev-parse HEAD                 # record the exact revision being tested
 uv sync --locked --extra dev
+uv run --locked python tools/install_data.py
 (cd frontend && npm ci && npm run build)
 uv run python manage.py migrate    # fresh checkout: disposable var/cernal.db
 uv run python manage.py check
@@ -74,8 +73,13 @@ uv run python manage.py createsuperuser
 ```
 
 The standard build generates the route tree before typechecking; no prior generated
-files or `build:fast` bootstrap are required after PR 70. Installing frontend
+files or `build:fast` bootstrap are required. Installing frontend
 dependencies explicitly avoids relying on an existing `node_modules` folder.
+`./do install` performs the locked Python sync and verified data installation;
+`./do install-frontend` runs `npm ci`. See [data installation](docs/data-installation.md)
+for downloaded sources, cache/offline use and `./do install-data --check` verification.
+IBBIS screening software/databases and sequence-release authorization require separate
+provisioning and are not enabled by this installation.
 An empty `.env` uses development defaults; [`.env.example`](.env.example) documents them.
 Use a fresh checkout for experiments: database, media, logs and generated artifacts live
 under gitignored `var/`. Do not point a smoke run at a production database.
@@ -89,8 +93,8 @@ available manifest alongside any reported computational result.
 
 For frontend hot reload, `./do frontend` starts Vite on :5173 and proxies `/api` to
 :8000. See [development](docs/development.md) for additional commands.
-`./do build-frontend` calls that same standard `npm run build`, so it also receives
-the PR 70 fix without a separate task-runner implementation.
+`./do build-frontend` calls that same standard `npm run build`. If a build is missing,
+`./do dev` installs missing frontend dependencies with `npm ci` and builds it first.
 
 ### Verify the checkout
 
@@ -123,11 +127,14 @@ As checked on **2026-10-12** against main `2baa75a7f0dc89f9aafac58dad50da5982f3f
   frontend screening contract/UI**. It does not implement or invoke Common Mechanism
   or establish full-construct screening or release authorization.
 
-GitHub source and [`.gitlab-ci.yml`](.gitlab-ci.yml) are present. Dedicated CERNAL
-iGEM GitLab software hosting has **not been verified**: the team's exact software
-project URL/namespace and a matching commit plus pipeline evidence are still needed.
-A wiki repository or a collaborator's GitLab project is not that evidence. See the
-[F5 verification record](docs/evidence/audit-f5-documentation-2026-10-12.md).
+GitHub source and [`.gitlab-ci.yml`](.gitlab-ci.yml) are present. As checked on
+**2026-10-19 at 02:42 UTC**, the official
+[CERNAL iGEM GitLab project](https://gitlab.igem.org/2026/software/tau-israel/cernal)
+contained only the four-file starter template at main commit
+`3fe39b407120b501421be3f82e44b73c6d741783`; the application had not yet been published
+there. A matching software commit and pipeline evidence are still needed to verify
+the mirror. The [F5 verification record](docs/evidence/audit-f5-documentation-2026-10-12.md)
+describes the earlier audit state.
 
 ## Layout and boundaries
 

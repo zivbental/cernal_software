@@ -68,6 +68,7 @@ from engine import sequences as sq
 from engine.artifacts import sha256_bytes, write_artifact
 from engine.common_mechanism import configured_final_screens
 from engine.contract import (
+    FAILED,
     HIGHER_BETTER,
     INPUT_DE,
     INPUT_DIRECT,
@@ -103,7 +104,7 @@ from engine.domain import (
     SelectedGene,
     TriggerCandidate,
 )
-from engine.errors import ChecksumMismatchError, InputValidationError, JobCancelled
+from engine.errors import ChecksumMismatchError, EngineError, InputValidationError, JobCancelled
 from engine.gates.base import GateFamily
 from engine.gates.registry import get_family
 from engine.gates.toehold import (
@@ -116,7 +117,7 @@ from engine.gates.tools.codons import CodonOptimizer
 from engine.gates.tools.folding import FoldEngine
 from engine.gates.tools.translation import TranslationScorer
 from engine.inputs import parse_dge_table
-from engine.safety import SequenceSubmission, fail_closed_release, stored_release_allowed
+from engine.safety import SequenceSubmission, fail_closed_release
 from engine.scoring.normalize import build_metrics, failed_filter, rank_candidates, weighted_score
 from engine.scoring.profiles import HardFilter, ScoringProfile, resolve_profile
 from engine.stages.circuits import CircuitDesigner, ConfusionEvaluator
@@ -395,6 +396,7 @@ def build_tools(
                     }[prok_settings.upper3_set],
                     strengthen_lower3_only=True,
                     max_secondary_assignments=prok_settings.max_stem_assignments,
+                    max_variable_conflicts=prok_settings.max_variable_conflicts,
                     seed=request.seed if request.seed is not None else 0,
                     should_stop=should_stop,
                 )
@@ -707,9 +709,16 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
         switch_progress[0] = 32 + 44 * completed // max(total, 1)
         return on_progress(switch_progress[0], "Designing switches")
 
+    validation_counts = Counter()
+
+    def record_validation(valid: bool) -> None:
+        validation_counts["generated"] += 1
+        validation_counts["valid" if valid else "invalid"] += 1
+
     attempted_designs = []
 
     def record_attempt(design, validation) -> None:
+        record_validation(validation.ok)
         attempted_designs.append(
             {
                 "design_id": design.design_id,
@@ -738,6 +747,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             on_incompatible=_on_incompatible,
             on_invalid=_on_invalid,
             on_progress=report_switch_progress,
+            on_validated=record_validation,
         )
     )
     max_designs = (request.params.get("budget") or {}).get("max_designs", 20)
@@ -746,7 +756,7 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
     for index, design in enumerate(designs):
         if search_should_stop():
             break
-        if index >= max_designs:
+        if max_designs is not None and index >= max_designs:
             design_budget_exhausted = True
             warnings.append(
                 f"Design compute budget reached: {max_designs} validated gate designs "
@@ -786,19 +796,50 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
                     "evaluation_context": evaluation_context,
                 },
             )
-            if is_prok_and:
-                measured = family.measure_design(
-                    evaluated_design,
-                    on_ceiling=prok_settings.on_ceiling,
-                    compute_barrier=False,
-                )
-                raw = family.metrics_from_measurement(evaluated_design, measured)
-                diagnostics = family.diagnostics_from_measurement(evaluated_design, measured)
-                diagnostics["ranking_profile"] = dataclasses.asdict(profile)
-            else:
-                raw = family.evaluate_design(evaluated_design)
-                diagnostics = (
-                    family.diagnostics(evaluated_design) if hasattr(family, "diagnostics") else None
+            try:
+                if is_prok_and:
+                    measured = family.measure_design(
+                        evaluated_design,
+                        on_ceiling=prok_settings.on_ceiling,
+                        compute_barrier=False,
+                    )
+                    raw = family.metrics_from_measurement(evaluated_design, measured)
+                    diagnostics = family.diagnostics_from_measurement(evaluated_design, measured)
+                    diagnostics["ranking_profile"] = dataclasses.asdict(profile)
+                else:
+                    raw = family.evaluate_design(evaluated_design)
+                    diagnostics = (
+                        family.diagnostics(evaluated_design)
+                        if hasattr(family, "diagnostics")
+                        else None
+                    )
+            except JobCancelled:
+                raise
+            except EngineError as exc:
+                return JobResult(
+                    schema_version=SCHEMA_VERSION,
+                    engine_version="",
+                    status=FAILED,
+                    error=f"Evaluation incomplete; no complete ranking was produced: {exc}",
+                    params=request.params,
+                    input_checksum=request.input_checksum,
+                    warnings=[
+                        f"Incomplete evaluation: {validation_counts['generated']} generated gates, "
+                        f"{validation_counts['invalid']} invalid gates, {len(scored)} evaluated "
+                        "candidates, 1 failed evaluation. Remaining pool size is unknown."
+                    ],
+                    scientific_provenance={
+                        "scoring_profile": profile.name,
+                        "scoring_profile_version": profile.version,
+                        "evaluation": {
+                            "complete": False,
+                            "generated_gate_designs": validation_counts["generated"],
+                            "invalid_gate_designs": validation_counts["invalid"],
+                            "valid_gate_designs": validation_counts["valid"],
+                            "evaluated_candidates": len(scored),
+                            "failed_evaluations": 1,
+                        },
+                    },
                 )
             metrics = build_metrics(raw, profile)
             breach = failed_filter(raw, profile)
@@ -1010,6 +1051,14 @@ def run_pipeline(request: JobRequest, on_progress: ProgressFn) -> JobResult:
             "experimental_validation": "unavailable",
             "output_semantics": "alternative_single_payload_constructs_cross_product",
             "off_target_screen": "unmeasured",
+            "evaluation": {
+                "complete": not design_budget_exhausted,
+                "generated_gate_designs": validation_counts["generated"],
+                "invalid_gate_designs": validation_counts["invalid"],
+                "valid_gate_designs": validation_counts["valid"],
+                "evaluated_candidates": len(scored),
+                "failed_evaluations": 0,
+            },
             "design_budget": {
                 "max_designs": max_designs,
                 "evaluated_gate_designs": evaluated_gate_designs,
@@ -2362,12 +2411,11 @@ def _write_artifacts(
     *,
     on_progress: ProgressFn | None = None,
 ) -> list[ArtifactRef]:
-    """A design table, and — only once the safety gate releases — a FASTA, a GenBank
-    and an SBOL document per accepted candidate (docs/plasmids.md, E5a; ADR 0008).
+    """A design table plus FASTA, GenBank and SBOL files for every accepted candidate.
 
-    The sequence-bearing exports sit below the release check deliberately: with no
-    local screening adapter provisioned, ``fail_closed_release`` holds every sequence
-    and this writes the design table and the audit manifests alone.
+    Screening evidence is still recorded alongside each construct so researchers can
+    inspect it, but an unavailable optional screening adapter must not prevent the run
+    from producing its core sequence deliverables.
 
     ``plasmids`` is keyed by candidate ref, from the same run that produced
     ``candidates`` — every accepted candidate has an entry (``_build_plasmid`` never
@@ -2665,8 +2713,6 @@ def _write_artifacts(
                 ),
             ]
         )
-        if not stored_release_allowed(candidate.design):
-            continue
         fasta = (
             f">{candidate.ref} {candidate.gate_family} {candidate.logic_type} "
             f"rank={candidate.rank}\n{candidate.design['switch_sequence']}\n"
@@ -2679,6 +2725,27 @@ def _write_artifacts(
                 kind="sequence_fasta",
                 media_type="text/x-fasta",
                 candidate_ref=candidate.ref,
+                release_required=False,
+            )
+        )
+        plasmid_sequence = plasmid.plasmid.sequence
+        plasmid_fasta = (
+            f">{candidate.ref} full_plasmid rank={candidate.rank} length={len(plasmid_sequence)}\n"
+            + "\n".join(
+                plasmid_sequence[index : index + 70]
+                for index in range(0, len(plasmid_sequence), 70)
+            )
+            + "\n"
+        )
+        artifacts.append(
+            write_artifact(
+                output_dir,
+                f"plasmids/{candidate.ref}.fasta",
+                plasmid_fasta,
+                kind="plasmid_fasta",
+                media_type="text/x-fasta",
+                candidate_ref=candidate.ref,
+                release_required=False,
             )
         )
         artifacts.append(
@@ -2689,11 +2756,10 @@ def _write_artifacts(
                 kind="genbank",
                 media_type="text/plain",
                 candidate_ref=candidate.ref,
+                release_required=False,
             )
         )
-        # SBOL 3 alongside GenBank (ADR 0008). Deliberately inside this block, below the
-        # release check above: an SBOL document carries the full construct sequence, so
-        # emitting it before the gate would hand out exactly what the gate withholds.
+        # SBOL 3 accompanies the FASTA and GenBank representations of this construct.
         artifacts.append(
             write_artifact(
                 output_dir,
@@ -2702,6 +2768,7 @@ def _write_artifacts(
                 kind="sbol",
                 media_type="application/n-triples",
                 candidate_ref=candidate.ref,
+                release_required=False,
             )
         )
 

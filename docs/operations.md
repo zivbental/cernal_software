@@ -1,7 +1,7 @@
 # Operating CERNAL on one Linux VM
 
 Status: executable service templates and locally tested recovery code; **not a
-production deployment certification**. Use the combined QA remediation branch. These
+production deployment certification**. Use a reviewed, recorded source revision. These
 instructions assume Python 3.13, uv, Node 22, Caddy, systemd, a local persistent disk,
 and a dedicated `cernal` service account. The operator chooses and provisions the VM,
 DNS, TLS, backup destination and alert receiver. No cloud credentials are included.
@@ -28,31 +28,113 @@ passes through caller-supplied headers. Ordinary `X-Forwarded-For` is not truste
 
 ## First installation
 
-1. Create the unprivileged `cernal` account, install a reviewed source revision at
-   `/opt/cernal`, and create `/opt/cernal/var/{logs,media,result-staging,worker-status}`
-   owned by that account. Source and virtual environment may remain operator-owned;
-   the service only needs write access to `var/`.
-2. In `/opt/cernal`, run `uv sync --locked --extra dev`, then in `frontend/` run
-   `npm ci`, `npm run build:fast`, `npm run check`, and `npm run build`.
-3. Copy `deploy/cernal.env.example` to `/etc/cernal/cernal.env`, permissions 0640,
-   owner root, group cernal. Replace the secret, hostname and CSRF origin. Generate the
-   secret with `uv run python -c 'import secrets; print(secrets.token_urlsafe(64))'`.
-   Keep reviewer login disabled for real user data. Do not place secrets in Git.
-4. Load these trusted shell-compatible settings into the operator's environment
-   (`set -a; . /etc/cernal/cernal.env; set +a`). Run as the service account with the same
-   environment: `.venv/bin/python manage.py migrate --noinput`,
-   `.venv/bin/python manage.py collectstatic --noinput`,
-   `.venv/bin/python manage.py check --deploy`, and
-   `.venv/bin/python manage.py createsuperuser`.
-5. Install the three `deploy/cernal-*.service` files under `/etc/systemd/system/`.
-   Review the fixed `/opt/cernal` paths. Install `deploy/Caddyfile`, replacing its
-   hostname, and validate it with `caddy validate --config /etc/caddy/Caddyfile`.
-6. Run `systemctl daemon-reload`, then `systemctl enable --now cernal-web
-   cernal-worker cernal-reconciler`. Start/reload Caddy after DNS and firewall setup.
-7. Through HTTPS, verify `/api/health` is 200, `/api/ready` is 200, login works, a real
-   direct design advances from QUEUED to COMPLETED, and its authorized artifact is
-   downloadable. Verify a different account cannot download it. Record the revision,
-   duration and result before opening service to users.
+This is the authoritative production quickstart. `./do install` remains a development
+dependency/data convenience command, not a production deployment. The commands below
+prepare the current checkout; they never install/start system services, change firewall
+rules, configure DNS/TLS, restore a backup, or provision IBBIS.
+
+1. An operator separately provisions Linux, Python 3.13, uv, Node 22+, npm, Git,
+   Caddy and the dedicated service account. Put the reviewed checkout at its final
+   absolute path, for example `/opt/cernal`. Run preparation as an account allowed to
+   write that checkout and its runtime directories; arrange ownership for the service
+   account before service activation. Runtime directories are created before Django
+   initializes logging, including on a fresh production settings import.
+2. Render configuration and templates without creating credentials or a database:
+
+   ```sh
+   ./do production prepare --domain cernal.example.org --output /opt/cernal/var/deployment
+   ```
+
+   `--root`, `--user`, `--group`, and `--dataset-mib` parameterize all templates
+   consistently. Root must contain `manage.py`; domain must be a DNS hostname.
+   Deployment paths must be absolute POSIX paths without spaces, `..`, or shell/systemd
+   metacharacters: unsupported paths fail explicitly rather than being misquoted.
+   Generated files are mode 0600. Review them; existing files and secrets are preserved.
+   A conflicting domain/path/upload limit or edited unit/Caddyfile stops preparation
+   before files are written. Reconcile such changes manually or render to a new directory.
+   Managed checkout, configuration, output and runtime paths must not contain symlinks,
+   including dangling links or linked ancestors. Database and log destinations are
+   checked before preparation or migration. If a system uses a linked path (for example
+   an alias for a mounted disk), supply its literal canonical location instead; the
+   tool deliberately refuses to guess the intended target. Keep these directories
+   operator-controlled and do not change paths concurrently with preparation.
+3. In `var/deployment/cernal.env`, replace `SECRET_KEY` with an operator-managed random
+   secret of at least 50 characters, preserving it across upgrades/restores. No default
+   admin account/password or real secret is generated. Reviewer login is enabled by
+   default, including production: visitors can sign in without a password to the same
+   unprivileged reviewer account, share its history, and create API keys. Set
+   `REVIEWER_LOGIN_ENABLED=False` to disable new reviewer logins; existing configuration
+   files are preserved, and an explicit False overrides inherited environment or `.env`
+   values. Disabling login does not revoke existing sessions or API keys; revoke those
+   separately when withdrawing access. Use False for deployments holding private data.
+   Values are literal dotenv entries (quote values containing spaces); no shell code,
+   command substitution or environment expansion is evaluated. Do not commit this file.
+4. For a genuinely new database only:
+
+   ```sh
+   ./do production install --config var/deployment/cernal.env --initialize-database
+   ```
+
+   This installs locked Python dependencies, verifies/downloads pinned runtime data,
+   runs `npm ci` and the standard typechecked build, migrates, collects static files,
+   and runs deployment checks with warnings treated as failures. Each failed step
+   stops the sequence. It does not delete data or reset configuration. Rerun without
+   `--initialize-database` once the database exists. Optional `--create-admin` explicitly
+   invokes interactive `createsuperuser`; noninteractive use is rejected. For a restore,
+   use the separate procedure below, not fresh-database initialization.
+5. Virtual environments are path-specific. After relocating a checkout, move its old
+   `.venv` aside and let the install command create a new one normally through `uv sync`.
+   Never rewrite shebangs or copy a venv between platforms. An unmanaged/relocated venv
+   is rejected with an actionable message. A venv created manually for development
+   must likewise be moved aside before using production installation.
+6. **Separate privileged activation:** review/install the rendered units under
+   `/etc/systemd/system/` and the rendered Caddyfile under `/etc/caddy/`. Ensure the
+   configured environment file is readable by the service account (for example 0640,
+   root:service-group) and runtime `var/` is writable by it. Source/venv can remain
+   operator-owned. Validate units with `systemd-analyze verify` and the proxy with
+   `caddy validate --config /etc/caddy/Caddyfile`, then separately approve service
+   activation, DNS/TLS and firewall configuration. Do not install the raw `@@...@@`
+   templates directly. The script never invokes service enable/start/restart.
+7. After activation, run `./do production status --config var/deployment/cernal.env`.
+   It reports data verification, migration/database availability, HTTPS web liveness,
+   worker readiness, each service's activity and screening inventory independently;
+   any unavailable required component gives a nonzero exit. A homepage is not evidence
+   of production readiness. Screening inventory verification grants no sequence
+   release authorization and does not run or bypass screening. Service activity is
+   not proof that reconciliation is progressing: inspect its journal and perform a
+   controlled acceptance run. Verify login, a real queued design, and owner isolation;
+   sequence downloads must remain held until valid screening and required approvals
+   permit release. Record revision, durations and results before admitting users.
+
+### Upload limits
+
+`MAX_DATASET_MB` is the application's per-file limit in **MiB**, despite its legacy
+name. Default 100 means 104,857,600 bytes; exactly that size is accepted by the size
+check, one byte above is rejected (content validation still applies). Caddy's generated
+`request_body max_size` is **106,954,752 bytes**, leaving 2 MiB for multipart overhead
+and metadata. Both derive from `--dataset-mib` (1–1024). Django's
+`DATA_UPLOAD_MAX_MEMORY_SIZE` bounds non-file form data at the file-limit value;
+`FILE_UPLOAD_MAX_MEMORY_SIZE=5 MiB` is a spool-to-disk threshold, not a rejection limit.
+The proxy bounds the complete request, including chunked uploads. Large metadata can
+consume the 2 MiB margin and receive HTTP 413; it does not increase the file allowance.
+Keep proxy and application values together when reconfiguring. Validate the generated
+request-body directive against the installed Caddy version before activating it;
+see the [official Caddy request_body documentation](https://caddyserver.com/docs/caddyfile/directives/request_body).
+
+The proxy regression test runs the official executable's `adapt --validate` command,
+which provisions configuration for validation without starting listeners. It uses
+temporary HOME/XDG directories and checks the parsed hostname, upstream and exact
+request-body limit for the substituted template and generated configurations at
+1, 100 and 1024 MiB, including alternate installation paths/domains. Run it with:
+
+```sh
+CADDY_BIN=/absolute/path/to/caddy uv run pytest tests/test_production_setup.py -k caddy -q
+```
+
+The test skips when Caddy is unavailable; providing `CADDY_BIN` makes a missing or
+invalid binary fail. Caddy 2.11.7 passed these checks using the official Linux amd64
+release archive (SHA256 `727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b`).
+This verifies configuration loading, not TLS issuance or live HTTP upload behavior.
 
 Do not run `manage.py runserver` or the development supervisor under these units. The
 systemd units own their subprocesses and restart failed services. The worker's stop
@@ -105,9 +187,9 @@ set an operator retention policy and remove it only after recovery is no longer 
 
 ## Backup and restore
 
-The `backup_instance` and `restore_instance` commands are part of the storage PR in
-the same remediation stack. They target SQLite and local media. Test them on the
-combined branch before relying on them operationally.
+The `backup_instance` and `restore_instance` commands target SQLite and local media.
+They are separate from fresh installation. Test a protected restore drill with the
+reviewed revision before relying on them operationally.
 
 1. Start a maintenance window, stop new writes, and stop all three CERNAL services.
    Keeping a web process online for uploads/reviews violates the media consistency

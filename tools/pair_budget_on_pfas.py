@@ -92,31 +92,36 @@ def historical_positive(gate, sources, profiles):
     """
     a = candidate("ggt", sources["ggt"][1678:1714], 1678, profiles["ggt"])
     b = candidate("astC", sources["astC"][637:687], 637, profiles["astC"])
-    gate.max_secondary_assignments = None
-    tick = time.perf_counter()
-    stems = gate.secondary_stems(a.sequence, b.sequence, 6)
-    stem_seconds = time.perf_counter() - tick
-    expected = (-17.600000381469727, -18.700000762939453, -20.700000762939453)
-    stem = next(
-        stem
-        for stem in stems
-        if all(
-            math.isclose(got, want, abs_tol=1e-5)
-            for got, want in zip(
-                (stem.lock_energy, stem.a_site_energy, stem.b_site_energy), expected, strict=True
+    with (
+        patch.object(gate, "max_secondary_assignments", None),
+        patch.object(gate, "max_variable_conflicts", None),
+    ):
+        tick = time.perf_counter()
+        stems = gate.secondary_stems(a.sequence, b.sequence, 6)
+        stem_seconds = time.perf_counter() - tick
+        expected = (-17.600000381469727, -18.700000762939453, -20.700000762939453)
+        stem = next(
+            stem
+            for stem in stems
+            if all(
+                math.isclose(got, want, abs_tol=1e-5)
+                for got, want in zip(
+                    (stem.lock_energy, stem.a_site_energy, stem.b_site_energy),
+                    expected,
+                    strict=True,
+                )
             )
         )
-    )
-    constraints = Constraints(stems_per_pair=1, stem_order="front", closure_set="chosen")
-    with patch.object(gate, "secondary_stems", lambda *_args, **_kwargs: [stem]):
-        designs = list(gate.generate_designs(TriggerSet((a, b)), constraints))
-    design = next(
-        d
-        for d in designs
-        if d.architecture["closure"] == "trigger_derived"
-        and d.architecture["upper3"] == "WWW_AUA"
-        and d.architecture["lower3"] == "trigger_derived"
-    )
+        constraints = Constraints(stems_per_pair=1, stem_order="front", closure_set="chosen")
+        with patch.object(gate, "secondary_stems", lambda *_args, **_kwargs: [stem]):
+            designs = list(gate.generate_designs(TriggerSet((a, b)), constraints))
+        design = next(
+            d
+            for d in designs
+            if d.architecture["closure"] == "trigger_derived"
+            and d.architecture["upper3"] == "WWW_AUA"
+            and d.architecture["lower3"] == "trigger_derived"
+        )
     return design, stem_seconds
 
 

@@ -89,7 +89,11 @@ export function useLogin() {
 export function useReviewerLogin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<User>("/auth/reviewer-login"),
+    mutationFn: async () => {
+      await api.post<User>("/auth/reviewer-login");
+      // Confirm the session cookie is active before the router enters an authenticated page.
+      return api.get<User>("/auth/me");
+    },
     onSuccess: (user) => {
       queryClient.setQueryData(keys.me, user);
     },
@@ -223,6 +227,7 @@ export function useMaterializePublicDataset() {
 /* ---------- runs ---------- */
 
 export interface SubmitRunBody {
+  name?: string;
   input_mode: "de" | "direct" | "gene";
   dataset_id?: string | null;
   trigger_sequence?: string;
@@ -239,6 +244,18 @@ export function useSubmitRun() {
   return useMutation({
     mutationFn: (body: SubmitRunBody) => api.post<Run>("/runs", body),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: keys.recentRuns });
+    },
+  });
+}
+
+export function useRenameRun(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.patch<Run>(`/runs/${id}`, { name }),
+    onSuccess: (run) => {
+      queryClient.setQueryData(keys.run(id), run);
+      queryClient.invalidateQueries({ queryKey: keys.runStatus(id) });
       queryClient.invalidateQueries({ queryKey: keys.recentRuns });
     },
   });
@@ -353,13 +370,23 @@ export function useArtifacts(runId: string, enabled = true) {
  */
 export function artifactsZipUrl(
   runId: string,
-  selection: { category: string } | { ids: string[] } | Record<string, never> = {},
+  selection: {
+    category?: string;
+    ids?: string[];
+    availableOnly?: boolean;
+  } = {},
 ): string {
   const params = new URLSearchParams();
-  if ("category" in selection) params.set("category", selection.category);
-  if ("ids" in selection) params.set("ids", selection.ids.join(","));
+  if (selection.category) params.set("category", selection.category);
+  if (selection.ids) params.set("ids", selection.ids.join(","));
+  if (selection.availableOnly) params.set("available_only", "true");
   const query = params.toString();
   return api.url(`/runs/${runId}/artifacts/download${query ? `?${query}` : ""}`);
+}
+
+/** The human-readable, sequence-free PDF overview for a run. */
+export function runSummaryPdfUrl(runId: string): string {
+  return api.url(`/runs/${runId}/export.pdf`);
 }
 
 /* ---------- annotations ---------- */

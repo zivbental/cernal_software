@@ -728,10 +728,12 @@ class ProkaryoticAndSettings:
     max_pairs: int = 8
     max_pair_candidates: int = 50000
     max_pair_seed_matches: int = 50000
-    pair_selection: str = "top"
+    pair_selection: str = "overlap_stratified"
     accessibility_percentile: float = 50.0
     stems_per_pair: int = 3
-    # A compute cap, 3**7, not an assumed conflict count or a biological threshold.
+    # Vary the conflicts nearest x; hold all farther conflicts at lock+B.
+    max_variable_conflicts: int = 7
+    # Optional tighter assignment cap within that restricted search space.
     max_stem_assignments: int = 2187
     max_attempts: int = 160
     geometry: str = "naive"
@@ -756,13 +758,14 @@ class ProkaryoticAndSettings:
             ("max_pair_seed_matches", 1, 200000),
             ("stems_per_pair", 1, 12),
             ("max_stem_assignments", 1, 19683),
+            ("max_variable_conflicts", 0, 18),
             ("max_attempts", 1, 10000),
         ):
             item = getattr(value, name)
             if type(item) is not int or not low <= item <= high:
                 raise ValueError(f"prokaryotic_and.{name} must be an integer {low}..{high}.")
         for name, choices in (
-            ("pair_selection", ("top", "percentile_sample")),
+            ("pair_selection", ("overlap_stratified", "top", "percentile_sample")),
             ("geometry", ("naive", "kim", "both")),
             ("closure_set", ("chosen", "full")),
             ("upper3_set", ("aua_only", "compact", "full")),

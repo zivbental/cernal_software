@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { BookMarked, Download, KeyRound, ShieldCheck, Sparkles, Terminal } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -235,11 +235,11 @@ const SCORING_FIELDS: ParamRow[] = [
 ];
 
 const BUDGET_FIELDS: ParamRow[] = [
-  { field: "max_designs", type: "integer", default: "20", notes: "Deterministic validated gate-design evaluation cap (1–1,000). Each selected output is evaluated separately for every retained gate. This does not cap final candidate count. Truncation is reported in warnings and provenance." },
+  { field: "max_designs", type: "integer", default: "20", notes: "Deterministic validated gate-design evaluation cap (1–1,000). Each selected output is evaluated separately for every retained gate. This does not cap final candidate count. Truncation is recorded in the run's processing notes and provenance." },
 ];
 
 const PAYLOAD_FIELDS: ParamRow[] = [
-  { field: "optimize_codons", type: "boolean", default: "false", notes: "Optional optimization for the selected host; preserves the encoded protein and records sequence checksums. Pinned reporter CDS is retained by default." },
+  { field: "optimize_codons", type: "boolean", default: "false", notes: "Direct API clients may opt in; the CERNAL compile interface always enables host codon optimization. The encoded protein is preserved and sequence checksums are recorded." },
   { field: "outputs", type: "string[]", default: "[]", notes: 'What the circuit expresses, e.g. ["gfp", "other"]; named outputs must be advertised by /api/version.' },
   { field: "custom_sequence", type: "string | null", default: "null", notes: "A custom payload sequence, in place of a named output." },
 ];
@@ -377,11 +377,74 @@ function StatTile({ value, label }: { value: string; label: string }) {
   );
 }
 
+function nodeToMarkdown(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const value = node.textContent ?? "";
+    return node.parentElement?.closest("pre") ? value : value.replace(/\s+/g, " ");
+  }
+  if (!(node instanceof HTMLElement)) return "";
+  const tag = node.tagName.toLowerCase();
+  if (["button", "select", "svg", "script", "style"].includes(tag)) return "";
+  if (tag === "pre") {
+    const code = (node.querySelector("code") ?? node).textContent ?? "";
+    const label = node.closest<HTMLElement>("[data-code-label]")?.dataset.codeLabel?.toLowerCase();
+    const language = label === "curl" ? "bash" : label ?? "";
+    return `\n\n\`\`\`${language}\n${code.trimEnd()}\n\`\`\`\n\n`;
+  }
+  if (tag === "table") {
+    const rows = [...node.querySelectorAll("tr")].map((row) =>
+      [...row.querySelectorAll("th, td")].map((cell) =>
+        (cell.textContent ?? "").replace(/\s+/g, " ").trim().replaceAll("|", "\\|"),
+      ),
+    );
+    if (!rows.length) return "";
+    const header = `| ${rows[0].join(" | ")} |`;
+    const divider = `| ${rows[0].map(() => "---").join(" | ")} |`;
+    return `\n\n${header}\n${divider}\n${rows.slice(1).map((row) => `| ${row.join(" | ")} |`).join("\n")}\n\n`;
+  }
+  const content = [...node.childNodes].map(nodeToMarkdown).join("");
+  if (tag === "a") {
+    const href = node.getAttribute("href");
+    return href ? `[${content.trim()}](${href})` : content;
+  }
+  if (tag === "code") return `\`${node.textContent?.trim() ?? ""}\``;
+  if (tag === "strong" || tag === "b") return `**${content.trim()}**`;
+  if (tag === "em" || tag === "i") return `*${content.trim()}*`;
+  if (/^h[1-6]$/.test(tag)) return `\n\n${"#".repeat(Number(tag[1]))} ${content.trim()}\n\n`;
+  if (tag === "br") return "\n";
+  if (tag === "li") return `\n- ${content.trim()}`;
+  if (tag === "summary") return `\n\n**${content.trim()}**\n\n`;
+  if (tag === "p" || tag === "section" || tag === "article" || tag === "details") return `\n\n${content.trim()}\n\n`;
+  return content;
+}
+
+function pageToMarkdown(root: HTMLElement): string {
+  return nodeToMarkdown(root)
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim() + "\n";
+}
+
 function ApiDocsPage() {
   const [active, setActive] = useState<(typeof LANGUAGES)[number]["id"]>("python");
+  const pageRef = useRef<HTMLDivElement>(null);
   const lang = LANGUAGES.find((l) => l.id === active) ?? LANGUAGES[0];
 
+  function exportAsMarkdown() {
+    if (!pageRef.current) return;
+    const markdown = `<!-- Selected code language: ${lang.label} -->\n\n${pageToMarkdown(pageRef.current)}`;
+    const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "cernal-api-reference.md";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   return (
+    <div ref={pageRef} data-api-reference>
     <>
       <PageHeader
         kicker={
@@ -392,12 +455,21 @@ function ApiDocsPage() {
         title="API Reference"
         description="Everything a script needs to submit a design, wait for it, and read the results — in Python, R, MATLAB, or curl. One call in, ranked circuits out."
         actions={
-          <Link
-            to="/settings"
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"
-          >
-            <KeyRound className="h-4 w-4" /> Manage API keys
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={exportAsMarkdown}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"
+            >
+              <Download className="h-4 w-4" /> Export as Markdown
+            </button>
+            <Link
+              to="/settings"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground hover:border-mint"
+            >
+              <KeyRound className="h-4 w-4" /> Manage API keys
+            </Link>
+          </div>
         }
       />
 
@@ -848,5 +920,6 @@ df.head()`}
         </div>
       </div>
     </>
+    </div>
   );
 }

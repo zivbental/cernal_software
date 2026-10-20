@@ -10,8 +10,8 @@ import { useRef } from "react";
 
 import type { Backbone, Dataset, ExampleDataset, GateFamily } from "@/api/types";
 import { BacteriaIcon, HumanIcon, YeastIcon } from "@/components/icons/BioIcons";
-import { Panel, SectionHeading, AdvancedOptions } from "@/components/layout/Primitives";
-import { Check, SliderRow } from "@/components/compile/Bits";
+import { Panel, SectionHeading } from "@/components/layout/Primitives";
+import { Check } from "@/components/compile/Bits";
 import { ExpressionPreview } from "@/components/compile/ExpressionPreview";
 import { PublicDatasetPicker } from "@/components/compile/PublicDatasetPicker";
 import { parseSequence } from "@/components/compile/sequence";
@@ -40,23 +40,12 @@ export interface CompileConfig {
   /** Downstream outputs, all equivalent. Each selected one gets its own plasmids. */
   outputs: string[];
   customPayload: string;
-  optimizePayloadCodons: boolean;
-  /**
-   * UI-friendly sliders for a per-run override of the scoring profile's hard filters
-   * (engine.scoring.profiles X7) — routes/compile.tsx's onSubmit turns these into
-   * params.scoring.hard_filters. Not search constraints (those are
-   * engine.domain.Constraints, a different concept the wizard does not expose today).
-   */
-  maxLeakage: number;
-  minGateStability: number;
   /**
    * `engine.domain.Constraints.max_circuit_gates` — how many gates one circuit may
-   * combine. The one search constraint the wizard exposes, because it is the one that
-   * changes what the researcher gets back rather than only how it is filtered.
+   * combine. Kept at the configured single-gate limit in this wizard.
    */
   maxCircuitGates: number;
-  /** Editable strings preserve empty/invalid values until submission validation. */
-  maxDesigns: string;
+  /** Preserve the configured defaults and submission validation without UI controls. */
   topN: string;
   /**
    * The plasmid vector to assemble onto (docs/plasmids.md Q13) — a catalog key from
@@ -80,17 +69,13 @@ export const DEFAULT_CONFIG: CompileConfig = {
   datasetId: null,
   triggerSequence: "",
   targetGene: null,
-  mechanism: "toehold",
+  mechanism: "prokaryotic_toehold",
   andGenes: { a: "", b: "" },
   outputs: ["gfp"],
   customPayload: "",
-  optimizePayloadCodons: false,
-  maxLeakage: 0.08,
-  minGateStability: -32,
   // Physical multi-gate constructs require reviewed integration; production uses one gate.
   maxCircuitGates: 1,
-  maxDesigns: "20",
-  topN: "25",
+  topN: "20",
   // A real backbone by default, not "none" — the whole point of this feature is a
   // researcher who just clicks through getting an orderable plasmid, not a bare
   // four-segment construct (docs/plasmids.md §13 note on this being a deliberate
@@ -99,11 +84,6 @@ export const DEFAULT_CONFIG: CompileConfig = {
   customBackboneGenbank: "",
   customBackboneInsertion: "",
 };
-
-/** engine.scoring.profiles.DEFAULT_V1's own predicted_leakage hard-filter ceiling
- * (CLAUDE.md §2) — the wizard's slider must not be able to submit a run that loosens
- * this scoring threshold, only tighten it. */
-const MAX_PROFILE_LEAKAGE = 0.85;
 
 /** Collaboration credit shown at the point of use, not only on a credits page.
  *
@@ -198,7 +178,7 @@ export function StepInputs({
       <SectionHeading
         kicker="Step 01 · Inputs"
         title="Define Transcriptomic Inputs"
-        desc="Upload your differential expression results, or skip discovery and provide the exact trigger mRNA sequence directly."
+        desc="Upload your differential expression results, or skip discovery and provide the exact trigger RNA sequence directly."
       />
 
       <div className="mb-6">
@@ -216,7 +196,7 @@ export function StepInputs({
                 aria-pressed={selected}
                 onClick={() => patch(o.key === "human"
                   ? { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: "none", mechanism: "eukaryotic_toehold" }
-                  : { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "toehold" })}
+                  : { organism: o.key, datasetId: null, targetGene: null, andGenes: { a: "", b: "" }, backbone: o.key === "ecoli" ? "psb1c3" : "none", mechanism: o.key === "yeast" ? "eukaryotic_toehold" : "prokaryotic_toehold" })}
                 className={`group relative flex items-center gap-2 rounded-md px-5 py-2.5 text-sm transition ${
                   credit
                     ? selected
@@ -244,6 +224,21 @@ export function StepInputs({
               </button>
             );
           })}
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-surface px-4 py-3">
+          <div>
+            <div className="text-sm font-medium text-foreground">Your organism — coming soon</div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              The current engine supports the organisms listed above. Other organisms need a validated reference and design pipeline.
+            </p>
+          </div>
+          <a
+            href="mailto:igem.tau.2026@gmail.com?subject=CERNAL%20organism%20support"
+            className="shrink-0 text-sm font-medium text-mint underline-offset-4 hover:underline"
+          >
+            Other organisms? Contact us
+          </a>
         </div>
 
         {ORGANISMS.map((o) =>
@@ -342,7 +337,7 @@ export function StepInputs({
             }`}
           >
             <Dna className="h-3.5 w-3.5" />
-            Direct Trigger mRNA
+            Direct Trigger RNA
           </button>
           <button
             type="button"
@@ -363,7 +358,7 @@ export function StepInputs({
           {config.inputMode === "de" &&
             "Browse a real public dataset or upload your own differential expression results — CERNAL assumes fold change is calculated as target / control."}
           {config.inputMode === "direct" &&
-            "Skip discovery — provide the exact mRNA sequence you want to act as the trigger."}
+            "Skip discovery — provide the exact RNA sequence you want to act as the trigger."}
           {config.inputMode === "gene" &&
             "Already know which transcript you want the circuit to respond to? Resolve its reference transcript here; its identity and sequence are frozen at submission."}
           {twoInputGate &&
@@ -530,7 +525,7 @@ export function StepInputs({
               <Dna className="h-5 w-5 text-mint-foreground" />
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-base font-semibold text-foreground">Trigger mRNA Sequence</h3>
+              <h3 className="text-base font-semibold text-foreground">Trigger RNA Sequence</h3>
               {config.targetGene && (
                 <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-mint/10 px-2.5 py-1 font-mono text-[11px] text-mint">
                   Target gene: {config.targetGene.geneSymbol || config.targetGene.geneId} (
@@ -538,7 +533,7 @@ export function StepInputs({
                 </div>
               )}
               <p className="mt-1 text-sm text-muted-foreground">
-                Paste the mRNA transcript that should activate the riboswitch. DNA is
+                Paste the RNA sequence that should activate the riboswitch. DNA is
                 accepted and converted automatically.
               </p>
               <textarea
@@ -718,60 +713,6 @@ export function StepLogic({
         />
       )}
 
-      <AdvancedOptions>
-        <div className="grid gap-4 md:grid-cols-2">
-          <SliderRow
-            label="Off-State Leakage Limit"
-            value={config.maxLeakage}
-            min={0}
-            // The scoring profile's own predicted_leakage ceiling (CLAUDE.md §2) — this
-            // control can only tighten it, never submit a run that loosens a documented
-            // safety filter.
-            max={MAX_PROFILE_LEAKAGE}
-            step={0.01}
-            onChange={(v) => patch({ maxLeakage: v })}
-          />
-          <SliderRow
-            label="Minimum Gate Stability (MFE ceiling)"
-            value={config.minGateStability}
-            min={-60}
-            max={0}
-            unit=" kcal/mol"
-            onChange={(v) => patch({ minGateStability: v })}
-          />
-          <div>
-            <label htmlFor="max-designs" className="mb-1.5 block text-xs text-foreground">Evaluation budget (validated gate designs)</label>
-            <input id="max-designs" type="number" min={1} max={1000} step={1}
-              value={config.maxDesigns} onChange={(event) => patch({ maxDesigns: event.target.value })}
-              aria-describedby="max-designs-help"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" />
-            <p id="max-designs-help" className="mt-2 text-xs text-muted-foreground">
-              Evaluate up to this many validated gate designs (1–1,000; default 20).
-              Every selected output is evaluated separately for each retained gate design.
-              A larger budget can increase runtime; this is not a cap on generated candidates or final results.
-            </p>
-          </div>
-          <div>
-            <label htmlFor="top-n" className="mb-1.5 block text-xs text-foreground">Results to display (top ranked)</label>
-            <input id="top-n" type="number" min={1} max={1000} step={1}
-              value={config.topN} onChange={(event) => patch({ topN: event.target.value })}
-              aria-describedby="top-n-help"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm" />
-            <p id="top-n-help" className="mt-2 text-xs text-muted-foreground">
-              Initially show up to this many accepted results after ranking (1–1,000; default 25).
-              This does not reduce computation. All evaluated results remain stored and available in the full results view and exports.
-            </p>
-          </div>
-          <SliderRow
-            label="Max Gates Per Circuit"
-            value={config.maxCircuitGates}
-            min={1}
-            max={1}
-            step={1}
-            // Fixed until a physically specified multi-gate compiler is integrated.
-          />
-        </div>
-      </AdvancedOptions>
     </Panel>
   );
 }
@@ -919,12 +860,6 @@ export function StepPayload({ config, patch, supportedOutputs }: { config: Compi
         </div>
       )}
 
-      <label className="mt-5 flex items-center gap-2 text-sm text-foreground">
-        <input type="checkbox" checked={config.optimizePayloadCodons}
-          onChange={(e) => patch({ optimizePayloadCodons: e.target.checked })} />
-        Optimize payload codons for the selected host (optional)
-      </label>
-      <p className="mt-2 text-xs text-muted-foreground">Off by default to preserve the pinned coding sequence. Optimization preserves the encoded protein and records sequence provenance. Reporter performance with the switch fusion remains experimentally unvalidated.</p>
       <p className="mt-6 rounded-lg border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground">
         {count === 0
           ? "Select at least one output."

@@ -30,10 +30,12 @@ def test_readme_documents_the_configured_engine_and_installed_folding_backend():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     assert any(dependency.startswith("viennarna") for dependency in project["dependencies"])
     assert "active\nfolding backend" in readme
-    # Use the corrected standard build, with its dependency explicit during review.
+    # The standard build and data bootstrap are merged setup requirements.
     assert "npm ci && npm run build)" in readme
     assert "npm ci && npm run build:fast" not in readme
-    assert "pull/70" in readme
+    assert "uv run --locked python tools/install_data.py" in readme
+    assert "merge it before F5" not in readme
+    assert "separately proposed" not in readme
     assert "uv sync --locked --extra dev" in readme
 
 

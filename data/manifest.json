@@ -1,0 +1,1136 @@
+{
+  "files": [
+    {
+      "group": "transcriptomes",
+      "license_status": "AIS-China reference data Apache-2.0; retain NCBI original source attribution",
+      "path": "src/engine/data/transcriptomes/c_acnes.fasta",
+      "provenance": {
+        "selection_policy": "reference CDS",
+        "sources": [
+          "NZ_CP044255.1"
+        ]
+      },
+      "sha256": "cff17f5a3814e902330b649296df2b16bf265c30d33e62d537028916b357b6c9",
+      "size": 2331553,
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/engine/data/transcriptomes/c_acnes.fasta"
+    },
+    {
+      "group": "transcriptomes",
+      "license_status": "AIS-China reference data Apache-2.0; retain NCBI original source attribution",
+      "path": "src/engine/data/transcriptomes/c_acnes.json",
+      "provenance": {
+        "selection_policy": "reference CDS",
+        "sources": [
+          "NZ_CP044255.1"
+        ]
+      },
+      "sha256": "8c3aa664afeab62f563049c1dee37cd1b66cae78cf1f1e0a4626447f9e5cc5dd",
+      "size": 160113,
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/engine/data/transcriptomes/c_acnes.json"
+    },
+    {
+      "data_license_url": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "group": "transcriptomes",
+      "license_status": "NCBI molecular data unrestricted by NCBI; original submitter rights caveat applies",
+      "path": "src/engine/data/transcriptomes/ecoli.fasta",
+      "provenance": {
+        "selection_policy": "reference CDS",
+        "sources": [
+          "NC_000913.3"
+        ]
+      },
+      "sha256": "5396e5e875a00a816d739080ad05e32fa3b1b7bcb58478d9887f32d3f7f6d971",
+      "size": 4102690,
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/engine/data/transcriptomes/ecoli.fasta"
+    },
+    {
+      "data_license_url": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "group": "transcriptomes",
+      "license_status": "NCBI molecular data unrestricted by NCBI; original submitter rights caveat applies",
+      "path": "src/engine/data/transcriptomes/ecoli.json",
+      "provenance": {
+        "selection_policy": "reference CDS",
+        "sources": [
+          "NC_000913.3"
+        ]
+      },
+      "sha256": "7004324ac7534710d607afc1f1c885e2f55bf39b062984ff53292b4a0ba646f0",
+      "size": 456626,
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/engine/data/transcriptomes/ecoli.json"
+    },
+    {
+      "data_license_url": "https://useast.ensembl.org/info/about/legal/disclaimer.html",
+      "group": "transcriptomes",
+      "license_status": "Ensembl project data unrestricted; third-party constraints may apply",
+      "path": "src/engine/data/transcriptomes/human.fasta.gz",
+      "provenance": {
+        "assembly": "GRCh38.p14",
+        "release": 116,
+        "selection_policy": "MANE_Select, Ensembl_canonical, longest transcript, transcript ID",
+        "sequence_sha256": "8087a33315c23e8267a975bd5abe3cea354830d6e50e76eb7d441d7de18913d1",
+        "source_sha256": {
+          "cdna": "683eb19310c40bf1396e4718f45afa2ce86755717c0990f47a171f535d248ea1",
+          "gtf": "ed992f0eac7197d9627bda618f8f831ba355c95bd5d0796af785387d462828b6",
+          "ncrna": "7f03bb303e939517b322f7887a74c1ee15bbb82a6affbb54f0be84e82f89cff1"
+        },
+        "sources": {
+          "cdna": "https://ftp.ensembl.org/pub/release-116/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz",
+          "gtf": "https://ftp.ensembl.org/pub/release-116/gtf/homo_sapiens/Homo_sapiens.GRCh38.116.gtf.gz",
+          "ncrna": "https://ftp.ensembl.org/pub/release-116/fasta/homo_sapiens/ncrna/Homo_sapiens.GRCh38.ncrna.fa.gz"
+        }
+      },
+      "sha256": "8087a33315c23e8267a975bd5abe3cea354830d6e50e76eb7d441d7de18913d1",
+      "size": 33890570,
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/engine/data/transcriptomes/human.fasta.gz"
+    },
+    {
+      "data_license_url": "https://useast.ensembl.org/info/about/legal/disclaimer.html",
+      "group": "transcriptomes",
+      "license_status": "Ensembl project data unrestricted; third-party constraints may apply",
+      "path": "src/engine/data/transcriptomes/human.json",
+      "provenance": {
+        "assembly": "GRCh38.p14",
+        "release": 116,
+        "selection_policy": "MANE_Select, Ensembl_canonical, longest transcript, transcript ID",
+        "sequence_sha256": "8087a33315c23e8267a975bd5abe3cea354830d6e50e76eb7d441d7de18913d1",
+        "source_sha256": {
+          "cdna": "683eb19310c40bf1396e4718f45afa2ce86755717c0990f47a171f535d248ea1",
+          "gtf": "ed992f0eac7197d9627bda618f8f831ba355c95bd5d0796af785387d462828b6",
+          "ncrna": "7f03bb303e939517b322f7887a74c1ee15bbb82a6affbb54f0be84e82f89cff1"
+        },
+        "sources": {
+          "cdna": "https://ftp.ensembl.org/pub/release-116/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz",
+          "gtf": "https://ftp.ensembl.org/pub/release-116/gtf/homo_sapiens/Homo_sapiens.GRCh38.116.gtf.gz",
+          "ncrna": "https://ftp.ensembl.org/pub/release-116/fasta/homo_sapiens/ncrna/Homo_sapiens.GRCh38.ncrna.fa.gz"
+        }
+      },
+      "sha256": "ecf57bd247dbf279ab2bd81c074c5deeb4c8fdd296ef9727d7b11bb618c4810a",
+      "size": 18859667,
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/engine/data/transcriptomes/human.json"
+    },
+    {
+      "data_license_url": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "group": "transcriptomes",
+      "license_status": "NCBI molecular data unrestricted by NCBI; original submitter rights caveat applies",
+      "path": "src/engine/data/transcriptomes/yeast.fasta",
+      "provenance": {
+        "selection_policy": "reference CDS",
+        "sources": [
+          "NC_001133.9",
+          "NC_001134.8",
+          "NC_001135.5",
+          "NC_001136.10",
+          "NC_001137.3",
+          "NC_001138.5",
+          "NC_001139.9",
+          "NC_001140.6",
+          "NC_001141.2",
+          "NC_001142.9",
+          "NC_001143.9",
+          "NC_001144.5",
+          "NC_001145.3",
+          "NC_001146.8",
+          "NC_001147.6",
+          "NC_001148.4",
+          "NC_001224.1"
+        ]
+      },
+      "sha256": "8cb34218b43a3b6602c3c5e740430ffb6e5e15388ea4a859de08de161654a1e2",
+      "size": 9009074,
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/engine/data/transcriptomes/yeast.fasta"
+    },
+    {
+      "data_license_url": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "group": "transcriptomes",
+      "license_status": "NCBI molecular data unrestricted by NCBI; original submitter rights caveat applies",
+      "path": "src/engine/data/transcriptomes/yeast.json",
+      "provenance": {
+        "selection_policy": "reference CDS",
+        "sources": [
+          "NC_001133.9",
+          "NC_001134.8",
+          "NC_001135.5",
+          "NC_001136.10",
+          "NC_001137.3",
+          "NC_001138.5",
+          "NC_001139.9",
+          "NC_001140.6",
+          "NC_001141.2",
+          "NC_001142.9",
+          "NC_001143.9",
+          "NC_001144.5",
+          "NC_001145.3",
+          "NC_001146.8",
+          "NC_001147.6",
+          "NC_001148.4",
+          "NC_001224.1"
+        ]
+      },
+      "sha256": "df540834a6232f8b2705d3feb80364eb2cc79d1dcc3b9d2775cc2ca54dea0b1d",
+      "size": 513313,
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/engine/data/transcriptomes/yeast.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/annotation_changes_vs_v1.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "0e531d0b11fc28e5249144f24bbee2c27fd6156a1e5f1ecfcd132cabf08b78c5",
+      "size": 165,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/annotation_changes_vs_v1.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/annotation_comparison.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "646d21e9cb60ee40b63bbaf81c64c2fcb9fb52270781f3fac81a268ff10da66b",
+      "size": 670,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/annotation_comparison.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/cai_reference_cds.fasta",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "1a2aa5fe58b7b4a5d281ece1706f9658104f336e7aa4debb53063c199749fa1b",
+      "size": 27955,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/cai_reference_cds.fasta"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/cai_reference_genes.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "839c6a940e55e26e851fe3b8c2b9037dbf4e4bd16cc24538ffaff6e0a4b0e5a0",
+      "size": 6383,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/cai_reference_genes.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/cai_reference_selection.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "a8d66f6ae41f09c275b8943ee5456680fd1af9106a2d0efb65fafb0a08bb42c1",
+      "size": 9125,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/cai_reference_selection.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/cai_weights.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "b8e0eea7b84b521a38e903165c417ec7823f3402b4e82148e797041a63f94bc4",
+      "size": 2496,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/cai_weights.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/cds_qc.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "3218a2d6d28aa9cdf3fa7e585182d22d1437413c8a07dd1944a9509fbfa93f93",
+      "size": 253912,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/cds_qc.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/coding_gc_distribution.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "27d4776b1b4c7f45ac64a78419019bd400b8de15c77fbb1490ef958969dbcd6a",
+      "size": 1275,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/coding_gc_distribution.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/codon_pair_counts.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "58b64ea3f8d7b0d5f3fbcd4a9a1a7d5408c4106d15703f03d961d91bd60d4423",
+      "size": 154159,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/codon_pair_counts.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/codon_parameters.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "de06adc09ab96817eb9fa723bf7d01e67b25c622c0294b4d599ee7cc923ef7bd",
+      "size": 8110,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/codon_parameters.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/host_codon_counts.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "1ba196fcc6cefe74c444b64b2852fe33a1d66ad71749d24e6068c8e3dc23d1cd",
+      "size": 5032,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/host_codon_counts.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/local_gc_60nt_histogram.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "213f57e500904f956042cfba984c0dbb37ea2712c819c6812162dc58a6a99889",
+      "size": 1555,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/local_gc_60nt_histogram.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/local_gc_short_windows.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "f08adaed0278e1be498ef817d86cf4793ba74e5217327689a247f1fdefc6252d",
+      "size": 48,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/local_gc_short_windows.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/manifest.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "db0c0b6567380e69ea0e2c5942eefdcb64f1002d923720683ca48ec1f7e2588d",
+      "size": 7375,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/manifest.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/native_gene_metrics.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "b9c032f4d1efeba6559acf9a7153b5aa9ad532a81c8ec9769aa78e3f7eb4d119",
+      "size": 1055634,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/native_gene_metrics.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/native_rna_cds_only_background.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "73a17d0624ce78582416403e81a89be68fa816e98924d5ace406c8300a9ebf2c",
+      "size": 1062849,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/native_rna_cds_only_background.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/reference_cds.fasta",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "558b9df9f91b60abc96fea43d891b18dafb669d950f60e5e1e054058e28e15b3",
+      "size": 2371352,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/reference_cds.fasta"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/reference_proteins.fasta",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "12c0431f83b1f739636a908f8db4327368e88da42f590f88c923814971707e53",
+      "size": 864908,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/reference_proteins.fasta"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/rna_background_distribution.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "5f30bbedd4b95d631f0bbc96984b3dffca02c1ac48ff307ae24730ab05466301",
+      "size": 1544,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/rna_background_distribution.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/stai_fit_diagnostics.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "a883f8f1f37bb11f2205e823932eecfd95545922c09341fb1ade9adbcbf1a4ef",
+      "size": 2742,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/stai_fit_diagnostics.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/stai_fit_multistart.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "582f5d319fd98b4f90dacab235b42c22cf8fdcad4e7f51cf3e36b8663d6f55e8",
+      "size": 4835,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/stai_fit_multistart.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/stai_s_values.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "1ed4f7b3e054d21a510802bb87e317701a03b4155799ca7cdcbd66a8737f1abf",
+      "size": 252,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/stai_s_values.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/stai_weights.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "ab007e8c923f9fec90d5e1c3f580d4d93cc1048f5d7cb6db28bb3d64a64bf3f5",
+      "size": 3255,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/stai_weights.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/tai_classic_weights.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "47b7dafb63a845985c4aa561f2fdf3722af3995dcf40267d18f39b4709839b0e",
+      "size": 4652,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/tai_classic_weights.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/tai_decoding_edges.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "2d0c5ea74f8e67f285a7839ffb3b41f122045690dbc0f9fbc09e8d373c39cb87",
+      "size": 5372,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/tai_decoding_edges.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/tai_model.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "4549b8e8bb841f9369b14570d612557abb2930f771148a63785cbd5067c9387c",
+      "size": 1760,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/tai_model.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/trna_copy_counts.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "21d2ccc924a1b2a7794111cca775b3416d7856e04ee1fdc647dba9c30b77ecc4",
+      "size": 1962,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/trna_copy_counts.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/trna_genes.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "9b007cb938840818f5578241912eeb6264424a60c67479606337f863b81fb36e",
+      "size": 10120,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/atcc6919_GCF_008728435.1/2026-09-06.v1/trna_genes.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/annotation_changes_vs_v1.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "2e1308cc0985c19af74d150ca2cebe415190970bddc35abd441ffb23fe80f00b",
+      "size": 3531,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/annotation_changes_vs_v1.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/annotation_comparison.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "7c3f03abfd60c3600dddd6a36774743a5d721ac7555558d0b5285fd78314dc70",
+      "size": 672,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/annotation_comparison.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_published_kpa_comparison.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "55b27c88eaa9c766529ca34508076a931fcbc1ab3fa40aa0c276c5cd07296f35",
+      "size": 3656,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_published_kpa_comparison.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_published_kpa_metadata.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "bc631fe66ad35f43467a22697345c66159ac588fcb043bdf2b1a12eeedd1d73b",
+      "size": 603,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_published_kpa_metadata.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_reference_cds.fasta",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "36506c76759317e65301bd37af7f08252210a14e55f6274c0e9405169f3b91bd",
+      "size": 27807,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_reference_cds.fasta"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_reference_genes.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "9699796a12795079533da5bd86b71f2c99e9c8b9704b3d34135d7c34dd6838b5",
+      "size": 6261,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_reference_genes.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_reference_selection.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "ad4b6fba405eb56ab4a0a68816780f2b524df1f06b533dd0b53d56bf0e6035ba",
+      "size": 8999,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_reference_selection.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_weights.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "61e5c9f18b37a11b2e69172c964289517270ca9bbd318d58442fa877ccae68bf",
+      "size": 2474,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cai_weights.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cds_qc.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "07b0b9ea0cdd1b40a43bada4883518d14b5232d62fa455b57d9e175288797a9d",
+      "size": 253334,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/cds_qc.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/coding_gc_distribution.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "60d2923dcae934f9e356d0e0a31a96dc4ec42e51490582a4a1993daf301adc64",
+      "size": 1278,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/coding_gc_distribution.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/codon_pair_counts.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "2b0ffbe7aa67580534ac5ec5ecc658081de98f9d97c73a608177e5795113faea",
+      "size": 153890,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/codon_pair_counts.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/codon_parameters.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "0cfe89a11a5e54daf5646dacc80d55fc21413175c5ebd0b751d5b1249e2e16e1",
+      "size": 8763,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/codon_parameters.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/host_codon_counts.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "21cd20278ff4bd32417b83bb3e2a3c723b7e10f4db3e1c1911efe085308a560c",
+      "size": 5083,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/host_codon_counts.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/local_gc_60nt_histogram.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "06a7eee1102b69865978ce8ecb287eb15857daed59a4cca43d9bb6e83593a939",
+      "size": 1555,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/local_gc_60nt_histogram.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/local_gc_short_windows.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "f08adaed0278e1be498ef817d86cf4793ba74e5217327689a247f1fdefc6252d",
+      "size": 48,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/local_gc_short_windows.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/manifest.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "03c59483fc4f5cf459a7e08c5f65ad12fb1f81b0b8584cb003c89847005c2f81",
+      "size": 7572,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/manifest.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/native_gene_metrics.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "94d8e8fab827de0ec50862ce1c9251e8931f0562642f65217dc09e0d4f97d24d",
+      "size": 1067119,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/native_gene_metrics.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/native_rna_cds_only_background.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "3360ceecd0b55e3639d6bf40b687b8f28f75fa74d9dc8773071ec9195f0b0ad2",
+      "size": 1073483,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/native_rna_cds_only_background.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/reference_cds.fasta",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "33f9f0059a7b0a2311a38b1658de1e7fab535a9a2046f33eb3649503396d4aa6",
+      "size": 2416931,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/reference_cds.fasta"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/reference_proteins.fasta",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "3451e51f8c318cfc29db24da362e888f6d13d5d571b3ce54e59373270ff0c6a0",
+      "size": 878292,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/reference_proteins.fasta"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/rna_background_distribution.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "94a205d1ae6e7a7469eee8c72026fa71fc5890319d8c55482cdcd8989ffb59b6",
+      "size": 1495,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/rna_background_distribution.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/stai_fit_diagnostics.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "dabaf0785b78a9b995d83d83946e2c5fc11e4fe70734ca56388b170ff9449149",
+      "size": 2760,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/stai_fit_diagnostics.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/stai_fit_multistart.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "802117f69f2cd84362b41b20feb8ddac95d2b2a253fe1f62788d05f28935d8ec",
+      "size": 4889,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/stai_fit_multistart.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/stai_s_values.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "f4b6f918375d6e54c606042ce2e70848d9f995be3c29438305cabe64a99f3613",
+      "size": 267,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/stai_s_values.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/stai_weights.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "d7859f779afc2289dd3c51ab6e164ed76e1d365362d20f7e1ba9513e0144355f",
+      "size": 3917,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/stai_weights.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/tai_classic_weights.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "47b7dafb63a845985c4aa561f2fdf3722af3995dcf40267d18f39b4709839b0e",
+      "size": 4652,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/tai_classic_weights.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/tai_decoding_edges.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "dffbf95bf0a7f9267b55550f9dd79de9afb7abc08c2b8e85857c3a8319447551",
+      "size": 5226,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/tai_decoding_edges.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/tai_model.json",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "34921ecb4051695d55af6bc949992b2899698460b9fe3898204650a0a4837e6b",
+      "size": 1754,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/tai_model.json"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/trna_copy_counts.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "fcfb0b3a87f4127ea4a4b3bf4cf37e2fd6cd1e924ce386a024bc0e6d41d82c7c",
+      "size": 1872,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/trna_copy_counts.csv"
+    },
+    {
+      "group": "ais-reference",
+      "license": "Apache-2.0",
+      "path": "vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/trna_genes.csv",
+      "provenance_file": "vendor/ais-china-codon-optimization-v2/PROVENANCE.md",
+      "sha256": "f5332e4ef0e2d56185f08290d2bb00619e2de5ebbebb8c51193b30984170dab6",
+      "size": 10030,
+      "upstream_commit": "e8a57cf1b5696ed7b3931f6b63ea49afbc5ccbf9",
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/vendor/ais-china-codon-optimization-v2/data/hosts/kpa171202_GCF_000008345.1/2026-09-06.v1/trna_genes.csv"
+    },
+    {
+      "group": "expression-catalog",
+      "license_status": "Upstream provider terms apply; dataset-specific licensing not independently verified",
+      "path": "src/apps/expression/catalog/ecoli/105638__44541816.csv",
+      "provenance": {
+        "bioset_id": "44541816",
+        "catalog_schema_version": "2",
+        "csv_sha256": "b1ce3d84d956dcd5907138389d1c3076b70c6845f3669bd0f42790e98cc22da0",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "sha256": "b1ce3d84d956dcd5907138389d1c3076b70c6845f3669bd0f42790e98cc22da0",
+      "size": 58068,
+      "upstream_source_urls": [
+        "https://www.bv-brc.org/view/Bioset/44541816"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/ecoli/105638__44541816.csv"
+    },
+    {
+      "group": "expression-catalog",
+      "license_status": "Upstream provider terms apply; dataset-specific licensing not independently verified",
+      "path": "src/apps/expression/catalog/ecoli/138294__67644164.csv",
+      "provenance": {
+        "bioset_id": "67644164",
+        "catalog_schema_version": "2",
+        "csv_sha256": "452d25b413d6c3f3a6eec321da41adfe166578c95fc17492c2bc1fe5012f1cf0",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "sha256": "452d25b413d6c3f3a6eec321da41adfe166578c95fc17492c2bc1fe5012f1cf0",
+      "size": 58093,
+      "upstream_source_urls": [
+        "https://www.bv-brc.org/view/Bioset/67644164"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/ecoli/138294__67644164.csv"
+    },
+    {
+      "group": "expression-catalog",
+      "license_status": "Upstream provider terms apply; dataset-specific licensing not independently verified",
+      "path": "src/apps/expression/catalog/ecoli/85809__68952326.csv",
+      "provenance": {
+        "bioset_id": "68952326",
+        "catalog_schema_version": "2",
+        "csv_sha256": "e42c2b50e009a4e78f79d99579cf90f5bb1fe713d9e860013302dfa8ce1db360",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "sha256": "e42c2b50e009a4e78f79d99579cf90f5bb1fe713d9e860013302dfa8ce1db360",
+      "size": 58258,
+      "upstream_source_urls": [
+        "https://www.bv-brc.org/view/Bioset/68952326"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/ecoli/85809__68952326.csv"
+    },
+    {
+      "group": "expression-catalog",
+      "license_status": "Upstream provider terms apply; dataset-specific licensing not independently verified",
+      "path": "src/apps/expression/catalog/ecoli/88048__42635036.csv",
+      "provenance": {
+        "bioset_id": "42635036",
+        "catalog_schema_version": "2",
+        "csv_sha256": "65db01d06301430c7dfcff9b494da5df39b8cab9f171c765bdd8fd10aabaf59c",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "MG1655"
+      },
+      "sha256": "65db01d06301430c7dfcff9b494da5df39b8cab9f171c765bdd8fd10aabaf59c",
+      "size": 58174,
+      "upstream_source_urls": [
+        "https://www.bv-brc.org/view/Bioset/42635036"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/ecoli/88048__42635036.csv"
+    },
+    {
+      "group": "expression-catalog",
+      "license_status": "Upstream provider terms apply; dataset-specific licensing not independently verified",
+      "path": "src/apps/expression/catalog/ecoli/92117__44313016.csv",
+      "provenance": {
+        "bioset_id": "44313016",
+        "catalog_schema_version": "2",
+        "csv_sha256": "f3c666e557f115dcf9e82ae116b66c686c84157287e8572b19ec7115b0853cb2",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "strain": "W3110"
+      },
+      "sha256": "f3c666e557f115dcf9e82ae116b66c686c84157287e8572b19ec7115b0853cb2",
+      "size": 58082,
+      "upstream_source_urls": [
+        "https://www.bv-brc.org/view/Bioset/44313016"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/ecoli/92117__44313016.csv"
+    },
+    {
+      "data_license_url": "https://www.ebi.ac.uk/gxa/licence.html",
+      "group": "expression-catalog",
+      "license_status": "Expression Atlas data CC-BY-4.0; retain source attribution",
+      "path": "src/apps/expression/catalog/human/E-CURD-149__g3_g1.csv",
+      "provenance": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "55d87df07f0dec0059609d5d6f6634cac4559ae2e0a881bcdac3b9764122fc84",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "sha256": "55d87df07f0dec0059609d5d6f6634cac4559ae2e0a881bcdac3b9764122fc84",
+      "size": 102309,
+      "upstream_source_urls": [
+        "https://www.ebi.ac.uk/gxa/experiments/E-CURD-149/Results"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/human/E-CURD-149__g3_g1.csv"
+    },
+    {
+      "data_license_url": "https://www.ebi.ac.uk/gxa/licence.html",
+      "group": "expression-catalog",
+      "license_status": "Expression Atlas data CC-BY-4.0; retain source attribution",
+      "path": "src/apps/expression/catalog/human/E-CURD-45__g2_g1.csv",
+      "provenance": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "c0f51cdfd0bd5526e8430c74816f5884d6fd88432acdd13b686f12c24e960a4d",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "sha256": "c0f51cdfd0bd5526e8430c74816f5884d6fd88432acdd13b686f12c24e960a4d",
+      "size": 143524,
+      "upstream_source_urls": [
+        "https://www.ebi.ac.uk/gxa/experiments/E-CURD-45/Results"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/human/E-CURD-45__g2_g1.csv"
+    },
+    {
+      "data_license_url": "https://www.ebi.ac.uk/gxa/licence.html",
+      "group": "expression-catalog",
+      "license_status": "Expression Atlas data CC-BY-4.0; retain source attribution",
+      "path": "src/apps/expression/catalog/human/E-GEOD-103501__g3_g1.csv",
+      "provenance": {
+        "catalog_schema_version": "2",
+        "comparison_context": "normal",
+        "configuration_sha256": "0661bfca40eb651d53b488d22cac3aadf08ec56dbb535e2c24ea9d83a7b9ea75",
+        "configuration_url": "https://ftp.ebi.ac.uk/pub/databases/microarray/data/atlas/experiments/E-GEOD-103501/E-GEOD-103501-configuration.xml",
+        "contrast_metadata_verified_at": "2026-10-08",
+        "csv_sha256": "39b13a870d613c015d6cf72fa31e3e02b072d6cbe386b1fddce62a5ac757fa00",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_note": "Healthy/normal monocyte culture medium versus ex vivo/none; not arthritis versus healthy and not an LPS-stimulation comparison.",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "reference_assay_group": "g3",
+        "reference_assays": [
+          "SRR6006896",
+          "SRR6006895",
+          "SRR6006898",
+          "SRR6006897",
+          "SRR6006899"
+        ],
+        "reference_group_label": "normal; none",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null,
+        "test_assay_group": "g1",
+        "test_assays": [
+          "SRR6006877",
+          "SRR6006878",
+          "SRR6006876",
+          "SRR6006875"
+        ],
+        "test_group_label": "normal; Growth Medium"
+      },
+      "sha256": "39b13a870d613c015d6cf72fa31e3e02b072d6cbe386b1fddce62a5ac757fa00",
+      "size": 143566,
+      "upstream_source_urls": [
+        "https://www.ebi.ac.uk/gxa/experiments/E-GEOD-103501/Results"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/human/E-GEOD-103501__g3_g1.csv"
+    },
+    {
+      "data_license_url": "https://www.ebi.ac.uk/gxa/licence.html",
+      "group": "expression-catalog",
+      "license_status": "Expression Atlas data CC-BY-4.0; retain source attribution",
+      "path": "src/apps/expression/catalog/human/E-GEOD-54112__g2_g1.csv",
+      "provenance": {
+        "catalog_schema_version": "2",
+        "comparison_context": "neural progenitor cell",
+        "csv_sha256": "fb2138fef40828a92260232b97c327bddb8b21281669ad09d03048e2295c6ec1",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "sha256": "fb2138fef40828a92260232b97c327bddb8b21281669ad09d03048e2295c6ec1",
+      "size": 129525,
+      "upstream_source_urls": [
+        "https://www.ebi.ac.uk/gxa/experiments/E-GEOD-54112/Results"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/human/E-GEOD-54112__g2_g1.csv"
+    },
+    {
+      "data_license_url": "https://www.ebi.ac.uk/gxa/licence.html",
+      "group": "expression-catalog",
+      "license_status": "Expression Atlas data CC-BY-4.0; retain source attribution",
+      "path": "src/apps/expression/catalog/human/E-MTAB-2580__g1_g2.csv",
+      "provenance": {
+        "catalog_schema_version": "2",
+        "comparison_context": "REST RNA inference",
+        "csv_sha256": "4db6c15cee0e55a6138a7988586ee7c3a3fb3c3ace9b5a75104ff074aebf8374",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "sha256": "4db6c15cee0e55a6138a7988586ee7c3a3fb3c3ace9b5a75104ff074aebf8374",
+      "size": 144120,
+      "upstream_source_urls": [
+        "https://www.ebi.ac.uk/gxa/experiments/E-MTAB-2580/Results"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/human/E-MTAB-2580__g1_g2.csv"
+    },
+    {
+      "data_license_url": "https://www.ebi.ac.uk/gxa/licence.html",
+      "group": "expression-catalog",
+      "license_status": "Expression Atlas data CC-BY-4.0; retain source attribution",
+      "path": "src/apps/expression/catalog/yeast/E-GEOD-59814__g1_g2.csv",
+      "provenance": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "ba9d9015d4a8dac5a9944dca8960f76e5dc3eb212176ad76c7561e0360ff00bf",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "sha256": "ba9d9015d4a8dac5a9944dca8960f76e5dc3eb212176ad76c7561e0360ff00bf",
+      "size": 105828,
+      "upstream_source_urls": [
+        "https://www.ebi.ac.uk/gxa/experiments/E-GEOD-59814/Results"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/yeast/E-GEOD-59814__g1_g2.csv"
+    },
+    {
+      "data_license_url": "https://www.ebi.ac.uk/gxa/licence.html",
+      "group": "expression-catalog",
+      "license_status": "Expression Atlas data CC-BY-4.0; retain source attribution",
+      "path": "src/apps/expression/catalog/yeast/E-MTAB-10511__g5_g2.csv",
+      "provenance": {
+        "catalog_schema_version": "2",
+        "comparison_context": "none at 0 hour",
+        "csv_sha256": "c35b10437b963e958dbcc202fde536a24a01f925572a32f5f91e1647cedd5a83",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "sha256": "c35b10437b963e958dbcc202fde536a24a01f925572a32f5f91e1647cedd5a83",
+      "size": 65502,
+      "upstream_source_urls": [
+        "https://www.ebi.ac.uk/gxa/experiments/E-MTAB-10511/Results"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/yeast/E-MTAB-10511__g5_g2.csv"
+    },
+    {
+      "data_license_url": "https://www.ebi.ac.uk/gxa/licence.html",
+      "group": "expression-catalog",
+      "license_status": "Expression Atlas data CC-BY-4.0; retain source attribution",
+      "path": "src/apps/expression/catalog/yeast/E-MTAB-4651__g7_g1.csv",
+      "provenance": {
+        "catalog_schema_version": "2",
+        "comparison_context": "chemically defined medium 35 complete",
+        "csv_sha256": "6c585ae3a291a3373563f74fd7d526206e64b9fafb7e4ab577ce2a522e2ea4df",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "sha256": "6c585ae3a291a3373563f74fd7d526206e64b9fafb7e4ab577ce2a522e2ea4df",
+      "size": 102675,
+      "upstream_source_urls": [
+        "https://www.ebi.ac.uk/gxa/experiments/E-MTAB-4651/Results"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/yeast/E-MTAB-4651__g7_g1.csv"
+    },
+    {
+      "data_license_url": "https://www.ebi.ac.uk/gxa/licence.html",
+      "group": "expression-catalog",
+      "license_status": "Expression Atlas data CC-BY-4.0; retain source attribution",
+      "path": "src/apps/expression/catalog/yeast/E-MTAB-5313__g1_g2.csv",
+      "provenance": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "b8aec76d60dda946175371eef653f0014d64a1cffd7fab80ed23b6f5c7f98fec",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "sha256": "b8aec76d60dda946175371eef653f0014d64a1cffd7fab80ed23b6f5c7f98fec",
+      "size": 110008,
+      "upstream_source_urls": [
+        "https://www.ebi.ac.uk/gxa/experiments/E-MTAB-5313/Results"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/yeast/E-MTAB-5313__g1_g2.csv"
+    },
+    {
+      "data_license_url": "https://www.ebi.ac.uk/gxa/licence.html",
+      "group": "expression-catalog",
+      "license_status": "Expression Atlas data CC-BY-4.0; retain source attribution",
+      "path": "src/apps/expression/catalog/yeast/E-MTAB-7657__g3_g1.csv",
+      "provenance": {
+        "catalog_schema_version": "2",
+        "comparison_context": "",
+        "csv_sha256": "1525a033eccd1029b7bd12f16791b93347bd7dec24451de206d161e44c537a98",
+        "data_completeness": "historical_subset_source_total_unknown",
+        "interpretation_review": "pending_human_review",
+        "normalization_version": "contrast-context-v2",
+        "retained_rows": 3000,
+        "row_selection": "historical_top_abs_log2fc_up_to_3000",
+        "source_tested_rows": null
+      },
+      "sha256": "1525a033eccd1029b7bd12f16791b93347bd7dec24451de206d161e44c537a98",
+      "size": 112810,
+      "upstream_source_urls": [
+        "https://www.ebi.ac.uk/gxa/experiments/E-MTAB-7657/Results"
+      ],
+      "url": "https://raw.githubusercontent.com/zivbental/cernal_software/ca4e3b0d90d43f494ef3647b0098795f804fc2ba/src/apps/expression/catalog/yeast/E-MTAB-7657__g3_g1.csv"
+    }
+  ],
+  "history_dependency": true,
+  "profiles": {
+    "runtime": [
+      "transcriptomes",
+      "ais-reference",
+      "expression-catalog"
+    ],
+    "test": [
+      "transcriptomes",
+      "ais-reference",
+      "expression-catalog"
+    ]
+  },
+  "schema_version": 1,
+  "source_classification": "exact historical CERNAL assets; interim immutable GitHub source",
+  "source_commit": "ca4e3b0d90d43f494ef3647b0098795f804fc2ba"
+}

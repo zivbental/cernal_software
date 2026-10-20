@@ -27,9 +27,17 @@ in `prokaryotic_and`, distinct from the eukaryotic `and_gate` block.
    terminal-20 diagnostics and model provenance. Reuse unchanged upstream records.
    The AND pair order uses the lower of the two trigger scores. This reduction to
    a pair score is a declared selection policy, not a calibrated AND success probability.
-4. Carry top K whole pairs, or a seeded sample above a declared score percentile.
-   If discovery stops early, this ordering/percentile describes only the discovered pool.
-5. Explore bounded secondary-stem assignments and a declared lever grid, rotating
+4. By default, group complete pair/role/geometry records by maximal overlap length.
+   Reserve one slot per observed length when K permits, then fill remaining slots toward
+   proportional quotas from the eligible pool. Within each length, prefer higher minimum
+   partner accessibility. If K is smaller than the number of lengths, represent the lengths
+   with the best available pair scores. Record both length distributions and whether all
+   lengths were represented. `top` and seeded `percentile_sample` remain explicit alternatives.
+   Discovery limits make these distributions properties of the discovered eligible pool.
+5. Vary only the seven secondary-stem conflicts nearest x; fix farther conflicts to lock+B.
+   Enumerate all 3**min(n,7) assignments unless an explicitly tighter cap requests a sample.
+   Evaluate full binding-region energies and B's full invasion alignment, including fixed
+   positions and any scaffold cap in the lock. Explore the declared lever grid, rotating
    grid starts and interleaving pairs/stems. A-anchored stems face the same checks as
    other stems; their label never directly excludes them. An empty sampled stem set
    means none was found within that sample, not proof that the pair is unbuildable.
@@ -48,7 +56,8 @@ model scope does not establish that distal output interactions are absent.
 |---|---|
 | `max_pair_candidates`, `max_pair_seed_matches` | Discovery/storage caps, both 50,000; record truncation before sorting |
 | `max_pairs` | Whole compatible pairs carried, 8 |
-| `pair_selection`, `accessibility_percentile` | `top`, or `percentile_sample` using a lower percentile boundary (50 by default) and the job seed |
+| `pair_selection`, `accessibility_percentile` | `overlap_stratified` by default; `top` or seeded `percentile_sample` (50th percentile boundary) are explicit alternatives |
+| `max_variable_conflicts` | 7 conflicts nearest x; all farther conflicts fixed at lock+B |
 | `stems_per_pair`, `max_stem_assignments` | Up to 3 selected stems; at most 2,187 assignments per pair/geometry before Pareto pruning |
 | `max_attempts` | 160 attempted assemblies, including invalid ones |
 | `geometry` | `naive` (default), `kim`, or `both` |
@@ -64,7 +73,18 @@ environment permit them; no seconds-only performance target is imposed.
 The assignment cap 2,187 = 3^7 was an initial engineering budget, not a model-derived
 conflict count or a validated optimum. A pair with n conflicts has 3^n assignments.
 The cap does not mean 2,187 hairpins are carried to four-state folding; if it samples
-the space, the resulting Pareto front describes only those sampled assignments.
+the restricted space, the resulting Pareto front describes only those sampled assignments.
+Search evidence records the complete conflict list, variable and fixed positions (zero-based,
+from x toward the loop), unrestricted and restricted assignment counts, and whether the
+restricted space was enumerated completely. This distinguishes restricted enumeration
+from an exhaustive search over all conflicts. Research constructors keep
+`max_variable_conflicts=None` by default, preserving historical unrestricted sweeps.
+
+The default length coverage and three strong-lock-row A-site bins retain alternatives
+whose performance ordering has not been validated experimentally. Proportions are
+approximated subject to minimum coverage; rare lengths can be deliberately overrepresented.
+No preference for long overlaps or a particular A-site bin is asserted.
+
 
 Production selection keeps the strongest-lock row (most negative lock tertile) of
 the existing global 3x3 lock/A-site-energy grid. One representative nearest each
@@ -141,6 +161,19 @@ implemented replacement for the shared rank.
 
 For the scientific revision, current yield limitation and reproducible local audit,
 see [the review report](evidence/prokaryotic-and-revision-2026-10-18.md).
+
+### Off-target research and compiler boundary
+
+[`off_target_scan.py`](../src/engine/gates/notebooks/toehold_and/off_target_scan.py)
+implements two historical same-transcript questions: can another window fire the gate
+(`Q_false`), or block activation by its intended inputs (`Q_fail`)? It searches repeated
+recognition sequences outside the intended window, then optionally compares switch+decoy
+with switch alone and switch+A+B+decoy with switch+A+B. The folded second pass uses one
+baseline construction per pair; its verdict must not be copied to every lever variant.
+This research driver is not called by the production compiler and is not a genome-wide
+screen of the PFOA input genes. Production continues to report `off_target_screen=unmeasured`;
+no missing measurement becomes a clean result or an additional feasibility filter.
+
 
 ## Eukaryotic joint-stem AND
 

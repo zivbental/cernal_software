@@ -70,7 +70,8 @@ def test_misspelled_bacterial_setting_is_rejected_by_name(
     assert AnalysisRun.objects.count() == 0
 
 
-def test_bacterial_dry_run_echoes_effective_search_without_creating_a_run(auth_client):
+@pytest.mark.parametrize("policy", ["overlap_stratified", "percentile_sample"])
+def test_bacterial_dry_run_echoes_effective_search_without_creating_a_run(auth_client, policy):
     response = auth_client.post(
         "/api/design?dry_run=true",
         data=json.dumps(
@@ -82,7 +83,8 @@ def test_bacterial_dry_run_echoes_effective_search_without_creating_a_run(auth_c
                 "and_inputs": {"gene_a": "b3447", "gene_b": "b3846"},
                 "prokaryotic_and": {
                     "max_pairs": 2,
-                    "pair_selection": "percentile_sample",
+                    "pair_selection": policy,
+                    "max_variable_conflicts": 3,
                 },
                 "seed": 11,
             }
@@ -93,7 +95,8 @@ def test_bacterial_dry_run_echoes_effective_search_without_creating_a_run(auth_c
     resolved = response.json()["resolved"]
     assert resolved["and_inputs"] == {"gene_a": "b3447", "gene_b": "b3846"}
     assert resolved["prokaryotic_and"]["max_pairs"] == 2
-    assert resolved["prokaryotic_and"]["pair_selection"] == "percentile_sample"
+    assert resolved["prokaryotic_and"]["pair_selection"] == policy
+    assert resolved["prokaryotic_and"]["max_variable_conflicts"] == 3
     assert "full_context_finalists" not in resolved["prokaryotic_and"]
     assert resolved["budget"]["max_runtime_seconds"] > 0
     assert resolved["budget"]["on_exceed"] == "return_partial"

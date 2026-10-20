@@ -1,0 +1,127 @@
+/** Synthetic HTTP fixtures exercise the built SPA; API persistence is tested in pytest. */
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readFile, mkdir } from 'node:fs/promises';
+import { resolve, extname } from 'node:path';
+import { chromium } from 'playwright';
+
+const root = resolve(import.meta.dirname, '../../src/static/app');
+const evidence = resolve(import.meta.dirname, '../test-results/run-usability');
+await mkdir(evidence, {recursive:true});
+const server = createServer(async (req,res) => {
+  try {
+    const path=req.url.startsWith('/static/app/assets/') ? req.url.split('?')[0].replace('/static/app','') : '/index.html';
+    res.setHeader('Content-Type', ({'.js':'application/javascript','.css':'text/css','.svg':'image/svg+xml'})[extname(path)] ?? 'text/html');
+    res.end(await readFile(root+path));
+  } catch {res.writeHead(404).end();}
+});
+await new Promise(done=>server.listen(0,'127.0.0.1',done));
+const origin=`http://127.0.0.1:${server.address().port}`;
+const browser=await chromium.launch();
+const run={id:'usability-run',name:'',status:'COMPLETED',organism:'ecoli',stage:'Complete',created_at:'2026-10-19T10:00:00Z',params_snapshot:{},warnings:[],counts:{candidates:1,artifacts:1}};
+let failRename=false, held=false;
+const requests=[];
+const errors=[];
+try {
+  for(const viewport of [{width:1440,height:1000},{width:390,height:844}]) {
+    const page=await browser.newPage({viewport});
+    page.on('pageerror',error=>errors.push(error.message));
+    await page.route('**/api/**',async route=>{
+      const path=new URL(route.request().url()).pathname;
+      let body=[];
+      if(path==='/api/auth/me') body={id:1,username:'Fixture researcher',is_staff:false};
+      else if(path==='/api/auth/csrf') return route.fulfill({status:204,headers:{'set-cookie':'csrftoken=test; Path=/'}});
+      else if(path==='/api/version') body={app_version:'test',engine:'FixtureEngine',gate_families:[],supported_hosts:[],supported_outputs:[],scoring_profiles:[],available_backbones:[],input_modes:[]};
+      else if(path.endsWith('/artifacts/download')) return route.fulfill({body:'Synthetic archive fixture',headers:{'Content-Disposition':'attachment; filename="fixture.zip"','Content-Type':'application/zip'}});
+      else if(path==='/api/runs') body=[run];
+      else if(path===`/api/runs/${run.id}` && route.request().method()==='PATCH') {
+        requests.push(route.request().postDataJSON());
+        if(failRename) return route.fulfill({status:500,json:{error:{message:'Unable to save fixture name'}}});
+        run.name=route.request().postDataJSON().name.trim();
+        body=run;
+      } else if(path===`/api/runs/${run.id}` || path.endsWith('/detail')) body=run;
+      else if(path.endsWith('/candidates')) body={count:1,items:[{id:'fixture-candidate',rank:1,engine_ref:'fixture',overall_score:0.7,summary:'Synthetic candidate',gate_family:'toehold',is_rejected:false}]};
+      else if(path==='/api/candidates/fixture-candidate') body={id:'fixture-candidate',engine_ref:'fixture',warnings:[],metrics:[],design:{plasmid_segments:[],switch_sequence:'HELD_SEQUENCE_SENTINEL',sequence_release:{release_allowed:false}},triggers:{}};
+      else if(path.endsWith('/artifacts')) body=[{id:'report',name:'report.html',kind:'report',category:'reports',size_bytes:100,label:'Synthetic report',download_available:!held,download_url:'/api/artifacts/report/download'}];
+      return route.fulfill({json:body});
+    });
+    run.name='';
+    await page.goto(origin+'/dashboard');
+    const newCircuit=page.getByRole('link',{name:'New circuit',exact:true});
+    await newCircuit.waitFor();
+    const buttonBox=await newCircuit.boundingBox();
+    assert(buttonBox.y+buttonBox.height<viewport.height,'New Circuit is visible without scrolling');
+    await newCircuit.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('heading',{name:'Biological Compiler'}).waitFor();
+    assert.equal(await page.getByLabel('Run name (optional)').getAttribute('maxlength'),'120');
+    await page.goto(origin+'/runs/'+run.id);
+    await page.getByRole('heading',{name:'Computational Design Results'}).waitFor();
+    const name=page.getByLabel('Run name',{exact:true});
+    await name.fill('  GFP response — trial 1  ');
+    await page.keyboard.press('Tab');
+    assert.equal(await page.getByRole('button',{name:'Save name'}).evaluate(el=>el===document.activeElement),true);
+    await page.keyboard.press('Enter');
+    await page.getByRole('status').filter({hasText:'Run name saved.'}).waitFor();
+    assert.equal(requests.at(-1).name,'  GFP response — trial 1  ');
+    await page.getByRole('heading',{name:'GFP response — trial 1',exact:true}).waitFor();
+    await page.reload();
+    await page.getByRole('heading',{name:'GFP response — trial 1',exact:true}).waitFor();
+    const download=page.getByRole('link',{name:'Download everything (.zip)',exact:true});
+    await download.waitFor();
+    assert.equal(await download.getAttribute('href'),'/api/runs/usability-run/artifacts/download');
+    const downloadBox=await download.boundingBox();
+    const resultsBox=await page.getByRole('heading',{name:'Ranked Candidates',exact:true}).boundingBox();
+    assert(downloadBox.y<resultsBox.y,'Downloads precede the map and ranked results');
+    assert(downloadBox.x>=0 && downloadBox.x+downloadBox.width<=viewport.width,'Download fits narrow screens');
+    await download.focus();
+    assert(await download.evaluate(el=>el===document.activeElement),'Download is keyboard focusable');
+    const downloaded=page.waitForEvent('download');
+    await page.keyboard.press('Enter');
+    assert.equal((await downloaded).suggestedFilename(),'fixture.zip');
+    await page.evaluate(()=>window.scrollTo(0,0));
+    await page.screenshot({path:resolve(evidence,`results-${viewport.width}.png`),fullPage:true});
+    await page.getByRole('link',{name:'Run',exact:true}).click();
+    await page.getByRole('link',{name:/GFP response — trial 1/}).waitFor();
+    await page.screenshot({path:resolve(evidence,`dashboard-${viewport.width}.png`),fullPage:true});
+    await page.getByRole('link',{name:/GFP response — trial 1/}).click();
+    failRename=true;
+    await name.fill('Keep my draft');
+    await page.getByRole('button',{name:'Save name'}).click();
+    await page.getByRole('alert').filter({hasText:'Unable to save fixture name'}).waitFor();
+    assert.equal(await name.inputValue(),'Keep my draft');
+    failRename=false;
+    await page.getByRole('button',{name:'Save name'}).click();
+    await page.getByRole('heading',{name:'Keep my draft'}).waitFor();
+    await name.fill('x'.repeat(120));
+    await page.getByRole('button',{name:'Save name'}).click();
+    await page.getByRole('heading',{name:'x'.repeat(120)}).waitFor();
+    const heading=await page.getByRole('heading',{name:'x'.repeat(120)}).boundingBox();
+    assert(heading.x+heading.width<=viewport.width,'Long names wrap within viewport');
+    await name.fill('<script>alert("label")</script>');
+    await page.getByRole('button',{name:'Save name'}).click();
+    await page.getByRole('heading',{name:'<script>alert("label")</script>'}).waitFor();
+    assert.equal(await page.locator('h1 script').count(),0,'Names render as text');
+    await name.fill('');
+    await page.getByRole('button',{name:'Save name'}).click();
+    await page.getByRole('heading',{name:'Computational Design Results'}).waitFor();
+    held=true;
+    await page.reload();
+    const heldDownload=page.getByText('Download everything (.zip)',{exact:true});
+    await heldDownload.waitFor();
+    assert.equal(await heldDownload.getAttribute('href'),null);
+    assert.equal(await heldDownload.getAttribute('aria-disabled'),'true');
+    assert.equal(await page.getByText('HELD_SEQUENCE_SENTINEL',{exact:true}).count(),0);
+    const options=page.getByText('Choose files and review release information',{exact:true});
+    await options.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('button',{name:/Reports 1 file/}).click();
+    assert(await page.getByRole('button',{name:'Select report.html'}).isDisabled());
+    assert.equal(await page.getByTitle('Download report.html',{exact:true}).getAttribute('href'),null);
+    await page.screenshot({path:resolve(evidence,`held-${viewport.width}.png`),fullPage:true});
+    held=false;
+    await page.close();
+  }
+  assert.deepEqual(errors,[]);
+  console.log('Run usability passed: desktop/mobile New Circuit, keyboard naming, reload/history, retry, long/literal/empty names, download placement/focus, held release; screenshots:',evidence);
+} finally {await browser.close(); await new Promise(done=>server.close(done));}

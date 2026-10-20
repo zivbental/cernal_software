@@ -34,6 +34,7 @@ class AnalysisRunAdmin(admin.ModelAdmin):
     # A submitted run is immutable, and status transitions happen only in
     # apps/analyses/services.py (rules 5 and 7). Admin is for inspection, not repair.
     readonly_fields = (
+        "name",
         "input_mode",
         "trigger_sequence",
         "id",

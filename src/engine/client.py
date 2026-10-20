@@ -325,12 +325,15 @@ def validate_job_configuration(
     if "on_exceed" in budget and budget["on_exceed"] != "return_partial":
         raise ValueError("budget.on_exceed must be return_partial.")
     max_designs = budget.get("max_designs", 20)
-    if (
+    if max_designs is not None and (
         isinstance(max_designs, bool)
         or not isinstance(max_designs, int)
         or not 1 <= max_designs <= 1000
     ):
-        raise ValueError("budget.max_designs must be an integer between 1 and 1000.")
+        raise ValueError(
+            "budget.max_designs must be null (all generated designs) "
+            "or an integer between 1 and 1000."
+        )
     selections = [organism, *(params[key] for key in ("host", "organism") if key in params)]
     if any(not isinstance(value, str) for value in selections):
         raise ValueError("organism/host selections must be strings.")
@@ -608,7 +611,7 @@ class LocalEngine:
     ``ENGINE_VERSION`` says so directly rather than claiming more than this build does.
     """
 
-    ENGINE_VERSION = "local-0.15.1-prokaryotic-and-equilibrium"
+    ENGINE_VERSION = "local-0.15.2-prokaryotic-and-equilibrium"
 
     def run(self, request: JobRequest, on_progress: ProgressFn) -> JobResult:
         """Delegate to the real pipeline.

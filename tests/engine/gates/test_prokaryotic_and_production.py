@@ -241,7 +241,66 @@ def test_research_defaults_keep_full_grid_and_barrier(production):
     )
     assert research.compute_barrier is True
     assert research.max_secondary_assignments is None
+    assert research.max_variable_conflicts is None
     assert len(list(research._axis_grid())) == 16 * 3 * 2
+
+
+@pytest.mark.parametrize("variable_count", [0, 7])
+def test_only_conflicts_nearest_x_vary_and_farther_positions_keep_lock_b(
+    production, monkeypatch, variable_count
+):
+    gate, _design = production
+    monkeypatch.setattr(gate, "max_variable_conflicts", variable_count)
+    monkeypatch.setattr(gate, "max_secondary_assignments", None)
+    # Synthetic sequence used only to observe construction choices, not gate performance.
+    length = gate.SECONDARY_INVASION_LEN - 4
+    extension = "".join("G" if i in {0, 3, 7} else "C" for i in range(length))
+    conflicts = tuple(i for i in range(length) if i not in {0, 3, 7})
+    variable = conflicts[:variable_count]
+    a = "A" * gate.ARM_LEN + "ACGU" + extension
+    b = "C" * length + "ACGU" + "A" * gate.TOEHOLD_B_LEN
+    observed = []
+    energy_lengths = set()
+    build = toehold._build_arms
+    energy = toehold.fixed_alignment_energy
+
+    def capture(extension, binding, states):
+        observed.append(dict(states))
+        return build(extension, binding, states)
+
+    monkeypatch.setattr(toehold, "_build_arms", capture)
+
+    def capture_energy(first, second, folder):
+        energy_lengths.add((len(first), len(second)))
+        return energy(first, second, folder)
+
+    monkeypatch.setattr(toehold, "fixed_alignment_energy", capture_energy)
+    gate.secondary_stems(a, b, 4)
+    assert len(observed) == 3**variable_count
+    assert len({tuple(row[i] for i in variable) for row in observed}) == 3**variable_count
+    assert all(set(row) == set(conflicts) for row in observed)
+    assert all(row[i] == "lockB" for row in observed for i in conflicts[variable_count:])
+    assert (length, length) in energy_lengths
+    assert (length + 4, length + 4) in energy_lengths
+    assert (length + len(gate.SECONDARY_CAP),) * 2 in energy_lengths
+
+
+def test_restricted_search_records_positions_and_distinguishes_full_from_restricted_enumeration(
+    production, monkeypatch
+):
+    gate, design = production
+    monkeypatch.setattr(gate, "max_variable_conflicts", 7)
+    monkeypatch.setattr(gate, "max_secondary_assignments", None)
+    # Capture scope on the existing known-buildable fixture; this does not claim feasibility.
+    rebuilt = next(gate.generate_designs(design.trigger_set, Constraints(stems_per_pair=1)))
+    scope = rebuilt.architecture["secondary_search"]
+    assert len(scope["variable_positions_from_x_zero_based"]) == 7
+    assert scope["restricted_space_exhaustive"] is True
+    assert scope["exhaustive"] is (
+        scope["unrestricted_assignments_total"] == scope["assignments_total"]
+    )
+    assert scope["assignments_total"] == scope["assignments_considered"] == 2187
+    assert scope["unrestricted_assignments_total"] >= scope["assignments_total"]
 
 
 @pytest.mark.parametrize("cross_gene", [False, True])

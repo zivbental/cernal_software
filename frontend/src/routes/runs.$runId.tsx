@@ -3,21 +3,18 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Ban, CircuitBoard, Dna, Loader2, FileText } from "lucide-react";
 
 import { api } from "@/api/client";
-import { useCancelRun, useCandidate, useCandidates, useRun, useRunStatus } from "@/api/queries";
+import { useCancelRun, useCandidate, useCandidates, useRenameRun, useRun, useRunStatus } from "@/api/queries";
 import type { Candidate, RunStatusResponse } from "@/api/types";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/layout/RequireAuth";
 import { Panel, SectionHeading } from "@/components/layout/Primitives";
-import { CandidateReview } from "@/components/results/CandidateReview";
-import { ArtifactDownloads } from "@/components/results/ArtifactDownloads";
+import { ArtifactDownloads, DownloadAllButton } from "@/components/results/ArtifactDownloads";
 import { MetricGrid } from "@/components/results/MetricGrid";
 import { AndGateEvidence } from "@/components/results/AndGateEvidence";
 import { PlasmidLegend, PlasmidRing } from "@/components/results/PlasmidRing";
 import { LogicCircuitView } from "@/components/results/LogicCircuit";
 import { RnaStructureView } from "@/components/results/RnaStructureView";
 import { RunStatusBadge } from "@/components/results/RunStatusBadge";
-import { SequenceScreening } from "@/components/results/SequenceScreening";
-import { PrecisionFilters, type Filters, DEFAULT_FILTERS } from "@/components/results/PrecisionFilters";
 import { Loading } from "@/components/layout/Loading";
 
 export const Route = createFileRoute("/runs/$runId")({
@@ -56,18 +53,20 @@ function RunPage() {
             <span className="font-mono normal-case tracking-normal">{runId.slice(0, 8)}</span>
           </>
         }
-        title={done ? "Computational Design Results" : status.data.status === "FAILED" ? "Run failed" : status.data.status === "CANCELLED" ? "Run cancelled" : "Compiling your circuit"}
+        title={run.data?.name || status.data.name || (done ? "Computational Design Results" : status.data.status === "FAILED" ? "Run failed" : status.data.status === "CANCELLED" ? "Run cancelled" : "Compiling your circuit")}
         description={
           done
-            ? "Candidates ranked using provisional folding and accessibility models. Off-target specificity is unmeasured; computation completion does not authorize sequence release."
+            ? "Compare design candidates and download the run summary and available files."
             : "The engine is working. This page updates by itself — you can leave and come back."
         }
-        actions={<RunStatusBadge status={status.data.status} />}
+        actions={<div className="flex flex-wrap items-center justify-end gap-2">
+          <RunStatusBadge status={status.data.status} />
+          {done && <DownloadAllButton runId={runId} />}
+        </div>}
       />
 
-      <WarningList title="Run warnings" warnings={status.data.warnings ?? []} />
+      {run.data && <RunNameEditor key={runId} runId={runId} name={run.data.name || ""} />}
       {run.isError && <p role="alert">Could not load the frozen run configuration. <button onClick={() => run.refetch()}>Retry</button></p>}
-      {run.data && <details className="mb-4 rounded-xl border border-border p-4"><summary>Run provenance and frozen configuration</summary><p>Engine {run.data.engine_version || "pending"} · Seed {run.data.seed ?? "unspecified"} · Host {run.data.organism}</p><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(run.data.params_snapshot, null, 2)}</pre></details>}
       {done ? (
         run.data ? <Results key={runId} topN={run.data.params_snapshot.top_n} runId={runId} outputs={run.data.params_snapshot.payload?.outputs ?? []} /> : run.isLoading ? <Loading /> : null
       ) : <RunProgress runId={runId} status={status.data} />}
@@ -76,6 +75,38 @@ function RunPage() {
 }
 
 /* ---------- progress, failure, cancellation ---------- */
+
+function RunNameEditor({ runId, name }: { runId: string; name: string }) {
+  const rename = useRenameRun(runId);
+  const [draft, setDraft] = useState(name);
+  return (
+    <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={async (event) => {
+      event.preventDefault();
+      try { const saved = await rename.mutateAsync(draft); setDraft(saved.name); } catch { /* Keep draft for retry. */ }
+    }}>
+      <div className="min-w-0 flex-1 basis-64">
+        <label htmlFor="edit-run-name" className="block text-xs font-medium">Run name</label>
+        <input id="edit-run-name" value={draft} onChange={(event) => { setDraft(event.target.value); rename.reset(); }}
+          maxLength={120} disabled={rename.isPending} aria-describedby="edit-run-name-help"
+          className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm" />
+      </div>
+      <button type="submit" disabled={rename.isPending || draft === name}
+        className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50">{rename.isPending ? "Saving…" : "Save name"}</button>
+      <p id="edit-run-name-help" className="basis-full text-xs text-muted-foreground">Up to 120 characters. Leave blank to use the run ID. Renaming does not change the configuration.</p>
+      {rename.isError && <p role="alert" className="basis-full text-sm text-destructive">{rename.error.message}</p>}
+      {rename.isSuccess && <p role="status" className="basis-full text-sm">Run name saved.</p>}
+    </form>
+  );
+}
+
+const OUTPUT_LABELS: Record<string, string> = {
+  gfp: "GFP",
+  mcherry: "mCherry",
+  luciferase: "Luciferase",
+  ampr: "AmpR",
+  apoptosis: "Apoptosis",
+  other: "Custom",
+};
 
 function RunProgress({ runId, status }: { runId: string; status: RunStatusResponse }) {
   const cancel = useCancelRun(runId);
@@ -181,32 +212,23 @@ function RunProgress({ runId, status }: { runId: string; status: RunStatusRespon
 function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId: string; outputs: string[]; topN?: number }) {
   // Older /runs submissions allowed freeform params; invalid historical values mean all results.
   const topN = typeof savedTopN === "number" && Number.isInteger(savedTopN) && savedTopN >= 1 && savedTopN <= 1000 ? savedTopN : undefined;
-  const [showAll, setShowAll] = useState(false);
-  const limited = !showAll && topN !== undefined;
   const [offset, setOffset] = useState(0);
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<"plasmid" | "logic" | "rna">("plasmid");
 
-  const [outputFilter, setOutputFilter] = useState<string | null>(null);
   const candidates = useCandidates(runId, {
-    topN: limited ? topN : undefined,
-    includeRejected: filters.includeRejected,
-    sort: filters.sort,
+    topN,
+    sort: "rank",
     limit: 50,
     offset,
-    output: outputFilter ?? undefined,
-    minScore: filters.minScore / 100,
   });
 
   const items = candidates.data?.items ?? [];
   // A run can target several equivalent outputs, each compiled into its own plasmids.
   const outputs = [...new Set([...configuredOutputs.map((output) => ({ gfp: "GFP", other: "Custom", mcherry: "mCherry", luciferase: "Luciferase", ampr: "AmpR", apoptosis: "Apoptosis" }[output] ?? output)), ...items.map(outputOf).filter(Boolean)])] as string[];
-  const visible = items;
-
   useEffect(() => {
-    if (!visible.some((candidate) => candidate.id === selectedId)) setSelectedId(visible[0]?.id ?? null);
-  }, [selectedId, visible]);
+    if (!items.some((candidate) => candidate.id === selectedId)) setSelectedId(items[0]?.id ?? null);
+  }, [selectedId, items]);
 
   const detail = useCandidate(selectedId);
 
@@ -221,49 +243,8 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
           <SectionHeading
             kicker="Step 04 · Fulfillment"
             title="Ranked Candidates"
-            desc={`${candidates.data?.count ?? 0} matching candidates. Showing ${items.length ? offset + 1 : 0}–${offset + items.length}. ${limited ? `Filters apply within the globally top ${topN} accepted results.` : "Filters apply to the entire run."}`}
+            desc={`${candidates.data?.count ?? 0} candidates. Showing ${items.length ? offset + 1 : 0}–${offset + items.length}.`}
           />
-
-          <div className="mb-4 space-y-2 text-sm">
-            <label className="flex items-center gap-2">
-              Result view
-              <select aria-label="Result view" value={limited ? "top" : "all"}
-                onChange={(event) => {
-                  setShowAll(event.target.value === "all");
-                  setFilters((current) => ({ ...current, includeRejected: false }));
-                  setOffset(0);
-                }} className="rounded-md border border-border bg-card px-3 py-2">
-                {topN !== undefined && <option value="top">Top {topN} accepted results</option>}
-                <option value="all">All stored results</option>
-              </select>
-            </label>
-            <p className="text-xs text-muted-foreground">
-              The display limit selects the globally top-ranked accepted results before filters or table sorting. It does not reduce computation or stored results.
-              Exports retain all results. Showing rejected candidates switches to all stored results.
-            </p>
-          </div>
-
-          {outputs.length > 1 && (
-            <div className="mb-6 flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                Output
-              </span>
-              {[null, ...outputs].map((output) => (
-                <button
-                  key={output ?? "all"}
-                  onClick={() => { setOutputFilter(output); setOffset(0); }}
-                  className={`rounded-md border px-3 py-1 text-xs transition ${
-                    outputFilter === output
-                      ? "border-mint bg-mint/10 text-mint"
-                      : "border-border bg-surface text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {output ?? "All outputs"}
-
-                </button>
-              ))}
-            </div>
-          )}
 
           <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
             <div className="rounded-2xl border border-border bg-gradient-to-br from-surface to-card p-6">
@@ -271,10 +252,10 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                      {detail.data.engine_ref} ·{" "}
+                      {detail.data.rank ? `Candidate #${detail.data.rank}` : "Candidate details"} ·{" "}
                       {view === "plasmid" ? "Plasmid Map" : view === "logic" ? "Logic Circuit" : "RNA Structure"}
                     </div>
-                    <div className="inline-flex flex-wrap rounded-lg border border-border bg-surface p-1">
+                    <div className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface p-1">
                       {(
                         [
                           { k: "plasmid", label: "Plasmid Map", Icon: Dna },
@@ -320,38 +301,30 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
                     )}
                   </div>
 
-                  <WarningList title="Candidate warnings" warnings={detail.data.warnings ?? []} />
-                  <SequenceScreening key={detail.data.id} candidate={detail.data} />
-                  <p className="mt-3 text-xs">{detail.data.is_rejected ? "Rejected from ranking" : "Accepted for computational ranking"}. {detail.data.design.plasmid_segments?.some((segment) => segment.kind === "backbone") ? "Vector-containing construct" : "Bare expression cassette"}. Export release is a separate decision; see warnings and available artifacts.</p>
-                  <details className="mt-3"><summary>Reference identity and model provenance</summary><pre className="overflow-auto text-xs">{JSON.stringify({ triggers: detail.data.triggers, design: detail.data.design }, null, 2)}</pre></details>
+                  <p className="mt-3 text-xs text-muted-foreground">{detail.data.is_rejected ? "Not included in the ranked results." : "Included in the computational ranking."} {detail.data.design.plasmid_segments?.some((segment) => segment.kind === "backbone") ? "Includes a selected vector." : "Shown as an expression cassette without a vector."}</p>
+                  <details className="mt-3 rounded-lg border border-border bg-card p-3">
+                    <summary className="cursor-pointer text-sm font-medium">Show technical design labels</summary>
+                    <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                      <div><dt className="text-muted-foreground">Candidate reference</dt><dd className="mt-0.5 font-mono">{detail.data.engine_ref}</dd></div>
+                      <div><dt className="text-muted-foreground">Switch family</dt><dd className="mt-0.5">{detail.data.gate_family.replaceAll("_", " ")}</dd></div>
+                      <div><dt className="text-muted-foreground">Logic type</dt><dd className="mt-0.5">{detail.data.logic_type.replaceAll("_", " ")}</dd></div>
+                      {detail.data.output && <div><dt className="text-muted-foreground">Selected output</dt><dd className="mt-0.5">{detail.data.output}</dd></div>}
+                    </dl>
+                  </details>
                   {detail.data.design.and_gate && <AndGateEvidence info={detail.data.design.and_gate} />}
-                  <div className="mt-6 rounded-xl border border-border bg-card p-4">
-                    <div className="mb-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                      Score decomposition
-                    </div>
-                    <MetricGrid metrics={detail.data.metrics} />
-                  </div>
+                  <details className="mt-4 rounded-xl border border-border bg-card p-4">
+                    <summary className="cursor-pointer text-sm font-medium text-foreground">Why this candidate ranks this way</summary>
+                    <p className="mt-2 text-xs text-muted-foreground">The breakdown below explains how the computational ranking was calculated. It does not estimate experimental success.</p>
+                    <div className="mt-4"><MetricGrid metrics={detail.data.metrics} /></div>
+                  </details>
 
-                  <CandidateReview key={detail.data.id} candidateId={detail.data.id} />
-                  <div className="mt-4 rounded-xl border border-border bg-card p-3">
-                    <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Switch sequence 5&rsquo; → 3&rsquo;
-                    </div>
-                    <div className="mt-1 break-all font-mono text-[11px] text-foreground">
-                      {detail.data.design.sequence_release?.release_allowed === true
-                        ? detail.data.design.switch_sequence
-                        : "Sequence withheld pending release approval. Scores and computational eligibility do not authorize sequence release."}
-                    </div>
-                  </div>
                 </>
               ) : selectedId ? <Loading /> : <p>No candidate is selected. This run has no results matching the current filters.</p>}
             </div>
 
             <div>
-              <PrecisionFilters filters={filters} onChange={(next) => { setFilters(next); if (next.includeRejected) setShowAll(true); setOffset(0); }} />
-
-              <div className="mt-4 space-y-2">
-                {visible.map((candidate) => (
+              <div className="space-y-2">
+                {items.map((candidate) => (
                   <CandidateRow
                     key={candidate.id}
                     candidate={candidate}
@@ -360,9 +333,9 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
                     onSelect={() => setSelectedId(candidate.id)}
                   />
                 ))}
-                {visible.length === 0 && (
+                {items.length === 0 && (
                   <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted-foreground">
-                    No candidates match these filters. Loosen them to see more.
+                    No candidates were produced for this run.
                   </div>
                 )}
               </div>
@@ -388,8 +361,9 @@ function Results({ runId, outputs: configuredOutputs, topN: savedTopN }: { runId
         </div>
       </Panel>
 
-      <a className="inline-block text-sm underline" href={api.url(`/runs/${runId}/review.json`)}>Export researcher notes and decisions (JSON)</a>
       <ArtifactDownloads runId={runId} />
+
+      <a className="inline-block text-sm underline" href={api.url(`/runs/${runId}/review.json`)}>Export researcher notes and decisions (JSON)</a>
     </div>
   );
 }
@@ -416,10 +390,7 @@ function CandidateRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-mono text-sm font-semibold text-foreground">
-            {candidate.rank ? `#${candidate.rank}` : "—"}
-          </span>
-          <span className="truncate font-mono text-xs text-muted-foreground">
-            {candidate.engine_ref}
+            {candidate.rank ? `Candidate #${candidate.rank}` : "Unranked candidate"}
           </span>
           {output && (
             <span className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
@@ -435,7 +406,9 @@ function CandidateRow({
             </span>
           )}
         </div>
-        <div className="mt-0.5 truncate text-xs text-muted-foreground">{candidate.summary}</div>
+        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+          {candidate.output ? `Output: ${OUTPUT_LABELS[candidate.output] ?? candidate.output}` : "RNA switch design"}
+        </div>
         {candidate.is_rejected && (
           <div className="mt-1 text-[11px] text-destructive">{candidate.rejection_reason}</div>
         )}
@@ -450,7 +423,7 @@ function CandidateRow({
         <div className="font-mono text-lg font-semibold text-foreground">
           {score === null ? "—" : `${Math.round(score * 100)}%`}
         </div>
-        <div className="font-mono text-[10px] text-muted-foreground">score</div>
+        <div className="font-mono text-[10px] text-muted-foreground">ranking</div>
       </div>
     </button>
   );
@@ -476,10 +449,3 @@ function toDesignLogic(graph: import("@/api/types").LogicGraph | undefined) {
 
 /** What a candidate expresses. Resolved by the API from design.logic_graph.output. */
 const outputOf = (candidate: Candidate) => candidate.output;
-
-function WarningList({ title, warnings }: { title: string; warnings: string[] }) {
-  const [offset, setOffset] = useState(0);
-  if (!warnings.length) return null;
-  const start = Math.min(offset, Math.floor((warnings.length - 1) / 50) * 50);
-  return <details className="my-4 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4"><summary>{title} ({warnings.length})</summary><ul className="mt-2 space-y-1 text-sm">{warnings.slice(start, start + 50).map((warning, index) => <li key={start + index}>{warning}</li>)}</ul>{warnings.length > 50 && <nav aria-label={`${title} pages`} className="mt-2 flex justify-between"><button disabled={start === 0} onClick={() => setOffset(Math.max(0, start - 50))}>Previous warnings</button><span>{start + 1}–{Math.min(start + 50, warnings.length)} of {warnings.length}</span><button disabled={start + 50 >= warnings.length} onClick={() => setOffset(start + 50)}>Next warnings</button></nav>}</details>;
-}

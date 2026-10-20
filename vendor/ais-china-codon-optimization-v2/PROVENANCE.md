@@ -62,3 +62,15 @@ ViennaRNA energy parameters still match the ones `FoldEngine` folds with. If it 
 after an update, the update must not be merged: a second energy model inside the process
 would put `gate_folding_energy` on an axis that no longer matches
 `FoldEngine.versions()`.
+
+## CERNAL installation packaging (2026-10-19)
+
+The original vendoring record above describes the complete installed tree. The
+`data/hosts/` files are now installed separately by `python tools/install_data.py`
+from the immutable CERNAL commit `ca4e3b0d90d43f494ef3647b0098795f804fc2ba`.
+`data/manifest.json` at the CERNAL root pins every file's size and SHA-256. Both
+host packages are restored byte-for-byte, including CRLF; no upstream data or code
+is transformed. Source, config, docs and license remain tracked. The existing
+recursive content hash still applies after data installation. This changes delivery,
+not upstream file contents. See CERNAL's `docs/data-installation.md` for cache,
+offline setup and the interim source's dependency on retained GitHub history.
